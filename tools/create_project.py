@@ -545,6 +545,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Load user settings (AI config, display prefs, etc.)
             Phyxel::Core::GameSettings::loadFromFile("settings.json", settings_);
 
+            // Push keybindings into the InputManager action map (single source of
+            // truth for action->key, so rebinds take effect at runtime). The
+            // InputManager already seeds engine defaults, so an empty list just
+            // keeps those; a non-empty list (user rebinds) overrides per action.
+            if (settings_.keybindings.empty())
+                settings_.keybindings = Phyxel::Core::GameSettings::defaultKeybindings();
+            if (auto* in = engine.getInputManager()) {{
+                for (const auto& kb : settings_.keybindings)
+                    in->bindAction(kb.action, kb.key, kb.modifiers);
+                in->setInvertY(settings_.invertY);
+            }}
+
             // AI conversation service — enables LLM-driven NPC dialogue
             aiConversationService_ = std::make_unique<Phyxel::AI::AIConversationService>(
                 storyEngine_.get(), entityRegistry_.get(), dialogueSystem_.get());
@@ -1062,9 +1074,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             else if (!activeDataScreen_.empty()) Phyxel::UI::unloadGameScreenFrom(*ui, activeDataScreen_);
                             if (!want.empty()) {{
                                 Phyxel::UI::MenuActions a;
-                                a.onResolveVariable = [](const std::string& t) -> std::optional<std::string> {{
+                                a.onResolveVariable = [this](const std::string& t) -> std::optional<std::string> {{
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
+                                    // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
+                                    if (t.rfind("keybind.", 0) == 0) {{
+                                        const auto* b = settings_.findBinding(t.substr(8));
+                                        if (!b) return std::string("(unbound)");
+                                        std::string s = Phyxel::Core::keyToString(b->key);
+                                        if (b->modifiers) s = Phyxel::Core::modifiersToString(b->modifiers) + "+" + s;
+                                        return s;
+                                    }}
                                     return std::nullopt;
                                 }};
                                 a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
@@ -1151,6 +1171,37 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     else if (k == "aiApiKey") settings_.aiApiKey = v;
                                     {{ Phyxel::AI::LLMConfig cfg; cfg.provider = settings_.aiProvider; cfg.model = settings_.aiModel; cfg.apiKey = settings_.aiApiKey; if (aiConversationService_) aiConversationService_->setLLMConfig(cfg); }}
                                 }};
+                                // Keybinding rebind: a "kb_<Action>" key button starts UISystem key
+                                // capture; the captured key writes GameSettings + the live InputManager
+                                // action map and refreshes the row label. ESC restores the old binding.
+                                a.onRebindKey = [this](const std::string& action) {{
+                                    if (!renderCoordinator_) return;
+                                    auto* ui = renderCoordinator_->getUISystem();
+                                    auto* in = engine_ ? engine_->getInputManager() : nullptr;
+                                    if (!ui || !in) return;
+                                    auto setRowText = [ui, action](const std::string& s) {{
+                                        if (auto* p = ui->getScreen("settings:keybindings"))
+                                            if (auto* w = p->findChild("kb_" + action))
+                                                if (w->type() == Phyxel::UI::WidgetType::Button)
+                                                    static_cast<Phyxel::UI::UIButton*>(w)->text = s;
+                                    }};
+                                    auto bindingLabel = [this](const std::string& act) -> std::string {{
+                                        const auto* b = settings_.findBinding(act);
+                                        if (!b) return std::string("(unbound)");
+                                        std::string s = Phyxel::Core::keyToString(b->key);
+                                        if (b->modifiers) s = Phyxel::Core::modifiersToString(b->modifiers) + "+" + s;
+                                        return s;
+                                    }};
+                                    setRowText("< press a key >");
+                                    ui->beginKeyCapture(
+                                        [this, in, action, setRowText, bindingLabel](int key, int mods) {{
+                                            settings_.setBinding(action, key, mods);
+                                            in->bindAction(action, key, mods);
+                                            settings_.saveToFile("settings.json");
+                                            setRowText(bindingLabel(action));
+                                        }},
+                                        [action, setRowText, bindingLabel]() {{ setRowText(bindingLabel(action)); }});
+                                }};
                                 if (want == "pause") Phyxel::UI::loadPauseMenuInto(*ui, a);
                                 else                 Phyxel::UI::loadGameScreenInto(*ui, want, a);
                             }}
@@ -1206,9 +1257,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 case Phyxel::UI::ScreenState::Settings:
                     // Settings is now the data-driven "settings:*" UISystem overlay
                     // loaded + driven by the reconcile above (no ImGui). Standard
-                    // Graphics/Audio/Controls; changes apply live + save on Back.
-                    // Deferred: keybinding rebind, brightness, invert-Y, AI settings.
-                    // (docs/HudSystem.md §11a.)
+                    // Graphics/Audio/Controls + keybinding rebind (keybindings
+                    // sub-panel, onRebindKey), brightness, invert-Y, AI settings.
+                    // Changes apply live + save on Back. (docs/HudSystem.md §11a.)
                     break;
 
                 default:

@@ -525,10 +525,12 @@ static glm::vec4 parseColorArr(const nlohmann::json& j, glm::vec4 def) {
     return def;
 }
 
-// Show only one "menu:*" screen (submenu navigation).
-static void menuShowOnly(UISystem& ui, const std::string& screen) {
+// Show only one screen within a "<prefix>*" namespace (submenu navigation). Works
+// for any overlay namespace ("menu:", "settings:", …) so sub-panels can navigate.
+static void showOnlyInNamespace(UISystem& ui, const std::string& nsPrefix,
+                                const std::string& screen) {
     for (const auto& [name, vis] : ui.getScreenList()) {
-        if (name.rfind("menu:", 0) != 0) continue;
+        if (name.rfind(nsPrefix, 0) != 0) continue;
         if (name == screen) ui.showScreen(name); else ui.hideScreen(name);
     }
 }
@@ -565,7 +567,8 @@ static std::string resolveTokens(const std::string& text, const MenuActions& act
 }
 
 static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
-        const MenuActions& actions, UISystem& ui, const std::string& startPanel) {
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel,
+        const std::string& nsPrefix) {
     std::string type = el.value("type", "");
     glm::vec2 posv{0, 0}, sizev{100, 40};
     if (el.contains("position") && el["position"].is_array() && el["position"].size() >= 2)
@@ -604,8 +607,9 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             else if (at == "show_credits") { auto cb = actions.onShowCredits; w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "start_game")   { auto cb = actions.onStartGame;   w->onClick = [cb] { if (cb) cb(); }; }
             else if (at == "back")         { auto cb = actions.onBack;        w->onClick = [cb] { if (cb) cb(); }; }
-            else if (at == "open_submenu") { w->onClick = [uip, target]    { menuShowOnly(*uip, "menu:" + target); }; }
-            else if (at == "close_submenu"){ w->onClick = [uip, startPanel]{ menuShowOnly(*uip, "menu:" + startPanel); }; }
+            else if (at == "open_submenu") { w->onClick = [uip, target, nsPrefix]    { showOnlyInNamespace(*uip, nsPrefix, nsPrefix + target); }; }
+            else if (at == "close_submenu"){ w->onClick = [uip, startPanel, nsPrefix]{ showOnlyInNamespace(*uip, nsPrefix, nsPrefix + startPanel); }; }
+            else if (at == "rebind")       { auto cb = actions.onRebindKey; std::string b = a.value("binding", ""); w->onClick = [cb, b] { if (cb) cb(b); }; }
         }
         return w;
     }
@@ -734,7 +738,7 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
 
         if (pdef.contains("children") && pdef["children"].is_array()) {
             for (const auto& el : pdef["children"]) {
-                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel)) root->addChild(std::move(w));
+                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel, "menu:")) root->addChild(std::move(w));
             }
         }
         ui.addScreen("menu:" + it.key(), std::move(root));
@@ -803,7 +807,7 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
 
         if (pdef.contains("children") && pdef["children"].is_array()) {
             for (const auto& el : pdef["children"]) {
-                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel))
+                if (auto w = buildMenuElement(el, sx, sy, actions, ui, startPanel, nsPrefix))
                     root->addChild(std::move(w));
             }
         }

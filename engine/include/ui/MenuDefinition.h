@@ -99,6 +99,12 @@ struct MenuActions {
     /// AI model / API key). Read the current value to initialize, apply on edit.
     std::function<std::string(const std::string& key)> onGetSettingText;
     std::function<void(const std::string& key, const std::string& value)> onSetSettingText;
+    /// Keybinding rebind: a button with action {"type":"rebind","binding":"<Action>"}
+    /// invokes this with the action name. The host starts UISystem key capture and,
+    /// on a captured key, writes the binding (GameSettings + InputManager) and
+    /// refreshes the row's "kb_<Action>" key button text. See settings_screen.json's
+    /// keybindings panel.
+    std::function<void(const std::string& action)> onRebindKey;
     /// Resolve a {{token}} in label/button text to a display string (e.g.
     /// "playtime", "story.<var>"). Return nullopt to leave the token literal.
     /// Applied once at menu load (static).

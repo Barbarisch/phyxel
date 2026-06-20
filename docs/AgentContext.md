@@ -125,22 +125,32 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **▶▶ NEXT UP (start of next session): rebindable keybindings.** The data-driven settings screen
-  has a "Controls" section but NO key-rebinding UI — because rebinding can't WORK yet. **Blocker:**
-  `Input::InputManager` reads input two ways, both with HARDCODED GLFW keys: `registerAction(key, …)`
-  (Application/scaffold register fixed keys) and direct `isKeyPressed(GLFW_KEY_…)` calls scattered in
-  the scaffold/control schemes. `Core::GameSettings.keybindings` (a `vector<Keybinding{action,key,
-  modifiers}>`) is only SAVED/LOADED to settings.json — it is never consulted by InputManager. So a
-  rebind UI would be a dead control. **Plan:** (1) make InputManager the single source of truth for
-  action→key — load `GameSettings.keybindings` into a runtime action map and have `isActionPressed
-  ("Jump")`-style queries replace the hardcoded `isKeyPressed(GLFW_KEY_…)` / `registerAction` sites;
-  (2) add a key-capture mode to the UISystem (a widget/state that grabs the NEXT key press — there's
-  already char capture from the AI-dialogue work; add an analogous one-shot key capture); (3) add a
-  "Keybindings" sub-panel to `settings_screen.json` listing actions + current keys with a "rebind"
-  button per row that enters capture mode and writes back to `GameSettings.keybindings`. This is the
-  LAST piece of the NO-ImGui-in-gameplay umbrella (everything else shipped — see the round-5 entries
-  below). See [[standalone-window-driving]] for how to drive/verify the standalone (TAP keys via
-  foreground+keybd_event; PostMessage WM_KEYDOWN does NOT reach glfwGetKey).
+- **Rebindable keybindings — DONE (all 3 steps), compile-verified end to end; live click-through
+  unverified.** The LAST piece of the NO-ImGui-in-gameplay umbrella shipped. **(1) InputManager is now
+  the single source of truth for action→key:** a `std::unordered_map<string,KeyboardKey> actionBindings_`
+  seeded in the ctor from `GameSettings::defaultKeybindings()` (so the editor works with no config),
+  with `bindAction` / `isActionPressed("MoveForward")` / `getActionKey` / `clearActionBindings`.
+  `FpsScheme`/`TankScheme` (ControlScheme.h) now query `isActionPressed(...)` instead of
+  `isKeyPressed(GLFW_KEY_…)` for move/jump/sprint/crouch (Q-strafe/R-dodge/ALT-block stay raw — not in
+  the settings vocabulary). The scaffold (`create_project.py`) pushes `settings_.keybindings` into the
+  InputManager via `bindAction` right after `loadFromFile`. **(2) UISystem one-shot key capture:**
+  `beginKeyCapture(onCaptured,onCancelled)` / `isCapturingKey` / `cancelKeyCapture`; `handleInput`
+  consumes all input while active, arms only after a keys-released frame (so the opening click isn't
+  grabbed), ESC cancels. Backed by `InputManager::scanPressedKey()` (raw scan, bypasses ImGui/console
+  gating) + `currentModifiers()`. **(3) Keybindings sub-panel:** `settings_screen.json` gained a
+  "Keybindings…" button → a `keybindings` panel (12 rows = label + `kb_<Action>` key button showing
+  `{{keybind.<Action>}}`, button action `{type:rebind,binding:<Action>}`). `MenuDefinition` got the
+  `rebind` action + `MenuActions::onRebindKey`, and `open_submenu`/`close_submenu` were generalized to
+  any overlay namespace (not just `menu:`) so `settings:` can navigate sub-panels. The scaffold wires
+  `onRebindKey` (begin capture → write GameSettings + live `bindAction` + save + refresh the row label;
+  ESC restores) and resolves `{{keybind.*}}` in `onResolveVariable`. **Verified:** engine + editor +
+  all tests build clean; 10/10 InputManager unit tests; a throwaway scaffolded project compiles +
+  links to a real exe; settings JSON validated. **NOT verified:** the actual click→press-key→rebind
+  interaction at runtime — this automated session can't give the engine window OS foreground focus
+  (`SetForegroundWindow`/`AttachThreadInput` both refused), so injected keys never reach `glfwGetKey`.
+  Next session, verify live per [[standalone-window-driving]] (TAP keys via foreground+keybd_event;
+  PostMessage WM_KEYDOWN does NOT reach glfwGetKey) — or just run a standalone by hand: Settings →
+  Keybindings… → click a key → press a new key; confirm it sticks across restart (settings.json).
 - **Destruction system** (`docs/DestructionSystem.md`, `engine/core/DamageSystem`): P1 area
   damage, P2 damage accumulation + per-material toughness, P3 structural-collapse with
   "connected-to-main-mass" anchor, and the lag-spike fix are DONE + committed. Roadmap:

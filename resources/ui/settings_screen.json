@@ -1,5 +1,5 @@
 {
-  "_comment": "Data-driven settings screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"settings\",...). Two columns. slider/checkbox/dropdown carry a numeric \"setting\" key (MenuActions.onGetSetting/onSetSetting); textinput carries a string \"setting\" key (onGetSettingText/onSetSettingText). Back = action \"back\". Changes apply live; host saves on Back. Deferred: keybind rebind (the input action map uses hardcoded keys, not GameSettings.keybindings — needs that rewire first).",
+  "_comment": "Data-driven settings screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"settings\",...). Two columns. slider/checkbox/dropdown carry a numeric \"setting\" key (MenuActions.onGetSetting/onSetSetting); textinput carries a string \"setting\" key (onGetSettingText/onSetSettingText). Back = action \"back\". The 'keybindings' sub-panel (open via open_submenu) has one row per action: a label + a key button (action {type:rebind, binding:<Action>}) showing {{keybind.<Action>}}; host wires onRebindKey (key capture). Changes apply live; host saves on Back.",
   "background_type": "solid",
   "background_color": [0.05, 0.05, 0.10, 1.0],
   "start_panel": "main",
@@ -23,15 +23,50 @@
         { "type": "label",    "id": "hdr_controls", "text": "Controls", "position": [700, 110], "size": [200, 28] },
         { "type": "slider",   "id": "set_mousesens", "label": "Mouse Sensitivity", "setting": "mouseSensitivity", "min": 0.01, "max": 1.0, "position": [700, 140], "size": [400, 30] },
         { "type": "checkbox", "id": "set_inverty",   "label": "Invert Y",          "setting": "invertY",          "position": [700, 184], "size": [400, 30] },
+        { "type": "button",   "id": "set_keybinds",  "text": "Keybindings...",      "position": [700, 224], "size": [400, 34], "action": { "type": "open_submenu", "target": "keybindings" } },
 
-        { "type": "label",     "id": "hdr_ai", "text": "AI (NPC conversations)", "position": [700, 250], "size": [380, 28] },
-        { "type": "dropdown",  "id": "set_aiprovider", "label": "Provider", "setting": "aiProvider", "options": ["anthropic", "openai", "ollama"], "position": [700, 280], "size": [400, 30] },
-        { "type": "label",     "id": "lbl_aimodel", "text": "Model", "position": [700, 326], "size": [200, 26] },
-        { "type": "textinput", "id": "set_aimodel", "setting": "aiModel", "placeholder": "(provider default)", "position": [700, 352], "size": [400, 30] },
-        { "type": "label",     "id": "lbl_aikey", "text": "API Key", "position": [700, 392], "size": [200, 26] },
-        { "type": "textinput", "id": "set_aikey", "setting": "aiApiKey", "placeholder": "(paste API key)", "position": [700, 418], "size": [400, 30] },
+        { "type": "label",     "id": "hdr_ai", "text": "AI (NPC conversations)", "position": [700, 290], "size": [380, 28] },
+        { "type": "dropdown",  "id": "set_aiprovider", "label": "Provider", "setting": "aiProvider", "options": ["anthropic", "openai", "ollama"], "position": [700, 320], "size": [400, 30] },
+        { "type": "label",     "id": "lbl_aimodel", "text": "Model", "position": [700, 366], "size": [200, 26] },
+        { "type": "textinput", "id": "set_aimodel", "setting": "aiModel", "placeholder": "(provider default)", "position": [700, 392], "size": [400, 30] },
+        { "type": "label",     "id": "lbl_aikey", "text": "API Key", "position": [700, 432], "size": [200, 26] },
+        { "type": "textinput", "id": "set_aikey", "setting": "aiApiKey", "placeholder": "(paste API key)", "position": [700, 458], "size": [400, 30] },
 
         { "type": "button", "id": "settings_back", "text": "Back", "position": [540, 650], "size": [200, 48], "action": { "type": "back" } }
+      ]
+    },
+    "keybindings": {
+      "children": [
+        { "type": "label", "id": "kb_title", "text": "KEYBINDINGS", "font": "title", "position": [640, 36], "size": [400, 60] },
+        { "type": "label", "id": "kb_hint", "text": "Click a key, then press the new key. ESC cancels.", "position": [640, 96], "size": [700, 26] },
+
+        { "type": "label",  "id": "lbl_MoveForward",  "text": "Move Forward",  "position": [220, 150], "size": [220, 30] },
+        { "type": "button", "id": "kb_MoveForward",   "text": "{{keybind.MoveForward}}",  "position": [440, 146], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveForward" } },
+        { "type": "label",  "id": "lbl_MoveBackward", "text": "Move Backward", "position": [220, 196], "size": [220, 30] },
+        { "type": "button", "id": "kb_MoveBackward",  "text": "{{keybind.MoveBackward}}", "position": [440, 192], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveBackward" } },
+        { "type": "label",  "id": "lbl_MoveLeft",     "text": "Move Left",     "position": [220, 242], "size": [220, 30] },
+        { "type": "button", "id": "kb_MoveLeft",      "text": "{{keybind.MoveLeft}}",     "position": [440, 238], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveLeft" } },
+        { "type": "label",  "id": "lbl_MoveRight",    "text": "Move Right",    "position": [220, 288], "size": [220, 30] },
+        { "type": "button", "id": "kb_MoveRight",     "text": "{{keybind.MoveRight}}",    "position": [440, 284], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveRight" } },
+        { "type": "label",  "id": "lbl_Jump",         "text": "Jump",          "position": [220, 334], "size": [220, 30] },
+        { "type": "button", "id": "kb_Jump",          "text": "{{keybind.Jump}}",         "position": [440, 330], "size": [180, 34], "action": { "type": "rebind", "binding": "Jump" } },
+        { "type": "label",  "id": "lbl_Sprint",       "text": "Sprint",        "position": [220, 380], "size": [220, 30] },
+        { "type": "button", "id": "kb_Sprint",        "text": "{{keybind.Sprint}}",       "position": [440, 376], "size": [180, 34], "action": { "type": "rebind", "binding": "Sprint" } },
+
+        { "type": "label",  "id": "lbl_Crouch",          "text": "Crouch",      "position": [700, 150], "size": [220, 30] },
+        { "type": "button", "id": "kb_Crouch",           "text": "{{keybind.Crouch}}",          "position": [920, 146], "size": [180, 34], "action": { "type": "rebind", "binding": "Crouch" } },
+        { "type": "label",  "id": "lbl_TogglePause",     "text": "Pause",       "position": [700, 196], "size": [220, 30] },
+        { "type": "button", "id": "kb_TogglePause",      "text": "{{keybind.TogglePause}}",     "position": [920, 192], "size": [180, 34], "action": { "type": "rebind", "binding": "TogglePause" } },
+        { "type": "label",  "id": "lbl_ToggleInventory", "text": "Inventory",   "position": [700, 242], "size": [220, 30] },
+        { "type": "button", "id": "kb_ToggleInventory",  "text": "{{keybind.ToggleInventory}}", "position": [920, 238], "size": [180, 34], "action": { "type": "rebind", "binding": "ToggleInventory" } },
+        { "type": "label",  "id": "lbl_PlaceCube",       "text": "Place Block", "position": [700, 288], "size": [220, 30] },
+        { "type": "button", "id": "kb_PlaceCube",        "text": "{{keybind.PlaceCube}}",       "position": [920, 284], "size": [180, 34], "action": { "type": "rebind", "binding": "PlaceCube" } },
+        { "type": "label",  "id": "lbl_Attack",          "text": "Attack",      "position": [700, 334], "size": [220, 30] },
+        { "type": "button", "id": "kb_Attack",           "text": "{{keybind.Attack}}",          "position": [920, 330], "size": [180, 34], "action": { "type": "rebind", "binding": "Attack" } },
+        { "type": "label",  "id": "lbl_Interact",        "text": "Interact",    "position": [700, 380], "size": [220, 30] },
+        { "type": "button", "id": "kb_Interact",         "text": "{{keybind.Interact}}",        "position": [920, 376], "size": [180, 34], "action": { "type": "rebind", "binding": "Interact" } },
+
+        { "type": "button", "id": "kb_back", "text": "Back", "position": [540, 560], "size": [200, 48], "action": { "type": "close_submenu" } }
       ]
     }
   }
