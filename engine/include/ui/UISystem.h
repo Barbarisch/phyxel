@@ -79,6 +79,25 @@ public:
     /// consumed it. For agent/test-driven UI interaction without a real mouse.
     bool injectClick(glm::vec2 pos);
 
+    // ── Key capture (keybinding rebind) ──────────────────────────
+    // One-shot "press a key" capture for the settings rebind buttons. After
+    // beginKeyCapture, handleInput consumes ALL input until the user presses a
+    // key: that key (and held modifiers) is delivered to `onCaptured` and capture
+    // ends. ESCAPE cancels (onCaptured not called; onCancelled is, if set). The
+    // capture arms only once all keys are released, so the click/Enter that
+    // started it isn't mistaken for the new binding.
+
+    /// Begin one-shot key capture. `onCaptured(glfwKey, mods)` fires on the next
+    /// key press; ESC cancels and fires `onCancelled` (if provided).
+    void beginKeyCapture(std::function<void(int key, int mods)> onCaptured,
+                         std::function<void()> onCancelled = {});
+
+    /// True while waiting for a key (the rebind UI shows "Press a key…").
+    bool isCapturingKey() const { return keyCaptureActive_; }
+
+    /// Abort capture without binding (does not fire either callback).
+    void cancelKeyCapture();
+
     // ── Rendering ───────────────────────────────────────────────
 
     /// Render all visible screens. Call inside the post-process render pass
@@ -136,6 +155,13 @@ private:
     bool wasMousePressed_ = false;
     bool prevBackspace_ = false;  // edge-tracking for the focused text field
     bool prevEnter_ = false;
+
+    // One-shot key capture (rebind). keyCaptureArmed_ gates capture until all keys
+    // are released once, so the key that confirmed the rebind button isn't grabbed.
+    bool keyCaptureActive_ = false;
+    bool keyCaptureArmed_ = false;
+    std::function<void(int, int)> keyCaptureCb_;
+    std::function<void()> keyCaptureCancelCb_;
 
     // Per-frame world-anchored overlay labels (addWorldLabel), drawn + cleared in render().
     struct WorldLabel {

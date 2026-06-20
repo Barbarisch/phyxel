@@ -118,6 +118,37 @@ static void collectTextInputs(UIWidget* w, std::vector<UITextInput*>& out) {
 bool UISystem::handleInput(Input::InputManager* input) {
     if (!initialized_ || !hasVisibleScreens()) return false;
 
+    // ── Key capture (rebind) ─────────────────────────────────────────────────
+    // Takes priority over and consumes all other input. Arms only after a
+    // keys-released frame so the click/Enter that opened capture isn't grabbed.
+    if (keyCaptureActive_) {
+        const int k = input->scanPressedKey();
+        if (!keyCaptureArmed_) {
+            if (k == GLFW_KEY_UNKNOWN) keyCaptureArmed_ = true;
+            return true;
+        }
+        if (k == GLFW_KEY_ESCAPE) {
+            auto cancel = keyCaptureCancelCb_;
+            cancelKeyCapture();
+            if (cancel) cancel();
+            return true;
+        }
+        if (k != GLFW_KEY_UNKNOWN) {
+            auto cb = keyCaptureCb_;
+            const int mods = input->currentModifiers();
+            // Single-key bindings: the captured key IS the binding, so a modifier
+            // key (Shift for Sprint) reports mods=0, not "Shift+Shift".
+            const bool keyIsModifier =
+                (k == GLFW_KEY_LEFT_SHIFT || k == GLFW_KEY_RIGHT_SHIFT ||
+                 k == GLFW_KEY_LEFT_CONTROL || k == GLFW_KEY_RIGHT_CONTROL ||
+                 k == GLFW_KEY_LEFT_ALT || k == GLFW_KEY_RIGHT_ALT);
+            cancelKeyCapture();
+            if (cb) cb(k, keyIsModifier ? 0 : mods);
+            return true;
+        }
+        return true;  // armed, nothing pressed yet — keep consuming
+    }
+
     double mx, my;
     input->getCurrentMousePosition(mx, my);
     glm::vec2 mousePos(static_cast<float>(mx), static_cast<float>(my));
@@ -219,6 +250,23 @@ bool UISystem::injectClick(glm::vec2 pos) {
     }
 
     return consumed;
+}
+
+// ── Key capture (rebind) ────────────────────────────────────
+
+void UISystem::beginKeyCapture(std::function<void(int, int)> onCaptured,
+                               std::function<void()> onCancelled) {
+    keyCaptureCb_ = std::move(onCaptured);
+    keyCaptureCancelCb_ = std::move(onCancelled);
+    keyCaptureActive_ = true;
+    keyCaptureArmed_ = false;  // wait for a keys-released frame before grabbing
+}
+
+void UISystem::cancelKeyCapture() {
+    keyCaptureActive_ = false;
+    keyCaptureArmed_ = false;
+    keyCaptureCb_ = {};
+    keyCaptureCancelCb_ = {};
 }
 
 // ── Rendering ───────────────────────────────────────────────
