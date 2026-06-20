@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .spec import BuildingSpec
-from .detail import DetailCanvas, frame_on_face, AIR
+from .detail import DetailCanvas, frame_on_face, pitched_roof, subcube_stairs, AIR
 
 _REPO = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = _REPO / "resources" / "templates"
@@ -129,15 +129,28 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             else:
                 c.fill_micro_box(ox * 9, oy * 9, oz * 9, ow * 9, oh * 9, od * 9, AIR)
 
+        # Stairs (multi-story): a subcube staircase up + a carved hole in the floor above.
+        for st in story.stairs:
+            sx, sz, sw, sd = st.rect
+            subcube_stairs(c, sx, baseY + 1, sz, climb=h + 1, width=max(1, sw), mat=floor)
+            nbY = baseY + h + 1
+            for x in range(sx, sx + sw):
+                for z in range(sz, sz + sd):
+                    c.fill_micro_box(x * 9, nbY * 9, z * 9, 9, 9, 9, AIR)
+
         topY = baseY + h + 1
         baseY = topY
 
-    # Roof slab + a beveled stone-style coping along its outer top edges.
-    c.fill_cube_box(0, topY, 0, W, 1, D, roof)
-    c.chamfer_edge(0, topY * 9, 0, W * 9, 9, 9, "x", "+y-z", 3)
-    c.chamfer_edge(0, topY * 9, (D - 1) * 9, W * 9, 9, 9, "x", "+y+z", 3)
-    c.chamfer_edge(0, topY * 9, 0, 9, 9, D * 9, "z", "+y-x", 3)
-    c.chamfer_edge((W - 1) * 9, topY * 9, 0, 9, 9, D * 9, "z", "+y+x", 3)
+    roof_style = (spec.roof or {}).get("style", "flat")
+    if roof_style == "pitched" and W >= 2 and D >= 2:
+        pitched_roof(c, 0, topY, 0, W, D, roof, gable=wall, pitch=2)
+    else:
+        # Flat roof slab + a beveled stone-style coping along its outer top edges.
+        c.fill_cube_box(0, topY, 0, W, 1, D, roof)
+        c.chamfer_edge(0, topY * 9, 0, W * 9, 9, 9, "x", "+y-z", 3)
+        c.chamfer_edge(0, topY * 9, (D - 1) * 9, W * 9, 9, 9, "x", "+y+z", 3)
+        c.chamfer_edge(0, topY * 9, 0, 9, 9, D * 9, "z", "+y-x", 3)
+        c.chamfer_edge((W - 1) * 9, topY * 9, 0, 9, 9, D * 9, "z", "+y+x", 3)
     return c
 
 

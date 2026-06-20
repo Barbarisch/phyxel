@@ -50,8 +50,8 @@ class ShellTests(unittest.TestCase):
         lines = canvas.to_voxel_lines()
         self.assertEqual(find_overlaps(lines), [], "shell must not self-overlap")
         r = canvas.report()
-        self.assertGreater(r.cubes, 0, "wall/floor bulk should stay cubes")
-        self.assertGreater(r.microcubes, 0, "coping/frames should add microcubes")
+        self.assertGreater(r.cubes, 0, "wall/floor/bulk should stay cubes")
+        self.assertGreater(r.subcubes, 0, "frames/roof detail should use subcubes")
         # efficiency: vastly cheaper than naive all-micro
         self.assertLess(r.total_voxels, r.micro_cells * 0.2)
 

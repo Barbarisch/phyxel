@@ -284,6 +284,57 @@ def frame_on_face(canvas: "DetailCanvas", normal: str, ox: int, oy: int, oz: int
             put(h1 + b, v)                               # jamb
 
 
+def subcube_stairs(canvas: "DetailCanvas", ox: int, oy: int, oz: int,
+                   climb: int, width: int, mat: str) -> None:
+    """A solid subcube staircase: climbs `climb` cubes over `climb` cubes of run (+Z), `width`
+    cubes wide (+X), 3 subcube steps per cube (45 degrees). Each step is filled solid from the
+    floor up to its tread (a stringer), so it reads as real stairs and is walkable."""
+    steps = climb * 3
+    base_y = oy * 3
+    base_z = oz * 3
+    for s in range(steps):
+        step_y = base_y + s
+        cz, sz = divmod(base_z + s, 3)
+        for wx in range(width):
+            for fy in range(base_y, step_y + 1):
+                cy, sy = divmod(fy, 3)
+                for sx in range(3):
+                    canvas.add_subcube(ox + wx, cy, cz, sx, sy, sz, mat)
+
+
+def pitched_roof(canvas: "DetailCanvas", ox: int, oy: int, oz: int, W: int, D: int,
+                 roof: str, gable: Optional[str] = None, pitch: int = 2) -> None:
+    """A gable roof sitting with its eaves at cube-row `oy`. The ridge runs along the LONGER
+    footprint axis; the roof is a continuous sloped subcube slab and the two gable-end walls
+    are filled to close the triangles. `pitch` = subcubes of rise per step toward the ridge."""
+    gable = gable or roof
+    shell = pitch + 1                       # slab thickness in subcubes (overlap -> no gaps)
+    base_sub = oy * 3
+    slope_in_z = W >= D                     # ridge along the longer axis
+    span = D if slope_in_z else W
+    perp = W if slope_in_z else D
+
+    def cell(a: int, b: int, sy_abs: int, mat: str) -> None:
+        # a = coord along ridge, b = coord along slope; fill the full horizontal subcube layer
+        cx, cz = (a, b) if slope_in_z else (b, a)
+        cy, sub_sy = divmod(sy_abs, 3)
+        for sx in range(3):
+            for sz in range(3):
+                canvas.add_subcube(cx, cy, cz, sx, sub_sy, sz, mat)
+
+    for b in range(span):
+        d = min(b, span - 1 - b)
+        top = base_sub + pitch * d                 # slab top subcube at this slope position
+        under = base_sub + max(0, pitch * d - shell + 1)
+        for a in range(perp):
+            for sy in range(under, top + 1):       # the sloped roof slab
+                cell(a, b, sy, roof)
+        # fill the gable-end walls (a = 0 and perp-1) below the slab to close the triangle
+        for a in (0, perp - 1):
+            for sy in range(base_sub, under):
+                cell(a, b, sy, gable)
+
+
 def demo_wall(stone: str = "StoneBricks", base: str = "Stone", trim: str = "Wood") -> DetailCanvas:
     """A wall section showing trim done right — geometry only where it gives 3D RELIEF that
     catches light (the texture already supplies flat surface pattern like mortar):
