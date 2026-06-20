@@ -1,4 +1,5 @@
 #include "input/InputManager.h"
+#include "core/GameSettings.h"
 #include "utils/Logger.h"
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -25,6 +26,10 @@ InputManager::InputManager()
     , cameraSpeed(5.0f)
     , window(nullptr)
 {
+    // Seed the action map with engine defaults so gameplay queries
+    // (isActionPressed) work before any settings file is loaded — the editor
+    // relies on this. Standalone hosts override per-binding via bindAction.
+    seedDefaultActionBindings();
     LOG_INFO("InputManager", "InputManager created");
 }
 
@@ -131,21 +136,8 @@ void InputManager::processKeyboardActions() {
         if (keyState == GLFW_PRESS) {
             // Check if this is a new press (not a repeat)
             if (!keyPressed[keyCombo]) {
-                // Get current modifier state
-                int currentMods = 0;
-                if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
-                    glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) {
-                    currentMods |= GLFW_MOD_CONTROL;
-                }
-                if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                    glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
-                    currentMods |= GLFW_MOD_SHIFT;
-                }
-                if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||
-                    glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS) {
-                    currentMods |= GLFW_MOD_ALT;
-                }
-                
+                int currentMods = currentModifiers();
+
                 // Check if modifiers match exactly
                 if (currentMods == keyCombo.modifiers && action.callback) {
                     LOG_DEBUG("InputManager", "Action triggered: {}", action.name);
@@ -304,6 +296,85 @@ void InputManager::registerMouseAction(int button, int modifiers, const std::str
     MouseButtonKey key{button, modifiers};
     mouseActions[key] = MouseAction{name, modifiers, callback};
     LOG_DEBUG("InputManager", "Registered mouse action '{}' for button {} with modifiers {}", name, button, modifiers);
+}
+
+// ---------------------------------------------------------------------------
+// Action map (rebindable keys)
+// ---------------------------------------------------------------------------
+
+void InputManager::seedDefaultActionBindings() {
+    for (const auto& kb : Core::GameSettings::defaultKeybindings()) {
+        actionBindings_[kb.action] = KeyboardKey{kb.key, kb.modifiers};
+    }
+}
+
+void InputManager::bindAction(const std::string& action, int key, int modifiers) {
+    actionBindings_[action] = KeyboardKey{key, modifiers};
+    LOG_DEBUG("InputManager", "Bound action '{}' -> key {} (mods {})", action, key, modifiers);
+}
+
+void InputManager::clearActionBindings() {
+    actionBindings_.clear();
+}
+
+bool InputManager::isActionPressed(const std::string& action) const {
+    auto it = actionBindings_.find(action);
+    if (it == actionBindings_.end()) return false;
+    // Reuse isKeyPressed for the scripting-console / ImGui gating. Modifiers are
+    // intentionally not enforced for level queries (see header).
+    return isKeyPressed(it->second.key);
+}
+
+int InputManager::getActionKey(const std::string& action) const {
+    auto it = actionBindings_.find(action);
+    return it == actionBindings_.end() ? GLFW_KEY_UNKNOWN : it->second.key;
+}
+
+int InputManager::getActionModifiers(const std::string& action) const {
+    auto it = actionBindings_.find(action);
+    return it == actionBindings_.end() ? 0 : it->second.modifiers;
+}
+
+int InputManager::currentModifiers() const {
+    if (!window) return 0;
+    int mods = 0;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) mods |= GLFW_MOD_CONTROL;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) mods |= GLFW_MOD_SHIFT;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS) mods |= GLFW_MOD_ALT;
+    return mods;
+}
+
+int InputManager::scanPressedKey() const {
+    if (!window) return GLFW_KEY_UNKNOWN;
+    // Curated set of capturable keys — mirrors what GameSettings::keyToString /
+    // stringToKey can name, so a captured key always round-trips to settings.json.
+    // Modifier keys are included (Sprint/Crouch bind to Shift/Ctrl by default).
+    static const int kCapturable[] = {
+        GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E, GLFW_KEY_F,
+        GLFW_KEY_G, GLFW_KEY_H, GLFW_KEY_I, GLFW_KEY_J, GLFW_KEY_K, GLFW_KEY_L,
+        GLFW_KEY_M, GLFW_KEY_N, GLFW_KEY_O, GLFW_KEY_P, GLFW_KEY_Q, GLFW_KEY_R,
+        GLFW_KEY_S, GLFW_KEY_T, GLFW_KEY_U, GLFW_KEY_V, GLFW_KEY_W, GLFW_KEY_X,
+        GLFW_KEY_Y, GLFW_KEY_Z,
+        GLFW_KEY_0, GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4,
+        GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+        GLFW_KEY_F1, GLFW_KEY_F2, GLFW_KEY_F3, GLFW_KEY_F4, GLFW_KEY_F5, GLFW_KEY_F6,
+        GLFW_KEY_F7, GLFW_KEY_F8, GLFW_KEY_F9, GLFW_KEY_F10, GLFW_KEY_F11, GLFW_KEY_F12,
+        GLFW_KEY_SPACE, GLFW_KEY_ESCAPE, GLFW_KEY_ENTER, GLFW_KEY_TAB, GLFW_KEY_BACKSPACE,
+        GLFW_KEY_LEFT_SHIFT, GLFW_KEY_RIGHT_SHIFT, GLFW_KEY_LEFT_CONTROL, GLFW_KEY_RIGHT_CONTROL,
+        GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT,
+        GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT,
+        GLFW_KEY_DELETE, GLFW_KEY_INSERT, GLFW_KEY_HOME, GLFW_KEY_END,
+        GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN, GLFW_KEY_GRAVE_ACCENT, GLFW_KEY_MINUS,
+        GLFW_KEY_EQUAL, GLFW_KEY_LEFT_BRACKET, GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_SEMICOLON,
+        GLFW_KEY_APOSTROPHE, GLFW_KEY_COMMA, GLFW_KEY_PERIOD, GLFW_KEY_SLASH, GLFW_KEY_BACKSLASH,
+    };
+    for (int key : kCapturable) {
+        if (glfwGetKey(window, key) == GLFW_PRESS) return key;
+    }
+    return GLFW_KEY_UNKNOWN;
 }
 
 void InputManager::setScriptingConsoleMode(bool enabled) {

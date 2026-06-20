@@ -74,7 +74,38 @@ public:
     
     // Mouse button action registration
     void registerMouseAction(int button, int modifiers, const std::string& name, ActionCallback callback);
-    
+
+    // --- Action map (rebindable keys) ----------------------------------------
+    // InputManager is the single source of truth for action -> key. Gameplay
+    // queries stay rebind-aware by asking isActionPressed("MoveForward") instead
+    // of hardcoding GLFW_KEY_W. The map is seeded with
+    // Core::GameSettings::defaultKeybindings() at construction, so it is always
+    // valid (the editor works with no config); standalone hosts override each
+    // binding from loaded settings via bindAction().
+    void bindAction(const std::string& action, int key, int modifiers = 0);
+    void clearActionBindings();
+
+    // Level-triggered: is the key bound to `action` currently held? Mirrors the
+    // gating of isKeyPressed (false in scripting-console mode / when ImGui wants
+    // the keyboard). Modifiers are stored for display/rebind but NOT enforced
+    // here — so Shift+W still counts as MoveForward while Sprint is held.
+    bool isActionPressed(const std::string& action) const;
+
+    // Current binding for an action (rebind UI / display). Returns
+    // GLFW_KEY_UNKNOWN / 0 when the action is unbound.
+    int getActionKey(const std::string& action) const;
+    int getActionModifiers(const std::string& action) const;
+
+    // Raw scan for the FIRST capturable key currently held — used by the
+    // rebind key-capture UI. Deliberately bypasses the scripting-console / ImGui
+    // gating that isKeyPressed applies (capture is an explicit user intent).
+    // Modifier keys (Shift/Ctrl/Alt) ARE capturable, so Sprint can bind to Shift.
+    // Returns GLFW_KEY_UNKNOWN when nothing is held.
+    int scanPressedKey() const;
+
+    // GLFW_MOD_* flags for the modifier keys currently held (raw glfw query).
+    int currentModifiers() const;
+
     // Direct camera orientation (for testing/debugging)
     void setYawPitch(float yaw, float pitch);
 
@@ -154,7 +185,12 @@ private:
     };
     
     std::unordered_map<KeyboardKey, KeyAction, KeyboardKeyHash> keyActions;
-    
+
+    // Action name -> bound key+modifiers (rebindable). See bindAction /
+    // isActionPressed. Seeded from Core::GameSettings::defaultKeybindings().
+    std::unordered_map<std::string, KeyboardKey> actionBindings_;
+    void seedDefaultActionBindings();
+
     // Input state tracking (for key repeat prevention)
     std::unordered_map<KeyboardKey, bool, KeyboardKeyHash> keyPressed;
     

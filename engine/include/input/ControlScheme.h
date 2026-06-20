@@ -56,13 +56,17 @@ class FpsScheme : public ControlScheme {
 public:
     ControlIntent sample(InputManager& input, float /*dt*/) override {
         ControlIntent in;
-        if (input.isKeyPressed(GLFW_KEY_W)) in.forward -= 1.0f;
-        if (input.isKeyPressed(GLFW_KEY_S)) in.forward += 1.0f;
-        if (input.isKeyPressed(GLFW_KEY_A)) in.strafe  -= 1.0f;
-        if (input.isKeyPressed(GLFW_KEY_D)) in.strafe  += 1.0f;
-        in.sprint = input.isKeyPressed(GLFW_KEY_LEFT_SHIFT);
-        in.crouch = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL);
-        in.jump   = input.isKeyPressed(GLFW_KEY_SPACE);
+        // Movement/jump/sprint/crouch flow through the rebindable action map
+        // (InputManager seeds defaults: MoveForward=W, Jump=Space, ...). The
+        // esoteric scheme keys (dodge/block) stay raw until they're added to the
+        // settings vocabulary.
+        if (input.isActionPressed("MoveForward"))  in.forward -= 1.0f;
+        if (input.isActionPressed("MoveBackward")) in.forward += 1.0f;
+        if (input.isActionPressed("MoveLeft"))     in.strafe  -= 1.0f;
+        if (input.isActionPressed("MoveRight"))    in.strafe  += 1.0f;
+        in.sprint = input.isActionPressed("Sprint");
+        in.crouch = input.isActionPressed("Crouch");
+        in.jump   = input.isActionPressed("Jump");
         {
             const bool lmb   = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
             const bool shift = in.sprint;
@@ -87,17 +91,20 @@ class TankScheme : public ControlScheme {
 public:
     ControlIntent sample(InputManager& input, float /*dt*/) override {
         ControlIntent in;
-        const bool sprint = input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) ||
-                            input.isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+        // Rebindable actions via the InputManager action map; A/D become TURN
+        // here (vs. strafe in FPS) — same physical "MoveLeft"/"MoveRight" keys,
+        // different scheme interpretation. Q strafe stays raw (not yet in the
+        // settings vocabulary).
+        const bool sprint = input.isActionPressed("Sprint");
         const float mag = sprint ? 1.0f : 0.5f;
-        if (input.isKeyPressed(GLFW_KEY_W)) in.forward -= mag;
-        if (input.isKeyPressed(GLFW_KEY_S)) in.forward += mag;
-        if (input.isKeyPressed(GLFW_KEY_A)) in.turn    -= 1.0f;
-        if (input.isKeyPressed(GLFW_KEY_D)) in.turn    += 1.0f;
-        if (input.isKeyPressed(GLFW_KEY_Q)) in.strafe  -= mag;
+        if (input.isActionPressed("MoveForward"))  in.forward -= mag;
+        if (input.isActionPressed("MoveBackward")) in.forward += mag;
+        if (input.isActionPressed("MoveLeft"))     in.turn    -= 1.0f;
+        if (input.isActionPressed("MoveRight"))    in.turn    += 1.0f;
+        if (input.isKeyPressed(GLFW_KEY_Q))        in.strafe  -= mag;
         in.sprint = sprint;
-        in.crouch = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL);
-        in.jump   = input.isKeyPressed(GLFW_KEY_SPACE);
+        in.crouch = input.isActionPressed("Crouch");
+        in.jump   = input.isActionPressed("Jump");
         {
             const bool lmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
             in.attack = lmb && !sprint;

@@ -71,6 +71,43 @@ TEST_F(InputManagerTest, ActionRegistration) {
     SUCCEED();
 }
 
+TEST_F(InputManagerTest, ActionMapSeededWithDefaults) {
+    // The constructor seeds the action map from GameSettings::defaultKeybindings
+    // so gameplay queries work before any settings file is loaded.
+    EXPECT_EQ(inputManager.getActionKey("MoveForward"), GLFW_KEY_W);
+    EXPECT_EQ(inputManager.getActionKey("MoveBackward"), GLFW_KEY_S);
+    EXPECT_EQ(inputManager.getActionKey("MoveLeft"), GLFW_KEY_A);
+    EXPECT_EQ(inputManager.getActionKey("MoveRight"), GLFW_KEY_D);
+    EXPECT_EQ(inputManager.getActionKey("Jump"), GLFW_KEY_SPACE);
+    EXPECT_EQ(inputManager.getActionKey("Sprint"), GLFW_KEY_LEFT_SHIFT);
+    EXPECT_EQ(inputManager.getActionModifiers("MoveForward"), 0);
+}
+
+TEST_F(InputManagerTest, BindActionOverridesDefault) {
+    // Rebind MoveForward from W to the Up arrow — the action map is the single
+    // source of truth, so a later query reflects the override.
+    inputManager.bindAction("MoveForward", GLFW_KEY_UP, 0);
+    EXPECT_EQ(inputManager.getActionKey("MoveForward"), GLFW_KEY_UP);
+
+    // Unbound actions report UNKNOWN (the rebind UI uses this to show "unset").
+    EXPECT_EQ(inputManager.getActionKey("NoSuchAction"), GLFW_KEY_UNKNOWN);
+    EXPECT_EQ(inputManager.getActionModifiers("NoSuchAction"), 0);
+}
+
+TEST_F(InputManagerTest, ClearActionBindings) {
+    inputManager.clearActionBindings();
+    EXPECT_EQ(inputManager.getActionKey("MoveForward"), GLFW_KEY_UNKNOWN);
+    // With no window and no binding, a query is safely false (never crashes).
+    EXPECT_FALSE(inputManager.isActionPressed("MoveForward"));
+}
+
+TEST_F(InputManagerTest, KeyScanSafeWithoutWindow) {
+    // The rebind key-capture helpers must not crash before a window is attached;
+    // they report "nothing held" / "no modifiers" until the engine is up.
+    EXPECT_EQ(inputManager.scanPressedKey(), GLFW_KEY_UNKNOWN);
+    EXPECT_EQ(inputManager.currentModifiers(), 0);
+}
+
 TEST_F(InputManagerTest, ScriptingConsoleModeToggle) {
     // Default state should be false
     EXPECT_FALSE(inputManager.isScriptingConsoleMode());
