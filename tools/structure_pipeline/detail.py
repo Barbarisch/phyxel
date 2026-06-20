@@ -250,6 +250,40 @@ def frame_opening(canvas: "DetailCanvas", ox: int, oy: int, ow: int, oh: int,
                 canvas.set_micro_cell(x0 + w + b, y, z, trim)   # right jamb
 
 
+def frame_on_face(canvas: "DetailCanvas", normal: str, ox: int, oy: int, oz: int,
+                  ow: int, oh: int, od: int, trim: str, border: int = 3, depth: int = 3,
+                  sill: bool = True) -> None:
+    """Carve an ow*oh*od cube opening and frame it (sub/micro trim: lintel + jambs + optional
+    sill) on the wall face whose OUTWARD normal is `normal` in (+x,-x,+z,-z). Generic over wall
+    orientation so any perimeter/interior wall's window gets a proper framed reveal."""
+    canvas.fill_micro_box(ox * 9, oy * 9, oz * 9, ow * 9, oh * 9, od * 9, AIR)
+    v0, v1 = oy * 9, oy * 9 + oh * 9                      # vertical (Y) micro range
+    if normal in ("+z", "-z"):
+        h0, h1 = ox * 9, ox * 9 + ow * 9
+        plane = oz * 9 if normal == "-z" else oz * 9 + od * 9 - depth
+
+        def put(h, v):
+            for z in range(plane, plane + depth):
+                canvas.set_micro_cell(h, v, z, trim)
+    else:  # +x / -x
+        h0, h1 = oz * 9, oz * 9 + od * 9
+        plane = ox * 9 if normal == "-x" else ox * 9 + ow * 9 - depth
+
+        def put(h, v):
+            for x in range(plane, plane + depth):
+                canvas.set_micro_cell(x, v, h, trim)
+
+    for h in range(h0 - border, h1 + border):
+        for b in range(border):
+            put(h, v1 + b)                               # lintel
+            if sill:
+                put(h, v0 - 1 - b)                       # sill
+    for v in range(v0 - (border if sill else 0), v1 + border):
+        for b in range(border):
+            put(h0 - 1 - b, v)                           # jamb
+            put(h1 + b, v)                               # jamb
+
+
 def demo_wall(stone: str = "StoneBricks", base: str = "Stone", trim: str = "Wood") -> DetailCanvas:
     """A wall section showing trim done right — geometry only where it gives 3D RELIEF that
     catches light (the texture already supplies flat surface pattern like mortar):
@@ -262,8 +296,8 @@ def demo_wall(stone: str = "StoneBricks", base: str = "Stone", trim: str = "Wood
     # Beveled stone coping along the top front & back edges (real 3D chamfer).
     c.chamfer_edge(0, (H - 1) * 9, 0, L * 9, 9, 9, "x", "+y+z", depth=3)
     c.chamfer_edge(0, (H - 1) * 9, 0, L * 9, 9, 9, "x", "+y-z", depth=3)
-    # Framed window, centred — jambs/lintel trim + a sill that proudly oversails the face.
-    frame_opening(c, ox=3, oy=2, ow=1, oh=2, trim=trim, border=3, depth=4, sill=True)
+    # Framed window, centred (+Z face) — jambs/lintel trim + a proud oversailing sill.
+    frame_on_face(c, "+z", ox=3, oy=2, oz=0, ow=1, oh=2, od=1, trim=trim, border=3, depth=4, sill=True)
     return c
 
 
