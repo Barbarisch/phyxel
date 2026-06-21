@@ -195,6 +195,69 @@ def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
     return rep
 
 
+# --------------------------------------------------------------------------- fixture placement
+
+def template_cube_footprint(name: str, rotation: int = 0) -> Tuple[int, int]:
+    """Footprint (W in X, D in Z) of a template in whole cubes, after a 0/90/180/270 rotation.
+    90/270 swap W and D (matches the engine's PlacedObjectManager rotation)."""
+    cells = template_cells(name)
+    if not cells:
+        return (1, 1)
+    xs = [x // 9 for x, _, _ in cells]
+    zs = [z // 9 for _, _, z in cells]
+    w, d = max(xs) - min(xs) + 1, max(zs) - min(zs) + 1
+    return (d, w) if (rotation // 90) % 2 == 1 else (w, d)
+
+
+def fixture_placement_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Check fixtures using their REAL measured template size (not the spec's f.rect): each must
+    sit inside its room, not clip a wall, and not overlap another fixture (seats may tuck under
+    tables). This is where 'overlapping blocks / furniture makes no sense' actually comes from —
+    a 2-cube bed dropped at a 1-cube slot pokes through the wall or into a neighbour."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    from .playtest import _seat_under_surface
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        rooms = {r.id: r for r in story.rooms}
+        placed: List[Tuple[str, int, int, int, int]] = []
+        for fi, f in enumerate(story.fixtures):
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            rot = _FACING_ROT.get(f.facing, 0)
+            fw, fd = template_cube_footprint(tmpl, rot)
+            x0, z0 = f.rect[0], f.rect[1]
+            x1, z1 = x0 + fw, z0 + fd
+            where = f"story {si} fixture #{fi} '{f.type}'"
+            room = rooms.get(f.room)
+            if room:
+                rx0, rz0, rx1, rz1 = _bounds(tuple(room.rect))
+                if not (rx0 <= x0 and x1 <= rx1 and rz0 <= z0 and z1 <= rz1):
+                    rep.error("FIXTURE_OUT_OF_ROOM",
+                              f"'{f.type}' is {fw}x{fd} cubes at [{x0},{z0}] but room '{f.room}' is "
+                              f"{room.rect} — it pokes outside the room", where)
+            clip = sum(1 for x in range(x0, x1) for z in range(z0, z1)
+                       if occ.get((x, y, z), 0) == _FULL_CUBE)
+            if clip:
+                rep.error("FIXTURE_CLIPS_WALL",
+                          f"'{f.type}' ({fw}x{fd} cubes) overlaps {clip} wall cube(s) at floor level "
+                          "— it is embedded in a wall", where)
+            placed.append((f.type, x0, z0, x1, z1))
+        for i in range(len(placed)):
+            for j in range(i + 1, len(placed)):
+                ta, ax0, az0, ax1, az1 = placed[i]
+                tb, bx0, bz0, bx1, bz1 = placed[j]
+                if ax0 < bx1 and bx0 < ax1 and az0 < bz1 and bz0 < az1 and not _seat_under_surface(ta, tb):
+                    rep.error("FIXTURE_OVERLAP",
+                              f"'{ta}' and '{tb}' overlap at their real footprints (not just f.rect)",
+                              f"story {si}")
+    return rep
+
+
 # --------------------------------------------------------------------------- real-world dimensions
 
 # 1 cube = 1 m. Reference ranges for object footprint/height, in metres. A generated object
@@ -260,11 +323,79 @@ def dimension_report(name: str, kind: str) -> ValidationReport:
 
 # --------------------------------------------------------------------------- convenience
 
+def roof_coverage_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Every interior column must be capped from above (roof or the floor of a story over it).
+    Catches rooms open to the sky — e.g. the single-story wing tails of a stepped building whose
+    roof only covered the top story's footprint."""
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    # scan well above the eaves — a pitched roof ridge can rise ~half the footprint span
+    top = bases[-1] + spec.stories[-1].height + max(spec.footprint) + 2
+    exposed: List[Tuple[int, int, int]] = []
+    for si, story in enumerate(spec.stories):
+        ceil_y = bases[si] + story.height + 1           # first cube above this story's interior
+        interior = set()
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            interior |= {(x, z) for x in range(x0, x1) for z in range(z0, z1)}
+        for (x, z) in interior:
+            # open to sky only if NOTHING solid is above it anywhere (a roof higher up — e.g. over
+            # a stairwell — still counts as covered)
+            if not any(occ.get((x, y, z), 0) for y in range(ceil_y, top)):
+                exposed.append((si, x, z))
+    if exposed:
+        by_story: Dict[int, int] = {}
+        for si, _, _ in exposed:
+            by_story[si] = by_story.get(si, 0) + 1
+        rep.error("ROOF_GAP",
+                  f"{len(exposed)} interior column(s) are open to the sky (no roof/floor above): "
+                  + ", ".join(f"{n} on story {si}" for si, n in sorted(by_story.items())),
+                  "building")
+    return rep
+
+
+def room_headroom_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = None
+                         ) -> ValidationReport:
+    """Every walkable floor cell in a room must have full character headroom clear above it —
+    catches low spots / intrusions a body would hit while just standing in a room."""
+    if canon is None:
+        canon = load_canon()
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    need = canon.headroom_min
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        low = 0
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            for x in range(x0, x1):
+                for z in range(z0, z1):
+                    if occ.get((x, y, z), 0) == _FULL_CUBE:     # a wall/partition cell, skip
+                        continue
+                    clear = 0
+                    for h in range(need):
+                        if occ.get((x, y + h, z), 0) == _FULL_CUBE:
+                            break
+                        clear += 1
+                    if clear < need:
+                        low += 1
+        if low:
+            rep.warn("ROOM_LOW_HEADROOM",
+                     f"{low} floor cell(s) on story {si} have less than {need} cubes of standing "
+                     "headroom", f"story {si}")
+    return rep
+
+
 def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = None
                     ) -> ValidationReport:
-    """All building-geometry checks (stairs + door openings) on a realized shell."""
+    """All deterministic building-geometry checks on a realized shell + its fixtures."""
     from .playtest import merge
     if canon is None:
         canon = load_canon()
     return merge(stair_clearance_report(spec, canvas, canon),
-                 opening_fit_report(spec, canvas))
+                 opening_fit_report(spec, canvas),
+                 fixture_placement_report(spec, canvas),
+                 roof_coverage_report(spec, canvas),
+                 room_headroom_report(spec, canvas, canon))

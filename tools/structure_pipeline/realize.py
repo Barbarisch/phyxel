@@ -101,6 +101,7 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
     topY = 0
     occupied: set = set()
     stair_holes: list = []   # (floor_y, sx, sz, sw, sd) carved AFTER all floors are placed
+    story_layers: list = []  # (topY, occupied_set) per story, for stepped roofing
     for story in spec.stories:
         h = story.height
         rooms = {r.id: tuple(r.rect) for r in story.rooms}
@@ -168,6 +169,7 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             stair_holes.append((baseY + h + 1, sx, sz, sw, sd))
 
         topY = baseY + h + 1
+        story_layers.append((topY, set(occupied)))
         baseY = topY
 
     # Carve every stairwell hole now that all floor slabs exist, so they stay open (headroom).
@@ -176,23 +178,34 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             for z in range(sz, sz + sd):
                 c.fill_micro_box(x * 9, nbY * 9, z * 9, 9, 9, 9, AIR)
 
-    # Roof over the top story's footprint. A pitched gable only makes sense over a true
-    # rectangle; an L/T/U gets a flat roof following its outline (with a beveled coping).
+    # Roof: cap EVERY column at the top of the highest story that occupies it, so lower wings of a
+    # stepped building get their own roof (not just the top story's footprint). The topmost level
+    # may be a pitched gable if it's a true rectangle; everything else is flat with a beveled coping.
     roof_style = (spec.roof or {}).get("style", "flat")
-    xs = [p[0] for p in occupied]
-    zs = [p[1] for p in occupied]
-    bx0, bx1, bz0, bz1 = min(xs), max(xs) + 1, min(zs), max(zs) + 1
-    is_rect = len(occupied) == (bx1 - bx0) * (bz1 - bz0)
-    if roof_style == "pitched" and is_rect and (bx1 - bx0) >= 2 and (bz1 - bz0) >= 2:
-        pitched_roof(c, bx0, topY, bz0, bx1 - bx0, bz1 - bz0, roof, gable=wall, pitch=2)
-    else:
-        for (cx, cz) in occupied:
-            c.add_cube(cx, topY, cz, roof)
-        for (cx, cz) in occupied:
-            for dx, dz, axis, corner in ((1, 0, "z", "+y+x"), (-1, 0, "z", "+y-x"),
-                                         (0, 1, "x", "+y+z"), (0, -1, "x", "+y-z")):
-                if (cx + dx, cz + dz) not in occupied:
-                    c.chamfer_edge(cx * 9, topY * 9, cz * 9, 9, 9, 9, axis, corner, 3)
+    col_top: dict = {}
+    for ty, occ_s in story_layers:                  # later (higher) stories overwrite -> highest wins
+        for col in occ_s:
+            col_top[col] = ty
+    from collections import defaultdict
+    levels: dict = defaultdict(set)
+    for col, ty in col_top.items():
+        levels[ty].add(col)
+    top_level = max(levels)
+    for ty, cols in sorted(levels.items()):
+        xs = [p[0] for p in cols]
+        zs = [p[1] for p in cols]
+        bx0, bx1, bz0, bz1 = min(xs), max(xs) + 1, min(zs), max(zs) + 1
+        is_rect = len(cols) == (bx1 - bx0) * (bz1 - bz0)
+        if ty == top_level and roof_style == "pitched" and is_rect and (bx1 - bx0) >= 2 and (bz1 - bz0) >= 2:
+            pitched_roof(c, bx0, ty, bz0, bx1 - bx0, bz1 - bz0, roof, gable=wall, pitch=2)
+        else:
+            for (cx, cz) in cols:
+                c.add_cube(cx, ty, cz, roof)
+            for (cx, cz) in cols:
+                for dx, dz, axis, corner in ((1, 0, "z", "+y+x"), (-1, 0, "z", "+y-x"),
+                                             (0, 1, "x", "+y+z"), (0, -1, "x", "+y-z")):
+                    if (cx + dx, cz + dz) not in cols:
+                        c.chamfer_edge(cx * 9, ty * 9, cz * 9, 9, 9, 9, axis, corner, 3)
     return c
 
 

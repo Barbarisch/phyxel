@@ -3,28 +3,131 @@
   "name": "houseL",
   "style": "medieval",
   "function": "house",
-  "palette": { "wall": "StoneBricks", "floor": "Wood", "roof": "Wood", "trim": "Wood" },
-  "footprint": [12, 14],
+  "palette": {
+    "wall": "StoneBricks",
+    "floor": "Wood",
+    "roof": "Wood",
+    "trim": "Wood"
+  },
+  "footprint": [
+    12,
+    14
+  ],
   "stories": [
     {
       "height": 4,
       "rooms": [
-        { "id": "hall",    "rect": [0, 0, 12, 7], "purpose": "main_hall", "floor_mat": "Wood" },
-        { "id": "kitchen", "rect": [0, 7, 7, 7],  "purpose": "kitchen",   "floor_mat": "Wood" }
+        {
+          "id": "hall",
+          "rect": [
+            0,
+            0,
+            12,
+            7
+          ],
+          "purpose": "main_hall",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "kitchen",
+          "rect": [
+            0,
+            7,
+            7,
+            7
+          ],
+          "purpose": "kitchen",
+          "floor_mat": "Wood"
+        }
       ],
       "portals": [
-        { "between": ["exterior", "hall"], "pos": [4, 0], "width": 1, "height": 2, "kind": "door",
-          "door": { "lockable": true, "key": "house_key", "swing": 90 } },
-        { "between": ["hall", "exterior"], "pos": [9, 0], "width": 2, "height": 2, "kind": "window" },
-        { "between": ["hall", "kitchen"],  "pos": [3, 7], "width": 1, "height": 2, "kind": "door" },
-        { "between": ["kitchen", "exterior"], "pos": [0, 10], "width": 2, "height": 2, "kind": "window" }
+        {
+          "between": [
+            "exterior",
+            "hall"
+          ],
+          "pos": [
+            4,
+            0
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "house_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "hall",
+            "exterior"
+          ],
+          "pos": [
+            9,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window"
+        },
+        {
+          "between": [
+            "hall",
+            "kitchen"
+          ],
+          "pos": [
+            3,
+            7
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door"
+        },
+        {
+          "between": [
+            "kitchen",
+            "exterior"
+          ],
+          "pos": [
+            0,
+            10
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window"
+        }
       ],
       "stairs": [],
       "fixtures": [
-        { "type": "table",   "rect": [3, 3, 2, 2], "facing": "north", "room": "hall" },
-        { "type": "counter", "rect": [1, 12, 4, 1], "facing": "south", "room": "kitchen" }
+        {
+          "type": "table",
+          "rect": [
+            3,
+            3,
+            2,
+            2
+          ],
+          "facing": "north",
+          "room": "hall"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            8,
+            4,
+            1
+          ],
+          "facing": "south",
+          "room": "kitchen"
+        }
       ]
     }
   ],
-  "roof": { "style": "flat", "mat": "Wood" }
+  "roof": {
+    "style": "flat",
+    "mat": "Wood"
+  }
 }

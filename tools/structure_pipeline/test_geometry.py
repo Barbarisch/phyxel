@@ -75,6 +75,44 @@ class DimensionTests(unittest.TestCase):
         self.assertFalse(rep.ok)
 
 
+class RoofTests(unittest.TestCase):
+    def test_building_is_roofed(self):
+        spec = _two_story()
+        self.assertTrue(G.roof_coverage_report(spec, build_shell(spec)).ok)
+
+    def test_uncovered_column_flagged(self):
+        spec = _two_story()
+        canvas = build_shell(spec)
+        top = spec.stories[0].height + 1 + spec.stories[1].height + 1
+        canvas.fill_micro_box(3 * 9, top * 9, 3 * 9, 9, 400, 9, None)   # carve the roof off a column
+        self.assertIn("ROOF_GAP", {i.code for i in G.roof_coverage_report(spec, canvas).errors})
+
+
+class FixturePlacementTests(unittest.TestCase):
+    def _spec_with_fixture(self, rect):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 8],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "g", "rect": [0, 0, 8, 8], "purpose": "living"}],
+                         "portals": [{"between": ["exterior", "g"], "pos": [3, 0], "width": 1,
+                                      "height": 2, "kind": "door"}],
+                         "stairs": [],
+                         "fixtures": [{"type": "bed", "rect": rect, "facing": "north", "room": "g"}]}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_clean_fixture_ok(self):
+        spec = self._spec_with_fixture([3, 3, 2, 1])      # bed (2x1) well inside
+        self.assertTrue(G.fixture_placement_report(spec, build_shell(spec)).ok)
+
+    def test_fixture_in_wall_flagged(self):
+        spec = self._spec_with_fixture([0, 3, 2, 1])      # bed starts on the x=0 wall
+        codes = {i.code for i in G.fixture_placement_report(spec, build_shell(spec)).errors}
+        self.assertTrue(codes & {"FIXTURE_CLIPS_WALL", "FIXTURE_OUT_OF_ROOM"})
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
         for name in ("chair_wood", "table_wood", "bed_single"):

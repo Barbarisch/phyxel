@@ -120,5 +120,16 @@ and/or canon (a "grand" ceiling target). Not an engine limit — a tuning/prompt
   TILES leaves (`door_leaves_for_width`) so a width-4 grand door is two 2-wide leaves, no gap.
   Confirmed by `opening_fit_report`.
 - **Windows at floor level** — realizer now sets a 1-cube sill.
+- **Roof didn't cover single-story wings** — realizer now caps EVERY column at the top of the
+  highest story occupying it (stepped roof: pitched/flat over the top level, flat-coped over lower
+  wings). Caught + confirmed by `roof_coverage_report`.
+- **Fixtures clipping walls / overlapping (real sizes)** — `fixture_placement_report` measures the
+  actual rotated template footprint (not the spec's f.rect) and checks room-fit + wall-clip +
+  fixture-overlap. Caught a real 4x2 counter poking through a wall in examples/house_L.
+
+New deterministic checks now in the build gate (geometry.py, tested in test_geometry.py):
+stair per-step headroom, door opening↔leaf fit, floating-component connectivity, real-world
+dimensions (BED_SIZES/REFERENCE_DIMS), fixture placement (real footprints), roof coverage,
+per-cell room headroom.
 
 > Materials/textures needs moved to a dedicated, actively-maintained doc: **docs/MaterialTextureNeeds.md**.
