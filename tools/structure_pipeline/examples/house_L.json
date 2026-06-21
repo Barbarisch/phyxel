@@ -117,10 +117,10 @@
           "rect": [
             1,
             8,
-            4,
-            1
+            1,
+            3
           ],
-          "facing": "south",
+          "facing": "east",
           "room": "kitchen"
         }
       ]

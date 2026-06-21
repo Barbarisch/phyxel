@@ -192,6 +192,101 @@ def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
     return rep
 
 
+def ceiling_mounted_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Ceiling-hung props (chandelier) must have a ceiling above to hang from."""
+    from .realize import CEILING_MOUNT_TYPES
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        ceil_y = bases[si] + story.height + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in CEILING_MOUNT_TYPES:
+                continue
+            x, z = f.rect[0], f.rect[1]
+            if occ.get((x, ceil_y, z), 0) == 0:
+                rep.error("CEILING_PROP_NO_CEILING",
+                          f"'{f.type}' at {f.rect} has no ceiling above to hang from "
+                          "(open sky or a stairwell)", f"story {si} fixture #{fi}")
+    return rep
+
+
+def stair_to_door_clearance_report(spec: BuildingSpec) -> ValidationReport:
+    """A door needs a flat landing on its approach — the cell just inside must not be a stair step
+    (you'd step out of the door straight onto a mid-flight stair). A few cells of flat floor before
+    the stairs begin is fine; a stair right at the threshold is not."""
+    from .playtest import _swing_sides, _swing_block
+    rep = ValidationReport()
+    fw, fd = spec.footprint
+    for si, story in enumerate(spec.stories):
+        stair_cells = set()
+        for s2 in spec.stories:
+            for st in s2.stairs:
+                if st.from_story == si or st.to_story == si:
+                    sx, sz, sw, sd = st.rect
+                    stair_cells |= {(x, z) for x in range(sx, sx + sw) for z in range(sz, sz + sd)}
+        if not stair_cells:
+            continue
+        rooms = {r.id: r for r in story.rooms}
+        for pi, p in enumerate(story.portals):
+            if p.kind not in ("door", "arch"):
+                continue
+            sides = _swing_sides(p, rooms, fw, fd)
+            if not sides:
+                continue
+            p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+            for axis, rm, sign, coord in sides:
+                if rm is None:
+                    continue
+                inside = _swing_block(axis, coord, sign, p_lo, 1)
+                if inside & stair_cells:
+                    rep.error("STAIR_AT_DOORWAY",
+                              f"door {tuple(p.between)} opens straight onto a stair step (no flat "
+                              "landing at the threshold)", f"story {si} door #{pi}")
+                    break
+    return rep
+
+
+OPERABLE_TYPES = {"wardrobe", "dresser", "desk", "cabinet", "chest", "counter", "sideboard"}
+
+
+def furniture_access_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Furniture you operate (wardrobe/dresser/desk/counter…) must have its FRONT open, not facing
+    a wall — otherwise you can't open the doors/drawers. Pairs with wall-backing (back to a wall,
+    front to the room)."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    # front direction by facing (template front = +Z, rotated): N->+z E->+x S->-z W->-x
+    front_dir = {0: (0, 1), 90: (1, 0), 180: (0, -1), 270: (-1, 0)}
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in OPERABLE_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            rot = _FACING_ROT.get(f.facing, 0)
+            fw, fd = template_cube_footprint(tmpl, rot)
+            x0, z0, x1, z1 = f.rect[0], f.rect[1], f.rect[0] + fw, f.rect[1] + fd
+            dx, dz = front_dir.get(rot, (0, 1))
+            if dz == 1:
+                front = [(x, z1) for x in range(x0, x1)]
+            elif dz == -1:
+                front = [(x, z0 - 1) for x in range(x0, x1)]
+            elif dx == 1:
+                front = [(x1, z) for z in range(z0, z1)]
+            else:
+                front = [(x0 - 1, z) for z in range(z0, z1)]
+            if front and all(occ.get((x, y, z), 0) == _FULL_CUBE for (x, z) in front):
+                rep.error("FURNITURE_FACES_WALL",
+                          f"'{f.type}' at {f.rect} faces a wall ({f.facing}) — its doors/drawers "
+                          "can't be opened; turn it to face the room", f"story {si} fixture #{fi}")
+    return rep
+
+
 def _fixture_cells_by_story(spec: BuildingSpec):
     """Floor cells occupied by fixtures (real rotated footprints), per story."""
     from .realize import FIXTURE_TEMPLATES, _FACING_ROT
@@ -411,7 +506,7 @@ def dimension_report(name: str, kind: str) -> ValidationReport:
 
 # Furniture that must back onto a wall (a bookshelf floating mid-room facing nowhere is wrong).
 WALL_BACKED_TYPES = {"bookshelf", "bookcase", "shelf", "wardrobe", "dresser", "cabinet",
-                     "sideboard", "fireplace"}
+                     "sideboard", "fireplace", "sconce", "torch"}    # incl. wall-mounted props
 
 
 def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
@@ -667,6 +762,9 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  door_swing_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
                  wall_backed_report(spec, canvas),
+                 furniture_access_report(spec, canvas),
+                 ceiling_mounted_report(spec, canvas),
+                 stair_to_door_clearance_report(spec),
                  clutter_on_surface_report(spec),
                  circulation_report(spec, canvas),
                  light_per_room_report(spec),

@@ -313,6 +313,18 @@ def make_torch(wood=LOG, flame="glow") -> DetailCanvas:
     return c
 
 
+def make_chandelier(metal=KNOB, candle=PILLOW, flame="glow") -> DetailCanvas:
+    """A hanging chandelier: a candle ring on arms, a chain up to a hub that meets the ceiling."""
+    c = DetailCanvas()
+    c.fill_micro_box(2, 2, 4, 5, 1, 1, metal)   # ring arm (X)
+    c.fill_micro_box(4, 2, 2, 1, 1, 5, metal)   # ring arm (Z)
+    c.fill_micro_box(4, 3, 4, 1, 6, 1, metal)   # chain up to the ceiling
+    for (x, z) in ((2, 4), (6, 4), (4, 2), (4, 6)):
+        c.set_micro_cell(x, 3, z, candle)       # candle on each arm
+        c.set_micro_cell(x, 4, z, flame)        # flame
+    return c
+
+
 def make_plate(mat=LINEN) -> DetailCanvas:
     """A shallow plate/bowl with a rim (~0.3 m)."""
     c = DetailCanvas()
@@ -353,6 +365,7 @@ PIECES = {
     "candelabra": (make_candelabra, "Candelabra", ["# clutter:      surface light (sits on a table)"]),
     "sconce":     (make_sconce, "Wall Sconce", ["# light:        wall-mounted (back to a wall)"]),
     "torch":      (make_torch, "Wall Torch", ["# light:        wall-mounted (back to a wall)"]),
+    "chandelier": (make_chandelier, "Chandelier", ["# light:        ceiling-hung (centre of a room)"]),
 }
 
 

@@ -212,11 +212,52 @@ class LightTests(unittest.TestCase):
         self.assertTrue(G.light_per_room_report(spec).ok)
 
 
+class FurnitureAccessTests(unittest.TestCase):
+    def _room(self, facing):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 8],
+            "stories": [{"height": 4, "rooms": [{"id": "r", "rect": [0, 0, 8, 8], "purpose": "room"}],
+                         "portals": [{"between": ["exterior", "r"], "pos": [3, 0], "width": 1, "height": 2, "kind": "door"}],
+                         "stairs": [],
+                         "fixtures": [{"type": "wardrobe", "rect": [1, 1, 1, 1], "facing": facing, "room": "r"}]}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_faces_room_ok(self):
+        self.assertTrue(G.furniture_access_report(self._room("east"), build_shell(self._room("east"))).ok)
+
+    def test_faces_wall_flagged(self):
+        spec = self._room("west")     # front (-x) is the x=0 wall
+        self.assertIn("FURNITURE_FACES_WALL", {i.code for i in G.furniture_access_report(spec, build_shell(spec)).errors})
+
+
+class StairToDoorTests(unittest.TestCase):
+    def test_door_at_stair_flagged(self):
+        spec = BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 8],
+            "stories": [
+                {"height": 4,
+                 "rooms": [{"id": "a", "rect": [0, 0, 8, 4], "purpose": "hall"},
+                           {"id": "b", "rect": [0, 4, 8, 4], "purpose": "hall"}],
+                 "portals": [{"between": ["exterior", "a"], "pos": [1, 0], "width": 1, "height": 2, "kind": "door"},
+                             {"between": ["a", "b"], "pos": [3, 4], "width": 1, "height": 2, "kind": "door"}],
+                 "stairs": [{"from_story": 0, "to_story": 1, "rect": [3, 4, 2, 4], "kind": "straight"}],
+                 "fixtures": []},
+                {"height": 4, "rooms": [{"id": "u", "rect": [0, 0, 8, 8], "purpose": "bedroom"}],
+                 "portals": [], "stairs": [], "fixtures": []}],
+            "roof": {"style": "flat", "mat": "Wood"}})
+        self.assertIn("STAIR_AT_DOORWAY", {i.code for i in G.stair_to_door_clearance_report(spec).errors})
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
         for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack",
                      "wardrobe", "dresser", "desk", "counter", "fireplace", "candlestick", "goblet",
-                     "bottle", "plate", "candelabra", "sconce", "torch"):
+                     "bottle", "plate", "candelabra", "sconce", "torch", "chandelier"):
             self.assertTrue(G.connectivity_report(name).ok, f"{name} has floating parts")
 
     def test_shell_is_connected(self):

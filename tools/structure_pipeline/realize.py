@@ -52,12 +52,26 @@ FIXTURE_TEMPLATES = {
     # surface clutter (placed on top of tables/desks/shelves)
     "candlestick": "candlestick", "candle": "candlestick", "goblet": "goblet", "cup": "goblet",
     "bottle": "bottle", "jug": "bottle", "plate": "plate", "bowl": "plate",
-    "candelabra": "candelabra", "sconce": "sconce", "torch": "torch",
+    "candelabra": "candelabra", "sconce": "sconce", "torch": "torch", "chandelier": "chandelier",
 }
 
 # Small props that sit ON a surface (table/desk/shelf/mantel), not on the floor.
 CLUTTER_TYPES = {"candlestick", "candle", "goblet", "cup", "bottle", "jug", "plate", "bowl",
                  "books", "book", "scroll", "inkwell", "vase", "candelabra"}
+
+# Wall-mounted props (placed against a wall at head/chest height) and ceiling-hung props.
+WALL_MOUNT_TYPES = {"sconce", "torch", "shelf"}
+CEILING_MOUNT_TYPES = {"chandelier"}
+
+
+def fixture_y_offset(ftype: str, story_height: int) -> int:
+    """Cubes above the floor a fixture's base sits at: floor (1), on a surface / wall-mounted (2),
+    or hung just under the ceiling for ceiling props."""
+    if ftype in CEILING_MOUNT_TYPES:
+        return max(2, story_height)        # just below the ceiling
+    if ftype in WALL_MOUNT_TYPES or ftype in CLUTTER_TYPES:
+        return 2
+    return 1
 _FACING_ROT = {"north": 0, "east": 90, "south": 180, "west": 270}
 
 
@@ -293,7 +307,7 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
             if not tmpl:
                 continue
             rot = _FACING_ROT.get(f.facing, 0)
-            y_off = 2 if f.type in CLUTTER_TYPES else 1   # clutter sits on a surface, not the floor
+            y_off = fixture_y_offset(f.type, story.height)   # floor / surface / wall / ceiling
             sp = _spawn(engine, tmpl, px + f.rect[0], py + baseY + y_off, pz + f.rect[1], rot)
             out["fixtures"].append({"id": sp.get("object_id"), "template": tmpl})
         baseY += story.height + 1
