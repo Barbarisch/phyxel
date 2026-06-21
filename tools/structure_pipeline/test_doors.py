@@ -69,6 +69,29 @@ class DoorGeometryTests(unittest.TestCase):
         self.assertEqual(D.select_door(1, "bedroom", lockable=True), "door_wood")
         self.assertTrue(D.DOOR_CATALOG["door_wood"].lockable)
 
+    def test_door_swing_has_clear_side(self):
+        spec = _spec_with_door("bedroom", False, 1)        # plank into an empty room
+        self.assertTrue(G.door_swing_report(spec, build_shell(spec)).ok)
+
+    def test_swing_blocked_both_sides_flagged(self):
+        # interior door between two rooms with a bed planted in each room's swing
+        spec = BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [6, 8],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "a", "rect": [0, 0, 6, 4], "purpose": "room"},
+                                   {"id": "b", "rect": [0, 4, 6, 4], "purpose": "room"}],
+                         "portals": [
+                             {"between": ["exterior", "a"], "pos": [2, 0], "width": 1, "height": 2, "kind": "door"},
+                             {"between": ["a", "b"], "pos": [2, 4], "width": 1, "height": 2, "kind": "door"}],
+                         "stairs": [],
+                         "fixtures": [{"type": "bed", "rect": [2, 3, 2, 1], "facing": "north", "room": "a"},
+                                      {"type": "bed", "rect": [2, 4, 2, 1], "facing": "north", "room": "b"}]}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+        self.assertIn("DOOR_NO_CLEAR_SWING", {i.code for i in G.door_swing_report(spec, build_shell(spec)).errors})
+
 
 if __name__ == "__main__":
     unittest.main()

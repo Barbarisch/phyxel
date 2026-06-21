@@ -192,6 +192,70 @@ def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
     return rep
 
 
+def _fixture_cells_by_story(spec: BuildingSpec):
+    """Floor cells occupied by fixtures (real rotated footprints), per story."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    out = []
+    for story in spec.stories:
+        cells = set()
+        for f in story.fixtures:
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            for x in range(f.rect[0], f.rect[0] + fw):
+                for z in range(f.rect[1], f.rect[1] + fd):
+                    cells.add((x, z))
+        out.append(cells)
+    return out
+
+
+def door_swing_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """For each door, decide a HANDEDNESS: which side it can swing into with a clear quarter-arc
+    (door_width x door_width of open room floor, no wall/fixture). Deterministic — picks the clear
+    side (preferring to swing into a room, not the exterior). Errors if NO side is clear.
+
+    NOTE: this verifies a clear swing EXISTS and which side; making the live door actually swing
+    that way needs mirrored door templates + the engine's swing convention (tracked in the gaps doc)."""
+    from .doors import selected_door_for_portal
+    from .playtest import _swing_sides, _swing_block, _rect_contains_cells
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    fw, fd = spec.footprint
+    fixt = _fixture_cells_by_story(spec)
+
+    for si, story in enumerate(spec.stories):
+        rooms = {r.id: r for r in story.rooms}
+        purpose_map = {r.id: r.purpose for r in story.rooms}
+        y = bases[si] + 1
+        for pi, p in enumerate(story.portals):
+            if p.kind != "door":
+                continue
+            where = f"story {si} door #{pi} {p.between}"
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            sides = _swing_sides(p, rooms, fw, fd)
+            if not sides:
+                continue
+            p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+            clear_sides = []
+            for axis, room, sign, coord in sides:
+                if room is None:                          # exterior side — don't prefer swinging out
+                    continue
+                block = _swing_block(axis, coord, sign, p_lo, dd.width)
+                if not _rect_contains_cells(room.rect, block):
+                    continue
+                if any((x, z) in fixt[si] or occ.get((x, y, z), 0) == _FULL_CUBE for (x, z) in block):
+                    continue
+                clear_sides.append(room.id)
+            if not clear_sides:
+                rep.error("DOOR_NO_CLEAR_SWING",
+                          f"the {dd.name} ({dd.width} wide) has no side it can swing open into "
+                          "(both sides blocked by wall/fixture)", where)
+    return rep
+
+
 def door_selection_report(spec: BuildingSpec) -> ValidationReport:
     """The door chosen for each opening must be usable in its situation: it fits under the wall,
     and a portal that must lock gets a lockable-capable door."""
@@ -429,6 +493,7 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
     return merge(stair_clearance_report(spec, canvas, canon),
                  opening_fit_report(spec, canvas),
                  door_selection_report(spec),
+                 door_swing_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
