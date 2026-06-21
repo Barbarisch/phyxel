@@ -323,6 +323,19 @@ def dimension_report(name: str, kind: str) -> ValidationReport:
 
 # --------------------------------------------------------------------------- convenience
 
+def shell_connectivity_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """The building shell (walls/floor/roof) must be one connected solid from the ground — no
+    floating wall segments, detached coping, or orphaned roof pieces."""
+    rep = ValidationReport()
+    fl = floating_components(set(canvas.cells.keys()))
+    if fl:
+        ys = sorted({round(y / 9, 1) for _, y, _ in fl})
+        rep.error("SHELL_FLOATING",
+                  f"{len(fl)} shell voxel cell(s) in {_components(fl)} floating cluster(s) "
+                  f"(disconnected from the ground) at heights {ys} cubes", "building")
+    return rep
+
+
 def roof_coverage_report(spec: BuildingSpec, canvas) -> ValidationReport:
     """Every interior column must be capped from above (roof or the floor of a story over it).
     Catches rooms open to the sky — e.g. the single-story wing tails of a stepped building whose
@@ -397,5 +410,6 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
     return merge(stair_clearance_report(spec, canvas, canon),
                  opening_fit_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
+                 shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
                  room_headroom_report(spec, canvas, canon))

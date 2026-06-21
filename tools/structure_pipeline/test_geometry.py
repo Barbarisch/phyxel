@@ -118,6 +118,10 @@ class ConnectivityTests(unittest.TestCase):
         for name in ("chair_wood", "table_wood", "bed_single"):
             self.assertTrue(G.connectivity_report(name).ok, f"{name} has floating parts")
 
+    def test_shell_is_connected(self):
+        spec = _two_story()
+        self.assertTrue(G.shell_connectivity_report(spec, build_shell(spec)).ok)
+
 
 if __name__ == "__main__":
     unittest.main()
