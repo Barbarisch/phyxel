@@ -44,7 +44,7 @@ def door_leaves_for_width(w: int):
 # fixture type -> subcube furniture template (matches the engine-side map)
 FIXTURE_TEMPLATES = {
     "table": "table_wood", "chair": "chair_wood", "stool": "stool", "bed": "bed_single",
-    "counter": "tavern_bar", "bar": "tavern_bar", "altar": "altar",
+    "counter": "counter", "sideboard": "counter", "bar": "tavern_bar", "altar": "altar",
     "pew": "bench_wood", "bench": "bench_wood", "barrel": "barrel",
     "bookshelf": "bookshelf", "shelf": "wall_shelf", "bookcase": "bookshelf",
     "books": "book_stack", "book": "book_stack",
@@ -52,11 +52,12 @@ FIXTURE_TEMPLATES = {
     # surface clutter (placed on top of tables/desks/shelves)
     "candlestick": "candlestick", "candle": "candlestick", "goblet": "goblet", "cup": "goblet",
     "bottle": "bottle", "jug": "bottle", "plate": "plate", "bowl": "plate",
+    "candelabra": "candelabra", "sconce": "sconce", "torch": "torch",
 }
 
 # Small props that sit ON a surface (table/desk/shelf/mantel), not on the floor.
 CLUTTER_TYPES = {"candlestick", "candle", "goblet", "cup", "bottle", "jug", "plate", "bowl",
-                 "books", "book", "scroll", "inkwell", "vase"}
+                 "books", "book", "scroll", "inkwell", "vase", "candelabra"}
 _FACING_ROT = {"north": 0, "east": 90, "south": 180, "west": 270}
 
 

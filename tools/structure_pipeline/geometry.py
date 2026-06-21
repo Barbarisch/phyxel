@@ -447,6 +447,105 @@ def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
 SURFACE_TYPES = {"table", "desk", "counter", "bar", "dresser", "sideboard", "shelf", "cabinet", "altar"}
 
 
+def _largest_free_component(free):
+    """Flood the largest connected component of a set of (x,z) cells."""
+    best = set()
+    seen = set()
+    for start in free:
+        if start in seen:
+            continue
+        comp = {start}
+        stack = [start]
+        seen.add(start)
+        while stack:
+            x, z = stack.pop()
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (x + dx, z + dz)
+                if n in free and n not in seen:
+                    seen.add(n)
+                    comp.add(n)
+                    stack.append(n)
+        if len(comp) > len(best):
+            best = comp
+    return best
+
+
+def circulation_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Furniture must leave a walkable path: in every room, every doorway must be reachable across
+    the room's clear floor (interior minus walls minus floor-furniture, using REAL footprints).
+    Catches furniture that walls off a door or splits a room so you can't move through it."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES
+    from .playtest import _swing_sides, _swing_block
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    fw, fd = spec.footprint
+
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        rooms_by_id = {r.id: r for r in story.rooms}
+        furn = set()                                       # floor furniture (clutter is on surfaces)
+        for f in story.fixtures:
+            if f.type in CLUTTER_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            ffw, ffd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            furn |= {(x, z) for x in range(f.rect[0], f.rect[0] + ffw)
+                     for z in range(f.rect[1], f.rect[1] + ffd)}
+        for room in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(room.rect))
+            free = {(x, z) for x in range(x0, x1) for z in range(z0, z1)
+                    if occ.get((x, y, z), 0) != _FULL_CUBE and (x, z) not in furn}
+            if not free:
+                rep.error("ROOM_NO_CLEAR_FLOOR",
+                          f"room '{room.id}' has no clear floor — packed solid with furniture",
+                          f"story {si}")
+                continue
+            main = _largest_free_component(free)
+            blocked = []
+            for p in story.portals:
+                if p.kind not in ("door", "arch") or room.id not in p.between:
+                    continue
+                sides = _swing_sides(p, rooms_by_id, fw, fd)
+                if not sides:
+                    continue
+                p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+                for axis, rm, sign, coord in sides:
+                    if rm is None or rm.id != room.id:
+                        continue
+                    inside = _swing_block(axis, coord, sign, p_lo, 1)
+                    if not (inside & main):
+                        blocked.append(tuple(p.between))
+            if blocked:
+                rep.error("CIRCULATION_BLOCKED",
+                          f"furniture in room '{room.id}' blocks circulation — door(s) {blocked} "
+                          "can't be reached across the clear floor", f"story {si}")
+    return rep
+
+
+LIGHT_FIXTURE_TYPES = {"candlestick", "candle", "candelabra", "sconce", "torch", "chandelier",
+                       "lamp", "lantern", "fireplace", "brazier"}
+
+
+def light_per_room_report(spec: BuildingSpec) -> ValidationReport:
+    """Every room needs a light source: a window, an exterior door (daylight), or a light fixture
+    (candle/sconce/torch/candelabra/fireplace/…). A windowless room with no light is pitch black."""
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        lit = {f.room for f in story.fixtures if f.type in LIGHT_FIXTURE_TYPES}
+        for p in story.portals:                            # daylight from windows / exterior doors
+            if p.kind == "window" or (p.kind in ("door", "arch") and "exterior" in p.between):
+                lit |= {r for r in p.between if r != "exterior"}
+        for room in story.rooms:
+            if room.id not in lit:
+                rep.error("ROOM_NO_LIGHT",
+                          f"room '{room.id}' has no light source (no window, exterior door, or light "
+                          "fixture) — it would be pitch black", f"story {si}")
+    return rep
+
+
 def clutter_on_surface_report(spec: BuildingSpec) -> ValidationReport:
     """Surface clutter (candlestick, goblet, bottle, books, …) must sit on a piece of furniture with
     a top (table/desk/dresser/shelf/…), not float in mid-air or land on the floor."""
@@ -569,6 +668,8 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  fixture_placement_report(spec, canvas),
                  wall_backed_report(spec, canvas),
                  clutter_on_surface_report(spec),
+                 circulation_report(spec, canvas),
+                 light_per_room_report(spec),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
                  room_headroom_report(spec, canvas, canon))

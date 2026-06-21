@@ -111,6 +111,10 @@ Materials (use these names exactly): {materials}.
      onto it). A study/library is lined with bookshelves; bedrooms get a wardrobe/dresser + a bed.
    - CLUTTER sits ON a surface: give it the SAME rect as the table/desk/shelf it rests on (a candlestick or
      books on a desk, a goblet/bottle/plate on a dining table). Never place clutter on bare floor.
+   - LIGHT: every room needs a light source. A window or exterior door counts (daylight); a windowless
+     interior room (cellar, inner hall, landing, study) MUST get a light fixture — candlestick/candelabra on a
+     table, a fireplace against a wall, or a sconce/torch. Don't leave any room pitch black.
+   - Furniture must leave a walkable path: don't block a doorway or wall a room in two with a counter/table.
 7. CLEARANCE (a person must be able to USE the building). Keep every doorway clear: NEVER place a fixture on a
    door threshold or in the cells just inside a door — a fixture there seals the room off. Keep each fixture
    fully inside its room with a walkable path around it, and leave a clear route from the entrance into every

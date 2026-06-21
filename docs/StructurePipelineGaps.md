@@ -74,10 +74,12 @@ table**. Needs engine integration: route clutter through `ItemPropManager` (or t
 each prop is a grabbable item with a pickup interaction, not baked geometry.
 - *Fix:* a `pickable: true` flag on clutter placements + spawn them as items/props with a grab verb.
 
-### [realize] Wall-mounted (floating) shelf needs height placement
-`wall_shelf` is currently a low FLOOR-standing console (so it passes the floating-from-floor
-connectivity check). A true wall-mounted shelf at chest height would float from the floor — it needs
-the realizer to place it at a wall height and the connectivity check to treat it as wall-anchored.
+### [realize] Wall-mounted props (shelf, sconce, torch) need height + wall placement
+`wall_shelf` is a low FLOOR console for now; `sconce`/`torch` are authored but get floor-placed
+(they read as wall lights but sit on the floor). A true wall mount needs the realizer to place them
+at a wall at chest/head height (against a perimeter/partition wall), and the connectivity check to
+treat them as wall-anchored rather than floor-anchored. `candelabra` (table light) + `fireplace`
+work today; `chandelier` (ceiling-hung) is unbuilt and needs ceiling placement.
 
 ### [engine] Furniture detail capped by microcube resolution (0.11 m)
 The smallest voxel is a microcube = 1/9 cube = 0.11 m. A 0.5 m chair is only ~5 micro-cells

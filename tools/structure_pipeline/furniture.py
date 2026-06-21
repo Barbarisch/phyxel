@@ -210,6 +210,22 @@ def make_desk(top=OAK, frame=LOG) -> DetailCanvas:
     return c
 
 
+def make_counter(frame=LOG, top=OAK, panel=OAK) -> DetailCanvas:
+    """A kitchen counter / sideboard: 3 wide x 1 deep x ~0.9 m, cabinet base + worktop surface.
+    Backs onto a wall and leaves the room walkable (unlike the big tavern bar)."""
+    c = DetailCanvas()
+    W, H, D = 27, 8, 9                                   # 3 x 1 cubes
+    c.fill_micro_box(0, 0, 0, W, H - 1, 1, panel)        # back
+    c.fill_micro_box(0, 0, 0, 1, H - 1, D, frame)        # sides
+    c.fill_micro_box(W - 1, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)            # toe base
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, top)          # worktop (clutter sits here)
+    c.fill_micro_box(1, 1, D - 1, W - 2, H - 2, 1, panel)  # cabinet door fronts
+    for dx in (4, 13, 22):                               # cabinet-door knobs
+        c.set_micro_cell(dx, (H - 1) // 2, D - 1, KNOB)
+    return c
+
+
 def make_fireplace(stone="Stone", frame=LOG, ember="glow") -> DetailCanvas:
     """Stone fireplace (~1.5 m): surround + firebox opening + a mantel shelf + glowing embers and
     a log. Backs onto a wall (the chimney breast)."""
@@ -267,6 +283,36 @@ def make_bottle(glass="Glass", cork=OAK) -> DetailCanvas:
     return c
 
 
+def make_candelabra(metal=KNOB, candle=PILLOW, flame="glow") -> DetailCanvas:
+    """A branched candelabra (surface light): base, stem, three candles with flames."""
+    c = DetailCanvas()
+    c.fill_micro_box(1, 0, 1, 3, 1, 1, metal)   # foot
+    c.fill_micro_box(2, 1, 1, 1, 3, 1, metal)   # central stem
+    c.fill_micro_box(0, 3, 1, 5, 1, 1, metal)   # arm bar
+    for x in (0, 2, 4):                          # three candles + flames
+        c.set_micro_cell(x, 4, 1, candle)
+        c.set_micro_cell(x, 5, 1, flame)
+    return c
+
+
+def make_sconce(metal=KNOB, candle=PILLOW, flame="glow") -> DetailCanvas:
+    """A wall sconce (back-plate at Z=0, mounts to a wall): bracket, candle, flame."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 1, 4, 1, metal)   # back plate
+    c.set_micro_cell(0, 1, 1, metal)            # bracket arm
+    c.set_micro_cell(0, 2, 1, candle)
+    c.set_micro_cell(0, 3, 1, flame)
+    return c
+
+
+def make_torch(wood=LOG, flame="glow") -> DetailCanvas:
+    """A wall torch (back at Z=0): a short shaft on a wall bracket with a flame on top."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 1, 3, 1, wood)    # bracket + shaft against the wall
+    c.set_micro_cell(0, 3, 0, flame)            # flame
+    return c
+
+
 def make_plate(mat=LINEN) -> DetailCanvas:
     """A shallow plate/bowl with a rim (~0.3 m)."""
     c = DetailCanvas()
@@ -298,11 +344,15 @@ PIECES = {
     "wardrobe":   (make_wardrobe, "Wardrobe", ["# facing:       +Z (doors face +Z; back to a wall)"]),
     "dresser":    (make_dresser, "Dresser", ["# facing:       +Z (drawers face +Z; back to a wall)"]),
     "desk":       (make_desk, "Writing Desk", ["# facing:       +Z"]),
+    "counter":    (make_counter, "Counter", ["# facing:       +Z (worktop; backs to a wall)"]),
     "fireplace":  (make_fireplace, "Fireplace", ["# facing:       +Z (opening faces +Z; chimney to a wall)"]),
     "candlestick": (make_candlestick, "Candlestick", ["# clutter:      surface prop (sits on a table/desk/shelf)"]),
     "goblet":     (make_goblet, "Goblet", ["# clutter:      surface prop"]),
     "bottle":     (make_bottle, "Bottle", ["# clutter:      surface prop"]),
     "plate":      (make_plate, "Plate", ["# clutter:      surface prop"]),
+    "candelabra": (make_candelabra, "Candelabra", ["# clutter:      surface light (sits on a table)"]),
+    "sconce":     (make_sconce, "Wall Sconce", ["# light:        wall-mounted (back to a wall)"]),
+    "torch":      (make_torch, "Wall Torch", ["# light:        wall-mounted (back to a wall)"]),
 }
 
 

@@ -160,10 +160,63 @@ class ClutterTests(unittest.TestCase):
         self.assertIn("CLUTTER_NOT_ON_SURFACE", codes)
 
 
+class CirculationTests(unittest.TestCase):
+    def _two_rooms(self, fixtures):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [6, 8],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "a", "rect": [0, 0, 6, 4], "purpose": "room"},
+                                   {"id": "b", "rect": [0, 4, 6, 4], "purpose": "room"}],
+                         "portals": [{"between": ["exterior", "a"], "pos": [2, 0], "width": 1, "height": 2, "kind": "door"},
+                                     {"between": ["a", "b"], "pos": [2, 4], "width": 1, "height": 2, "kind": "door"}],
+                         "stairs": [], "fixtures": fixtures}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_clear_room_ok(self):
+        self.assertTrue(G.circulation_report(self._two_rooms([]), build_shell(self._two_rooms([]))).ok)
+
+    def test_furniture_wall_blocks(self):
+        wall = [{"type": "bookshelf", "rect": [x, 2, 1, 1], "facing": "north", "room": "a"} for x in range(6)]
+        spec = self._two_rooms(wall)
+        self.assertIn("CIRCULATION_BLOCKED", {i.code for i in G.circulation_report(spec, build_shell(spec)).errors})
+
+
+class LightTests(unittest.TestCase):
+    def _room(self, portals, fixtures):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [6, 6],
+            "stories": [{"height": 4, "rooms": [{"id": "r", "rect": [0, 0, 6, 6], "purpose": "cellar"}],
+                         "portals": portals, "stairs": [], "fixtures": fixtures}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    _arch = [{"between": ["exterior", "r"], "pos": [2, 0], "width": 1, "height": 2, "kind": "arch"}]
+
+    def test_windowless_no_fixture_is_dark(self):
+        spec = self._room([{"between": ["r", "exterior"], "pos": [0, 2], "width": 1, "height": 2, "kind": "arch"}], [])
+        # interior arch to exterior counts as daylight; use an interior-only spec instead:
+        dark = self._room([], [])
+        self.assertIn("ROOM_NO_LIGHT", {i.code for i in G.light_per_room_report(dark).errors})
+
+    def test_window_lights_room(self):
+        spec = self._room([{"between": ["r", "exterior"], "pos": [0, 2], "width": 2, "height": 2, "kind": "window"}], [])
+        self.assertTrue(G.light_per_room_report(spec).ok)
+
+    def test_fixture_lights_room(self):
+        spec = self._room([], [{"type": "fireplace", "rect": [1, 0, 1, 1], "facing": "south", "room": "r"}])
+        self.assertTrue(G.light_per_room_report(spec).ok)
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
         for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack",
-                     "wardrobe", "dresser", "desk", "fireplace", "candlestick", "goblet", "bottle", "plate"):
+                     "wardrobe", "dresser", "desk", "counter", "fireplace", "candlestick", "goblet",
+                     "bottle", "plate", "candelabra", "sconce", "torch"):
             self.assertTrue(G.connectivity_report(name).ok, f"{name} has floating parts")
 
     def test_shell_is_connected(self):
