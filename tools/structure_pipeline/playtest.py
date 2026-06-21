@@ -168,7 +168,11 @@ def functional_report(spec: BuildingSpec, canon: Optional[ScaleCanon] = None) ->
         where = f"story {si}"
         rooms = {r.id: r for r in story.rooms if r.id}
 
-        # fixtures: in-room, mutual overlap (seats may tuck under surfaces), obstacle map
+        # fixtures: in-room, mutual overlap (seats may tuck under surfaces), obstacle map.
+        # Clutter sits ON surfaces (floor+2) and flat rugs are walkable — neither is an obstacle
+        # or overlaps floor furniture, so they're kept out of the obstacle map / overlap check.
+        from .realize import CLUTTER_TYPES as _CLUTTER, FLAT_TYPES as _FLAT
+        nonblock = _CLUTTER | _FLAT
         fixt_cells: Set[Cell] = set()
         fbounds: List[Tuple[int, Tuple[int, int, int, int]]] = []
         for fi, f in enumerate(story.fixtures):
@@ -179,6 +183,8 @@ def functional_report(spec: BuildingSpec, canon: Optional[ScaleCanon] = None) ->
                 rep.error("FIXTURE_OUT_OF_ROOM",
                           f"fixture '{f.type}' {list(f.rect)} is not inside room '{f.room}'",
                           f"{where} fixture #{fi}")
+            if f.type in nonblock:
+                continue
             fbounds.append((fi, fb))
             for x in range(fx0, fx1):
                 for z in range(fz0, fz1):

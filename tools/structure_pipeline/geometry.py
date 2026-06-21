@@ -392,7 +392,7 @@ def fixture_placement_report(spec: BuildingSpec, canvas) -> ValidationReport:
     sit inside its room, not clip a wall, and not overlap another fixture (seats may tuck under
     tables). This is where 'overlapping blocks / furniture makes no sense' actually comes from —
     a 2-cube bed dropped at a 1-cube slot pokes through the wall or into a neighbour."""
-    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, FLAT_TYPES, CLUTTER_TYPES
     from .playtest import _seat_under_surface
     rep = ValidationReport()
     occ = _cube_occupancy(canvas)
@@ -404,7 +404,9 @@ def fixture_placement_report(spec: BuildingSpec, canvas) -> ValidationReport:
         placed: List[Tuple[str, int, int, int, int]] = []
         for fi, f in enumerate(story.fixtures):
             tmpl = FIXTURE_TEMPLATES.get(f.type)
-            if not tmpl:
+            # clutter sits on a surface at floor+2 (validated by clutter_on_surface); flat rugs are
+            # walkable — neither collides with floor furniture, so skip them here.
+            if not tmpl or f.type in FLAT_TYPES or f.type in CLUTTER_TYPES:
                 continue
             rot = _FACING_ROT.get(f.facing, 0)
             fw, fd = template_cube_footprint(tmpl, rot)
@@ -451,6 +453,11 @@ REFERENCE_DIMS = {                       # kind: {axis: (min, max)} ; H = height
     "wardrobe": {"H": (1.60, 2.30), "F": (0.40, 0.80)},
     "dresser": {"H": (0.70, 1.15), "F": (0.40, 0.70)},
     "fireplace": {"H": (1.00, 2.20), "F": (0.40, 1.00)},
+    "four_poster": {"H": (1.60, 2.40)},                  # footprint vs BED_SIZES
+    "armchair": {"H": (0.80, 1.40), "F": (0.55, 0.95)},
+    "long_table": {"H": (0.70, 1.05), "F": (0.70, 1.40)},
+    "nightstand": {"H": (0.40, 0.75), "F": (0.30, 0.70)},
+    "sideboard": {"H": (0.70, 1.10), "F": (0.40, 0.80)},
     "door":   {"H": (1.95, 2.30)},   # width handled by opening-tiling; doors are intentionally thin
 }
 
@@ -539,7 +546,8 @@ def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
 
 
 # Fixtures with a usable top surface that clutter can sit on.
-SURFACE_TYPES = {"table", "desk", "counter", "bar", "dresser", "sideboard", "shelf", "cabinet", "altar"}
+SURFACE_TYPES = {"table", "desk", "counter", "bar", "dresser", "sideboard", "shelf", "cabinet",
+                 "altar", "long_table", "nightstand"}
 
 
 def _largest_free_component(free):
@@ -650,7 +658,7 @@ def fixture_reachable_report(spec: BuildingSpec, canvas) -> ValidationReport:
     """You must be able to WALK UP to each piece of furniture: at least one cell beside it must be
     on the room's reachable floor (the circulation). Catches a desk/wardrobe boxed in by other
     furniture so you can't get to it (beyond just 'its front isn't a wall')."""
-    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES, WALL_MOUNT_TYPES, CEILING_MOUNT_TYPES
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES, WALL_MOUNT_TYPES, CEILING_MOUNT_TYPES, FLAT_TYPES
     rep = ValidationReport()
     occ = _cube_occupancy(canvas)
     bases = _story_base_y(spec)
@@ -659,7 +667,7 @@ def fixture_reachable_report(spec: BuildingSpec, canvas) -> ValidationReport:
         furn = set()
         fcells = {}
         for fi, f in enumerate(story.fixtures):
-            if f.type in CLUTTER_TYPES or f.type in WALL_MOUNT_TYPES or f.type in CEILING_MOUNT_TYPES:
+            if f.type in CLUTTER_TYPES or f.type in WALL_MOUNT_TYPES or f.type in CEILING_MOUNT_TYPES or f.type in FLAT_TYPES:
                 continue
             tmpl = FIXTURE_TEMPLATES.get(f.type)
             if not tmpl:

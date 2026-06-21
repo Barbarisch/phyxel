@@ -157,6 +157,107 @@ def make_shelf(frame=OAK, back=LOG) -> DetailCanvas:
     return c
 
 
+BLANKET = "Bricks"   # deep-red coverlet (cloth material is a gap — see MaterialTextureNeeds.md)
+
+
+def make_four_poster(frame=LOG, wood=OAK, mattress=LINEN, pillow=PILLOW, blanket=BLANKET) -> DetailCanvas:
+    """A grand four-poster canopy bed (queen, ~1.56 x 2.0 m): four tall posts, a canopy frame and
+    valance, a panelled headboard, mattress + two pillows + a draped coverlet. The 'mansion' bed."""
+    c = DetailCanvas()
+    W, L = 14, 18                                        # 1.56 wide (X), 2.0 long (Z); head at Z=0
+    post_h = 18
+    posts = [(0, 0), (W - 2, 0), (0, L - 2), (W - 2, L - 2)]
+    for px, pz in posts:
+        c.fill_micro_box(px, 0, pz, 2, post_h, 2, frame)        # four tall posts
+    # canopy frame (rails around the top) + a valance lip
+    c.fill_micro_box(0, post_h - 1, 0, W, 1, 2, frame)
+    c.fill_micro_box(0, post_h - 1, L - 2, W, 1, 2, frame)
+    c.fill_micro_box(0, post_h - 1, 0, 2, 1, L, frame)
+    c.fill_micro_box(W - 2, post_h - 1, 0, 2, 1, L, frame)
+    c.fill_micro_box(0, post_h - 3, 0, W, 2, 1, blanket)        # front valance
+    # headboard panel (Z=0 end)
+    c.fill_micro_box(0, 3, 0, W, 7, 1, wood)
+    # side + foot rails, mattress, pillows, coverlet
+    c.fill_micro_box(0, 3, 0, W, 1, L, wood)
+    c.fill_micro_box(2, 4, 1, W - 4, 2, L - 2, mattress)
+    _bevel_top(c, 2, 5, 1, W - 4, L - 2, 1)
+    c.fill_micro_box(2, 6, 1, W - 4, 1, 3, pillow)              # pillows at the head
+    c.fill_micro_box(2, 6, 7, W - 4, 1, L - 8, blanket)        # coverlet over the lower half
+    return c
+
+
+def make_armchair(frame=LOG, uphol=BLANKET) -> DetailCanvas:
+    """An upholstered armchair: padded seat + back + two arms (~0.7 m). Dignified, not a plank."""
+    c = DetailCanvas()
+    W = 7
+    seat_y = 4
+    for lx, lz in ((0, 0), (W - 1, 0), (0, W - 1), (W - 1, W - 1)):
+        c.fill_micro_box(lx, 0, lz, 1, seat_y, 1, frame)        # short legs
+    c.fill_micro_box(0, seat_y, 0, W, 2, W, uphol)              # padded seat cushion
+    _bevel_top(c, 0, seat_y + 1, 0, W, W, 1)
+    c.fill_micro_box(0, seat_y, 0, W, 8, 1, uphol)              # padded back (z=0)
+    c.fill_micro_box(0, seat_y, 0, 1, 4, W, uphol)              # left arm
+    c.fill_micro_box(W - 1, seat_y, 0, 1, 4, W, uphol)          # right arm
+    return c
+
+
+def make_long_table(top=OAK, frame=LOG) -> DetailCanvas:
+    """A long carved dining table (~3 m): a heavy top on six legs with aprons + a stretcher."""
+    c = DetailCanvas()
+    L, D, top_y = 27, 11, 8
+    for lx in (1, L // 2 - 1, L - 3):
+        for lz in (1, D - 3):
+            c.fill_micro_box(lx, 0, lz, 2, top_y, 2, frame)
+    c.fill_micro_box(1, top_y - 2, 1, L - 2, 1, 1, top)         # aprons (tie the legs)
+    c.fill_micro_box(1, top_y - 2, D - 2, L - 2, 1, 1, top)
+    c.fill_micro_box(0, top_y, 0, L, 1, D, top)                 # overhanging top
+    _bevel_top(c, 0, top_y, 0, L, D, 1)
+    return c
+
+
+def make_nightstand(frame=LOG, top=OAK) -> DetailCanvas:
+    """A bedside nightstand: a small cabinet with a drawer + top surface (~0.5 m)."""
+    c = DetailCanvas()
+    W, H, D = 5, 5, 5
+    c.fill_micro_box(0, 0, 0, W, H - 1, 1, top)                 # back
+    c.fill_micro_box(0, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(W - 1, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)
+    c.fill_micro_box(1, 1, D - 1, W - 2, H - 2, 1, top)         # drawer front
+    c.set_micro_cell(W // 2, H // 2, D - 1, KNOB)
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, top)                 # top surface
+    return c
+
+
+def make_sideboard(frame=LOG, top=OAK, panel=OAK) -> DetailCanvas:
+    """A long low sideboard/buffet (~2 m): cabinet base + worktop. Backs to a wall."""
+    c = DetailCanvas()
+    W, H, D = 18, 7, 6
+    c.fill_micro_box(0, 0, 0, W, H - 1, 1, panel)
+    c.fill_micro_box(0, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(W - 1, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)
+    c.fill_micro_box(1, 1, D - 1, W - 2, H - 2, 1, panel)       # cabinet fronts
+    for dx in (4, 9, 14):
+        c.set_micro_cell(dx, (H - 1) // 2, D - 1, KNOB)
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, top)                 # worktop surface
+    return c
+
+
+def make_rug(border=BLANKET, field=LINEN) -> DetailCanvas:
+    """A flat patterned rug (1 cell thick) — a floor covering you walk on, not an obstacle."""
+    c = DetailCanvas()
+    W, D = 18, 14
+    c.fill_micro_box(0, 0, 0, W, 1, D, field)
+    for x in range(W):                                          # border band
+        c.set_micro_cell(x, 0, 0, border)
+        c.set_micro_cell(x, 0, D - 1, border)
+    for z in range(D):
+        c.set_micro_cell(0, 0, z, border)
+        c.set_micro_cell(W - 1, 0, z, border)
+    return c
+
+
 def make_wardrobe(frame=LOG, panel=OAK) -> DetailCanvas:
     """Tall wardrobe (~2 m): carcass + two panelled doors with knobs. Backs onto a wall."""
     c = DetailCanvas()
@@ -366,6 +467,12 @@ PIECES = {
     "sconce":     (make_sconce, "Wall Sconce", ["# light:        wall-mounted (back to a wall)"]),
     "torch":      (make_torch, "Wall Torch", ["# light:        wall-mounted (back to a wall)"]),
     "chandelier": (make_chandelier, "Chandelier", ["# light:        ceiling-hung (centre of a room)"]),
+    "four_poster": (make_four_poster, "Four-Poster Bed", ["# facing:       +Z (head at Z=0)"]),
+    "armchair":   (make_armchair, "Armchair", ["# facing:       +Z (seat faces +Z)"]),
+    "long_table": (make_long_table, "Long Dining Table", ["# facing:       +Z"]),
+    "nightstand": (make_nightstand, "Nightstand", ["# facing:       +Z (drawer faces +Z)"]),
+    "sideboard":  (make_sideboard, "Sideboard", ["# facing:       +Z (backs to a wall)"]),
+    "rug":        (make_rug, "Rug", ["# flat:         floor covering (walkable, not an obstacle)"]),
 }
 
 

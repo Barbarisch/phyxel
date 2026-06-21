@@ -53,7 +53,27 @@ FIXTURE_TEMPLATES = {
     "candlestick": "candlestick", "candle": "candlestick", "goblet": "goblet", "cup": "goblet",
     "bottle": "bottle", "jug": "bottle", "plate": "plate", "bowl": "plate",
     "candelabra": "candelabra", "sconce": "sconce", "torch": "torch", "chandelier": "chandelier",
+    # ornate
+    "four_poster": "four_poster", "canopy_bed": "four_poster", "grand_bed": "four_poster",
+    "armchair": "armchair", "long_table": "long_table", "dining_table": "long_table",
+    "nightstand": "nightstand", "bedside_table": "nightstand", "sideboard": "sideboard",
+    "buffet": "sideboard", "rug": "rug", "carpet": "rug",
 }
+
+# Flat floor coverings — walkable, NOT obstacles (rug under furniture is normal).
+FLAT_TYPES = {"rug", "carpet"}
+
+# Light fixtures get a co-located POINT LIGHT (glow is decorative; only point lights illuminate).
+LIGHT_FIXTURE_TYPES = {"candlestick", "candle", "candelabra", "sconce", "torch", "chandelier",
+                       "lamp", "lantern", "fireplace", "brazier"}
+LIGHT_PARAMS = {  # (r, g, b), radius
+    "_default":   ((1.0, 0.75, 0.45), 7.0),
+    "fireplace":  ((1.0, 0.55, 0.25), 9.0),
+    "chandelier": ((1.0, 0.82, 0.55), 11.0),
+    "candelabra": ((1.0, 0.78, 0.50), 8.0),
+    "torch":      ((1.0, 0.60, 0.30), 8.0),
+}
+MAX_POINT_LIGHTS = 30   # engine caps at 32; leave headroom
 
 # Small props that sit ON a surface (table/desk/shelf/mantel), not on the floor.
 CLUTTER_TYPES = {"candlestick", "candle", "goblet", "cup", "bottle", "jug", "plate", "bowl",
@@ -269,7 +289,8 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
     """Spawn the (already-loaded) shell template, then place functional doors + furniture."""
     px, py, pz = position
     W, D = spec.footprint
-    out = {"shell": _spawn(engine, name, px, py, pz), "doors": [], "fixtures": []}
+    out = {"shell": _spawn(engine, name, px, py, pz), "doors": [], "fixtures": [], "lights": 0}
+    light_count = 0
 
     baseY = 0
     for story in spec.stories:
@@ -310,7 +331,14 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
             y_off = fixture_y_offset(f.type, story.height)   # floor / surface / wall / ceiling
             sp = _spawn(engine, tmpl, px + f.rect[0], py + baseY + y_off, pz + f.rect[1], rot)
             out["fixtures"].append({"id": sp.get("object_id"), "template": tmpl})
+            if f.type in LIGHT_FIXTURE_TYPES and light_count < MAX_POINT_LIGHTS:
+                (r, g, b), rad = LIGHT_PARAMS.get(f.type, LIGHT_PARAMS["_default"])
+                _post(engine, "/api/light/point/add",
+                      {"x": px + f.rect[0] + 0.5, "y": py + baseY + y_off + 1.0,
+                       "z": pz + f.rect[1] + 0.5, "color": {"r": r, "g": g, "b": b}, "radius": rad})
+                light_count += 1
         baseY += story.height + 1
+    out["lights"] = light_count
     return out
 
 
