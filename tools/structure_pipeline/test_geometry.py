@@ -253,6 +253,56 @@ class StairToDoorTests(unittest.TestCase):
         self.assertIn("STAIR_AT_DOORWAY", {i.code for i in G.stair_to_door_clearance_report(spec).errors})
 
 
+class FixtureReachableTests(unittest.TestCase):
+    def _room(self, fixtures):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [4, 4],
+            "stories": [{"height": 4, "rooms": [{"id": "r", "rect": [0, 0, 4, 4], "purpose": "study"}],
+                         "portals": [{"between": ["exterior", "r"], "pos": [2, 0], "width": 1, "height": 2, "kind": "door"}],
+                         "stairs": [], "fixtures": fixtures}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_reachable_ok(self):
+        spec = self._room([{"type": "bookshelf", "rect": [1, 1, 1, 1], "facing": "south", "room": "r"}])
+        self.assertTrue(G.fixture_reachable_report(spec, build_shell(spec)).ok)
+
+    def test_boxed_in_flagged(self):
+        # target bookshelf in the corner, its two open neighbours filled by other bookshelves
+        spec = self._room([
+            {"type": "bookshelf", "rect": [1, 1, 1, 1], "facing": "south", "room": "r"},
+            {"type": "bookshelf", "rect": [2, 1, 1, 1], "facing": "south", "room": "r"},
+            {"type": "bookshelf", "rect": [1, 2, 1, 1], "facing": "south", "room": "r"}])
+        self.assertIn("FIXTURE_UNREACHABLE", {i.code for i in G.fixture_reachable_report(spec, build_shell(spec)).errors})
+
+
+class WindowExteriorTests(unittest.TestCase):
+    def _spec(self, window_between, pos):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 4],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "a", "rect": [0, 0, 4, 4], "purpose": "room"},
+                                   {"id": "b", "rect": [4, 0, 4, 4], "purpose": "room"}],
+                         "portals": [{"between": ["exterior", "a"], "pos": [1, 0], "width": 1, "height": 2, "kind": "door"},
+                                     {"between": ["a", "b"], "pos": [4, 1], "width": 1, "height": 2, "kind": "door"},
+                                     {"between": window_between, "pos": pos, "width": 1, "height": 2, "kind": "window"}],
+                         "stairs": [], "fixtures": []}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_exterior_window_ok(self):
+        spec = self._spec(["a", "exterior"], [0, 1])          # west perimeter wall
+        self.assertTrue(G.window_exterior_report(spec).ok)
+
+    def test_interior_window_flagged(self):
+        spec = self._spec(["a", "exterior"], [4, 2])          # on the a|b shared wall -> faces room b
+        self.assertIn("INTERIOR_WINDOW", {i.code for i in G.window_exterior_report(spec).errors})
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
         for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack",

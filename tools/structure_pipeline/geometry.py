@@ -641,6 +641,92 @@ def light_per_room_report(spec: BuildingSpec) -> ValidationReport:
     return rep
 
 
+# Furniture you walk up to and use (must have reachable floor beside it).
+APPROACH_TYPES = {"wardrobe", "dresser", "desk", "counter", "sideboard", "cabinet", "chest",
+                  "bookshelf", "bookcase", "bed", "table", "altar"}
+
+
+def fixture_reachable_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """You must be able to WALK UP to each piece of furniture: at least one cell beside it must be
+    on the room's reachable floor (the circulation). Catches a desk/wardrobe boxed in by other
+    furniture so you can't get to it (beyond just 'its front isn't a wall')."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES, WALL_MOUNT_TYPES, CEILING_MOUNT_TYPES
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        furn = set()
+        fcells = {}
+        for fi, f in enumerate(story.fixtures):
+            if f.type in CLUTTER_TYPES or f.type in WALL_MOUNT_TYPES or f.type in CEILING_MOUNT_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            cells = {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+            furn |= cells
+            fcells[fi] = (f, cells)
+        for room in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(room.rect))
+            free = {(x, z) for x in range(x0, x1) for z in range(z0, z1)
+                    if occ.get((x, y, z), 0) != _FULL_CUBE and (x, z) not in furn}
+            main = _largest_free_component(free)
+            for fi, (f, cells) in fcells.items():
+                if f.room != room.id or f.type not in APPROACH_TYPES:
+                    continue
+                adj = {(cx + dx, cz + dz) for (cx, cz) in cells
+                       for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1))} - cells
+                if not (adj & main):
+                    rep.error("FIXTURE_UNREACHABLE",
+                              f"you can't walk up to '{f.type}' at {f.rect} — no reachable floor "
+                              "beside it (boxed in by furniture/walls)", f"story {si} fixture #{fi}")
+    return rep
+
+
+def window_exterior_report(spec: BuildingSpec) -> ValidationReport:
+    """Windows must be on an EXTERIOR wall facing open air (or a courtyard), not on an interior
+    wall between two rooms (a window into the next room is wrong)."""
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        occupied = set()
+        rects = {}
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            rects[r.id] = (x0, z0, x1, z1)
+            occupied |= {(x, z) for x in range(x0, x1) for z in range(z0, z1)}
+        for pi, p in enumerate(story.portals):
+            if p.kind != "window":
+                continue
+            where = f"story {si} window #{pi} {p.between}"
+            room_ids = [r for r in p.between if r != "exterior"]
+            if len(room_ids) != 1 or room_ids[0] not in rects:
+                rep.error("INTERIOR_WINDOW",
+                          "window must be between a room and the exterior, not two rooms", where)
+                continue
+            rx0, rz0, rx1, rz1 = rects[room_ids[0]]
+            px, pz = p.pos
+            if px == rx0:                                       # west wall -> outside is -x
+                outward = [(rx0 - 1, z) for z in range(pz, pz + p.width)]
+            elif px == rx1:                                     # east wall
+                outward = [(rx1, z) for z in range(pz, pz + p.width)]
+            elif pz == rz0:                                     # north wall
+                outward = [(x, rz0 - 1) for x in range(px, px + p.width)]
+            elif pz == rz1:                                     # south wall
+                outward = [(x, rz1) for x in range(px, px + p.width)]
+            else:
+                rep.warn("WINDOW_NOT_ON_ROOM_EDGE",
+                         f"window {list(p.pos)} isn't on room '{room_ids[0]}' boundary", where)
+                continue
+            if outward and all(cell in occupied for cell in outward):
+                rep.error("INTERIOR_WINDOW",
+                          f"window faces room interior, not outside — it sits on an interior wall "
+                          f"of '{room_ids[0]}'", where)
+    return rep
+
+
 def clutter_on_surface_report(spec: BuildingSpec) -> ValidationReport:
     """Surface clutter (candlestick, goblet, bottle, books, …) must sit on a piece of furniture with
     a top (table/desk/dresser/shelf/…), not float in mid-air or land on the floor."""
@@ -767,6 +853,8 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  stair_to_door_clearance_report(spec),
                  clutter_on_surface_report(spec),
                  circulation_report(spec, canvas),
+                 fixture_reachable_report(spec, canvas),
+                 window_exterior_report(spec),
                  light_per_room_report(spec),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
