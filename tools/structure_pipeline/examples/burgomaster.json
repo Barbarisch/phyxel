@@ -1,0 +1,784 @@
+{
+  "kind": "building",
+  "name": "Burgomaster's Mansion",
+  "style": "gothic medieval",
+  "palette": {
+    "wall": "StoneBricks",
+    "floor": "Wood",
+    "roof": "Stone",
+    "trim": "Cobblestone"
+  },
+  "function": "house",
+  "footprint": [
+    18,
+    16
+  ],
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        {
+          "id": "entry_hall",
+          "rect": [
+            6,
+            0,
+            6,
+            6
+          ],
+          "purpose": "entry hall with staircase",
+          "floor_mat": "StoneBricks"
+        },
+        {
+          "id": "dining_room",
+          "rect": [
+            0,
+            0,
+            6,
+            6
+          ],
+          "purpose": "formal dining room",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "drawing_room",
+          "rect": [
+            12,
+            0,
+            6,
+            6
+          ],
+          "purpose": "drawing room with burgomaster coffin",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "kitchen",
+          "rect": [
+            0,
+            6,
+            6,
+            10
+          ],
+          "purpose": "kitchen and servants quarters",
+          "floor_mat": "Stone"
+        },
+        {
+          "id": "study",
+          "rect": [
+            12,
+            6,
+            6,
+            10
+          ],
+          "purpose": "burgomaster study and library",
+          "floor_mat": "Wood"
+        }
+      ],
+      "portals": [
+        {
+          "between": [
+            "exterior",
+            "entry_hall"
+          ],
+          "pos": [
+            9,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "mansion_front_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "entry_hall",
+            "dining_room"
+          ],
+          "pos": [
+            6,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "entry_hall",
+            "drawing_room"
+          ],
+          "pos": [
+            12,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "drawing_room_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "dining_room",
+            "kitchen"
+          ],
+          "pos": [
+            2,
+            6
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "drawing_room",
+            "study"
+          ],
+          "pos": [
+            14,
+            6
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "study_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "dining_room",
+            "exterior"
+          ],
+          "pos": [
+            0,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "drawing_room",
+            "exterior"
+          ],
+          "pos": [
+            17,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "kitchen",
+            "exterior"
+          ],
+          "pos": [
+            0,
+            9
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "study",
+            "exterior"
+          ],
+          "pos": [
+            17,
+            9
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "kitchen",
+            "exterior"
+          ],
+          "pos": [
+            2,
+            16
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "study",
+            "exterior"
+          ],
+          "pos": [
+            14,
+            16
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        }
+      ],
+      "stairs": [
+        {
+          "from_story": 0,
+          "to_story": 1,
+          "rect": [
+            7,
+            1,
+            3,
+            4
+          ],
+          "kind": "straight"
+        }
+      ],
+      "fixtures": [
+        {
+          "type": "table",
+          "rect": [
+            1,
+            1,
+            4,
+            2
+          ],
+          "facing": "north",
+          "room": "dining_room"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "dining_room"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            1,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "dining_room"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            1,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "dining_room"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "dining_room"
+        },
+        {
+          "type": "table",
+          "rect": [
+            13,
+            2,
+            4,
+            2
+          ],
+          "facing": "north",
+          "room": "drawing_room"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            7,
+            3,
+            1
+          ],
+          "facing": "south",
+          "room": "kitchen"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            14,
+            3,
+            1
+          ],
+          "facing": "north",
+          "room": "kitchen"
+        },
+        {
+          "type": "bed",
+          "rect": [
+            1,
+            11,
+            2,
+            3
+          ],
+          "facing": "north",
+          "room": "kitchen"
+        },
+        {
+          "type": "table",
+          "rect": [
+            13,
+            8,
+            4,
+            2
+          ],
+          "facing": "north",
+          "room": "study"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            15,
+            8,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "study"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            13,
+            12,
+            4,
+            1
+          ],
+          "facing": "south",
+          "room": "study"
+        }
+      ]
+    },
+    {
+      "height": 3,
+      "rooms": [
+        {
+          "id": "landing",
+          "rect": [
+            6,
+            0,
+            6,
+            4
+          ],
+          "purpose": "upstairs landing and hallway",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "master_bedroom",
+          "rect": [
+            0,
+            0,
+            6,
+            6
+          ],
+          "purpose": "master bedroom",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "ireena_bedroom",
+          "rect": [
+            12,
+            0,
+            6,
+            6
+          ],
+          "purpose": "Ireena's bedroom",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "ismark_bedroom",
+          "rect": [
+            0,
+            6,
+            6,
+            6
+          ],
+          "purpose": "Ismark's bedroom",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "guest_room",
+          "rect": [
+            12,
+            6,
+            6,
+            6
+          ],
+          "purpose": "guest room",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "upper_hall_west",
+          "rect": [
+            6,
+            4,
+            3,
+            8
+          ],
+          "purpose": "upper corridor west",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "upper_hall_east",
+          "rect": [
+            9,
+            4,
+            3,
+            8
+          ],
+          "purpose": "upper corridor east",
+          "floor_mat": "Wood"
+        }
+      ],
+      "portals": [
+        {
+          "between": [
+            "landing",
+            "master_bedroom"
+          ],
+          "pos": [
+            6,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "landing",
+            "ireena_bedroom"
+          ],
+          "pos": [
+            12,
+            2
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "ireena_room_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "landing",
+            "upper_hall_west"
+          ],
+          "pos": [
+            6,
+            4
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "arch",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "landing",
+            "upper_hall_east"
+          ],
+          "pos": [
+            9,
+            4
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "arch",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "upper_hall_west",
+            "ismark_bedroom"
+          ],
+          "pos": [
+            6,
+            7
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "upper_hall_east",
+            "guest_room"
+          ],
+          "pos": [
+            12,
+            7
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "master_bedroom",
+            "exterior"
+          ],
+          "pos": [
+            1,
+            0
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "ireena_bedroom",
+            "exterior"
+          ],
+          "pos": [
+            14,
+            0
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "ismark_bedroom",
+            "exterior"
+          ],
+          "pos": [
+            0,
+            8
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "guest_room",
+            "exterior"
+          ],
+          "pos": [
+            17,
+            8
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        }
+      ],
+      "stairs": [],
+      "fixtures": [
+        {
+          "type": "bed",
+          "rect": [
+            1,
+            1,
+            3,
+            2
+          ],
+          "facing": "north",
+          "room": "master_bedroom"
+        },
+        {
+          "type": "table",
+          "rect": [
+            1,
+            4,
+            2,
+            1
+          ],
+          "facing": "south",
+          "room": "master_bedroom"
+        },
+        {
+          "type": "bed",
+          "rect": [
+            13,
+            1,
+            3,
+            2
+          ],
+          "facing": "north",
+          "room": "ireena_bedroom"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            13,
+            4,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "ireena_bedroom"
+        },
+        {
+          "type": "bed",
+          "rect": [
+            1,
+            7,
+            3,
+            2
+          ],
+          "facing": "north",
+          "room": "ismark_bedroom"
+        },
+        {
+          "type": "table",
+          "rect": [
+            1,
+            10,
+            2,
+            1
+          ],
+          "facing": "south",
+          "room": "ismark_bedroom"
+        },
+        {
+          "type": "bed",
+          "rect": [
+            13,
+            7,
+            3,
+            2
+          ],
+          "facing": "north",
+          "room": "guest_room"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            13,
+            10,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "guest_room"
+        }
+      ]
+    }
+  ],
+  "roof": {
+    "style": "pitched",
+    "mat": "Stone"
+  }
+}

@@ -126,12 +126,21 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             if not res:
                 continue
             ax, coord, normal = res
-            ph = DOOR_LEAF_H if p.kind == "door" else min(p.height, h)
+            # Vertical placement: doors/arches start at the floor; windows sit on a sill ~1 cube
+            # up (a floor-level "window" you can walk through looks wrong) and stay under the ceiling.
+            if p.kind == "door":
+                sill_h, ph = 0, DOOR_LEAF_H
+            elif p.kind == "window":
+                sill_h = 1 if h >= 3 else 0          # need head + sill room; tiny rooms skip the sill
+                ph = min(p.height, h - sill_h)
+            else:  # arch
+                sill_h, ph = 0, min(p.height, h)
+            oy = baseY + 1 + sill_h
             px, pz = p.pos
             if ax == "z":
-                ox, oy, oz, ow, oh, od = px, baseY + 1, coord, p.width, ph, 1
+                ox, oz, ow, oh, od = px, coord, p.width, ph, 1
             else:
-                ox, oy, oz, ow, oh, od = coord, baseY + 1, pz, 1, ph, p.width
+                ox, oz, ow, oh, od = coord, pz, 1, ph, p.width
             if normal and p.kind != "arch":
                 frame_on_face(c, normal, ox, oy, oz, ow, oh, od, trim,
                               sill=(p.kind == "window"))
@@ -254,6 +263,10 @@ def main(argv=None) -> int:
     ap.add_argument("--build", action="store_true", help="also spawn it + place doors/furniture")
     ap.add_argument("--position", default="0,16,0", help="x,y,z world position for --build")
     ap.add_argument("--engine", default=ENGINE)
+    ap.add_argument("--force", action="store_true",
+                    help="build even if the functional/playtest pass reports errors")
+    ap.add_argument("--playtest", action="store_true",
+                    help="after --build, run the runtime (Tier C) playtest on the live engine")
     args = ap.parse_args(argv)
 
     spec = BuildingSpec.from_dict(json.loads(args.spec.read_text(encoding="utf-8")))
@@ -261,12 +274,35 @@ def main(argv=None) -> int:
     path, canvas = write_template(spec, name)
     print(f"[realize] wrote {path}  ({canvas.report().summary()})", file=sys.stderr)
 
+    # Functional gate: topological + ergonomic (Tier A) + walkable (Tier B).
+    from .playtest import full_validate
+    report = full_validate(spec)
+    if not report.ok:
+        print(f"[realize] functional check: {report.summary()}", file=sys.stderr)
+        if args.build and not args.force:
+            print("[realize] refusing to --build a non-functional spec (use --force to override)",
+                  file=sys.stderr)
+            return 1
+    else:
+        print("[realize] functional check: OK (walkable, ergonomic)", file=sys.stderr)
+
     if args.build:
         x, y, z = (int(v) for v in args.position.split(","))
         result = drive_engine(spec, name, (x, y, z), args.engine)
         print(f"[realize] built: {len(result['doors'])} doors, {len(result['fixtures'])} fixtures",
               file=sys.stderr)
         print(json.dumps(result, indent=2))
+
+        if args.playtest:
+            from .playtest import runtime_playtest
+            rt = runtime_playtest(spec, (x, y, z), args.engine)
+            doors_ok = sum(d["operable"] for d in rt["doors"])
+            nav_ok = sum(n["reachable"] for n in rt["navigation"])
+            print(f"[realize] runtime playtest: {'OK' if rt['ok'] else 'ISSUES'} — "
+                  f"{doors_ok}/{len(rt['doors'])} doors operable, "
+                  f"{nav_ok}/{len(rt['navigation'])} rooms navigable", file=sys.stderr)
+            for note in rt["notes"]:
+                print(f"    note: {note}", file=sys.stderr)
     return 0
 
 

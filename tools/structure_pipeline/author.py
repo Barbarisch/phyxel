@@ -23,6 +23,7 @@ from typing import Callable, List, Optional
 from .scale import ScaleCanon, load_canon
 from .spec import BuildingSpec, BUILDING_FUNCTIONS
 from .validator import validate_dict, ValidationReport
+from .playtest import full_validate_dict
 
 # (system_prompt, user_prompt) -> assistant text
 LLMFn = Callable[[str, str], str]
@@ -52,9 +53,13 @@ You output the floorplan/program; deterministic code turns it into voxels with w
   along its wall from there.
 
 # Scale (a person is {c.character_height:.2f} cubes tall — size to this)
-- Interior story height >= {c.ceiling_min} (hard min), {c.ceiling_comfortable}+ is comfortable. Prefer {c.ceiling_comfortable}.
+- Interior story height >= {c.ceiling_min} (hard min), {c.ceiling_comfortable}+ is comfortable.
+- GRAND buildings (mansion, manor, church, tavern, great hall, keep): make them feel GRAND, not cramped —
+  interior height 4-5 cubes, and large rooms (main/public rooms 8-12 cubes per side, even bedrooms 7-9). A
+  cramped grand house is a failure. Humble homes/shops/cottages can stay at height {c.ceiling_comfortable} with
+  5-7 cube rooms. Pick a footprint big enough for this (a manor wants ~26-36 per side, not 16-18).
 - Door/arch openings: height EXACTLY {c.door_clear_min}, width {c.door_width_min} for a normal single door
-  (use width 2 only for grand double doors / barns). Windows: height 2.
+  (use width 2 for grand double doors / main entrances / barns). Windows: height 2 (the realizer sets them on a sill).
 
 # Schema
 {{
@@ -78,19 +83,32 @@ You output the floorplan/program; deterministic code turns it into voxels with w
 Materials (use these names exactly): {materials}.
 
 # Functional rules (a spec that breaks these is REJECTED)
-1. Rooms FORM the footprint: they touch along shared walls, never OVERLAP, and stay inside the bounding
-   [0,W]x[0,D]. Adjacent rooms share a grid line (e.g. roomA z 0..7 and roomB z 7..12 share the wall at z=7).
-   They do NOT have to fill the whole rectangle: real buildings are rarely plain boxes — arrange rooms into
-   L / T / U / cross / wing shapes (e.g. a hall 12x7 plus a kitchen wing 7x7 below the left half = an L). The
-   walls/roof follow the union outline; leave the unused bbox area empty. Prefer interesting massing over a box.
-2. Every room must be REACHABLE from "exterior" through passable portals (kind door or arch; windows are NOT
+1. MASSING — do NOT default to a solid rectangle; a flat box is the WRONG answer. `footprint` [W,D] is only the
+   MAXIMUM bounding extent, NOT a fill target: it is good and EXPECTED for large parts of it to stay empty (open
+   yard / courtyard). NEVER invent filler rooms just to complete the rectangle. Compose the rooms into an
+   articulated L / T / U / cross / E / wing plan with courtyards, notches and projecting wings. The walls and
+   roof automatically follow the union OUTLINE of whatever rooms you place; everything you leave out becomes
+   open ground. A plan where the rooms happen to tile the whole bounding box is almost always a design mistake.
+   Worked U (footprint [18,16]): a front block [0,0,18,6] (split into 3 rooms) + a west wing [0,6,6,10] + an
+   east wing [12,6,6,10], leaving the center-rear [6,6,6,10] EMPTY as a courtyard. That is the level of
+   articulation to aim for — wings and a courtyard, not a packed rectangle.
+2. Rooms touch along shared walls, never OVERLAP, and stay inside [0,W]x[0,D]. Adjacent rooms share a grid line
+   (e.g. roomA z 0..7 and roomB z 7..12 share the wall at z=7).
+3. Every room must be REACHABLE from "exterior" through passable portals (kind door or arch; windows are NOT
    passable) plus stairs. Include at least ONE exterior door/arch (the entrance).
-3. An interior portal's two rooms MUST be adjacent (share a wall), and the opening (pos + width) must lie ON
+4. An interior portal's two rooms MUST be adjacent (share a wall), and the opening (pos + width) must lie ON
    that shared wall. An exterior portal's pos must be on the building perimeter (x=0 or x=W or z=0 or z=D).
-4. Multi-story: each upper room reached via a `stairs` whose rect sits inside a room on BOTH stories;
-   from_story/to_story are consecutive.
-5. Pick `function`-appropriate rooms + fixtures (shop: storefront + counter + back storeroom with a lockable
-   door; church: long nave + altar + pews; house: living + bedroom(s); tavern: hall + bar + upstairs rooms).
+5. Multi-story: each upper room reached via a `stairs` whose rect sits inside a room on BOTH stories;
+   from_story/to_story are consecutive. An upper story may be SMALLER than the ground floor (sit over only part
+   of the plan / some wings) — this is encouraged for varied massing.
+6. Pick `function`-appropriate rooms + fixtures (shop: storefront + counter + back storeroom with a lockable
+   door; church: long nave + altar + pews; house: living + bedroom(s); tavern: hall + bar + upstairs rooms;
+   mansion: entry hall + dining + drawing room + kitchen/servants in the wings + bedrooms upstairs, around a
+   rear courtyard).
+7. CLEARANCE (a person must be able to USE the building). Keep every doorway clear: NEVER place a fixture on a
+   door threshold or in the cells just inside a door — a fixture there seals the room off. Keep each fixture
+   fully inside its room with a walkable path around it, and leave a clear route from the entrance into every
+   room. Stairs need run (Z-depth) >= the floor-to-floor climb, plus a landing in the room above.
 
 # Output
 Return RAW JSON only — the BuildingSpec object, no markdown, no commentary."""
@@ -195,7 +213,7 @@ def author_spec(description: str,
     text = llm(system, user)
     transcript.append(text)
     spec = extract_json(text)
-    report = validate_dict(spec, canon)
+    report = full_validate_dict(spec, canon)
 
     rounds = 0
     while not report.ok and rounds < max_repair:
@@ -209,7 +227,7 @@ def author_spec(description: str,
         text = llm(system, repair_user)
         transcript.append(text)
         spec = extract_json(text)
-        report = validate_dict(spec, canon)
+        report = full_validate_dict(spec, canon)
 
     return AuthorResult(spec=spec, report=report, rounds=rounds, transcript=transcript)
 

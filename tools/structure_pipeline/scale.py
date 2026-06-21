@@ -60,6 +60,23 @@ class ScaleCanon:
         """Minimum passable opening width in cubes (shoulder clearance)."""
         return 1
 
+    # ----- Derived ergonomics (used by the functional/playtest pass) -----
+    @property
+    def capsule_footprint(self) -> int:
+        """Horizontal cells a moving character occupies (shoulder clearance), whole cubes."""
+        return self.door_width_min
+
+    @property
+    def headroom_min(self) -> int:
+        """Clear cubes needed above a standable cell for the character to occupy/walk it."""
+        return self.ceiling_min
+
+    @property
+    def stair_max_rise_per_run(self) -> float:
+        """Steepest walkable stair as rise/run. The realizer builds 45-degree solid stairs,
+        so a stair that climbs H cubes needs at least H cubes of run to be walkable."""
+        return 1.0
+
     def describe(self) -> Dict[str, Any]:
         """Flat dict of the values used by the validator/prompt — handy for logging."""
         return {
@@ -69,6 +86,9 @@ class ScaleCanon:
             "door_width_min": self.door_width_min,
             "ceiling_min": self.ceiling_min,
             "ceiling_comfortable": self.ceiling_comfortable,
+            "capsule_footprint": self.capsule_footprint,
+            "headroom_min": self.headroom_min,
+            "stair_max_rise_per_run": self.stair_max_rise_per_run,
             "seat_top_ideal": self.seat_top_ideal,
             "seat_top_achievable": self.seat_top_achievable,
             "table_standing": self.table_standing,

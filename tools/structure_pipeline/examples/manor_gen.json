@@ -1,0 +1,315 @@
+{
+  "kind": "building",
+  "name": "Medieval Manor",
+  "style": "medieval",
+  "palette": {
+    "wall": "StoneBricks",
+    "floor": "Wood",
+    "roof": "Wood",
+    "trim": "Log"
+  },
+  "function": "house",
+  "footprint": [
+    15,
+    13
+  ],
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        {
+          "id": "great_hall",
+          "rect": [
+            0,
+            0,
+            15,
+            7
+          ],
+          "purpose": "great_hall",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "kitchen",
+          "rect": [
+            0,
+            7,
+            7,
+            6
+          ],
+          "purpose": "kitchen",
+          "floor_mat": "Stone"
+        }
+      ],
+      "portals": [
+        {
+          "between": [
+            "exterior",
+            "great_hall"
+          ],
+          "pos": [
+            7,
+            0
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "manor_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "great_hall",
+            "kitchen"
+          ],
+          "pos": [
+            3,
+            7
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "arch",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "kitchen"
+          ],
+          "pos": [
+            0,
+            10
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "manor_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "great_hall"
+          ],
+          "pos": [
+            2,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "great_hall"
+          ],
+          "pos": [
+            11,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "great_hall"
+          ],
+          "pos": [
+            14,
+            2
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "great_hall"
+          ],
+          "pos": [
+            0,
+            2
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "kitchen"
+          ],
+          "pos": [
+            2,
+            13
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "kitchen"
+          ],
+          "pos": [
+            0,
+            8
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        }
+      ],
+      "stairs": [],
+      "fixtures": [
+        {
+          "type": "table",
+          "rect": [
+            4,
+            2,
+            7,
+            1
+          ],
+          "facing": "south",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            6,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            8,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            10,
+            3,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            1,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "great_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            10,
+            1,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "great_hall"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            8,
+            4,
+            1
+          ],
+          "facing": "south",
+          "room": "kitchen"
+        },
+        {
+          "type": "table",
+          "rect": [
+            2,
+            10,
+            3,
+            2
+          ],
+          "facing": "east",
+          "room": "kitchen"
+        }
+      ]
+    }
+  ],
+  "roof": {
+    "style": "pitched",
+    "mat": "Wood"
+  }
+}
