@@ -109,5 +109,16 @@ Rooms read cramped: 6-wide rooms + 3-cube ceilings for a "grand" manor. Grand bu
 taller ceilings (4-5 cubes) and larger rooms. Fix in the author prompt (per-function scale guidance)
 and/or canon (a "grand" ceiling target). Not an engine limit — a tuning/prompt gap.
 
-## Resolved
-*(none yet)*
+## Resolved (verified by deterministic checks in tools/structure_pipeline/geometry.py, not by eye)
+- **Stair-top blocked** — root cause: the realizer carved the stairwell hole during the lower
+  story, then the upper story's floor slab refilled it. Fixed by deferring all stairwell-hole
+  carving until after every floor is placed. Caught + confirmed by `stair_clearance_report`
+  (per-step headroom).
+- **Floating furniture (table top detached)** — caught by `connectivity_report`; table legs now
+  reach the underside of the top. Furniture generator self-checks connectivity on write.
+- **Door openings too wide for the leaf** — the realizer placed one leaf in any opening; now it
+  TILES leaves (`door_leaves_for_width`) so a width-4 grand door is two 2-wide leaves, no gap.
+  Confirmed by `opening_fit_report`.
+- **Windows at floor level** — realizer now sets a 1-cube sill.
+
+> Materials/textures needs moved to a dedicated, actively-maintained doc: **docs/MaterialTextureNeeds.md**.

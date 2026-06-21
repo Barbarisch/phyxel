@@ -72,7 +72,7 @@ def make_table(top=OAK, frame=OAK) -> DetailCanvas:
     top_y = 8                  # 0.87 cube
     for lx in (1, L - 3):
         for lz in (1, D - 3):
-            c.fill_micro_box(lx, 0, lz, 2, top_y - 1, 2, frame)    # legs to just under the top
+            c.fill_micro_box(lx, 0, lz, 2, top_y, 2, frame)        # legs up to the underside of the top
     # apron rails just under the top
     c.fill_micro_box(1, top_y - 2, 1, L - 2, 1, 1, top)
     c.fill_micro_box(1, top_y - 2, D - 2, L - 2, 1, 1, top)
@@ -164,8 +164,10 @@ def main(argv=None) -> int:
             print(f"unknown piece '{n}' (have: {', '.join(PIECES)})", file=sys.stderr)
             continue
         p = write_piece(n)
-        from .detail import DetailCanvas  # noqa
-        print(f"[furniture] wrote {p}  ({PIECES[n][0]().report().summary()})", file=sys.stderr)
+        from .geometry import template_cells, floating_components
+        fl = floating_components(template_cells(n))
+        flag = f"  !! {len(fl)} FLOATING cells" if fl else "  connected OK"
+        print(f"[furniture] wrote {p}  ({PIECES[n][0]().report().summary()}){flag}", file=sys.stderr)
     return 0
 
 

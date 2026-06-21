@@ -438,9 +438,12 @@ def full_validate(spec: BuildingSpec, canon: Optional[ScaleCanon] = None) -> Val
     if canon is None:
         canon = load_canon()
     reports = [validate(spec, canon), functional_report(spec, canon)]
-    try:  # Tier B needs the realized geometry; skip if the spec is too broken to build
+    try:  # Tier B + geometry need the realized voxels; skip if the spec is too broken to build
         from .realize import build_shell
-        reports.append(walkable_report(spec, build_shell(spec), canon))
+        from .geometry import geometry_report
+        canvas = build_shell(spec)
+        reports.append(walkable_report(spec, canvas, canon))
+        reports.append(geometry_report(spec, canvas, canon))   # stair headroom + door-opening fit
     except Exception:
         pass  # topological / Tier-A errors already describe the breakage
     return merge(*reports)

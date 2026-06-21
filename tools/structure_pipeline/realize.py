@@ -28,6 +28,18 @@ TEMPLATES_DIR = _REPO / "resources" / "templates"
 ENGINE = "http://localhost:8090"
 DOOR_LEAF_H = 2
 
+
+def door_leaves_for_width(w: int):
+    """Tile an opening `w` cubes wide with door leaves so there is NO gap (a width-4 grand door
+    becomes two 2-wide leaves). Returns (template, offset_along_wall, leaf_width). door_wood is
+    1 wide so any width is fully coverable."""
+    leaves, off = [], 0
+    while w - off >= 2:
+        leaves.append(("door_wood_wide", off, 2)); off += 2
+    if w - off == 1:
+        leaves.append(("door_wood", off, 1)); off += 1
+    return leaves
+
 # fixture type -> subcube furniture template (matches the engine-side map)
 FIXTURE_TEMPLATES = {
     "table": "table_wood", "chair": "chair_wood", "stool": "stool", "bed": "bed_single",
@@ -88,6 +100,7 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
     baseY = 0
     topY = 0
     occupied: set = set()
+    stair_holes: list = []   # (floor_y, sx, sz, sw, sd) carved AFTER all floors are placed
     for story in spec.stories:
         h = story.height
         rooms = {r.id: tuple(r.rect) for r in story.rooms}
@@ -147,17 +160,21 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             else:
                 c.fill_micro_box(ox * 9, oy * 9, oz * 9, ow * 9, oh * 9, od * 9, AIR)
 
-        # Stairs (multi-story): a subcube staircase up + a carved hole in the floor above.
+        # Stairs (multi-story): a subcube staircase up. Defer the stairwell hole — if carved now,
+        # the NEXT story's floor slab refills it (was the cause of the blocked stair-top).
         for st in story.stairs:
             sx, sz, sw, sd = st.rect
             subcube_stairs(c, sx, baseY + 1, sz, climb=h + 1, width=max(1, sw), mat=floor)
-            nbY = baseY + h + 1
-            for x in range(sx, sx + sw):
-                for z in range(sz, sz + sd):
-                    c.fill_micro_box(x * 9, nbY * 9, z * 9, 9, 9, 9, AIR)
+            stair_holes.append((baseY + h + 1, sx, sz, sw, sd))
 
         topY = baseY + h + 1
         baseY = topY
+
+    # Carve every stairwell hole now that all floor slabs exist, so they stay open (headroom).
+    for nbY, sx, sz, sw, sd in stair_holes:
+        for x in range(sx, sx + sw):
+            for z in range(sz, sz + sd):
+                c.fill_micro_box(x * 9, nbY * 9, z * 9, 9, 9, 9, AIR)
 
     # Roof over the top story's footprint. A pitched gable only makes sense over a true
     # rectangle; an L/T/U gets a flat roof following its outline (with a beveled coping).
@@ -223,22 +240,23 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
                 continue
             ax, coord, _ = res
             pxl, pzl = p.pos
-            if ax == "z":
-                hinge, rot = (pxl, baseY + 1, coord), 0
-            else:
-                hinge, rot = (coord, baseY + 1, pzl), 90
-            hw = {"x": px + hinge[0], "y": py + hinge[1], "z": pz + hinge[2]}
-            tmpl = "door_wood_wide" if p.width >= 2 else "door_wood"
-            sp = _spawn(engine, tmpl, hw["x"], hw["y"], hw["z"], rot)
-            oid = sp.get("object_id")
-            if oid:
-                _post(engine, "/api/door/register",
-                      {"placed_object_id": oid, "template_name": tmpl, "hinge": hw,
-                       "base_rotation": rot, "thickness": 5})
-                if p.door and p.door.lockable:
-                    _post(engine, "/api/door/lock",
-                          {"placed_object_id": oid, "locked": True, "key_item_id": p.door.key})
-                out["doors"].append({"id": oid, "locked": bool(p.door and p.door.lockable)})
+            # Tile leaves across the opening so a wide opening is fully filled (no gap).
+            for tmpl, off, lw in door_leaves_for_width(p.width):
+                if ax == "z":
+                    hinge, rot = (pxl + off, baseY + 1, coord), 0
+                else:
+                    hinge, rot = (coord, baseY + 1, pzl + off), 90
+                hw = {"x": px + hinge[0], "y": py + hinge[1], "z": pz + hinge[2]}
+                sp = _spawn(engine, tmpl, hw["x"], hw["y"], hw["z"], rot)
+                oid = sp.get("object_id")
+                if oid:
+                    _post(engine, "/api/door/register",
+                          {"placed_object_id": oid, "template_name": tmpl, "hinge": hw,
+                           "base_rotation": rot, "thickness": 5})
+                    if p.door and p.door.lockable:
+                        _post(engine, "/api/door/lock",
+                              {"placed_object_id": oid, "locked": True, "key_item_id": p.door.key})
+                    out["doors"].append({"id": oid, "locked": bool(p.door and p.door.lockable)})
         for f in story.fixtures:
             tmpl = FIXTURE_TEMPLATES.get(f.type)
             if not tmpl:
