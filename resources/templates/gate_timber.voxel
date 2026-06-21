@@ -1,0 +1,726 @@
+# ==========================================================
+# name:         gate_timber
+# display_name: Gate Timber
+# category:     door
+# style:        gate
+# bounds:       3W x 3H  (hinge stile at X=0, knob on latch side)
+# swing:        free
+# lockable:     True
+# primitives:   0 C + 80 S + 633 M = 713
+# method:       structure_pipeline.doors
+# ==========================================================
+# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
+
+S 0 0 0 0 0 0 Wood
+M 0 0 0 0 0 1 1 0 0 Wood
+M 0 0 0 0 0 1 1 1 0 Wood
+M 0 0 0 0 0 1 1 2 0 Wood
+M 0 0 0 0 0 1 2 0 0 Wood
+M 0 0 0 0 0 1 2 1 0 Wood
+M 0 0 0 0 0 1 2 2 0 Wood
+S 0 0 0 0 1 0 Wood
+M 0 0 0 0 1 1 0 2 0 Metal
+M 0 0 0 0 1 1 1 0 0 Wood
+M 0 0 0 0 1 1 1 1 0 Wood
+M 0 0 0 0 1 1 1 2 0 Metal
+M 0 0 0 0 1 1 2 0 0 Wood
+M 0 0 0 0 1 1 2 1 0 Wood
+M 0 0 0 0 1 1 2 2 0 Metal
+S 0 0 0 0 2 0 Wood
+M 0 0 0 0 2 1 0 0 0 Metal
+M 0 0 0 0 2 1 0 1 0 Metal
+M 0 0 0 0 2 1 1 0 0 Metal
+M 0 0 0 0 2 1 1 1 0 Metal
+M 0 0 0 0 2 1 1 2 0 Wood
+M 0 0 0 0 2 1 2 0 0 Metal
+M 0 0 0 0 2 1 2 1 0 Metal
+M 0 0 0 0 2 1 2 2 0 Wood
+S 0 0 0 1 0 0 Wood
+M 0 0 0 1 0 1 0 0 0 Wood
+M 0 0 0 1 0 1 0 1 0 Wood
+M 0 0 0 1 0 1 0 2 0 Wood
+M 0 0 0 1 0 1 2 0 0 Wood
+M 0 0 0 1 0 1 2 1 0 Wood
+M 0 0 0 1 0 1 2 2 0 Wood
+S 0 0 0 1 1 0 Wood
+M 0 0 0 1 1 1 0 0 0 Wood
+M 0 0 0 1 1 1 0 1 0 Wood
+M 0 0 0 1 1 1 0 2 0 Metal
+M 0 0 0 1 1 1 1 2 0 Metal
+M 0 0 0 1 1 1 2 0 0 Wood
+M 0 0 0 1 1 1 2 1 0 Wood
+M 0 0 0 1 1 1 2 2 0 Metal
+S 0 0 0 1 2 0 Wood
+M 0 0 0 1 2 1 0 0 0 Metal
+M 0 0 0 1 2 1 0 1 0 Metal
+M 0 0 0 1 2 1 0 2 0 Wood
+M 0 0 0 1 2 1 1 0 0 Metal
+M 0 0 0 1 2 1 1 1 0 Metal
+M 0 0 0 1 2 1 2 0 0 Metal
+M 0 0 0 1 2 1 2 1 0 Metal
+M 0 0 0 1 2 1 2 2 0 Wood
+S 0 0 0 2 0 0 Wood
+M 0 0 0 2 0 1 0 0 0 Wood
+M 0 0 0 2 0 1 0 1 0 Wood
+M 0 0 0 2 0 1 0 2 0 Wood
+M 0 0 0 2 0 1 1 0 0 Wood
+M 0 0 0 2 0 1 1 1 0 Wood
+M 0 0 0 2 0 1 1 2 0 Wood
+S 0 0 0 2 1 0 Wood
+M 0 0 0 2 1 1 0 0 0 Wood
+M 0 0 0 2 1 1 0 1 0 Wood
+M 0 0 0 2 1 1 0 2 0 Metal
+M 0 0 0 2 1 1 1 0 0 Wood
+M 0 0 0 2 1 1 1 1 0 Wood
+M 0 0 0 2 1 1 1 2 0 Metal
+M 0 0 0 2 1 1 2 2 0 Metal
+S 0 0 0 2 2 0 Wood
+M 0 0 0 2 2 1 0 0 0 Metal
+M 0 0 0 2 2 1 0 1 0 Metal
+M 0 0 0 2 2 1 0 2 0 Wood
+M 0 0 0 2 2 1 1 0 0 Metal
+M 0 0 0 2 2 1 1 1 0 Metal
+M 0 0 0 2 2 1 1 2 0 Wood
+M 0 0 0 2 2 1 2 0 0 Metal
+M 0 0 0 2 2 1 2 1 0 Metal
+S 0 1 0 0 0 0 Wood
+M 0 1 0 0 0 1 1 0 0 Wood
+M 0 1 0 0 0 1 1 1 0 Wood
+M 0 1 0 0 0 1 1 2 0 Wood
+M 0 1 0 0 0 1 2 0 0 Wood
+M 0 1 0 0 0 1 2 1 0 Wood
+M 0 1 0 0 0 1 2 2 0 Wood
+S 0 1 0 0 1 0 Wood
+M 0 1 0 0 1 1 0 2 0 Metal
+M 0 1 0 0 1 1 1 0 0 Wood
+M 0 1 0 0 1 1 1 1 0 Wood
+M 0 1 0 0 1 1 1 2 0 Metal
+M 0 1 0 0 1 1 2 0 0 Wood
+M 0 1 0 0 1 1 2 1 0 Wood
+M 0 1 0 0 1 1 2 2 0 Metal
+S 0 1 0 0 2 0 Wood
+M 0 1 0 0 2 1 0 0 0 Metal
+M 0 1 0 0 2 1 0 1 0 Metal
+M 0 1 0 0 2 1 1 0 0 Metal
+M 0 1 0 0 2 1 1 1 0 Metal
+M 0 1 0 0 2 1 1 2 0 Wood
+M 0 1 0 0 2 1 2 0 0 Metal
+M 0 1 0 0 2 1 2 1 0 Metal
+M 0 1 0 0 2 1 2 2 0 Wood
+S 0 1 0 1 0 0 Wood
+M 0 1 0 1 0 1 0 0 0 Wood
+M 0 1 0 1 0 1 0 1 0 Wood
+M 0 1 0 1 0 1 0 2 0 Wood
+M 0 1 0 1 0 1 2 0 0 Wood
+M 0 1 0 1 0 1 2 1 0 Wood
+M 0 1 0 1 0 1 2 2 0 Wood
+S 0 1 0 1 1 0 Wood
+M 0 1 0 1 1 1 0 0 0 Wood
+M 0 1 0 1 1 1 0 1 0 Wood
+M 0 1 0 1 1 1 0 2 0 Metal
+M 0 1 0 1 1 1 1 2 0 Metal
+M 0 1 0 1 1 1 2 0 0 Wood
+M 0 1 0 1 1 1 2 1 0 Wood
+M 0 1 0 1 1 1 2 2 0 Metal
+S 0 1 0 1 2 0 Wood
+M 0 1 0 1 2 1 0 0 0 Metal
+M 0 1 0 1 2 1 0 1 0 Metal
+M 0 1 0 1 2 1 0 2 0 Wood
+M 0 1 0 1 2 1 1 0 0 Metal
+M 0 1 0 1 2 1 1 1 0 Metal
+M 0 1 0 1 2 1 2 0 0 Metal
+M 0 1 0 1 2 1 2 1 0 Metal
+M 0 1 0 1 2 1 2 2 0 Wood
+S 0 1 0 2 0 0 Wood
+M 0 1 0 2 0 1 0 0 0 Wood
+M 0 1 0 2 0 1 0 1 0 Wood
+M 0 1 0 2 0 1 0 2 0 Wood
+M 0 1 0 2 0 1 1 0 0 Wood
+M 0 1 0 2 0 1 1 1 0 Wood
+M 0 1 0 2 0 1 1 2 0 Wood
+S 0 1 0 2 1 0 Wood
+M 0 1 0 2 1 1 0 0 0 Wood
+M 0 1 0 2 1 1 0 1 0 Wood
+M 0 1 0 2 1 1 0 2 0 Metal
+M 0 1 0 2 1 1 1 0 0 Wood
+M 0 1 0 2 1 1 1 1 0 Wood
+M 0 1 0 2 1 1 1 2 0 Metal
+M 0 1 0 2 1 1 2 2 0 Metal
+S 0 1 0 2 2 0 Wood
+M 0 1 0 2 2 1 0 0 0 Metal
+M 0 1 0 2 2 1 0 1 0 Metal
+M 0 1 0 2 2 1 0 2 0 Wood
+M 0 1 0 2 2 1 1 0 0 Metal
+M 0 1 0 2 2 1 1 1 0 Metal
+M 0 1 0 2 2 1 1 2 0 Wood
+M 0 1 0 2 2 1 2 0 0 Metal
+M 0 1 0 2 2 1 2 1 0 Metal
+S 0 2 0 0 0 0 Wood
+M 0 2 0 0 0 1 1 0 0 Wood
+M 0 2 0 0 0 1 1 1 0 Wood
+M 0 2 0 0 0 1 1 2 0 Wood
+M 0 2 0 0 0 1 2 0 0 Wood
+M 0 2 0 0 0 1 2 1 0 Wood
+M 0 2 0 0 0 1 2 2 0 Wood
+S 0 2 0 0 1 0 Wood
+M 0 2 0 0 1 1 1 0 0 Wood
+M 0 2 0 0 1 1 1 1 0 Wood
+M 0 2 0 0 1 1 1 2 0 Wood
+M 0 2 0 0 1 1 2 0 0 Wood
+M 0 2 0 0 1 1 2 1 0 Wood
+M 0 2 0 0 1 1 2 2 0 Wood
+S 0 2 0 0 2 0 Wood
+M 0 2 0 0 2 1 0 0 0 Metal
+M 0 2 0 0 2 1 0 1 0 Metal
+M 0 2 0 0 2 1 0 2 0 Metal
+M 0 2 0 0 2 1 1 0 0 Metal
+M 0 2 0 0 2 1 1 1 0 Metal
+M 0 2 0 0 2 1 1 2 0 Metal
+M 0 2 0 0 2 1 2 0 0 Metal
+M 0 2 0 0 2 1 2 1 0 Metal
+M 0 2 0 0 2 1 2 2 0 Metal
+S 0 2 0 1 0 0 Wood
+M 0 2 0 1 0 1 0 0 0 Wood
+M 0 2 0 1 0 1 0 1 0 Wood
+M 0 2 0 1 0 1 0 2 0 Wood
+M 0 2 0 1 0 1 2 0 0 Wood
+M 0 2 0 1 0 1 2 1 0 Wood
+M 0 2 0 1 0 1 2 2 0 Wood
+S 0 2 0 1 1 0 Wood
+M 0 2 0 1 1 1 0 0 0 Wood
+M 0 2 0 1 1 1 0 1 0 Wood
+M 0 2 0 1 1 1 0 2 0 Wood
+M 0 2 0 1 1 1 2 0 0 Wood
+M 0 2 0 1 1 1 2 1 0 Wood
+M 0 2 0 1 1 1 2 2 0 Wood
+S 0 2 0 1 2 0 Wood
+M 0 2 0 1 2 1 0 0 0 Metal
+M 0 2 0 1 2 1 0 1 0 Metal
+M 0 2 0 1 2 1 0 2 0 Metal
+M 0 2 0 1 2 1 1 0 0 Metal
+M 0 2 0 1 2 1 1 1 0 Metal
+M 0 2 0 1 2 1 1 2 0 Metal
+M 0 2 0 1 2 1 2 0 0 Metal
+M 0 2 0 1 2 1 2 1 0 Metal
+M 0 2 0 1 2 1 2 2 0 Metal
+S 0 2 0 2 0 0 Wood
+M 0 2 0 2 0 1 0 0 0 Wood
+M 0 2 0 2 0 1 0 1 0 Wood
+M 0 2 0 2 0 1 0 2 0 Wood
+M 0 2 0 2 0 1 1 0 0 Wood
+M 0 2 0 2 0 1 1 1 0 Wood
+M 0 2 0 2 0 1 1 2 0 Wood
+S 0 2 0 2 1 0 Wood
+M 0 2 0 2 1 1 0 0 0 Wood
+M 0 2 0 2 1 1 0 1 0 Wood
+M 0 2 0 2 1 1 0 2 0 Wood
+M 0 2 0 2 1 1 1 0 0 Wood
+M 0 2 0 2 1 1 1 1 0 Wood
+M 0 2 0 2 1 1 1 2 0 Wood
+S 0 2 0 2 2 0 Wood
+M 0 2 0 2 2 1 0 0 0 Metal
+M 0 2 0 2 2 1 0 1 0 Metal
+M 0 2 0 2 2 1 0 2 0 Metal
+M 0 2 0 2 2 1 1 0 0 Metal
+M 0 2 0 2 2 1 1 1 0 Metal
+M 0 2 0 2 2 1 1 2 0 Metal
+M 0 2 0 2 2 1 2 0 0 Metal
+M 0 2 0 2 2 1 2 1 0 Metal
+M 0 2 0 2 2 1 2 2 0 Metal
+S 1 0 0 0 0 0 Wood
+M 1 0 0 0 0 1 0 0 0 Wood
+M 1 0 0 0 0 1 0 1 0 Wood
+M 1 0 0 0 0 1 0 2 0 Wood
+M 1 0 0 0 0 1 1 0 0 Wood
+M 1 0 0 0 0 1 1 1 0 Wood
+M 1 0 0 0 0 1 1 2 0 Wood
+M 1 0 0 0 0 1 2 0 0 Wood
+M 1 0 0 0 0 1 2 1 0 Wood
+M 1 0 0 0 0 1 2 2 0 Wood
+S 1 0 0 0 1 0 Wood
+M 1 0 0 0 1 1 0 0 0 Wood
+M 1 0 0 0 1 1 0 1 0 Wood
+M 1 0 0 0 1 1 0 2 0 Metal
+M 1 0 0 0 1 1 1 0 0 Wood
+M 1 0 0 0 1 1 1 1 0 Wood
+M 1 0 0 0 1 1 1 2 0 Metal
+M 1 0 0 0 1 1 2 0 0 Wood
+M 1 0 0 0 1 1 2 1 0 Wood
+M 1 0 0 0 1 1 2 2 0 Metal
+S 1 0 0 0 2 0 Wood
+M 1 0 0 0 2 1 0 0 0 Metal
+M 1 0 0 0 2 1 0 1 0 Metal
+M 1 0 0 0 2 1 0 2 0 Wood
+M 1 0 0 0 2 1 1 0 0 Metal
+M 1 0 0 0 2 1 1 1 0 Metal
+M 1 0 0 0 2 1 1 2 0 Wood
+M 1 0 0 0 2 1 2 0 0 Metal
+M 1 0 0 0 2 1 2 1 0 Metal
+M 1 0 0 0 2 1 2 2 0 Wood
+S 1 0 0 1 0 0 Wood
+M 1 0 0 1 0 1 1 0 0 Wood
+M 1 0 0 1 0 1 1 1 0 Wood
+M 1 0 0 1 0 1 1 2 0 Wood
+M 1 0 0 1 0 1 2 0 0 Wood
+M 1 0 0 1 0 1 2 1 0 Wood
+M 1 0 0 1 0 1 2 2 0 Wood
+S 1 0 0 1 1 0 Wood
+M 1 0 0 1 1 1 0 2 0 Metal
+M 1 0 0 1 1 1 1 0 0 Wood
+M 1 0 0 1 1 1 1 1 0 Wood
+M 1 0 0 1 1 1 1 2 0 Metal
+M 1 0 0 1 1 1 2 0 0 Wood
+M 1 0 0 1 1 1 2 1 0 Wood
+M 1 0 0 1 1 1 2 2 0 Metal
+S 1 0 0 1 2 0 Wood
+M 1 0 0 1 2 1 0 0 0 Metal
+M 1 0 0 1 2 1 0 1 0 Metal
+M 1 0 0 1 2 1 1 0 0 Metal
+M 1 0 0 1 2 1 1 1 0 Metal
+M 1 0 0 1 2 1 1 2 0 Wood
+M 1 0 0 1 2 1 2 0 0 Metal
+M 1 0 0 1 2 1 2 1 0 Metal
+M 1 0 0 1 2 1 2 2 0 Wood
+S 1 0 0 2 0 0 Wood
+M 1 0 0 2 0 1 0 0 0 Wood
+M 1 0 0 2 0 1 0 1 0 Wood
+M 1 0 0 2 0 1 0 2 0 Wood
+M 1 0 0 2 0 1 2 0 0 Wood
+M 1 0 0 2 0 1 2 1 0 Wood
+M 1 0 0 2 0 1 2 2 0 Wood
+S 1 0 0 2 1 0 Wood
+M 1 0 0 2 1 1 0 0 0 Wood
+M 1 0 0 2 1 1 0 1 0 Wood
+M 1 0 0 2 1 1 0 2 0 Metal
+M 1 0 0 2 1 1 1 2 0 Metal
+M 1 0 0 2 1 1 2 0 0 Wood
+M 1 0 0 2 1 1 2 1 0 Wood
+M 1 0 0 2 1 1 2 2 0 Metal
+S 1 0 0 2 2 0 Wood
+M 1 0 0 2 2 1 0 0 0 Metal
+M 1 0 0 2 2 1 0 1 0 Metal
+M 1 0 0 2 2 1 0 2 0 Wood
+M 1 0 0 2 2 1 1 0 0 Metal
+M 1 0 0 2 2 1 1 1 0 Metal
+M 1 0 0 2 2 1 2 0 0 Metal
+M 1 0 0 2 2 1 2 1 0 Metal
+M 1 0 0 2 2 1 2 2 0 Wood
+S 1 1 0 0 0 0 Wood
+M 1 1 0 0 0 1 0 0 0 Wood
+M 1 1 0 0 0 1 0 1 0 Wood
+M 1 1 0 0 0 1 0 2 0 Wood
+M 1 1 0 0 0 1 1 0 0 Wood
+M 1 1 0 0 0 1 1 1 0 Wood
+M 1 1 0 0 0 1 1 2 0 Wood
+M 1 1 0 0 0 1 2 0 0 Wood
+M 1 1 0 0 0 1 2 1 0 Wood
+M 1 1 0 0 0 1 2 2 0 Wood
+S 1 1 0 0 1 0 Wood
+M 1 1 0 0 1 1 0 0 0 Wood
+M 1 1 0 0 1 1 0 1 0 Wood
+M 1 1 0 0 1 1 0 2 0 Metal
+M 1 1 0 0 1 1 1 0 0 Wood
+M 1 1 0 0 1 1 1 1 0 Wood
+M 1 1 0 0 1 1 1 2 0 Metal
+M 1 1 0 0 1 1 2 0 0 Wood
+M 1 1 0 0 1 1 2 1 0 Wood
+M 1 1 0 0 1 1 2 2 0 Metal
+S 1 1 0 0 2 0 Wood
+M 1 1 0 0 2 1 0 0 0 Metal
+M 1 1 0 0 2 1 0 1 0 Metal
+M 1 1 0 0 2 1 0 2 0 Wood
+M 1 1 0 0 2 1 1 0 0 Metal
+M 1 1 0 0 2 1 1 1 0 Metal
+M 1 1 0 0 2 1 1 2 0 Wood
+M 1 1 0 0 2 1 2 0 0 Metal
+M 1 1 0 0 2 1 2 1 0 Metal
+M 1 1 0 0 2 1 2 2 0 Wood
+S 1 1 0 1 0 0 Wood
+M 1 1 0 1 0 1 1 0 0 Wood
+M 1 1 0 1 0 1 1 1 0 Wood
+M 1 1 0 1 0 1 1 2 0 Wood
+M 1 1 0 1 0 1 2 0 0 Wood
+M 1 1 0 1 0 1 2 1 0 Wood
+M 1 1 0 1 0 1 2 2 0 Wood
+M 1 1 0 1 1 0 0 0 0 Wood
+M 1 1 0 1 1 0 0 0 1 Wood
+M 1 1 0 1 1 0 0 0 2 Wood
+M 1 1 0 1 1 0 0 1 0 Wood
+M 1 1 0 1 1 0 0 1 1 Wood
+M 1 1 0 1 1 0 0 1 2 Wood
+M 1 1 0 1 1 0 0 2 0 Wood
+M 1 1 0 1 1 0 0 2 1 Wood
+M 1 1 0 1 1 0 0 2 2 Wood
+M 1 1 0 1 1 0 1 0 0 Wood
+M 1 1 0 1 1 0 1 0 1 Wood
+M 1 1 0 1 1 0 1 0 2 Wood
+M 1 1 0 1 1 0 1 1 0 Gold
+M 1 1 0 1 1 0 1 1 1 Wood
+M 1 1 0 1 1 0 1 1 2 Wood
+M 1 1 0 1 1 0 1 2 0 Wood
+M 1 1 0 1 1 0 1 2 1 Wood
+M 1 1 0 1 1 0 1 2 2 Wood
+M 1 1 0 1 1 0 2 0 0 Wood
+M 1 1 0 1 1 0 2 0 1 Wood
+M 1 1 0 1 1 0 2 0 2 Wood
+M 1 1 0 1 1 0 2 1 0 Wood
+M 1 1 0 1 1 0 2 1 1 Wood
+M 1 1 0 1 1 0 2 1 2 Wood
+M 1 1 0 1 1 0 2 2 0 Wood
+M 1 1 0 1 1 0 2 2 1 Wood
+M 1 1 0 1 1 0 2 2 2 Wood
+M 1 1 0 1 1 1 0 2 0 Metal
+M 1 1 0 1 1 1 1 0 0 Wood
+M 1 1 0 1 1 1 1 1 0 Gold
+M 1 1 0 1 1 1 1 2 0 Metal
+M 1 1 0 1 1 1 2 0 0 Wood
+M 1 1 0 1 1 1 2 1 0 Wood
+M 1 1 0 1 1 1 2 2 0 Metal
+S 1 1 0 1 2 0 Wood
+M 1 1 0 1 2 1 0 0 0 Metal
+M 1 1 0 1 2 1 0 1 0 Metal
+M 1 1 0 1 2 1 1 0 0 Metal
+M 1 1 0 1 2 1 1 1 0 Metal
+M 1 1 0 1 2 1 1 2 0 Wood
+M 1 1 0 1 2 1 2 0 0 Metal
+M 1 1 0 1 2 1 2 1 0 Metal
+M 1 1 0 1 2 1 2 2 0 Wood
+S 1 1 0 2 0 0 Wood
+M 1 1 0 2 0 1 0 0 0 Wood
+M 1 1 0 2 0 1 0 1 0 Wood
+M 1 1 0 2 0 1 0 2 0 Wood
+M 1 1 0 2 0 1 2 0 0 Wood
+M 1 1 0 2 0 1 2 1 0 Wood
+M 1 1 0 2 0 1 2 2 0 Wood
+S 1 1 0 2 1 0 Wood
+M 1 1 0 2 1 1 0 0 0 Wood
+M 1 1 0 2 1 1 0 1 0 Wood
+M 1 1 0 2 1 1 0 2 0 Metal
+M 1 1 0 2 1 1 1 2 0 Metal
+M 1 1 0 2 1 1 2 0 0 Wood
+M 1 1 0 2 1 1 2 1 0 Wood
+M 1 1 0 2 1 1 2 2 0 Metal
+S 1 1 0 2 2 0 Wood
+M 1 1 0 2 2 1 0 0 0 Metal
+M 1 1 0 2 2 1 0 1 0 Metal
+M 1 1 0 2 2 1 0 2 0 Wood
+M 1 1 0 2 2 1 1 0 0 Metal
+M 1 1 0 2 2 1 1 1 0 Metal
+M 1 1 0 2 2 1 2 0 0 Metal
+M 1 1 0 2 2 1 2 1 0 Metal
+M 1 1 0 2 2 1 2 2 0 Wood
+S 1 2 0 0 0 0 Wood
+M 1 2 0 0 0 1 0 0 0 Wood
+M 1 2 0 0 0 1 0 1 0 Wood
+M 1 2 0 0 0 1 0 2 0 Wood
+M 1 2 0 0 0 1 1 0 0 Wood
+M 1 2 0 0 0 1 1 1 0 Wood
+M 1 2 0 0 0 1 1 2 0 Wood
+M 1 2 0 0 0 1 2 0 0 Wood
+M 1 2 0 0 0 1 2 1 0 Wood
+M 1 2 0 0 0 1 2 2 0 Wood
+S 1 2 0 0 1 0 Wood
+M 1 2 0 0 1 1 0 0 0 Wood
+M 1 2 0 0 1 1 0 1 0 Wood
+M 1 2 0 0 1 1 0 2 0 Wood
+M 1 2 0 0 1 1 1 0 0 Wood
+M 1 2 0 0 1 1 1 1 0 Wood
+M 1 2 0 0 1 1 1 2 0 Wood
+M 1 2 0 0 1 1 2 0 0 Wood
+M 1 2 0 0 1 1 2 1 0 Wood
+M 1 2 0 0 1 1 2 2 0 Wood
+S 1 2 0 0 2 0 Wood
+M 1 2 0 0 2 1 0 0 0 Metal
+M 1 2 0 0 2 1 0 1 0 Metal
+M 1 2 0 0 2 1 0 2 0 Metal
+M 1 2 0 0 2 1 1 0 0 Metal
+M 1 2 0 0 2 1 1 1 0 Metal
+M 1 2 0 0 2 1 1 2 0 Metal
+M 1 2 0 0 2 1 2 0 0 Metal
+M 1 2 0 0 2 1 2 1 0 Metal
+M 1 2 0 0 2 1 2 2 0 Metal
+S 1 2 0 1 0 0 Wood
+M 1 2 0 1 0 1 1 0 0 Wood
+M 1 2 0 1 0 1 1 1 0 Wood
+M 1 2 0 1 0 1 1 2 0 Wood
+M 1 2 0 1 0 1 2 0 0 Wood
+M 1 2 0 1 0 1 2 1 0 Wood
+M 1 2 0 1 0 1 2 2 0 Wood
+S 1 2 0 1 1 0 Wood
+M 1 2 0 1 1 1 1 0 0 Wood
+M 1 2 0 1 1 1 1 1 0 Wood
+M 1 2 0 1 1 1 1 2 0 Wood
+M 1 2 0 1 1 1 2 0 0 Wood
+M 1 2 0 1 1 1 2 1 0 Wood
+M 1 2 0 1 1 1 2 2 0 Wood
+S 1 2 0 1 2 0 Wood
+M 1 2 0 1 2 1 0 0 0 Metal
+M 1 2 0 1 2 1 0 1 0 Metal
+M 1 2 0 1 2 1 0 2 0 Metal
+M 1 2 0 1 2 1 1 0 0 Metal
+M 1 2 0 1 2 1 1 1 0 Metal
+M 1 2 0 1 2 1 1 2 0 Metal
+M 1 2 0 1 2 1 2 0 0 Metal
+M 1 2 0 1 2 1 2 1 0 Metal
+M 1 2 0 1 2 1 2 2 0 Metal
+S 1 2 0 2 0 0 Wood
+M 1 2 0 2 0 1 0 0 0 Wood
+M 1 2 0 2 0 1 0 1 0 Wood
+M 1 2 0 2 0 1 0 2 0 Wood
+M 1 2 0 2 0 1 2 0 0 Wood
+M 1 2 0 2 0 1 2 1 0 Wood
+M 1 2 0 2 0 1 2 2 0 Wood
+S 1 2 0 2 1 0 Wood
+M 1 2 0 2 1 1 0 0 0 Wood
+M 1 2 0 2 1 1 0 1 0 Wood
+M 1 2 0 2 1 1 0 2 0 Wood
+M 1 2 0 2 1 1 2 0 0 Wood
+M 1 2 0 2 1 1 2 1 0 Wood
+M 1 2 0 2 1 1 2 2 0 Wood
+S 1 2 0 2 2 0 Wood
+M 1 2 0 2 2 1 0 0 0 Metal
+M 1 2 0 2 2 1 0 1 0 Metal
+M 1 2 0 2 2 1 0 2 0 Metal
+M 1 2 0 2 2 1 1 0 0 Metal
+M 1 2 0 2 2 1 1 1 0 Metal
+M 1 2 0 2 2 1 1 2 0 Metal
+M 1 2 0 2 2 1 2 0 0 Metal
+M 1 2 0 2 2 1 2 1 0 Metal
+M 1 2 0 2 2 1 2 2 0 Metal
+S 2 0 0 0 0 0 Wood
+M 2 0 0 0 0 1 0 0 0 Wood
+M 2 0 0 0 0 1 0 1 0 Wood
+M 2 0 0 0 0 1 0 2 0 Wood
+M 2 0 0 0 0 1 1 0 0 Wood
+M 2 0 0 0 0 1 1 1 0 Wood
+M 2 0 0 0 0 1 1 2 0 Wood
+S 2 0 0 0 1 0 Wood
+M 2 0 0 0 1 1 0 0 0 Wood
+M 2 0 0 0 1 1 0 1 0 Wood
+M 2 0 0 0 1 1 0 2 0 Metal
+M 2 0 0 0 1 1 1 0 0 Wood
+M 2 0 0 0 1 1 1 1 0 Wood
+M 2 0 0 0 1 1 1 2 0 Metal
+M 2 0 0 0 1 1 2 2 0 Metal
+S 2 0 0 0 2 0 Wood
+M 2 0 0 0 2 1 0 0 0 Metal
+M 2 0 0 0 2 1 0 1 0 Metal
+M 2 0 0 0 2 1 0 2 0 Wood
+M 2 0 0 0 2 1 1 0 0 Metal
+M 2 0 0 0 2 1 1 1 0 Metal
+M 2 0 0 0 2 1 1 2 0 Wood
+M 2 0 0 0 2 1 2 0 0 Metal
+M 2 0 0 0 2 1 2 1 0 Metal
+S 2 0 0 1 0 0 Wood
+M 2 0 0 1 0 1 0 0 0 Wood
+M 2 0 0 1 0 1 0 1 0 Wood
+M 2 0 0 1 0 1 0 2 0 Wood
+M 2 0 0 1 0 1 1 0 0 Wood
+M 2 0 0 1 0 1 1 1 0 Wood
+M 2 0 0 1 0 1 1 2 0 Wood
+M 2 0 0 1 0 1 2 0 0 Wood
+M 2 0 0 1 0 1 2 1 0 Wood
+M 2 0 0 1 0 1 2 2 0 Wood
+S 2 0 0 1 1 0 Wood
+M 2 0 0 1 1 1 0 0 0 Wood
+M 2 0 0 1 1 1 0 1 0 Wood
+M 2 0 0 1 1 1 0 2 0 Metal
+M 2 0 0 1 1 1 1 0 0 Wood
+M 2 0 0 1 1 1 1 1 0 Wood
+M 2 0 0 1 1 1 1 2 0 Metal
+M 2 0 0 1 1 1 2 0 0 Wood
+M 2 0 0 1 1 1 2 1 0 Wood
+M 2 0 0 1 1 1 2 2 0 Metal
+S 2 0 0 1 2 0 Wood
+M 2 0 0 1 2 1 0 0 0 Metal
+M 2 0 0 1 2 1 0 1 0 Metal
+M 2 0 0 1 2 1 0 2 0 Wood
+M 2 0 0 1 2 1 1 0 0 Metal
+M 2 0 0 1 2 1 1 1 0 Metal
+M 2 0 0 1 2 1 1 2 0 Wood
+M 2 0 0 1 2 1 2 0 0 Metal
+M 2 0 0 1 2 1 2 1 0 Metal
+M 2 0 0 1 2 1 2 2 0 Wood
+S 2 0 0 2 0 0 Wood
+M 2 0 0 2 0 1 1 0 0 Wood
+M 2 0 0 2 0 1 1 1 0 Wood
+M 2 0 0 2 0 1 1 2 0 Wood
+M 2 0 0 2 0 1 2 0 0 Wood
+M 2 0 0 2 0 1 2 1 0 Wood
+M 2 0 0 2 0 1 2 2 0 Wood
+S 2 0 0 2 1 0 Wood
+M 2 0 0 2 1 1 0 2 0 Metal
+M 2 0 0 2 1 1 1 0 0 Wood
+M 2 0 0 2 1 1 1 1 0 Wood
+M 2 0 0 2 1 1 1 2 0 Metal
+M 2 0 0 2 1 1 2 0 0 Wood
+M 2 0 0 2 1 1 2 1 0 Wood
+M 2 0 0 2 1 1 2 2 0 Metal
+S 2 0 0 2 2 0 Wood
+M 2 0 0 2 2 1 0 0 0 Metal
+M 2 0 0 2 2 1 0 1 0 Metal
+M 2 0 0 2 2 1 1 0 0 Metal
+M 2 0 0 2 2 1 1 1 0 Metal
+M 2 0 0 2 2 1 1 2 0 Wood
+M 2 0 0 2 2 1 2 0 0 Metal
+M 2 0 0 2 2 1 2 1 0 Metal
+M 2 0 0 2 2 1 2 2 0 Wood
+S 2 1 0 0 0 0 Wood
+M 2 1 0 0 0 1 0 0 0 Wood
+M 2 1 0 0 0 1 0 1 0 Wood
+M 2 1 0 0 0 1 0 2 0 Wood
+M 2 1 0 0 0 1 1 0 0 Wood
+M 2 1 0 0 0 1 1 1 0 Wood
+M 2 1 0 0 0 1 1 2 0 Wood
+S 2 1 0 0 1 0 Wood
+M 2 1 0 0 1 1 0 0 0 Wood
+M 2 1 0 0 1 1 0 1 0 Wood
+M 2 1 0 0 1 1 0 2 0 Metal
+M 2 1 0 0 1 1 1 0 0 Wood
+M 2 1 0 0 1 1 1 1 0 Wood
+M 2 1 0 0 1 1 1 2 0 Metal
+M 2 1 0 0 1 1 2 2 0 Metal
+S 2 1 0 0 2 0 Wood
+M 2 1 0 0 2 1 0 0 0 Metal
+M 2 1 0 0 2 1 0 1 0 Metal
+M 2 1 0 0 2 1 0 2 0 Wood
+M 2 1 0 0 2 1 1 0 0 Metal
+M 2 1 0 0 2 1 1 1 0 Metal
+M 2 1 0 0 2 1 1 2 0 Wood
+M 2 1 0 0 2 1 2 0 0 Metal
+M 2 1 0 0 2 1 2 1 0 Metal
+S 2 1 0 1 0 0 Wood
+M 2 1 0 1 0 1 0 0 0 Wood
+M 2 1 0 1 0 1 0 1 0 Wood
+M 2 1 0 1 0 1 0 2 0 Wood
+M 2 1 0 1 0 1 1 0 0 Wood
+M 2 1 0 1 0 1 1 1 0 Wood
+M 2 1 0 1 0 1 1 2 0 Wood
+M 2 1 0 1 0 1 2 0 0 Wood
+M 2 1 0 1 0 1 2 1 0 Wood
+M 2 1 0 1 0 1 2 2 0 Wood
+S 2 1 0 1 1 0 Wood
+M 2 1 0 1 1 1 0 0 0 Wood
+M 2 1 0 1 1 1 0 1 0 Wood
+M 2 1 0 1 1 1 0 2 0 Metal
+M 2 1 0 1 1 1 1 0 0 Wood
+M 2 1 0 1 1 1 1 1 0 Wood
+M 2 1 0 1 1 1 1 2 0 Metal
+M 2 1 0 1 1 1 2 0 0 Wood
+M 2 1 0 1 1 1 2 1 0 Wood
+M 2 1 0 1 1 1 2 2 0 Metal
+S 2 1 0 1 2 0 Wood
+M 2 1 0 1 2 1 0 0 0 Metal
+M 2 1 0 1 2 1 0 1 0 Metal
+M 2 1 0 1 2 1 0 2 0 Wood
+M 2 1 0 1 2 1 1 0 0 Metal
+M 2 1 0 1 2 1 1 1 0 Metal
+M 2 1 0 1 2 1 1 2 0 Wood
+M 2 1 0 1 2 1 2 0 0 Metal
+M 2 1 0 1 2 1 2 1 0 Metal
+M 2 1 0 1 2 1 2 2 0 Wood
+S 2 1 0 2 0 0 Wood
+M 2 1 0 2 0 1 1 0 0 Wood
+M 2 1 0 2 0 1 1 1 0 Wood
+M 2 1 0 2 0 1 1 2 0 Wood
+M 2 1 0 2 0 1 2 0 0 Wood
+M 2 1 0 2 0 1 2 1 0 Wood
+M 2 1 0 2 0 1 2 2 0 Wood
+S 2 1 0 2 1 0 Wood
+M 2 1 0 2 1 1 0 2 0 Metal
+M 2 1 0 2 1 1 1 0 0 Wood
+M 2 1 0 2 1 1 1 1 0 Wood
+M 2 1 0 2 1 1 1 2 0 Metal
+M 2 1 0 2 1 1 2 0 0 Wood
+M 2 1 0 2 1 1 2 1 0 Wood
+M 2 1 0 2 1 1 2 2 0 Metal
+S 2 1 0 2 2 0 Wood
+M 2 1 0 2 2 1 0 0 0 Metal
+M 2 1 0 2 2 1 0 1 0 Metal
+M 2 1 0 2 2 1 1 0 0 Metal
+M 2 1 0 2 2 1 1 1 0 Metal
+M 2 1 0 2 2 1 1 2 0 Wood
+M 2 1 0 2 2 1 2 0 0 Metal
+M 2 1 0 2 2 1 2 1 0 Metal
+M 2 1 0 2 2 1 2 2 0 Wood
+S 2 2 0 0 0 0 Wood
+M 2 2 0 0 0 1 0 0 0 Wood
+M 2 2 0 0 0 1 0 1 0 Wood
+M 2 2 0 0 0 1 0 2 0 Wood
+M 2 2 0 0 0 1 1 0 0 Wood
+M 2 2 0 0 0 1 1 1 0 Wood
+M 2 2 0 0 0 1 1 2 0 Wood
+S 2 2 0 0 1 0 Wood
+M 2 2 0 0 1 1 0 0 0 Wood
+M 2 2 0 0 1 1 0 1 0 Wood
+M 2 2 0 0 1 1 0 2 0 Wood
+M 2 2 0 0 1 1 1 0 0 Wood
+M 2 2 0 0 1 1 1 1 0 Wood
+M 2 2 0 0 1 1 1 2 0 Wood
+S 2 2 0 0 2 0 Wood
+M 2 2 0 0 2 1 0 0 0 Metal
+M 2 2 0 0 2 1 0 1 0 Metal
+M 2 2 0 0 2 1 0 2 0 Metal
+M 2 2 0 0 2 1 1 0 0 Metal
+M 2 2 0 0 2 1 1 1 0 Metal
+M 2 2 0 0 2 1 1 2 0 Metal
+M 2 2 0 0 2 1 2 0 0 Metal
+M 2 2 0 0 2 1 2 1 0 Metal
+M 2 2 0 0 2 1 2 2 0 Metal
+S 2 2 0 1 0 0 Wood
+M 2 2 0 1 0 1 0 0 0 Wood
+M 2 2 0 1 0 1 0 1 0 Wood
+M 2 2 0 1 0 1 0 2 0 Wood
+M 2 2 0 1 0 1 1 0 0 Wood
+M 2 2 0 1 0 1 1 1 0 Wood
+M 2 2 0 1 0 1 1 2 0 Wood
+M 2 2 0 1 0 1 2 0 0 Wood
+M 2 2 0 1 0 1 2 1 0 Wood
+M 2 2 0 1 0 1 2 2 0 Wood
+S 2 2 0 1 1 0 Wood
+M 2 2 0 1 1 1 0 0 0 Wood
+M 2 2 0 1 1 1 0 1 0 Wood
+M 2 2 0 1 1 1 0 2 0 Wood
+M 2 2 0 1 1 1 1 0 0 Wood
+M 2 2 0 1 1 1 1 1 0 Wood
+M 2 2 0 1 1 1 1 2 0 Wood
+M 2 2 0 1 1 1 2 0 0 Wood
+M 2 2 0 1 1 1 2 1 0 Wood
+M 2 2 0 1 1 1 2 2 0 Wood
+S 2 2 0 1 2 0 Wood
+M 2 2 0 1 2 1 0 0 0 Metal
+M 2 2 0 1 2 1 0 1 0 Metal
+M 2 2 0 1 2 1 0 2 0 Metal
+M 2 2 0 1 2 1 1 0 0 Metal
+M 2 2 0 1 2 1 1 1 0 Metal
+M 2 2 0 1 2 1 1 2 0 Metal
+M 2 2 0 1 2 1 2 0 0 Metal
+M 2 2 0 1 2 1 2 1 0 Metal
+M 2 2 0 1 2 1 2 2 0 Metal
+S 2 2 0 2 0 0 Wood
+M 2 2 0 2 0 1 1 0 0 Wood
+M 2 2 0 2 0 1 1 1 0 Wood
+M 2 2 0 2 0 1 1 2 0 Wood
+M 2 2 0 2 0 1 2 0 0 Wood
+M 2 2 0 2 0 1 2 1 0 Wood
+M 2 2 0 2 0 1 2 2 0 Wood
+S 2 2 0 2 1 0 Wood
+M 2 2 0 2 1 1 1 0 0 Wood
+M 2 2 0 2 1 1 1 1 0 Wood
+M 2 2 0 2 1 1 1 2 0 Wood
+M 2 2 0 2 1 1 2 0 0 Wood
+M 2 2 0 2 1 1 2 1 0 Wood
+M 2 2 0 2 1 1 2 2 0 Wood
+S 2 2 0 2 2 0 Wood
+M 2 2 0 2 2 1 0 0 0 Metal
+M 2 2 0 2 2 1 0 1 0 Metal
+M 2 2 0 2 2 1 0 2 0 Metal
+M 2 2 0 2 2 1 1 0 0 Metal
+M 2 2 0 2 2 1 1 1 0 Metal
+M 2 2 0 2 2 1 1 2 0 Metal
+M 2 2 0 2 2 1 2 0 0 Metal
+M 2 2 0 2 2 1 2 1 0 Metal
+M 2 2 0 2 2 1 2 2 0 Metal
+M 3 0 0 0 1 1 0 2 0 Metal
+M 3 1 0 0 1 1 0 2 0 Metal
+M 3 2 0 0 2 1 0 0 0 Metal

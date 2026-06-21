@@ -158,25 +158,22 @@ def stair_clearance_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCano
 def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
     """Every door opening must be fillable by an available door leaf and the leaf must sit in
     carved air. Catches openings wider/taller than any door (gaps) and doors embedded in walls."""
-    from .realize import door_leaves_for_width
+    from .doors import selected_door_for_portal
     rep = ValidationReport()
     occ = _cube_occupancy(canvas)
     bases = _story_base_y(spec)
     fw, fd = spec.footprint
-    leaf_h = DOOR_LEAVES["door_wood"][1]
 
     for si, story in enumerate(spec.stories):
         rooms = {r.id: r for r in story.rooms}
+        purpose_map = {r.id: r.purpose for r in story.rooms}
         for pi, p in enumerate(story.portals):
             if p.kind != "door":
                 continue
             where = f"story {si} door #{pi} {p.between}"
-            covered = sum(lw for _, _, lw in door_leaves_for_width(p.width))
-            if covered < p.width:
-                rep.error("DOOR_OPENING_UNFILLED",
-                          f"opening is {p.width} wide but door leaves only cover {covered} — "
-                          f"a {p.width - covered}-cube gap will be left open", where)
-            # the opening must actually be carved (air) where the door hangs
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            # the door's full footprint (its width x height) must be carved air where it hangs
             sides = _swing_sides(p, rooms, fw, fd)
             if not sides:
                 continue
@@ -184,14 +181,36 @@ def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
             y = bases[si] + 1
             px, pz = p.pos
             if axis == "x":
-                opening = [(coord, y + dy, z) for z in range(pz, pz + p.width) for dy in range(leaf_h)]
+                opening = [(coord, y + dy, z) for z in range(pz, pz + dd.width) for dy in range(dd.height)]
             else:
-                opening = [(x, y + dy, coord) for x in range(px, px + p.width) for dy in range(leaf_h)]
+                opening = [(x, y + dy, coord) for x in range(px, px + dd.width) for dy in range(dd.height)]
             solid = [c for c in opening if occ.get(c, 0) == _FULL_CUBE]
             if solid:
                 rep.error("DOOR_EMBEDDED_IN_WALL",
-                          f"{len(solid)}/{len(opening)} of the door's opening cells are solid wall "
-                          "(the leaf is buried, not in a carved opening)", where)
+                          f"{len(solid)}/{len(opening)} of the {dd.name} ({dd.width}x{dd.height}) "
+                          "opening cells are solid wall (door buried, not in a carved opening)", where)
+    return rep
+
+
+def door_selection_report(spec: BuildingSpec) -> ValidationReport:
+    """The door chosen for each opening must be usable in its situation: it fits under the wall,
+    and a portal that must lock gets a lockable-capable door."""
+    from .doors import selected_door_for_portal
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        purpose_map = {r.id: r.purpose for r in story.rooms}
+        for pi, p in enumerate(story.portals):
+            if p.kind != "door":
+                continue
+            where = f"story {si} door #{pi} {p.between}"
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            if dd.height > story.height:
+                rep.error("DOOR_TALLER_THAN_WALL",
+                          f"selected {dd.name} is {dd.height} tall but the wall is {story.height}", where)
+            if lockable and not dd.lockable:
+                rep.error("DOOR_NOT_LOCKABLE",
+                          f"portal must lock but the chosen {dd.name} ({dd.style}) isn't lockable", where)
     return rep
 
 
@@ -409,6 +428,7 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
         canon = load_canon()
     return merge(stair_clearance_report(spec, canvas, canon),
                  opening_fit_report(spec, canvas),
+                 door_selection_report(spec),
                  fixture_placement_report(spec, canvas),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),

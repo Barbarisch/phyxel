@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .spec import BuildingSpec
 from .detail import DetailCanvas, frame_on_face, pitched_roof, subcube_stairs, AIR
+from .doors import selected_door_for_portal
 
 _REPO = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = _REPO / "resources" / "templates"
@@ -105,6 +106,7 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
     for story in spec.stories:
         h = story.height
         rooms = {r.id: tuple(r.rect) for r in story.rooms}
+        rooms_purpose = {r.id: r.purpose for r in story.rooms}
 
         # Footprint = UNION of the room rects (any L/T/U/wing shape, not just a rectangle).
         occupied = set()
@@ -143,18 +145,21 @@ def build_shell(spec: BuildingSpec, trim: Optional[str] = None) -> DetailCanvas:
             # Vertical placement: doors/arches start at the floor; windows sit on a sill ~1 cube
             # up (a floor-level "window" you can walk through looks wrong) and stay under the ceiling.
             if p.kind == "door":
-                sill_h, ph = 0, DOOR_LEAF_H
+                # The selected door type drives the opening size (variable openings).
+                lockable = bool(p.door and p.door.lockable)
+                dd = selected_door_for_portal(p.between, p.width, lockable, h, rooms_purpose)
+                sill_h, ph, ow_door = 0, dd.height, dd.width
             elif p.kind == "window":
                 sill_h = 1 if h >= 3 else 0          # need head + sill room; tiny rooms skip the sill
-                ph = min(p.height, h - sill_h)
+                ph, ow_door = min(p.height, h - sill_h), p.width
             else:  # arch
-                sill_h, ph = 0, min(p.height, h)
+                sill_h, ph, ow_door = 0, min(p.height, h), p.width
             oy = baseY + 1 + sill_h
             px, pz = p.pos
             if ax == "z":
-                ox, oz, ow, oh, od = px, coord, p.width, ph, 1
+                ox, oz, ow, oh, od = px, coord, ow_door, ph, 1
             else:
-                ox, oz, ow, oh, od = coord, pz, 1, ph, p.width
+                ox, oz, ow, oh, od = coord, pz, 1, ph, ow_door
             if normal and p.kind != "arch":
                 frame_on_face(c, normal, ox, oy, oz, ow, oh, od, trim,
                               sill=(p.kind == "window"))
@@ -245,6 +250,7 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
     baseY = 0
     for story in spec.stories:
         rooms = {r.id: tuple(r.rect) for r in story.rooms}
+        rooms_purpose = {r.id: r.purpose for r in story.rooms}
         for p in story.portals:
             if p.kind != "door":
                 continue
@@ -253,23 +259,25 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
                 continue
             ax, coord, _ = res
             pxl, pzl = p.pos
-            # Tile leaves across the opening so a wide opening is fully filled (no gap).
-            for tmpl, off, lw in door_leaves_for_width(p.width):
-                if ax == "z":
-                    hinge, rot = (pxl + off, baseY + 1, coord), 0
-                else:
-                    hinge, rot = (coord, baseY + 1, pzl + off), 90
-                hw = {"x": px + hinge[0], "y": py + hinge[1], "z": pz + hinge[2]}
-                sp = _spawn(engine, tmpl, hw["x"], hw["y"], hw["z"], rot)
-                oid = sp.get("object_id")
-                if oid:
-                    _post(engine, "/api/door/register",
-                          {"placed_object_id": oid, "template_name": tmpl, "hinge": hw,
-                           "base_rotation": rot, "thickness": 5})
-                    if p.door and p.door.lockable:
-                        _post(engine, "/api/door/lock",
-                              {"placed_object_id": oid, "locked": True, "key_item_id": p.door.key})
-                    out["doors"].append({"id": oid, "locked": bool(p.door and p.door.lockable)})
+            # Select the situation-appropriate door (drives the opening size in build_shell too).
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, rooms_purpose)
+            if ax == "z":
+                hinge, rot = (pxl, baseY + 1, coord), 0
+            else:
+                hinge, rot = (coord, baseY + 1, pzl), 90
+            hw = {"x": px + hinge[0], "y": py + hinge[1], "z": pz + hinge[2]}
+            sp = _spawn(engine, dd.name, hw["x"], hw["y"], hw["z"], rot)
+            oid = sp.get("object_id")
+            if oid:
+                _post(engine, "/api/door/register",
+                      {"placed_object_id": oid, "template_name": dd.name, "hinge": hw,
+                       "base_rotation": rot, "thickness": 5})
+                if lockable:
+                    _post(engine, "/api/door/lock",
+                          {"placed_object_id": oid, "locked": True, "key_item_id": p.door.key})
+                out["doors"].append({"id": oid, "template": dd.name, "style": dd.style,
+                                     "swing": dd.swing, "locked": lockable})
         for f in story.fixtures:
             tmpl = FIXTURE_TEMPLATES.get(f.type)
             if not tmpl:

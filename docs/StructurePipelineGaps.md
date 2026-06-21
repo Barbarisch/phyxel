@@ -87,10 +87,22 @@ and read as ugly/overlapping. Regenerate via the DetailCanvas (turned legs, beve
 back slats, mattress + pillow + blanket relief, table aprons) or BlockSmith. Needed set: chair,
 stool, bench, table, desk, bed, wardrobe, dresser, bookshelf, chest, cabinet, barrel, rug.
 
-### Door variety (only `door_wood` / `door_wood_wide` exist)
-Need: plain plank door, framed PANEL door (ornate), iron-banded/studded door, double doors,
-arched-top door, and a visibly different LOCKED/grand front door. The spec already carries
-lockable/width; the realizer should pick a template by style/importance.
+### Door variety — LIBRARY + DETERMINISTIC SELECTION DONE (2026-06-21)
+`tools/structure_pipeline/doors.py`: a door catalog (door_plank/door_wood/door_iron/door_wood_wide/
+door_grand/gate_timber) with a deterministic `select_door(width, purpose, lockable, exterior)` that
+the realizer AND the checks share. Variable openings: the selected door drives the carved opening
+size (grand entrance = 2x3, bedroom = 1x2 plank, cellar = iron, courtyard = 3x3 gate, lockable
+bedroom = panel). Checks: `opening_fit_report` (opening == selected door, in carved air),
+`door_selection_report` (fits the wall; lockable portal gets a lockable door). Tests: test_doors.py.
+
+Remaining door work (OPEN):
+- **[engine] Free-swinging (physics) doors.** Catalog marks door_grand/gate_timber `swing="free"`,
+  but DoorManager only does kinematic open/close. Need physics free-swing (push, momentum, settle).
+- **Door handedness / MIRRORING.** All leaves hinge at local X=0 (left-hung). Need: the realizer to
+  choose the hinge side so the leaf swings into the clear side (deterministic, vs the current swing
+  check that just asks "is SOME side clear"), and mirrored (right-hung) templates (or an engine flip
+  flag — engine has rotation but not mirror). Plus a `door_handedness_report` deterministic check.
+- More sizes (very wide gates >3, arched-top doors, portcullis) + per-door art polish.
 
 ### Lighting fixtures + emission (none exist as props)
 Need lamp props AND light emission: wall sconce, candelabra, chandelier, floor lantern, hearth/
