@@ -28,6 +28,7 @@ substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing bett
 | Linen / bedsheet (white/cream) | mattress, sheets |
 | Wool blanket / quilt (colored) | beds |
 | Cushion / upholstery (leather, velvet) | chairs, sofas, padded furniture |
+| Book bindings (leather, cloth — reds/greens/browns/gilt) | books on shelves currently reuse Bricks/Sandstone/Log/Gold/Metal/Leaf as spine stand-ins |
 | Drapery / curtain (heavy, colored) | windows, four-poster beds |
 | Canvas / tarp | tents, sacks |
 

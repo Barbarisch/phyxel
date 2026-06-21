@@ -406,6 +406,39 @@ def dimension_report(name: str, kind: str) -> ValidationReport:
 
 # --------------------------------------------------------------------------- convenience
 
+# Furniture that must back onto a wall (a bookshelf floating mid-room facing nowhere is wrong).
+WALL_BACKED_TYPES = {"bookshelf", "bookcase", "shelf", "wardrobe", "dresser", "cabinet", "sideboard"}
+
+
+def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Shelving / casegoods (bookshelf, shelf, wardrobe, …) must touch a wall — they're designed to
+    back onto one. Catches a bookshelf stranded in open floor."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in WALL_BACKED_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            x0, z0, x1, z1 = f.rect[0], f.rect[1], f.rect[0] + fw, f.rect[1] + fd
+            backed = (
+                any(occ.get((x, y, z0 - 1), 0) == _FULL_CUBE or occ.get((x, y, z1), 0) == _FULL_CUBE
+                    for x in range(x0, x1))
+                or any(occ.get((x0 - 1, y, z), 0) == _FULL_CUBE or occ.get((x1, y, z), 0) == _FULL_CUBE
+                       for z in range(z0, z1)))
+            if not backed:
+                rep.error("FURNITURE_NOT_AGAINST_WALL",
+                          f"'{f.type}' at {f.rect} backs onto open room (no adjacent wall) — "
+                          "shelving/casegoods belong against a wall", f"story {si} fixture #{fi}")
+    return rep
+
+
 def shell_connectivity_report(spec: BuildingSpec, canvas) -> ValidationReport:
     """The building shell (walls/floor/roof) must be one connected solid from the ground — no
     floating wall segments, detached coping, or orphaned roof pieces."""
@@ -495,6 +528,7 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  door_selection_report(spec),
                  door_swing_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
+                 wall_backed_report(spec, canvas),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
                  room_headroom_report(spec, canvas, canon))

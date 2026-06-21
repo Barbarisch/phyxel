@@ -29,6 +29,17 @@ LOG = "Log"       # bark posts/legs — reads as turned/round timber
 LINEN = "Sandstone"   # mattress (soft layered look) — bedding-material gap noted in gaps doc
 PILLOW = "Sand"   # lighter pillow
 
+# Book-spine colours from the current palette (a dedicated cloth/leather-binding material is a gap —
+# see docs/MaterialTextureNeeds.md). Cycled to give a shelf varied spines.
+BOOK_SPINES = ("Bricks", "Sandstone", "Log", "Gold", "Metal", "Leaf", "Wood")
+
+
+def _fill_books(c: DetailCanvas, x0: int, y0: int, z0: int, w: int, d: int) -> None:
+    """A row of upright book spines of varied colour/height, resting on a shelf at y0."""
+    for i, bx in enumerate(range(x0, x0 + w)):
+        h = 3 + (i * 2 + 1) % 4                          # 3..6 micro tall, varied
+        c.fill_micro_box(bx, y0, z0, 1, h, max(1, d - 1), BOOK_SPINES[i % len(BOOK_SPINES)])
+
 
 # --------------------------------------------------------------------------- helpers
 
@@ -111,6 +122,50 @@ def make_bed(frame=OAK, wood=OAK, mattress=LINEN, pillow=PILLOW) -> DetailCanvas
     return c
 
 
+def make_bookshelf(frame=OAK, back=LOG) -> DetailCanvas:
+    """Tall floor-standing bookcase (~1.8 m): back panel, sides, top/bottom, three shelves, each
+    compartment filled with varied book spines. Backs onto a wall."""
+    c = DetailCanvas()
+    W, H, D = 9, 16, 4                                   # 1 cube wide, ~1.78 m tall, 0.44 m deep
+    c.fill_micro_box(0, 0, 0, W, H, 1, back)             # back panel (z=0)
+    c.fill_micro_box(0, 0, 0, 1, H, D, frame)            # left side
+    c.fill_micro_box(W - 1, 0, 0, 1, H, D, frame)        # right side
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)            # bottom
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, frame)        # top
+    shelf_ys = [4, 8, 12]
+    for sy in shelf_ys:
+        c.fill_micro_box(1, sy, 1, W - 2, 1, D - 1, frame)
+    for ly in [1] + [sy + 1 for sy in shelf_ys]:         # books on the bottom + above each shelf
+        _fill_books(c, 1, ly, 1, W - 2, D - 1)
+    return c
+
+
+def make_shelf(frame=OAK, back=LOG) -> DetailCanvas:
+    """A low open floor shelf / console (~0.9 m): back, sides, one mid shelf, books on top + the
+    shelf. Backs onto a wall. (A high WALL-MOUNTED shelf needs height placement — see gaps doc.)"""
+    c = DetailCanvas()
+    W, H, D = 9, 8, 4
+    c.fill_micro_box(0, 0, 0, W, H, 1, back)             # back
+    c.fill_micro_box(0, 0, 0, 1, H, D, frame)            # sides
+    c.fill_micro_box(W - 1, 0, 0, 1, H, D, frame)
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)            # bottom
+    c.fill_micro_box(0, 4, 1, W - 2, 1, D - 1, frame)    # mid shelf
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, frame)        # top surface
+    _fill_books(c, 1, 1, 1, W - 2, D - 1)                # books in the lower compartment
+    _fill_books(c, 1, H, 1, 4, D - 1)                    # a few on top
+    return c
+
+
+def make_book_stack(frame=OAK) -> DetailCanvas:
+    """A small stack of a few books lying flat — a tabletop/desk decoration."""
+    c = DetailCanvas()
+    W, D = 5, 7
+    for i, by in enumerate(range(0, 4)):                 # 4 stacked books, slight offset
+        off = i % 2
+        c.fill_micro_box(off, by, 0, W - off, 1, D, BOOK_SPINES[i % len(BOOK_SPINES)])
+    return c
+
+
 # --------------------------------------------------------------------------- emit
 
 # name -> (builder, display, extra header lines incl. seating interaction points)
@@ -122,6 +177,11 @@ PIECES = {
     "table_wood": (make_table, "Wooden Table", ["# facing:       +Z"]),
     "bed_single": (make_bed, "Single Bed",
                    ["# facing:       +Z (foot of bed faces +Z)", "# seat_height:  0.556  (mattress top)"]),
+    "bookshelf":  (make_bookshelf, "Bookshelf",
+                   ["# facing:       +Z (front faces +Z; back panel at Z=0 against a wall)"]),
+    "wall_shelf": (make_shelf, "Shelf",
+                   ["# facing:       +Z (back panel at Z=0 against a wall)"]),
+    "book_stack": (make_book_stack, "Book Stack", ["# facing:       +Z (tabletop decoration)"]),
 }
 
 
@@ -135,7 +195,7 @@ def write_piece(name: str) -> Path:
         f"# name:         {name}",
         f"# display_name: {display}",
         "# category:     furniture",
-        "# materials:    Wood, Log, Sandstone, Sand",
+        "# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf",
         *extra,
         f"# primitives:   {rep.cubes} C + {rep.subcubes} S + {rep.microcubes} M = {rep.total_voxels}",
         "# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)",

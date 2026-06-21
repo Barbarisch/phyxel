@@ -75,7 +75,7 @@ You output the floorplan/program; deterministic code turns it into voxels with w
                     "pos": [x,z], "width": W, "height": H, "kind": "door|arch|window",
                     "door": {{ "lockable": true|false, "key": "<item id or ''>", "swing": 90 }} }}],
       "stairs":  [{{ "from_story": i, "to_story": i+1, "rect": [x,z,w,d], "kind": "straight|spiral" }}],
-      "fixtures":[{{ "type": "table|chair|bed|counter|altar|pew|bar", "rect": [x,z,w,d], "facing": "north|east|south|west", "room": "<roomId>" }}]
+      "fixtures":[{{ "type": "table|chair|bed|counter|altar|pew|bar|bookshelf|shelf|books|stool|bench|barrel", "rect": [x,z,w,d], "facing": "north|east|south|west", "room": "<roomId>" }}]
     }}
   ],
   "roof": {{ "style": "pitched|flat", "mat": "<mat>" }}
@@ -104,7 +104,8 @@ Materials (use these names exactly): {materials}.
 6. Pick `function`-appropriate rooms + fixtures (shop: storefront + counter + back storeroom with a lockable
    door; church: long nave + altar + pews; house: living + bedroom(s); tavern: hall + bar + upstairs rooms;
    mansion: entry hall + dining + drawing room + kitchen/servants in the wings + bedrooms upstairs, around a
-   rear courtyard).
+   rear courtyard). A STUDY / LIBRARY should be lined with `bookshelf` fixtures along its walls (place them
+   flush against a wall — they back onto it) plus a desk/table with `books`; bedrooms can have a `shelf`.
 7. CLEARANCE (a person must be able to USE the building). Keep every doorway clear: NEVER place a fixture on a
    door threshold or in the cells just inside a door — a fixture there seals the room off. Keep each fixture
    fully inside its room with a walkable path around it, and leave a clear route from the entrance into every

@@ -113,9 +113,32 @@ class FixturePlacementTests(unittest.TestCase):
         self.assertTrue(codes & {"FIXTURE_CLIPS_WALL", "FIXTURE_OUT_OF_ROOM"})
 
 
+class WallBackedTests(unittest.TestCase):
+    def _library(self, rect):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 8],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "r", "rect": [0, 0, 8, 8], "purpose": "library"}],
+                         "portals": [{"between": ["exterior", "r"], "pos": [3, 0], "width": 1,
+                                      "height": 2, "kind": "door"}],
+                         "stairs": [],
+                         "fixtures": [{"type": "bookshelf", "rect": rect, "facing": "south", "room": "r"}]}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_bookshelf_against_wall_ok(self):
+        self.assertTrue(G.wall_backed_report(self._library([2, 1, 1, 1]), build_shell(self._library([2, 1, 1, 1]))).ok)
+
+    def test_bookshelf_stranded_flagged(self):
+        spec = self._library([4, 4, 1, 1])
+        self.assertIn("FURNITURE_NOT_AGAINST_WALL", {i.code for i in G.wall_backed_report(spec, build_shell(spec)).errors})
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
-        for name in ("chair_wood", "table_wood", "bed_single"):
+        for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack"):
             self.assertTrue(G.connectivity_report(name).ok, f"{name} has floating parts")
 
     def test_shell_is_connected(self):

@@ -46,7 +46,8 @@ FIXTURE_TEMPLATES = {
     "table": "table_wood", "chair": "chair_wood", "stool": "stool", "bed": "bed_single",
     "counter": "tavern_bar", "bar": "tavern_bar", "altar": "altar",
     "pew": "bench_wood", "bench": "bench_wood", "barrel": "barrel",
-    "bookshelf": "bookshelf", "shelf": "bookshelf",
+    "bookshelf": "bookshelf", "shelf": "wall_shelf", "bookcase": "bookshelf",
+    "books": "book_stack", "book": "book_stack",
 }
 _FACING_ROT = {"north": 0, "east": 90, "south": 180, "west": 270}
 
