@@ -75,7 +75,7 @@ You output the floorplan/program; deterministic code turns it into voxels with w
                     "pos": [x,z], "width": W, "height": H, "kind": "door|arch|window",
                     "door": {{ "lockable": true|false, "key": "<item id or ''>", "swing": 90 }} }}],
       "stairs":  [{{ "from_story": i, "to_story": i+1, "rect": [x,z,w,d], "kind": "straight|spiral" }}],
-      "fixtures":[{{ "type": "table|chair|bed|counter|altar|pew|bar|bookshelf|shelf|books|stool|bench|barrel", "rect": [x,z,w,d], "facing": "north|east|south|west", "room": "<roomId>" }}]
+      "fixtures":[{{ "type": "<fixture type>", "rect": [x,z,w,d], "facing": "north|east|south|west", "room": "<roomId>" }}]
     }}
   ],
   "roof": {{ "style": "pitched|flat", "mat": "<mat>" }}
@@ -104,8 +104,13 @@ Materials (use these names exactly): {materials}.
 6. Pick `function`-appropriate rooms + fixtures (shop: storefront + counter + back storeroom with a lockable
    door; church: long nave + altar + pews; house: living + bedroom(s); tavern: hall + bar + upstairs rooms;
    mansion: entry hall + dining + drawing room + kitchen/servants in the wings + bedrooms upstairs, around a
-   rear courtyard). A STUDY / LIBRARY should be lined with `bookshelf` fixtures along its walls (place them
-   flush against a wall — they back onto it) plus a desk/table with `books`; bedrooms can have a `shelf`.
+   rear courtyard).
+7. FIXTURE TYPES: table chair stool bench bed counter bar altar pew barrel desk wardrobe dresser fireplace
+   bookshelf shelf, and CLUTTER (books candlestick goblet bottle plate). Use them to furnish richly:
+   - casegoods/shelving (bookshelf, shelf, wardrobe, dresser, fireplace) go FLUSH against a wall (they back
+     onto it). A study/library is lined with bookshelves; bedrooms get a wardrobe/dresser + a bed.
+   - CLUTTER sits ON a surface: give it the SAME rect as the table/desk/shelf it rests on (a candlestick or
+     books on a desk, a goblet/bottle/plate on a dining table). Never place clutter on bare floor.
 7. CLEARANCE (a person must be able to USE the building). Keep every doorway clear: NEVER place a fixture on a
    door threshold or in the cells just inside a door — a fixture there seals the room off. Keep each fixture
    fully inside its room with a walkable path around it, and leave a clear route from the entrance into every

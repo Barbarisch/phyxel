@@ -353,6 +353,9 @@ REFERENCE_DIMS = {                       # kind: {axis: (min, max)} ; H = height
     "desk":   {"H": (0.70, 0.85), "F": (0.55, 1.80)},
     "bed":    {"H": (0.35, 1.40)},                       # footprint checked vs BED_SIZES
     "bookshelf": {"H": (1.50, 2.40), "F": (0.25, 1.20)},
+    "wardrobe": {"H": (1.60, 2.30), "F": (0.40, 0.80)},
+    "dresser": {"H": (0.70, 1.15), "F": (0.40, 0.70)},
+    "fireplace": {"H": (1.00, 2.20), "F": (0.40, 1.00)},
     "door":   {"H": (1.95, 2.30)},   # width handled by opening-tiling; doors are intentionally thin
 }
 
@@ -407,7 +410,8 @@ def dimension_report(name: str, kind: str) -> ValidationReport:
 # --------------------------------------------------------------------------- convenience
 
 # Furniture that must back onto a wall (a bookshelf floating mid-room facing nowhere is wrong).
-WALL_BACKED_TYPES = {"bookshelf", "bookcase", "shelf", "wardrobe", "dresser", "cabinet", "sideboard"}
+WALL_BACKED_TYPES = {"bookshelf", "bookcase", "shelf", "wardrobe", "dresser", "cabinet",
+                     "sideboard", "fireplace"}
 
 
 def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
@@ -436,6 +440,41 @@ def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
                 rep.error("FURNITURE_NOT_AGAINST_WALL",
                           f"'{f.type}' at {f.rect} backs onto open room (no adjacent wall) — "
                           "shelving/casegoods belong against a wall", f"story {si} fixture #{fi}")
+    return rep
+
+
+# Fixtures with a usable top surface that clutter can sit on.
+SURFACE_TYPES = {"table", "desk", "counter", "bar", "dresser", "sideboard", "shelf", "cabinet", "altar"}
+
+
+def clutter_on_surface_report(spec: BuildingSpec) -> ValidationReport:
+    """Surface clutter (candlestick, goblet, bottle, books, …) must sit on a piece of furniture with
+    a top (table/desk/dresser/shelf/…), not float in mid-air or land on the floor."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        surf = set()
+        for f in story.fixtures:
+            if f.type not in SURFACE_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            surf |= {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in CLUTTER_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0)) if tmpl else (1, 1)
+            cells = {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+            if not (cells & surf):
+                rep.error("CLUTTER_NOT_ON_SURFACE",
+                          f"'{f.type}' at {f.rect} isn't on any table/desk/shelf surface — "
+                          "surface clutter must rest on furniture, not float or sit on the floor",
+                          f"story {si} fixture #{fi}")
     return rep
 
 
@@ -529,6 +568,7 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  door_swing_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
                  wall_backed_report(spec, canvas),
+                 clutter_on_surface_report(spec),
                  shell_connectivity_report(spec, canvas),
                  roof_coverage_report(spec, canvas),
                  room_headroom_report(spec, canvas, canon))

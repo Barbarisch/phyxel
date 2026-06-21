@@ -1,0 +1,31 @@
+# ==========================================================
+# ASSET METADATA
+# name:         goblet
+# display_name: Goblet
+# category:     furniture
+# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
+# clutter:      surface prop
+# primitives:   0 C + 0 S + 19 M = 19
+# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
+# ==========================================================
+# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
+
+M 0 0 0 0 0 0 0 0 0 Gold
+M 0 0 0 0 0 0 0 0 1 Gold
+M 0 0 0 0 0 0 0 0 2 Gold
+M 0 0 0 0 0 0 0 2 0 Gold
+M 0 0 0 0 0 0 0 2 1 Gold
+M 0 0 0 0 0 0 0 2 2 Gold
+M 0 0 0 0 0 0 1 0 0 Gold
+M 0 0 0 0 0 0 1 0 1 Gold
+M 0 0 0 0 0 0 1 0 2 Gold
+M 0 0 0 0 0 0 1 1 1 Gold
+M 0 0 0 0 0 0 1 2 0 Gold
+M 0 0 0 0 0 0 1 2 1 Gold
+M 0 0 0 0 0 0 1 2 2 Gold
+M 0 0 0 0 0 0 2 0 0 Gold
+M 0 0 0 0 0 0 2 0 1 Gold
+M 0 0 0 0 0 0 2 0 2 Gold
+M 0 0 0 0 0 0 2 2 0 Gold
+M 0 0 0 0 0 0 2 2 1 Gold
+M 0 0 0 0 0 0 2 2 2 Gold

@@ -48,7 +48,15 @@ FIXTURE_TEMPLATES = {
     "pew": "bench_wood", "bench": "bench_wood", "barrel": "barrel",
     "bookshelf": "bookshelf", "shelf": "wall_shelf", "bookcase": "bookshelf",
     "books": "book_stack", "book": "book_stack",
+    "wardrobe": "wardrobe", "dresser": "dresser", "desk": "desk", "fireplace": "fireplace",
+    # surface clutter (placed on top of tables/desks/shelves)
+    "candlestick": "candlestick", "candle": "candlestick", "goblet": "goblet", "cup": "goblet",
+    "bottle": "bottle", "jug": "bottle", "plate": "plate", "bowl": "plate",
 }
+
+# Small props that sit ON a surface (table/desk/shelf/mantel), not on the floor.
+CLUTTER_TYPES = {"candlestick", "candle", "goblet", "cup", "bottle", "jug", "plate", "bowl",
+                 "books", "book", "scroll", "inkwell", "vase"}
 _FACING_ROT = {"north": 0, "east": 90, "south": 180, "west": 270}
 
 
@@ -284,7 +292,8 @@ def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) 
             if not tmpl:
                 continue
             rot = _FACING_ROT.get(f.facing, 0)
-            sp = _spawn(engine, tmpl, px + f.rect[0], py + baseY + 1, pz + f.rect[1], rot)
+            y_off = 2 if f.type in CLUTTER_TYPES else 1   # clutter sits on a surface, not the floor
+            sp = _spawn(engine, tmpl, px + f.rect[0], py + baseY + y_off, pz + f.rect[1], rot)
             out["fixtures"].append({"id": sp.get("object_id"), "template": tmpl})
         baseY += story.height + 1
     return out

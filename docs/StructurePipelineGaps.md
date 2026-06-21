@@ -66,6 +66,19 @@ We have no fountain/well/planter templates and no "place a prop in this open cel
 > `tools/structure_pipeline/furniture.py` (chair 16->138, table 17->254, bed 47->416 voxels,
 > clean Wood, correct scale, sit-point preserved). Still TODO below: stool/bench/bookshelf/etc.
 
+### [engine] Surface clutter should be PICKUPABLE items, not static templates
+Clutter props (candlestick/goblet/bottle/plate/books) are generated and placed on surfaces (the
+realizer drops them one cube up on a table/desk/shelf; `clutter_on_surface_report` verifies it).
+But they spawn as static placed templates — the user wants clutter you can **pick up from a desk/
+table**. Needs engine integration: route clutter through `ItemPropManager` (or the item system) so
+each prop is a grabbable item with a pickup interaction, not baked geometry.
+- *Fix:* a `pickable: true` flag on clutter placements + spawn them as items/props with a grab verb.
+
+### [realize] Wall-mounted (floating) shelf needs height placement
+`wall_shelf` is currently a low FLOOR-standing console (so it passes the floating-from-floor
+connectivity check). A true wall-mounted shelf at chest height would float from the floor — it needs
+the realizer to place it at a wall height and the connectivity check to treat it as wall-anchored.
+
 ### [engine] Furniture detail capped by microcube resolution (0.11 m)
 The smallest voxel is a microcube = 1/9 cube = 0.11 m. A 0.5 m chair is only ~5 micro-cells
 across, so small furniture is inherently blocky no matter how carefully authored — curves, thin

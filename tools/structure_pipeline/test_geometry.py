@@ -136,9 +136,34 @@ class WallBackedTests(unittest.TestCase):
         self.assertIn("FURNITURE_NOT_AGAINST_WALL", {i.code for i in G.wall_backed_report(spec, build_shell(spec)).errors})
 
 
+class ClutterTests(unittest.TestCase):
+    def _study(self, clutter_rect):
+        return BuildingSpec.from_dict({
+            "kind": "building", "name": "t", "function": "house",
+            "palette": {"wall": "StoneBricks", "floor": "Wood", "roof": "Wood"},
+            "footprint": [8, 8],
+            "stories": [{"height": 4,
+                         "rooms": [{"id": "r", "rect": [0, 0, 8, 8], "purpose": "study"}],
+                         "portals": [{"between": ["exterior", "r"], "pos": [3, 0], "width": 1,
+                                      "height": 2, "kind": "door"}],
+                         "stairs": [],
+                         "fixtures": [{"type": "desk", "rect": [2, 2, 2, 1], "facing": "south", "room": "r"},
+                                      {"type": "candlestick", "rect": clutter_rect, "facing": "north", "room": "r"}]}],
+            "roof": {"style": "flat", "mat": "Wood"},
+        })
+
+    def test_clutter_on_surface_ok(self):
+        self.assertTrue(G.clutter_on_surface_report(self._study([2, 2, 1, 1])).ok)
+
+    def test_clutter_on_floor_flagged(self):
+        codes = {i.code for i in G.clutter_on_surface_report(self._study([6, 6, 1, 1])).errors}
+        self.assertIn("CLUTTER_NOT_ON_SURFACE", codes)
+
+
 class ConnectivityTests(unittest.TestCase):
     def test_generated_furniture_connected(self):
-        for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack"):
+        for name in ("chair_wood", "table_wood", "bed_single", "bookshelf", "wall_shelf", "book_stack",
+                     "wardrobe", "dresser", "desk", "fireplace", "candlestick", "goblet", "bottle", "plate"):
             self.assertTrue(G.connectivity_report(name).ok, f"{name} has floating parts")
 
     def test_shell_is_connected(self):

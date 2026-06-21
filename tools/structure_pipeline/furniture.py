@@ -28,6 +28,7 @@ OAK = "Wood"      # planks: slabs, panels, seats, tops
 LOG = "Log"       # bark posts/legs — reads as turned/round timber
 LINEN = "Sandstone"   # mattress (soft layered look) — bedding-material gap noted in gaps doc
 PILLOW = "Sand"   # lighter pillow
+KNOB = "Gold"     # drawer/door knobs
 
 # Book-spine colours from the current palette (a dedicated cloth/leather-binding material is a gap —
 # see docs/MaterialTextureNeeds.md). Cycled to give a shelf varied spines.
@@ -156,6 +157,76 @@ def make_shelf(frame=OAK, back=LOG) -> DetailCanvas:
     return c
 
 
+def make_wardrobe(frame=LOG, panel=OAK) -> DetailCanvas:
+    """Tall wardrobe (~2 m): carcass + two panelled doors with knobs. Backs onto a wall."""
+    c = DetailCanvas()
+    W, H, D = 9, 18, 5
+    c.fill_micro_box(0, 0, 0, W, H, 1, panel)            # back
+    c.fill_micro_box(0, 0, 0, 1, H, D, frame)            # sides
+    c.fill_micro_box(W - 1, 0, 0, 1, H, D, frame)
+    c.fill_micro_box(0, 0, 0, W, 1, D, frame)            # bottom
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, frame)        # cornice
+    for dx in (1, 5):                                    # two doors, each 4 wide
+        c.fill_micro_box(dx, 1, D - 1, 3, H - 2, 1, panel)
+        c.fill_micro_box(dx, 1, D - 1, 3, 1, 1, frame)   # door rails/stiles
+        c.fill_micro_box(dx, H - 2, D - 1, 3, 1, 1, frame)
+        c.fill_micro_box(dx, 1, D - 1, 1, H - 2, 1, frame)
+        c.fill_micro_box(dx + 2, 1, D - 1, 1, H - 2, 1, frame)
+    c.set_micro_cell(3, H // 2, D - 1, KNOB)             # door knobs at the meeting stile
+    c.set_micro_cell(5, H // 2, D - 1, KNOB)
+    return c
+
+
+def make_dresser(frame=LOG, panel=OAK, top=OAK) -> DetailCanvas:
+    """Chest of drawers (~0.8 m) with three drawer fronts + knobs and a top surface. Backs to a wall."""
+    c = DetailCanvas()
+    W, H, D = 9, 7, 5
+    c.fill_micro_box(0, 0, 0, W, H - 1, 1, panel)        # back
+    c.fill_micro_box(0, 0, 0, 1, H - 1, D, frame)        # sides
+    c.fill_micro_box(W - 1, 0, 0, 1, H - 1, D, frame)
+    c.fill_micro_box(0, H - 1, 0, W, 1, D, top)          # top surface (clutter can sit here)
+    for i, dy in enumerate((1, 3, 5)):                   # three drawer fronts
+        c.fill_micro_box(1, dy - 1, D - 1, W - 2, 1, 1, frame)   # rail between drawers
+        c.set_micro_cell(W // 2, dy, D - 1, KNOB)
+    return c
+
+
+def make_desk(top=OAK, frame=LOG) -> DetailCanvas:
+    """Writing desk (~0.75 m top): a top slab, two legs one side, a drawer pedestal the other.
+    Free-standing; its top is a surface for clutter/books."""
+    c = DetailCanvas()
+    L, H, D = 14, 7, 8
+    top_y = H - 1
+    # pedestal (drawers) on the left
+    c.fill_micro_box(0, 0, 0, 4, top_y, D, frame)
+    for dy in (1, 4):
+        c.set_micro_cell(2, dy, D - 1, KNOB)
+    # two legs on the right
+    c.fill_micro_box(L - 2, 0, 0, 2, top_y, 2, frame)
+    c.fill_micro_box(L - 2, 0, D - 2, 2, top_y, 2, frame)
+    c.fill_micro_box(L - 2, top_y - 2, 0, 2, 1, D, frame)         # rail tying the legs
+    c.fill_micro_box(0, top_y, 0, L, 1, D, top)                   # top slab
+    _bevel_top(c, 0, top_y, 0, L, D, 1)
+    return c
+
+
+def make_fireplace(stone="Stone", frame=LOG, ember="glow") -> DetailCanvas:
+    """Stone fireplace (~1.5 m): surround + firebox opening + a mantel shelf + glowing embers and
+    a log. Backs onto a wall (the chimney breast)."""
+    c = DetailCanvas()
+    W, H, D = 13, 14, 5
+    c.fill_micro_box(0, 0, 0, W, H, 1, stone)            # chimney-breast back
+    c.fill_micro_box(0, 0, 0, 3, H - 3, D, stone)        # left jamb
+    c.fill_micro_box(W - 3, 0, 0, 3, H - 3, D, stone)    # right jamb
+    c.fill_micro_box(0, H - 5, 0, W, 2, D, stone)        # lintel over the opening
+    c.fill_micro_box(0, H - 3, 0, W, 1, D + 1, stone)    # mantel shelf (oversails)
+    # firebox floor + embers + a log
+    c.fill_micro_box(3, 0, 1, W - 6, 1, D - 1, stone)
+    c.fill_micro_box(4, 1, 2, W - 8, 1, 2, ember)        # glowing embers
+    c.fill_micro_box(4, 2, 2, W - 8, 1, 1, frame)        # a log on the fire
+    return c
+
+
 def make_book_stack(frame=OAK) -> DetailCanvas:
     """A small stack of a few books lying flat — a tabletop/desk decoration."""
     c = DetailCanvas()
@@ -163,6 +234,48 @@ def make_book_stack(frame=OAK) -> DetailCanvas:
     for i, by in enumerate(range(0, 4)):                 # 4 stacked books, slight offset
         off = i % 2
         c.fill_micro_box(off, by, 0, W - off, 1, D, BOOK_SPINES[i % len(BOOK_SPINES)])
+    return c
+
+
+# ----- surface clutter (small props that sit ON a table/desk/shelf) -----
+
+def make_candlestick(metal=KNOB, candle=PILLOW, flame="glow") -> DetailCanvas:
+    """A candlestick: base, stem, candle, glowing flame (~0.4 m)."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 3, 1, 3, metal)   # base
+    c.set_micro_cell(1, 1, 1, metal)            # stem
+    c.set_micro_cell(1, 2, 1, candle)           # candle
+    c.set_micro_cell(1, 3, 1, flame)            # flame
+    return c
+
+
+def make_goblet(metal=KNOB) -> DetailCanvas:
+    """A goblet: foot, stem, bowl (~0.3 m)."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 3, 1, 3, metal)   # foot
+    c.set_micro_cell(1, 1, 1, metal)            # stem
+    c.fill_micro_box(0, 2, 0, 3, 1, 3, metal)   # bowl
+    return c
+
+
+def make_bottle(glass="Glass", cork=OAK) -> DetailCanvas:
+    """A bottle/jug: body, neck, stopper (~0.5 m)."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 2, 3, 2, glass)   # body
+    c.set_micro_cell(0, 3, 0, glass)            # neck
+    c.set_micro_cell(0, 4, 0, cork)             # cork
+    return c
+
+
+def make_plate(mat=LINEN) -> DetailCanvas:
+    """A shallow plate/bowl with a rim (~0.3 m)."""
+    c = DetailCanvas()
+    c.fill_micro_box(0, 0, 0, 3, 1, 3, mat)
+    for x in (0, 2):
+        for z in range(3):
+            c.set_micro_cell(x, 1, z, mat)
+    for z in (0, 2):
+        c.set_micro_cell(1, 1, z, mat)
     return c
 
 
@@ -182,6 +295,14 @@ PIECES = {
     "wall_shelf": (make_shelf, "Shelf",
                    ["# facing:       +Z (back panel at Z=0 against a wall)"]),
     "book_stack": (make_book_stack, "Book Stack", ["# facing:       +Z (tabletop decoration)"]),
+    "wardrobe":   (make_wardrobe, "Wardrobe", ["# facing:       +Z (doors face +Z; back to a wall)"]),
+    "dresser":    (make_dresser, "Dresser", ["# facing:       +Z (drawers face +Z; back to a wall)"]),
+    "desk":       (make_desk, "Writing Desk", ["# facing:       +Z"]),
+    "fireplace":  (make_fireplace, "Fireplace", ["# facing:       +Z (opening faces +Z; chimney to a wall)"]),
+    "candlestick": (make_candlestick, "Candlestick", ["# clutter:      surface prop (sits on a table/desk/shelf)"]),
+    "goblet":     (make_goblet, "Goblet", ["# clutter:      surface prop"]),
+    "bottle":     (make_bottle, "Bottle", ["# clutter:      surface prop"]),
+    "plate":      (make_plate, "Plate", ["# clutter:      surface prop"]),
 }
 
 
