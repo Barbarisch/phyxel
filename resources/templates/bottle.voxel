@@ -1,0 +1,26 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bottle
+# display_name: Bottle
+# category:     furniture
+# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
+# clutter:      surface prop
+# primitives:   0 C + 0 S + 14 M = 14
+# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
+# ==========================================================
+# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
+
+M 0 0 0 0 0 0 0 0 0 Glass
+M 0 0 0 0 0 0 0 0 1 Glass
+M 0 0 0 0 0 0 0 1 0 Glass
+M 0 0 0 0 0 0 0 1 1 Glass
+M 0 0 0 0 0 0 0 2 0 Glass
+M 0 0 0 0 0 0 0 2 1 Glass
+M 0 0 0 0 0 0 1 0 0 Glass
+M 0 0 0 0 0 0 1 0 1 Glass
+M 0 0 0 0 0 0 1 1 0 Glass
+M 0 0 0 0 0 0 1 1 1 Glass
+M 0 0 0 0 0 0 1 2 0 Glass
+M 0 0 0 0 0 0 1 2 1 Glass
+M 0 0 0 0 1 0 0 0 0 Glass
+M 0 0 0 0 1 0 0 1 0 Wood

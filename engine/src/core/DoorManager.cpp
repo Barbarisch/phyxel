@@ -2,6 +2,7 @@
 #include "core/KinematicVoxelManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/ObjectTemplateManager.h"
+#include "core/ItemPropManager.h"
 #include "core/NavGrid.h"
 #include "core/VoxelTemplate.h"
 #include "utils/Logger.h"
@@ -41,22 +42,19 @@ bool DoorManager::registerDoor(const std::string& placedObjectId,
         return false;
     }
 
-    std::vector<KinematicVoxel> voxels;
-    voxels.reserve(tmpl->cubes.size());
-    float zScale = glm::clamp(thickness, 1, 16) / 16.0f;
-    for (const auto& cube : tmpl->cubes) {
-        KinematicVoxel v;
-        // Template positions are corner-based; add 0.5 to center in X/Y.
-        // For Z (thickness axis), center at 0.5*zScale so the near face
-        // sits at Z=0, flush with the hinge pivot.
-        v.localPos     = glm::vec3(cube.relativePos) + glm::vec3(0.5f, 0.5f, 0.5f * zScale);
-        v.scale        = glm::vec3(1.0f, 1.0f, zScale);
-        v.materialName = cube.material;
-        voxels.push_back(v);
+    // Build the door leaf from ALL template detail (cubes + subcubes + microcubes) via the
+    // shared converter, so paneled / handled sub-voxel doors render. Then compress the whole
+    // leaf along Z by thickness/16 so it reads as a thin slab whose back face sits at Z=0
+    // (flush with the hinge pivot). Scaling around Z=0 keeps an authored 1-layer leaf flush.
+    std::vector<KinematicVoxel> voxels = ItemPropManager::voxelsFromTemplate(*tmpl);
+    const float zScale = glm::clamp(thickness, 1, 16) / 16.0f;
+    for (auto& v : voxels) {
+        v.localPos.z *= zScale;
+        v.scale.z    *= zScale;
     }
 
     if (voxels.empty()) {
-        LOG_WARN_FMT("DoorManager", "Template '" << templateName << "' has no full cubes — door not registered");
+        LOG_WARN_FMT("DoorManager", "Template '" << templateName << "' has no voxels — door not registered");
         return false;
     }
 

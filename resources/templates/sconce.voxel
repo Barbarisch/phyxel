@@ -1,0 +1,19 @@
+# ==========================================================
+# ASSET METADATA
+# name:         sconce
+# display_name: Wall Sconce
+# category:     furniture
+# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
+# light:        wall-mounted (back to a wall)
+# primitives:   0 C + 0 S + 7 M = 7
+# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
+# ==========================================================
+# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
+
+M 0 0 0 0 0 0 0 0 0 Gold
+M 0 0 0 0 0 0 0 1 0 Gold
+M 0 0 0 0 0 0 0 1 1 Gold
+M 0 0 0 0 0 0 0 2 0 Gold
+M 0 0 0 0 0 0 0 2 1 Sand
+M 0 0 0 0 1 0 0 0 0 Gold
+M 0 0 0 0 1 0 0 0 1 glow

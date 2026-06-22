@@ -1,0 +1,199 @@
+{
+  "kind": "building",
+  "name": "Ironhaven Smithy",
+  "style": "medieval",
+  "palette": {
+    "wall": "StoneBricks",
+    "floor": "Cobblestone",
+    "roof": "Wood",
+    "trim": "Log"
+  },
+  "function": "shop",
+  "footprint": [
+    12,
+    10
+  ],
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        {
+          "id": "storefront",
+          "rect": [
+            0,
+            0,
+            8,
+            10
+          ],
+          "purpose": "storefront",
+          "floor_mat": "Cobblestone"
+        },
+        {
+          "id": "storeroom",
+          "rect": [
+            8,
+            0,
+            4,
+            10
+          ],
+          "purpose": "back_storeroom",
+          "floor_mat": "Dirt"
+        }
+      ],
+      "portals": [
+        {
+          "between": [
+            "exterior",
+            "storefront"
+          ],
+          "pos": [
+            3,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "storefront",
+            "storeroom"
+          ],
+          "pos": [
+            8,
+            4
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "smithy_storeroom_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "storefront"
+          ],
+          "pos": [
+            0,
+            3
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "storefront"
+          ],
+          "pos": [
+            5,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "storeroom"
+          ],
+          "pos": [
+            9,
+            9
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 0
+          }
+        }
+      ],
+      "stairs": [],
+      "fixtures": [
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            7,
+            5,
+            1
+          ],
+          "facing": "south",
+          "room": "storefront"
+        },
+        {
+          "type": "table",
+          "rect": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "facing": "north",
+          "room": "storefront"
+        },
+        {
+          "type": "table",
+          "rect": [
+            5,
+            2,
+            2,
+            2
+          ],
+          "facing": "north",
+          "room": "storefront"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            9,
+            1,
+            2,
+            1
+          ],
+          "facing": "north",
+          "room": "storeroom"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            9,
+            7,
+            2,
+            1
+          ],
+          "facing": "south",
+          "room": "storeroom"
+        }
+      ]
+    }
+  ],
+  "roof": {
+    "style": "pitched",
+    "mat": "Wood"
+  }
+}

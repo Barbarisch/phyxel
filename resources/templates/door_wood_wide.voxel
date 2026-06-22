@@ -1,10 +1,43 @@
-# Wide wooden door - 2 wide (X), 2 tall (Y), 1 deep (Z)
-# Hinge edge at local X=0, Z=0. Door extends along +X.
-# interaction_point: handle_0 door_handle 1.5 1.0 1.0 0.0 * 2.00 "Open / Close" 90.0
-# Format: C RelX RelY RelZ Material
+# Wide wooden door - 2 wide (X), 2 tall (Y), thin (renders microcube-thin via DoorManager)
+# Hinge edge at local X=0, Z=0. Door extends along +X. Paneled: Log frame, Wood panels, Gold knob.
+# interaction_point: handle_0 door_handle 1.5 0.833 1.0 0.0 * 2.00 "Open / Close" 90.0
+# Format: S px py pz sx sy sz Material  |  M px py pz sx sy sz mx my mz Material
 
-# part: panel hinge=left_bottom axis=y
-C 0 0 0 Wood
-C 1 0 0 Wood
-C 0 1 0 Wood
-C 1 1 0 Wood
+S 0 0 0 0 0 0 Log
+S 0 0 0 0 1 0 Log
+S 0 0 0 0 2 0 Log
+S 0 1 0 0 0 0 Log
+S 0 1 0 0 1 0 Log
+S 0 1 0 0 2 0 Log
+S 0 0 0 1 0 0 Log
+S 0 0 0 1 1 0 Wood
+S 0 0 0 1 2 0 Wood
+S 0 1 0 1 0 0 Log
+S 0 1 0 1 1 0 Wood
+S 0 1 0 1 2 0 Log
+S 0 0 0 2 0 0 Log
+S 0 0 0 2 1 0 Wood
+S 0 0 0 2 2 0 Wood
+S 0 1 0 2 0 0 Log
+S 0 1 0 2 1 0 Wood
+S 0 1 0 2 2 0 Log
+S 1 0 0 0 0 0 Log
+S 1 0 0 0 1 0 Log
+S 1 0 0 0 2 0 Log
+S 1 1 0 0 0 0 Log
+S 1 1 0 0 1 0 Log
+S 1 1 0 0 2 0 Log
+S 1 0 0 1 0 0 Log
+S 1 0 0 1 1 0 Wood
+S 1 0 0 1 2 0 Wood
+S 1 1 0 1 0 0 Log
+S 1 1 0 1 1 0 Wood
+S 1 1 0 1 2 0 Log
+S 1 0 0 2 0 0 Log
+S 1 0 0 2 1 0 Log
+S 1 0 0 2 2 0 Log
+S 1 1 0 2 0 0 Log
+S 1 1 0 2 1 0 Log
+S 1 1 0 2 2 0 Log
+M 1 0 0 1 2 1 1 0 0 Gold
+M 1 0 0 1 2 1 1 1 0 Gold

@@ -1635,6 +1635,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // reappears" bug). Covers every removal path, not just the MCP handler.
     // Item props likewise tear down their kinematic render group.
     placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
+        // A registered door's voxels live in the KinematicVoxelManager (moved there by
+        // DoorManager::registerDoor so the leaf can swing), NOT in the chunk grid. The
+        // remove() path only clears static chunk cubes, so without this the kinematic
+        // door voxels survive removal -> stale/overlapping doors. unregisterDoor tears
+        // down the kinematic object; harmless no-op for non-door objects.
+        if (doorManager) doorManager->unregisterDoor(id);
         if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
         if (itemPropManager) itemPropManager->onPlacedObjectRemoved(id);
     });
@@ -11581,10 +11587,30 @@ void Application::processAPICommands() {
                         }
                     }
 
-                    // Surface-snap: prevent placing templates inside the ground.
-                    // Scan the template's XZ footprint, find the highest occupied voxel
-                    // in each column, and raise y so the template sits on top.
-                    if (chunkManager) {
+                    // Structure seating (deterministic): when "seat": true, or the template
+                    // declares "# category: building", run the engine seater. It computes the
+                    // floor level from the template geometry, samples the ground under every
+                    // occupied column, solves the flush seat Y, EXCAVATES the footprint, and
+                    // builds steps in front of ground-level openings — so a character walks in
+                    // naturally and the floor is never buried/floating. This supersedes the
+                    // legacy raise-only surface-snap below.
+                    bool snapToGround = cmd.params.value("snap", true);
+                    Core::PlacedObjectManager::SeatPlan seatPlan;
+                    {
+                        bool seatMode = cmd.params.value("seat", false);
+                        const auto* tmplSeat = objectTemplateManager->getTemplate(name);
+                        if (!seatMode && tmplSeat && tmplSeat->category == "building") seatMode = true;
+                        if (seatMode && placedObjectManager && chunkManager) {
+                            seatPlan = placedObjectManager->seatStructure(
+                                name, glm::ivec3(static_cast<int>(x), static_cast<int>(y),
+                                                 static_cast<int>(z)), rotation);
+                            if (seatPlan.ok) {
+                                y = static_cast<float>(seatPlan.seatY);
+                                snapToGround = false;  // exact placement at the computed seat Y
+                            }
+                        }
+                    }
+                    if (!seatPlan.ok && snapToGround && chunkManager) {
                         const auto* tmpl = objectTemplateManager->getTemplate(name);
                         if (tmpl) {
                             // Collect all integer cube XZ positions the template occupies
@@ -11623,7 +11649,7 @@ void Application::processAPICommands() {
                     if (isStatic && placedObjectManager) {
                         glm::ivec3 pos(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
                         std::string parentId = cmd.params.value("parent_id", "");
-                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId);
+                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId, snapToGround);
                         bool ok = !objectId.empty();
                         // Immediately persist placed_objects so the record survives engine restarts
                         // without requiring a separate save_world call
@@ -11635,6 +11661,15 @@ void Application::processAPICommands() {
                                     {"object_id", objectId},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                     {"rotation", rotation}};
+                        if (seatPlan.ok) {
+                            response["seat"] = {{"seat_y", seatPlan.seatY},
+                                                {"floor_y", seatPlan.floorWorldY},
+                                                {"ground_top", seatPlan.groundTop},
+                                                {"interior_surface", seatPlan.floorWorldY + 1},
+                                                {"excavated", seatPlan.excavated},
+                                                {"steps", seatPlan.stepsPlaced},
+                                                {"flush", seatPlan.flush}};
+                        }
                     } else {
                         bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic, rotation);
                         response = {{"success", ok}, {"template", name},
@@ -11676,10 +11711,13 @@ void Application::processAPICommands() {
             } else if (cmd.action == "build_structure") {
                 if (!chunkManager) {
                     response = {{"error", "ChunkManager not available"}};
-                } else if (!cmd.params.contains("type")) {
-                    response = {{"error", "Missing 'type' parameter"}};
+                } else if (!cmd.params.contains("type") && !cmd.params.contains("stories")) {
+                    response = {{"error", "Missing 'type' (or 'stories' for a BuildingSpec) parameter"}};
                 } else {
-                    auto structure = Core::StructureGenerator::generateFromJson(cmd.params);
+                    const bool specMode = cmd.params.contains("stories");
+                    auto structure = specMode
+                        ? Core::StructureGenerator::generateFromSpec(cmd.params)
+                        : Core::StructureGenerator::generateFromJson(cmd.params);
                     if (structure.voxels.empty()) {
                         response = {{"error", "Failed to generate structure (unknown type or invalid params)"}};
                     } else {
@@ -11748,6 +11786,45 @@ void Application::processAPICommands() {
                             if (npcManager) {
                                 npcManager->onRegionChanged(smin, smax);
                             }
+                        }
+
+                        // -- Functional doors (spec path): place + register each door leaf --
+                        if (!structure.doors.empty() && placedObjectManager && doorManager) {
+                            nlohmann::json doorsJson = nlohmann::json::array();
+                            for (const auto& dr : structure.doors) {
+                                std::string tmpl = (dr.width >= 2) ? "door_wood_wide" : "door_wood";
+                                glm::ivec3 dpos(static_cast<int>(std::lround(dr.hingePos.x)),
+                                                static_cast<int>(std::lround(dr.hingePos.y)),
+                                                static_cast<int>(std::lround(dr.hingePos.z)));
+                                std::string poId = placedObjectManager->placeTemplate(
+                                    tmpl, dpos, dr.baseRotation, "", /*snapToGround=*/false);
+                                if (poId.empty()) continue;
+                                // thickness=5 → ~0.10m: the paneled leaf is authored 1 subcube deep
+                                // (0.33), compressed by 5/16 to render microcube-thin.
+                                bool ok = doorManager->registerDoor(poId, tmpl, dr.hingePos,
+                                                                    dr.baseRotation, dr.swing, 120.0f, 5);
+                                if (ok && dr.lockable) {
+                                    doorManager->setLocked(poId, true, dr.key);
+                                }
+                                doorsJson.push_back({{"placed_object_id", poId}, {"template", tmpl},
+                                                     {"registered", ok}, {"locked", dr.lockable},
+                                                     {"key", dr.key}});
+                            }
+                            response["doors"] = doorsJson;
+                        }
+
+                        // -- Furniture (spec path): spawn each subcube fixture template --
+                        if (!structure.fixtures.empty() && placedObjectManager) {
+                            nlohmann::json fixturesJson = nlohmann::json::array();
+                            std::string structParent = response.value("object_id", "");
+                            for (const auto& fx : structure.fixtures) {
+                                std::string poId = placedObjectManager->placeTemplate(
+                                    fx.templateName, fx.worldPos, fx.rotation,
+                                    structParent, /*snapToGround=*/false);
+                                fixturesJson.push_back({{"placed_object_id", poId},
+                                                        {"template", fx.templateName}});
+                            }
+                            response["fixtures"] = fixturesJson;
                         }
                     }
                 }

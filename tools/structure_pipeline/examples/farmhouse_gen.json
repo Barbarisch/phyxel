@@ -1,0 +1,355 @@
+{
+  "kind": "building",
+  "name": "L-Shaped Medieval Farmhouse",
+  "style": "medieval",
+  "palette": {
+    "wall": "Cobblestone",
+    "floor": "Wood",
+    "roof": "Wood",
+    "trim": "Log"
+  },
+  "function": "house",
+  "footprint": [
+    14,
+    12
+  ],
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        {
+          "id": "main_hall",
+          "rect": [
+            0,
+            0,
+            14,
+            7
+          ],
+          "purpose": "main_hall",
+          "floor_mat": "Wood"
+        },
+        {
+          "id": "kitchen",
+          "rect": [
+            0,
+            7,
+            7,
+            5
+          ],
+          "purpose": "kitchen",
+          "floor_mat": "Stone"
+        },
+        {
+          "id": "bedroom",
+          "rect": [
+            7,
+            7,
+            7,
+            5
+          ],
+          "purpose": "bedroom",
+          "floor_mat": "Wood"
+        }
+      ],
+      "portals": [
+        {
+          "between": [
+            "exterior",
+            "main_hall"
+          ],
+          "pos": [
+            6,
+            0
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "farmhouse_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "main_hall",
+            "kitchen"
+          ],
+          "pos": [
+            3,
+            7
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "arch",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "main_hall",
+            "bedroom"
+          ],
+          "pos": [
+            9,
+            7
+          ],
+          "width": 1,
+          "height": 2,
+          "kind": "door",
+          "door": {
+            "lockable": true,
+            "key": "bedroom_key",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "main_hall"
+          ],
+          "pos": [
+            2,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "main_hall"
+          ],
+          "pos": [
+            10,
+            0
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "main_hall"
+          ],
+          "pos": [
+            13,
+            2
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "kitchen"
+          ],
+          "pos": [
+            0,
+            8
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "kitchen"
+          ],
+          "pos": [
+            2,
+            12
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "bedroom"
+          ],
+          "pos": [
+            9,
+            12
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        },
+        {
+          "between": [
+            "exterior",
+            "bedroom"
+          ],
+          "pos": [
+            13,
+            8
+          ],
+          "width": 2,
+          "height": 2,
+          "kind": "window",
+          "door": {
+            "lockable": false,
+            "key": "",
+            "swing": 90
+          }
+        }
+      ],
+      "stairs": [],
+      "fixtures": [
+        {
+          "type": "table",
+          "rect": [
+            4,
+            2,
+            3,
+            2
+          ],
+          "facing": "south",
+          "room": "main_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            1,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "main_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            6,
+            1,
+            1,
+            1
+          ],
+          "facing": "north",
+          "room": "main_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            4,
+            4,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "main_hall"
+        },
+        {
+          "type": "chair",
+          "rect": [
+            6,
+            4,
+            1,
+            1
+          ],
+          "facing": "south",
+          "room": "main_hall"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            8,
+            3,
+            1
+          ],
+          "facing": "south",
+          "room": "kitchen"
+        },
+        {
+          "type": "counter",
+          "rect": [
+            1,
+            10,
+            3,
+            1
+          ],
+          "facing": "north",
+          "room": "kitchen"
+        },
+        {
+          "type": "table",
+          "rect": [
+            4,
+            9,
+            2,
+            1
+          ],
+          "facing": "east",
+          "room": "kitchen"
+        },
+        {
+          "type": "bed",
+          "rect": [
+            9,
+            8,
+            2,
+            3
+          ],
+          "facing": "west",
+          "room": "bedroom"
+        },
+        {
+          "type": "table",
+          "rect": [
+            12,
+            8,
+            1,
+            1
+          ],
+          "facing": "west",
+          "room": "bedroom"
+        }
+      ]
+    }
+  ],
+  "roof": {
+    "style": "pitched",
+    "mat": "Wood"
+  }
+}

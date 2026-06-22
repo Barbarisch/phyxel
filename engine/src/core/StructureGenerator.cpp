@@ -3,9 +3,49 @@
 #include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace Phyxel {
 namespace Core {
+
+namespace {
+/// Ordering so local voxel cells can live in a std::set (dedup of shared walls).
+struct IVec3Less {
+    bool operator()(const glm::ivec3& a, const glm::ivec3& b) const {
+        if (a.x != b.x) return a.x < b.x;
+        if (a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    }
+};
+using CellSet = std::set<glm::ivec3, IVec3Less>;
+
+/// Edge-adjacency between two XZ footprints rect = (x, z, w, d).
+struct SharedWall {
+    bool ok = false;
+    char axis = 'x';   ///< 'x' = vertical wall at x=coord running along z; 'z' = horizontal at z=coord
+    int  coord = 0, lo = 0, hi = 0;
+};
+
+SharedWall sharedWall(const glm::ivec4& a, const glm::ivec4& b) {
+    const int ax0 = a.x, az0 = a.y, ax1 = a.x + a.z, az1 = a.y + a.w;
+    const int bx0 = b.x, bz0 = b.y, bx1 = b.x + b.z, bz1 = b.y + b.w;
+    SharedWall r;
+    if (ax1 == bx0 || bx1 == ax0) {
+        r.coord = (ax1 == bx0) ? ax1 : ax0;
+        r.lo = std::max(az0, bz0);
+        r.hi = std::min(az1, bz1);
+        if (r.hi - r.lo > 0) { r.ok = true; r.axis = 'x'; return r; }
+    }
+    if (az1 == bz0 || bz1 == az0) {
+        r.coord = (az1 == bz0) ? az1 : az0;
+        r.lo = std::max(ax0, bx0);
+        r.hi = std::min(ax1, bx1);
+        if (r.hi - r.lo > 0) { r.ok = true; r.axis = 'z'; return r; }
+    }
+    r.ok = false;
+    return r;
+}
+} // namespace
 
 // ============================================================================
 // MaterialPalette
@@ -1144,6 +1184,284 @@ StructureResult StructureGenerator::generateTower(const glm::ivec3& pos, int rad
         LocationType::GuardPost
     });
 
+    return result;
+}
+
+// ============================================================================
+// Spec-driven generation (functional BuildingSpec — see docs/StructureGenerationPipeline.md)
+// ============================================================================
+
+StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec) {
+    StructureResult result;
+
+    glm::ivec3 origin(0);
+    if (spec.contains("position")) {
+        origin.x = spec["position"].value("x", 0);
+        origin.y = spec["position"].value("y", 0);
+        origin.z = spec["position"].value("z", 0);
+    }
+
+    MaterialPalette mat;
+    if (spec.contains("palette")) mat = MaterialPalette::fromJson(spec["palette"]);
+
+    int footW = 8, footD = 10;
+    if (spec.contains("footprint") && spec["footprint"].is_array() && spec["footprint"].size() >= 2) {
+        footW = spec["footprint"][0].get<int>();
+        footD = spec["footprint"][1].get<int>();
+    }
+
+    // Detail (P3 greeble) settings.
+    std::string roofStyle = spec.contains("roof") ? spec["roof"].value("style", "flat") : "flat";
+    std::string trimMat = spec.contains("palette") ? spec["palette"].value("trim", mat.wall) : mat.wall;
+    bool detail = spec.value("detail", true);
+    // Openings recorded during the portal pass, consumed by the detail (frame) pass.
+    struct SpecOpening { char axis; int coord; int px; int pz; int width; int height; int baseY; bool isDoor; };
+    std::vector<SpecOpening> openings;
+
+    if (!spec.contains("stories") || !spec["stories"].is_array() || spec["stories"].empty()) {
+        LOG_WARN("StructureGenerator", "generateFromSpec: spec has no stories");
+        return result;
+    }
+
+    // All geometry is accumulated in the spec's LOCAL frame and offset to world at the end.
+    CellSet wallCells, floorCells, roofCells;
+
+    int baseY = 0;
+    int topY = 0;
+    const auto& stories = spec["stories"];
+
+    for (size_t si = 0; si < stories.size(); ++si) {
+        const auto& story = stories[si];
+        int height = story.value("height", 4);
+
+        // Parse rooms (id + rect x,z,w,d).
+        std::vector<std::pair<std::string, glm::ivec4>> rooms;
+        if (story.contains("rooms")) {
+            for (const auto& rj : story["rooms"]) {
+                glm::ivec4 rect(0);
+                if (rj.contains("rect") && rj["rect"].is_array() && rj["rect"].size() >= 4) {
+                    rect.x = rj["rect"][0].get<int>();
+                    rect.y = rj["rect"][1].get<int>();
+                    rect.z = rj["rect"][2].get<int>();
+                    rect.w = rj["rect"][3].get<int>();
+                }
+                rooms.emplace_back(rj.value("id", std::string()), rect);
+            }
+        }
+
+        // Floor slab over the whole footprint at baseY.
+        for (int x = 0; x < footW; ++x)
+            for (int z = 0; z < footD; ++z)
+                floorCells.insert({x, baseY, z});
+
+        // Footprint perimeter walls.
+        for (int y = baseY + 1; y <= baseY + height; ++y) {
+            for (int x = 0; x < footW; ++x) {
+                wallCells.insert({x, y, 0});
+                wallCells.insert({x, y, footD - 1});
+            }
+            for (int z = 0; z < footD; ++z) {
+                wallCells.insert({0, y, z});
+                wallCells.insert({footW - 1, y, z});
+            }
+        }
+
+        // Interior partition walls on shared room boundary lines (deduped by the set).
+        for (size_t i = 0; i < rooms.size(); ++i) {
+            for (size_t j = i + 1; j < rooms.size(); ++j) {
+                SharedWall sw = sharedWall(rooms[i].second, rooms[j].second);
+                if (!sw.ok) continue;
+                for (int y = baseY + 1; y <= baseY + height; ++y) {
+                    for (int t = sw.lo; t < sw.hi; ++t) {
+                        if (sw.axis == 'x') wallCells.insert({sw.coord, y, t});
+                        else                wallCells.insert({t, y, sw.coord});
+                    }
+                }
+            }
+        }
+
+        auto findRoom = [&](const std::string& id) -> const glm::ivec4* {
+            for (auto& r : rooms) if (r.first == id) return &r.second;
+            return nullptr;
+        };
+
+        // Portals: carve openings, emit functional door requests.
+        if (story.contains("portals")) {
+            for (const auto& pj : story["portals"]) {
+                std::string kind = pj.value("kind", "door");
+                int pw = pj.value("width", 2);
+                // Door openings match the door leaf height (2 cubes) so the leaf fills the gap;
+                // arches/windows honour the authored height.
+                const int kDoorLeafHeight = 2;
+                int ph = (kind == "door") ? std::min(kDoorLeafHeight, height)
+                                          : std::min(pj.value("height", 3), height);
+                glm::ivec2 pos(0);
+                if (pj.contains("pos") && pj["pos"].is_array() && pj["pos"].size() >= 2) {
+                    pos.x = pj["pos"][0].get<int>();
+                    pos.y = pj["pos"][1].get<int>();
+                }
+                std::string a, b;
+                if (pj.contains("between") && pj["between"].is_array() && pj["between"].size() >= 2) {
+                    a = pj["between"][0].get<std::string>();
+                    b = pj["between"][1].get<std::string>();
+                }
+                bool isExt = (a == "exterior" || b == "exterior");
+
+                // Resolve wall orientation (axis + coord).
+                char axis = 'x'; int coord = 0; bool resolved = false;
+                if (!isExt) {
+                    const glm::ivec4* rA = findRoom(a);
+                    const glm::ivec4* rB = findRoom(b);
+                    if (rA && rB) {
+                        SharedWall sw = sharedWall(*rA, *rB);
+                        if (sw.ok) { axis = sw.axis; coord = sw.coord; resolved = true; }
+                    }
+                } else {
+                    if (pos.x == 0 || pos.x == footW - 1)      { axis = 'x'; coord = pos.x; resolved = true; }
+                    else if (pos.y == 0 || pos.y == footD - 1) { axis = 'z'; coord = pos.y; resolved = true; }
+                }
+                if (!resolved) continue;
+
+                // Carve the opening out of the walls.
+                for (int y = baseY + 1; y <= baseY + ph; ++y) {
+                    for (int t = 0; t < pw; ++t) {
+                        glm::ivec3 cell = (axis == 'x') ? glm::ivec3(coord, y, pos.y + t)
+                                                        : glm::ivec3(pos.x + t, y, coord);
+                        wallCells.erase(cell);
+                    }
+                }
+
+                // Record the opening so the detail pass can trim it (windows get a sill).
+                openings.push_back({axis, coord, pos.x, pos.y, pw, ph, baseY, kind != "window"});
+
+                if (kind == "door") {
+                    DoorRequest dr;
+                    glm::ivec3 hingeLocal = (axis == 'x') ? glm::ivec3(coord, baseY + 1, pos.y)
+                                                          : glm::ivec3(pos.x, baseY + 1, coord);
+                    dr.hingePos = glm::vec3(origin + hingeLocal);
+                    dr.width = pw;
+                    dr.height = ph;
+                    // Door leaf extends +X at rotation 0. A 'z'-axis wall (front/back) runs along
+                    // world X, so the leaf spans it at rotation 0; an 'x'-axis wall (side) runs along
+                    // world Z, needing a 90° turn.
+                    dr.baseRotation = (axis == 'x') ? 90 : 0;
+                    if (pj.contains("door")) {
+                        dr.lockable = pj["door"].value("lockable", false);
+                        dr.key = pj["door"].value("key", std::string());
+                        dr.swing = pj["door"].value("swing", 90.0f);
+                    }
+                    result.doors.push_back(dr);
+                }
+            }
+        }
+
+        // Stairs: subcube staircase + carve a hole in the next floor slab.
+        if (story.contains("stairs")) {
+            for (const auto& sj : story["stairs"]) {
+                glm::ivec4 rect(0);
+                if (sj.contains("rect") && sj["rect"].is_array() && sj["rect"].size() >= 4) {
+                    rect.x = sj["rect"][0].get<int>();
+                    rect.y = sj["rect"][1].get<int>();
+                    rect.z = sj["rect"][2].get<int>();
+                    rect.w = sj["rect"][3].get<int>();
+                }
+                int climb = height + 1;  // one story stride
+                int swWidth = std::max(1, rect.z);
+                auto stairs = generateSubcubeStaircase(glm::ivec3(rect.x, baseY + 1, rect.y),
+                                                       Facing::North, climb, swWidth, mat.stairs);
+                for (auto& v : stairs.voxels) result.voxels.push_back(v);
+
+                int nextBaseY = baseY + height + 1;
+                for (int x = rect.x; x < rect.x + rect.z; ++x)
+                    for (int z = rect.y; z < rect.y + rect.w; ++z)
+                        floorCells.erase({x, nextBaseY, z});
+            }
+        }
+
+        // Fixtures: emit requests to spawn proper SUBCUBE furniture templates (P4). The handler
+        // places each via placeTemplate. Furniture is authored as subcube templates — we never
+        // generate full-cube furniture inline (honours the use-sub-voxel-detail rule).
+        if (detail && story.contains("fixtures")) {
+            for (const auto& fj : story["fixtures"]) {
+                std::string ftype = fj.value("type", "");
+                glm::ivec4 frect(0);  // x, z, w, d
+                if (fj.contains("rect") && fj["rect"].is_array() && fj["rect"].size() >= 4) {
+                    frect.x = fj["rect"][0].get<int>();
+                    frect.y = fj["rect"][1].get<int>();
+                    frect.z = fj["rect"][2].get<int>();
+                    frect.w = fj["rect"][3].get<int>();
+                }
+                // Map fixture type -> subcube furniture template (resources/templates/*.voxel).
+                std::string tmpl;
+                if      (ftype == "table")                     tmpl = "table_wood";
+                else if (ftype == "chair")                     tmpl = "chair_wood";
+                else if (ftype == "stool")                     tmpl = "stool";
+                else if (ftype == "bed")                       tmpl = "bed_single";
+                else if (ftype == "counter" || ftype == "bar") tmpl = "tavern_bar";
+                else if (ftype == "altar")                     tmpl = "altar";
+                else if (ftype == "pew" || ftype == "bench")   tmpl = "bench_wood";
+                else if (ftype == "barrel")                    tmpl = "barrel";
+                else if (ftype == "bookshelf" || ftype == "shelf") tmpl = "bookshelf";
+                else continue;  // unknown type — skip rather than fake it
+                Facing ff = facingFromString(fj.value("facing", "south"));
+                int rot = (ff == Facing::East) ? 90 : (ff == Facing::South) ? 180
+                        : (ff == Facing::West) ? 270 : 0;
+                FixtureRequest fr;
+                fr.templateName = tmpl;
+                fr.worldPos = origin + glm::ivec3(frect.x, baseY + 1, frect.y);
+                fr.rotation = rot;
+                result.fixtures.push_back(fr);
+            }
+        }
+
+        // Per-room location markers (local frame; offset below).
+        for (auto& r : rooms) {
+            const glm::ivec4& rc = r.second;
+            result.locations.push_back({
+                "", r.first.empty() ? "Room" : r.first,
+                glm::vec3(rc.x + rc.z / 2.0f, static_cast<float>(baseY + 1), rc.y + rc.w / 2.0f),
+                std::max(rc.z, rc.w) / 2.0f, LocationType::Custom });
+        }
+
+        topY = baseY + height + 1;
+        baseY = topY;
+    }
+
+    // Roof slab over the footprint.
+    for (int x = 0; x < footW; ++x)
+        for (int z = 0; z < footD; ++z)
+            roofCells.insert({x, topY, z});
+
+    for (const auto& c : wallCells)  result.voxels.push_back({c, mat.wall});
+    for (const auto& c : floorCells) result.voxels.push_back({c, mat.floor});
+    for (const auto& c : roofCells)  result.voxels.push_back({c, mat.roof});
+
+    // -- Detail pass (P3 subcube greeble): pitched roof. --
+    // Built in the local frame (Facing::North + local pos); offset to world with everything else.
+    // NOTE: opening frames (generateDoorFrame/WindowFrame) are deferred — they add subcubes ON the
+    // solid wall cubes flanking an opening, which addSubcube rejects. Proper frames need the wall
+    // carved to subcube resolution around the opening (P3 follow-up). `openings` is collected ready.
+    (void)openings; (void)trimMat;
+    if (detail) {
+        if (roofStyle == "pitched" && footW >= 4 && footD >= 4) {
+            auto roof = generatePitchedRoof({0, topY + 1, 0}, Facing::North, footW, footD, mat.roof);
+            for (auto& v : roof.voxels) result.voxels.push_back(v);
+        }
+    }
+
+    // Offset local geometry to world.
+    for (auto& v : result.voxels)     v.position += origin;
+    for (auto& loc : result.locations) loc.position += glm::vec3(origin);
+
+    // Building center marker.
+    std::string fn = spec.value("function", std::string("structure"));
+    result.locations.push_back({
+        "", fn.empty() ? "Building" : fn,
+        glm::vec3(origin) + glm::vec3(footW / 2.0f, 1.0f, footD / 2.0f),
+        std::max(footW, footD) / 2.0f, LocationType::Home });
+
+    LOG_INFO("StructureGenerator", "generateFromSpec: " + std::to_string(result.voxels.size()) +
+             " voxels, " + std::to_string(result.doors.size()) + " door(s)");
     return result;
 }
 

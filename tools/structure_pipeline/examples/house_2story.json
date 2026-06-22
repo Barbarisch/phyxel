@@ -1,0 +1,35 @@
+{
+  "kind": "building",
+  "name": "house2",
+  "style": "medieval",
+  "function": "house",
+  "palette": { "wall": "StoneBricks", "floor": "Wood", "roof": "Wood", "trim": "Wood" },
+  "footprint": [8, 8],
+  "stories": [
+    {
+      "height": 4,
+      "rooms": [
+        { "id": "ground", "rect": [0, 0, 8, 8], "purpose": "living", "floor_mat": "Wood" }
+      ],
+      "portals": [
+        { "between": ["exterior", "ground"], "pos": [3, 0], "width": 1, "height": 2, "kind": "door",
+          "door": { "lockable": true, "key": "house_key", "swing": 90 } },
+        { "between": ["ground", "exterior"], "pos": [0, 3], "width": 2, "height": 2, "kind": "window" }
+      ],
+      "stairs": [ { "from_story": 0, "to_story": 1, "rect": [5, 1, 2, 5], "kind": "straight" } ],
+      "fixtures": [ { "type": "table", "rect": [2, 2, 2, 2], "facing": "north", "room": "ground" } ]
+    },
+    {
+      "height": 4,
+      "rooms": [
+        { "id": "upper", "rect": [0, 0, 8, 8], "purpose": "bedroom", "floor_mat": "Wood" }
+      ],
+      "portals": [
+        { "between": ["upper", "exterior"], "pos": [8, 3], "width": 2, "height": 2, "kind": "window" }
+      ],
+      "stairs": [],
+      "fixtures": [ { "type": "bed", "rect": [1, 1, 2, 3], "facing": "east", "room": "upper" } ]
+    }
+  ],
+  "roof": { "style": "pitched", "mat": "Wood" }
+}

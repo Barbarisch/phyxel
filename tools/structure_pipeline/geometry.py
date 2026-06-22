@@ -1,0 +1,925 @@
+"""
+Structure Pipeline — deterministic GEOMETRY checks (functional dimensions, not eyeballing).
+
+The spec-level validator and the 2D walkable pass don't catch geometry-level defects you can
+only see by measuring the realized voxels: a stair with no headroom three steps up, a door
+opening wider than any door leaf, a door embedded in a wall, or furniture with floating parts.
+These checks measure the actual cube/subcube/micro geometry and reference real-world functional
+dimensions (a person's height, standard bed/table sizes, a door leaf's size) — so a pass/fail is
+an algorithm's verdict, not a screenshot impression.
+
+Everything returns the shared ValidationReport/Issue so it slots into the same pipeline gate.
+"""
+
+from __future__ import annotations
+
+import math
+from collections import deque
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
+from .scale import ScaleCanon, load_canon
+from .spec import BuildingSpec, Stair
+from .validator import Issue, ValidationReport, _bounds, EXTERIOR
+from .playtest import _cube_occupancy, _story_base_y, _FULL_CUBE, _swing_sides
+
+_REPO = Path(__file__).resolve().parents[2]
+TEMPLATES_DIR = _REPO / "resources" / "templates"
+
+# Door leaf footprints the realizer can place (width x height in cubes), from the templates.
+DOOR_LEAVES = {"door_wood": (1, 2), "door_wood_wide": (2, 2), "door_metal": (1, 2)}
+
+
+# --------------------------------------------------------------------------- voxel measuring
+
+def template_cells(name: str) -> Set[Tuple[int, int, int]]:
+    """Micro-grid cell set of a .voxel template (9 micro per cube), for connectivity/size checks."""
+    p = TEMPLATES_DIR / f"{name}.voxel"
+    cells: Set[Tuple[int, int, int]] = set()
+    if not p.exists():
+        return cells
+    for ln in p.read_text(encoding="utf-8").splitlines():
+        t = ln.split()
+        if not t or t[0] not in ("C", "S", "M"):
+            continue
+        cx, cy, cz = int(t[1]), int(t[2]), int(t[3])
+        if t[0] == "C":
+            gx, gy, gz, n = cx * 9, cy * 9, cz * 9, 9
+        elif t[0] == "S":
+            gx, gy, gz, n = cx * 9 + int(t[4]) * 3, cy * 9 + int(t[5]) * 3, cz * 9 + int(t[6]) * 3, 3
+        else:
+            gx = cx * 9 + int(t[4]) * 3 + int(t[7])
+            gy = cy * 9 + int(t[5]) * 3 + int(t[8])
+            gz = cz * 9 + int(t[6]) * 3 + int(t[9])
+            n = 1
+        for x in range(gx, gx + n):
+            for y in range(gy, gy + n):
+                for z in range(gz, gz + n):
+                    cells.add((x, y, z))
+    return cells
+
+
+def floating_components(cells: Set[Tuple[int, int, int]]) -> Set[Tuple[int, int, int]]:
+    """Cells not face-connected to the bottom layer — i.e. floating in mid-air."""
+    if not cells:
+        return set()
+    ymin = min(y for _, y, _ in cells)
+    seed = [c for c in cells if c[1] == ymin]
+    seen = set(seed)
+    q = deque(seed)
+    while q:
+        x, y, z = q.popleft()
+        for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)):
+            n = (x + dx, y + dy, z + dz)
+            if n in cells and n not in seen:
+                seen.add(n)
+                q.append(n)
+    return cells - seen
+
+
+def _components(cells: Set[Tuple[int, int, int]]) -> int:
+    """Count connected components (for reporting how many floating clusters)."""
+    seen: Set[Tuple[int, int, int]] = set()
+    comps = 0
+    for c in cells:
+        if c in seen:
+            continue
+        comps += 1
+        q = deque([c])
+        seen.add(c)
+        while q:
+            x, y, z = q.popleft()
+            for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)):
+                n = (x + dx, y + dy, z + dz)
+                if n in cells and n not in seen:
+                    seen.add(n)
+                    q.append(n)
+    return comps
+
+
+# --------------------------------------------------------------------------- checks
+
+def connectivity_report(name: str) -> ValidationReport:
+    """No floating parts: every voxel of a template must connect to the floor."""
+    rep = ValidationReport()
+    cells = template_cells(name)
+    if not cells:
+        rep.warn("TEMPLATE_EMPTY", f"template '{name}' has no voxels", name)
+        return rep
+    fl = floating_components(cells)
+    if fl:
+        ys = sorted({round(y / 9, 2) for _, y, _ in fl})
+        rep.error("FLOATING_GEOMETRY",
+                  f"'{name}' has {len(fl)} voxel cells in {_components(fl)} floating cluster(s) "
+                  f"(disconnected from the floor) at heights {ys} cubes", name)
+    return rep
+
+
+def stair_clearance_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = None
+                           ) -> ValidationReport:
+    """Per-step headroom: at every tread of every staircase, the cubes a climbing body occupies
+    must be clear up to the character's height. Catches a stair-top that rams into the floor above
+    (the classic 'top of the stairs is blocked')."""
+    if canon is None:
+        canon = load_canon()
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    need = math.ceil(canon.character_height)          # clear cubes a body needs above the tread
+
+    for si, story in enumerate(spec.stories):
+        for sti, stair in enumerate(story.stairs):
+            fs = stair.from_story
+            if not (0 <= fs < len(spec.stories)):
+                continue
+            base = bases[fs]
+            climb = spec.stories[fs].height + 1        # realizer climbs height+1 cubes (+Z run)
+            sx, sz, sw, sd = stair.rect
+            for k in range(climb):                     # each tread, climbing +1 cube / +1 Z
+                foot_y = base + 1 + k                  # cube whose top you stand on at run k
+                z = sz + k
+                worst = need
+                for x in range(sx, sx + sw):
+                    clear = 0
+                    for h in range(1, need + 1):       # cubes the body would occupy above the foot
+                        if occ.get((x, foot_y + h, z), 0) == _FULL_CUBE:
+                            break
+                        clear += 1
+                    worst = min(worst, clear)
+                if worst < need:
+                    rep.error("STAIR_LOW_CLEARANCE",
+                              f"stair step {k + 1}/{climb} (z={z}) has {worst} cube(s) of headroom, "
+                              f"needs {need} for a {canon.character_height:.2f}-cube character — "
+                              "a climber's head hits the floor/ceiling above here",
+                              f"story {si} stair #{sti}")
+    return rep
+
+
+def opening_fit_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Every door opening must be fillable by an available door leaf and the leaf must sit in
+    carved air. Catches openings wider/taller than any door (gaps) and doors embedded in walls."""
+    from .doors import selected_door_for_portal
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    fw, fd = spec.footprint
+
+    for si, story in enumerate(spec.stories):
+        rooms = {r.id: r for r in story.rooms}
+        purpose_map = {r.id: r.purpose for r in story.rooms}
+        for pi, p in enumerate(story.portals):
+            if p.kind != "door":
+                continue
+            where = f"story {si} door #{pi} {p.between}"
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            # the door's full footprint (its width x height) must be carved air where it hangs
+            sides = _swing_sides(p, rooms, fw, fd)
+            if not sides:
+                continue
+            axis, _, _, coord = sides[0]
+            y = bases[si] + 1
+            px, pz = p.pos
+            if axis == "x":
+                opening = [(coord, y + dy, z) for z in range(pz, pz + dd.width) for dy in range(dd.height)]
+            else:
+                opening = [(x, y + dy, coord) for x in range(px, px + dd.width) for dy in range(dd.height)]
+            solid = [c for c in opening if occ.get(c, 0) == _FULL_CUBE]
+            if solid:
+                rep.error("DOOR_EMBEDDED_IN_WALL",
+                          f"{len(solid)}/{len(opening)} of the {dd.name} ({dd.width}x{dd.height}) "
+                          "opening cells are solid wall (door buried, not in a carved opening)", where)
+    return rep
+
+
+def ceiling_mounted_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Ceiling-hung props (chandelier) must have a ceiling above to hang from."""
+    from .realize import CEILING_MOUNT_TYPES
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        ceil_y = bases[si] + story.height + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in CEILING_MOUNT_TYPES:
+                continue
+            x, z = f.rect[0], f.rect[1]
+            if occ.get((x, ceil_y, z), 0) == 0:
+                rep.error("CEILING_PROP_NO_CEILING",
+                          f"'{f.type}' at {f.rect} has no ceiling above to hang from "
+                          "(open sky or a stairwell)", f"story {si} fixture #{fi}")
+    return rep
+
+
+def stair_to_door_clearance_report(spec: BuildingSpec) -> ValidationReport:
+    """A door needs a flat landing on its approach — the cell just inside must not be a stair step
+    (you'd step out of the door straight onto a mid-flight stair). A few cells of flat floor before
+    the stairs begin is fine; a stair right at the threshold is not."""
+    from .playtest import _swing_sides, _swing_block
+    rep = ValidationReport()
+    fw, fd = spec.footprint
+    for si, story in enumerate(spec.stories):
+        stair_cells = set()
+        for s2 in spec.stories:
+            for st in s2.stairs:
+                if st.from_story == si or st.to_story == si:
+                    sx, sz, sw, sd = st.rect
+                    stair_cells |= {(x, z) for x in range(sx, sx + sw) for z in range(sz, sz + sd)}
+        if not stair_cells:
+            continue
+        rooms = {r.id: r for r in story.rooms}
+        for pi, p in enumerate(story.portals):
+            if p.kind not in ("door", "arch"):
+                continue
+            sides = _swing_sides(p, rooms, fw, fd)
+            if not sides:
+                continue
+            p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+            for axis, rm, sign, coord in sides:
+                if rm is None:
+                    continue
+                inside = _swing_block(axis, coord, sign, p_lo, 1)
+                if inside & stair_cells:
+                    rep.error("STAIR_AT_DOORWAY",
+                              f"door {tuple(p.between)} opens straight onto a stair step (no flat "
+                              "landing at the threshold)", f"story {si} door #{pi}")
+                    break
+    return rep
+
+
+OPERABLE_TYPES = {"wardrobe", "dresser", "desk", "cabinet", "chest", "counter", "sideboard"}
+
+
+def furniture_access_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Furniture you operate (wardrobe/dresser/desk/counter…) must have its FRONT open, not facing
+    a wall — otherwise you can't open the doors/drawers. Pairs with wall-backing (back to a wall,
+    front to the room)."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    # front direction by rotation, matching the engine's rotateOffset (case1 rot90 maps +z -> -x):
+    # rot0->+z, rot90->-x, rot180->-z, rot270->+x
+    front_dir = {0: (0, 1), 90: (-1, 0), 180: (0, -1), 270: (1, 0)}
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in OPERABLE_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            rot = _FACING_ROT.get(f.facing, 0)
+            fw, fd = template_cube_footprint(tmpl, rot)
+            x0, z0, x1, z1 = f.rect[0], f.rect[1], f.rect[0] + fw, f.rect[1] + fd
+            dx, dz = front_dir.get(rot, (0, 1))
+            if dz == 1:
+                front = [(x, z1) for x in range(x0, x1)]
+            elif dz == -1:
+                front = [(x, z0 - 1) for x in range(x0, x1)]
+            elif dx == 1:
+                front = [(x1, z) for z in range(z0, z1)]
+            else:
+                front = [(x0 - 1, z) for z in range(z0, z1)]
+            if front and all(occ.get((x, y, z), 0) == _FULL_CUBE for (x, z) in front):
+                rep.error("FURNITURE_FACES_WALL",
+                          f"'{f.type}' at {f.rect} faces a wall ({f.facing}) — its doors/drawers "
+                          "can't be opened; turn it to face the room", f"story {si} fixture #{fi}")
+    return rep
+
+
+def _fixture_cells_by_story(spec: BuildingSpec):
+    """Floor cells occupied by fixtures (real rotated footprints), per story."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    out = []
+    for story in spec.stories:
+        cells = set()
+        for f in story.fixtures:
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            for x in range(f.rect[0], f.rect[0] + fw):
+                for z in range(f.rect[1], f.rect[1] + fd):
+                    cells.add((x, z))
+        out.append(cells)
+    return out
+
+
+def door_swing_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """For each door, decide a HANDEDNESS: which side it can swing into with a clear quarter-arc
+    (door_width x door_width of open room floor, no wall/fixture). Deterministic — picks the clear
+    side (preferring to swing into a room, not the exterior). Errors if NO side is clear.
+
+    NOTE: this verifies a clear swing EXISTS and which side; making the live door actually swing
+    that way needs mirrored door templates + the engine's swing convention (tracked in the gaps doc)."""
+    from .doors import selected_door_for_portal
+    from .playtest import _swing_sides, _swing_block, _rect_contains_cells
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    fw, fd = spec.footprint
+    fixt = _fixture_cells_by_story(spec)
+
+    for si, story in enumerate(spec.stories):
+        rooms = {r.id: r for r in story.rooms}
+        purpose_map = {r.id: r.purpose for r in story.rooms}
+        y = bases[si] + 1
+        for pi, p in enumerate(story.portals):
+            if p.kind != "door":
+                continue
+            where = f"story {si} door #{pi} {p.between}"
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            sides = _swing_sides(p, rooms, fw, fd)
+            if not sides:
+                continue
+            p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+            clear_sides = []
+            for axis, room, sign, coord in sides:
+                if room is None:                          # exterior side — don't prefer swinging out
+                    continue
+                block = _swing_block(axis, coord, sign, p_lo, dd.width)
+                if not _rect_contains_cells(room.rect, block):
+                    continue
+                if any((x, z) in fixt[si] or occ.get((x, y, z), 0) == _FULL_CUBE for (x, z) in block):
+                    continue
+                clear_sides.append(room.id)
+            if not clear_sides:
+                rep.error("DOOR_NO_CLEAR_SWING",
+                          f"the {dd.name} ({dd.width} wide) has no side it can swing open into "
+                          "(both sides blocked by wall/fixture)", where)
+    return rep
+
+
+def door_selection_report(spec: BuildingSpec) -> ValidationReport:
+    """The door chosen for each opening must be usable in its situation: it fits under the wall,
+    and a portal that must lock gets a lockable-capable door."""
+    from .doors import selected_door_for_portal
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        purpose_map = {r.id: r.purpose for r in story.rooms}
+        for pi, p in enumerate(story.portals):
+            if p.kind != "door":
+                continue
+            where = f"story {si} door #{pi} {p.between}"
+            lockable = bool(p.door and p.door.lockable)
+            dd = selected_door_for_portal(p.between, p.width, lockable, story.height, purpose_map)
+            if dd.height > story.height:
+                rep.error("DOOR_TALLER_THAN_WALL",
+                          f"selected {dd.name} is {dd.height} tall but the wall is {story.height}", where)
+            if lockable and not dd.lockable:
+                rep.error("DOOR_NOT_LOCKABLE",
+                          f"portal must lock but the chosen {dd.name} ({dd.style}) isn't lockable", where)
+    return rep
+
+
+# --------------------------------------------------------------------------- fixture placement
+
+def template_cube_footprint(name: str, rotation: int = 0) -> Tuple[int, int]:
+    """Footprint (W in X, D in Z) of a template in whole cubes, after a 0/90/180/270 rotation.
+    90/270 swap W and D (matches the engine's PlacedObjectManager rotation)."""
+    cells = template_cells(name)
+    if not cells:
+        return (1, 1)
+    xs = [x // 9 for x, _, _ in cells]
+    zs = [z // 9 for _, _, z in cells]
+    w, d = max(xs) - min(xs) + 1, max(zs) - min(zs) + 1
+    return (d, w) if (rotation // 90) % 2 == 1 else (w, d)
+
+
+def _fixture_cube_height(tmpl: str) -> int:
+    cells = template_cells(tmpl)
+    return (max(y for _, y, _ in cells) // 9 + 1) if cells else 1
+
+
+def voxel_overlap_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """The blunt, authoritative check: rasterize every fixture's ACTUAL cubes (footprint x height,
+    at its real world Y) and flag any cube shared by two objects, or by a fixture and a wall. 3D,
+    so clutter on a surface (different Y) is fine; seats tucking under a table are exempt. This
+    supersedes the 2D footprint overlap."""
+    from .realize import (FIXTURE_TEMPLATES, _FACING_ROT, FLAT_TYPES, fixture_y_offset)
+    from .playtest import _seat_under_surface
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        cellmap: Dict[Tuple[int, int, int], list] = {}
+        for fi, f in enumerate(story.fixtures):
+            if f.type in FLAT_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            h = _fixture_cube_height(tmpl)
+            y0 = bases[si] + fixture_y_offset(f.type, story.height)
+            in_wall = False
+            for x in range(f.rect[0], f.rect[0] + fw):
+                for z in range(f.rect[1], f.rect[1] + fd):
+                    for y in range(y0, y0 + h):
+                        if occ.get((x, y, z), 0) == _FULL_CUBE:
+                            in_wall = True
+                        else:
+                            cellmap.setdefault((x, y, z), []).append((fi, f.type))
+            if in_wall:
+                rep.error("FURNITURE_IN_WALL",
+                          f"'{f.type}' at {f.rect} overlaps a wall in 3D", f"story {si} fixture #{fi}")
+        reported = set()
+        for cell, occ_list in cellmap.items():
+            if len(occ_list) < 2:
+                continue
+            for a in range(len(occ_list)):
+                for b in range(a + 1, len(occ_list)):
+                    (fa, ta), (fb, tb) = occ_list[a], occ_list[b]
+                    if fa == fb or _seat_under_surface(ta, tb):
+                        continue
+                    key = (min(fa, fb), max(fa, fb))
+                    if key not in reported:
+                        reported.add(key)
+                        rep.error("FURNITURE_VOXEL_OVERLAP",
+                                  f"'{ta}' and '{tb}' occupy the same cube {cell}", f"story {si}")
+    return rep
+
+
+def fixture_placement_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Check fixtures using their REAL measured template size (not the spec's f.rect): each must
+    sit inside its room, not clip a wall, and not overlap another fixture (seats may tuck under
+    tables). This is where 'overlapping blocks / furniture makes no sense' actually comes from —
+    a 2-cube bed dropped at a 1-cube slot pokes through the wall or into a neighbour."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, FLAT_TYPES, CLUTTER_TYPES
+    from .playtest import _seat_under_surface
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        rooms = {r.id: r for r in story.rooms}
+        placed: List[Tuple[str, int, int, int, int]] = []
+        for fi, f in enumerate(story.fixtures):
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            # clutter sits on a surface at floor+2 (validated by clutter_on_surface); flat rugs are
+            # walkable — neither collides with floor furniture, so skip them here.
+            if not tmpl or f.type in FLAT_TYPES or f.type in CLUTTER_TYPES:
+                continue
+            rot = _FACING_ROT.get(f.facing, 0)
+            fw, fd = template_cube_footprint(tmpl, rot)
+            x0, z0 = f.rect[0], f.rect[1]
+            x1, z1 = x0 + fw, z0 + fd
+            where = f"story {si} fixture #{fi} '{f.type}'"
+            room = rooms.get(f.room)
+            if room:
+                rx0, rz0, rx1, rz1 = _bounds(tuple(room.rect))
+                if not (rx0 <= x0 and x1 <= rx1 and rz0 <= z0 and z1 <= rz1):
+                    rep.error("FIXTURE_OUT_OF_ROOM",
+                              f"'{f.type}' is {fw}x{fd} cubes at [{x0},{z0}] but room '{f.room}' is "
+                              f"{room.rect} — it pokes outside the room", where)
+            clip = sum(1 for x in range(x0, x1) for z in range(z0, z1)
+                       if occ.get((x, y, z), 0) == _FULL_CUBE)
+            if clip:
+                rep.error("FIXTURE_CLIPS_WALL",
+                          f"'{f.type}' ({fw}x{fd} cubes) overlaps {clip} wall cube(s) at floor level "
+                          "— it is embedded in a wall", where)
+            placed.append((f.type, x0, z0, x1, z1))
+        for i in range(len(placed)):
+            for j in range(i + 1, len(placed)):
+                ta, ax0, az0, ax1, az1 = placed[i]
+                tb, bx0, bz0, bx1, bz1 = placed[j]
+                if ax0 < bx1 and bx0 < ax1 and az0 < bz1 and bz0 < az1 and not _seat_under_surface(ta, tb):
+                    rep.error("FIXTURE_OVERLAP",
+                              f"'{ta}' and '{tb}' overlap at their real footprints (not just f.rect)",
+                              f"story {si}")
+    return rep
+
+
+# --------------------------------------------------------------------------- real-world dimensions
+
+# 1 cube = 1 m. Reference ranges for object footprint/height, in metres. A generated object
+# whose measured bounding box falls outside these reads as wrong-sized to a human eye.
+REFERENCE_DIMS = {                       # kind: {axis: (min, max)} ; H = height, F = footprint side
+    "chair":  {"H": (0.80, 1.25), "F": (0.38, 0.75)},
+    "stool":  {"H": (0.40, 0.85), "F": (0.30, 0.55)},
+    "bench":  {"H": (0.40, 1.00), "F": (0.35, 0.65)},   # plus a long axis (checked loosely)
+    "table":  {"H": (0.70, 1.05), "F": (0.55, 2.50)},
+    "desk":   {"H": (0.70, 0.85), "F": (0.55, 1.80)},
+    "bed":    {"H": (0.35, 1.40)},                       # footprint checked vs BED_SIZES
+    "bookshelf": {"H": (1.50, 2.40), "F": (0.25, 1.20)},
+    "wardrobe": {"H": (1.60, 2.30), "F": (0.40, 0.80)},
+    "dresser": {"H": (0.70, 1.15), "F": (0.40, 0.70)},
+    "fireplace": {"H": (1.00, 2.20), "F": (0.40, 1.00)},
+    "four_poster": {"H": (1.60, 2.40)},                  # footprint vs BED_SIZES
+    "armchair": {"H": (0.80, 1.40), "F": (0.55, 0.95)},
+    "long_table": {"H": (0.70, 1.05), "F": (0.70, 1.40)},
+    "nightstand": {"H": (0.40, 0.75), "F": (0.30, 0.70)},
+    "sideboard": {"H": (0.70, 1.10), "F": (0.40, 0.80)},
+    "door":   {"H": (1.95, 2.30)},   # width handled by opening-tiling; doors are intentionally thin
+}
+
+# Standard mattress sizes (width x length, metres) — beds are matched to the nearest.
+BED_SIZES = {
+    "single": (0.92, 1.88), "twin": (0.99, 1.91), "full": (1.37, 1.91),
+    "queen": (1.52, 2.03), "king": (1.93, 2.03), "cot": (0.70, 1.40),
+}
+
+
+def measure_template(name: str) -> Optional[Tuple[float, float, float]]:
+    """Bounding box of a template in metres (W=x, H=y, D=z)."""
+    cells = template_cells(name)
+    if not cells:
+        return None
+    xs = [x for x, _, _ in cells]
+    ys = [y for _, y, _ in cells]
+    zs = [z for _, _, z in cells]
+    return ((max(xs) - min(xs) + 1) / 9, (max(ys) - min(ys) + 1) / 9, (max(zs) - min(zs) + 1) / 9)
+
+
+def dimension_report(name: str, kind: str) -> ValidationReport:
+    """Check a template's real-world size against reference furniture/architecture dimensions."""
+    rep = ValidationReport()
+    m = measure_template(name)
+    if m is None:
+        return rep
+    w, h, d = m
+    ref = REFERENCE_DIMS.get(kind)
+    if ref:
+        if "H" in ref and not (ref["H"][0] <= h <= ref["H"][1]):
+            rep.error("OBJECT_WRONG_HEIGHT",
+                      f"'{name}' is {h:.2f} m tall; a {kind} should be {ref['H'][0]:.2f}-"
+                      f"{ref['H'][1]:.2f} m", name)
+        if "F" in ref:
+            foot = min(w, d)                       # the narrow horizontal side
+            if not (ref["F"][0] <= foot <= ref["F"][1]):
+                rep.error("OBJECT_WRONG_FOOTPRINT",
+                          f"'{name}' footprint side is {foot:.2f} m; a {kind} should be "
+                          f"{ref['F'][0]:.2f}-{ref['F'][1]:.2f} m", name)
+    if kind == "bed":
+        bw, bl = sorted((w, d))                    # bed width <= length
+        best = min(BED_SIZES, key=lambda k: abs(BED_SIZES[k][0] - bw) + abs(BED_SIZES[k][1] - bl))
+        sw, sl = BED_SIZES[best]
+        if abs(bw - sw) > 0.35 or abs(bl - sl) > 0.35:
+            rep.error("BED_NONSTANDARD_SIZE",
+                      f"'{name}' is {bw:.2f}x{bl:.2f} m — closest standard is {best} "
+                      f"({sw:.2f}x{sl:.2f} m), off by more than 0.35 m", name)
+    return rep
+
+
+# --------------------------------------------------------------------------- convenience
+
+# Furniture that must back onto a wall (a bookshelf floating mid-room facing nowhere is wrong).
+WALL_BACKED_TYPES = {"bookshelf", "bookcase", "shelf", "wardrobe", "dresser", "cabinet",
+                     "sideboard", "fireplace", "sconce", "torch"}    # incl. wall-mounted props
+
+
+def wall_backed_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Shelving / casegoods (bookshelf, shelf, wardrobe, …) must touch a wall — they're designed to
+    back onto one. Catches a bookshelf stranded in open floor."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in WALL_BACKED_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            x0, z0, x1, z1 = f.rect[0], f.rect[1], f.rect[0] + fw, f.rect[1] + fd
+            backed = (
+                any(occ.get((x, y, z0 - 1), 0) == _FULL_CUBE or occ.get((x, y, z1), 0) == _FULL_CUBE
+                    for x in range(x0, x1))
+                or any(occ.get((x0 - 1, y, z), 0) == _FULL_CUBE or occ.get((x1, y, z), 0) == _FULL_CUBE
+                       for z in range(z0, z1)))
+            if not backed:
+                rep.error("FURNITURE_NOT_AGAINST_WALL",
+                          f"'{f.type}' at {f.rect} backs onto open room (no adjacent wall) — "
+                          "shelving/casegoods belong against a wall", f"story {si} fixture #{fi}")
+    return rep
+
+
+# Fixtures with a usable top surface that clutter can sit on.
+SURFACE_TYPES = {"table", "desk", "counter", "bar", "dresser", "sideboard", "shelf", "cabinet",
+                 "altar", "long_table", "nightstand"}
+
+
+def _largest_free_component(free):
+    """Flood the largest connected component of a set of (x,z) cells."""
+    best = set()
+    seen = set()
+    for start in free:
+        if start in seen:
+            continue
+        comp = {start}
+        stack = [start]
+        seen.add(start)
+        while stack:
+            x, z = stack.pop()
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (x + dx, z + dz)
+                if n in free and n not in seen:
+                    seen.add(n)
+                    comp.add(n)
+                    stack.append(n)
+        if len(comp) > len(best):
+            best = comp
+    return best
+
+
+def circulation_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Furniture must leave a walkable path: in every room, every doorway must be reachable across
+    the room's clear floor (interior minus walls minus floor-furniture, using REAL footprints).
+    Catches furniture that walls off a door or splits a room so you can't move through it."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES
+    from .playtest import _swing_sides, _swing_block
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    fw, fd = spec.footprint
+
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        rooms_by_id = {r.id: r for r in story.rooms}
+        furn = set()                                       # floor furniture (clutter is on surfaces)
+        for f in story.fixtures:
+            if f.type in CLUTTER_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            ffw, ffd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            furn |= {(x, z) for x in range(f.rect[0], f.rect[0] + ffw)
+                     for z in range(f.rect[1], f.rect[1] + ffd)}
+        for room in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(room.rect))
+            free = {(x, z) for x in range(x0, x1) for z in range(z0, z1)
+                    if occ.get((x, y, z), 0) != _FULL_CUBE and (x, z) not in furn}
+            if not free:
+                rep.error("ROOM_NO_CLEAR_FLOOR",
+                          f"room '{room.id}' has no clear floor — packed solid with furniture",
+                          f"story {si}")
+                continue
+            main = _largest_free_component(free)
+            blocked = []
+            for p in story.portals:
+                if p.kind not in ("door", "arch") or room.id not in p.between:
+                    continue
+                sides = _swing_sides(p, rooms_by_id, fw, fd)
+                if not sides:
+                    continue
+                p_lo = p.pos[1] if sides[0][0] == "x" else p.pos[0]
+                for axis, rm, sign, coord in sides:
+                    if rm is None or rm.id != room.id:
+                        continue
+                    inside = _swing_block(axis, coord, sign, p_lo, 1)
+                    if not (inside & main):
+                        blocked.append(tuple(p.between))
+            if blocked:
+                rep.error("CIRCULATION_BLOCKED",
+                          f"furniture in room '{room.id}' blocks circulation — door(s) {blocked} "
+                          "can't be reached across the clear floor", f"story {si}")
+    return rep
+
+
+LIGHT_FIXTURE_TYPES = {"candlestick", "candle", "candelabra", "sconce", "torch", "chandelier",
+                       "lamp", "lantern", "fireplace", "brazier"}
+
+
+def light_per_room_report(spec: BuildingSpec) -> ValidationReport:
+    """Every room needs a light source: a window, an exterior door (daylight), or a light fixture
+    (candle/sconce/torch/candelabra/fireplace/…). A windowless room with no light is pitch black."""
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        lit = {f.room for f in story.fixtures if f.type in LIGHT_FIXTURE_TYPES}
+        for p in story.portals:                            # daylight from windows / exterior doors
+            if p.kind == "window" or (p.kind in ("door", "arch") and "exterior" in p.between):
+                lit |= {r for r in p.between if r != "exterior"}
+        for room in story.rooms:
+            if room.id not in lit:
+                rep.error("ROOM_NO_LIGHT",
+                          f"room '{room.id}' has no light source (no window, exterior door, or light "
+                          "fixture) — it would be pitch black", f"story {si}")
+    return rep
+
+
+# Furniture you walk up to and use (must have reachable floor beside it).
+APPROACH_TYPES = {"wardrobe", "dresser", "desk", "counter", "sideboard", "cabinet", "chest",
+                  "bookshelf", "bookcase", "bed", "table", "altar"}
+
+
+def fixture_reachable_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """You must be able to WALK UP to each piece of furniture: at least one cell beside it must be
+    on the room's reachable floor (the circulation). Catches a desk/wardrobe boxed in by other
+    furniture so you can't get to it (beyond just 'its front isn't a wall')."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES, WALL_MOUNT_TYPES, CEILING_MOUNT_TYPES, FLAT_TYPES
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        furn = set()
+        fcells = {}
+        for fi, f in enumerate(story.fixtures):
+            if f.type in CLUTTER_TYPES or f.type in WALL_MOUNT_TYPES or f.type in CEILING_MOUNT_TYPES or f.type in FLAT_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            cells = {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+            furn |= cells
+            fcells[fi] = (f, cells)
+        for room in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(room.rect))
+            free = {(x, z) for x in range(x0, x1) for z in range(z0, z1)
+                    if occ.get((x, y, z), 0) != _FULL_CUBE and (x, z) not in furn}
+            main = _largest_free_component(free)
+            for fi, (f, cells) in fcells.items():
+                if f.room != room.id or f.type not in APPROACH_TYPES:
+                    continue
+                adj = {(cx + dx, cz + dz) for (cx, cz) in cells
+                       for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1))} - cells
+                if not (adj & main):
+                    rep.error("FIXTURE_UNREACHABLE",
+                              f"you can't walk up to '{f.type}' at {f.rect} — no reachable floor "
+                              "beside it (boxed in by furniture/walls)", f"story {si} fixture #{fi}")
+    return rep
+
+
+def window_exterior_report(spec: BuildingSpec) -> ValidationReport:
+    """Windows must be on an EXTERIOR wall facing open air (or a courtyard), not on an interior
+    wall between two rooms (a window into the next room is wrong)."""
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        occupied = set()
+        rects = {}
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            rects[r.id] = (x0, z0, x1, z1)
+            occupied |= {(x, z) for x in range(x0, x1) for z in range(z0, z1)}
+        for pi, p in enumerate(story.portals):
+            if p.kind != "window":
+                continue
+            where = f"story {si} window #{pi} {p.between}"
+            room_ids = [r for r in p.between if r != "exterior"]
+            if len(room_ids) != 1 or room_ids[0] not in rects:
+                rep.error("INTERIOR_WINDOW",
+                          "window must be between a room and the exterior, not two rooms", where)
+                continue
+            rx0, rz0, rx1, rz1 = rects[room_ids[0]]
+            px, pz = p.pos
+            if px == rx0:                                       # west wall -> outside is -x
+                outward = [(rx0 - 1, z) for z in range(pz, pz + p.width)]
+            elif px == rx1:                                     # east wall
+                outward = [(rx1, z) for z in range(pz, pz + p.width)]
+            elif pz == rz0:                                     # north wall
+                outward = [(x, rz0 - 1) for x in range(px, px + p.width)]
+            elif pz == rz1:                                     # south wall
+                outward = [(x, rz1) for x in range(px, px + p.width)]
+            else:
+                rep.warn("WINDOW_NOT_ON_ROOM_EDGE",
+                         f"window {list(p.pos)} isn't on room '{room_ids[0]}' boundary", where)
+                continue
+            if outward and all(cell in occupied for cell in outward):
+                rep.error("INTERIOR_WINDOW",
+                          f"window faces room interior, not outside — it sits on an interior wall "
+                          f"of '{room_ids[0]}'", where)
+    return rep
+
+
+def clutter_on_surface_report(spec: BuildingSpec) -> ValidationReport:
+    """Surface clutter (candlestick, goblet, bottle, books, …) must sit on a piece of furniture with
+    a top (table/desk/dresser/shelf/…), not float in mid-air or land on the floor."""
+    from .realize import FIXTURE_TEMPLATES, _FACING_ROT, CLUTTER_TYPES
+    rep = ValidationReport()
+    for si, story in enumerate(spec.stories):
+        surf = set()
+        for f in story.fixtures:
+            if f.type not in SURFACE_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            surf |= {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+        for fi, f in enumerate(story.fixtures):
+            if f.type not in CLUTTER_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0)) if tmpl else (1, 1)
+            cells = {(x, z) for x in range(f.rect[0], f.rect[0] + fw)
+                     for z in range(f.rect[1], f.rect[1] + fd)}
+            if not (cells & surf):
+                rep.error("CLUTTER_NOT_ON_SURFACE",
+                          f"'{f.type}' at {f.rect} isn't on any table/desk/shelf surface — "
+                          "surface clutter must rest on furniture, not float or sit on the floor",
+                          f"story {si} fixture #{fi}")
+    return rep
+
+
+def shell_connectivity_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """The building shell (walls/floor/roof) must be one connected solid from the ground — no
+    floating wall segments, detached coping, or orphaned roof pieces."""
+    rep = ValidationReport()
+    fl = floating_components(set(canvas.cells.keys()))
+    if fl:
+        ys = sorted({round(y / 9, 1) for _, y, _ in fl})
+        rep.error("SHELL_FLOATING",
+                  f"{len(fl)} shell voxel cell(s) in {_components(fl)} floating cluster(s) "
+                  f"(disconnected from the ground) at heights {ys} cubes", "building")
+    return rep
+
+
+def roof_coverage_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """Every interior column must be capped from above (roof or the floor of a story over it).
+    Catches rooms open to the sky — e.g. the single-story wing tails of a stepped building whose
+    roof only covered the top story's footprint."""
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    # scan well above the eaves — a pitched roof ridge can rise ~half the footprint span
+    top = bases[-1] + spec.stories[-1].height + max(spec.footprint) + 2
+    exposed: List[Tuple[int, int, int]] = []
+    for si, story in enumerate(spec.stories):
+        ceil_y = bases[si] + story.height + 1           # first cube above this story's interior
+        interior = set()
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            interior |= {(x, z) for x in range(x0, x1) for z in range(z0, z1)}
+        for (x, z) in interior:
+            # open to sky only if NOTHING solid is above it anywhere (a roof higher up — e.g. over
+            # a stairwell — still counts as covered)
+            if not any(occ.get((x, y, z), 0) for y in range(ceil_y, top)):
+                exposed.append((si, x, z))
+    if exposed:
+        by_story: Dict[int, int] = {}
+        for si, _, _ in exposed:
+            by_story[si] = by_story.get(si, 0) + 1
+        rep.error("ROOF_GAP",
+                  f"{len(exposed)} interior column(s) are open to the sky (no roof/floor above): "
+                  + ", ".join(f"{n} on story {si}" for si, n in sorted(by_story.items())),
+                  "building")
+    return rep
+
+
+def room_headroom_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = None
+                         ) -> ValidationReport:
+    """Every walkable floor cell in a room must have full character headroom clear above it —
+    catches low spots / intrusions a body would hit while just standing in a room."""
+    if canon is None:
+        canon = load_canon()
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    need = canon.headroom_min
+    for si, story in enumerate(spec.stories):
+        y = bases[si] + 1
+        low = 0
+        for r in story.rooms:
+            x0, z0, x1, z1 = _bounds(tuple(r.rect))
+            for x in range(x0, x1):
+                for z in range(z0, z1):
+                    if occ.get((x, y, z), 0) == _FULL_CUBE:     # a wall/partition cell, skip
+                        continue
+                    clear = 0
+                    for h in range(need):
+                        if occ.get((x, y + h, z), 0) == _FULL_CUBE:
+                            break
+                        clear += 1
+                    if clear < need:
+                        low += 1
+        if low:
+            rep.warn("ROOM_LOW_HEADROOM",
+                     f"{low} floor cell(s) on story {si} have less than {need} cubes of standing "
+                     "headroom", f"story {si}")
+    return rep
+
+
+def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = None
+                    ) -> ValidationReport:
+    """All deterministic building-geometry checks on a realized shell + its fixtures."""
+    from .playtest import merge
+    if canon is None:
+        canon = load_canon()
+    return merge(stair_clearance_report(spec, canvas, canon),
+                 opening_fit_report(spec, canvas),
+                 door_selection_report(spec),
+                 door_swing_report(spec, canvas),
+                 fixture_placement_report(spec, canvas),
+                 voxel_overlap_report(spec, canvas),
+                 wall_backed_report(spec, canvas),
+                 furniture_access_report(spec, canvas),
+                 ceiling_mounted_report(spec, canvas),
+                 stair_to_door_clearance_report(spec),
+                 clutter_on_surface_report(spec),
+                 circulation_report(spec, canvas),
+                 fixture_reachable_report(spec, canvas),
+                 window_exterior_report(spec),
+                 light_per_room_report(spec),
+                 shell_connectivity_report(spec, canvas),
+                 roof_coverage_report(spec, canvas),
+                 room_headroom_report(spec, canvas, canon))

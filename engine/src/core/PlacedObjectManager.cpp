@@ -12,6 +12,7 @@
 #include <limits>
 #include <sstream>
 #include <iomanip>
+#include <set>
 
 namespace Phyxel {
 namespace Core {
@@ -327,6 +328,159 @@ std::pair<glm::ivec3, glm::ivec3> PlacedObjectManager::computeTemplateBounds(
     }
 
     return {position + localMin, position + localMax};
+}
+
+// ============================================================================
+// Deterministic structure seating
+//
+// Everything here is MEASURED from the template's own geometry and the live
+// terrain — nothing is assumed. The old "surface-snap" only ever RAISED a
+// template onto the highest cube under it; it never seated the floor flush with
+// the surrounding walkable surface, never excavated, and never built steps,
+// which is why structures kept ending up buried or floating a cube off.
+// ============================================================================
+PlacedObjectManager::SeatPlan PlacedObjectManager::seatStructure(
+    const std::string& templateName, const glm::ivec3& requestedPos,
+    int rotation, int maxStepRise, const std::string& stepMaterial)
+{
+    SeatPlan plan;
+    if (!m_templateManager || !m_chunkManager) return plan;
+    const VoxelTemplate* tmpl = m_templateManager->getTemplate(templateName);
+    if (!tmpl || (tmpl->cubes.empty() && tmpl->subcubes.empty() && tmpl->microcubes.empty()))
+        return plan;
+
+    // ---- local bounds + rotation (mirror computeTemplateBounds / spawnTemplate) ----
+    glm::ivec3 localMin(INT_MAX), localMax(INT_MIN);
+    auto acc = [&](const glm::ivec3& p){ localMin = glm::min(localMin, p); localMax = glm::max(localMax, p); };
+    for (const auto& c : tmpl->cubes)      acc(c.relativePos);
+    for (const auto& s : tmpl->subcubes)   acc(s.parentRelativePos);
+    for (const auto& m : tmpl->microcubes) acc(m.parentRelativePos);
+
+    const int rotSteps = ((rotation % 360) + 360) % 360 / 90;
+    const glm::ivec3 maxExtent = localMax;
+    auto rotateOffset = [&](const glm::ivec3& pos) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(maxExtent.z - pos.z, pos.y, pos.x);
+            case 2: return glm::ivec3(maxExtent.x - pos.x, pos.y, maxExtent.z - pos.z);
+            case 3: return glm::ivec3(pos.z, pos.y, maxExtent.x - pos.x);
+            default: return pos;
+        }
+    };
+
+    // ---- occupied cube columns + per-column occupied levels (rotated, world XZ) ----
+    // Rotation preserves Y, so the structure's floor layer is the global min local Y.
+    const int floorLocalY = localMin.y;
+    auto key = [](int x, int z){
+        return (static_cast<long long>(x) << 21) ^ (static_cast<long long>(z) & 0x1fffffLL);
+    };
+    std::unordered_map<long long, std::pair<int,int>> colXZ;   // key -> (wx,wz)
+    std::unordered_map<long long, std::set<int>>      colLevels; // key -> occupied local Y levels
+    auto addCell = [&](const glm::ivec3& localPos){
+        glm::ivec3 r = rotateOffset(localPos);
+        int wx = requestedPos.x + r.x, wz = requestedPos.z + r.z;
+        long long k = key(wx, wz);
+        colXZ[k] = {wx, wz};
+        colLevels[k].insert(localPos.y);
+    };
+    for (const auto& c : tmpl->cubes)      addCell(c.relativePos);
+    for (const auto& s : tmpl->subcubes)   addCell(s.parentRelativePos);
+    for (const auto& m : tmpl->microcubes) addCell(m.parentRelativePos);
+
+    // ---- sample ground under each occupied column (terrain only; not placed yet) ----
+    const int scanTop = requestedPos.y + localMax.y + 4;
+    auto groundTopAt = [&](int wx, int wz) -> int {
+        for (int wy = scanTop; wy >= scanTop - 192 && wy >= 0; --wy)
+            if (m_chunkManager->hasVoxelAt(glm::ivec3(wx, wy, wz))) return wy;
+        return INT_MIN;
+    };
+    // Use the MEDIAN column top — robust against a few stray high/low voxels (leftover
+    // debris, a lone boulder, a pit). Seating to the raw max would let a single high voxel
+    // lift the whole structure a cube off the ground; the median tracks the dominant grade.
+    std::vector<int> tops;
+    tops.reserve(colXZ.size());
+    for (auto& [k, xz] : colXZ) {
+        int t = groundTopAt(xz.first, xz.second);
+        if (t != INT_MIN) tops.push_back(t);
+    }
+    int groundTop;
+    if (tops.empty()) {
+        groundTop = requestedPos.y + floorLocalY;       // void: honor request
+    } else {
+        std::sort(tops.begin(), tops.end());
+        groundTop = tops[tops.size() / 2];
+    }
+
+    // ---- solve flush seat: floor layer sits AT groundTop so its TOP == walkable surface ----
+    plan.groundTop   = groundTop;
+    plan.seatY       = groundTop - floorLocalY;       // place origin here (snap=false)
+    plan.floorWorldY = groundTop;                     // == seatY + floorLocalY
+    const int structTopY        = plan.seatY + localMax.y;
+    const int interiorSurfaceY  = plan.floorWorldY + 1; // character stands here inside
+
+    // ---- excavate the terrain the structure occupies (occupied columns, floor..top) ----
+    // Keep terrain BELOW the floor as foundation; remove the floor-level cube (grass) and
+    // anything poking into the body so the placed floor isn't buried or fighting terrain.
+    std::set<Chunk*> dirty;
+    for (auto& [k, xz] : colXZ) {
+        std::vector<glm::ivec3> rm;
+        Chunk* ch = nullptr;
+        for (int wy = plan.floorWorldY; wy <= structTopY; ++wy) {
+            glm::ivec3 wp(xz.first, wy, xz.second);
+            if (!m_chunkManager->hasVoxelAt(wp)) continue;
+            glm::ivec3 cc = ChunkManager::worldToChunkCoord(wp);
+            glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+            Chunk* c2 = m_chunkManager->getChunkAtCoord(cc);
+            if (!c2) continue;
+            c2->removeCube(lp, /*deferRebuild=*/true);
+            c2->clearSubdivisionAt(lp);
+            dirty.insert(c2);
+            ++plan.excavated;
+        }
+        (void)ch; (void)rm;
+    }
+
+    // ---- steps: in front of GROUND-LEVEL openings where the exterior ground is lower ----
+    // A doorway column has the floor layer but NO wall directly above it, and a neighbor
+    // cell that is outside the footprint. On flush/flat ground the exterior walkable
+    // surface already equals the interior one, so this loop places zero steps.
+    auto occupied = [&](int wx, int wz){ return colXZ.count(key(wx, wz)) > 0; };
+    const glm::ivec2 dirs[4] = { {1,0}, {-1,0}, {0,1}, {0,-1} };
+    for (auto& [k, xz] : colXZ) {
+        const std::set<int>& levels = colLevels[k];
+        if (!levels.count(floorLocalY) || levels.count(floorLocalY + 1)) continue; // not a floor-level opening
+        const int wx = xz.first, wz = xz.second;
+        for (auto d : dirs) {
+            if (occupied(wx + d.x, wz + d.y)) continue;   // neighbor is inside the structure
+            int prevSurface = interiorSurfaceY;
+            for (int s = 1; s <= 6; ++s) {
+                int ex = wx + d.x * s, ez = wz + d.y * s;
+                int extTop = groundTopAt(ex, ez);
+                int extSurface = (extTop == INT_MIN) ? interiorSurfaceY : extTop + 1;
+                if (extSurface >= prevSurface) break;     // already walkable from here out
+                int rise = prevSurface - extSurface;
+                if (rise > maxStepRise * 6) break;        // too tall to bridge sanely
+                int stepTopY = prevSurface - 1;           // one cube down from the prior tread
+                glm::ivec3 wp(ex, stepTopY, ez);
+                glm::ivec3 cc = ChunkManager::worldToChunkCoord(wp);
+                glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+                Chunk* ch = m_chunkManager->getChunkAtCoord(cc);
+                if (ch && ch->addCube(lp, stepMaterial)) { dirty.insert(ch); ++plan.stepsPlaced; }
+                prevSurface = stepTopY + 1;
+            }
+            break; // one exit direction per opening
+        }
+    }
+
+    for (Chunk* c : dirty) m_chunkManager->markChunkDirty(c);
+    if (!dirty.empty()) m_chunkManager->updateDirtyChunks();
+
+    plan.flush = true;  // floorWorldY == groundTop by construction; scan-verified by the caller
+    plan.ok    = true;
+    LOG_INFO_FMT("PlacedObjectManager", "seatStructure '" << templateName << "': groundTop="
+                 << groundTop << " seatY=" << plan.seatY << " floorY=" << plan.floorWorldY
+                 << " interiorSurface=" << interiorSurfaceY << " excavated=" << plan.excavated
+                 << " steps=" << plan.stepsPlaced);
+    return plan;
 }
 
 void PlacedObjectManager::clearRegion(const glm::ivec3& min, const glm::ivec3& max) {

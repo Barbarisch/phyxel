@@ -1,0 +1,29 @@
+{
+  "kind": "building",
+  "name": "cottage",
+  "style": "medieval",
+  "palette": { "wall": "Stone", "floor": "Wood", "roof": "Wood", "trim": "Wood" },
+  "function": "house",
+  "footprint": [10, 12],
+  "stories": [
+    {
+      "height": 4,
+      "rooms": [
+        { "id": "living",  "rect": [0, 0, 10, 7], "purpose": "main_hall", "floor_mat": "Wood" },
+        { "id": "bedroom", "rect": [0, 7, 10, 5], "purpose": "bedroom",   "floor_mat": "Wood" }
+      ],
+      "portals": [
+        { "between": ["exterior", "living"], "pos": [4, 0], "width": 1, "height": 2, "kind": "door",
+          "door": { "lockable": true, "key": "cottage_key", "swing": 90 } },
+        { "between": ["living", "bedroom"],  "pos": [4, 7], "width": 1, "height": 2, "kind": "door" },
+        { "between": ["living", "exterior"], "pos": [0, 3], "width": 2, "height": 2, "kind": "window" }
+      ],
+      "stairs": [],
+      "fixtures": [
+        { "type": "bed",   "rect": [1, 8, 2, 3], "facing": "north", "room": "bedroom" },
+        { "type": "table", "rect": [4, 3, 3, 2], "facing": "north", "room": "living" }
+      ]
+    }
+  ],
+  "roof": { "style": "pitched", "mat": "Wood" }
+}

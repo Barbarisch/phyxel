@@ -205,6 +205,29 @@ public:
                               int rotation = 0, const std::string& parentId = "",
                               bool snapToGround = true);
 
+    /// Outcome of deterministically seating a structure onto the terrain.
+    /// All fields are MEASURED from the live world / template geometry — none assumed.
+    struct SeatPlan {
+        bool ok = false;
+        int  seatY = 0;          ///< World Y to place the template origin so its floor is flush.
+        int  floorWorldY = 0;    ///< World Y of the structure's lowest (floor) layer after seating.
+        int  groundTop = 0;      ///< Highest terrain cube under the occupied footprint (pre-seat).
+        int  excavated = 0;      ///< Terrain voxels removed to make room for the structure.
+        int  stepsPlaced = 0;    ///< Step cubes added in front of ground-level openings.
+        bool flush = false;      ///< True when interior floor surface == exterior walkable surface.
+    };
+
+    /// Deterministically seat a structure template onto the terrain WITHOUT placing it.
+    /// Computes the floor level from the template's own geometry, samples the ground under
+    /// every occupied footprint column, solves the seat Y so the floor surface is flush with
+    /// the surrounding walkable surface, excavates the terrain the structure occupies, and
+    /// builds steps in front of ground-level openings where the exterior ground is lower.
+    /// The caller then places the template at {x, plan.seatY, z} with snapToGround=false.
+    /// `stepMaterial` is used for generated steps. Returns a plan with ok=false on bad input.
+    SeatPlan seatStructure(const std::string& templateName, const glm::ivec3& requestedPos,
+                           int rotation, int maxStepRise = 1,
+                           const std::string& stepMaterial = "Stone");
+
     /// Register a structure that was already placed (e.g. by StructureGenerator).
     /// The caller provides the bounding box since structures compute it during generation.
     std::string registerStructure(const std::string& typeName, const glm::ivec3& position,

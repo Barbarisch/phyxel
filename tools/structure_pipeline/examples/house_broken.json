@@ -1,0 +1,25 @@
+{
+  "kind": "building",
+  "name": "broken",
+  "function": "house",
+  "footprint": [10, 12],
+  "palette": {},
+  "stories": [
+    {
+      "height": 1,
+      "rooms": [
+        { "id": "a",      "rect": [0, 0, 6, 6] },
+        { "id": "b",      "rect": [4, 0, 6, 6] },
+        { "id": "c",      "rect": [0, 8, 4, 8] },
+        { "id": "orphan", "rect": [6, 8, 4, 4] }
+      ],
+      "portals": [
+        { "between": ["exterior", "a"], "pos": [2, 0], "width": 2, "height": 1, "kind": "door" },
+        { "between": ["a", "orphan"],   "pos": [2, 6], "width": 2, "height": 1, "kind": "door" }
+      ],
+      "stairs": [],
+      "fixtures": []
+    }
+  ],
+  "roof": {}
+}

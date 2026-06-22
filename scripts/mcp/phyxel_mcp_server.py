@@ -6325,6 +6325,7 @@ async def _launch_asset_editor(args: dict) -> dict:
         _asset_editor_process = subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,   # see _launch_engine: avoid ~7min Py_Initialize stdin stall
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -7121,6 +7122,11 @@ async def _launch_engine(args: dict) -> dict:
         _engine_process = subprocess.Popen(
             [str(exe_path)] + extra_args,
             cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,   # CRITICAL: detach from the MCP server's stdin pipe.
+            # The engine's embedded Python Py_Initialize blocks for ~7 MINUTES on an inherited
+            # pipe stdin (the MCP server is a Python/stdio process). DEVNULL stdin -> Py_Initialize
+            # completes in ~30ms. (Measured: 7min -> 8s total boot.) Without this every
+            # launch_engine call stalls the whole boot at "Initializing scripting system...".
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
