@@ -356,6 +356,25 @@ def make_book_stack(frame=OAK) -> DetailCanvas:
 
 # ----- surface clutter (small props that sit ON a table/desk/shelf) -----
 
+def make_barrel(stave=LOG, band="Metal", lid=OAK) -> DetailCanvas:
+    """A wooden barrel: octagonal stave body, two iron hoops, a lid (~0.9 m)."""
+    c = DetailCanvas()
+    W, H = 7, 8
+    c.fill_micro_box(0, 0, 0, W, H, W, stave)
+    for (cx, cz) in ((0, 0), (W - 1, 0), (0, W - 1), (W - 1, W - 1)):   # chamfer corners -> octagon
+        for y in range(H):
+            c.set_micro_cell(cx, y, cz, AIR)
+    for by in (1, H - 3):                                              # two iron hoops (perimeter)
+        for x in range(1, W - 1):
+            c.set_micro_cell(x, by, 0, band)
+            c.set_micro_cell(x, by, W - 1, band)
+        for z in range(1, W - 1):
+            c.set_micro_cell(0, by, z, band)
+            c.set_micro_cell(W - 1, by, z, band)
+    c.fill_micro_box(1, H - 1, 1, W - 2, 1, W - 2, lid)                # lid
+    return c
+
+
 def make_candlestick(metal=KNOB, candle=PILLOW, flame="glow") -> DetailCanvas:
     """A candlestick: base, stem, candle, glowing flame (~0.4 m)."""
     c = DetailCanvas()
@@ -473,6 +492,7 @@ PIECES = {
     "nightstand": (make_nightstand, "Nightstand", ["# facing:       +Z (drawer faces +Z)"]),
     "sideboard":  (make_sideboard, "Sideboard", ["# facing:       +Z (backs to a wall)"]),
     "rug":        (make_rug, "Rug", ["# flat:         floor covering (walkable, not an obstacle)"]),
+    "barrel":     (make_barrel, "Barrel", ["# facing:       +Z"]),
 }
 
 

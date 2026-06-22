@@ -280,9 +280,11 @@ def _post(engine: str, path: str, body: dict) -> dict:
 
 
 def _spawn(engine: str, name: str, x: int, y: int, z: int, rotation: int = 0) -> dict:
-    """spawn_template expects a NESTED position object, not flat x/y/z."""
+    """spawn_template expects a NESTED position object, not flat x/y/z. snap=false places at the
+    EXACT y so the shell, doors and furniture all align to the authored floor (no ground-snap)."""
     return _post(engine, "/api/world/template",
-                 {"name": name, "position": {"x": x, "y": y, "z": z}, "rotation": rotation})
+                 {"name": name, "position": {"x": x, "y": y, "z": z}, "rotation": rotation,
+                  "snap": False})
 
 
 def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) -> dict:

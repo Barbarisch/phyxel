@@ -22,6 +22,19 @@ substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing bett
 | Carpet / rug (patterned) | floors | area rugs, runners |
 | Plain plaster ceiling | ceilings | currently ceilings are the floor-above's underside |
 
+## TOP PRIORITY (from the furnished-mansion walkthrough, 2026-06-21)
+The furniture is forced to reuse a tiny palette, and **Bricks (red) is badly overused** — it's
+standing in for: bed coverlets, four-poster valances, book spines, and rug borders, so red brick
+shows up all over the interior. Highest-impact additions:
+- **Rug / carpet textures** (patterned: oriental, runner, oval; burgundy/blue/green) — a rug should
+  NOT be brick-red stone. This alone fixes much of the "too much brick" look.
+- **Cloth/linen/wool/velvet** in several colours (white linen sheets, wool blankets, velvet
+  drapes/upholstery) — replaces Bricks/Sandstone/Sand stand-ins on beds, coverlets, valances,
+  armchairs.
+- **Book-binding material** (leather/cloth spines, reds/greens/browns/gilt) — replaces the
+  Bricks/Log/Gold spine stand-ins.
+- **Dark/stained wood** distinct from light Wood — for ornate/manor furniture vs plain.
+
 ## Missing — soft goods / cloth (no cloth material exists at all)
 | Need | Used for |
 |------|----------|

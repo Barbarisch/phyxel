@@ -11558,10 +11558,12 @@ void Application::processAPICommands() {
                         }
                     }
 
-                    // Surface-snap: prevent placing templates inside the ground.
-                    // Scan the template's XZ footprint, find the highest occupied voxel
-                    // in each column, and raise y so the template sits on top.
-                    if (chunkManager) {
+                    // Surface-snap (default on): scan the footprint, find the highest occupied
+                    // voxel and raise y so the template sits on top. Pass "snap": false to place at
+                    // the EXACT requested y — deterministic structure builds (shell + furniture all
+                    // aligned to the authored floor, not snapped onto whatever terrain is below).
+                    bool snapToGround = cmd.params.value("snap", true);
+                    if (snapToGround && chunkManager) {
                         const auto* tmpl = objectTemplateManager->getTemplate(name);
                         if (tmpl) {
                             // Collect all integer cube XZ positions the template occupies
@@ -11600,7 +11602,7 @@ void Application::processAPICommands() {
                     if (isStatic && placedObjectManager) {
                         glm::ivec3 pos(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
                         std::string parentId = cmd.params.value("parent_id", "");
-                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId);
+                        std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId, snapToGround);
                         bool ok = !objectId.empty();
                         // Immediately persist placed_objects so the record survives engine restarts
                         // without requiring a separate save_world call
