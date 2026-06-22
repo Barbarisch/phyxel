@@ -258,8 +258,9 @@ def furniture_access_report(spec: BuildingSpec, canvas) -> ValidationReport:
     rep = ValidationReport()
     occ = _cube_occupancy(canvas)
     bases = _story_base_y(spec)
-    # front direction by facing (template front = +Z, rotated): N->+z E->+x S->-z W->-x
-    front_dir = {0: (0, 1), 90: (1, 0), 180: (0, -1), 270: (-1, 0)}
+    # front direction by rotation, matching the engine's rotateOffset (case1 rot90 maps +z -> -x):
+    # rot0->+z, rot90->-x, rot180->-z, rot270->+x
+    front_dir = {0: (0, 1), 90: (-1, 0), 180: (0, -1), 270: (1, 0)}
     for si, story in enumerate(spec.stories):
         y = bases[si] + 1
         for fi, f in enumerate(story.fixtures):
@@ -385,6 +386,60 @@ def template_cube_footprint(name: str, rotation: int = 0) -> Tuple[int, int]:
     zs = [z // 9 for _, _, z in cells]
     w, d = max(xs) - min(xs) + 1, max(zs) - min(zs) + 1
     return (d, w) if (rotation // 90) % 2 == 1 else (w, d)
+
+
+def _fixture_cube_height(tmpl: str) -> int:
+    cells = template_cells(tmpl)
+    return (max(y for _, y, _ in cells) // 9 + 1) if cells else 1
+
+
+def voxel_overlap_report(spec: BuildingSpec, canvas) -> ValidationReport:
+    """The blunt, authoritative check: rasterize every fixture's ACTUAL cubes (footprint x height,
+    at its real world Y) and flag any cube shared by two objects, or by a fixture and a wall. 3D,
+    so clutter on a surface (different Y) is fine; seats tucking under a table are exempt. This
+    supersedes the 2D footprint overlap."""
+    from .realize import (FIXTURE_TEMPLATES, _FACING_ROT, FLAT_TYPES, fixture_y_offset)
+    from .playtest import _seat_under_surface
+    rep = ValidationReport()
+    occ = _cube_occupancy(canvas)
+    bases = _story_base_y(spec)
+    for si, story in enumerate(spec.stories):
+        cellmap: Dict[Tuple[int, int, int], list] = {}
+        for fi, f in enumerate(story.fixtures):
+            if f.type in FLAT_TYPES:
+                continue
+            tmpl = FIXTURE_TEMPLATES.get(f.type)
+            if not tmpl:
+                continue
+            fw, fd = template_cube_footprint(tmpl, _FACING_ROT.get(f.facing, 0))
+            h = _fixture_cube_height(tmpl)
+            y0 = bases[si] + fixture_y_offset(f.type, story.height)
+            in_wall = False
+            for x in range(f.rect[0], f.rect[0] + fw):
+                for z in range(f.rect[1], f.rect[1] + fd):
+                    for y in range(y0, y0 + h):
+                        if occ.get((x, y, z), 0) == _FULL_CUBE:
+                            in_wall = True
+                        else:
+                            cellmap.setdefault((x, y, z), []).append((fi, f.type))
+            if in_wall:
+                rep.error("FURNITURE_IN_WALL",
+                          f"'{f.type}' at {f.rect} overlaps a wall in 3D", f"story {si} fixture #{fi}")
+        reported = set()
+        for cell, occ_list in cellmap.items():
+            if len(occ_list) < 2:
+                continue
+            for a in range(len(occ_list)):
+                for b in range(a + 1, len(occ_list)):
+                    (fa, ta), (fb, tb) = occ_list[a], occ_list[b]
+                    if fa == fb or _seat_under_surface(ta, tb):
+                        continue
+                    key = (min(fa, fb), max(fa, fb))
+                    if key not in reported:
+                        reported.add(key)
+                        rep.error("FURNITURE_VOXEL_OVERLAP",
+                                  f"'{ta}' and '{tb}' occupy the same cube {cell}", f"story {si}")
+    return rep
 
 
 def fixture_placement_report(spec: BuildingSpec, canvas) -> ValidationReport:
@@ -855,6 +910,7 @@ def geometry_report(spec: BuildingSpec, canvas, canon: Optional[ScaleCanon] = No
                  door_selection_report(spec),
                  door_swing_report(spec, canvas),
                  fixture_placement_report(spec, canvas),
+                 voxel_overlap_report(spec, canvas),
                  wall_backed_report(spec, canvas),
                  furniture_access_report(spec, canvas),
                  ceiling_mounted_report(spec, canvas),

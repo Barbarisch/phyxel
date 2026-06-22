@@ -226,10 +226,11 @@ class FurnitureAccessTests(unittest.TestCase):
         })
 
     def test_faces_room_ok(self):
-        self.assertTrue(G.furniture_access_report(self._room("east"), build_shell(self._room("east"))).ok)
+        # wardrobe near the west wall (x=0); facing "west" => front +x into the room
+        self.assertTrue(G.furniture_access_report(self._room("west"), build_shell(self._room("west"))).ok)
 
     def test_faces_wall_flagged(self):
-        spec = self._room("west")     # front (-x) is the x=0 wall
+        spec = self._room("east")     # facing "east" => front -x into the x=0 wall
         self.assertIn("FURNITURE_FACES_WALL", {i.code for i in G.furniture_access_report(spec, build_shell(spec)).errors})
 
 

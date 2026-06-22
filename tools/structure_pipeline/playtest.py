@@ -77,7 +77,7 @@ def classify_purpose(purpose: str) -> str:
 
 # Fixtures you sit at vs. the surfaces you pull up to — a seat tucked under a table legitimately
 # overlaps it in plan view, so that pair is exempt from the overlap check.
-_SEAT_TYPES = {"chair", "stool", "bench", "pew"}
+_SEAT_TYPES = {"chair", "stool", "bench", "pew", "armchair"}
 _SURFACE_TYPES = {"table", "counter", "bar", "desk"}
 
 

@@ -382,7 +382,7 @@
             1,
             2
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "entry_hall"
         },
         {
@@ -393,7 +393,7 @@
             1,
             2
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "entry_hall"
         },
         {
@@ -404,7 +404,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "entry_hall"
         },
         {
@@ -415,7 +415,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "entry_hall"
         },
         {
@@ -465,8 +465,8 @@
         {
           "type": "candelabra",
           "rect": [
-            2,
-            4,
+            1,
+            3,
             1,
             1
           ],
@@ -553,7 +553,7 @@
         {
           "type": "plate",
           "rect": [
-            3,
+            2,
             14,
             1,
             1
@@ -597,7 +597,7 @@
         {
           "type": "books",
           "rect": [
-            29,
+            28,
             18,
             1,
             1
@@ -880,7 +880,7 @@
             1,
             2
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "upper_landing"
         },
         {
@@ -891,7 +891,7 @@
             1,
             2
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "upper_landing"
         },
         {
@@ -902,7 +902,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "upper_landing"
         },
         {
@@ -913,7 +913,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "upper_landing"
         },
         {
@@ -935,7 +935,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "upper_landing"
         },
         {
@@ -1067,7 +1067,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "ismark_bedroom"
         },
         {
@@ -1078,7 +1078,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "ismark_bedroom"
         },
         {
@@ -1089,7 +1089,7 @@
             1,
             1
           ],
-          "facing": "west",
+          "facing": "east",
           "room": "ismark_bedroom"
         },
         {

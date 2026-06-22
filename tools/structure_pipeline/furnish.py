@@ -24,8 +24,9 @@ from .playtest import (_cube_occupancy, _story_base_y, _FULL_CUBE, _bounds,
                        _swing_sides, _swing_block, classify_purpose)
 
 Cell = Tuple[int, int]
-# wall the BACK faces -> facing string (front points into the room)
-_FACING_FOR_WALL = {(0, -1): "north", (0, 1): "south", (-1, 0): "east", (1, 0): "west"}
+# wall the BACK faces -> facing string whose FRONT points into the room (engine rot convention:
+# rot0/north front +z, rot90/east front -x, rot180/south front -z, rot270/west front +x).
+_FACING_FOR_WALL = {(0, -1): "north", (0, 1): "south", (-1, 0): "west", (1, 0): "east"}
 _SIDES = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}
 
 
@@ -81,6 +82,7 @@ class RoomPlan:
                 if rm is not None and rm.id == room.id:
                     self.keep_clear |= _swing_block(axis, coord, sign, p_lo, 2)
         self.fixtures: List[dict] = []
+        self.clutter_cells: set = set()
 
     # --- queries ---
     def footprint(self, ftype: str, facing: str) -> Tuple[int, int]:
@@ -160,9 +162,14 @@ class RoomPlan:
         return None
 
     def on_surface(self, ftype, surface: dict):
-        """Place a clutter item on a surface fixture (same near-corner cell)."""
+        """Place a clutter item on a free cell of a surface fixture (distinct from other clutter)."""
         x, z, fw, fd = surface["rect"]
-        self.add(ftype, x + fw // 2, z + fd // 2, "north")
+        for cx in range(x, x + fw):
+            for cz in range(z, z + fd):
+                if (cx, cz) not in self.clutter_cells:
+                    self.clutter_cells.add((cx, cz))
+                    return self.add(ftype, cx, cz, "north")
+        return self.add(ftype, x + fw // 2, z + fd // 2, "north")
 
     def light(self, prefer_table: Optional[dict] = None):
         """Guarantee a light source: candelabra on a table if available, else a wall sconce."""

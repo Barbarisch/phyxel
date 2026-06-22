@@ -1635,6 +1635,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // reappears" bug). Covers every removal path, not just the MCP handler.
     // Item props likewise tear down their kinematic render group.
     placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
+        // A registered door's voxels live in the KinematicVoxelManager (moved there by
+        // DoorManager::registerDoor so the leaf can swing), NOT in the chunk grid. The
+        // remove() path only clears static chunk cubes, so without this the kinematic
+        // door voxels survive removal -> stale/overlapping doors. unregisterDoor tears
+        // down the kinematic object; harmless no-op for non-door objects.
+        if (doorManager) doorManager->unregisterDoor(id);
         if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
         if (itemPropManager) itemPropManager->onPlacedObjectRemoved(id);
     });
@@ -11558,12 +11564,30 @@ void Application::processAPICommands() {
                         }
                     }
 
-                    // Surface-snap (default on): scan the footprint, find the highest occupied
-                    // voxel and raise y so the template sits on top. Pass "snap": false to place at
-                    // the EXACT requested y — deterministic structure builds (shell + furniture all
-                    // aligned to the authored floor, not snapped onto whatever terrain is below).
+                    // Structure seating (deterministic): when "seat": true, or the template
+                    // declares "# category: building", run the engine seater. It computes the
+                    // floor level from the template geometry, samples the ground under every
+                    // occupied column, solves the flush seat Y, EXCAVATES the footprint, and
+                    // builds steps in front of ground-level openings — so a character walks in
+                    // naturally and the floor is never buried/floating. This supersedes the
+                    // legacy raise-only surface-snap below.
                     bool snapToGround = cmd.params.value("snap", true);
-                    if (snapToGround && chunkManager) {
+                    Core::PlacedObjectManager::SeatPlan seatPlan;
+                    {
+                        bool seatMode = cmd.params.value("seat", false);
+                        const auto* tmplSeat = objectTemplateManager->getTemplate(name);
+                        if (!seatMode && tmplSeat && tmplSeat->category == "building") seatMode = true;
+                        if (seatMode && placedObjectManager && chunkManager) {
+                            seatPlan = placedObjectManager->seatStructure(
+                                name, glm::ivec3(static_cast<int>(x), static_cast<int>(y),
+                                                 static_cast<int>(z)), rotation);
+                            if (seatPlan.ok) {
+                                y = static_cast<float>(seatPlan.seatY);
+                                snapToGround = false;  // exact placement at the computed seat Y
+                            }
+                        }
+                    }
+                    if (!seatPlan.ok && snapToGround && chunkManager) {
                         const auto* tmpl = objectTemplateManager->getTemplate(name);
                         if (tmpl) {
                             // Collect all integer cube XZ positions the template occupies
@@ -11614,6 +11638,15 @@ void Application::processAPICommands() {
                                     {"object_id", objectId},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                     {"rotation", rotation}};
+                        if (seatPlan.ok) {
+                            response["seat"] = {{"seat_y", seatPlan.seatY},
+                                                {"floor_y", seatPlan.floorWorldY},
+                                                {"ground_top", seatPlan.groundTop},
+                                                {"interior_surface", seatPlan.floorWorldY + 1},
+                                                {"excavated", seatPlan.excavated},
+                                                {"steps", seatPlan.stepsPlaced},
+                                                {"flush", seatPlan.flush}};
+                        }
                     } else {
                         bool ok = objectTemplateManager->spawnTemplate(name, glm::vec3(x, y, z), isStatic, rotation);
                         response = {{"success", ok}, {"template", name},

@@ -16,6 +16,7 @@ Walls stay full cubes; only the framed openings and roof coping spend subcubes/m
 from __future__ import annotations
 
 import json
+import time
 import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -279,19 +280,70 @@ def _post(engine: str, path: str, body: dict) -> dict:
         return {"error": str(e)}
 
 
-def _spawn(engine: str, name: str, x: int, y: int, z: int, rotation: int = 0) -> dict:
+def _get(engine: str, path: str) -> dict:
+    try:
+        return json.loads(urllib.request.urlopen(engine + path, timeout=20).read().decode())
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _ground_surface(engine: str, px: int, pz: int, W: int, D: int) -> Optional[int]:
+    """Terrain surface Y at the footprint centre (queried BEFORE the structure is placed)."""
+    r = _get(engine, f"/api/world/terrain_height?x={px + W // 2}&z={pz + D // 2}")
+    sy = r.get("surface_y")
+    return int(sy) if isinstance(sy, (int, float)) else None
+
+
+def _clear_region(engine: str, x1: int, y1: int, z1: int, x2: int, y2: int, z2: int,
+                  timeout: float = 60.0) -> dict:
+    """Clear chunk voxels in the INCLUSIVE AABB and WAIT for the async job to finish.
+
+    /api/world/clear expects flat x1..z2 (NOT min/max) and returns {async_id}; the work runs
+    asynchronously, so we must poll /api/async/<id> until 'complete' before spawning on top."""
+    r = _post(engine, "/api/world/clear",
+              {"x1": x1, "y1": y1, "z1": z1, "x2": x2, "y2": y2, "z2": z2})
+    aid = r.get("async_id")
+    if not aid:
+        return r
+    waited = 0.0
+    while waited < timeout:
+        time.sleep(0.5); waited += 0.5
+        p = _get(engine, f"/api/async/{aid}")
+        if "error" in p or p.get("status") == "complete":
+            return p
+    return {"error": "clear timed out", "async_id": aid}
+
+
+def _spawn(engine: str, name: str, x: int, y: int, z: int, rotation: int = 0,
+           seat: bool = False) -> dict:
     """spawn_template expects a NESTED position object, not flat x/y/z. snap=false places at the
-    EXACT y so the shell, doors and furniture all align to the authored floor (no ground-snap)."""
-    return _post(engine, "/api/world/template",
-                 {"name": name, "position": {"x": x, "y": y, "z": z}, "rotation": rotation,
-                  "snap": False})
+    EXACT y so doors and furniture align to the authored floor. seat=true asks the ENGINE to
+    deterministically seat a structure: compute the floor level from geometry, sample the ground,
+    excavate the footprint and build entry steps; the response carries the computed seat['seat_y'].
+    """
+    body = {"name": name, "position": {"x": x, "y": y, "z": z}, "rotation": rotation,
+            "snap": False}
+    if seat:
+        body["seat"] = True
+    return _post(engine, "/api/world/template", body)
 
 
 def drive_engine(spec: BuildingSpec, name: str, position, engine: str = ENGINE) -> dict:
-    """Spawn the (already-loaded) shell template, then place functional doors + furniture."""
+    """Spawn the (already-loaded) shell template, then place functional doors + furniture.
+
+    Terrain seating is the ENGINE's job (seatStructure): we spawn the shell with seat=True and the
+    engine computes the floor level from the shell geometry, samples the ground under the footprint,
+    excavates the terrain the building occupies, and builds entry steps where the ground is lower.
+    We read back the computed floor Y and align every door/fixture to it — no terrain guessing in
+    Python. The shell's floor is local y=0, so the returned seat_y is the local-frame origin for all
+    dependent placements."""
     px, py, pz = position
     W, D = spec.footprint
-    out = {"shell": _spawn(engine, name, px, py, pz), "doors": [], "fixtures": [], "lights": 0}
+    shell = _spawn(engine, name, px, py, pz, seat=True)
+    seat = shell.get("seat") or {}
+    py = int(seat.get("seat_y", py))                  # engine-computed flush floor origin
+    out = {"shell": shell, "doors": [], "fixtures": [], "lights": 0,
+           "floor_y": int(seat.get("floor_y", py)), "seat": seat}
     light_count = 0
 
     baseY = 0
