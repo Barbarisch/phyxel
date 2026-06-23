@@ -74,20 +74,12 @@ std::vector<uint8_t> AtlasManager::generateFallbackTexture(int slotIndex) const 
 }
 
 void AtlasManager::blitToAtlas(int slotIndex, const uint8_t* texPixels) {
-    int col = slotIndex % TEXTURES_PER_ROW;
-    int row = slotIndex / TEXTURES_PER_ROW;
-    int destX = col * CELL_SIZE + PADDING;
-    int destY = row * CELL_SIZE + PADDING;
-    int atlasW = atlasInfo_.atlasWidth;
-
-    for (int y = 0; y < TEXTURE_SIZE; y++) {
-        int srcOffset = y * TEXTURE_SIZE * 4;
-        int dstOffset = ((destY + y) * atlasW + destX) * 4;
-        if (dstOffset + TEXTURE_SIZE * 4 <= static_cast<int>(atlasInfo_.pixels.size())) {
-            memcpy(atlasInfo_.pixels.data() + dstOffset,
-                   texPixels + srcOffset,
-                   TEXTURE_SIZE * 4);
-        }
+    // Layer-major: each texture occupies one contiguous TEXTURE_SIZE² RGBA block,
+    // indexed by slotIndex (== texture array layer == textureIndex).
+    const size_t layerBytes = static_cast<size_t>(TEXTURE_SIZE) * TEXTURE_SIZE * 4;
+    const size_t dstOffset = static_cast<size_t>(slotIndex) * layerBytes;
+    if (dstOffset + layerBytes <= atlasInfo_.pixels.size()) {
+        memcpy(atlasInfo_.pixels.data() + dstOffset, texPixels, layerBytes);
     }
 }
 
@@ -99,37 +91,22 @@ bool AtlasManager::buildAtlas() {
         return false;
     }
 
-    // Calculate atlas size
-    int atlasW, atlasH;
-    calcAtlasDimensions(textureCount, atlasW, atlasH);
-
-    atlasInfo_.atlasWidth = atlasW;
-    atlasInfo_.atlasHeight = atlasH;
+    // Texture array: one TEXTURE_SIZE² RGBA layer per texture, stored layer-major.
+    // layer index == textureIndex == MaterialRegistry atlas index.
+    const size_t layerBytes = static_cast<size_t>(TEXTURE_SIZE) * TEXTURE_SIZE * 4;
+    atlasInfo_.atlasWidth = TEXTURE_SIZE;
+    atlasInfo_.atlasHeight = TEXTURE_SIZE;
     atlasInfo_.textureCount = textureCount;
-    atlasInfo_.pixels.assign(atlasW * atlasH * 4, 0); // Clear to transparent black
+    atlasInfo_.layerCount = textureCount;
+    atlasInfo_.pixels.assign(layerBytes * textureCount, 0); // clear to transparent black
 
-    // Get material list and load each face's source PNG
+    // uvBounds is no longer used for sampling (each layer is a full 0..1 tile), but the
+    // fragment shader still reads textureCount/fallbackIndex from the same SSBO, so we keep
+    // a full-tile entry per layer.
+    atlasInfo_.uvBounds.assign(textureCount, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+
+    // Iterate all materials and all faces, load each source PNG into its layer.
     const auto& materials = registry.getAllMaterials();
-    float fAtlasW = static_cast<float>(atlasW);
-    float fAtlasH = static_cast<float>(atlasH);
-
-    atlasInfo_.uvBounds.resize(textureCount);
-
-    // Atlas texture ordering: textures are placed alphabetically by filename
-    // in the atlas. The MaterialRegistry stores atlas indices that match this order.
-    // We iterate by atlas slot index to fill each position.
-
-    // Build a mapping: slot index → source PNG filename
-    // MaterialRegistry stores face indices as materialID * 6 + faceID BUT
-    // the actual atlas is alphabetically ordered. We need to match the existing layout.
-    //
-    // The face filenames in materials.json define source PNG names.
-    // The atlas index for each face comes from MaterialRegistry::getTextureIndex().
-    // These indices correspond to the alphabetical position in the atlas.
-
-    // Iterate all materials and all faces, load and place each
-    static const char* faceNames[6] = { "side_n", "side_s", "side_e", "side_w", "top", "bottom" };
-
     for (const auto& mat : materials) {
         int matID = registry.getMaterialID(mat.name);
         if (matID < 0) continue;
@@ -144,7 +121,6 @@ bool AtlasManager::buildAtlas() {
             uint16_t atlasIdx = registry.getTextureIndex(matID, faceID);
             if (atlasIdx == MaterialRegistry::INVALID_TEXTURE_INDEX) continue;
 
-            // Load source PNG
             std::string path = sourceDirectory_ + "/" + faceFiles[faceID];
             auto texPixels = loadPNG(path);
             if (texPixels.empty()) {
@@ -152,23 +128,12 @@ bool AtlasManager::buildAtlas() {
                 texPixels = generateFallbackTexture(atlasIdx);
             }
 
-            // Blit into atlas
-            blitToAtlas(atlasIdx, texPixels.data());
-
-            // Compute UV bounds
-            int col = atlasIdx % TEXTURES_PER_ROW;
-            int row = atlasIdx / TEXTURES_PER_ROW;
-            float pixelX = static_cast<float>(col * CELL_SIZE + PADDING);
-            float pixelY = static_cast<float>(row * CELL_SIZE + PADDING);
-            atlasInfo_.uvBounds[atlasIdx] = glm::vec4(
-                pixelX / fAtlasW, pixelY / fAtlasH,
-                (pixelX + TEXTURE_SIZE) / fAtlasW, (pixelY + TEXTURE_SIZE) / fAtlasH
-            );
+            blitToAtlas(atlasIdx, texPixels.data()); // blit into layer
         }
     }
 
-    LOG_INFO("AtlasManager", "Built atlas: {}x{}, {} textures from {} materials",
-             atlasW, atlasH, textureCount, materials.size());
+    LOG_INFO("AtlasManager", "Built texture array: {} layers @ {}x{} from {} materials",
+             textureCount, TEXTURE_SIZE, TEXTURE_SIZE, materials.size());
     return true;
 }
 
@@ -181,10 +146,10 @@ bool AtlasManager::updateTextureSlot(int slotIndex, const uint8_t* pixels) {
 
 bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
     if (!device || atlasInfo_.pixels.empty()) return false;
-    return device->uploadTextureAtlasPixels(
+    return device->uploadTextureArray(
         atlasInfo_.pixels.data(),
-        atlasInfo_.atlasWidth,
-        atlasInfo_.atlasHeight);
+        TEXTURE_SIZE,
+        atlasInfo_.layerCount);
 }
 
 void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
@@ -255,31 +220,22 @@ bool AtlasManager::reloadMaterial(const std::string& materialName, Vulkan::Vulka
 
 bool AtlasManager::saveAtlasPNG(const std::string& path) const {
     if (atlasInfo_.pixels.empty()) return false;
+    // Debug dump: write all layers stacked into one tall vertical strip.
     int result = stbi_write_png(path.c_str(),
-        atlasInfo_.atlasWidth, atlasInfo_.atlasHeight,
+        TEXTURE_SIZE, TEXTURE_SIZE * atlasInfo_.layerCount,
         4, atlasInfo_.pixels.data(),
-        atlasInfo_.atlasWidth * 4);
+        TEXTURE_SIZE * 4);
     return result != 0;
 }
 
 std::vector<uint8_t> AtlasManager::getTextureSlotPixels(int slotIndex) const {
-    if (slotIndex < 0 || slotIndex >= atlasInfo_.textureCount) return {};
+    if (slotIndex < 0 || slotIndex >= atlasInfo_.layerCount) return {};
 
-    std::vector<uint8_t> result(TEXTURE_SIZE * TEXTURE_SIZE * 4);
-    int col = slotIndex % TEXTURES_PER_ROW;
-    int row = slotIndex / TEXTURES_PER_ROW;
-    int srcX = col * CELL_SIZE + PADDING;
-    int srcY = row * CELL_SIZE + PADDING;
-    int atlasW = atlasInfo_.atlasWidth;
-
-    for (int y = 0; y < TEXTURE_SIZE; y++) {
-        int srcOffset = ((srcY + y) * atlasW + srcX) * 4;
-        int dstOffset = y * TEXTURE_SIZE * 4;
-        if (srcOffset + TEXTURE_SIZE * 4 <= static_cast<int>(atlasInfo_.pixels.size())) {
-            memcpy(result.data() + dstOffset,
-                   atlasInfo_.pixels.data() + srcOffset,
-                   TEXTURE_SIZE * 4);
-        }
+    const size_t layerBytes = static_cast<size_t>(TEXTURE_SIZE) * TEXTURE_SIZE * 4;
+    std::vector<uint8_t> result(layerBytes);
+    const size_t srcOffset = static_cast<size_t>(slotIndex) * layerBytes;
+    if (srcOffset + layerBytes <= atlasInfo_.pixels.size()) {
+        memcpy(result.data(), atlasInfo_.pixels.data() + srcOffset, layerBytes);
     }
     return result;
 }

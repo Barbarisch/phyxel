@@ -13,23 +13,30 @@ namespace Core {
 
 class MaterialRegistry;
 
-/// Manages the texture atlas: builds from source PNGs, hot-reloads at runtime.
+/// Manages the voxel texture set: builds from source PNGs, hot-reloads at runtime.
 /// Works with MaterialRegistry for material→texture slot mapping and
 /// VulkanDevice for GPU texture upload + SSBO updates.
+///
+/// NOTE (texture-array migration, feature/texture-array-pbr): the GPU texture is now a
+/// sampler2DArray — one layer per texture, indexed directly by the per-face textureIndex.
+/// `pixels` is stored layer-major (layer = textureIndex), each layer TEXTURE_SIZE² RGBA.
+/// The old 2D packed-atlas + per-tile UV-bounds math is gone; uvBounds is kept only to
+/// carry textureCount/fallbackIndex to the fragment shader via the existing SSBO.
 class AtlasManager {
 public:
-    static constexpr int TEXTURE_SIZE = 64;      // Pixels per texture side
-    static constexpr int PADDING = 1;            // Pixels between textures
-    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 66
-    static constexpr int TEXTURES_PER_ROW = 6;
-    static constexpr int MAX_ATLAS_SIZE = 2048;  // Max atlas dimension
+    static constexpr int TEXTURE_SIZE = 64;      // Pixels per texture side (per array layer)
+    static constexpr int PADDING = 1;            // Legacy (unused by array path)
+    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 66 (legacy)
+    static constexpr int TEXTURES_PER_ROW = 6;   // Legacy (unused by array path)
+    static constexpr int MAX_ATLAS_SIZE = 2048;  // Legacy (unused by array path)
 
     struct AtlasInfo {
-        int atlasWidth = 0;
-        int atlasHeight = 0;
+        int atlasWidth = 0;                // = TEXTURE_SIZE (per-layer dimensions)
+        int atlasHeight = 0;               // = TEXTURE_SIZE
         int textureCount = 0;
-        std::vector<uint8_t> pixels;       // RGBA pixel data
-        std::vector<glm::vec4> uvBounds;   // Per-slot UV bounds (u_min, v_min, u_max, v_max)
+        int layerCount = 0;                // texture array layer count (== textureCount)
+        std::vector<uint8_t> pixels;       // RGBA pixel data, LAYER-MAJOR (layer = textureIndex)
+        std::vector<glm::vec4> uvBounds;   // Per-layer full-tile bounds (0,0,1,1); SSBO metadata only
     };
 
     AtlasManager();
@@ -49,6 +56,9 @@ public:
 
     /// Get the last built atlas info (pixels + UVs).
     const AtlasInfo& getAtlasInfo() const { return atlasInfo_; }
+
+    /// Number of texture array layers in the last build.
+    int getLayerCount() const { return atlasInfo_.layerCount; }
 
     /// Hot-reload: rebuild atlas from source PNGs, upload to Vulkan, update SSBO.
     /// Call this after editing textures or adding materials.

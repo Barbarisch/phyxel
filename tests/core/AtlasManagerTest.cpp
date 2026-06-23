@@ -33,12 +33,18 @@ TEST_F(AtlasManagerTest, BuildAtlasFromSourcePNGs) {
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
+    // Texture-array layout: one TEXTURE_SIZE² RGBA layer per texture, stored layer-major.
     const auto& info = atlas.getAtlasInfo();
-    EXPECT_EQ(info.textureCount, 108);
-    EXPECT_EQ(info.atlasWidth, 2048);
-    EXPECT_EQ(info.atlasHeight, 2048);
-    EXPECT_EQ(info.pixels.size(), 2048u * 2048u * 4u);
-    EXPECT_EQ(info.uvBounds.size(), 108u);
+    const int expectedCount = MaterialRegistry::instance().getTextureCount();
+    EXPECT_GT(expectedCount, 0);
+    EXPECT_EQ(info.textureCount, expectedCount);
+    EXPECT_EQ(info.layerCount, expectedCount);
+    EXPECT_EQ(info.atlasWidth, AtlasManager::TEXTURE_SIZE);   // per-layer dimensions
+    EXPECT_EQ(info.atlasHeight, AtlasManager::TEXTURE_SIZE);
+    const size_t layerBytes = static_cast<size_t>(AtlasManager::TEXTURE_SIZE)
+                            * AtlasManager::TEXTURE_SIZE * 4u;
+    EXPECT_EQ(info.pixels.size(), layerBytes * static_cast<size_t>(expectedCount));
+    EXPECT_EQ(info.uvBounds.size(), static_cast<size_t>(expectedCount));
 }
 
 TEST_F(AtlasManagerTest, GetTextureSlotPixels) {
@@ -75,16 +81,17 @@ TEST_F(AtlasManagerTest, UpdateTextureSlot) {
     EXPECT_EQ(readBack[1], 0);   // Green
 }
 
-TEST_F(AtlasManagerTest, UVBoundsCorrectness) {
+TEST_F(AtlasManagerTest, UVBoundsAreFullTilePerLayer) {
     auto& atlas = AtlasManager::instance();
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
+    // In the texture-array path each layer is a full 0..1 tile; uvBounds carries only
+    // SSBO metadata, so every entry is (0,0,1,1).
     const auto& info = atlas.getAtlasInfo();
-    // Slot 0: col=0, row=0, pixelX=1, pixelY=1, size=64px on 2048 atlas
     glm::vec4 uv0 = info.uvBounds[0];
-    EXPECT_NEAR(uv0.x,  1.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.y,  1.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.z, 65.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.w, 65.0f / 2048.0f, 0.001f);
+    EXPECT_NEAR(uv0.x, 0.0f, 0.001f);
+    EXPECT_NEAR(uv0.y, 0.0f, 0.001f);
+    EXPECT_NEAR(uv0.z, 1.0f, 0.001f);
+    EXPECT_NEAR(uv0.w, 1.0f, 0.001f);
 }

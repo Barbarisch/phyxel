@@ -20,7 +20,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
 } ubo;
 
-layout(set = 0, binding = 1) uniform sampler2D textureAtlas;  // texture atlas sampler
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;  // per-texture array layer
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;     // shadow map sampler
 
 // Point light (32 bytes, std430)
@@ -56,13 +56,14 @@ layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
 
 layout(location = 0) out vec4 outColor;   // output color
 
-// Get this texture's atlas tile bounds (xy = min UV, zw = max UV).
-vec4 getAtlasBounds(uint texIndex) {
+// Resolve a per-face texture index to a safe array layer, falling back to the placeholder
+// layer for out-of-range / sentinel (0xFFFF) indices.
+float getTextureLayer(uint texIndex) {
     uint safeIdx = texIndex;
     if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount) {
         safeIdx = atlasUVs.fallbackIndex;
     }
-    return atlasUVs.textureUVs[safeIdx];
+    return float(safeIdx);
 }
 
 // Calculate attenuation for a light at distance d with given radius
@@ -96,21 +97,11 @@ const vec2 poissonDisk[16] = vec2[](
 );
 
 void main() {
-    // Atlas tiling: texCoord runs 0..sizeU, 0..sizeV for greedy-merged faces (1x1 for
-    // unit faces). fract() wraps it into this texture's atlas tile so the texture repeats;
-    // a half-texel inset keeps bilinear filtering from bleeding into neighbouring atlas
-    // tiles at the wrap seams. textureGrad uses the continuous (un-wrapped) derivatives so
-    // mip selection has no seam at tile boundaries.
-    vec4 atlasBounds = getAtlasBounds(textureIndex);
-    vec2 atlasSpan = atlasBounds.zw - atlasBounds.xy;
-    vec2 atlasTexel = 0.5 / vec2(textureSize(textureAtlas, 0));
-    vec2 atlasUV = clamp(atlasBounds.xy + atlasSpan * fract(texCoord),
-                         atlasBounds.xy + atlasTexel, atlasBounds.zw - atlasTexel);
-
-    // Sample from texture atlas (gradient from continuous UV to avoid mip seams)
-    vec4 textureColor = textureGrad(textureAtlas, atlasUV,
-                                    dFdx(texCoord) * atlasSpan,
-                                    dFdy(texCoord) * atlasSpan);
+    // Texture array: each layer is a full 0..1 tile. texCoord runs 0..sizeU, 0..sizeV for
+    // greedy-merged faces (1x1 for unit faces); REPEAT wrap tiles it across the layer with
+    // no atlas bleed, and hardware derivatives drive mip selection directly.
+    float texLayer = getTextureLayer(textureIndex);
+    vec4 textureColor = texture(textureArray, vec3(texCoord, texLayer));
 
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;

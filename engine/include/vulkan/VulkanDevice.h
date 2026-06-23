@@ -185,6 +185,10 @@ public:
     // Texture atlas management
     bool loadTextureAtlas(const std::string& atlasPath);
     bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
+    // Upload a layer-major RGBA texture array (one texSize² layer per textureIndex) into
+    // the voxel texture image as a 2D array with a full mip chain. Replaces the old packed
+    // 2D atlas. `pixels` size must be texSize*texSize*4*layerCount.
+    bool uploadTextureArray(const uint8_t* pixels, int texSize, int layerCount);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();
