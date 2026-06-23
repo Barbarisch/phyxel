@@ -12,6 +12,11 @@
 #endif
 
 #include "core/EngineAPIServer.h"
+#include "core/StructureBriefSchema.h"
+#include "core/StructureBrief.h"
+#include "core/StructureBriefValidator.h"
+#include <fstream>
+#include <sstream>
 
 // cpp-httplib for the HTTP server
 #include <httplib.h>
@@ -1053,6 +1058,46 @@ void EngineAPIServer::setupRoutes() {
     srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("list_structure_types", json::object());
         res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/structure/brief/schema — the engine-resident intake field schema
+    // (the StructureBrief question bank). Single source of truth for ALL drivers
+    // (in-engine wizard/CLI, the Claude /structure skill). See docs/StructureBrief.md.
+    // ====================================================================
+    srv.Get("/api/structure/brief/schema", [](const httplib::Request&, httplib::Response& res) {
+        std::ifstream f("resources/structure_brief_schema.json");
+        if (!f.is_open()) {
+            res.status = 404;
+            res.set_content(json({{"error", "structure_brief_schema.json not found"}}).dump(),
+                            "application/json");
+            return;
+        }
+        std::stringstream ss; ss << f.rdbuf();
+        res.set_content(ss.str(), "application/json");   // passthrough (already the wire schema)
+    });
+
+    // ====================================================================
+    // POST /api/structure/brief/validate — validate a filled StructureBrief
+    // against the schema. Returns the ValidationReport + "buildable". The build
+    // GATE is WARN-BUT-ALLOW: buildable=false means loud warnings, not a refusal.
+    // Body: { "schema":"structure_brief/v1", "fields": { "<id>": {value, source, confirmed} } }
+    // ====================================================================
+    srv.Post("/api/structure/brief/validate", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = json::parse(req.body);
+            StructureBriefSchema schema;
+            schema.loadFromFile("resources/structure_brief_schema.json");
+            StructureBrief brief = StructureBrief::fromJson(body);
+            ValidationReport report = StructureBriefValidator::validate(brief, schema);
+            json out = report.toJson();
+            out["buildable"] = report.ok();
+            res.set_content(out.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json({{"error", "Invalid JSON"}, {"detail", e.what()}}).dump(),
+                            "application/json");
+        }
     });
 
     // ====================================================================

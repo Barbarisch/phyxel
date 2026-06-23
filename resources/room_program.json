@@ -1,0 +1,62 @@
+{
+  "_comment": "Room Program canon — period-grounded room/building sizing for Structure Generation v2. MEDIEVAL frame: sizes derive from the BAY (the structural module between cross-frames) + house typology, NOT from modern residential area tables. Units = CUBES (1 cube = 1 m). Every value carries a `sources` entry (the grounding rule). 'bays' on a room = how many structural bays it occupies. See docs/StructureBrief.md + docs/StructureGenerationV2.md. Modern 1500/2100 sq ft figures DO NOT apply here.",
+  "_units": "cubes (metres). bay_length/width in cubes; 'bays' = structural-bay count.",
+  "programs": {
+    "croft": {
+      "description": "Single-room peasant cottage — one 'house' room with a central hearth.",
+      "width_min": 4, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 3.0,
+      "rooms": [ { "id": "house", "purpose": "living", "bays": 2 } ],
+      "source": "Wharram Percy / vernacular cruck cottage; cruck dwelling width <=6 m",
+      "sources": {
+        "width_max": "crucks for houses/barns 'no more than 6 m (20 ft) wide' (buildingconservation.com timber-framed buildings)",
+        "bay_length": "DERIVED ~4 m: 4-bay longhouse 15-18 m / 4 (Wikipedia Longhouse, Germanic 50-60 ft); canonical module per Brunskill, Timber Building in England (1985) — TBD",
+        "bays": "1-2 bay peasant cottage (Wharram Percy excavation, Beresford & Hurst)"
+      }
+    },
+    "longhouse": {
+      "description": "Peasant longhouse — dwelling end (inner room + hall) + cross passage + byre, under one roof.",
+      "width_min": 4, "width_max": 6, "bay_length": 4, "bays": 4, "proportion_max": 4.0,
+      "rooms": [
+        { "id": "inner",  "purpose": "bedchamber", "bays": 1 },
+        { "id": "hall",   "purpose": "living",     "bays": 1 },
+        { "id": "byre",   "purpose": "byre",        "bays": 2 }
+      ],
+      "source": "Dartmoor / Wharram Percy longhouse (Wikipedia Longhouse; English Heritage Wharram Percy)",
+      "sources": {
+        "bays": "Dartmoor longhouse = 'two crucked bays, a cross passage, and two crucked bays' (Wikipedia Longhouse)",
+        "length": "Germanic longhouse '50 to 60 feet long' = 15-18 m (Wikipedia Longhouse)",
+        "rooms": "inner room (sleeping/dairy) + living room w/ central hearth + cross passage + byre (English Heritage, Wharram Percy)",
+        "width_max": "cruck dwelling <=6 m (buildingconservation.com)"
+      }
+    },
+    "hall_house": {
+      "description": "Yeoman/gentry hall house — open hall (middle two bays) flanked by service (lower) and solar (upper) ends.",
+      "width_min": 6, "width_max": 8, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
+      "rooms": [
+        { "id": "service", "purpose": "service", "bays": 1 },
+        { "id": "hall",    "purpose": "hall",    "bays": 2 },
+        { "id": "solar",   "purpose": "solar",   "bays": 1 }
+      ],
+      "source": "Medieval hall house (Wikipedia Hall house)",
+      "sources": {
+        "bays": "'four-bay cruck-framed structure, with the open hall taking up the two bays in the middle' (Wikipedia Hall house)",
+        "rooms": "open hall (middle 2 bays) + service end + solar (Wikipedia Hall house)",
+        "example": "c.1530 hall house 14.2 m x 6.7 m (Wikipedia Great hall)"
+      }
+    },
+    "manor_hall": {
+      "description": "Stone manor / great hall — large open hall, length 1.5-3x its width and higher than wide.",
+      "width_min": 8, "width_max": 17, "bay_length": 5, "bays": 4, "proportion_min": 1.5, "proportion_max": 3.0,
+      "rooms": [
+        { "id": "screens", "purpose": "service", "bays": 1 },
+        { "id": "great_hall", "purpose": "hall", "bays": 3 }
+      ],
+      "source": "Medieval great hall (Wikipedia Great hall)",
+      "sources": {
+        "proportion": "'between one and a half and three times as long as it was wide, and also higher than it was wide' (Wikipedia Great hall)",
+        "examples": "Stokesay 15.2 x 7.9 m (~1.9x); Winchester 33.8 x 16.8 m (~2.0x) (Wikipedia Great hall)",
+        "width_max": "largest true cruck span Leigh Court 10.2 m; great halls wider via aisles (buildingconservation.com; Wikipedia Great hall)"
+      }
+    }
+  }
+}

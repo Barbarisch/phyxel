@@ -1,0 +1,120 @@
+#pragma once
+
+// ============================================================================
+// AssemblyPlan — the DERIVED physical anatomy (level 4 of Structure Generation
+// v2; docs/StructureGenerationV2.md). "How it's built."
+//
+// Computed deterministically in-engine from a BuildingProgram + a StyleProfile +
+// live terrain by the (future) StructureRealizer, then realized into voxels via
+// the MicroCanvas. P0 defines the TYPES + round-trip serialization so the
+// realizer and the post-build geometry gates share one contract; the realizer
+// that populates it arrives in P1.
+//
+// Coordinates are world-space cubes unless noted. Thicknesses are in cubes.
+// ============================================================================
+
+#include <string>
+#include <vector>
+
+#include <glm/glm.hpp>
+#include <nlohmann/json.hpp>
+
+namespace Phyxel {
+namespace Core {
+
+/// One footprint column of the foundation, with its terrain-adaptive depth.
+/// `bearingY` is where the footing reaches solid ground (stepped on slopes);
+/// `topY` is the top of the foundation (where the floor system sits).
+struct FoundationColumn {
+    int x = 0, z = 0;
+    int bearingY = 0;
+    int topY = 0;
+    std::string material;
+
+    static FoundationColumn fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A straight wall run (exterior | interior | foundation) from (x0,z0) to (x1,z1).
+struct WallSegment {
+    int x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+    int baseY = 0, height = 0;
+    double thickness = 0.333;       ///< in cubes (subcube-thick default)
+    std::string material;
+    std::string type = "exterior";  ///< exterior | interior | foundation
+
+    static WallSegment fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A floor/ceiling slab patch (subfloor, finish floor, inter-story floor, ceiling).
+struct FloorPatch {
+    int x = 0, z = 0, w = 0, d = 0;
+    int y = 0;
+    double thickness = 0.333;
+    std::string material;
+    std::string role = "floor";     ///< floor | ceiling | subfloor
+
+    static FloorPatch fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A cut opening (door | window | arch) to be carved + framed.
+struct OpeningCut {
+    int x = 0, y = 0, z = 0;
+    int w = 0, h = 0, d = 0;
+    std::string kind = "door";      ///< door | window | arch
+    std::string infill = "open";    ///< open | glass | shutter | boarded
+
+    static OpeningCut fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A roof panel/surface (gable | hip slope | flat) over an outline region.
+struct RoofPanel {
+    int x0 = 0, z0 = 0, x1 = 0, z1 = 0;
+    int eaveY = 0;
+    double pitch = 0.8;
+    std::string style = "gable";    ///< gable | hip | flat
+    std::string material;
+
+    static RoofPanel fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A fixture/furniture placement resolved to a world cell + rotation.
+struct FixturePlacement {
+    std::string archetype;          ///< DimensionCanon archetype (chair_dining, ...)
+    std::string templateName;       ///< approved asset selected from the library
+    glm::ivec3  worldPos{0};
+    int rotation = 0;               ///< 0/90/180/270
+
+    static FixturePlacement fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A point light co-located with a lamp fixture.
+struct LightPlacement {
+    glm::vec3 pos{0.0f};
+    glm::vec3 color{1.0f, 0.8f, 0.5f};
+    double radius = 7.0;
+
+    static LightPlacement fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+struct AssemblyPlan {
+    std::vector<FoundationColumn> foundation;
+    std::vector<WallSegment>      walls;
+    std::vector<FloorPatch>       floors;
+    std::vector<OpeningCut>       openings;
+    std::vector<RoofPanel>        roof;
+    std::vector<FixturePlacement> fixtures;
+    std::vector<LightPlacement>   lights;
+
+    static AssemblyPlan fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+} // namespace Core
+} // namespace Phyxel

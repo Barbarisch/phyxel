@@ -63,6 +63,9 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
 #include "core/StructureGenerator.h"
+#include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
+#include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
+#include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -11714,10 +11717,69 @@ void Application::processAPICommands() {
                 } else if (!cmd.params.contains("type") && !cmd.params.contains("stories")) {
                     response = {{"error", "Missing 'type' (or 'stories' for a BuildingSpec) parameter"}};
                 } else {
-                    const bool specMode = cmd.params.contains("stories");
-                    auto structure = specMode
-                        ? Core::StructureGenerator::generateFromSpec(cmd.params)
-                        : Core::StructureGenerator::generateFromJson(cmd.params);
+                    // Structure Generation v2: "schema":"v2" routes a BuildingProgram through the
+                    // new in-engine StructureRealizer (subcube-thin shell) instead of the v1 path.
+                    const bool v2Mode = cmd.params.value("schema", std::string()) == "v2";
+                    const bool specMode = !v2Mode && cmd.params.contains("stories");
+                    Core::StructureResult structure;
+                    if (v2Mode) {
+                        Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
+                        Core::StyleProfileRegistry styleReg;
+                        styleReg.loadFromFile("resources/structure_styles.json");
+                        const Core::StyleProfile* sp = styleReg.get(program.style);
+                        Core::StyleProfile style = sp ? *sp : Core::StyleProfile{};
+
+                        // Pre-build validation gate (WARN-BUT-ALLOW): grounded checks + the
+                        // room-program typology gate (when the program declares a `typology`).
+                        // Logged loudly; the build still proceeds.
+                        {
+                            Core::RoomProgramRegistry roomReg;
+                            roomReg.loadFromFile("resources/room_program.json");
+                            // Use the program's declared typology, else a coarse function default.
+                            std::string typ = program.typology.empty()
+                                ? Core::RoomProgramRegistry::defaultTypologyForFunction(program.function)
+                                : program.typology;
+                            const Core::RoomProgram* rp = typ.empty() ? nullptr : roomReg.get(typ);
+                            Core::ValidationReport vr =
+                                Core::BuildingProgramValidator::validate(program, {}, rp);
+                            if (vr.ok())
+                                LOG_INFO_FMT("StructureV2", "program validation: OK"
+                                             << (rp ? " [typology " + program.typology + "]" : ""));
+                            else
+                                LOG_WARN_FMT("StructureV2", "program validation FAILED (warn-but-allow,"
+                                             " building anyway): " << vr.summary());
+                        }
+
+                        int ox = 0, oz = 0, reqY = 16;
+                        if (cmd.params.contains("position")) {
+                            ox   = cmd.params["position"].value("x", 0);
+                            oz   = cmd.params["position"].value("z", 0);
+                            reqY = cmd.params["position"].value("y", 16);
+                        }
+                        auto shell = Core::StructureRealizer::realizeShell(program, style);
+                        // P2 seating: sample the terrain under the footprint and seat the foundation
+                        // on the MEDIAN grade (robust to a few stray high/low voxels), so the cottage
+                        // rests on the ground regardless of the requested y.
+                        int W = std::max(program.footprintW, 1), D = std::max(program.footprintD, 1);
+                        int oy = reqY;
+                        if (chunkManager) {
+                            std::vector<int> tops;
+                            const int scanTop = reqY + 64;
+                            for (int x = ox; x < ox + W; ++x)
+                                for (int z = oz; z < oz + D; ++z)
+                                    for (int y = scanTop; y >= 0; --y)
+                                        if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) { tops.push_back(y); break; }
+                            if (!tops.empty()) {
+                                std::sort(tops.begin(), tops.end());
+                                oy = tops[tops.size() / 2] + 1;   // foundation bottom rests on grade
+                            }
+                        }
+                        structure = Core::StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));
+                    } else {
+                        structure = specMode
+                            ? Core::StructureGenerator::generateFromSpec(cmd.params)
+                            : Core::StructureGenerator::generateFromJson(cmd.params);
+                    }
                     if (structure.voxels.empty()) {
                         response = {{"error", "Failed to generate structure (unknown type or invalid params)"}};
                     } else {
@@ -11730,6 +11792,16 @@ void Application::processAPICommands() {
                             }
                             pushUndoSnapshot(chunkManager, snapshotManager.get(), smin, smax,
                                              "build_structure:" + cmd.params.value("type", "unknown"));
+                        }
+                        // P2 excavation: clear exactly the structure's cube cells so its voxels
+                        // can't fail against pre-existing terrain / other structures. Surgical (the
+                        // building's own footprint, not a bbox), and since every cell is at
+                        // y >= oy = grade+1 this never removes the ground the building rests on.
+                        if (v2Mode && !structure.voxels.empty()) {
+                            std::vector<glm::ivec3> cells;
+                            cells.reserve(structure.voxels.size());
+                            for (const auto& v : structure.voxels) cells.push_back(v.position);
+                            Core::StructureGenerator::removeVoxels(chunkManager, cells);
                         }
                         auto placement = Core::StructureGenerator::place(chunkManager, structure);
 

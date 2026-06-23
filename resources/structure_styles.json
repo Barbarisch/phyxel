@@ -1,0 +1,100 @@
+{
+  "_comment": "StyleProfile — per-style construction knobs for Structure Generation v2. Thickness/ceiling values in CUBES (1 cube = 1 m); roof 'pitch_deg' in DEGREES. GROUNDED per the medieval period (see docs/StructureGenerationV2.md). Each style carries a primary `source` + a per-value `sources` map (the grounding rule). Confidence is noted inline: sourced vs INFERRED (from a sourced system, low confidence). Material gaps (thatch, clay tile) are placeholders pending MaterialTextureNeeds.md. NOTE: the realizer must be wired to honor roof.pitch_deg (currently hardcoded) — follow-up.",
+  "styles": {
+    "timber_cottage": {
+      "description": "Humble medieval timber frame + wattle-and-daub, thatch roof, on a low stone plinth.",
+      "roof_style": "gable",
+      "foundation": "crawlspace",
+      "source": "medieval timber-frame vernacular (wattle & daub on close studs, stone plinth + sill beam, thatch)",
+      "thickness": {
+        "exterior_wall": 0.222,
+        "interior_wall": 0.111,
+        "foundation_wall": 0.444,
+        "floor": 0.333,
+        "ceiling": 0.111
+      },
+      "materials": {
+        "structure": "Wood",
+        "cladding": "Wood",
+        "trim": "Wood",
+        "floor": "Wood",
+        "roof": "Wood",
+        "foundation": "Stone"
+      },
+      "trim": {
+        "baseboard_height": 0.0,
+        "casing_width": 0.0
+      },
+      "flags": {
+        "exposed_beams": true,
+        "quoins": false
+      },
+      "roof": {
+        "pitch_deg": 50.0,
+        "overhang": 0.4
+      },
+      "ceiling": {
+        "humble": 2.5,
+        "grand": 3.0
+      },
+      "sources": {
+        "exterior_wall": "wattle-&-daub on close studs ~0.18-0.23 m (buildingconservation.com)",
+        "interior_wall": "INFERRED ~0.10-0.15 m: light daub/timber screen, thinner than exterior",
+        "foundation_wall": "14th-c half-timbered building on 'narrow sleeper walls 18 inches' = 0.46 m -> 0.444 (4 micro) (medievalists.net)",
+        "floor": "INFERRED ~0.2-0.3 m oak joists + boards",
+        "ceiling": "INFERRED ~0.1 m plank ceiling / underside",
+        "roof.pitch_deg": "thatch demands >=45 deg, usually 50 deg, to shed water (roofonline.com; English Heritage Buildings)",
+        "roof.material": "PLACEHOLDER: real roof is THATCH; engine lacks a thatch material (MaterialTextureNeeds.md)",
+        "ceiling_target": "ANTHROPOMETRIC (not period): character clearance (character_design_constraints.json) + IRC R305 7 ft floor"
+      }
+    },
+
+    "stone_manor": {
+      "description": "Medieval stone hall / manor: thick rubble-cored ashlar walls, tiled roof, tall hall.",
+      "roof_style": "hip",
+      "foundation": "basement",
+      "source": "medieval stone manor / hall house (2-3 ft walls, two faces + rubble core, clay-tile roof)",
+      "thickness": {
+        "exterior_wall": 0.667,
+        "interior_wall": 0.333,
+        "foundation_wall": 0.667,
+        "floor": 0.333,
+        "ceiling": 0.333
+      },
+      "materials": {
+        "structure": "StoneBricks",
+        "cladding": "Stone",
+        "trim": "Stone",
+        "floor": "Wood",
+        "roof": "Wood",
+        "foundation": "Stone"
+      },
+      "trim": {
+        "baseboard_height": 0.0,
+        "casing_width": 0.222
+      },
+      "flags": {
+        "exposed_beams": false,
+        "quoins": true
+      },
+      "roof": {
+        "pitch_deg": 40.0,
+        "overhang": 0.6
+      },
+      "ceiling": {
+        "humble": 3.0,
+        "grand": 4.5
+      },
+      "sources": {
+        "exterior_wall": "stone manor/hall wall 0.6-0.9 m (2-3 ft), two faces + rubble core (castlesandmanorhouses.com; Wikipedia Hall house)",
+        "interior_wall": "INFERRED ~0.3-0.5 m stone/timber partition",
+        "foundation_wall": "INFERRED ~0.6-1.0 m rubble footing (>= wall)",
+        "floor": "INFERRED ~0.2-0.3 m timber/flagstone",
+        "ceiling": "INFERRED ~0.3 m",
+        "roof.pitch_deg": "clay tile 35-45 deg (Marley; roofonline.com)",
+        "roof.material": "PLACEHOLDER: real roof is CLAY TILE/slate; engine lacks the material (MaterialTextureNeeds.md)",
+        "ceiling_target": "ANTHROPOMETRIC + status: grand halls 'higher than wide' (Wikipedia Great hall) + character clearance"
+      }
+    }
+  }
+}

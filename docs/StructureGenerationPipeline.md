@@ -1,5 +1,10 @@
 # Structure Generation Pipeline
 
+> **⚠️ SUPERSEDED by [`StructureGenerationV2.md`](StructureGenerationV2.md)** (greenfield rewrite:
+> in-engine C++ terrain-aware realizer, sub-cube walls, parcels/yards/fences, and settlement-scale
+> town/city generation). This v1 doc is kept for history and describes the `tools/structure_pipeline/`
+> Python implementation that remains in place until v2 reaches feature parity (~P4).
+
 > Design doc for functional, multi-resolution **structure, furniture, and item** generation. Goal:
 > combine LLM spatial/semantic reasoning with deterministic voxel realization to produce **functional**
 > buildings (lockable doors, multiple reachable floors, multi-purpose: home/shop/church/stadium/…),

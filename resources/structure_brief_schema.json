@@ -1,0 +1,90 @@
+{
+  "_comment": "StructureBrief schema — the engine-resident, machine-readable field list for the mandatory structure-generation intake. Source of truth for ALL drivers (the in-engine wizard/CLI, the Claude /structure skill). Design + rationale: docs/StructureBrief.md. This file holds field METADATA only (stage, blocking flag, type, branching, where a grounded default comes from) — NO dimension values live here (those are in the grounded canons: object_dimensions.json, structure_styles.json, room_program.json). 'kind': blocking = ask the user directly; default = propose a grounded+cited default to confirm. 'default_source' names the grounding frame/authority, never a number.",
+  "schema": "structure_brief/v1",
+  "stages": [
+    {
+      "id": "setting", "title": "Setting", "order": 0,
+      "note": "The FIRST gate — reframes which sources govern every later value.",
+      "fields": [
+        { "id": "period", "label": "Time period / era", "kind": "blocking", "type": "string" },
+        { "id": "culture_region", "label": "Culture & region", "kind": "blocking", "type": "string" },
+        { "id": "tech_level", "label": "Technology level (tools, spans, glazing, metal)", "kind": "default", "type": "string", "default_source": "period+region; architectural history" },
+        { "id": "magic_present", "label": "Magic present / affects construction?", "kind": "default", "type": "bool", "default_source": "world lore; default false" },
+        { "id": "climate", "label": "Climate / biome", "kind": "blocking", "type": "string" }
+      ]
+    },
+    {
+      "id": "function", "title": "Function & status", "order": 1,
+      "fields": [
+        { "id": "function", "label": "Primary function", "kind": "blocking", "type": "string" },
+        { "id": "secondary_use", "label": "Secondary / mixed use", "kind": "default", "type": "string", "default_source": "function norms for the period" },
+        { "id": "owner_status", "label": "Owner wealth / social class", "kind": "blocking", "type": "enum", "options": ["peasant", "yeoman", "merchant", "gentry", "noble", "royal", "clergy", "communal"] },
+        { "id": "occupants", "label": "Occupants (who / count / livestock)", "kind": "default", "type": "string", "default_source": "household size by status+period; social history" },
+        { "id": "defensibility", "label": "Defensible?", "kind": "default", "type": "enum", "options": ["none", "modest", "fortified"], "default_source": "function (keep/manor=yes, croft=no)" }
+      ]
+    },
+    {
+      "id": "site", "title": "Site", "order": 2,
+      "fields": [
+        { "id": "site_context", "label": "Urban or rural", "kind": "blocking", "type": "enum", "options": ["urban", "village", "rural", "isolated"] },
+        { "id": "terrain", "label": "Terrain", "kind": "blocking", "type": "enum", "options": ["flat", "gentle_slope", "steep_slope", "hilltop", "waterfront", "cliff"] },
+        { "id": "plot", "label": "Plot size / boundaries", "kind": "default", "type": "string", "default_source": "site_context + status" },
+        { "id": "orientation", "label": "Orientation (sun / street / view / wind)", "kind": "default", "type": "string", "default_source": "climate + site_context" },
+        { "id": "access", "label": "Access (road / path / river)", "kind": "default", "type": "string", "default_source": "site_context" },
+        { "id": "ground", "label": "Ground (rock / soil / marsh)", "kind": "default", "type": "string", "default_source": "terrain; vernacular foundation practice" }
+      ]
+    },
+    {
+      "id": "program", "title": "Program", "order": 3, "branch": "function+status",
+      "fields": [
+        { "id": "rooms", "label": "Required rooms/spaces", "kind": "default", "type": "list", "default_source": "period+status room program (croft=1 room+byre; manor=hall+solar+service)" },
+        { "id": "adjacencies", "label": "Adjacencies & flow", "kind": "default", "type": "list", "default_source": "architectural programming for the typology" },
+        { "id": "zones", "label": "Public / private / service zones", "kind": "default", "type": "string", "default_source": "typology" },
+        { "id": "special_spaces", "label": "Special spaces (cellar/attic/hidden/shrine/workshop/well)", "kind": "default", "type": "list", "default_source": "function+status" },
+        { "id": "entrances", "label": "Entrances (count / type)", "kind": "default", "type": "string", "default_source": "function (defensible=single controlled)" },
+        { "id": "vertical_circulation", "label": "Vertical circulation (stair / ladder / none)", "kind": "default", "type": "enum", "options": ["none", "ladder", "stair", "spiral_stair"], "default_source": "stories + status" }
+      ]
+    },
+    {
+      "id": "materials", "title": "Materials & construction", "order": 4, "branch": "period+region+status+climate",
+      "fields": [
+        { "id": "structural_material", "label": "Primary structural material", "kind": "blocking", "type": "enum", "options": ["timber_frame", "cob", "rubble_stone", "ashlar_stone", "brick", "adobe", "log"] },
+        { "id": "wall_method", "label": "Wall method + thickness", "kind": "default", "type": "string", "default_source": "period construction (timber/daub~0.22m; cob~0.67m; castle masonry 2-6m) — see structure_styles.json" },
+        { "id": "roof_material", "label": "Roof material + structure", "kind": "default", "type": "enum", "options": ["thatch", "wood_shingle", "slate", "clay_tile", "lead", "turf"], "default_source": "period+region+climate" },
+        { "id": "floor", "label": "Floor", "kind": "default", "type": "enum", "options": ["earth", "timber", "flagstone", "tile"], "default_source": "status+period" },
+        { "id": "window_tech", "label": "Window tech", "kind": "default", "type": "enum", "options": ["open", "shutter", "oiled_cloth", "leaded_glass"], "default_source": "period+status (glass=wealth/late)" },
+        { "id": "finish_quality", "label": "Finish quality", "kind": "default", "type": "enum", "options": ["rough", "vernacular", "dressed", "fine"], "default_source": "status" }
+      ]
+    },
+    {
+      "id": "scale", "title": "Scale & form", "order": 5,
+      "fields": [
+        { "id": "footprint", "label": "Footprint (w × d)", "kind": "blocking", "type": "dims" },
+        { "id": "stories", "label": "Number of stories", "kind": "blocking", "type": "int" },
+        { "id": "ceiling_height", "label": "Ceiling height (per story)", "kind": "default", "type": "dims", "default_source": "anthropometric floor (character_design_constraints.json) + period/status target" },
+        { "id": "massing", "label": "Massing", "kind": "default", "type": "enum", "options": ["rectangular", "L", "U", "courtyard", "organic", "cross"], "default_source": "culture+function+plot" },
+        { "id": "roof_form", "label": "Roof form", "kind": "default", "type": "enum", "options": ["gable", "hip", "pitched", "conical_thatch", "flat"], "default_source": "region+roof_material+climate" },
+        { "id": "symmetry", "label": "Symmetry / regularity", "kind": "default", "type": "enum", "options": ["organic", "loose", "ordered", "strict"], "default_source": "culture+status" }
+      ]
+    },
+    {
+      "id": "condition", "title": "Condition & history", "order": 6,
+      "fields": [
+        { "id": "state", "label": "Condition", "kind": "default", "type": "enum", "options": ["new", "worn", "aged", "ruined"], "default_source": "scene; default new+maintained" },
+        { "id": "maintenance", "label": "Maintenance level", "kind": "default", "type": "enum", "options": ["pristine", "kept", "neglected", "derelict"], "default_source": "owner_status" },
+        { "id": "damage", "label": "Damage (fire / war / decay)", "kind": "default", "type": "string", "default_source": "scene/lore" },
+        { "id": "additions", "label": "Organic additions over time", "kind": "default", "type": "string", "default_source": "age+status" }
+      ]
+    },
+    {
+      "id": "gameplay", "title": "Gameplay & engine", "order": 7,
+      "fields": [
+        { "id": "enterable", "label": "Enterable / walkable by the player", "kind": "blocking", "type": "bool" },
+        { "id": "interactive", "label": "Interactive (doors / containers / NPCs)", "kind": "default", "type": "list", "default_source": "function+enterable" },
+        { "id": "furnishing", "label": "Furnishing (shell / furnished + clutter)", "kind": "default", "type": "enum", "options": ["shell", "sparse", "furnished", "cluttered"], "default_source": "function+status" },
+        { "id": "perf_budget", "label": "Performance / voxel budget", "kind": "default", "type": "int", "default_source": "standing default per structure class" },
+        { "id": "signature_features", "label": "Signature features", "kind": "default", "type": "list", "default_source": "style+function" }
+      ]
+    }
+  ]
+}

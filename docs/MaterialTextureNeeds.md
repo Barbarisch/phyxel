@@ -11,6 +11,13 @@ Sandstone, Glass, Metal, Gold, Ice, Leaf, glow, Mirror.
 These skew **terrain/exterior**. Interiors, furniture, and finish work are starved — we keep
 substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing better exists.
 
+## Missing — period ROOFING (surfaced by E2 grounding, 2026-06-22)
+| Need | Used for | Notes |
+|------|----------|-------|
+| **Thatch** | medieval cottage/croft roofs | the canonical peasant roof; `timber_cottage` roof is "Wood" as a PLACEHOLDER. Real thatch needs ≥45–50° pitch (now grounded in structure_styles.json). |
+| **Clay tile / slate** | manor / townhouse roofs | `stone_manor` roof is "Wood" PLACEHOLDER; real clay tile at 35–45°. |
+| **Wattle & daub (limewashed)** | timber-cottage exterior wall infill | currently "Wood"; real daub is a limewashed off-white panel between dark timbers. |
+
 ## Missing — interior / finish
 | Need | Used for | Notes |
 |------|----------|-------|
