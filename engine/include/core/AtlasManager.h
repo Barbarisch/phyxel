@@ -102,8 +102,27 @@ private:
     /// Blit a TEXTURE_SIZE x TEXTURE_SIZE RGBA image into the atlas at the given slot.
     void blitToAtlas(int slotIndex, const uint8_t* texPixels);
 
+    /// BC7-encode the layer-major RGBA in atlasInfo_.pixels into bc7Data_ with a full,
+    /// CPU-generated mip chain (level-major / layer-minor layout). Multithreaded across
+    /// layers. Returns false if there is no pixel data. Result feeds uploadTextureArrayBC7.
+    bool encodeBC7();
+
+    // Disk cache for the (slow) BC7 encode, keyed by a hash of the source textures so it is
+    // only re-encoded when textures change. computeSourceHash() hashes source file metadata
+    // + materials.json + format version; load/write (de)serialize bc7Data_/offsets/mips.
+    static constexpr uint32_t BC7_CACHE_VERSION = 1;
+    uint64_t computeSourceHash() const;
+    bool loadBC7Cache(uint64_t hash);
+    void writeBC7Cache(uint64_t hash) const;
+
     std::string sourceDirectory_ = "resources/textures/source";
     AtlasInfo atlasInfo_;
+
+    // BC7-compressed mip chain (set by encodeBC7()). Layout: for each mip level (level 0
+    // first), all layers contiguous, each layer = ceil(dim/4)^2 * 16 bytes.
+    std::vector<uint8_t> bc7Data_;
+    std::vector<size_t>  bc7LevelOffsets_;  // byte offset of each mip level within bc7Data_
+    int                  bc7MipLevels_ = 0;
 };
 
 } // namespace Core

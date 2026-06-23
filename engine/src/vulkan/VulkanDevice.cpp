@@ -425,10 +425,22 @@ bool VulkanDevice::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    // Query supported features so we only enable what the device actually has.
+    VkPhysicalDeviceFeatures supportedFeatures{};
+    vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.fillModeNonSolid = VK_TRUE;  // Required for wireframe rendering (VK_POLYGON_MODE_LINE)
     deviceFeatures.wideLines = VK_TRUE;          // Required for line width > 1.0
     deviceFeatures.independentBlend = VK_TRUE;   // Required for OIT: accum and reveal attachments use different blend states
+    // BC texture compression (BC7 voxel texture array). Most desktop GPUs support it; if not,
+    // the texture path falls back to uncompressed RGBA.
+    if (supportedFeatures.textureCompressionBC) {
+        deviceFeatures.textureCompressionBC = VK_TRUE;
+        bc7Supported_ = true;
+    } else {
+        LOG_WARN("Vulkan", "Device lacks textureCompressionBC; voxel textures will stay uncompressed RGBA");
+    }
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -2276,6 +2288,153 @@ bool VulkanDevice::uploadTextureArray(const uint8_t* pixels, int texSize, int la
 
     LOG_INFO("Vulkan", "Texture array uploaded ({} layers @ {}x{}, {} mips)",
              layerCount, texSize, texSize, mipLevels);
+    return true;
+}
+
+bool VulkanDevice::uploadTextureArrayBC7(const uint8_t* data, size_t dataSize,
+                                         const std::vector<size_t>& levelByteOffsets,
+                                         int baseSize, int layerCount, int mipLevels) {
+    if (!data || dataSize == 0 || baseSize <= 0 || layerCount <= 0 || mipLevels <= 0) return false;
+    if (static_cast<int>(levelByteOffsets.size()) != mipLevels) return false;
+
+    const VkFormat format = VK_FORMAT_BC7_SRGB_BLOCK;
+    const uint32_t nLayers = static_cast<uint32_t>(layerCount);
+    const uint32_t nMips = static_cast<uint32_t>(mipLevels);
+
+    vkDeviceWaitIdle(device);
+
+    if (textureAtlasImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, textureAtlasImageView, nullptr); textureAtlasImageView = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, textureAtlasImage, nullptr); textureAtlasImage = VK_NULL_HANDLE;
+    }
+    if (textureAtlasImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, textureAtlasImageMemory, nullptr); textureAtlasImageMemory = VK_NULL_HANDLE;
+    }
+
+    // Staging buffer with the entire compressed blob.
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingBuffer, stagingBufferMemory);
+    void* mapped;
+    vkMapMemory(device, stagingBufferMemory, 0, dataSize, 0, &mapped);
+    memcpy(mapped, data, dataSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create the BC7 2D array image (mips precomputed — no blit).
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent = { static_cast<uint32_t>(baseSize), static_cast<uint32_t>(baseSize), 1 };
+    imageInfo.mipLevels = nMips;
+    imageInfo.arrayLayers = nLayers;
+    imageInfo.format = format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(device, &imageInfo, nullptr, &textureAtlasImage) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create BC7 texture array image");
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(device, textureAtlasImage, &memReq);
+    VkMemoryAllocateInfo memAlloc{};
+    memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memAlloc.allocationSize = memReq.size;
+    memAlloc.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(device, &memAlloc, nullptr, &textureAtlasImageMemory) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to allocate BC7 texture array memory");
+        vkDestroyImage(device, textureAtlasImage, nullptr); textureAtlasImage = VK_NULL_HANDLE;
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+    vkBindImageMemory(device, textureAtlasImage, textureAtlasImageMemory, 0);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = textureAtlasImage;
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, nMips, 0, nLayers };
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // One copy region per mip level; all layers contiguous within a level.
+    std::vector<VkBufferImageCopy> regions(nMips);
+    for (uint32_t i = 0; i < nMips; i++) {
+        uint32_t dim = std::max(1u, static_cast<uint32_t>(baseSize) >> i);
+        VkBufferImageCopy& r = regions[i];
+        r = {};
+        r.bufferOffset = levelByteOffsets[i];
+        r.bufferRowLength = 0;    // tightly packed
+        r.bufferImageHeight = 0;
+        r.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, nLayers };
+        r.imageExtent = { dim, dim, 1 };
+    }
+    vkCmdCopyBufferToImage(cmd, stagingBuffer, textureAtlasImage,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          static_cast<uint32_t>(regions.size()), regions.data());
+
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = textureAtlasImage;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    viewInfo.format = format;
+    viewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, nMips, 0, nLayers };
+    if (vkCreateImageView(device, &viewInfo, nullptr, &textureAtlasImageView) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create BC7 texture array image view");
+        return false;
+    }
+
+    if (textureAtlasSampler != VK_NULL_HANDLE) {
+        updateDescriptorSetsWithTexture();
+    }
+
+    LOG_INFO("Vulkan", "BC7 texture array uploaded ({} layers @ {}x{}, {} mips, {} MB)",
+             layerCount, baseSize, baseSize, mipLevels,
+             static_cast<int>(dataSize / (1024 * 1024)));
     return true;
 }
 

@@ -81,8 +81,19 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 > burgomaster building stonework render at high res (log `162 layers @ 512x512, 10 mips`,
 > 551 FPS, no validation errors); 4/4 AtlasManager tests pass.
 >
-> **STILL TODO in Phase 1:** BC7/KTX2 compression (currently ~226 MB raw RGBA VRAM for the
-> 512×162 array), the two-array mixed-res split (512 terrain / 1024 objects via the
+> **UPDATE (commit 3, 2026-06-23): BC7 compression DONE + verified.** Vendored `bc7enc`
+> (MIT/public-domain, `external/bc7enc/`) into phyxel_core; enabled the `textureCompressionBC`
+> device feature (RGBA fallback if absent). `AtlasManager::encodeBC7()` CPU-generates the mip
+> chain per layer and BC7-encodes it (multithreaded across layers, ~6.2s for 162×512²);
+> `VulkanDevice::uploadTextureArrayBC7()` uploads a `VK_FORMAT_BC7_SRGB_BLOCK` 2D array (one
+> copy region per precomputed mip, no GPU blit). Result: **~54 MB VRAM vs ~226 MB raw (4×)**,
+> renders identically (verified close-up: stone blocks, wood grain, no artifacts), 441 FPS.
+> A **disk cache** (`cache/textures/voxel_bc7.bin`, gitignored, keyed by a hash of source-file
+> metadata + materials.json + format version) makes only the first launch pay the encode:
+> subsequent launches load in ~55ms. `uploadToGPU` now does load-cache → else encode+write →
+> upload BC7, falling back to RGBA if the device lacks BC.
+>
+> **STILL TODO in Phase 1:** the two-array mixed-res split (512 terrain / 1024 objects via the
 > textureIndex top-bit selector), and re-sourcing the remaining materials (Log/Leaf variants,
 > Gold, Sandstone tuning; Glass/glow/Mirror stay special-cased).
 >

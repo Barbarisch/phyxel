@@ -189,6 +189,18 @@ public:
     // the voxel texture image as a 2D array with a full mip chain. Replaces the old packed
     // 2D atlas. `pixels` size must be texSize*texSize*4*layerCount.
     bool uploadTextureArray(const uint8_t* pixels, int texSize, int layerCount);
+
+    /// Whether the device supports BC texture compression (BC7). If false, callers must use
+    /// the uncompressed uploadTextureArray() path.
+    bool bc7Supported() const { return bc7Supported_; }
+
+    /// Upload a pre-compressed BC7 texture array. `data` holds all mip levels tightly packed
+    /// in level-major / layer-minor order (level 0 first; within a level, layer 0..N-1, each
+    /// layer = ceil(w/4)*ceil(h/4)*16 bytes). `levelByteOffsets` has mipLevels entries (start
+    /// of each level in `data`). baseSize = level-0 dimension, layerCount = array layers.
+    bool uploadTextureArrayBC7(const uint8_t* data, size_t dataSize,
+                               const std::vector<size_t>& levelByteOffsets,
+                               int baseSize, int layerCount, int mipLevels);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();
@@ -350,6 +362,7 @@ private:
     VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
     VkImageView textureAtlasImageView = VK_NULL_HANDLE;
     VkSampler textureAtlasSampler = VK_NULL_HANDLE;
+    bool bc7Supported_ = false;  // set during logical-device creation
 
     // ImGui texture cache (for menu images, logos, etc.)
     struct ImGuiTextureEntry {
