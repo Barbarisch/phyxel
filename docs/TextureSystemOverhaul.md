@@ -69,9 +69,28 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 > format lacks linear-blit support); sampler switched to LINEAR + trilinear (anisotropy left
 > off — device feature not enabled); `voxel.frag`/`mirror_voxel.frag`/`transparent_voxel.frag`
 > now declare `sampler2DArray` and sample `texture(arr, vec3(uv, layer))`.
-> **STILL TODO in Phase 1:** bump source PNGs to 512, re-source the materials from CC0 libs,
-> add BC7/KTX2 compression, and the two-array mixed-res split (512 terrain / 1024 objects via
-> the textureIndex top-bit selector).
+> **UPDATE (commit 2, 2026-06-23): 512px CC0 re-source DONE + verified.** `TEXTURE_SIZE`
+> bumped 64→512; `loadPNG` now bilinear-resamples any source size to the layer size (so kept
+> low-res sources coexist with native 512 tiles). New `tools/fetch_cc0_textures.py` pulls CC0
+> material bundles from ambientCG (1K PNG → downscaled to 512), writes per-face albedo into
+> `resources/textures/source/`, and caches Normal/Roughness/AO maps under
+> `resources/textures/pbr/` (gitignored) for Phase 2. 12 core materials re-sourced
+> (Dirt/Grass/Stone/Cobblestone/StoneBricks/Sand/Gravel/Wood/Bricks/Sandstone/Metal/Ice +
+> grass biome variants; Grass uses grass-on-top / dirt-on-sides). Provenance in
+> `resources/textures/source/CC0_SOURCES.json` (all CC0). Verified in-engine: grass field +
+> burgomaster building stonework render at high res (log `162 layers @ 512x512, 10 mips`,
+> 551 FPS, no validation errors); 4/4 AtlasManager tests pass.
+>
+> **STILL TODO in Phase 1:** BC7/KTX2 compression (currently ~226 MB raw RGBA VRAM for the
+> 512×162 array), the two-array mixed-res split (512 terrain / 1024 objects via the
+> textureIndex top-bit selector), and re-sourcing the remaining materials (Log/Leaf variants,
+> Gold, Sandstone tuning; Glass/glow/Mirror stay special-cased).
+>
+> ### ambientCG asset map (material → asset ID, all CC0)
+> Dirt=Ground003 · Grass=Grass004(top)/Ground003(sides) · Stone=Rock030 ·
+> Cobblestone=PavingStones128 · StoneBricks=PavingStones070 · Sand=Ground027 ·
+> Gravel=Gravel022 · Wood=WoodFloor007 · Bricks=Bricks075A · Sandstone=Rock035 ·
+> Metal=MetalPlates006 · Ice=Ice001. Edit `ASSETS` in `tools/fetch_cc0_textures.py` to retune.
 - Migrate `AtlasManager` → a layered "TextureArrayManager" (keep name or rename): build
   per-layer images instead of blitting into one atlas; drop UV-bounds SSBO.
 - `VulkanDevice`: create `VK_IMAGE_VIEW_TYPE_2D_ARRAY` images (512 set + 1024 set),

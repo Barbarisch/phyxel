@@ -12,21 +12,8 @@ protected:
     }
 };
 
-TEST_F(AtlasManagerTest, CalcAtlasDimensionsBasic) {
-    int w, h;
-    AtlasManager::calcAtlasDimensions(78, w, h);
-    // 78 textures, 6 per row = 13 rows, 13*66=858 → next pow2 = 1024
-    EXPECT_EQ(w, 1024);
-    EXPECT_EQ(h, 1024);
-}
-
-TEST_F(AtlasManagerTest, CalcAtlasDimensionsSmall) {
-    int w, h;
-    AtlasManager::calcAtlasDimensions(6, w, h);
-    // 1 row, 6*66=396px wide → next pow2 = 512
-    EXPECT_EQ(w, 512);
-    EXPECT_EQ(h, 512);
-}
+// NOTE: the legacy packed-2D-atlas dimension tests (calcAtlasDimensions) were removed in
+// the texture-array migration — that path no longer packs textures into a 2D grid.
 
 TEST_F(AtlasManagerTest, BuildAtlasFromSourcePNGs) {
     auto& atlas = AtlasManager::instance();
@@ -53,7 +40,9 @@ TEST_F(AtlasManagerTest, GetTextureSlotPixels) {
     ASSERT_TRUE(atlas.buildAtlas());
 
     auto pixels = atlas.getTextureSlotPixels(0);
-    EXPECT_EQ(pixels.size(), 64u * 64u * 4u);
+    const size_t layerBytes = static_cast<size_t>(AtlasManager::TEXTURE_SIZE)
+                            * AtlasManager::TEXTURE_SIZE * 4u;
+    EXPECT_EQ(pixels.size(), layerBytes);
     // Should have non-zero pixels (not all transparent)
     bool hasContent = false;
     for (size_t i = 3; i < pixels.size(); i += 4) {
@@ -67,9 +56,10 @@ TEST_F(AtlasManagerTest, UpdateTextureSlot) {
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
-    // Create red texture
-    std::vector<uint8_t> red(64 * 64 * 4);
-    for (int i = 0; i < 64 * 64; i++) {
+    // Create red texture sized to one array layer
+    const int N = AtlasManager::TEXTURE_SIZE;
+    std::vector<uint8_t> red(static_cast<size_t>(N) * N * 4);
+    for (int i = 0; i < N * N; i++) {
         red[i * 4 + 0] = 255; // R
         red[i * 4 + 3] = 255; // A
     }

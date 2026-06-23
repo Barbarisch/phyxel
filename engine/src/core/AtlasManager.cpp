@@ -6,6 +6,10 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+
 namespace Phyxel {
 namespace Core {
 
@@ -39,20 +43,39 @@ std::vector<uint8_t> AtlasManager::loadPNG(const std::string& path) const {
     if (!data) {
         return {};
     }
-    // We expect TEXTURE_SIZE x TEXTURE_SIZE
-    if (w != TEXTURE_SIZE || h != TEXTURE_SIZE) {
-        LOG_WARN("AtlasManager", "Texture {} is {}x{}, expected {}x{}, will use as-is",
-                 path, w, h, TEXTURE_SIZE, TEXTURE_SIZE);
+
+    std::vector<uint8_t> result(static_cast<size_t>(TEXTURE_SIZE) * TEXTURE_SIZE * 4, 0);
+
+    if (w == TEXTURE_SIZE && h == TEXTURE_SIZE) {
+        memcpy(result.data(), data, result.size());
+    } else {
+        // Bilinear-resample any source resolution to the array layer size. Lets low-res
+        // hand-authored sources coexist with native high-res (e.g. CC0 512px) tiles.
+        auto clampi = [](int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); };
+        for (int y = 0; y < TEXTURE_SIZE; y++) {
+            float sy = (y + 0.5f) * h / TEXTURE_SIZE - 0.5f;
+            int y0 = static_cast<int>(std::floor(sy));
+            float fy = sy - y0;
+            int y0c = clampi(y0, 0, h - 1), y1c = clampi(y0 + 1, 0, h - 1);
+            for (int x = 0; x < TEXTURE_SIZE; x++) {
+                float sx = (x + 0.5f) * w / TEXTURE_SIZE - 0.5f;
+                int x0 = static_cast<int>(std::floor(sx));
+                float fx = sx - x0;
+                int x0c = clampi(x0, 0, w - 1), x1c = clampi(x0 + 1, 0, w - 1);
+                for (int c = 0; c < 4; c++) {
+                    float p00 = data[(y0c * w + x0c) * 4 + c];
+                    float p10 = data[(y0c * w + x1c) * 4 + c];
+                    float p01 = data[(y1c * w + x0c) * 4 + c];
+                    float p11 = data[(y1c * w + x1c) * 4 + c];
+                    float top = p00 + (p10 - p00) * fx;
+                    float bot = p01 + (p11 - p01) * fx;
+                    result[(y * TEXTURE_SIZE + x) * 4 + c] =
+                        static_cast<uint8_t>(top + (bot - top) * fy + 0.5f);
+                }
+            }
+        }
     }
-    // Only copy TEXTURE_SIZE x TEXTURE_SIZE pixels
-    std::vector<uint8_t> result(TEXTURE_SIZE * TEXTURE_SIZE * 4, 0);
-    int copyW = std::min(w, TEXTURE_SIZE);
-    int copyH = std::min(h, TEXTURE_SIZE);
-    for (int y = 0; y < copyH; y++) {
-        memcpy(result.data() + y * TEXTURE_SIZE * 4,
-               data + y * w * 4,
-               copyW * 4);
-    }
+
     stbi_image_free(data);
     return result;
 }

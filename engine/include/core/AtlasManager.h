@@ -24,7 +24,7 @@ class MaterialRegistry;
 /// carry textureCount/fallbackIndex to the fragment shader via the existing SSBO.
 class AtlasManager {
 public:
-    static constexpr int TEXTURE_SIZE = 64;      // Pixels per texture side (per array layer)
+    static constexpr int TEXTURE_SIZE = 512;     // Pixels per texture side (per array layer)
     static constexpr int PADDING = 1;            // Legacy (unused by array path)
     static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 66 (legacy)
     static constexpr int TEXTURES_PER_ROW = 6;   // Legacy (unused by array path)
