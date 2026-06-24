@@ -74,6 +74,8 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 55 | `connect_underground` | link cellars ↔ tunnels ↔ sewers ↔ crypts ↔ dungeon into a navigable graph (multi-level connectivity gap) | **M** (engine cap missing) |
 | 56 | `place_secret_passages` | hidden doors / tunnels between buildings or to escape routes; mechanisms | **M** |
 | 57 | `validate_crawlability` | prove the network is traversable: widths, headroom, reachability, encounter / light spacing — the playability gate | **M** |
+| 58 | `author_world_bible` | *(fantasy tier; see Part 9)* author / load + consistency-validate + persist the setting canon (magic, pantheon, races, factions, era); per-world | **M** |
+| 59 | `apply_setting_overlay` | overlay the bible onto grounded archetypes: arcane programs, deity iconography, race material palettes, magical lighting; flag bible-licensed impossibilities as engine gaps | **M** |
 
 ## Part 2 — The granular checklist
 
@@ -404,6 +406,16 @@ BB6. **Dungeons/cells** are grim + secure (locked/barred, oubliette access from 
 BB7. **Mines** follow a seam (adit → gallery → shaft), are timbered, and dump spoil at the mouth — not random caverns.
 BB8. **Playability** — the layer is a usable adventure site: reachable, lit-or-intentionally-dark, sensible encounter/loot spacing, discoverable secret doors, purposeful dead-ends.
 BB9. **Anachronism honesty** — a walkable sewer/dungeon under a medieval brief is *flagged* as a Roman/Victorian/game conceit (allowed for D&D, never claimed as historical).
+
+### CC. Fantasy & setting-canon integrity *(fantasy tier — see Part 9)*
+CC1. Every fantasy value **traces to a world-bible entry** — source-or-stop still holds; for fantasy the *source is the bible*, not real history.
+CC2. **Internal consistency** — no value contradicts another bible rule (elves who "grow living wood" can't own a cut-ashlar manor); the consistency validator passes.
+CC3. The **structural skeleton stays grounded** — a fantasy building is a real archetype (Parts 5–8) + an overlay, not physics-defying — *unless* the bible explicitly licenses it (then it's an engine-gap flag, not a fake).
+CC4. **Race/culture architecture** matches the bible — material palette + form + construction logic (dwarven carved-stone halls, elven living-wood, halfling earth-bermed smials).
+CC5. **Pantheon iconography** is correct per deity — symbols, sacred colours, orientation, geometry — in temples/shrines.
+CC6. **Magical materials** behave per the bible and **map to real engine materials** (magical light → the existing `glow` emissive material; arcane stone → a defined material entry), not invented-on-the-fly visuals.
+CC7. **Genre honesty** — what is grounded-real vs bible-fantasy is clearly marked (the Parts 5–8 "anachronism/convention" discipline, applied to magic).
+CC8. **Engine-gap honesty** — impossible geometry the bible asks for (non-Euclidean interiors, floating mass, bigger-on-the-inside) is flagged as unsupported, never faked with a hack.
 
 ## Part 3 — Per-room function programs (the "what makes it that room" library)
 
@@ -749,6 +761,55 @@ chancel** with body-sized loculi; dungeons sit **under the keep**, grim and secu
 + multi-level connectivity exist — and those two are the highest-value *engine* features the structure-gen
 roadmap needs (they also unblock the Part 5 basement and the Part 7 `compose_compound` dungeons). Documented
 here so the requirement is explicit, not so it looks done.
+
+## Part 9 — Fantasy / setting-canon tier (the world bible)
+
+The **cross-cutting** axis. Parts 1–8 assume a real-world (medieval) frame and ground every dimension to real
+history. A D&D world is fantasy — wizard towers, gods, magic, non-human races. **The honesty rule does not
+relax here; it re-targets.** A fantasy value grounds to the **world bible** instead of reality: invent once,
+cite the bible, validate for internal *consistency* (not realism), apply everywhere. "Source-or-stop" still
+holds — the source is just the bible.
+
+**The world bible** is a persisted setting canon (`world_bible.json`, per-world — like the existing world
+recipe in the `world_meta` table) and another canon in the content library (Part 4). It codifies:
+- **Magic system** — what magic does / can't do, its costs, taboos, material expressions.
+- **Magical materials** — arcane stone, everbright crystal, coldiron — with consistent properties; extends `materials.json` and **maps magical light onto the existing `glow` emissive material**.
+- **Pantheon** — deities, domains, iconography, sacred colours / symbols / geometry, temple orientation; drives the `temple` / `shrine` / `church` archetypes.
+- **Races & cultures** — dwarven carved-stone halls, elven grown living-wood, orcish crude bone/hide, halfling earth-bermed smials, gnomish mechanisms — each a construction logic + material palette + form.
+- **Factions & orders** — mage guilds, knightly orders, thieves' guilds and their architectural signatures.
+- **Era / tech level** — the setting's "period" can be non-historical; for a fantasy brief, **the period gate (category A) cites the bible, not real history.**
+
+**How grounding works per setting:**
+- **Real-world brief** → cite real-world sources (the canons in Parts 5–8).
+- **Fantasy brief** → cite the **world bible**. The bible's *own* entries are authored once (LLM/user),
+  validated for **internal consistency**, user-approved, and persisted — the same content-library
+  generate-once-persist flow (Part 4). Every fantasy value then traces to a bible rule.
+- **Consistency validator** — a value must trace to a bible entry and not contradict another (a sun-god's
+  temple can't face away from sunrise if the bible says east; living-wood elves can't build in cut ashlar).
+
+**Fantasy is an OVERLAY on grounded structure.** The skeleton stays real: a **wizard tower is structurally a
+`tower_house`** (Part 6 — grounded 6.1 × 4.9 × 12.2 m, thick walls, first-floor entry); the *fantasy* is the
+overlay — an arcane room program (laboratory / library / observatory / summoning circle / planar anchor),
+magical materials, glowing light. A temple is a grounded `church`/`temple` shell + the pantheon's iconography.
+This keeps fantasy buildings **buildable and believable**, not physics-defying — *unless* the bible explicitly
+licenses the impossible (a floating tower, a bigger-on-the-inside vault), which then becomes an **engine-gap
+flag**: non-Euclidean interiors, floating mass, and gravity-defying spans are **not engine-supported** — flag,
+don't fake (CC8).
+
+### Grounding note
+
+This tier introduces almost no new real-world dimensions — the *structure* stays grounded through Parts 5–8;
+its contribution is the **bible-as-source mechanism** + the **consistency validator** + the **overlay system**.
+The mechanism's provenance is the established practice of the **story / world bible**, whose entire purpose is
+enforcing internal consistency across a fictional setting. Magical light maps to the **real `glow` material**
+that already exists in `materials.json`.
+
+*Sources (this session):* [Worldbuilding Bible (Dabble)](https://www.dabblewriter.com/articles/worldbuilding-bible); [Creating a World Building Bible (Author Learning Center)](https://www.authorlearningcenter.com/writing/fiction/w/setting/6803/creating-a-world-building-bible-to-set-the-rules-and-maintain-consistency-in-your-novel).
+
+**Honest status:** unbuilt. The bible schema, the consistency validator, the period-gate-cites-bible rewiring
+of category A, and the overlay system are all target spec. The one piece that exists is the `glow` material
+(magical light has a real home). Everything else — including which impossibilities the engine can ever support —
+is documented as requirement, not as done.
 
 ---
 
