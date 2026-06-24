@@ -5,6 +5,29 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
 
 ## Open
 
+### KI-4 — Stairs are geometry-only, NOT functionally walkable (floors block each other)
+- **Symptom:** a character cannot actually walk up the stairs to the floors above. (User-found;
+  my earlier "all floors reachable" claim was geometric + topological only — never a walk test.)
+- **Cause A — stacking (the killer):** every story stamps an *identical* straight flight at the
+  *same* stairwell rect. The B→C flight's solid fill (`StructureRealizer.cpp` place_stairs,
+  `fillMicroBox(..., botMicro_B, ...)`) starts at floor B's walkable level — exactly where you
+  emerge from A→B — and rises, filling the headroom directly above A→B's top step. Repeated every
+  floor, the shaft becomes one continuous solid diagonal mass: no landing, no headroom. Floor N's
+  flight occupies the volume floor N-1 must climb into.
+- **Cause B — riser too steep:** rise 30 micro (3.33 m) over `runLen=6` → `step=ceil(30/6)=5`
+  micro ≈ 0.55 m per tread, which exceeds `AnimatedVoxelCharacter::m_maxStepHeight` (4/9 ≈ 0.44 m).
+  Even an isolated flight can't be stepped up; a compliant straight flight needs ≥ 8 treads (~8 m)
+  and won't fit a 7×9 footprint.
+- **Why it slipped through:** the unit test checked "hole + a step voxel exists"; the validator
+  checked graph topology ("a stair links s↔s+1"). Neither checks **physical walkability** (riser ≤
+  maxStep, headroom over each tread, a landing on emergence). Geometry-exists / topology-connected
+  ≠ walkable.
+- **Fix direction:** (1) a real stair generator — switchback/dog-leg with a mid-landing so each
+  half-flight rises ~1.67 m over ~4–5 compliant treads, the return flight leaves headroom, plus
+  bottom+top landings; per-floor orientation so flights don't collide vertically. (2) a
+  walkable-ascent validation invariant that GATES the build (riser, headroom, landing), and a
+  runtime functional test that drives a character floor-to-floor.
+
 ### KI-1 — Roof hovers above the walls
 - **Symptom:** a visible gap between the top of the walls and the underside of the roof (the roof appears to float).
 - **Where:** `StructureRealizer::realizeShell` **pass 5** (`place_roof` / #13) — the `eaveSub` (roof eave subcube row) vs. the wall-top / ceiling-slab alignment. Likely the eave doesn't meet the wall top flush, or the gable-end band leaves a gap on the long (eave) sides.
