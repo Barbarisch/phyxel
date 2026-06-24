@@ -76,8 +76,22 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 **Systems (30)** — ✅ [30_register_systems](30_register_systems.md)
 **Conditional structural (31–33)** — ✅ [31_place_fortifications](31_place_fortifications.md) · [32_place_graveyard](32_place_graveyard.md) · [33_apply_seasonal_state](33_apply_seasonal_state.md)
 **Vertical (34–37)** — ✅ [34_excavate_basement](34_excavate_basement.md) · [35_place_basement](35_place_basement.md) · [36_stack_stories](36_stack_stories.md) · [37_place_attic](37_place_attic.md)
-**Settlement (38–49)** — site_settlement … link_subterranean — TODO
+**Settlement (38–49)** — ✅ this batch
+| # | placer | spec |
+|---|---|---|
+| 38 | site_settlement | [38_site_settlement](38_site_settlement.md) |
+| 39 | lay_street_network | [39_lay_street_network](39_lay_street_network.md) |
+| 40 | subdivide_plots | [40_subdivide_plots](40_subdivide_plots.md) |
+| 41 | zone_districts | [41_zone_districts](41_zone_districts.md) |
+| 42 | place_town_wall | [42_place_town_wall](42_place_town_wall.md) |
+| 43 | place_public_spaces | [43_place_public_spaces](43_place_public_spaces.md) |
+| 44 | place_bridges | [44_place_bridges](44_place_bridges.md) |
+| 45 | populate_plots | [45_populate_plots](45_populate_plots.md) |
+| 46 | compose_compound | [46_compose_compound](46_compose_compound.md) |
+| 47 | place_signage | [47_place_signage](47_place_signage.md) |
+| 48 | dress_street_life | [48_dress_street_life](48_dress_street_life.md) |
+| 49 | link_subterranean | [49_link_subterranean](49_link_subterranean.md) |
 **Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
 **Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
 
-*(37 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(49 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
