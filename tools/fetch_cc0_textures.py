@@ -60,6 +60,10 @@ ASSETS = {
     "Sandstone":    {"all": "Rock035"},
     "Metal":        {"all": "MetalPlates006"},
     "Ice":          {"all": "Ice001"},
+    # Logs -> CC0 bark (sides + caps share the bark tile; distinct assets differentiate species).
+    "Log":          {"all": "Bark007"},
+    "LogBirch":     {"all": "Bark011"},
+    "LogSpruce":    {"all": "Bark006"},
     # Biome grass variants: same layout as Grass (shader currently ignores colorTint, so
     # these share the base grass/dirt tiles to stay sharp rather than upscaled-blurry).
     "GrassForest":  {"top": "Grass004", "side": "Ground003", "bottom": "Ground003"},

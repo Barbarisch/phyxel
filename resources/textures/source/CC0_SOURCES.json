@@ -69,6 +69,30 @@
     "resolution": 512,
     "source": "ambientCG"
   },
+  "Log": {
+    "assets": {
+      "all": "Bark007"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "LogBirch": {
+    "assets": {
+      "all": "Bark011"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "LogSpruce": {
+    "assets": {
+      "all": "Bark006"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
   "Metal": {
     "assets": {
       "all": "MetalPlates006"
