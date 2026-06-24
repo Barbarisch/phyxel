@@ -1,0 +1,42 @@
+{
+  "_comment": "Vernacular material map — which construction materials a region's geology/ecology makes local, for the style-derivation step (docs Part 10, the brief->build pipeline). The PRINCIPLE (build with what's at hand) is the grounding; the region->material pairings are the canonical vernacular set. 'engine_materials' maps each to a material in resources/materials.json; WANTED = not yet in the atlas (docs/WantedAssetsBacklog.md). Wall thicknesses live in structure_styles.json.",
+  "principle": "Pre-industrial vernacular building uses locally-available materials: stone where it outcrops, timber where forests stand, clay where it is dug, reed/straw for thatch. Transport was costly, so geology + ecology dictate the walls + roof. (Brunskill, Illustrated Handbook of Vernacular Architecture.)",
+  "regions": {
+    "stone_upland": {
+      "description": "Hard-rock uplands (moor, fell, dale) — stone is the default.",
+      "walls": ["dry_stone", "rubble_stone", "ashlar"],
+      "roof": ["stone_slab", "slate", "thatch_heather"],
+      "engine_materials": { "dry_stone": "Cobblestone", "rubble_stone": "Stone", "ashlar": "StoneBricks", "slate": "WANTED", "stone_slab": "WANTED", "thatch_heather": "Thatch" },
+      "source": "stone vernacular in stone country (Brunskill); dry-stone walling 1.4-1.6 m (The Stone Trust, cited)"
+    },
+    "lowland_timber": {
+      "description": "Wooded lowland clay vales — timber frame + earth infill, thatch or tile.",
+      "walls": ["timber_frame_wattle_daub", "timber_frame_brick_nogging"],
+      "roof": ["thatch_straw", "clay_tile"],
+      "engine_materials": { "timber_frame": "Wood", "wattle_daub_infill": "WANTED (plaster)", "brick_nogging": "Bricks", "thatch_straw": "Thatch", "clay_tile": "WANTED" },
+      "source": "timber-frame + wattle & daub lowland vernacular (Brunskill); exterior wall ~0.222 m (buildingconservation.com, cited in structure_styles timber_cottage)"
+    },
+    "chalk_cob": {
+      "description": "Chalk / cob country (downland, the south-west) — cob or chalk-block walls, thatch.",
+      "walls": ["cob", "chalk_block", "flint"],
+      "roof": ["thatch_straw", "clay_tile"],
+      "engine_materials": { "cob": "WANTED", "chalk_block": "WANTED", "flint": "WANTED", "thatch_straw": "Thatch", "clay_tile": "WANTED" },
+      "source": "cob ~0.6 m walls in chalk/clay regions (Devon/Dorset vernacular); flint where it occurs. Cob/flint/chalk thickness to_ground."
+    },
+    "brick_clay": {
+      "description": "Brick-earth regions (East Anglia, the Low Countries) — fired brick once kilns + fuel exist.",
+      "walls": ["brick"],
+      "roof": ["clay_tile", "pantile", "thatch_reed"],
+      "engine_materials": { "brick": "Bricks", "clay_tile": "WANTED", "pantile": "WANTED", "thatch_reed": "Thatch" },
+      "source": "brick vernacular where brick-earth + fuel (later-medieval onward; GENRE-FLAG earlier periods)"
+    },
+    "fen_reed": {
+      "description": "Fen / marsh / reed-bed — reed thatch, timber, little stone.",
+      "walls": ["timber_frame_wattle_daub"],
+      "roof": ["thatch_reed"],
+      "engine_materials": { "timber_frame": "Wood", "thatch_reed": "Thatch" },
+      "source": "reed thatch (Norfolk reed) in fen country; the longest-lived thatch"
+    }
+  },
+  "_to_ground": "Per-region wall thicknesses live in structure_styles.json (cob/flint/chalk-block thicknesses are to_ground). The region->geology assignment for a given world is a world-gen/biome input (biomes.json), not yet wired into the style derivation."
+}
