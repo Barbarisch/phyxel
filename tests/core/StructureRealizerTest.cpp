@@ -197,6 +197,55 @@ TEST(StructureRealizerTest, StairsCutUpperFloorAndBuildFlight) {
         << "no stair step built in the stairwell";
 }
 
+// STRESS TEST: a 10-story tower with a stair on EVERY floor up to the next. The simple
+// 2-story proof can't catch scale bugs (floor-index off-by-one, misaligned holes on a
+// high floor, overlapping steps). Here EVERY intermediate floor must be holed and EVERY
+// story must have a flight — i.e. all 10 floors are connected by stairs.
+TEST(StructureRealizerTest, TenStoryTowerStairsConnectEveryFloor) {
+    nlohmann::json j;
+    j["name"] = "tower10";
+    j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({7, 9});
+    j["substructure"] = "crawlspace";
+    j["roof_style"] = "gable";
+    j["stories"] = nlohmann::json::array();
+    for (int s = 0; s < 10; ++s) {
+        nlohmann::json room;
+        room["id"] = "r"; room["rect"] = nlohmann::json::array({0, 0, 7, 9}); room["purpose"] = "living";
+        nlohmann::json story;
+        story["height"] = 3;
+        story["rooms"]   = nlohmann::json::array({room});
+        story["portals"] = nlohmann::json::array();
+        story["stairs"]  = nlohmann::json::array();
+        if (s < 9) {
+            nlohmann::json stair;
+            stair["from_story"] = s; stair["to_story"] = s + 1;
+            stair["rect"] = nlohmann::json::array({1, 2, 2, 6}); stair["kind"] = "straight";
+            story["stairs"].push_back(stair);
+        }
+        j["stories"].push_back(story);
+    }
+    auto r = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), timberCottageStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+
+    // story s walkable micro = 12 + 30*s (crawl1+floor3 => 12; each story adds floor3+wall27=30).
+    for (int s = 1; s <= 9; ++s) {
+        const int slabY = 11 + 30 * s;                 // inside story s's floor slab
+        EXPECT_FALSE(r.canvas.occupiedMicro(2 * 9 + 4, slabY, 2 * 9 + 4))
+            << "floor " << s << " was NOT holed for the stairwell";
+        EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 8 * 9 + 4))
+            << "floor " << s << " missing away from the stairwell";
+    }
+    for (int s = 0; s <= 8; ++s) {
+        const int botMicro = 12 + 30 * s;
+        EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, botMicro + 3, 2 * 9 + 4))
+            << "no flight rising from floor " << s;
+    }
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(r.canvas.microBounds(lo, hi));
+    EXPECT_GT(hi.y, 12 + 30 * 9) << "tower is not 10 stories tall";
+}
+
 namespace {
 StyleProfile cottageStyleWithPitchDeg(double deg) {
     StyleProfileRegistry reg;
