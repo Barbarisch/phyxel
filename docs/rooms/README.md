@@ -35,10 +35,20 @@ clearances (ceiling 2.134 m, door 2.03 m, etc.). No number stands un-grounded.
 | cellar / undercroft | [cellar](cellar.md) |
 | servants' quarters | [servants_quarters](servants_quarters.md) |
 
-**Trade & work (8)** — TODO: forge floor, workshop, weaver's, bakehouse, brewery, mill stone-floor, tavern common room, shop/storefront
+**Trade & work (8)** — ✅ this batch
+| room | sheet |
+|---|---|
+| forge floor | [forge_floor](forge_floor.md) |
+| workshop | [workshop](workshop.md) |
+| weaver's | [weavers](weavers.md) |
+| bakehouse | [bakehouse](bakehouse.md) |
+| brewery | [brewery](brewery.md) |
+| mill stone-floor | [mill_stone_floor](mill_stone_floor.md) |
+| tavern common room | [tavern_common_room](tavern_common_room.md) |
+| shop / storefront | [shop_storefront](shop_storefront.md) |
 **Agriculture (6)** — TODO: byre, stable, barn interior, granary interior, dovecote interior, pigsty
 **Faith (6)** — TODO: nave, chancel, sacristy, refectory, dorter, scriptorium
 **Defensive (5)** — TODO: great hall, guardroom, armory, cell, gatehouse chamber
 **Finance / secure (4)** — TODO: banking hall, counting room, vault, ledger archive
 
-*(9 of ~38 specced. Add a row when a sheet lands.)*
+*(17 of ~38 specced. Add a row when a sheet lands.)*
