@@ -91,7 +91,7 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 | 47 | place_signage | [47_place_signage](47_place_signage.md) |
 | 48 | dress_street_life | [48_dress_street_life](48_dress_street_life.md) |
 | 49 | link_subterranean | [49_link_subterranean](49_link_subterranean.md) |
-**Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
-**Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
+**Subterranean (50–57)** — ✅ [50_excavate_subterrane](50_excavate_subterrane.md) · [51_carve_sewer_network](51_carve_sewer_network.md) · [52_place_crypt](52_place_crypt.md) · [53_excavate_dungeon](53_excavate_dungeon.md) · [54_place_mine](54_place_mine.md) · [55_connect_underground](55_connect_underground.md) · [56_place_secret_passages](56_place_secret_passages.md) · [57_validate_crawlability](57_validate_crawlability.md)
+**Fantasy (58–59)** — ✅ [58_author_world_bible](58_author_world_bible.md) · [59_apply_setting_overlay](59_apply_setting_overlay.md)
 
-*(49 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(✅ 59 of 59 specced — all placers. Status mirrors Part 1; update a row when implementation lands.)*
