@@ -36,26 +36,94 @@ Every sheet has these sections:
 
 ## Index
 
-| Archetype | Group | Sheet status |
-|---|---|---|
-| [`bank`](bank.md) — counting_house | Finance | **DRAFT** (worked exemplar) |
-| [`gaol`](gaol.md) — prison | Civic | **DRAFT** |
-| [`tavern`](tavern.md) / inn | Hospitality | **DRAFT** |
-| [`blacksmith`](blacksmith.md) | Commerce | **DRAFT** |
-| [`temple`](temple.md) / church | Faith | **DRAFT** |
-| [`townhouse`](townhouse.md) | Dwelling | **DRAFT** |
-| [`general_store`](general_store.md) / trading_post | Commerce | **DRAFT** |
-| arcane_emporium | Commerce | STUB |
-| tower_house / wizard_tower | Power | STUB |
-| keep / castle | Power | STUB |
-| manor / ornate_house | Dwelling | STUB |
-| slum_tenement | Dwelling | STUB |
-| foundry | Industry | STUB |
-| civic_palace | Civic | STUB |
-| guildhall / town_hall | Civic | STUB |
-| warehouse / mill | Civic | STUB |
-| brothel / theatre / gambling_den | Entertainment | STUB |
-| hospital / bathhouse / mortuary | Civic | STUB |
-| harbor complex (wharf, lighthouse, …) | Maritime | STUB *(engine-blocked on water)* |
+**Progress: 7 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+`BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
+are noted, not separate files, unless they diverge enough to need their own.
 
-*(STUB = listed in Part 6, no deep sheet yet. The list mirrors Part 6; add a row when an archetype is added there.)*
+### Dwellings (7)
+| Archetype | Status |
+|---|---|
+| croft | STUB *(room program exists in `room_program.json`)* |
+| longhouse | STUB *(room program exists)* |
+| hall_house | STUB *(room program exists)* |
+| manor_hall | STUB *(room program exists)* |
+| [`townhouse`](townhouse.md) | **DRAFT** |
+| manor / ornate_house | STUB |
+| slum_tenement | STUB |
+
+### Hospitality (1)
+| [`tavern`](tavern.md) / inn | **DRAFT** |
+
+### Commerce — shops (9)
+| Archetype | Status |
+|---|---|
+| [`blacksmith`](blacksmith.md) | **DRAFT** |
+| [`general_store`](general_store.md) / trading_post | **DRAFT** |
+| apothecary | STUB |
+| bakery | STUB |
+| butcher | STUB |
+| tailor / weaver | STUB |
+| cooper / carpenter | STUB |
+| tanner *(noxious)* | STUB |
+| arcane_emporium *(fantasy)* | STUB |
+
+### Finance (1)
+| [`bank`](bank.md) / counting_house | **DRAFT** (exemplar) |
+
+### Entertainment & vice (4)
+| Archetype | Status |
+|---|---|
+| brothel / festhall | STUB |
+| theatre / playhouse *(early-modern)* | STUB |
+| costumier | STUB |
+| gambling_den | STUB |
+
+### Civic & institutions (10)
+| Archetype | Status |
+|---|---|
+| [`gaol`](gaol.md) / prison | **DRAFT** |
+| guildhall | STUB |
+| town_hall / moot_hall | STUB |
+| civic_palace / seat_of_state | STUB |
+| warehouse | STUB |
+| mill *(water/wind)* | STUB |
+| printing_house *(early-modern)* | STUB |
+| bathhouse / stews | STUB |
+| hospital / hospice | STUB |
+| mortuary / mausoleum | STUB |
+
+### Faith (3)
+| Archetype | Status |
+|---|---|
+| [`temple`](temple.md) / church *(covers shrine→chapel→church tiers)* | **DRAFT** |
+| cathedral *(compound)* | STUB |
+| monastery *(compound)* | STUB |
+
+### Power / fortified (3)
+| Archetype | Status |
+|---|---|
+| tower_house / wizard_tower | STUB |
+| keep / great_tower | STUB |
+| castle *(compound)* | STUB |
+
+### Industry (1)
+| foundry / manufactory *(early-modern/fantasy)* | STUB |
+
+### Agriculture & outbuildings (6)
+| Archetype | Status |
+|---|---|
+| byre / cowshed | STUB |
+| stable | STUB |
+| barn | STUB |
+| granary | STUB |
+| dovecote | STUB |
+| pigsty / coop | STUB |
+
+### Maritime (5) — `BLOCKED` on the water/shoreline engine feature
+| Archetype | Status |
+|---|---|
+| wharf / pier / quay | BLOCKED |
+| harbormaster / customs_house | BLOCKED |
+| fish_market | BLOCKED |
+| lighthouse / beacon_tower | BLOCKED |
+| boathouse / shipyard | BLOCKED |
