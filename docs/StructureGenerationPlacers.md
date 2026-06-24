@@ -585,7 +585,12 @@ Each extends the existing `room_program.json` `programs` schema (which already h
 `longhouse`, `hall_house`, `manor_hall`) and is persisted as data — another canon in the content library
 (Part 4). No archetype lets a number stand un-grounded (the standing rule).
 
-**Archetype schema:**
+**Deep per-archetype data sheets** — threat model, access tiers, room program, adjacency rules, function testers,
+grounding ledger — live in [`docs/archetypes/`](archetypes/). **Part 6 is the index; those are the depth.**
+Security/function-defined types (bank, gaol, …) **require a sheet before any build** ([`bank`](archetypes/bank.md)
+is the worked exemplar).
+
+**Archetype schema (index level):**
 | Field | Meaning |
 |---|---|
 | `id` / `function` | the type and what it's for |
