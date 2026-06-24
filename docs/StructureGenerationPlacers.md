@@ -638,8 +638,8 @@ concern (not yet written) — flagged.
 - *Cited:* east orientation + nave/chancel/sacristy from Part 3. *to_ground:* church proportions.
 
 **Power / fortified** *(dimensions grounded this session)*
-- **`tower_house` / `wizard_tower`** — compact vertical keep: vaulted cellar (storage) → stacked single chambers → parapet roof; **first-floor entrance** (defensive); thick walls; barmkin yard. *Grounded:* Henry VI 1429 statute min **6.1 × 4.9 × 12.2 m**; walls **6 ft below the vault, 4 ft above**; round example (Balief) ~**10.7 m tall, 4.78 m interior dia, 2.54 m walls**. **Wizard tower** = `tower_house` + an arcane program (laboratory / library / observatory / summoning-circle) — the *fantasy overlay deferred to the setting-canon tier* (flagged).
-- **`keep` / `great_tower`** — the castle's strongest building: great hall + chambers + chapel + well + dungeon over a vaulted basement; first-floor entrance. *Grounded:* Dover **29.5 m square, 25.3 m tall, walls to 6.4 m**; Pembroke round keep **16 m dia, 24 m tall**; shell-keep wall **3–3.5 m thick, 4.5–9 m high**; general keep walls **1.5–2.1 m** (up to 4 m).
+- **`tower_house` / `wizard_tower`** — compact vertical keep: vaulted cellar (storage) → stacked single chambers → parapet roof; **first-floor entrance** (defensive); thick walls; barmkin yard. *Grounded:* Henry VI 1429 statute min **6.1 × 4.9 × 12.2 m**; walls **6 ft (1.83 m) below the vault, 4 ft (1.22 m) above**; round example (Balief) ~**10.7 m tall, 4.78 m interior dia, 2.54 m walls**. **Wizard tower** = `tower_house` + an arcane program (laboratory / library / observatory / summoning-circle) — the *fantasy overlay deferred to the setting-canon tier* (flagged).
+- **`keep` / `great_tower`** — the castle's strongest building: great hall + chambers + chapel + well + dungeon over a vaulted basement; first-floor entrance. *Grounded:* Dover **29.5 m square, 25.3 m tall, walls to 6.4 m**; Pembroke round keep **16 m dia, 24 m tall**; shell-keep wall **3–3.5 m thick, 4.5–9 m high**; general keep walls **2–4 m** *(audit-corrected: 1.5 m belongs to a fortified manor, not a keep — sources start keeps at ~2 m)*.
 - **`castle`** *(compound)* — curtain wall (2–6 m, existing canon) + flanking towers + gatehouse/barbican + keep + bailey buildings (great hall, chapel, stables, smithy, kitchen, barracks) + moat/ditch + dungeon below. Composes `place_fortifications` (#31) + `keep` + bailey archetypes + the subterranean tier.
 
 *Sources (this session):* tower house — [Wikipedia: Tower house](https://en.wikipedia.org/wiki/Tower_house), [Tower houses in Britain and Ireland](https://en.wikipedia.org/wiki/Tower_houses_in_Britain_and_Ireland); keep — [World History Encyclopedia: Castle Keep](https://www.worldhistory.org/Castle_Keep/), [Bergfried](https://en.wikipedia.org/wiki/Bergfried), [Round Keep Castles](https://www.medieval-spell.com/Round-Keep-Castles.html).
@@ -690,7 +690,7 @@ the population, or the settlement fails its function test.
 | Burgage frontage (narrow / subdivided) | 2 perches ≈ **10 m**, split in fractional-perch units | Cricklade; Tewkesbury (4 × 40 perch primary, subdivided) |
 | Town / curtain wall height | ~**9 m (30 ft)** or more | medieval fortification norm |
 | Town / curtain wall thickness | **2.5–6 m** (siege minimum ~2.1–2.4 m) | medieval fortification |
-| Town gate (foregate example) | **6.8 × 9.5 m** | Byczyna German Gate foregate |
+| Town gate (foregate example) | **6.8 × 9.5 m** | Byczyna German Gate foregate — *NEEDS-RESEARCH: unverified this session; confirm via medievalheritage.eu / NID before encoding* |
 | Large market square (exceptional) | **3.79 ha / 9.4 acres** | Kraków Main Square (13th c.) |
 | Population density | ~**40–61 people/acre** | RPG demographics (S. John Ross lineage, from historical estimates) |
 | Building density | ~**20–30 structures/acre** | same |
@@ -742,11 +742,11 @@ chancel** with body-sized loculi; dungeons sit **under the keep**, grim and secu
 
 | Value | Grounded figure | Source |
 |---|---|---|
-| Vaulted walkable sewer | **2.7–4.5 m high × 3.2–4.5 m wide**, barrel-vaulted | Cloaca Maxima (Roman) |
+| Vaulted walkable sewer | **2.7–3.3 m high × 2.1–4.5 m wide**, barrel-vaulted | Cloaca Maxima (Roman) — *audit-corrected: 4.5 m is the outlet width, not height* |
 | Catacomb gallery | ~**2.5 m high × ~1.0 m wide** (walk upright) | Catacombs of Rome |
 | Loculus (burial niche) | **0.4–0.6 m high × 1.2–1.5 m long** | Catacombs of Rome |
 | Catacomb depth | first level **3–8 m**; up to **20–25 m** over 4–5 levels | Catacombs of Rome |
-| Mine adit / gallery | ~**2 m high × ~1 m wide** (one miner) | medieval mining adit |
+| Mine adit / gallery | ~**2 m high × ~1 m wide** (one miner) | medieval mining adit — *NEEDS-RESEARCH: plausible but no cited primary source; verify against Agricola* De Re Metallica *Lib. V–VI* |
 | Cramped crawl tunnel (Erdstall) | **1.0–1.4 m high × ~0.6 m wide** | Erdstall |
 | Walk-upright passage clearance (min) | ≥ **2.032 m headroom × ≥ 0.914 m wide** | IRC R311.6 / R305 (anthropometric) |
 
