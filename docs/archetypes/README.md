@@ -40,13 +40,14 @@ Every sheet has these sections:
 |---|---|---|
 | [`bank`](bank.md) — counting_house | Finance | **DRAFT** (worked exemplar) |
 | [`gaol`](gaol.md) — prison | Civic | **DRAFT** |
-| tavern / inn | Hospitality | STUB |
-| blacksmith | Commerce | STUB |
+| [`tavern`](tavern.md) / inn | Hospitality | **DRAFT** |
+| [`blacksmith`](blacksmith.md) | Commerce | **DRAFT** |
+| [`temple`](temple.md) / church | Faith | **DRAFT** |
+| [`townhouse`](townhouse.md) | Dwelling | **DRAFT** |
+| [`general_store`](general_store.md) / trading_post | Commerce | **DRAFT** |
 | arcane_emporium | Commerce | STUB |
-| temple / church | Faith | STUB |
 | tower_house / wizard_tower | Power | STUB |
 | keep / castle | Power | STUB |
-| townhouse | Dwelling | STUB |
 | manor / ornate_house | Dwelling | STUB |
 | slum_tenement | Dwelling | STUB |
 | foundry | Industry | STUB |
