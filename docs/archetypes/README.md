@@ -36,7 +36,7 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 24 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 33 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
@@ -78,19 +78,19 @@ are noted, not separate files, unless they diverge enough to need their own.
 | [`costumier`](costumier.md) | **DRAFT** |
 | [`gambling_den`](gambling_den.md) | **DRAFT** |
 
-### Civic & institutions (10)
+### Civic & institutions (10) — ✅ complete
 | Archetype | Status |
 |---|---|
 | [`gaol`](gaol.md) / prison | **DRAFT** |
-| guildhall | STUB |
-| town_hall / moot_hall | STUB |
-| civic_palace / seat_of_state | STUB |
-| warehouse | STUB |
-| mill *(water/wind)* | STUB |
-| printing_house *(early-modern)* | STUB |
-| bathhouse / stews | STUB |
-| hospital / hospice | STUB |
-| mortuary / mausoleum | STUB |
+| [`guildhall`](guildhall.md) | **DRAFT** |
+| [`town_hall`](town_hall.md) / moot_hall | **DRAFT** |
+| [`civic_palace`](civic_palace.md) / seat_of_state | **DRAFT** |
+| [`warehouse`](warehouse.md) | **DRAFT** |
+| [`mill`](mill.md) *(water/wind)* | **DRAFT** |
+| [`printing_house`](printing_house.md) *(early-modern)* | **DRAFT** |
+| [`bathhouse`](bathhouse.md) / stews | **DRAFT** |
+| [`hospital`](hospital.md) / hospice | **DRAFT** |
+| [`mortuary_mausoleum`](mortuary_mausoleum.md) | **DRAFT** |
 
 ### Faith (3)
 | Archetype | Status |
