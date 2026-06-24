@@ -332,6 +332,15 @@ V8. Attic has **access** (stair/ladder/hatch) and **light** (gable window or dor
 V9. Roof structure suits an occupiable attic (hollow shell + collar height) vs a solid wedge; rafters/ridge don't intrude below standing headroom in the usable zone.
 V10. **Vertical loads stack** — upper-story and roof walls bear on walls/posts below, not mid-span on a floor (the D-category structural rule, applied in Y).
 
+### W. Archetype identity & fidelity *(uses the Part 6 library)*
+W1. The built structure **reads as its declared archetype** — silhouette / massing / signature features identify it without a label (a tavern isn't a generic box; a keep isn't a tall cottage).
+W2. The archetype's **signature features are present** (tower's first-floor entrance + parapet; church's oriented chancel + tower; shop's street counter + pictorial sign; smithy's forge + chimney).
+W3. The archetype's building-level **function_test passes** — it composes the Part 3 per-room tests for every required room.
+W4. Form **scales with status + period + region** (rich townhouse vs slum tenement; Norman square keep vs later round keep).
+W5. **Compound archetypes** (castle, monastery, cathedral) correctly compose sub-buildings + walls + parcel — not a single mega-room.
+W6. **Mixed-use** is honored where period-correct (shop/workshop ground floor + dwelling above in a townhouse).
+W7. Every archetype dimension is **grounded or flagged `to_ground`** — no invented footprints/heights (the standing rule, at building scale).
+
 ## Part 3 — Per-room function programs (the "what makes it that room" library)
 
 Data-driven recipes the `FurniturePlacer` reads and the **T**-checks enforce. **Required** = without it the room
@@ -491,6 +500,79 @@ structural values that don't resolve to a clean standard are **flagged for the g
 These figures are **design-of-record here** — they feed `structure_styles.json` (basement story height,
 retaining-wall thickness, roof pitch → attic envelope) and `object_dimensions.json` (stair, window-well)
 **when the placers are built**, and are not yet wired into runtime canon.
+
+## Part 6 — Building-archetype library (the typology layer)
+
+An **archetype** is a building-level typology — the building-scale analog of the Part 3 per-room programs.
+It's what the LLM *picks* ("a wizard tower", "a dockside tavern"); the engine realizes it deterministically.
+Each extends the existing `room_program.json` `programs` schema (which already holds four — `croft`,
+`longhouse`, `hall_house`, `manor_hall`) and is persisted as data — another canon in the content library
+(Part 4). No archetype lets a number stand un-grounded (the standing rule).
+
+**Archetype schema:**
+| Field | Meaning |
+|---|---|
+| `id` / `function` | the type and what it's for |
+| `extends` | base program it specializes (optional) |
+| `form` | footprint shape (rect / L / round / courtyard / **compound**), story count, substructure, signature silhouette |
+| `program` | rooms by Part 3 `purpose` + size (bays), required vs typical |
+| `signature` | the features that make it *read* as this type |
+| `function_test` | building-level "does it work as X" gate (composes the Part 3 room tests) |
+| `scaling` | how status / period / region change it |
+| `sources` / `to_ground` | per-value citations, or the flagged list routed to the grounding-auditor |
+
+**Compound archetypes** (castle, monastery, cathedral) aren't single buildings — they *compose* sub-building
+archetypes + the fortification (#31) and settlement/parcel placers. That composition logic is a settlement-tier
+concern (not yet written) — flagged.
+
+### The library
+
+**Dwellings** — `croft`, `longhouse`, `hall_house`, `manor_hall` exist + cited (`room_program.json`). Additions:
+- **`townhouse`** (urban burgage) — narrow gable-to-street frontage, 2–3 stories, **jettied** upper floors; ground-floor shop/workshop + hall + chambers above + rear kitchen/yard. *Signature:* narrow gabled front, jetty, mixed-use. *Test:* street-fronting commercial ground + private upper. *to_ground:* burgage frontage width.
+- **`manor` / `ornate_house`** — wealth tier of `manor_hall` + solar, parlour, chapel, long gallery, gatehouse, gardens. *Cited via* `manor_hall`.
+- **`slum_tenement`** — improvised: scavenged/patched materials, no foundation, subdivided rooms, lean-tos, street **encroachment**, no sanitation, overcrowded, fire-prone. *Signature:* squalor + encroachment + lean. *Test:* shelter only — **intentionally fails the quality tier** (a designed low tier, not a bug). *to_ground:* occupants/room density.
+
+**Hospitality**
+- **`tavern` / `inn`** — common room (bar + hearth + tables/benches + casks), kitchen, drink cellar, guest chambers (beds), innkeeper's quarters, + stable yard (coaching inn). *Signature:* hanging sign, large common room, stable yard. *Test:* bar + seating + hearth + drink storage + lodging + route to cellar/kitchen. *to_ground:* common-room size, guest-room count.
+
+**Commerce — the shop family** (each = street shopfront + workshop + storage + dwelling above):
+- **`blacksmith`** — forge + anvil + bellows + quench + tool rack + workbench + fuel; fire-safe / detached. *(forge program, Part 3.)*
+- **`apothecary`** — counter + jar/herb shelving + workbench + drying loft + back store.
+- **`bakery`** — oven + chimney + kneading table + flour store + shopfront; fire-safe.
+- **`butcher`** — counter + block/hooks + cold store + rear slaughter yard (downwind/downstream).
+- **`tailor` / `weaver`** — loom/work table + cloth store + strong light + counter.
+- **`cooper` / `carpenter`** — workbench + timber store + tool rack + yard.
+- **`tanner`** (noxious) — pits + drying racks, sited at the edge & downstream (zoning — settlement tier).
+- *Common signature:* pictorial trade sign (illiterate clientele), shutter-down street counter, mixed-use above. *Test:* the trade's required station (Part 3) + customer counter + storage. *to_ground:* shopfront width, counter dims.
+
+**Civic**
+- **`guildhall`** — meeting hall + offices + store; often a ground-floor market arcade.
+- **`town_hall` / `moot_hall`** — assembly hall raised over an open market floor; bell.
+- **`gaol`** — cells (barred/locked) + guardroom + yard.
+- **`warehouse`** — open storage volume + cart/loading doors + (dockside) crane.
+- **`mill`** (water/wind) — millstones + drive + hopper + meal bins + sacks + hoist. *(mill program, Part 3.)*
+- *to_ground:* civic hall sizes.
+
+**Faith**
+- **`shrine`** — altar + idol/icon + offering space.
+- **`church` / `chapel`** — nave + chancel (altar, **oriented east**) + tower/bell + porch.
+- **`temple`** (pantheon) — cella + cult statue + portico + precinct.
+- **`cathedral`** *(compound)* — church + transepts + aisles + crypt + chapter house + cloister.
+- **`monastery`** *(compound)* — church + cloister + refectory + dorter + chapter house + infirmary + guesthouse + gatehouse.
+- *Cited:* east orientation + nave/chancel/sacristy from Part 3. *to_ground:* church proportions.
+
+**Power / fortified** *(dimensions grounded this session)*
+- **`tower_house` / `wizard_tower`** — compact vertical keep: vaulted cellar (storage) → stacked single chambers → parapet roof; **first-floor entrance** (defensive); thick walls; barmkin yard. *Grounded:* Henry VI 1429 statute min **6.1 × 4.9 × 12.2 m**; walls **6 ft below the vault, 4 ft above**; round example (Balief) ~**10.7 m tall, 4.78 m interior dia, 2.54 m walls**. **Wizard tower** = `tower_house` + an arcane program (laboratory / library / observatory / summoning-circle) — the *fantasy overlay deferred to the setting-canon tier* (flagged).
+- **`keep` / `great_tower`** — the castle's strongest building: great hall + chambers + chapel + well + dungeon over a vaulted basement; first-floor entrance. *Grounded:* Dover **29.5 m square, 25.3 m tall, walls to 6.4 m**; Pembroke round keep **16 m dia, 24 m tall**; shell-keep wall **3–3.5 m thick, 4.5–9 m high**; general keep walls **1.5–2.1 m** (up to 4 m).
+- **`castle`** *(compound)* — curtain wall (2–6 m, existing canon) + flanking towers + gatehouse/barbican + keep + bailey buildings (great hall, chapel, stables, smithy, kitchen, barracks) + moat/ditch + dungeon below. Composes `place_fortifications` (#31) + `keep` + bailey archetypes + the subterranean tier.
+
+*Sources (this session):* tower house — [Wikipedia: Tower house](https://en.wikipedia.org/wiki/Tower_house), [Tower houses in Britain and Ireland](https://en.wikipedia.org/wiki/Tower_houses_in_Britain_and_Ireland); keep — [World History Encyclopedia: Castle Keep](https://www.worldhistory.org/Castle_Keep/), [Bergfried](https://en.wikipedia.org/wiki/Bergfried), [Round Keep Castles](https://www.medieval-spell.com/Round-Keep-Castles.html).
+
+**Honest grounding status:** form / program / signature are qualitative and citable to architectural history;
+the marquee dimensions (tower house, keep, manor/great hall) are cited above; every other per-archetype size
+sits in its `to_ground` list and routes through the grounding-auditor before a number enters code. The library
+is **design-of-record** — it extends `room_program.json` into a `structure_archetypes.json`, not yet wired into
+runtime canon, and the **compound-composition + fantasy-overlay logic is unbuilt** (flagged).
 
 ---
 
