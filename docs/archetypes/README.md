@@ -36,7 +36,7 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 33 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 38 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
@@ -92,19 +92,19 @@ are noted, not separate files, unless they diverge enough to need their own.
 | [`hospital`](hospital.md) / hospice | **DRAFT** |
 | [`mortuary_mausoleum`](mortuary_mausoleum.md) | **DRAFT** |
 
-### Faith (3)
+### Faith (3) — ✅ complete
 | Archetype | Status |
 |---|---|
 | [`temple`](temple.md) / church *(covers shrine→chapel→church tiers)* | **DRAFT** |
-| cathedral *(compound)* | STUB |
-| monastery *(compound)* | STUB |
+| [`cathedral`](cathedral.md) *(compound)* | **DRAFT** |
+| [`monastery`](monastery.md) *(compound)* | **DRAFT** |
 
-### Power / fortified (3)
+### Power / fortified (3) — ✅ complete
 | Archetype | Status |
 |---|---|
-| tower_house / wizard_tower | STUB |
-| keep / great_tower | STUB |
-| castle *(compound)* | STUB |
+| [`tower_house`](tower_house.md) / wizard_tower | **DRAFT** |
+| [`keep`](keep.md) / great_tower | **DRAFT** |
+| [`castle`](castle.md) *(compound)* | **DRAFT** |
 
 ### Industry (1)
 | foundry / manufactory *(early-modern/fantasy)* | STUB |
