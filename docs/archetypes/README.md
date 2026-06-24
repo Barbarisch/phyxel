@@ -36,7 +36,7 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 13 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 20 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
@@ -54,18 +54,18 @@ are noted, not separate files, unless they diverge enough to need their own.
 ### Hospitality (1)
 | [`tavern`](tavern.md) / inn | **DRAFT** |
 
-### Commerce — shops (9)
+### Commerce — shops (9) — ✅ complete
 | Archetype | Status |
 |---|---|
 | [`blacksmith`](blacksmith.md) | **DRAFT** |
 | [`general_store`](general_store.md) / trading_post | **DRAFT** |
-| apothecary | STUB |
-| bakery | STUB |
-| butcher | STUB |
-| tailor / weaver | STUB |
-| cooper / carpenter | STUB |
-| tanner *(noxious)* | STUB |
-| arcane_emporium *(fantasy)* | STUB |
+| [`apothecary`](apothecary.md) | **DRAFT** |
+| [`bakery`](bakery.md) | **DRAFT** |
+| [`butcher`](butcher.md) | **DRAFT** |
+| [`tailor_weaver`](tailor_weaver.md) | **DRAFT** |
+| [`cooper_carpenter`](cooper_carpenter.md) | **DRAFT** |
+| [`tanner`](tanner.md) *(noxious)* | **DRAFT** |
+| [`arcane_emporium`](arcane_emporium.md) *(fantasy)* | **DRAFT** |
 
 ### Finance (1)
 | [`bank`](bank.md) / counting_house | **DRAFT** (exemplar) |
