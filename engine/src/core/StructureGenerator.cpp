@@ -1715,6 +1715,12 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
 
     for (size_t i = 0; i < total; ++i) {
         const auto& voxel = structure.voxels[i];
+        // A tall structure spans multiple vertical chunks; the material/subcube/microcube
+        // placement paths (unlike addCube) don't auto-create their chunk, so a voxel above
+        // the generated chunk-Y band would silently fail. Materialize the owning chunk first
+        // so the structure crosses every vertical seam (KI-3). Existing chunks are a cheap
+        // lookup; a new chunk is created at most once.
+        chunkManager->ensureChunkAt(voxel.position);
         bool ok = false;
         switch (voxel.level) {
         case VoxelLevel::Subcube:
