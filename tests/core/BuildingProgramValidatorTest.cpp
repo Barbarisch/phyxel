@@ -23,6 +23,39 @@ const char* kGoodCottage = R"({
     }]
 })";
 
+// Two stories stacked with IDENTICAL straight stair wells at the same rect — the KI-4
+// failure: 0.55 m risers (too steep) AND each flight fills the one below's headroom.
+const char* kStackedStraightStairs = R"({
+    "name": "tower", "style": "timber_cottage", "footprint": [7, 9],
+    "substructure": "crawlspace",
+    "stories": [
+        { "height": 3,
+          "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
+          "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [1,2,2,6], "kind": "straight" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }],
+          "stairs": [{ "from_story": 1, "to_story": 2, "rect": [1,2,2,6], "kind": "straight" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r2", "rect": [0,0,7,9], "purpose": "living" }] }
+    ]
+})";
+
+// A single straight flight with enough run (9 treads) for a compliant riser, and no
+// flight above it — passes the walkability gate.
+const char* kWalkableStraightStair = R"({
+    "name": "duplex", "style": "timber_cottage", "footprint": [7, 9],
+    "substructure": "crawlspace",
+    "stories": [
+        { "height": 3,
+          "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
+          "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [0,0,2,9], "kind": "straight" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }] }
+    ]
+})";
+
 BuildingProgram parse(const char* s) {
     return BuildingProgram::fromJson(nlohmann::json::parse(s));
 }
@@ -84,6 +117,20 @@ TEST(BuildingProgramValidatorTest, ExteriorPortalOffPerimeterFails) {
     auto r = BuildingProgramValidator::validate(p);
     EXPECT_FALSE(r.ok());
     EXPECT_TRUE(hasCode(r, "exterior_portal_off_perimeter"));
+}
+
+// KI-4: stairs must be physically walkable, not just topologically linked. Identical
+// straight wells stacked per floor are too steep AND fill each other's headroom.
+TEST(BuildingProgramValidatorTest, StackedStraightStairsAreNotWalkable) {
+    auto r = BuildingProgramValidator::validate(parse(kStackedStraightStairs));
+    EXPECT_TRUE(hasCode(r, "stair_riser_too_steep")) << r.summary();
+    EXPECT_TRUE(hasCode(r, "stair_no_headroom")) << r.summary();
+}
+
+TEST(BuildingProgramValidatorTest, WalkableStraightStairPasses) {
+    auto r = BuildingProgramValidator::validate(parse(kWalkableStraightStair));
+    EXPECT_FALSE(hasCode(r, "stair_riser_too_steep")) << r.summary();
+    EXPECT_FALSE(hasCode(r, "stair_no_headroom")) << r.summary();
 }
 
 namespace {

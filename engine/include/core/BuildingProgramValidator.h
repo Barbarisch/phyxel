@@ -42,6 +42,11 @@ struct CharacterScale {
                                      ///< 0.81 m egress clear (IRC R311.2) — grid-locked
     double minRoomDim      = 2.0;    ///< min usable room short side (cubes) — anthropometric;
                                      ///< cf. IRC R304 habitable min 7 ft (2.134 m), grid-rounded
+    double maxStepRiser    = 4.0/9.0;///< ≈0.444 m: the character's auto step-up
+                                     ///< (AnimatedVoxelCharacter m_maxStepHeight = 4/9 voxel). A
+                                     ///< stair riser above this is physically unclimbable — hard
+                                     ///< gate. The generator's COMFORT target is lower: IRC
+                                     ///< R311.7.5.1 max riser 7¾ in = 0.197 m.
 };
 
 class BuildingProgramValidator {
