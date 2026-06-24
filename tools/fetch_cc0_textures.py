@@ -132,11 +132,27 @@ def extract_maps(asset_id):
             if key is None:
                 continue
         img = Image.open(io.BytesIO(zf.read(name))).convert("RGBA")
-        size = ALBEDO_NATIVE if key == "albedo" else PBR_SIZE
-        out[key] = img.resize((size, size), Image.LANCZOS)
+        # Keep everything at the hi-res class size; per-material resize happens at write time.
+        out[key] = img.resize((ALBEDO_NATIVE, ALBEDO_NATIVE), Image.LANCZOS)
     if "albedo" not in out:
         raise RuntimeError(f"no _Color map in '{asset_id}' bundle")
     return out
+
+
+def make_nr(maps):
+    """Pack a normal+roughness image: RGB = tangent-space normal, A = roughness.
+    Sampled in linear space by the shader (BC7-UNORM on the GPU)."""
+    normal = maps.get("normal")
+    if normal is None:
+        # Flat normal (0,0,1) -> (128,128,255); roughness 0.9.
+        nr = Image.new("RGBA", (ALBEDO_NATIVE, ALBEDO_NATIVE), (128, 128, 255, 230))
+        return nr
+    nr = normal.convert("RGB")
+    rough = maps.get("roughness")
+    alpha = rough.convert("L") if rough is not None else Image.new("L", nr.size, 230)
+    nr = nr.convert("RGBA")
+    nr.putalpha(alpha)
+    return nr
 
 
 def load_materials_meta():
@@ -191,14 +207,20 @@ def main():
         for group, asset_id in ASSETS[mat].items():
             maps = get(asset_id)
             albedo = maps["albedo"]
+            nr = make_nr(maps)  # normal (RGB) + roughness (A)
             if albedo.size[0] != res:
                 albedo = albedo.resize((res, res), Image.LANCZOS)
+            if nr.size[0] != res:
+                nr = nr.resize((res, res), Image.LANCZOS)
             for face in FACE_GROUPS[group]:
                 fname = faces.get(face)
                 if not fname:
                     print(f"    [warn] no '{face}' filename for {mat}")
                     continue
                 albedo.save(os.path.join(SOURCE_DIR, fname))
+                # Normal+roughness sidecar: <albedo-base>_nr.png
+                base = os.path.splitext(fname)[0]
+                nr.save(os.path.join(SOURCE_DIR, base + "_nr.png"))
             used[group] = asset_id
         provenance[mat] = {"assets": used, "license": "CC0", "source": "ambientCG", "resolution": res}
         print(f"    wrote faces @ {res}px from {used}")

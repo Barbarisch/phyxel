@@ -90,12 +90,11 @@ std::vector<uint8_t> AtlasManager::generateFallbackTexture(int size) const {
     return pixels;
 }
 
-void AtlasManager::blitToLayer(int resClass, int layer, const uint8_t* texPixels) {
-    AtlasInfo& a = atlas_[resClass & 1];
-    const size_t layerBytes = static_cast<size_t>(a.baseSize) * a.baseSize * 4;
+void AtlasManager::blitLayer(std::vector<uint8_t>& dst, int baseSize, int layer, const uint8_t* texPixels) {
+    const size_t layerBytes = static_cast<size_t>(baseSize) * baseSize * 4;
     const size_t dstOffset = static_cast<size_t>(layer) * layerBytes;
-    if (dstOffset + layerBytes <= a.pixels.size()) {
-        memcpy(a.pixels.data() + dstOffset, texPixels, layerBytes);
+    if (dstOffset + layerBytes <= dst.size()) {
+        memcpy(dst.data() + dstOffset, texPixels, layerBytes);
     }
 }
 
@@ -115,6 +114,14 @@ bool AtlasManager::buildClass(int resClass) {
 
     const size_t layerBytes = static_cast<size_t>(baseSize) * baseSize * 4;
     a.pixels.assign(layerBytes * layerCount, 0);
+
+    // Normal+roughness array: default every layer to a flat normal (0,0,1)->(128,128,255)
+    // with roughness 0.9 (230). Faces with a `<albedo>_nr.png` sidecar overwrite their layer.
+    a.nrPixels.assign(layerBytes * layerCount, 0);
+    for (size_t p = 0; p < a.nrPixels.size(); p += 4) {
+        a.nrPixels[p + 0] = 128; a.nrPixels[p + 1] = 128;
+        a.nrPixels[p + 2] = 255; a.nrPixels[p + 3] = 230;
+    }
 
     for (const auto& mat : registry.getAllMaterials()) {
         if (mat.resClass() != resClass) continue;
@@ -137,11 +144,20 @@ bool AtlasManager::buildClass(int resClass) {
                 LOG_WARN("AtlasManager", "Missing texture: {}, using fallback", path);
                 texPixels = generateFallbackTexture(baseSize);
             }
-            blitToLayer(resClass, layer, texPixels.data());
+            blitLayer(a.pixels, baseSize, layer, texPixels.data());
+
+            // Optional normal+roughness sidecar (<albedo-base>_nr.png).
+            std::string base = faceFiles[faceID];
+            size_t dot = base.find_last_of('.');
+            if (dot != std::string::npos) base = base.substr(0, dot);
+            auto nrPixels = loadPNG(sourceDirectory_ + "/" + base + "_nr.png", baseSize);
+            if (!nrPixels.empty()) {
+                blitLayer(a.nrPixels, baseSize, layer, nrPixels.data());
+            }
         }
     }
 
-    LOG_INFO("AtlasManager", "Built texture array class {}: {} layers @ {}x{}",
+    LOG_INFO("AtlasManager", "Built texture array class {}: {} layers @ {}x{} (albedo + normal/rough)",
              resClass, layerCount, baseSize, baseSize);
     return true;
 }
@@ -162,7 +178,7 @@ bool AtlasManager::updateTextureSlot(int slotIndex, const uint8_t* pixels) {
     int cls = (slotIndex & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
     int layer = slotIndex & MaterialRegistry::LAYER_MASK;
     if (layer < 0 || layer >= atlas_[cls].layerCount) return false;
-    blitToLayer(cls, layer, pixels);
+    blitLayer(atlas_[cls].pixels, atlas_[cls].baseSize, layer, pixels);
     return true;
 }
 
@@ -187,35 +203,32 @@ void downsampleRGBA(const uint8_t* src, int srcW, int srcH,
 }
 } // namespace
 
-bool AtlasManager::encodeBC7(int resClass) {
-    AtlasInfo& a = atlas_[resClass & 1];
-    if (a.pixels.empty() || a.layerCount <= 0) return false;
-
+void AtlasManager::bc7EncodeLayers(const std::vector<uint8_t>& src, int base, int layers,
+                                   std::vector<uint8_t>& outData,
+                                   std::vector<size_t>& outOffsets, int& outMips) {
     static std::atomic<bool> s_bc7Init{false};
     if (!s_bc7Init.exchange(true)) bc7enc_compress_block_init();
 
-    const int base = a.baseSize;
-    const int layers = a.layerCount;
     const int mips = static_cast<int>(std::floor(std::log2(base))) + 1;
-    a.bc7MipLevels = mips;
+    outMips = mips;
 
     std::vector<int> dim(mips), blocksW(mips), blocksH(mips);
     std::vector<size_t> layerBytes(mips);
-    a.bc7LevelOffsets.assign(mips, 0);
+    outOffsets.assign(mips, 0);
     size_t total = 0;
     for (int i = 0; i < mips; i++) {
         dim[i] = std::max(1, base >> i);
         blocksW[i] = (dim[i] + 3) / 4;
         blocksH[i] = (dim[i] + 3) / 4;
         layerBytes[i] = static_cast<size_t>(blocksW[i]) * blocksH[i] * BC7ENC_BLOCK_SIZE;
-        a.bc7LevelOffsets[i] = total;
+        outOffsets[i] = total;
         total += layerBytes[i] * static_cast<size_t>(layers);
     }
-    a.bc7Data.assign(total, 0);
+    outData.assign(total, 0);
 
     const size_t mip0LayerBytes = static_cast<size_t>(base) * base * 4;
-    uint8_t* outBase = a.bc7Data.data();
-    const uint8_t* srcBase = a.pixels.data();
+    uint8_t* outBase = outData.data();
+    const uint8_t* srcBase = src.data();
 
     auto encodeLayer = [&](int L) {
         bc7enc_compress_block_params params;
@@ -234,7 +247,7 @@ bool AtlasManager::encodeBC7(int resClass) {
                 prev.swap(cur);
                 img = prev.data();
             }
-            uint8_t* out = outBase + a.bc7LevelOffsets[i] + static_cast<size_t>(L) * layerBytes[i];
+            uint8_t* out = outBase + outOffsets[i] + static_cast<size_t>(L) * layerBytes[i];
             const int w = dim[i], h = dim[i];
             for (int by = 0; by < blocksH[i]; by++) {
                 for (int bx = 0; bx < blocksW[i]; bx++) {
@@ -264,9 +277,8 @@ bool AtlasManager::encodeBC7(int resClass) {
     worker();
     for (auto& th : pool) th.join();
 
-    LOG_INFO("AtlasManager", "BC7-encoded class {}: {} layers x {} mips -> {} MB ({} threads)",
-             resClass, layers, mips, static_cast<int>(total / (1024 * 1024)), nThreads);
-    return true;
+    LOG_INFO("AtlasManager", "BC7-encoded {} layers x {} mips @ {}px -> {} MB ({} threads)",
+             layers, mips, base, static_cast<int>(total / (1024 * 1024)), nThreads);
 }
 
 uint64_t AtlasManager::computeSourceHash(int resClass) const {
@@ -306,8 +318,8 @@ uint64_t AtlasManager::computeSourceHash(int resClass) const {
 
 namespace {
 const char* kBC7CacheMagic = "PBX7";
-std::string bc7CachePath(int baseSize) {
-    return "cache/textures/voxel_bc7_" + std::to_string(baseSize) + ".bin";
+std::string bc7CachePath(int baseSize, const char* tag) {
+    return "cache/textures/voxel_bc7_" + std::string(tag) + "_" + std::to_string(baseSize) + ".bin";
 }
 struct BC7CacheHeader {
     char     magic[4];
@@ -321,50 +333,49 @@ struct BC7CacheHeader {
 };
 } // namespace
 
-bool AtlasManager::loadBC7Cache(int resClass, uint64_t hash) {
-    AtlasInfo& a = atlas_[resClass & 1];
-    std::ifstream f(bc7CachePath(a.baseSize), std::ios::binary);
+bool AtlasManager::loadBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                               std::vector<uint8_t>& outData, std::vector<size_t>& outOffsets,
+                               int& outMips) const {
+    std::ifstream f(path, std::ios::binary);
     if (!f) return false;
     BC7CacheHeader hdr{};
     f.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
     if (!f || std::memcmp(hdr.magic, kBC7CacheMagic, 4) != 0) return false;
     if (hdr.version != BC7_CACHE_VERSION || hdr.hash != hash) return false;
-    if (hdr.baseSize != a.baseSize || hdr.layerCount != a.layerCount) return false;
+    if (hdr.baseSize != baseSize || hdr.layerCount != layerCount) return false;
     if (hdr.mipLevels <= 0 || hdr.dataSize == 0) return false;
 
-    a.bc7LevelOffsets.assign(hdr.mipLevels, 0);
-    f.read(reinterpret_cast<char*>(a.bc7LevelOffsets.data()),
+    outOffsets.assign(hdr.mipLevels, 0);
+    f.read(reinterpret_cast<char*>(outOffsets.data()),
            static_cast<std::streamsize>(sizeof(uint64_t)) * hdr.mipLevels);
     if (!f) return false;
-    a.bc7Data.assign(hdr.dataSize, 0);
-    f.read(reinterpret_cast<char*>(a.bc7Data.data()), static_cast<std::streamsize>(hdr.dataSize));
-    if (!f) { a.bc7Data.clear(); return false; }
-    a.bc7MipLevels = hdr.mipLevels;
-    LOG_INFO("AtlasManager", "Loaded BC7 cache class {}: {} layers x {} mips, {} MB",
-             resClass, hdr.layerCount, hdr.mipLevels, static_cast<int>(hdr.dataSize / (1024 * 1024)));
+    outData.assign(hdr.dataSize, 0);
+    f.read(reinterpret_cast<char*>(outData.data()), static_cast<std::streamsize>(hdr.dataSize));
+    if (!f) { outData.clear(); return false; }
+    outMips = hdr.mipLevels;
     return true;
 }
 
-void AtlasManager::writeBC7Cache(int resClass, uint64_t hash) const {
-    const AtlasInfo& a = atlas_[resClass & 1];
-    if (a.bc7Data.empty() || a.bc7MipLevels <= 0) return;
+void AtlasManager::writeBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                                const std::vector<uint8_t>& data, const std::vector<size_t>& offsets,
+                                int mips) const {
+    if (data.empty() || mips <= 0) return;
     std::error_code ec;
     std::filesystem::create_directories("cache/textures", ec);
-    std::ofstream f(bc7CachePath(a.baseSize), std::ios::binary | std::ios::trunc);
-    if (!f) { LOG_WARN("AtlasManager", "Could not write BC7 cache"); return; }
+    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    if (!f) { LOG_WARN("AtlasManager", "Could not write BC7 cache '{}'", path); return; }
     BC7CacheHeader hdr{};
     std::memcpy(hdr.magic, kBC7CacheMagic, 4);
     hdr.version = BC7_CACHE_VERSION;
     hdr.hash = hash;
-    hdr.baseSize = a.baseSize;
-    hdr.layerCount = a.layerCount;
-    hdr.mipLevels = a.bc7MipLevels;
-    hdr.dataSize = a.bc7Data.size();
+    hdr.baseSize = baseSize;
+    hdr.layerCount = layerCount;
+    hdr.mipLevels = mips;
+    hdr.dataSize = data.size();
     f.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
-    f.write(reinterpret_cast<const char*>(a.bc7LevelOffsets.data()),
-            static_cast<std::streamsize>(sizeof(uint64_t)) * a.bc7MipLevels);
-    f.write(reinterpret_cast<const char*>(a.bc7Data.data()),
-            static_cast<std::streamsize>(a.bc7Data.size()));
+    f.write(reinterpret_cast<const char*>(offsets.data()),
+            static_cast<std::streamsize>(sizeof(uint64_t)) * mips);
+    f.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
 bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
@@ -374,23 +385,39 @@ bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
     for (int c = 0; c < NUM_CLASSES; c++) {
         AtlasInfo& a = atlas_[c];
         if (a.layerCount <= 0 || a.pixels.empty()) continue;
+        const uint64_t hash = computeSourceHash(c);
 
-        // Preferred: BC7-compressed array (4x less VRAM). Encode is slow → cache to disk.
-        bool uploaded = false;
-        if (device->bc7Supported()) {
-            uint64_t hash = computeSourceHash(c);
-            bool ready = loadBC7Cache(c, hash);
-            if (!ready && encodeBC7(c)) { writeBC7Cache(c, hash); ready = true; }
-            if (ready) {
-                uploaded = device->uploadTextureArrayBC7(
-                    c, a.bc7Data.data(), a.bc7Data.size(), a.bc7LevelOffsets,
-                    a.baseSize, a.layerCount, a.bc7MipLevels);
+        // Helper: get a map's BC7 data (load cache, else encode + write cache), then upload.
+        // target: albedo = c (0/1, binding 1/5), normal+rough = c+2 (2/3, binding 6/7).
+        auto doMap = [&](const char* tag, const std::vector<uint8_t>& srcPixels,
+                         std::vector<uint8_t>& bc7, std::vector<size_t>& offsets, int& mips,
+                         int target) {
+            bool uploaded = false;
+            if (device->bc7Supported()) {
+                std::string path = bc7CachePath(a.baseSize, tag);
+                bool ready = loadBC7File(path, hash, a.baseSize, a.layerCount, bc7, offsets, mips);
+                if (ready) {
+                    LOG_INFO("AtlasManager", "Loaded BC7 cache {} class {} ({} MB)",
+                             tag, c, static_cast<int>(bc7.size() / (1024 * 1024)));
+                } else {
+                    bc7EncodeLayers(srcPixels, a.baseSize, a.layerCount, bc7, offsets, mips);
+                    writeBC7File(path, hash, a.baseSize, a.layerCount, bc7, offsets, mips);
+                    ready = true;
+                }
+                if (ready) {
+                    uploaded = device->uploadTextureArrayBC7(target, bc7.data(), bc7.size(),
+                                                             offsets, a.baseSize, a.layerCount, mips);
+                }
             }
-        }
-        if (!uploaded) {
-            uploaded = device->uploadTextureArray(c, a.pixels.data(), a.baseSize, a.layerCount);
-        }
-        any = any || uploaded;
+            if (!uploaded) {
+                uploaded = device->uploadTextureArray(target, srcPixels.data(), a.baseSize, a.layerCount);
+            }
+            return uploaded;
+        };
+
+        bool albedoOk = doMap("albedo", a.pixels, a.bc7Data, a.bc7LevelOffsets, a.bc7MipLevels, c);
+        doMap("nr", a.nrPixels, a.nrBc7Data, a.nrBc7LevelOffsets, a.nrBc7MipLevels, c + 2);
+        any = any || albedoOk;
     }
     return any;
 }
@@ -434,7 +461,7 @@ bool AtlasManager::reloadMaterial(const std::string& materialName, Vulkan::Vulka
         std::string path = sourceDirectory_ + "/" + faceFiles[faceID];
         auto pixels = loadPNG(path, baseSize);
         if (pixels.empty()) pixels = generateFallbackTexture(baseSize);
-        blitToLayer(cls, idx & MaterialRegistry::LAYER_MASK, pixels.data());
+        blitLayer(atlas_[cls].pixels, baseSize, idx & MaterialRegistry::LAYER_MASK, pixels.data());
     }
 
     if (device && !uploadToGPU(device)) {

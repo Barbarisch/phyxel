@@ -12,6 +12,7 @@
       "all": "PavingStones128"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Dirt": {
@@ -19,6 +20,7 @@
       "all": "Ground003"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Grass": {
@@ -28,6 +30,7 @@
       "top": "Grass004"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "GrassForest": {
@@ -37,6 +40,7 @@
       "top": "Grass004"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "GrassSavanna": {
@@ -46,6 +50,7 @@
       "top": "Grass004"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Gravel": {
@@ -53,6 +58,7 @@
       "all": "Gravel022"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Ice": {
@@ -60,6 +66,7 @@
       "all": "Ice001"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Metal": {
@@ -67,6 +74,7 @@
       "all": "MetalPlates006"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Sand": {
@@ -74,6 +82,7 @@
       "all": "Ground027"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Sandstone": {
@@ -81,6 +90,7 @@
       "all": "Rock035"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "Stone": {
@@ -88,6 +98,7 @@
       "all": "Rock030"
     },
     "license": "CC0",
+    "resolution": 512,
     "source": "ambientCG"
   },
   "StoneBricks": {

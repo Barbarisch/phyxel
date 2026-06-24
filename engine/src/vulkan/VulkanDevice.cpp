@@ -1306,7 +1306,22 @@ bool VulkanDevice::createDescriptorSetLayout() {
     samplerHiLayoutBinding.pImmutableSamplers = nullptr;
     samplerHiLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 6> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding};
+    // Normal+roughness array samplers: binding 6 (512), binding 7 (1024) — PBR
+    VkDescriptorSetLayoutBinding normal512Binding{};
+    normal512Binding.binding = 6;
+    normal512Binding.descriptorCount = 1;
+    normal512Binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normal512Binding.pImmutableSamplers = nullptr;
+    normal512Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding normal1024Binding{};
+    normal1024Binding.binding = 7;
+    normal1024Binding.descriptorCount = 1;
+    normal1024Binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normal1024Binding.pImmutableSamplers = nullptr;
+    normal1024Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 8> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1325,7 +1340,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // 512 array + 1024 array + Shadow Map
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 5; // albedo 512/1024 + normal 512/1024 + Shadow
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Light SSBO + Atlas UV SSBO
 
@@ -2104,12 +2119,18 @@ bool VulkanDevice::uploadTextureAtlasPixels(const uint8_t* pixels, int width, in
 bool VulkanDevice::uploadTextureArray(int target, const uint8_t* pixels, int texSize, int layerCount) {
     if (!pixels || texSize <= 0 || layerCount <= 0) return false;
 
-    // Select the target resolution class's image resources (0 = 512/binding1, 1 = 1024/binding5).
-    VkImage&        img  = (target == 1) ? textureArrayHiImage       : textureAtlasImage;
-    VkDeviceMemory& mem  = (target == 1) ? textureArrayHiImageMemory : textureAtlasImageMemory;
-    VkImageView&    view = (target == 1) ? textureArrayHiImageView   : textureAtlasImageView;
+    // target: 0=albedo512(binding1) 1=albedo1024(binding5) 2=normal512(binding6) 3=normal1024(binding7)
+    VkImage* imgP; VkDeviceMemory* memP; VkImageView* viewP;
+    switch (target) {
+        case 1:  imgP=&textureArrayHiImage;    memP=&textureArrayHiImageMemory;    viewP=&textureArrayHiImageView;    break;
+        case 2:  imgP=&textureNormal512Image;  memP=&textureNormal512ImageMemory;  viewP=&textureNormal512ImageView;  break;
+        case 3:  imgP=&textureNormal1024Image; memP=&textureNormal1024ImageMemory; viewP=&textureNormal1024ImageView; break;
+        default: imgP=&textureAtlasImage;      memP=&textureAtlasImageMemory;      viewP=&textureAtlasImageView;      break;
+    }
+    VkImage& img = *imgP; VkDeviceMemory& mem = *memP; VkImageView& view = *viewP;
 
-    const VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+    // Normal+roughness maps are linear data; albedo is sRGB.
+    const VkFormat format = (target >= 2) ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_SRGB;
 
     // Decide mip count — only enable mip generation if the format supports linear blit.
     VkFormatProperties fmtProps{};
@@ -2315,12 +2336,18 @@ bool VulkanDevice::uploadTextureArrayBC7(int target, const uint8_t* data, size_t
     if (!data || dataSize == 0 || baseSize <= 0 || layerCount <= 0 || mipLevels <= 0) return false;
     if (static_cast<int>(levelByteOffsets.size()) != mipLevels) return false;
 
-    // Select the target resolution class's image resources (0 = 512/binding1, 1 = 1024/binding5).
-    VkImage&        img  = (target == 1) ? textureArrayHiImage       : textureAtlasImage;
-    VkDeviceMemory& mem  = (target == 1) ? textureArrayHiImageMemory : textureAtlasImageMemory;
-    VkImageView&    view = (target == 1) ? textureArrayHiImageView   : textureAtlasImageView;
+    // target: 0=albedo512(binding1) 1=albedo1024(binding5) 2=normal512(binding6) 3=normal1024(binding7)
+    VkImage* imgP; VkDeviceMemory* memP; VkImageView* viewP;
+    switch (target) {
+        case 1:  imgP=&textureArrayHiImage;    memP=&textureArrayHiImageMemory;    viewP=&textureArrayHiImageView;    break;
+        case 2:  imgP=&textureNormal512Image;  memP=&textureNormal512ImageMemory;  viewP=&textureNormal512ImageView;  break;
+        case 3:  imgP=&textureNormal1024Image; memP=&textureNormal1024ImageMemory; viewP=&textureNormal1024ImageView; break;
+        default: imgP=&textureAtlasImage;      memP=&textureAtlasImageMemory;      viewP=&textureAtlasImageView;      break;
+    }
+    VkImage& img = *imgP; VkDeviceMemory& mem = *memP; VkImageView& view = *viewP;
 
-    const VkFormat format = VK_FORMAT_BC7_SRGB_BLOCK;
+    // Normal+roughness maps are linear data; albedo is sRGB.
+    const VkFormat format = (target >= 2) ? VK_FORMAT_BC7_UNORM_BLOCK : VK_FORMAT_BC7_SRGB_BLOCK;
     const uint32_t nLayers = static_cast<uint32_t>(layerCount);
     const uint32_t nMips = static_cast<uint32_t>(mipLevels);
 
@@ -2531,7 +2558,19 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         imageHiInfo.imageView = textureArrayHiImageView ? textureArrayHiImageView : textureAtlasImageView;
         imageHiInfo.sampler = textureAtlasSampler;
 
-        std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
+        // Normal+roughness descriptors (bindings 6/7), each falling back to its albedo view.
+        VkDescriptorImageInfo normal512Info{};
+        normal512Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        normal512Info.imageView = textureNormal512ImageView ? textureNormal512ImageView : textureAtlasImageView;
+        normal512Info.sampler = textureAtlasSampler;
+
+        VkDescriptorImageInfo normal1024Info{};
+        normal1024Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        normal1024Info.imageView = textureNormal1024ImageView ? textureNormal1024ImageView :
+                                   (textureArrayHiImageView ? textureArrayHiImageView : textureAtlasImageView);
+        normal1024Info.sampler = textureAtlasSampler;
+
+        std::array<VkWriteDescriptorSet, 8> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2587,6 +2626,23 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[5].descriptorCount = 1;
         descriptorWrites[5].pImageInfo = &imageHiInfo;
 
+        // Normal+roughness writes (bindings 6/7)
+        descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[6].dstSet = descriptorSets[i];
+        descriptorWrites[6].dstBinding = 6;
+        descriptorWrites[6].dstArrayElement = 0;
+        descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[6].descriptorCount = 1;
+        descriptorWrites[6].pImageInfo = &normal512Info;
+
+        descriptorWrites[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[7].dstSet = descriptorSets[i];
+        descriptorWrites[7].dstBinding = 7;
+        descriptorWrites[7].dstArrayElement = 0;
+        descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[7].descriptorCount = 1;
+        descriptorWrites[7].pImageInfo = &normal1024Info;
+
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
     
@@ -2623,6 +2679,18 @@ void VulkanDevice::cleanupTextureAtlas() {
         vkFreeMemory(device, textureArrayHiImageMemory, nullptr);
         textureArrayHiImageMemory = VK_NULL_HANDLE;
     }
+    // Normal+roughness resources
+    VkImageView nrViews[2] = { textureNormal512ImageView, textureNormal1024ImageView };
+    VkImage nrImages[2] = { textureNormal512Image, textureNormal1024Image };
+    VkDeviceMemory nrMems[2] = { textureNormal512ImageMemory, textureNormal1024ImageMemory };
+    for (int k = 0; k < 2; k++) {
+        if (nrViews[k] != VK_NULL_HANDLE) vkDestroyImageView(device, nrViews[k], nullptr);
+        if (nrImages[k] != VK_NULL_HANDLE) vkDestroyImage(device, nrImages[k], nullptr);
+        if (nrMems[k] != VK_NULL_HANDLE) vkFreeMemory(device, nrMems[k], nullptr);
+    }
+    textureNormal512ImageView = textureNormal1024ImageView = VK_NULL_HANDLE;
+    textureNormal512Image = textureNormal1024Image = VK_NULL_HANDLE;
+    textureNormal512ImageMemory = textureNormal1024ImageMemory = VK_NULL_HANDLE;
 }
 
 void* VulkanDevice::loadImGuiTexture(const std::string& path) {

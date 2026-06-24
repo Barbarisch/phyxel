@@ -367,6 +367,13 @@ private:
     VkImage textureArrayHiImage = VK_NULL_HANDLE;
     VkDeviceMemory textureArrayHiImageMemory = VK_NULL_HANDLE;
     VkImageView textureArrayHiImageView = VK_NULL_HANDLE;
+    // Normal+roughness arrays (RGB=normal, A=roughness; UNORM): binding 6 (512), binding 7 (1024)
+    VkImage textureNormal512Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal512ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal512ImageView = VK_NULL_HANDLE;
+    VkImage textureNormal1024Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal1024ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal1024ImageView = VK_NULL_HANDLE;
     bool bc7Supported_ = false;  // set during logical-device creation
 
     // ImGui texture cache (for menu images, logos, etc.)

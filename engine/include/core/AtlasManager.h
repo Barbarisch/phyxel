@@ -40,13 +40,19 @@ public:
         int baseSize = TEXTURE_SIZE;       // layer size for this class (512 or 1024)
         int textureCount = 0;
         int layerCount = 0;                // texture array layer count for this class
-        std::vector<uint8_t> pixels;       // RGBA, LAYER-MAJOR (layer = within-class index)
+        std::vector<uint8_t> pixels;       // albedo RGBA, LAYER-MAJOR (layer = within-class index)
         std::vector<glm::vec4> uvBounds;   // Per-layer full-tile bounds (0,0,1,1); SSBO metadata only
-        // BC7-compressed mip chain (set by encodeBC7). Layout: for each mip level (level 0
+        // BC7-compressed albedo mip chain (set by encodeBC7). Layout: for each mip level (level 0
         // first), all layers contiguous, each layer = ceil(dim/4)^2 * 16 bytes.
         std::vector<uint8_t> bc7Data;
         std::vector<size_t>  bc7LevelOffsets;
         int                  bc7MipLevels = 0;
+
+        // Normal+roughness map (RGB = tangent-space normal, A = roughness), parallel layers.
+        std::vector<uint8_t> nrPixels;     // RGBA, layer-major; flat normal where no sidecar
+        std::vector<uint8_t> nrBc7Data;    // BC7-UNORM compressed mip chain
+        std::vector<size_t>  nrBc7LevelOffsets;
+        int                  nrBc7MipLevels = 0;
     };
 
     AtlasManager();
@@ -96,22 +102,26 @@ private:
     /// Generate a size x size magenta/black fallback texture.
     std::vector<uint8_t> generateFallbackTexture(int size) const;
 
-    /// Build one resolution class's RGBA layer array from its materials' source PNGs.
+    /// Build one resolution class's albedo + normal/roughness layer arrays from source PNGs.
     bool buildClass(int resClass);
 
-    /// Blit one layer's RGBA into a class array at the given within-class layer index.
-    void blitToLayer(int resClass, int layer, const uint8_t* texPixels);
+    /// Blit one layer's RGBA into a class array (dst = the target layer buffer) at `layer`.
+    void blitLayer(std::vector<uint8_t>& dst, int baseSize, int layer, const uint8_t* texPixels);
 
-    /// BC7-encode a class's RGBA into atlas_[c].bc7Data with a CPU-generated mip chain
-    /// (level-major / layer-minor). Multithreaded across layers.
-    bool encodeBC7(int resClass);
+    /// BC7-encode a layer-major RGBA buffer into a compressed mip chain (level-major /
+    /// layer-minor, multithreaded across layers). Used for both albedo and normal/roughness.
+    static void bc7EncodeLayers(const std::vector<uint8_t>& src, int baseSize, int layers,
+                                std::vector<uint8_t>& outData,
+                                std::vector<size_t>& outOffsets, int& outMips);
 
-    // Per-class BC7 disk cache, keyed by a hash of the source textures + materials.json +
-    // format version + class base size, so each class is re-encoded only when it changes.
-    static constexpr uint32_t BC7_CACHE_VERSION = 2;  // bumped for mixed-res split
+    // Per-class, per-map BC7 disk cache, keyed by a hash of the source textures + materials.json
+    // + format version + class base size, so a map is re-encoded only when its inputs change.
+    static constexpr uint32_t BC7_CACHE_VERSION = 3;  // bumped for normal/roughness maps
     uint64_t computeSourceHash(int resClass) const;
-    bool loadBC7Cache(int resClass, uint64_t hash);
-    void writeBC7Cache(int resClass, uint64_t hash) const;
+    bool loadBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                     std::vector<uint8_t>& outData, std::vector<size_t>& outOffsets, int& outMips) const;
+    void writeBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                      const std::vector<uint8_t>& data, const std::vector<size_t>& offsets, int mips) const;
 
     std::string sourceDirectory_ = "resources/textures/source";
     AtlasInfo atlas_[NUM_CLASSES];   // [0] = 512, [1] = 1024

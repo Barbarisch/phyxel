@@ -131,6 +131,29 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 - **Outcome: kills the Minecraft aesthetic on its own.**
 
 ### Phase 2 — PBR shading
+
+> **SPIKE STATUS (commit 5, 2026-06-23): normal mapping + roughness + Cook-Torrance DONE + verified.**
+> The fetch tool emits per-face `_nr.png` sidecars (RGB = tangent-space normal, A = roughness) at
+> each material's resolution. `AtlasManager` builds a parallel normal+roughness array per class
+> (flat-normal default where no sidecar) and the BC7 encoder/cache is generalized over map type
+> (`voxel_bc7_albedo_*` / `voxel_bc7_nr_*`, cache version → 3). `VulkanDevice` adds the NR arrays at
+> **descriptor bindings 6 (512) / 7 (1024)** in `VK_FORMAT_BC7_UNORM_BLOCK` (linear — normals must
+> not be sRGB-decoded); the upload `target` selector now spans 4 images. `voxel.frag` samples
+> normal+roughness, builds a per-face TBN (axis-aligned faces → stable tangent), perturbs the
+> normal, and replaces Blinn-Phong with a **Cook-Torrance GGX BRDF** (dielectric F0, energy-
+> conserving) for sun + point + spot lights. Diffuse 1/π is intentionally omitted for brightness
+> parity with the prior model.
+> Verified in-engine: all 4 BC7 maps upload (albedo+NR × 2 classes), ~144 MB VRAM total, renders
+> clean (no magenta, no validation errors), 400 FPS, brightness comparable.
+> **NOT YET / FOLLOW-ONS:** AO + per-material metallic (Metal/Gold look dielectric for now); the
+> per-face tangent is approximate (fine normal-feature orientation may differ per face) — refine to
+> match `static_voxel.vert`'s per-face UV axes; consider BC5 for normals to cut the +72 MB NR cost;
+> re-source remaining materials' PBR maps. **Idea (user):** drive roughness from per-voxel damage
+> state — needs `DamageSystem`'s "accumulate damage" TODO implemented first (voxels are binary
+> intact/broken today); then modulate `rough` in `voxel.frag` from a few damage bits in the
+> instance `flags`.
+
+#### Original Phase 2 plan
 - Parallel `normal` + packed `ORM` arrays (same layer index).
 - `voxel.frag`: Blinn-Phong → Cook-Torrance, using existing sun + point/spot lights.
   Normal maps make a flat voxel face read as carved stone / woodgrain — most of the
