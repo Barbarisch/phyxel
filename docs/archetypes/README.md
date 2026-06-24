@@ -36,20 +36,20 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 7 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 13 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
-### Dwellings (7)
+### Dwellings (7) — ✅ complete
 | Archetype | Status |
 |---|---|
-| croft | STUB *(room program exists in `room_program.json`)* |
-| longhouse | STUB *(room program exists)* |
-| hall_house | STUB *(room program exists)* |
-| manor_hall | STUB *(room program exists)* |
+| [`croft`](croft.md) | **DRAFT** |
+| [`longhouse`](longhouse.md) | **DRAFT** |
+| [`hall_house`](hall_house.md) | **DRAFT** |
+| [`manor_hall`](manor_hall.md) | **DRAFT** |
 | [`townhouse`](townhouse.md) | **DRAFT** |
-| manor / ornate_house | STUB |
-| slum_tenement | STUB |
+| [`manor`](manor.md) / ornate_house | **DRAFT** |
+| [`slum_tenement`](slum_tenement.md) | **DRAFT** |
 
 ### Hospitality (1)
 | [`tavern`](tavern.md) / inn | **DRAFT** |
