@@ -508,8 +508,8 @@ gate / well / plant). Each asset carries tags: **size, status, style, period**.
 
 **At generation time, when an asset is still missing** (policy — never faking): substitute the nearest grounded
 **same-category** asset and **log the downgrade**, or for function-critical items place a **flagged marker**;
-either way append the gap to a **"wanted assets" backlog**. Never a silent fake, never a placeholder wearing the
-real thing's name.
+either way append the gap to the **"wanted assets" backlog** ([`WantedAssetsBacklog.md`](WantedAssetsBacklog.md)).
+Never a silent fake, never a placeholder wearing the real thing's name.
 
 **The Strahd mansion, concretely:** banquet hall = a room program (long high table + benches + **chandelier** +
 wall art); oversized table = a furniture asset with a `size` tag; paintings/tapestries = a **decal / framed-picture
@@ -641,6 +641,46 @@ concern (not yet written) — flagged.
 - **`tower_house` / `wizard_tower`** — compact vertical keep: vaulted cellar (storage) → stacked single chambers → parapet roof; **first-floor entrance** (defensive); thick walls; barmkin yard. *Grounded:* Henry VI 1429 statute min **6.1 × 4.9 × 12.2 m**; walls **6 ft (1.83 m) below the vault, 4 ft (1.22 m) above**; round example (Balief) ~**10.7 m tall, 4.78 m interior dia, 2.54 m walls**. **Wizard tower** = `tower_house` + an arcane program (laboratory / library / observatory / summoning-circle) — the *fantasy overlay deferred to the setting-canon tier* (flagged).
 - **`keep` / `great_tower`** — the castle's strongest building: great hall + chambers + chapel + well + dungeon over a vaulted basement; first-floor entrance. *Grounded:* Dover **29.5 m square, 25.3 m tall, walls to 6.4 m**; Pembroke round keep **16 m dia, 24 m tall**; shell-keep wall **3–3.5 m thick, 4.5–9 m high**; general keep walls **2–4 m** *(audit-corrected: 1.5 m belongs to a fortified manor, not a keep — sources start keeps at ~2 m)*.
 - **`castle`** *(compound)* — curtain wall (2–6 m, existing canon) + flanking towers + gatehouse/barbican + keep + bailey buildings (great hall, chapel, stables, smithy, kitchen, barracks) + moat/ditch + dungeon below. Composes `place_fortifications` (#31) + `keep` + bailey archetypes + the subterranean tier.
+
+#### BG3-Act-3 gap-fill *(mostly `to_ground`; genre-flagged where post-medieval/fantasy — see CC7)*
+
+**Commerce — additions**
+- **`arcane_emporium`** — magic *retail*: a shop floor of curios/scrolls/wands + a counter + a warded back-vault + proprietor's quarters/tower above (multi-story). *Signature:* glowing wares, arcane sign, warded door. *Test:* counter + magical-goods display + secure store. *Genre:* the retail magic shop is a **fantasy conceit** — structurally a `townhouse`. *to_ground:* size.
+- **`general_store` / `trading_post`** — general goods: counter + dense shelving + crates/barrels + back store. *Test:* counter + broad storage. *to_ground:* size.
+
+**Finance & institutions** *(new)*
+- **`counting_house` / `bank`** — counting room + a **strongroom/vault** (thick walls, locked, usually cellar) + clerks' desks + a controlled entrance. *Signature:* heavy door, barred windows, vault below. *Test:* secure vault + counting floor + controlled entry. *Genre:* the bank-as-institution is **late-medieval/early-modern** (Italian banking houses) — flag for a strict-medieval brief. *to_ground:* vault wall thickness (reuse the keep / retaining-wall canon).
+
+**Entertainment & vice** *(new)*
+- **`brothel` / `festhall`** — a parlour/common room + private chambers + a madam's room (often bath-adjacent); discreet, decorated. *Test:* reception + private rooms + privacy. *to_ground:* size.
+- **`theatre` / `playhouse`** — stage + tiered galleries + tiring-house (backstage) + a yard. *Genre:* permanent playhouses are **early-modern (Elizabethan)**, not medieval — flag. *to_ground:* stage/yard dims.
+- **`costumier` / `disguise_shop`** — shop counter + costume racks + fitting room + workshop. *Test:* display + fitting + workshop.
+- **`gambling_den`** — gaming floor + tables + a bar + a back room; often illicit/hidden. *Test:* gaming floor + drink + discreet access.
+
+**Civic — additions**
+- **`civic_palace` / `seat_of_state`** — grand audience hall + council chamber + offices + private apartments + a strongroom; the seat of government (a ducal palace), larger than `town_hall`'s moot hall. *Test:* audience hall + governance rooms + security. *to_ground:* hall scale (reuse `manor_hall` / great-hall proportions).
+- **`printing_house` / `news_office`** — press room + type-setting + paper store + public counter. *Genre:* the printing press is **post-1450 (early-modern)** — flag. *to_ground:* press-room size.
+- **`bathhouse` / `stews`** — heated bathing hall + tubs/plunge + furnace + changing rooms + water supply + drainage. *Test:* heated water + bathing space + drainage. *to_ground:* hall size. *(Medieval "stews" existed; the grand Roman bath is bigger/anachronistic.)*
+- **`hospital` / `hospice`** — an **infirmary hall** (aisled, beds in rows) opening onto a **chapel** at one end + a dispensary + a warden's lodging. *Grounded form:* the medieval hospital = an infirmary hall open to a chapel. *Test:* bed hall + chapel + dispensary. *to_ground:* hall dims.
+- **`mortuary` / `mausoleum`** — a laying-out room, or a freestanding tomb-house over/beside a crypt. *Test:* body handling/interment + dignified form. Links Part 8 `place_crypt` + #32 `place_graveyard`.
+
+**Industry** *(new)*
+- **`foundry` / `manufactory`** — a furnace/forge hall at scale + casting floor + bellows/water power + material yards + a chimney/flue; loud, smoky, fire-managed. *Signature:* big chimney, furnace glow, industrial massing. *Test:* furnace + casting + material flow + venting + fire safety. *Genre:* a true manufactory/foundry is **early-modern/industrial** (the BG3 Steel Watch Foundry is overtly fantastical) — flag. *to_ground:* furnace/hall dims.
+
+**Maritime** *(new — blocked on the water/shoreline engine feature + a Part 7 waterfront sub-tier, both unbuilt)*
+- **`wharf` / `pier` / `quay`** — decked platform along/over water for mooring + loading; bollards, cranes, steps.
+- **`harbormaster` / `customs_house`** — a quay-side control office: counting room + watch point + bonded store.
+- **`fish_market`** — open stalls/slabs + a hall + heavy drainage; waterfront.
+- **`lighthouse` / `beacon_tower`** — structurally a `tower_house` + a lantern room (maps to the `glow` material) at the harbour mouth.
+- **`boathouse` / `shipyard`** — covered slip + building/repair yard + timber/pitch stores.
+- *Engine note:* the whole maritime group **cannot be built until water/shoreline exists** — flag, don't fake.
+
+**Style & condition overlays (NOT archetypes)** — some BG3 buildings are an existing archetype + an overlay:
+- **Gothic-horror palace** (a vampire's seat) = `ornate_house` + a crypt (Part 8) + a **gothic-horror style overlay** (bone/iron/dark stone) — a *style*, barely supported today (flag).
+- **Derelict / haunted mansion** = `ornate_house` + a heavy **condition overlay** (decay/ruin — category J).
+- **Fortified bridge-prison** (gate-fortress on a crossing) = `compose_compound` of `castle` + `place_bridges` (#44) + `gaol` — composition via the unbuilt settlement tier.
+
+All gap-fill dimensions are `to_ground` unless they reuse a grounded canon (vault → keep/retaining; civic hall → `manor_hall`; lighthouse → `tower_house`). Post-medieval/fantasy types (bank, theatre, printing house, foundry, arcane shop) are **genre-flagged per CC7**; the maritime group is **engine-blocked on water**. New materials these need are tracked in [`WantedAssetsBacklog.md`](WantedAssetsBacklog.md).
 
 *Sources (this session):* tower house — [Wikipedia: Tower house](https://en.wikipedia.org/wiki/Tower_house), [Tower houses in Britain and Ireland](https://en.wikipedia.org/wiki/Tower_houses_in_Britain_and_Ireland); keep — [World History Encyclopedia: Castle Keep](https://www.worldhistory.org/Castle_Keep/), [Bergfried](https://en.wikipedia.org/wiki/Bergfried), [Round Keep Castles](https://www.medieval-spell.com/Round-Keep-Castles.html).
 
