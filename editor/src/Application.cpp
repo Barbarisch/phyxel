@@ -11878,6 +11878,17 @@ void Application::processAPICommands() {
                         }
                         auto placement = Core::StructureGenerator::place(chunkManager, structure);
 
+                        if (placement.placed == 0) {
+                        // Honest failure: nothing landed. Do NOT register a wall-less
+                        // "ghost" (bbox + furniture with no voxels) or report success.
+                        response = {{"success", false},
+                                    {"error", "structure placement failed — 0 of " +
+                                              std::to_string(structure.voxels.size()) + " voxels placed"},
+                                    {"placed", 0}, {"failed", placement.failed},
+                                    {"voxels_generated", structure.voxels.size()}};
+                        LOG_WARN_FMT("StructureV2", "placement failed (0/" << structure.voxels.size()
+                                     << " placed) — not registering ghost");
+                        } else {
                         // Auto-register locations
                         nlohmann::json locationsJson = nlohmann::json::array();
                         if (locationRegistry) {
@@ -12000,6 +12011,7 @@ void Application::processAPICommands() {
                             }
                             response["fixtures"] = fixturesJson;
                         }
+                        } // end placement.placed > 0 (honest: no ghost on 0 placed)
                     }
                 }
 

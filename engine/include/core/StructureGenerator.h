@@ -250,7 +250,8 @@ public:
     // Placement into world
     // =======================================================================
 
-    /// Place generated voxels into the chunk manager. Respects 100k limit.
+    /// Place generated voxels into the chunk manager, incrementally (in bounded steps).
+    /// No silent size cap — large structures place fully; result carries true placed/failed.
     static PlacementResult place(ChunkManager* chunkManager, const StructureResult& structure);
 
     /// Remove voxels at the given positions (for door/window openings).

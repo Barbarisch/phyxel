@@ -1699,14 +1699,22 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         return result;
     }
 
-    if (structure.voxels.size() > 100000) {
-        LOG_WARN("StructureGenerator", "Structure has " + std::to_string(structure.voxels.size()) +
-                 " voxels, exceeds 100k limit");
-        result.failed = static_cast<int>(structure.voxels.size());
-        return result;
+    // Build the structure up in bounded steps instead of all-or-nothing. A large
+    // structure (e.g. a multi-story tower) legitimately runs to hundreds of thousands
+    // of micro-voxels; the old hard 100k cap silently dropped the WHOLE structure,
+    // leaving a wall-less "ghost" (a registered bbox + furniture with no voxels). We
+    // now place every voxel in steps and report the true placed/failed counts. Runaway
+    // protection belongs upstream in BuildingProgramValidator (footprint/story gates),
+    // not in a silent placement drop here.
+    const size_t total = structure.voxels.size();
+    constexpr size_t kPlacementStep = 25000;   // voxels per step (progress granularity)
+    if (total > kPlacementStep) {
+        LOG_INFO("StructureGenerator", "Placing " + std::to_string(total) + " voxels in " +
+                 std::to_string((total + kPlacementStep - 1) / kPlacementStep) + " steps");
     }
 
-    for (const auto& voxel : structure.voxels) {
+    for (size_t i = 0; i < total; ++i) {
+        const auto& voxel = structure.voxels[i];
         bool ok = false;
         switch (voxel.level) {
         case VoxelLevel::Subcube:
@@ -1728,6 +1736,13 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         }
         if (ok) result.placed++;
         else result.failed++;
+
+        if (total > kPlacementStep && (i + 1) % kPlacementStep == 0) {
+            LOG_INFO("StructureGenerator", "  step " + std::to_string((i + 1) / kPlacementStep) + ": " +
+                     std::to_string(i + 1) + "/" + std::to_string(total) + " (" +
+                     std::to_string(result.placed) + " placed, " +
+                     std::to_string(result.failed) + " failed)");
+        }
     }
 
     return result;
