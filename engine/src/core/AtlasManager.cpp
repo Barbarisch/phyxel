@@ -425,8 +425,28 @@ bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
 void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
     if (!device) return;
     auto& registry = MaterialRegistry::instance();
-    device->updateAtlasUVBuffer(atlas_[0].uvBounds, registry.getPlaceholderIndex(),
-                                registry.getTextureCount(0), registry.getTextureCount(1));
+    const int c0 = registry.getTextureCount(0), c1 = registry.getTextureCount(1);
+
+    // Per-layer material PBR props packed into the SSBO's (now repurposed) textureUVs[] array:
+    //   x = metallic, y = roughness scalar. Global index = layer (class 0) or c0+layer (class 1).
+    std::vector<glm::vec4> props(std::max(1, c0 + c1), glm::vec4(0.0f, 0.5f, 0.0f, 0.0f));
+    for (const auto& mat : registry.getAllMaterials()) {
+        int matID = registry.getMaterialID(mat.name);
+        if (matID < 0) continue;
+        const MaterialDef* md = registry.getMaterial(matID);
+        float metallic = md ? md->physics.metallic : 0.0f;
+        float roughness = md ? md->physics.roughness : 0.5f;
+        for (int f = 0; f < 6; f++) {
+            uint16_t idx = registry.getTextureIndex(matID, f);
+            if (idx == MaterialRegistry::INVALID_TEXTURE_INDEX) continue;
+            int cls = (idx & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
+            int layer = idx & MaterialRegistry::LAYER_MASK;
+            int gi = (cls == 1) ? c0 + layer : layer;
+            if (gi >= 0 && gi < static_cast<int>(props.size()))
+                props[gi] = glm::vec4(metallic, roughness, 0.0f, 0.0f);
+        }
+    }
+    device->updateAtlasUVBuffer(props, registry.getPlaceholderIndex(), c0, c1);
 }
 
 bool AtlasManager::hotReload(Vulkan::VulkanDevice* device) {

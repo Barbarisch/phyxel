@@ -77,9 +77,9 @@ void sampleVoxelPBR(uint texIndex, vec2 uv, out vec4 albedo, out vec3 nrm, out f
     rough = nr.a;
 }
 
-// Cook-Torrance GGX BRDF (dielectric, F0 = 0.04). Returns outgoing radiance factor for one
-// light of given color/intensity. N,V,L unit vectors; albedo linear.
-vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, vec3 radiance) {
+// Cook-Torrance GGX BRDF with metalness. F0 = 0.04 for dielectrics, lerps to albedo for
+// metals (which also lose their diffuse lobe). N,V,L unit vectors; albedo linear.
+vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, float metallic, vec3 radiance) {
     float ndl = max(dot(N, L), 0.0);
     if (ndl <= 0.0) return vec3(0.0);
     vec3 H = normalize(V + L);
@@ -97,12 +97,12 @@ vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, vec3 radiance) {
     float gv = ndv / (ndv * (1.0 - k) + k);
     float gl = ndl / (ndl * (1.0 - k) + k);
     float G = gv * gl;
-    // Fresnel (Schlick), dielectric F0
-    vec3 F0 = vec3(0.04);
+    // Fresnel (Schlick): dielectric F0 = 0.04, lerping to albedo (tinted reflectance) for metals
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
     vec3 F = F0 + (1.0 - F0) * pow(1.0 - vdh, 5.0);
 
     vec3 spec = (D * G) * F / (4.0 * ndv * ndl + 1e-4);
-    vec3 kd = (vec3(1.0) - F);   // energy conservation (no metalness yet)
+    vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);  // metals have no diffuse lobe
     // NOTE: diffuse 1/pi omitted on purpose — light intensities are authored for the prior
     // (non-PBR) model, so this keeps brightness parity while adding GGX specular + normal maps.
     vec3 diffuse = kd * albedo;
@@ -145,6 +145,19 @@ void main() {
     vec3 nrmRaw;
     float rough;
     sampleVoxelPBR(textureIndex, texCoord, textureColor, nrmRaw, rough);
+
+    // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
+    // = within-class layer, offset by count512 for the 1024 class. Metals use their authored
+    // roughness scalar; dielectrics keep the map's roughness.
+    uint giCls = (textureIndex >> 15) & 1u;
+    uint giLayer = textureIndex & 0x7FFFu;
+    uint gi = (giCls == 1u) ? atlasUVs.count512 + giLayer : giLayer;
+    float metallic = 0.0;
+    if (gi < atlasUVs.count512 + atlasUVs.count1024) {
+        vec4 mprops = atlasUVs.textureUVs[gi];
+        metallic = mprops.x;
+        rough = mix(rough, mprops.y, metallic);
+    }
 
     // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
     // surfaces read as rougher (scuffed/worn) and slightly darker/dirtier.
@@ -195,7 +208,7 @@ void main() {
 
     // Sun (directional) via Cook-Torrance, attenuated by shadow.
     vec3 sunL = normalize(-ubo.sunDirection);
-    color += pbrBRDF(N, V, sunL, albedo, rough, ubo.sunColor) * shadowFactor;
+    color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor;
 
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
@@ -208,7 +221,7 @@ void main() {
         if (dist < radius) {
             vec3 ldir = toLight / dist;
             float atten = calcAttenuation(dist, radius);
-            color += pbrBRDF(N, V, ldir, albedo, rough, lightColor * intensity * atten);
+            color += pbrBRDF(N, V, ldir, albedo, rough, metallic, lightColor * intensity * atten);
         }
     }
 
@@ -228,7 +241,7 @@ void main() {
             float atten = calcAttenuation(dist, radius);
             float theta = dot(-ldir, spotDir);
             float spotFactor = smoothstep(outerCone, innerCone, theta);
-            color += pbrBRDF(N, V, ldir, albedo, rough, lightColor * intensity * atten * spotFactor);
+            color += pbrBRDF(N, V, ldir, albedo, rough, metallic, lightColor * intensity * atten * spotFactor);
         }
     }
 
