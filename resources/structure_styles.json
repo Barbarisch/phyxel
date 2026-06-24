@@ -95,6 +95,52 @@
         "roof.material": "PLACEHOLDER: real roof is CLAY TILE/slate; engine lacks the material (MaterialTextureNeeds.md)",
         "ceiling_target": "ANTHROPOMETRIC + status: grand halls 'higher than wide' (Wikipedia Great hall) + character clearance"
       }
+    },
+
+    "stone_keep": {
+      "description": "Castle keep / great tower: massive stone walls, battlemented, vaulted basement.",
+      "roof_style": "flat",
+      "foundation": "basement",
+      "source": "medieval keep / great tower (Dover walls to 6.4 m; general keep 2-4 m; auditor-confirmed, docs/archetypes/keep.md)",
+      "thickness": {
+        "exterior_wall": 3.0,
+        "interior_wall": 1.0,
+        "foundation_wall": 3.0,
+        "floor": 0.5,
+        "ceiling": 0.5
+      },
+      "materials": {
+        "structure": "StoneBricks",
+        "cladding": "Stone",
+        "trim": "Stone",
+        "floor": "Stone",
+        "roof": "Stone",
+        "foundation": "Stone"
+      },
+      "trim": {
+        "baseboard_height": 0.0,
+        "casing_width": 0.222
+      },
+      "flags": {
+        "exposed_beams": false,
+        "quoins": true,
+        "battlements": true
+      },
+      "roof": {
+        "pitch_deg": 0.0,
+        "overhang": 0.0
+      },
+      "ceiling": {
+        "humble": 3.0,
+        "grand": 5.0
+      },
+      "sources": {
+        "exterior_wall": "general keep walls 2-4 m; Dover to 6.4 m; shell-keep 3-3.5 m (World History Encyclopedia: Castle Keep; auditor-confirmed). 3.0 m = mid-range.",
+        "interior_wall": "INFERRED ~1 m internal cross-wall in a keep",
+        "foundation_wall": "INFERRED >= exterior; keeps sit on massive footings/plinth",
+        "roof.pitch_deg": "FLAT: keeps were battlemented wall-walks (a low lead roof behind the parapet), not a pitched roof",
+        "ceiling_target": "ANTHROPOMETRIC + status: keep halls are tall"
+      }
     }
   }
 }
