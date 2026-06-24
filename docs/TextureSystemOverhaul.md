@@ -1,8 +1,32 @@
 # Texture System Overhaul — High-Res PBR + Per-Object Texturing
 
-> Status: **PLAN / not started.** Decisions locked (see §1). Goal: kill the 64px
-> "Minecraft" aesthetic and support detailed, immersive, per-object texturing —
-> without bloating the performance-critical static voxel instance path.
+> Status: **PHASES 1–2 DONE + MERGED TO MAIN** (8 commits, 2026-06-23). High-res CC0 PBR
+> textures, normal-mapped relief, per-material metallic, mixed-res 512/1024 two-array split,
+> BC7 compression + cache, and a damage→roughness prototype are all live and verified. The
+> 64px "Minecraft" aesthetic is gone. Detail/progress is in the per-phase STATUS callouts below.
+
+## Remaining / saved for later (2026-06-23)
+Picked-up order is up to priority; all are independent. None block anything.
+- **Environment reflection / IBL for metals** — the only remaining item with real *visual* upside.
+  Metal/Gold work (per-material metallic landed) but look dark except in direct light because
+  there's no environment term. A cheap fake-env or a real IBL probe would make metals read richer.
+- **AO maps** — cached per-asset under `resources/textures/pbr/` (gitignored); minor for flat-lit
+  voxel faces (SSAO likely already covers contact). Would need a channel/binding (or pack via BC5).
+- **BC5 for normals** — ~36 MB VRAM saving, *no visual change*; requires splitting the current
+  normal+roughness (BC7 RGBA) packing since BC5 is 2-channel.
+- **Refine per-face tangent** — the TBN in `voxel.frag` is approximate (stable per face but fine
+  normal-feature orientation may differ); match `static_voxel.vert`'s per-face UV axes for exactness.
+- **Damage-roughness prototype → product** — normalize damage by each material's break *toughness*
+  (lives in `DamageSystem`, not the mesh build) instead of the `kDamageRef=30` placeholder; and
+  extend it to **placed-object templates** (they render via a different mesh path than chunk terrain).
+- **Re-source stragglers** — leaves (5 variants) still 64px (opaque CC0 photos don't tile as
+  foliage — may want hand-authored or alpha-cutout); birch/spruce logs use generic bark (species
+  color approximate); Gold could use a true gold-metal albedo (metallic already makes it shine).
+- **Phase 3 (original plan, not started)** — unique per-object/template 1024 textures (paintings,
+  signs, hero props): the whole reason the 1024 class exists. Lives in the kinematic/dynamic path
+  (40 B/64 B structs have room for uvOffset/scale), NOT the tight 8 B static path.
+
+> ORIGINAL PLAN BELOW (decisions locked in §1; kept for reference/context).
 
 ## 0. Where we are today (ground truth, verified 2026-06-22)
 
