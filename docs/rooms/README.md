@@ -48,7 +48,7 @@ clearances (ceiling 2.134 m, door 2.03 m, etc.). No number stands un-grounded.
 | shop / storefront | [shop_storefront](shop_storefront.md) |
 **Agriculture (6)** — ✅ [byre_stalls](byre_stalls.md) · [stable_stalls](stable_stalls.md) · [barn_interior](barn_interior.md) · [granary_interior](granary_interior.md) · [dovecote_interior](dovecote_interior.md) · [pigsty_interior](pigsty_interior.md)
 **Faith (6)** — ✅ [nave](nave.md) · [chancel](chancel.md) · [sacristy](sacristy.md) · [refectory](refectory.md) · [dorter](dorter.md) · [scriptorium](scriptorium.md)
-**Defensive (5)** — TODO: great hall, guardroom, armory, cell, gatehouse chamber
-**Finance / secure (4)** — TODO: banking hall, counting room, vault, ledger archive
+**Defensive (5)** — ✅ [great_hall](great_hall.md) · [guardroom](guardroom.md) · [armory](armory.md) · [cell](cell.md) · [gatehouse_chamber](gatehouse_chamber.md)
+**Finance / secure (4)** — ✅ [banking_hall](banking_hall.md) · [counting_room](counting_room.md) · [vault](vault.md) · [ledger_archive](ledger_archive.md)
 
-*(29 of ~38 specced. Add a row when a sheet lands.)*
+*(✅ 38 of 38 specced — all rooms. Add a row when a new room type appears.)*
