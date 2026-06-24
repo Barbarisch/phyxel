@@ -36,7 +36,8 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 38 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 45 DRAFT / ~50 total — all buildable archetypes complete.** The only remaining sheets are the 5
+Maritime ones, `BLOCKED` on the water/shoreline engine feature. One row per archetype (no bundling).
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
@@ -106,18 +107,18 @@ are noted, not separate files, unless they diverge enough to need their own.
 | [`keep`](keep.md) / great_tower | **DRAFT** |
 | [`castle`](castle.md) *(compound)* | **DRAFT** |
 
-### Industry (1)
-| foundry / manufactory *(early-modern/fantasy)* | STUB |
+### Industry (1) — ✅ complete
+| [`foundry`](foundry.md) / manufactory *(early-modern/fantasy)* | **DRAFT** |
 
-### Agriculture & outbuildings (6)
+### Agriculture & outbuildings (6) — ✅ complete
 | Archetype | Status |
 |---|---|
-| byre / cowshed | STUB |
-| stable | STUB |
-| barn | STUB |
-| granary | STUB |
-| dovecote | STUB |
-| pigsty / coop | STUB |
+| [`byre`](byre.md) / cowshed | **DRAFT** |
+| [`stable`](stable.md) | **DRAFT** |
+| [`barn`](barn.md) | **DRAFT** |
+| [`granary`](granary.md) | **DRAFT** |
+| [`dovecote`](dovecote.md) | **DRAFT** |
+| [`pigsty`](pigsty.md) / coop | **DRAFT** |
 
 ### Maritime (5) — `BLOCKED` on the water/shoreline engine feature
 | Archetype | Status |
