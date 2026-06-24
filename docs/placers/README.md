@@ -43,7 +43,16 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 | 7 | place_interior_walls | P | [07_place_interior_walls](07_place_interior_walls.md) |
 | 8 | cut_openings | P | [08_cut_openings](08_cut_openings.md) |
 
-**Closure & roof (9–15)** — TODO: place_doors, place_windows, place_ceiling/intermediate_floor, place_stairs, place_roof, place_chimney, place_trim
+**Closure & roof (9–15)** — ✅ this batch
+| # | placer | Part-1 status | spec |
+|---|---|---|---|
+| 9 | place_doors | M | [09_place_doors](09_place_doors.md) |
+| 10 | place_windows | M | [10_place_windows](10_place_windows.md) |
+| 11 | place_ceiling / intermediate_floor | P | [11_place_ceiling](11_place_ceiling.md) |
+| 12 | place_stairs | M | [12_place_stairs](12_place_stairs.md) |
+| 13 | place_roof | P | [13_place_roof](13_place_roof.md) |
+| 14 | place_chimney | M | [14_place_chimney](14_place_chimney.md) |
+| 15 | place_trim | M | [15_place_trim](15_place_trim.md) |
 **Interior (16–20)** — place_furniture (**D**), place_fixtures, place_lights, place_clutter, place_entry — TODO
 **Parcel (21–29)** — zone_parcel, place_fence, place_boundary_wall, place_path, place_garden, place_farm, place_outbuildings, place_livestock_pens, place_yard_props — TODO
 **Systems (30)** — register_systems — TODO
@@ -53,4 +62,4 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 **Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
 **Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
 
-*(8 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(15 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
