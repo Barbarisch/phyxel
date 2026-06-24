@@ -856,6 +856,71 @@ of category A, and the overlay system are all target spec. The one piece that ex
 (magical light has a real home). Everything else — including which impossibilities the engine can ever support —
 is documented as requirement, not as done.
 
+## Part 10 — The build pipeline (brief → build derivation)
+
+The **glue**: how a filled `StructureBrief` becomes built voxels **deterministically**, with the LLM only
+authoring *intent* and *approving assets*. The engine **derives and builds**; it does not improvise. This is the
+spine of the standing rule — *the engine generates, not Claude.*
+
+```
+StructureBrief        →  [validate]  →  DERIVE AssemblyPlan  →  [validate]  →  run placers (#1–59,   →  voxels
+(LLM-authored intent)                    (engine, deterministic)                selected subset, in order;
+                                                                                 each gated by Part-2 checks)
+```
+
+### Stage 1 — The `StructureBrief` (intent only)
+The ~43-field mandatory intake (`docs/StructureBrief.md` / the engine-resident schema, E1). Grouped:
+**setting/period (the FIRST gate)**, function, status/wealth, scale/footprint, site (slope / water / approach /
+orientation), region + climate, materials-availability, condition/age, defensibility, faith, parcel/context, and
+(fantasy) a world-bible ref. The LLM fills this; **no voxel exists yet**. Blocking fields must be answered;
+the rest take **cited defaults** (warn-but-allow).
+
+### Stage 2 — Derivation (deterministic, engine)
+Each step is a rule/table, not a judgement call:
+1. **Archetype** ← (function, setting, status, urban/rural) → a Part 6 archetype + scaling tier.
+2. **Style** ← (setting/period, region, status, materials-availability) → a `StyleProfile` (wall material + thickness, roof material + pitch, foundation) from `structure_styles.json`.
+3. **Room program** ← (archetype, status, footprint) → the bay model + required/typical rooms (Part 3 + `room_program.json`).
+4. **Site fit** ← (slope, water, grade) → `prepare_pad` / foundation / basement decisions.
+5. **Placer subset + order** ← (archetype, parcel?, defensibility?, basement/sewer?, religious?, season) → which of #1–59 run vs skip.
+6. **Fantasy overlay** ← (setting = fantasy) → world-bible overlays (Part 9).
+
+Output: the **`AssemblyPlan`** — the fully resolved (archetype, style, program, site-fit, placer-list, overlays),
+physical-ready, with every dimension traced to a grounded canon.
+
+### Stage 3 — Realization
+Run the selected placers **in order**; each emits voxels/objects and is **gated by its Part-2 checklist items**.
+
+### The decision tables (the deterministic core — design-of-record)
+| Input | → | Output | Source |
+|---|---|---|---|
+| function × status (× urban/rural) | → | archetype | Part 6 |
+| (setting, region, status, materials) | → | style (cruck+wattle&daub+thatch ↔ ashlar+tile ↔ cob …) | `structure_styles.json` |
+| archetype × status × footprint | → | room program (bays + required/typical rooms) | Part 3 + `room_program.json` |
+| archetype + flags | → | placer subset + order | Part 1 |
+
+**Conditional-placer triggers** (when a placer runs at all):
+- parcel placers (#21–29) — iff a **lot/plot exists** (rural or a yarded urban plot), not for a party-wall townhouse.
+- `place_fortifications` (#31) — iff **defensibility > none**.
+- subterranean (#50–57) — iff **basement | sewer | crypt | dungeon** in the program.
+- `place_graveyard` (#32) — iff **religious + burial**.
+- settlement tier (#38–49) — iff building **a settlement**, not a single structure.
+- `apply_seasonal_state` (#33) — **always last**, driven by the season / time-of-day fields.
+
+### Where the LLM is allowed (and where it is not)
+- **LLM:** authors the brief (high-level intent), approves generated assets, may *suggest* design — never lays a voxel, never invents a dimension.
+- **Engine:** all derivation + all physical generation, deterministically from the canons. *(The standing rule, made mechanical.)*
+
+### Validation gates (warn-but-allow)
+`StructureBriefValidator` (complete + legal + period-coherent) → `BuildingProgramValidator` (derived program legal:
+topology / reachability / scale / typology) → `AssetValidator` (assets exist + approved) → per-placer checklist
+gates (Part 2). Failures **log and warn**, they don't hard-block (the chosen policy) — but a *blocking* brief field
+(e.g. a missing period) stops at Stage 1.
+
+### Honest status
+**Implemented:** the `StructureBrief` schema (E1, engine-resident), `BuildingProgramValidator` (partial),
+`FurniturePlacer`. **Target / design-of-record:** the derivation engine, the decision tables above, the
+`AssemblyPlan` resolver, and 58 of 59 placers. The pipeline is specified here; almost none of Stage 2 is code yet.
+
 ---
 
 ### Coverage today (honest)
