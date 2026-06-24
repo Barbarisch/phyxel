@@ -105,12 +105,9 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     if (footprint.empty()) { res.error = "empty footprint"; return res; }
     auto inFoot = [&](int x, int z) { return footprint.count({x, z}) > 0; };
 
-    // ---- vertical layout (micro) ----
+    // ---- vertical layout (micro): the GROUND story's floor ----
     const int floorBaseMicro = crawlH * 9;
-    const int floorTopMicro  = floorBaseMicro + floorT;     // walkable surface
-    const int wallBaseMicro  = floorTopMicro;
-    const int wallTopMicro   = wallBaseMicro + story.height * 9;
-    const int ceilTopMicro   = wallTopMicro + ceilT;
+    const int floorTopMicro  = floorBaseMicro + floorT;     // ground walkable surface
     res.floorTopMicro = floorTopMicro;
 
     // ---- pass 1: foundation walls (perimeter, crawlspace) ----
@@ -139,63 +136,82 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         if (perim) plan.foundation.push_back({cx, cz, 0, crawlH, matFound});
     }
 
-    // ---- pass 2: finish floor over the whole footprint ----
-    for (const auto& [cx, cz] : footprint)
-        c.fillMicroBox(cx * 9, floorBaseMicro, cz * 9, 9, floorT, 9, matFloor);
-    plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, crawlH, style.thicknessOf("floor", 0.333),
-                           matFloor, "floor"});
+    // ---- stack_stories (#36): build FLOOR + WALLS + OPENINGS for EVERY story,
+    // stacked up a running base micro-Y. Each story's floor sits directly on the
+    // wall-top of the one below, so an intermediate floor IS the ceiling of the
+    // story beneath it; only the TOP story gets a separate ceiling slab (pass 4).
+    // Exterior walls use the shared building footprint; partitions/openings use
+    // each story's own rooms/portals (so upper floors can be laid out differently).
+    const int W = program.footprintW > 0 ? program.footprintW : bx1;
+    const int D = program.footprintD > 0 ? program.footprintD : bz1;
+    int base = floorBaseMicro;                 // this story's floor-bottom micro-Y
+    for (size_t si = 0; si < program.stories.size(); ++si) {
+        const ProgStory& st = program.stories[si];
+        const int fBase = base;
+        const int wBase = fBase + floorT;
+        const int wTop  = wBase + st.height * 9;
+        const int yCubes = fBase / 9;
 
-    // ---- pass 3: exterior walls (perimeter edges) + interior partitions ----
-    for (const auto& [cx, cz] : footprint)
-        for (const auto& d : dirs)
-            if (!inFoot(cx + d.first, cz + d.second)) {
-                paintEdgeBand(cx, cz, d, extT, wallBaseMicro, wallTopMicro, matExt);
-                plan.walls.push_back({cx, cz, cx + d.first, cz + d.second, crawlH, story.height,
-                                      style.thicknessOf("exterior_wall", 0.333), matExt, "exterior"});
+        // finish floor over the footprint
+        for (const auto& [cx, cz] : footprint)
+            c.fillMicroBox(cx * 9, fBase, cz * 9, 9, floorT, 9, matFloor);
+        if (si == 0)
+            plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, yCubes,
+                                   style.thicknessOf("floor", 0.333), matFloor, "floor"});
+
+        // exterior walls (perimeter edges of the shared footprint)
+        for (const auto& [cx, cz] : footprint)
+            for (const auto& d : dirs)
+                if (!inFoot(cx + d.first, cz + d.second)) {
+                    paintEdgeBand(cx, cz, d, extT, wBase, wTop, matExt);
+                    plan.walls.push_back({cx, cz, cx + d.first, cz + d.second, yCubes, st.height,
+                                          style.thicknessOf("exterior_wall", 0.333), matExt, "exterior"});
+                }
+
+        // interior partitions on this story's shared room walls (thin straddling slab)
+        std::map<std::string, Rect> srooms;
+        std::vector<std::string> ids;
+        for (const auto& rm : st.rooms) { srooms[rm.id] = rm.rect; ids.push_back(rm.id); }
+        for (size_t i = 0; i < ids.size(); ++i)
+            for (size_t j = i + 1; j < ids.size(); ++j) {
+                Seg s = sharedWall(srooms[ids[i]], srooms[ids[j]]);
+                if (!s.ok) continue;
+                int half = intT / 2;
+                if (s.axis == 'x') {                   // wall runs along Z at x = coord
+                    int gx = s.coord * 9 - half;
+                    c.fillMicroBox(gx, wBase, s.lo * 9, intT, wTop - wBase, (s.hi - s.lo) * 9, matInt);
+                } else {                               // wall runs along X at z = coord
+                    int gz = s.coord * 9 - half;
+                    c.fillMicroBox(s.lo * 9, wBase, gz, (s.hi - s.lo) * 9, wTop - wBase, intT, matInt);
+                }
+                plan.walls.push_back({0, 0, 0, 0, yCubes, st.height,
+                                      style.thicknessOf("interior_wall", 0.222), matInt, "interior"});
             }
 
-    // interior partitions on shared room walls (thin slab straddling the grid line)
-    std::vector<std::string> ids;
-    for (const auto& rm : story.rooms) ids.push_back(rm.id);
-    for (size_t i = 0; i < ids.size(); ++i)
-        for (size_t j = i + 1; j < ids.size(); ++j) {
-            Seg s = sharedWall(rooms[ids[i]], rooms[ids[j]]);
-            if (!s.ok) continue;
-            int half = intT / 2;
-            if (s.axis == 'x') {                       // wall runs along Z at x = coord
-                int gx = s.coord * 9 - half;
-                c.fillMicroBox(gx, wallBaseMicro, s.lo * 9, intT, wallTopMicro - wallBaseMicro,
-                               (s.hi - s.lo) * 9, matInt);
-            } else {                                   // wall runs along X at z = coord
-                int gz = s.coord * 9 - half;
-                c.fillMicroBox(s.lo * 9, wallBaseMicro, gz, (s.hi - s.lo) * 9,
-                               wallTopMicro - wallBaseMicro, intT, matInt);
+        // carve this story's door/window/arch openings through its wall band
+        for (const auto& p : st.portals) {
+            if (p.kind == "window" && p.height <= 0) continue;
+            bool ext = (p.a == "exterior" || p.b == "exterior");
+            int sill = (p.kind == "window") ? 1 : 0;       // windows sit on a ~1-cube sill
+            int oyBase = wBase + sill * 9;
+            int oyTop  = std::min(wTop, oyBase + p.height * 9);
+            bool alongZ = (p.px == 0 || p.px == W);        // wall faces +/-x -> opening runs in Z
+            for (int k = 0; k < std::max(1, p.width); ++k) {
+                int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
+                int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
+                if (!ext) { cx = p.px + (alongZ ? 0 : k); cz = p.pz + (alongZ ? k : 0); }
+                c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");   // carve to air
             }
-            plan.walls.push_back({0, 0, 0, 0, crawlH, story.height,
-                                  style.thicknessOf("interior_wall", 0.222), matInt, "interior"});
+            plan.openings.push_back({p.px, yCubes + sill, p.pz, p.width, p.height, 1, p.kind, "open"});
         }
 
-    // ---- pass 6 (early): carve door/window openings through the walls ----
-    int W = program.footprintW > 0 ? program.footprintW : bx1;
-    int D = program.footprintD > 0 ? program.footprintD : bz1;
-    for (const auto& p : story.portals) {
-        if (p.kind == "window" && p.height <= 0) continue;
-        bool ext = (p.a == "exterior" || p.b == "exterior");
-        int sill = (p.kind == "window") ? 1 : 0;           // windows sit on a ~1-cube sill
-        int oyBase = wallBaseMicro + sill * 9;
-        int oyTop  = std::min(wallTopMicro, oyBase + p.height * 9);
-        // Opening runs `width` cells along the wall; orientation from the perimeter edge.
-        bool alongZ = (p.px == 0 || p.px == W);            // wall faces +/-x -> opening runs in Z
-        for (int k = 0; k < std::max(1, p.width); ++k) {
-            int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
-            int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
-            if (!ext) { cx = p.px + (alongZ ? 0 : k); cz = p.pz + (alongZ ? k : 0); }
-            // carve the full cell cross-section over the opening height (removes the wall band)
-            c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");
-        }
-        plan.openings.push_back({p.px, crawlH + sill, p.pz, p.width, p.height,
-                                 1, p.kind, "open"});
+        base = wTop;                               // next story's floor sits on this wall top
     }
+
+    // Top-of-stack values for the (single) ceiling slab + the roof. The old single-
+    // story names are reused so the ceiling/roof passes below are unchanged.
+    const int wallTopMicro = base;
+    const int ceilTopMicro = wallTopMicro + ceilT;
 
     // ---- pass 4: ceiling slab over the footprint ----
     for (const auto& [cx, cz] : footprint)

@@ -126,6 +126,45 @@ TEST(StructureRealizerTest, CeilingAndRoofExistAboveTheRooms) {
     EXPECT_FALSE(r.plan.roof.empty());
 }
 
+// stack_stories (#36): realizeShell must build EVERY story, stacked — not just
+// stories[0]. A 2-story cottage has real exterior walls in the upper story's band
+// (where the old single-story code had only roof), and is ~a story taller.
+TEST(StructureRealizerTest, StacksMultipleStories) {
+    const char* kTwoStory = R"({
+        "name": "cottage2", "style": "timber_cottage", "footprint": [7, 9],
+        "substructure": "crawlspace", "roof_style": "gable",
+        "stories": [
+            { "height": 3,
+              "rooms": [ {"id":"hall","rect":[0,0,4,9],"purpose":"living"},
+                         {"id":"kitchen","rect":[4,0,3,9],"purpose":"kitchen"} ],
+              "portals": [ {"between":["exterior","hall"],"pos":[0,3],"width":1,"height":2,"kind":"door"} ] },
+            { "height": 3,
+              "rooms": [ {"id":"solar","rect":[0,0,7,9],"purpose":"solar"} ],
+              "portals": [ {"between":["exterior","solar"],"pos":[0,3],"width":1,"height":1,"kind":"window"} ] }
+        ]
+    })";
+    auto two = StructureRealizer::realizeShell(
+        BuildingProgram::fromJson(nlohmann::json::parse(kTwoStory)), timberCottageStyle());
+    ASSERT_TRUE(two.ok) << two.error;
+
+    // Ground wall-top = floorTop + a 3-cube wall. The SECOND story's walls live above
+    // that (floor + into its wall band); cell (0,7) is solid wall in BOTH stories (no
+    // opening there). The old single-story code left nothing solid this high at the edge.
+    const int groundWallTop = two.floorTopMicro + 3 * 9;
+    const int upperWallMid  = groundWallTop + 3 + 13;     // 2nd-story floor + into its wall
+    bool upperWall = false;
+    for (int mz = 0; mz < 9; ++mz)
+        if (two.canvas.occupiedMicro(0 * 9 + 0, upperWallMid, 7 * 9 + mz)) upperWall = true;
+    EXPECT_TRUE(upperWall) << "second-story exterior wall was not built (multi-story loop missing)";
+
+    // ...and the 2-story build is ~a story taller than the 1-story cottage.
+    auto one = build();
+    glm::ivec3 lo1, hi1, lo2, hi2;
+    ASSERT_TRUE(one.canvas.microBounds(lo1, hi1));
+    ASSERT_TRUE(two.canvas.microBounds(lo2, hi2));
+    EXPECT_GT(hi2.y, hi1.y + 20) << "2-story build should be ~a story taller than 1-story";
+}
+
 namespace {
 StyleProfile cottageStyleWithPitchDeg(double deg) {
     StyleProfileRegistry reg;
