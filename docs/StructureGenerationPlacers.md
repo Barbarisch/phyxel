@@ -19,7 +19,7 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 |---|--------|-----|--------|
 | 1 | `analyze_site` | sample terrain under footprint → grade, slope, obstructions, water, approach direction | **P** (median seat only) |
 | 2 | `prepare_pad` | cut high / fill low to a level build pad out of bumpy terrain; retain/terrace edges | **M** |
-| 3 | `place_foundation` | footings to bearing (stepped on slope) + foundation/plinth walls + slab/crawlspace/basement | **P** (crawlspace ring) |
+| 3 | `place_foundation` | footings to bearing (stepped on slope) + foundation/plinth walls + slab/crawlspace/basement | **P** (crawlspace ring; `basement` = 3-cube void stub — no floor/rooms/access) |
 | 4 | `place_subfloor` + `place_floor` | structural floor + finish floor per room (material by status) | **P** (one slab) |
 | 5 | `generate_room_layout` | derive room rects from typology + bay model + program (replace hand-authoring) | **M** |
 | 6 | `place_exterior_walls` | perimeter walls, style thickness, exterior grade | **P** (fused) |
@@ -27,9 +27,9 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 8 | `cut_openings` | carve door/window/arch + sills + reveals + lintels | **P** (gaps only) |
 | 9 | `place_doors` | door leaves, correct handedness/swing, register with `DoorManager` | **M** |
 | 10 | `place_windows` | glazing / shutters / boards / open per period+status | **M** |
-| 11 | `place_ceiling` / `place_intermediate_floor` | ceiling or upper-story floor; defer stairwell holes | **P** (fused) |
-| 12 | `place_stairs` | stairs between stories / to cellar, with landings + headroom | **M** |
-| 13 | `place_roof` | gable/hip/valley over the real outline + eaves/fascia/soffit + ridge + attic void | **P** (gable on rect, blocky, floats) |
+| 11 | `place_ceiling` / `place_intermediate_floor` | ceiling or upper-story floor; defer stairwell holes | **P** (fused; single story — no upper-story floor built) |
+| 12 | `place_stairs` | stairs between stories / to cellar, with landings + headroom | **M** (realizer never reads `ProgStair`) |
+| 13 | `place_roof` | gable/hip/valley over the real outline + eaves/fascia/soffit + ridge + attic void | **P** (gable on rect, blocky, floats; attic void sealed & inaccessible) |
 | 14 | `place_chimney` | flue from each hearth up through the roof | **M** |
 | 15 | `place_trim` | baseboards, casings, quoins, exposed framing, string courses (micro detail) | **M** |
 | 16 | `place_furniture` | furniture by purpose; wall/center; facing; clearance; on-floor | **D** (`FurniturePlacer`) |
@@ -50,6 +50,10 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 31 | `place_fortifications` | *(fortified only; runs with the structural placers)* curtain wall + flanking towers + gatehouse + parapet/crenellations + moat/ditch | **M** |
 | 32 | `place_graveyard` | *(religious only; parcel tier)* consecrated plot, oriented graves, markers by status, lych-gate, charnel/crypt | **M** |
 | 33 | `apply_seasonal_state` | *(final dressing pass)* snow / foliage / crops / smoke / shutters / ice by season + time | **M** |
+| 34 | `excavate_basement` | *(vertical; see Part 5)* dig the below-grade box into terrain; spoil removal; drainage; window wells / bulkhead | **M** |
+| 35 | `place_basement` | occupiable below-grade story at level −1: retaining walls (stone, thick) + base slab + cellar floor/ceiling; runs the per-story placers | **M** |
+| 36 | `stack_stories` | the multi-story loop — run the per-story placers at each story's base-Y, then realize each `ProgStair`; prerequisite for upper floors, basements & attics | **M** (missing — realizer hard-codes `stories[0]`) |
+| 37 | `place_attic` | story inside the roof volume: usable-area mask from pitch (headroom ≥ 1.5 m), knee walls, sloped ceiling, dormers/gable lights, hatch/stair access | **M** |
 
 ## Part 2 — The granular checklist
 
@@ -316,6 +320,18 @@ U4. The library is the **engine's data** (committed `resources/` + the per-world
 U5. Every gap (missing asset / material / category) is appended to a **"wanted" backlog** so it is authored once and never re-improvised.
 U6. Wall art (paintings, tapestries, reliefs) needs a **decal / framed-picture mechanism** — a current gap: flag it, don't fake it.
 
+### V. Vertical & multi-level integrity *(basements, upper floors, attics — see Part 5)*
+V1. Every story (basement / ground / upper / attic) is **reachable** by a *built* stair, ladder, or hatch — `place_stairs` actually realizes each `ProgStair`. No sealed, inaccessible levels (today's basement void + roof void both fail this).
+V2. Stair geometry meets the comfort floor — riser ≤ 0.196 m, tread ≥ 0.254 m, width ≥ 0.914 m, headroom ≥ 2.032 m (IRC R311.7) — OR a *grounded* period stair (medieval newel/ladder stairs run steeper+narrower). Never an un-climbable or floating flight.
+V3. Floors stack at the correct base-Y with no gap/overlap; an intermediate floor IS the ceiling of the story below; stairwell holes are cut through **both** the floor and the ceiling slab.
+V4. A basement is **occupiable, not a void**: retaining walls hold back earth (stone, ≥ the masonry exterior thickness), a base slab, headroom ≥ 2.032 m (storage) / 2.134 m (habitable) per IRC R305, excavated into terrain (not perched), with an access.
+V5. Basement light/air per use: storage may be windowless + vented; habitable below-grade needs an egress well (opening ≥ 0.530 m², sill ≤ 1.118 m, well ≥ 0.84 m² — IRC R310) — *conditional on period* (medieval cellars used light vents, not code egress).
+V6. Below-grade implies **damp control** — drainage + siting in well-drained ground; flagged, never ignored.
+V7. Attic **usable floor = only where headroom ≥ 1.5 m** under the pitch; the attic room rect is the masked area, NOT the full footprint; knee walls close the unusable eaves.
+V8. Attic has **access** (stair/ladder/hatch) and **light** (gable window or dormer) — not sealed and dark.
+V9. Roof structure suits an occupiable attic (hollow shell + collar height) vs a solid wedge; rafters/ridge don't intrude below standing headroom in the usable zone.
+V10. **Vertical loads stack** — upper-story and roof walls bear on walls/posts below, not mid-span on a floor (the D-category structural rule, applied in Y).
+
 ## Part 3 — Per-room function programs (the "what makes it that room" library)
 
 Data-driven recipes the `FurniturePlacer` reads and the **T**-checks enforce. **Required** = without it the room
@@ -420,6 +436,61 @@ stair-detail asset the `place_stairs` placer applies; chandeliers = a lighting t
 generation, the texture + dimension pipelines). The *content* is sparse (crude furniture; no art / sculpture /
 chandelier / banister; weak textures), and a **wall-art decal system does not yet exist**. So the work ahead is
 *filling* the library — but the architecture means we fill it **once** and the engine keeps it.
+
+## Part 5 — Vertical / multi-level (basements, upper floors, attics)
+
+**Current state (ground truth from the code).** The *schema* already models this — `BuildingProgram` has
+`stories[]`, `ProgStair { fromStory, toStory }`, and `substructure = slab | crawlspace | basement`. The
+*realizer does not*: `StructureRealizer::realizeShell` builds only `program.stories[0]` (line 71), **never
+reads `ProgStair`** (no vertical circulation is built at all), treats `substructure == "basement"` as a
+3-cube perimeter retaining **void** under the ground floor (`// basement body deferred to P5`), and emits a
+**solid-shell gable roof** whose interior void is sealed, dark, and inaccessible — not a usable attic. So:
+representable in the spec, **not realized**.
+
+**The unlock is `stack_stories` (#36).** Iterate `stories` with a running base-Y, run the per-story placers
+(floor / walls / openings / ceiling) at each level, then realize each `ProgStair` (#12) by cutting a hole
+through the floor *and* ceiling slabs and building the flight. A **basement is a story at level −1**; an
+**attic is a story inside the roof volume**. Everything else is a specialization of this loop.
+
+**Basement** (`excavate_basement` #34 + `place_basement` #35): excavate the footprint box into terrain;
+perimeter **retaining walls** (stone, ≥ the masonry exterior thickness — they hold back earth, *not* the thin
+timber wall); base slab + drainage; headroom per use; access via an internal stair down (`ProgStair{0→−1}`) or
+an external bulkhead; light via window wells (habitable) or vents (storage). Distinct from the existing
+**crawlspace**, which is a correct *non-occupiable* shallow void.
+
+**Attic** (`place_attic` #37): the roof placer defines the envelope; the attic floor = the top story's
+ceiling joists. **Usable area = only the strip where headroom under the pitch ≥ 1.5 m** — the attic room is
+*smaller than the footprint*, eaves excluded, knee walls closing the unusable wedge. Access via stair / ladder
+/ hatch; light via gable windows or **dormers** (a roof-penetration feature we don't have yet — flagged).
+
+### Grounded vertical dimensions
+
+Human-clearance values cite the IRC (permitted by our rule for *clearance*, not period structure). Period
+structural values that don't resolve to a clean standard are **flagged for the grounding-auditor**, not invented.
+
+| Value | Grounded figure | Source |
+|---|---|---|
+| Habitable ceiling height (any story) | ≥ 2.134 m (7′0″) | IRC R305.1 |
+| Storage / non-habitable basement headroom | ≥ 2.032 m (6′8″); beams may project to 1.931 m | IRC R305.1 + exception |
+| Stair riser (max) | ≤ 0.196 m (7¾″) | IRC R311.7.5.1 |
+| Stair tread depth (min) | ≥ 0.254 m (10″) | IRC R311.7.5.2 |
+| Stair clear width (min) | ≥ 0.914 m (36″) | IRC R311.7.1 |
+| Stair headroom (min) | ≥ 2.032 m (6′8″) | IRC R311.7.2 |
+| Egress opening (habitable below-grade) | net ≥ 0.530 m² (5.7 sq ft), H ≥ 0.610 m, W ≥ 0.508 m, sill ≤ 1.118 m | IRC R310.2.1 |
+| Egress window well | area ≥ 0.84 m² (9 sq ft), projection ≥ 0.914 m; ladder if depth > 1.118 m | IRC R310.3 |
+| Attic usable floor (headroom mask) | count floor area only where headroom ≥ 1.5 m | RICS / loft-conversion surveying convention |
+| Attic practical standing headroom | ≥ 2.0–2.2 m at the ridge zone | UK Approved Doc K loft practice |
+| Medieval masonry wall build-up | two leaves dressed ashlar + rubble/mortar core | Undercroft (Wikipedia); Tracing the Past: Medieval Vaults |
+
+**Flagged — NOT yet grounded (route through the grounding-auditor before any number is used in code):**
+- **Medieval domestic cellar/undercroft headroom** — no clean period standard found (Clarendon's wine cellar is 34 m *long*, no height given). Engine floor = the IRC storage clearance (2.032 m); period undercrofts were often vaulted and taller — the domestic figure is unverified.
+- **Medieval cellar retaining-wall thickness** — not independently grounded. Floor = the style's masonry exterior thickness; ≥ 0.667 m for stone (existing manor canon), scaling toward the castle 2–6 m canon when fortified. Precise domestic value unverified.
+- **Medieval stair steepness** — IRC is the modern *comfort* floor; medieval domestic / newel stairs ran steeper and narrower. Period geometry unverified.
+- **Knee-wall height** — currently *derived* from the 1.5 m headroom mask (not a constant); a fixed period value is unverified.
+
+These figures are **design-of-record here** — they feed `structure_styles.json` (basement story height,
+retaining-wall thickness, roof pitch → attic envelope) and `object_dimensions.json` (stair, window-well)
+**when the placers are built**, and are not yet wired into runtime canon.
 
 ---
 
