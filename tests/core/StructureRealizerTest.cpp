@@ -165,6 +165,38 @@ TEST(StructureRealizerTest, StacksMultipleStories) {
     EXPECT_GT(hi2.y, hi1.y + 20) << "2-story build should be ~a story taller than 1-story";
 }
 
+// place_stairs (#12): a ProgStair must (1) cut a stairwell hole through the upper
+// story's floor slab and (2) build a flight of steps climbing into it. Previously
+// ProgStair was parsed but never realized, sealing the upper floor off.
+TEST(StructureRealizerTest, StairsCutUpperFloorAndBuildFlight) {
+    const char* kStairHouse = R"({
+        "name": "stairhouse", "style": "timber_cottage", "footprint": [7, 9],
+        "substructure": "crawlspace", "roof_style": "gable",
+        "stories": [
+            { "height": 3,
+              "rooms": [ {"id":"hall","rect":[0,0,7,9],"purpose":"living"} ],
+              "portals": [ {"between":["exterior","hall"],"pos":[0,3],"width":1,"height":2,"kind":"door"} ],
+              "stairs": [ {"from_story":0, "to_story":1, "rect":[1,2,2,5], "kind":"straight"} ] },
+            { "height": 3, "rooms": [ {"id":"upper","rect":[0,0,7,9],"purpose":"solar"} ], "portals": [] }
+        ]
+    })";
+    auto r = StructureRealizer::realizeShell(
+        BuildingProgram::fromJson(nlohmann::json::parse(kStairHouse)), timberCottageStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+
+    // crawl 1 + floor 3 -> story-0 walkable 12, +3-cube wall -> story-1 floor slab ~[39,42).
+    const int slabY = 40;
+    // (1) the stairwell HOLE: at a low stair-rect cell (2,2) the upper slab is CUT -> air.
+    EXPECT_FALSE(r.canvas.occupiedMicro(2 * 9 + 4, slabY, 2 * 9 + 4))
+        << "the upper floor slab was not cut for the stairwell";
+    // ...while away from the stairwell the upper floor is intact -> solid.
+    EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 7 * 9 + 4))
+        << "upper floor missing away from the stairwell";
+    // (2) a solid STEP climbs in the lower story within the stair rect (above the lower floor).
+    EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, 15, 2 * 9 + 4))
+        << "no stair step built in the stairwell";
+}
+
 namespace {
 StyleProfile cottageStyleWithPitchDeg(double deg) {
     StyleProfileRegistry reg;

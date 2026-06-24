@@ -145,12 +145,15 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     const int W = program.footprintW > 0 ? program.footprintW : bx1;
     const int D = program.footprintD > 0 ? program.footprintD : bz1;
     int base = floorBaseMicro;                 // this story's floor-bottom micro-Y
+    std::vector<int> floorBaseByStory, floorTopByStory;   // micro-Ys, for place_stairs (#12)
     for (size_t si = 0; si < program.stories.size(); ++si) {
         const ProgStory& st = program.stories[si];
         const int fBase = base;
-        const int wBase = fBase + floorT;
+        const int wBase = fBase + floorT;      // this story's walkable surface
         const int wTop  = wBase + st.height * 9;
         const int yCubes = fBase / 9;
+        floorBaseByStory.push_back(fBase);
+        floorTopByStory.push_back(wBase);
 
         // finish floor over the footprint
         for (const auto& [cx, cz] : footprint)
@@ -212,6 +215,51 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // story names are reused so the ceiling/roof passes below are unchanged.
     const int wallTopMicro = base;
     const int ceilTopMicro = wallTopMicro + ceilT;
+
+    // ---- place_stairs (#12): realize each ProgStair (previously parsed but NEVER built).
+    // Cut the stairwell through the upper story's floor slab, then build a solid stepped
+    // flight climbing from the lower walkable to the upper one (emerges through the hole).
+    // Adjacent stories only for this slice; steeper-than-comfort risers are a grounding
+    // follow-up, the geometry + reachability is the point.
+    {
+        const int nStory = static_cast<int>(floorTopByStory.size());
+        std::set<long long> seenStairs;
+        for (const auto& st : program.stories)
+            for (const auto& sr : st.stairs) {
+                int a = sr.fromStory, b = sr.toStory;
+                if (a > b) std::swap(a, b);
+                if (a < 0 || b >= nStory || b != a + 1) continue;      // adjacent only
+                const Rect& rc = sr.rect;
+                if (rc.w < 1 || rc.d < 1) continue;
+                long long key = ((long long)a << 48) | ((long long)b << 32) |
+                                ((long long)(rc.x + 4096) << 16) | (long long)(rc.z + 4096);
+                if (!seenStairs.insert(key).second) continue;
+
+                const int botMicro  = floorTopByStory[a];   // lower walkable surface
+                const int topMicro  = floorTopByStory[b];   // upper walkable surface
+                const int holeBase  = floorBaseByStory[b];  // bottom of the upper floor slab
+
+                // (1) cut the stairwell hole through the upper story's floor slab
+                for (int x = rc.x; x < rc.x1(); ++x)
+                    for (int z = rc.z; z < rc.z1(); ++z)
+                        c.fillMicroBox(x * 9, holeBase, z * 9, 9, topMicro - holeBase, 9, "");
+
+                // (2) build a solid stepped flight along the rect's longer axis
+                const bool runZ   = rc.d >= rc.w;
+                const int  runLen = runZ ? rc.d : rc.w;
+                const int  rise   = topMicro - botMicro;
+                const int  step   = std::max(1, (rise + runLen - 1) / runLen);   // ceil
+                for (int i = 0; i < runLen; ++i) {
+                    int h = std::min(topMicro, botMicro + (i + 1) * step);
+                    if (runZ)
+                        for (int x = rc.x; x < rc.x1(); ++x)
+                            c.fillMicroBox(x * 9, botMicro, (rc.z + i) * 9, 9, h - botMicro, 9, matFloor);
+                    else
+                        for (int z = rc.z; z < rc.z1(); ++z)
+                            c.fillMicroBox((rc.x + i) * 9, botMicro, z * 9, 9, h - botMicro, 9, matFloor);
+                }
+            }
+    }
 
     // ---- pass 4: ceiling slab over the footprint ----
     for (const auto& [cx, cz] : footprint)
