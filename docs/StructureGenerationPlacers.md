@@ -66,6 +66,14 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 47 | `place_signage` | pictorial trade / inn signs at shopfronts; wayfinding (illiterate clientele) | **M** |
 | 48 | `dress_street_life` | street props of occupation: market stalls, woodpiles, laundry, refuse, carts, animals | **M** |
 | 49 | `link_subterranean` | stub sewer / cellar / crypt connections for the subterranean tier (handoff) | **M** (deferred tier) |
+| 50 | `excavate_subterrane` | *(subterranean tier; see Part 8)* carve the below-grade void into chunk terrain + remove/backfill earth — the core engine gap | **M** (engine cap missing) |
+| 51 | `carve_sewer_network` | vaulted drains under the streets, fed by garderobe chutes + cesspits, gravity to a river outfall, surface gratings | **M** |
+| 52 | `place_crypt` / `place_catacomb` | burial chambers + loculi niches under churches / cemeteries; multi-level galleries | **M** |
+| 53 | `excavate_dungeon` | cells, oubliettes, corridors, chambers under a castle / keep — the adventure-site layer | **M** |
+| 54 | `place_mine` | adit → gallery → shaft following an ore seam; timber supports; spoil at the mouth | **M** |
+| 55 | `connect_underground` | link cellars ↔ tunnels ↔ sewers ↔ crypts ↔ dungeon into a navigable graph (multi-level connectivity gap) | **M** (engine cap missing) |
+| 56 | `place_secret_passages` | hidden doors / tunnels between buildings or to escape routes; mechanisms | **M** |
+| 57 | `validate_crawlability` | prove the network is traversable: widths, headroom, reachability, encounter / light spacing — the playability gate | **M** |
 
 ## Part 2 — The granular checklist
 
@@ -386,6 +394,17 @@ AA8. **Production** — mills, smiths, workshops scaled to feed + equip the popu
 AA9. **Circulation** — every district reachable; main streets, gates, bridges sized for carts; the market accessible.
 AA10. A **public square / market** exists as the social heart, at the street crossing.
 
+### BB. Subterranean & dungeon layer *(subterranean tier — see Part 8)*
+BB1. Below-grade volumes are **actually excavated** into terrain (void carved, earth removed) — not a box perched in solid ground (the Part 5 basement-stub bug, at network scale).
+BB2. Passages are **crawlable/walkable to their intent** — walk-upright galleries ≥ ~2.0 m headroom × ≥ ~0.9 m wide; crawl tunnels honestly narrow (~0.6–1.0 m) and *labelled* as such; no zero-clearance dead solids.
+BB3. The network is a **connected graph** — every chamber reachable from an entrance via stairs/ladders/shafts; vertical links between levels exist; no orphaned voids.
+BB4. **Sewers follow gravity** to an outfall (river/moat), sit under the streets, take garderobe chutes + cesspits, and have surface gratings/access — not a free-floating maze.
+BB5. **Burial spaces** are period/faith-correct — crypts under the chancel, catacomb loculi sized for a body, charnel/ossuary for bones, oriented per rite.
+BB6. **Dungeons/cells** are grim + secure (locked/barred, oubliette access from above, no easy egress) and **fit the structure above** (under the keep, not floating).
+BB7. **Mines** follow a seam (adit → gallery → shaft), are timbered, and dump spoil at the mouth — not random caverns.
+BB8. **Playability** — the layer is a usable adventure site: reachable, lit-or-intentionally-dark, sensible encounter/loot spacing, discoverable secret doors, purposeful dead-ends.
+BB9. **Anachronism honesty** — a walkable sewer/dungeon under a medieval brief is *flagged* as a Roman/Victorian/game conceit (allowed for D&D, never claimed as historical).
+
 ## Part 3 — Per-room function programs (the "what makes it that room" library)
 
 Data-driven recipes the `FurniturePlacer` reads and the **T**-checks enforce. **Required** = without it the room
@@ -679,6 +698,57 @@ the population, or the settlement fails its function test.
 (#1–37, itself mostly target spec) and the archetype library (Part 6, not wired). The **subterranean handoff**
 (#49) leads into a tier that needs terrain excavation + multi-level connectivity we don't have. None of this
 realizes a voxel yet; it's the map for getting there.
+
+## Part 8 — Subterranean tier (sewers, crypts, dungeons, mines)
+
+The layer *below* the building — the D&D dungeon-crawl staple. Six kinds: **sewers**, **crypts/catacombs**,
+**castle dungeons/oubliettes**, **mines**, **smuggler/secret tunnels**, and **natural caves**, optionally
+woven into one navigable graph that connects cellars, the sewer net, the crypt under the minster, and the
+dungeon under the keep.
+
+**Honest framing first.** Two things must be said plainly:
+1. **This is the biggest engine gap in the whole document.** It needs two capabilities the engine *does not
+   have*: (a) **real terrain excavation** — carving voids into chunk terrain and removing/backfilling earth
+   (the same gap that makes the Part 5 basement a 3-cube stub), and (b) **multi-level void connectivity** — a
+   navigable graph + nav-mesh across stacked underground levels. Until those exist, this tier can't place a
+   voxel. `excavate_subterrane` (#50) and `connect_underground` (#55) are flagged **engine-cap-missing**, not
+   merely unwritten placers.
+2. **Walkable sewers and dungeons are anachronistic for a strict medieval brief.** Medieval towns used
+   **cesspits + open street drains**, not monumental walkable sewers (those are *Roman* — the Cloaca Maxima —
+   and *Victorian*). Big crawlable dungeons are largely a **game convention**. For a D&D world that's fine and
+   wanted — but the model **flags it as a conceit** (BB9), grounding the dimensions to the real precedents
+   (Roman sewers, mine adits, catacombs) rather than pretending they're typical medieval.
+
+**The pipeline:** `excavate_subterrane` (#50) → the kind-specific carvers — `carve_sewer_network` (#51),
+`place_crypt`/`place_catacomb` (#52), `excavate_dungeon` (#53), `place_mine` (#54), `place_secret_passages`
+(#56) → `connect_underground` (#55) → `validate_crawlability` (#57, the playability gate). Each carver follows
+its own logic: sewers run by **gravity to a river outfall** under the streets and take the garderobe chutes;
+mines follow an **ore seam** (adit → gallery → shaft) and dump spoil at the mouth; crypts sit **under the
+chancel** with body-sized loculi; dungeons sit **under the keep**, grim and secure.
+
+### Grounded subterranean dimensions
+
+| Value | Grounded figure | Source |
+|---|---|---|
+| Vaulted walkable sewer | **2.7–4.5 m high × 3.2–4.5 m wide**, barrel-vaulted | Cloaca Maxima (Roman) |
+| Catacomb gallery | ~**2.5 m high × ~1.0 m wide** (walk upright) | Catacombs of Rome |
+| Loculus (burial niche) | **0.4–0.6 m high × 1.2–1.5 m long** | Catacombs of Rome |
+| Catacomb depth | first level **3–8 m**; up to **20–25 m** over 4–5 levels | Catacombs of Rome |
+| Mine adit / gallery | ~**2 m high × ~1 m wide** (one miner) | medieval mining adit |
+| Cramped crawl tunnel (Erdstall) | **1.0–1.4 m high × ~0.6 m wide** | Erdstall |
+| Walk-upright passage clearance (min) | ≥ **2.032 m headroom × ≥ 0.914 m wide** | IRC R311.6 / R305 (anthropometric) |
+
+**Flagged — NOT cleanly grounded / convention (route through the grounding-auditor):**
+- **Medieval town sewer** — a walkable sewer is Roman/Victorian; medieval norm was cesspits + open kennels. Dimension borrowed from the Cloaca Maxima and **flagged anachronistic** for a medieval brief.
+- **Dungeon corridor / room sizes** — the "10 ft (3 m) corridor" is **D&D game convention**, not a historical standard; flagged as convention.
+- **Smuggler / secret-tunnel dimensions** — unverified.
+
+*Sources (this session):* [Cloaca Maxima (Wikipedia)](https://en.wikipedia.org/wiki/Cloaca_Maxima); [Adit (Wikipedia)](https://en.wikipedia.org/wiki/Adit), [Erdstall (Wikipedia)](https://en.wikipedia.org/wiki/Erdstall); [Catacombs of Rome (Wikipedia)](https://en.wikipedia.org/wiki/Catacombs_of_Rome), [International Catacomb Society](https://www.catacombsociety.org/the-structures-of-the-catacombs/).
+
+**Honest status:** unbuilt **and engine-blocked**. This is the tier to reach for only after terrain excavation
++ multi-level connectivity exist — and those two are the highest-value *engine* features the structure-gen
+roadmap needs (they also unblock the Part 5 basement and the Part 7 `compose_compound` dungeons). Documented
+here so the requirement is explicit, not so it looks done.
 
 ---
 
