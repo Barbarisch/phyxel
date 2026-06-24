@@ -73,11 +73,11 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 | 27 | place_outbuildings | [27_place_outbuildings](27_place_outbuildings.md) |
 | 28 | place_livestock_pens | [28_place_livestock_pens](28_place_livestock_pens.md) |
 | 29 | place_yard_props | [29_place_yard_props](29_place_yard_props.md) |
-**Systems (30)** — register_systems — TODO
-**Conditional structural (31–33)** — place_fortifications, place_graveyard, apply_seasonal_state — TODO
-**Vertical (34–37)** — excavate_basement, place_basement, stack_stories, place_attic — TODO
+**Systems (30)** — ✅ [30_register_systems](30_register_systems.md)
+**Conditional structural (31–33)** — ✅ [31_place_fortifications](31_place_fortifications.md) · [32_place_graveyard](32_place_graveyard.md) · [33_apply_seasonal_state](33_apply_seasonal_state.md)
+**Vertical (34–37)** — ✅ [34_excavate_basement](34_excavate_basement.md) · [35_place_basement](35_place_basement.md) · [36_stack_stories](36_stack_stories.md) · [37_place_attic](37_place_attic.md)
 **Settlement (38–49)** — site_settlement … link_subterranean — TODO
 **Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
 **Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
 
-*(29 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(37 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
