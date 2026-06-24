@@ -1,0 +1,40 @@
+{
+  "schema": "v2",
+  "name": "village_cottage",
+  "style": "timber_cottage",
+  "function": "house",
+  "typology": "hall_house",
+  "footprint": [8, 12],
+  "substructure": "crawlspace",
+  "roof_style": "gable",
+  "position": { "x": 40, "y": 16, "z": 40 },
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        { "id": "hall",     "rect": [0, 0, 4, 7], "purpose": "living",   "floor_mat": "Wood" },
+        { "id": "kitchen",  "rect": [4, 0, 4, 7], "purpose": "kitchen",  "floor_mat": "Wood" },
+        { "id": "bedroom1", "rect": [0, 7, 4, 5], "purpose": "bedchamber", "floor_mat": "Wood" },
+        { "id": "bedroom2", "rect": [4, 7, 4, 5], "purpose": "bedchamber", "floor_mat": "Wood" }
+      ],
+      "portals": [
+        { "between": ["exterior", "hall"], "pos": [1, 0], "width": 1, "height": 2, "kind": "door",
+          "door": { "lockable": true, "key": "cottage_key" } },
+        { "between": ["hall", "kitchen"],   "pos": [4, 2], "width": 1, "height": 2, "kind": "arch" },
+        { "between": ["hall", "bedroom1"],  "pos": [1, 7], "width": 1, "height": 2, "kind": "door" },
+        { "between": ["kitchen", "bedroom2"], "pos": [5, 7], "width": 1, "height": 2, "kind": "door" },
+        { "between": ["exterior", "hall"],    "pos": [3, 0], "width": 1, "height": 2, "kind": "window" },
+        { "between": ["exterior", "kitchen"], "pos": [8, 2], "width": 1, "height": 2, "kind": "window" },
+        { "between": ["exterior", "bedroom1"], "pos": [0, 9], "width": 1, "height": 2, "kind": "window" },
+        { "between": ["exterior", "bedroom2"], "pos": [8, 9], "width": 1, "height": 2, "kind": "window" }
+      ],
+      "fixtures": [
+        { "type": "fireplace", "rect": [0, 3, 1, 2], "facing": "east",  "room": "hall" },
+        { "type": "table",     "rect": [1, 3, 2, 1], "facing": "north", "room": "hall" },
+        { "type": "counter",   "rect": [7, 1, 1, 3], "facing": "west",  "room": "kitchen" },
+        { "type": "bed",       "rect": [0, 9, 1, 2], "facing": "east",  "room": "bedroom1" },
+        { "type": "bed",       "rect": [7, 9, 1, 2], "facing": "west",  "room": "bedroom2" }
+      ]
+    }
+  ]
+}

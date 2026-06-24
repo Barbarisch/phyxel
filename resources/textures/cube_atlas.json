@@ -194,7 +194,7 @@
       "direction": "n",
       "is_directional": true
     },
-    "grass_side_n": {
+    "grass_forest_side_n": {
       "index": 7,
       "grid_pos": [
         1,
@@ -217,11 +217,11 @@
         0.03125
       ],
       "material": "grass",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "face": "forest",
+      "direction": null,
+      "is_directional": false
     },
-    "gravel_side_n": {
+    "grass_savanna_side_n": {
       "index": 8,
       "grid_pos": [
         2,
@@ -243,12 +243,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "material": "grass",
+      "face": "savanna",
+      "direction": null,
+      "is_directional": false
     },
-    "ice_side_n": {
+    "grass_side_n": {
       "index": 9,
       "grid_pos": [
         3,
@@ -270,12 +270,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
+      "material": "grass",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "leaf_side_n": {
+    "gravel_side_n": {
       "index": 10,
       "grid_pos": [
         4,
@@ -297,12 +297,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
+      "material": "gravel",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "log_side_n": {
+    "ice_side_n": {
       "index": 11,
       "grid_pos": [
         5,
@@ -324,12 +324,12 @@
         0.03125,
         0.03125
       ],
-      "material": "log",
+      "material": "ice",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "metal_side_n": {
+    "leaf_autumn_side_n": {
       "index": 12,
       "grid_pos": [
         0,
@@ -351,12 +351,12 @@
         0.03125,
         0.03125
       ],
-      "material": "metal",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "material": "leaf",
+      "face": "autumn",
+      "direction": null,
+      "is_directional": false
     },
-    "sand_side_n": {
+    "leaf_birch_side_n": {
       "index": 13,
       "grid_pos": [
         1,
@@ -378,12 +378,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sand",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "material": "leaf",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
     },
-    "sandstone_side_n": {
+    "leaf_jungle_side_n": {
       "index": 14,
       "grid_pos": [
         2,
@@ -405,12 +405,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sandstone",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "material": "leaf",
+      "face": "jungle",
+      "direction": null,
+      "is_directional": false
     },
-    "stone_side_n": {
+    "leaf_side_n": {
       "index": 15,
       "grid_pos": [
         3,
@@ -432,12 +432,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stone",
+      "material": "leaf",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "stonebricks_side_n": {
+    "leaf_side_n_mask_original": {
       "index": 16,
       "grid_pos": [
         4,
@@ -459,12 +459,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stonebricks",
+      "material": "leaf",
       "face": "side",
       "direction": "n",
       "is_directional": true
     },
-    "wood_side_n": {
+    "leaf_spruce_side_n": {
       "index": 17,
       "grid_pos": [
         5,
@@ -486,12 +486,12 @@
         0.03125,
         0.03125
       ],
-      "material": "wood",
-      "face": "side",
-      "direction": "n",
-      "is_directional": true
+      "material": "leaf",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
     },
-    "bricks_side_s": {
+    "log_birch_side_n": {
       "index": 18,
       "grid_pos": [
         0,
@@ -513,12 +513,12 @@
         0.03125,
         0.03125
       ],
-      "material": "bricks",
-      "face": "side",
-      "direction": "s",
-      "is_directional": true
+      "material": "log",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
     },
-    "cobblestone_side_s": {
+    "log_side_n": {
       "index": 19,
       "grid_pos": [
         1,
@@ -540,12 +540,12 @@
         0.03125,
         0.03125
       ],
-      "material": "cobblestone",
+      "material": "log",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "default_side_s": {
+    "log_spruce_side_n": {
       "index": 20,
       "grid_pos": [
         2,
@@ -567,12 +567,12 @@
         0.03125,
         0.03125
       ],
-      "material": "default",
-      "face": "side",
-      "direction": "s",
-      "is_directional": true
+      "material": "log",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
     },
-    "dirt_side_s": {
+    "metal_side_n": {
       "index": 21,
       "grid_pos": [
         3,
@@ -594,12 +594,12 @@
         0.03125,
         0.03125
       ],
-      "material": "dirt",
+      "material": "metal",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "glass_side_s": {
+    "sand_side_n": {
       "index": 22,
       "grid_pos": [
         4,
@@ -621,12 +621,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glass",
+      "material": "sand",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "glow_side_s": {
+    "sandstone_side_n": {
       "index": 23,
       "grid_pos": [
         5,
@@ -648,12 +648,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glow",
+      "material": "sandstone",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "gold_side_s": {
+    "stone_side_n": {
       "index": 24,
       "grid_pos": [
         0,
@@ -675,12 +675,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gold",
+      "material": "stone",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "grass_side_s": {
+    "stonebricks_side_n": {
       "index": 25,
       "grid_pos": [
         1,
@@ -702,12 +702,12 @@
         0.03125,
         0.03125
       ],
-      "material": "grass",
+      "material": "stonebricks",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "gravel_side_s": {
+    "thatch_side_n": {
       "index": 26,
       "grid_pos": [
         2,
@@ -729,12 +729,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
+      "material": "thatch",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "ice_side_s": {
+    "wood_side_n": {
       "index": 27,
       "grid_pos": [
         3,
@@ -756,12 +756,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
+      "material": "wood",
       "face": "side",
-      "direction": "s",
+      "direction": "n",
       "is_directional": true
     },
-    "leaf_side_s": {
+    "bricks_side_s": {
       "index": 28,
       "grid_pos": [
         4,
@@ -783,12 +783,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
+      "material": "bricks",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "log_side_s": {
+    "cobblestone_side_s": {
       "index": 29,
       "grid_pos": [
         5,
@@ -810,12 +810,12 @@
         0.03125,
         0.03125
       ],
-      "material": "log",
+      "material": "cobblestone",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "metal_side_s": {
+    "default_side_s": {
       "index": 30,
       "grid_pos": [
         0,
@@ -837,12 +837,12 @@
         0.03125,
         0.03125
       ],
-      "material": "metal",
+      "material": "default",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "sand_side_s": {
+    "dirt_side_s": {
       "index": 31,
       "grid_pos": [
         1,
@@ -864,12 +864,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sand",
+      "material": "dirt",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "sandstone_side_s": {
+    "glass_side_s": {
       "index": 32,
       "grid_pos": [
         2,
@@ -891,12 +891,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sandstone",
+      "material": "glass",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "stone_side_s": {
+    "glow_side_s": {
       "index": 33,
       "grid_pos": [
         3,
@@ -918,12 +918,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stone",
+      "material": "glow",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "stonebricks_side_s": {
+    "gold_side_s": {
       "index": 34,
       "grid_pos": [
         4,
@@ -945,12 +945,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stonebricks",
+      "material": "gold",
       "face": "side",
       "direction": "s",
       "is_directional": true
     },
-    "wood_side_s": {
+    "grass_forest_side_s": {
       "index": 35,
       "grid_pos": [
         5,
@@ -972,12 +972,12 @@
         0.03125,
         0.03125
       ],
-      "material": "wood",
-      "face": "side",
-      "direction": "s",
-      "is_directional": true
+      "material": "grass",
+      "face": "forest",
+      "direction": null,
+      "is_directional": false
     },
-    "bricks_side_e": {
+    "grass_savanna_side_s": {
       "index": 36,
       "grid_pos": [
         0,
@@ -999,12 +999,12 @@
         0.03125,
         0.03125
       ],
-      "material": "bricks",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "grass",
+      "face": "savanna",
+      "direction": null,
+      "is_directional": false
     },
-    "cobblestone_side_e": {
+    "grass_side_s": {
       "index": 37,
       "grid_pos": [
         1,
@@ -1026,12 +1026,12 @@
         0.03125,
         0.03125
       ],
-      "material": "cobblestone",
+      "material": "grass",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "default_side_e": {
+    "gravel_side_s": {
       "index": 38,
       "grid_pos": [
         2,
@@ -1053,12 +1053,12 @@
         0.03125,
         0.03125
       ],
-      "material": "default",
+      "material": "gravel",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "dirt_side_e": {
+    "ice_side_s": {
       "index": 39,
       "grid_pos": [
         3,
@@ -1080,12 +1080,12 @@
         0.03125,
         0.03125
       ],
-      "material": "dirt",
+      "material": "ice",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "glass_side_e": {
+    "leaf_autumn_side_s": {
       "index": 40,
       "grid_pos": [
         4,
@@ -1107,12 +1107,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glass",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "leaf",
+      "face": "autumn",
+      "direction": null,
+      "is_directional": false
     },
-    "glow_side_e": {
+    "leaf_birch_side_s": {
       "index": 41,
       "grid_pos": [
         5,
@@ -1134,12 +1134,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glow",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "leaf",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
     },
-    "gold_side_e": {
+    "leaf_jungle_side_s": {
       "index": 42,
       "grid_pos": [
         0,
@@ -1161,12 +1161,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gold",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "leaf",
+      "face": "jungle",
+      "direction": null,
+      "is_directional": false
     },
-    "grass_side_e": {
+    "leaf_side_s": {
       "index": 43,
       "grid_pos": [
         1,
@@ -1188,12 +1188,12 @@
         0.03125,
         0.03125
       ],
-      "material": "grass",
+      "material": "leaf",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "gravel_side_e": {
+    "leaf_spruce_side_s": {
       "index": 44,
       "grid_pos": [
         2,
@@ -1215,12 +1215,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "leaf",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
     },
-    "ice_side_e": {
+    "log_birch_side_s": {
       "index": 45,
       "grid_pos": [
         3,
@@ -1242,12 +1242,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "material": "log",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
     },
-    "leaf_side_e": {
+    "log_side_s": {
       "index": 46,
       "grid_pos": [
         4,
@@ -1269,12 +1269,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
+      "material": "log",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "log_side_e": {
+    "log_spruce_side_s": {
       "index": 47,
       "grid_pos": [
         5,
@@ -1297,11 +1297,11 @@
         0.03125
       ],
       "material": "log",
-      "face": "side",
-      "direction": "e",
-      "is_directional": true
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
     },
-    "metal_side_e": {
+    "metal_side_s": {
       "index": 48,
       "grid_pos": [
         0,
@@ -1325,10 +1325,10 @@
       ],
       "material": "metal",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "sand_side_e": {
+    "sand_side_s": {
       "index": 49,
       "grid_pos": [
         1,
@@ -1352,10 +1352,10 @@
       ],
       "material": "sand",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "sandstone_side_e": {
+    "sandstone_side_s": {
       "index": 50,
       "grid_pos": [
         2,
@@ -1379,10 +1379,10 @@
       ],
       "material": "sandstone",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "stone_side_e": {
+    "stone_side_s": {
       "index": 51,
       "grid_pos": [
         3,
@@ -1406,10 +1406,10 @@
       ],
       "material": "stone",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "stonebricks_side_e": {
+    "stonebricks_side_s": {
       "index": 52,
       "grid_pos": [
         4,
@@ -1433,10 +1433,10 @@
       ],
       "material": "stonebricks",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "wood_side_e": {
+    "thatch_side_s": {
       "index": 53,
       "grid_pos": [
         5,
@@ -1458,12 +1458,12 @@
         0.03125,
         0.03125
       ],
-      "material": "wood",
+      "material": "thatch",
       "face": "side",
-      "direction": "e",
+      "direction": "s",
       "is_directional": true
     },
-    "bricks_side_w": {
+    "wood_side_s": {
       "index": 54,
       "grid_pos": [
         0,
@@ -1485,12 +1485,12 @@
         0.03125,
         0.03125
       ],
-      "material": "bricks",
+      "material": "wood",
       "face": "side",
-      "direction": "w",
+      "direction": "s",
       "is_directional": true
     },
-    "cobblestone_side_w": {
+    "bricks_side_e": {
       "index": 55,
       "grid_pos": [
         1,
@@ -1512,12 +1512,12 @@
         0.03125,
         0.03125
       ],
-      "material": "cobblestone",
+      "material": "bricks",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "default_side_w": {
+    "cobblestone_side_e": {
       "index": 56,
       "grid_pos": [
         2,
@@ -1539,12 +1539,12 @@
         0.03125,
         0.03125
       ],
-      "material": "default",
+      "material": "cobblestone",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "dirt_side_w": {
+    "default_side_e": {
       "index": 57,
       "grid_pos": [
         3,
@@ -1566,12 +1566,12 @@
         0.03125,
         0.03125
       ],
-      "material": "dirt",
+      "material": "default",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "glass_side_w": {
+    "dirt_side_e": {
       "index": 58,
       "grid_pos": [
         4,
@@ -1593,12 +1593,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glass",
+      "material": "dirt",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "glow_side_w": {
+    "glass_side_e": {
       "index": 59,
       "grid_pos": [
         5,
@@ -1620,12 +1620,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glow",
+      "material": "glass",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "gold_side_w": {
+    "glow_side_e": {
       "index": 60,
       "grid_pos": [
         0,
@@ -1647,12 +1647,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gold",
+      "material": "glow",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "grass_side_w": {
+    "gold_side_e": {
       "index": 61,
       "grid_pos": [
         1,
@@ -1674,12 +1674,12 @@
         0.03125,
         0.03125
       ],
-      "material": "grass",
+      "material": "gold",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "gravel_side_w": {
+    "grass_forest_side_e": {
       "index": 62,
       "grid_pos": [
         2,
@@ -1701,12 +1701,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "grass",
+      "face": "forest",
+      "direction": null,
+      "is_directional": false
     },
-    "ice_side_w": {
+    "grass_savanna_side_e": {
       "index": 63,
       "grid_pos": [
         3,
@@ -1728,12 +1728,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "grass",
+      "face": "savanna",
+      "direction": null,
+      "is_directional": false
     },
-    "leaf_side_w": {
+    "grass_side_e": {
       "index": 64,
       "grid_pos": [
         4,
@@ -1755,12 +1755,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
+      "material": "grass",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "log_side_w": {
+    "gravel_side_e": {
       "index": 65,
       "grid_pos": [
         5,
@@ -1782,12 +1782,12 @@
         0.03125,
         0.03125
       ],
-      "material": "log",
+      "material": "gravel",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "metal_side_w": {
+    "ice_side_e": {
       "index": 66,
       "grid_pos": [
         0,
@@ -1809,12 +1809,12 @@
         0.03125,
         0.03125
       ],
-      "material": "metal",
+      "material": "ice",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "sand_side_w": {
+    "leaf_autumn_side_e": {
       "index": 67,
       "grid_pos": [
         1,
@@ -1836,12 +1836,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sand",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "leaf",
+      "face": "autumn",
+      "direction": null,
+      "is_directional": false
     },
-    "sandstone_side_w": {
+    "leaf_birch_side_e": {
       "index": 68,
       "grid_pos": [
         2,
@@ -1863,12 +1863,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sandstone",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "leaf",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
     },
-    "stone_side_w": {
+    "leaf_jungle_side_e": {
       "index": 69,
       "grid_pos": [
         3,
@@ -1890,12 +1890,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stone",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "leaf",
+      "face": "jungle",
+      "direction": null,
+      "is_directional": false
     },
-    "stonebricks_side_w": {
+    "leaf_side_e": {
       "index": 70,
       "grid_pos": [
         4,
@@ -1917,12 +1917,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stonebricks",
+      "material": "leaf",
       "face": "side",
-      "direction": "w",
+      "direction": "e",
       "is_directional": true
     },
-    "wood_side_w": {
+    "leaf_spruce_side_e": {
       "index": 71,
       "grid_pos": [
         5,
@@ -1944,12 +1944,12 @@
         0.03125,
         0.03125
       ],
-      "material": "wood",
-      "face": "side",
-      "direction": "w",
-      "is_directional": true
+      "material": "leaf",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
     },
-    "bricks_top": {
+    "log_birch_side_e": {
       "index": 72,
       "grid_pos": [
         0,
@@ -1971,12 +1971,12 @@
         0.03125,
         0.03125
       ],
-      "material": "bricks",
-      "face": "top",
+      "material": "log",
+      "face": "birch",
       "direction": null,
       "is_directional": false
     },
-    "cobblestone_top": {
+    "log_side_e": {
       "index": 73,
       "grid_pos": [
         1,
@@ -1998,12 +1998,12 @@
         0.03125,
         0.03125
       ],
-      "material": "cobblestone",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "log",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "default_top": {
+    "log_spruce_side_e": {
       "index": 74,
       "grid_pos": [
         2,
@@ -2025,12 +2025,12 @@
         0.03125,
         0.03125
       ],
-      "material": "default",
-      "face": "top",
+      "material": "log",
+      "face": "spruce",
       "direction": null,
       "is_directional": false
     },
-    "dirt_top": {
+    "metal_side_e": {
       "index": 75,
       "grid_pos": [
         3,
@@ -2052,12 +2052,12 @@
         0.03125,
         0.03125
       ],
-      "material": "dirt",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "metal",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "glass_top": {
+    "sand_side_e": {
       "index": 76,
       "grid_pos": [
         4,
@@ -2079,12 +2079,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glass",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "sand",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "glow_top": {
+    "sandstone_side_e": {
       "index": 77,
       "grid_pos": [
         5,
@@ -2106,12 +2106,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glow",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "sandstone",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "gold_top": {
+    "stone_side_e": {
       "index": 78,
       "grid_pos": [
         0,
@@ -2133,12 +2133,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gold",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "stone",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "grass_top": {
+    "stonebricks_side_e": {
       "index": 79,
       "grid_pos": [
         1,
@@ -2160,12 +2160,12 @@
         0.03125,
         0.03125
       ],
-      "material": "grass",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "stonebricks",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "gravel_top": {
+    "thatch_side_e": {
       "index": 80,
       "grid_pos": [
         2,
@@ -2187,12 +2187,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "thatch",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "ice_top": {
+    "wood_side_e": {
       "index": 81,
       "grid_pos": [
         3,
@@ -2214,12 +2214,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "wood",
+      "face": "side",
+      "direction": "e",
+      "is_directional": true
     },
-    "leaf_top": {
+    "bricks_side_w": {
       "index": 82,
       "grid_pos": [
         4,
@@ -2241,12 +2241,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "bricks",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "log_top": {
+    "cobblestone_side_w": {
       "index": 83,
       "grid_pos": [
         5,
@@ -2268,12 +2268,12 @@
         0.03125,
         0.03125
       ],
-      "material": "log",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "cobblestone",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "metal_top": {
+    "default_side_w": {
       "index": 84,
       "grid_pos": [
         0,
@@ -2295,12 +2295,12 @@
         0.03125,
         0.03125
       ],
-      "material": "metal",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "default",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "sand_top": {
+    "dirt_side_w": {
       "index": 85,
       "grid_pos": [
         1,
@@ -2322,12 +2322,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sand",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "dirt",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "sandstone_top": {
+    "glass_side_w": {
       "index": 86,
       "grid_pos": [
         2,
@@ -2349,12 +2349,12 @@
         0.03125,
         0.03125
       ],
-      "material": "sandstone",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "glass",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "stone_top": {
+    "glow_side_w": {
       "index": 87,
       "grid_pos": [
         3,
@@ -2376,12 +2376,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stone",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "glow",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "stonebricks_top": {
+    "gold_side_w": {
       "index": 88,
       "grid_pos": [
         4,
@@ -2403,12 +2403,12 @@
         0.03125,
         0.03125
       ],
-      "material": "stonebricks",
-      "face": "top",
-      "direction": null,
-      "is_directional": false
+      "material": "gold",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "wood_top": {
+    "grass_forest_side_w": {
       "index": 89,
       "grid_pos": [
         5,
@@ -2430,12 +2430,12 @@
         0.03125,
         0.03125
       ],
-      "material": "wood",
-      "face": "top",
+      "material": "grass",
+      "face": "forest",
       "direction": null,
       "is_directional": false
     },
-    "bricks_bottom": {
+    "grass_savanna_side_w": {
       "index": 90,
       "grid_pos": [
         0,
@@ -2457,12 +2457,12 @@
         0.03125,
         0.03125
       ],
-      "material": "bricks",
-      "face": "bottom",
+      "material": "grass",
+      "face": "savanna",
       "direction": null,
       "is_directional": false
     },
-    "cobblestone_bottom": {
+    "grass_side_w": {
       "index": 91,
       "grid_pos": [
         1,
@@ -2484,12 +2484,12 @@
         0.03125,
         0.03125
       ],
-      "material": "cobblestone",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "grass",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "default_bottom": {
+    "gravel_side_w": {
       "index": 92,
       "grid_pos": [
         2,
@@ -2511,12 +2511,12 @@
         0.03125,
         0.03125
       ],
-      "material": "default",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "gravel",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "dirt_bottom": {
+    "ice_side_w": {
       "index": 93,
       "grid_pos": [
         3,
@@ -2538,12 +2538,12 @@
         0.03125,
         0.03125
       ],
-      "material": "dirt",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "ice",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "glass_bottom": {
+    "leaf_autumn_side_w": {
       "index": 94,
       "grid_pos": [
         4,
@@ -2565,12 +2565,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glass",
-      "face": "bottom",
+      "material": "leaf",
+      "face": "autumn",
       "direction": null,
       "is_directional": false
     },
-    "glow_bottom": {
+    "leaf_birch_side_w": {
       "index": 95,
       "grid_pos": [
         5,
@@ -2592,12 +2592,12 @@
         0.03125,
         0.03125
       ],
-      "material": "glow",
-      "face": "bottom",
+      "material": "leaf",
+      "face": "birch",
       "direction": null,
       "is_directional": false
     },
-    "gold_bottom": {
+    "leaf_jungle_side_w": {
       "index": 96,
       "grid_pos": [
         0,
@@ -2619,12 +2619,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gold",
-      "face": "bottom",
+      "material": "leaf",
+      "face": "jungle",
       "direction": null,
       "is_directional": false
     },
-    "grass_bottom": {
+    "leaf_side_w": {
       "index": 97,
       "grid_pos": [
         1,
@@ -2646,12 +2646,12 @@
         0.03125,
         0.03125
       ],
-      "material": "grass",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "leaf",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "gravel_bottom": {
+    "leaf_spruce_side_w": {
       "index": 98,
       "grid_pos": [
         2,
@@ -2673,12 +2673,12 @@
         0.03125,
         0.03125
       ],
-      "material": "gravel",
-      "face": "bottom",
+      "material": "leaf",
+      "face": "spruce",
       "direction": null,
       "is_directional": false
     },
-    "ice_bottom": {
+    "log_birch_side_w": {
       "index": 99,
       "grid_pos": [
         3,
@@ -2700,12 +2700,12 @@
         0.03125,
         0.03125
       ],
-      "material": "ice",
-      "face": "bottom",
+      "material": "log",
+      "face": "birch",
       "direction": null,
       "is_directional": false
     },
-    "leaf_bottom": {
+    "log_side_w": {
       "index": 100,
       "grid_pos": [
         4,
@@ -2727,12 +2727,12 @@
         0.03125,
         0.03125
       ],
-      "material": "leaf",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "material": "log",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "log_bottom": {
+    "log_spruce_side_w": {
       "index": 101,
       "grid_pos": [
         5,
@@ -2755,11 +2755,11 @@
         0.03125
       ],
       "material": "log",
-      "face": "bottom",
+      "face": "spruce",
       "direction": null,
       "is_directional": false
     },
-    "metal_bottom": {
+    "metal_side_w": {
       "index": 102,
       "grid_pos": [
         0,
@@ -2782,11 +2782,11 @@
         0.03125
       ],
       "material": "metal",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "sand_bottom": {
+    "sand_side_w": {
       "index": 103,
       "grid_pos": [
         1,
@@ -2809,11 +2809,11 @@
         0.03125
       ],
       "material": "sand",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "sandstone_bottom": {
+    "sandstone_side_w": {
       "index": 104,
       "grid_pos": [
         2,
@@ -2836,11 +2836,11 @@
         0.03125
       ],
       "material": "sandstone",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "stone_bottom": {
+    "stone_side_w": {
       "index": 105,
       "grid_pos": [
         3,
@@ -2863,11 +2863,11 @@
         0.03125
       ],
       "material": "stone",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "stonebricks_bottom": {
+    "stonebricks_side_w": {
       "index": 106,
       "grid_pos": [
         4,
@@ -2890,11 +2890,11 @@
         0.03125
       ],
       "material": "stonebricks",
-      "face": "bottom",
-      "direction": null,
-      "is_directional": false
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
     },
-    "wood_bottom": {
+    "thatch_side_w": {
       "index": 107,
       "grid_pos": [
         5,
@@ -2916,6 +2916,1518 @@
         0.03125,
         0.03125
       ],
+      "material": "thatch",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
+    },
+    "wood_side_w": {
+      "index": 108,
+      "grid_pos": [
+        0,
+        18
+      ],
+      "pixel_pos": [
+        1,
+        1189
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "wood",
+      "face": "side",
+      "direction": "w",
+      "is_directional": true
+    },
+    "bricks_top": {
+      "index": 109,
+      "grid_pos": [
+        1,
+        18
+      ],
+      "pixel_pos": [
+        67,
+        1189
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "bricks",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "cobblestone_top": {
+      "index": 110,
+      "grid_pos": [
+        2,
+        18
+      ],
+      "pixel_pos": [
+        133,
+        1189
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "cobblestone",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "default_top": {
+      "index": 111,
+      "grid_pos": [
+        3,
+        18
+      ],
+      "pixel_pos": [
+        199,
+        1189
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "default",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "dirt_top": {
+      "index": 112,
+      "grid_pos": [
+        4,
+        18
+      ],
+      "pixel_pos": [
+        265,
+        1189
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "dirt",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "glass_top": {
+      "index": 113,
+      "grid_pos": [
+        5,
+        18
+      ],
+      "pixel_pos": [
+        331,
+        1189
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.58056640625
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.61181640625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glass",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "glow_top": {
+      "index": 114,
+      "grid_pos": [
+        0,
+        19
+      ],
+      "pixel_pos": [
+        1,
+        1255
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glow",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "gold_top": {
+      "index": 115,
+      "grid_pos": [
+        1,
+        19
+      ],
+      "pixel_pos": [
+        67,
+        1255
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gold",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_forest_top": {
+      "index": 116,
+      "grid_pos": [
+        2,
+        19
+      ],
+      "pixel_pos": [
+        133,
+        1255
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "forest",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_savanna_top": {
+      "index": 117,
+      "grid_pos": [
+        3,
+        19
+      ],
+      "pixel_pos": [
+        199,
+        1255
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "savanna",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_top": {
+      "index": 118,
+      "grid_pos": [
+        4,
+        19
+      ],
+      "pixel_pos": [
+        265,
+        1255
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_top_mask_original": {
+      "index": 119,
+      "grid_pos": [
+        5,
+        19
+      ],
+      "pixel_pos": [
+        331,
+        1255
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.61279296875
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.64404296875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "gravel_top": {
+      "index": 120,
+      "grid_pos": [
+        0,
+        20
+      ],
+      "pixel_pos": [
+        1,
+        1321
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "ice_top": {
+      "index": 121,
+      "grid_pos": [
+        1,
+        20
+      ],
+      "pixel_pos": [
+        67,
+        1321
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "ice",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_autumn_top": {
+      "index": 122,
+      "grid_pos": [
+        2,
+        20
+      ],
+      "pixel_pos": [
+        133,
+        1321
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "autumn",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_birch_top": {
+      "index": 123,
+      "grid_pos": [
+        3,
+        20
+      ],
+      "pixel_pos": [
+        199,
+        1321
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_jungle_top": {
+      "index": 124,
+      "grid_pos": [
+        4,
+        20
+      ],
+      "pixel_pos": [
+        265,
+        1321
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "jungle",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_spruce_top": {
+      "index": 125,
+      "grid_pos": [
+        5,
+        20
+      ],
+      "pixel_pos": [
+        331,
+        1321
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.64501953125
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.67626953125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_top": {
+      "index": 126,
+      "grid_pos": [
+        0,
+        21
+      ],
+      "pixel_pos": [
+        1,
+        1387
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_birch_top": {
+      "index": 127,
+      "grid_pos": [
+        1,
+        21
+      ],
+      "pixel_pos": [
+        67,
+        1387
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_spruce_top": {
+      "index": 128,
+      "grid_pos": [
+        2,
+        21
+      ],
+      "pixel_pos": [
+        133,
+        1387
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_top": {
+      "index": 129,
+      "grid_pos": [
+        3,
+        21
+      ],
+      "pixel_pos": [
+        199,
+        1387
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "metal_top": {
+      "index": 130,
+      "grid_pos": [
+        4,
+        21
+      ],
+      "pixel_pos": [
+        265,
+        1387
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "metal",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "sand_top": {
+      "index": 131,
+      "grid_pos": [
+        5,
+        21
+      ],
+      "pixel_pos": [
+        331,
+        1387
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.67724609375
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.70849609375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sand",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "sandstone_top": {
+      "index": 132,
+      "grid_pos": [
+        0,
+        22
+      ],
+      "pixel_pos": [
+        1,
+        1453
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "stone_top": {
+      "index": 133,
+      "grid_pos": [
+        1,
+        22
+      ],
+      "pixel_pos": [
+        67,
+        1453
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stone",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "stonebricks_top": {
+      "index": 134,
+      "grid_pos": [
+        2,
+        22
+      ],
+      "pixel_pos": [
+        133,
+        1453
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stonebricks",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "thatch_top": {
+      "index": 135,
+      "grid_pos": [
+        3,
+        22
+      ],
+      "pixel_pos": [
+        199,
+        1453
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "thatch",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "wood_top": {
+      "index": 136,
+      "grid_pos": [
+        4,
+        22
+      ],
+      "pixel_pos": [
+        265,
+        1453
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "wood",
+      "face": "top",
+      "direction": null,
+      "is_directional": false
+    },
+    "bricks_bottom": {
+      "index": 137,
+      "grid_pos": [
+        5,
+        22
+      ],
+      "pixel_pos": [
+        331,
+        1453
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.70947265625
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.74072265625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "bricks",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "cobblestone_bottom": {
+      "index": 138,
+      "grid_pos": [
+        0,
+        23
+      ],
+      "pixel_pos": [
+        1,
+        1519
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "cobblestone",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "default_bottom": {
+      "index": 139,
+      "grid_pos": [
+        1,
+        23
+      ],
+      "pixel_pos": [
+        67,
+        1519
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "default",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "dirt_bottom": {
+      "index": 140,
+      "grid_pos": [
+        2,
+        23
+      ],
+      "pixel_pos": [
+        133,
+        1519
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "dirt",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "glass_bottom": {
+      "index": 141,
+      "grid_pos": [
+        3,
+        23
+      ],
+      "pixel_pos": [
+        199,
+        1519
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glass",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "glow_bottom": {
+      "index": 142,
+      "grid_pos": [
+        4,
+        23
+      ],
+      "pixel_pos": [
+        265,
+        1519
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "glow",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "gold_bottom": {
+      "index": 143,
+      "grid_pos": [
+        5,
+        23
+      ],
+      "pixel_pos": [
+        331,
+        1519
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.74169921875
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.77294921875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gold",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_bottom": {
+      "index": 144,
+      "grid_pos": [
+        0,
+        24
+      ],
+      "pixel_pos": [
+        1,
+        1585
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_forest_bottom": {
+      "index": 145,
+      "grid_pos": [
+        1,
+        24
+      ],
+      "pixel_pos": [
+        67,
+        1585
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "forest",
+      "direction": null,
+      "is_directional": false
+    },
+    "grass_savanna_bottom": {
+      "index": 146,
+      "grid_pos": [
+        2,
+        24
+      ],
+      "pixel_pos": [
+        133,
+        1585
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "grass",
+      "face": "savanna",
+      "direction": null,
+      "is_directional": false
+    },
+    "gravel_bottom": {
+      "index": 147,
+      "grid_pos": [
+        3,
+        24
+      ],
+      "pixel_pos": [
+        199,
+        1585
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "gravel",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "ice_bottom": {
+      "index": 148,
+      "grid_pos": [
+        4,
+        24
+      ],
+      "pixel_pos": [
+        265,
+        1585
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "ice",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_autumn_bottom": {
+      "index": 149,
+      "grid_pos": [
+        5,
+        24
+      ],
+      "pixel_pos": [
+        331,
+        1585
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.77392578125
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.80517578125
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "autumn",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_birch_bottom": {
+      "index": 150,
+      "grid_pos": [
+        0,
+        25
+      ],
+      "pixel_pos": [
+        1,
+        1651
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_bottom": {
+      "index": 151,
+      "grid_pos": [
+        1,
+        25
+      ],
+      "pixel_pos": [
+        67,
+        1651
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_jungle_bottom": {
+      "index": 152,
+      "grid_pos": [
+        2,
+        25
+      ],
+      "pixel_pos": [
+        133,
+        1651
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "jungle",
+      "direction": null,
+      "is_directional": false
+    },
+    "leaf_spruce_bottom": {
+      "index": 153,
+      "grid_pos": [
+        3,
+        25
+      ],
+      "pixel_pos": [
+        199,
+        1651
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "leaf",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_birch_bottom": {
+      "index": 154,
+      "grid_pos": [
+        4,
+        25
+      ],
+      "pixel_pos": [
+        265,
+        1651
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "birch",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_bottom": {
+      "index": 155,
+      "grid_pos": [
+        5,
+        25
+      ],
+      "pixel_pos": [
+        331,
+        1651
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.80615234375
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.83740234375
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "log_spruce_bottom": {
+      "index": 156,
+      "grid_pos": [
+        0,
+        26
+      ],
+      "pixel_pos": [
+        1,
+        1717
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "log",
+      "face": "spruce",
+      "direction": null,
+      "is_directional": false
+    },
+    "metal_bottom": {
+      "index": 157,
+      "grid_pos": [
+        1,
+        26
+      ],
+      "pixel_pos": [
+        67,
+        1717
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "metal",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "sand_bottom": {
+      "index": 158,
+      "grid_pos": [
+        2,
+        26
+      ],
+      "pixel_pos": [
+        133,
+        1717
+      ],
+      "uv_min": [
+        0.06494140625,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.09619140625,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sand",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "sandstone_bottom": {
+      "index": 159,
+      "grid_pos": [
+        3,
+        26
+      ],
+      "pixel_pos": [
+        199,
+        1717
+      ],
+      "uv_min": [
+        0.09716796875,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.12841796875,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "sandstone",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "stone_bottom": {
+      "index": 160,
+      "grid_pos": [
+        4,
+        26
+      ],
+      "pixel_pos": [
+        265,
+        1717
+      ],
+      "uv_min": [
+        0.12939453125,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.16064453125,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stone",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "stonebricks_bottom": {
+      "index": 161,
+      "grid_pos": [
+        5,
+        26
+      ],
+      "pixel_pos": [
+        331,
+        1717
+      ],
+      "uv_min": [
+        0.16162109375,
+        0.83837890625
+      ],
+      "uv_max": [
+        0.19287109375,
+        0.86962890625
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "stonebricks",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "thatch_bottom": {
+      "index": 162,
+      "grid_pos": [
+        0,
+        27
+      ],
+      "pixel_pos": [
+        1,
+        1783
+      ],
+      "uv_min": [
+        0.00048828125,
+        0.87060546875
+      ],
+      "uv_max": [
+        0.03173828125,
+        0.90185546875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
+      "material": "thatch",
+      "face": "bottom",
+      "direction": null,
+      "is_directional": false
+    },
+    "wood_bottom": {
+      "index": 163,
+      "grid_pos": [
+        1,
+        27
+      ],
+      "pixel_pos": [
+        67,
+        1783
+      ],
+      "uv_min": [
+        0.03271484375,
+        0.87060546875
+      ],
+      "uv_max": [
+        0.06396484375,
+        0.90185546875
+      ],
+      "uv_size": [
+        0.03125,
+        0.03125
+      ],
       "material": "wood",
       "face": "bottom",
       "direction": null,
@@ -2924,148 +4436,156 @@
   },
   "materials": {
     "bricks": {
-      "top": 72,
-      "bottom": 90,
+      "top": 109,
+      "bottom": 137,
       "side_n": 0,
-      "side_s": 18,
-      "side_e": 36,
-      "side_w": 54
+      "side_s": 28,
+      "side_e": 55,
+      "side_w": 82
     },
     "cobblestone": {
-      "top": 73,
-      "bottom": 91,
+      "top": 110,
+      "bottom": 138,
       "side_n": 1,
-      "side_s": 19,
-      "side_e": 37,
-      "side_w": 55
+      "side_s": 29,
+      "side_e": 56,
+      "side_w": 83
     },
     "default": {
-      "top": 74,
-      "bottom": 92,
+      "top": 111,
+      "bottom": 139,
       "side_n": 2,
-      "side_s": 20,
-      "side_e": 38,
-      "side_w": 56
+      "side_s": 30,
+      "side_e": 57,
+      "side_w": 84
     },
     "dirt": {
-      "top": 75,
-      "bottom": 93,
+      "top": 112,
+      "bottom": 140,
       "side_n": 3,
-      "side_s": 21,
-      "side_e": 39,
-      "side_w": 57
+      "side_s": 31,
+      "side_e": 58,
+      "side_w": 85
     },
     "glass": {
-      "top": 76,
-      "bottom": 94,
+      "top": 113,
+      "bottom": 141,
       "side_n": 4,
-      "side_s": 22,
-      "side_e": 40,
-      "side_w": 58
+      "side_s": 32,
+      "side_e": 59,
+      "side_w": 86
     },
     "glow": {
-      "top": 77,
-      "bottom": 95,
+      "top": 114,
+      "bottom": 142,
       "side_n": 5,
-      "side_s": 23,
-      "side_e": 41,
-      "side_w": 59
+      "side_s": 33,
+      "side_e": 60,
+      "side_w": 87
     },
     "gold": {
-      "top": 78,
-      "bottom": 96,
+      "top": 115,
+      "bottom": 143,
       "side_n": 6,
-      "side_s": 24,
-      "side_e": 42,
-      "side_w": 60
+      "side_s": 34,
+      "side_e": 61,
+      "side_w": 88
     },
     "grass": {
-      "top": 79,
-      "bottom": 97,
-      "side_n": 7,
-      "side_s": 25,
-      "side_e": 43,
-      "side_w": 61
+      "top": 119,
+      "bottom": 144,
+      "side_n": 9,
+      "side_s": 37,
+      "side_e": 64,
+      "side_w": 91
     },
     "gravel": {
-      "top": 80,
-      "bottom": 98,
-      "side_n": 8,
-      "side_s": 26,
-      "side_e": 44,
-      "side_w": 62
+      "top": 120,
+      "bottom": 147,
+      "side_n": 10,
+      "side_s": 38,
+      "side_e": 65,
+      "side_w": 92
     },
     "ice": {
-      "top": 81,
-      "bottom": 99,
-      "side_n": 9,
-      "side_s": 27,
-      "side_e": 45,
-      "side_w": 63
+      "top": 121,
+      "bottom": 148,
+      "side_n": 11,
+      "side_s": 39,
+      "side_e": 66,
+      "side_w": 93
     },
     "leaf": {
-      "top": 82,
-      "bottom": 100,
-      "side_n": 10,
-      "side_s": 28,
-      "side_e": 46,
-      "side_w": 64
+      "top": 126,
+      "bottom": 151,
+      "side_n": 16,
+      "side_s": 43,
+      "side_e": 70,
+      "side_w": 97
     },
     "log": {
-      "top": 83,
-      "bottom": 101,
-      "side_n": 11,
-      "side_s": 29,
-      "side_e": 47,
-      "side_w": 65
+      "top": 129,
+      "bottom": 155,
+      "side_n": 19,
+      "side_s": 46,
+      "side_e": 73,
+      "side_w": 100
     },
     "metal": {
-      "top": 84,
-      "bottom": 102,
-      "side_n": 12,
-      "side_s": 30,
-      "side_e": 48,
-      "side_w": 66
+      "top": 130,
+      "bottom": 157,
+      "side_n": 21,
+      "side_s": 48,
+      "side_e": 75,
+      "side_w": 102
     },
     "sand": {
-      "top": 85,
-      "bottom": 103,
-      "side_n": 13,
-      "side_s": 31,
-      "side_e": 49,
-      "side_w": 67
+      "top": 131,
+      "bottom": 158,
+      "side_n": 22,
+      "side_s": 49,
+      "side_e": 76,
+      "side_w": 103
     },
     "sandstone": {
-      "top": 86,
-      "bottom": 104,
-      "side_n": 14,
-      "side_s": 32,
-      "side_e": 50,
-      "side_w": 68
+      "top": 132,
+      "bottom": 159,
+      "side_n": 23,
+      "side_s": 50,
+      "side_e": 77,
+      "side_w": 104
     },
     "stone": {
-      "top": 87,
-      "bottom": 105,
-      "side_n": 15,
-      "side_s": 33,
-      "side_e": 51,
-      "side_w": 69
+      "top": 133,
+      "bottom": 160,
+      "side_n": 24,
+      "side_s": 51,
+      "side_e": 78,
+      "side_w": 105
     },
     "stonebricks": {
-      "top": 88,
-      "bottom": 106,
-      "side_n": 16,
-      "side_s": 34,
-      "side_e": 52,
-      "side_w": 70
+      "top": 134,
+      "bottom": 161,
+      "side_n": 25,
+      "side_s": 52,
+      "side_e": 79,
+      "side_w": 106
+    },
+    "thatch": {
+      "top": 135,
+      "bottom": 162,
+      "side_n": 26,
+      "side_s": 53,
+      "side_e": 80,
+      "side_w": 107
     },
     "wood": {
-      "top": 89,
-      "bottom": 107,
-      "side_n": 17,
-      "side_s": 35,
-      "side_e": 53,
-      "side_w": 71
+      "top": 136,
+      "bottom": 163,
+      "side_n": 27,
+      "side_s": 54,
+      "side_e": 81,
+      "side_w": 108
     }
   }
 }

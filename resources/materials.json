@@ -806,6 +806,36 @@
         "top": "grass_savanna_top.png",
         "bottom": "grass_savanna_bottom.png"
       }
+    },
+    {
+      "name": "Thatch",
+      "category": "material",
+      "description": "Dried-straw thatch roofing (procedural texture v1, improvable)",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 0.7,
+        "bondStrength": 0.3,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.75,
+          0.59,
+          0.27
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "thatch_side_n.png",
+        "side_s": "thatch_side_s.png",
+        "side_e": "thatch_side_e.png",
+        "side_w": "thatch_side_w.png",
+        "top": "thatch_top.png",
+        "bottom": "thatch_bottom.png"
+      }
     }
   ]
 }

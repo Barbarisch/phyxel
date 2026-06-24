@@ -66,6 +66,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
+#include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -11722,6 +11723,9 @@ void Application::processAPICommands() {
                     const bool v2Mode = cmd.params.value("schema", std::string()) == "v2";
                     const bool specMode = !v2Mode && cmd.params.contains("stories");
                     Core::StructureResult structure;
+                    Core::BuildingProgram v2Program;   // kept for the post-registration fixture pass
+                    bool v2HasFixtures = false;
+                    int  v2FloorY = 0;                 // world Y of the walkable floor (fixtures sit here)
                     if (v2Mode) {
                         Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
                         Core::StyleProfileRegistry styleReg;
@@ -11756,6 +11760,27 @@ void Application::processAPICommands() {
                             oz   = cmd.params["position"].value("z", 0);
                             reqY = cmd.params["position"].value("y", 16);
                         }
+
+                        // CONTEXT-AWARE PLACEMENT: remove any existing structure whose footprint
+                        // overlaps this one BEFORE seating. Without this, a rebuild stacks: terrain
+                        // seating samples the old structure's voxels as "ground" and seats the new
+                        // one on top of it. Removing it first => clean ground sample + no duplicate.
+                        if (placedObjectManager) {
+                            const int fw = std::max(program.footprintW, 1);
+                            const int fd = std::max(program.footprintD, 1);
+                            for (const auto& obj : placedObjectManager->list()) {
+                                if (obj.category != "structure") continue;
+                                const bool overlapXZ =
+                                    obj.boundingMin.x <= ox + fw - 1 && obj.boundingMax.x >= ox &&
+                                    obj.boundingMin.z <= oz + fd - 1 && obj.boundingMax.z >= oz;
+                                if (overlapXZ) {
+                                    LOG_INFO_FMT("StructureV2", "removing overlapping structure '"
+                                                 << obj.id << "' before rebuild (no stacking)");
+                                    placedObjectManager->remove(obj.id);
+                                }
+                            }
+                        }
+
                         auto shell = Core::StructureRealizer::realizeShell(program, style);
                         // P2 seating: sample the terrain under the footprint and seat the foundation
                         // on the MEDIAN grade (robust to a few stray high/low voxels), so the cottage
@@ -11775,6 +11800,11 @@ void Application::processAPICommands() {
                             }
                         }
                         structure = Core::StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));
+                        // Hand off to the post-registration fixture pass: the floor sits one cube
+                        // above the foundation top (foundation rows [oy, oy+crawl), floor at oy+crawl).
+                        v2Program = program;
+                        v2FloorY = oy + shell.crawlHeightCubes;
+                        v2HasFixtures = true;
                     } else {
                         structure = specMode
                             ? Core::StructureGenerator::generateFromSpec(cmd.params)
@@ -11857,6 +11887,35 @@ void Application::processAPICommands() {
                             // Rebuild NavGrid for the affected region
                             if (npcManager) {
                                 npcManager->onRegionChanged(smin, smax);
+                            }
+
+                            // v2: the ENGINE decides furniture placement. FurniturePlacer derives
+                            // what/where/facing/clearance from each room's purpose + door positions —
+                            // the program's hand-authored fixtures (if any) are IGNORED. Pieces are
+                            // parented to the structure so they group and are removed with it.
+                            if (v2Mode && v2HasFixtures && !objectId.empty()) {
+                                static const std::map<std::string, std::string> kFixtureTemplate = {
+                                    {"fireplace", "fireplace"}, {"table", "table_wood"},
+                                    {"counter", "counter"},     {"bed", "bed_single"},
+                                    {"bench", "bench_wood"},     {"barrel", "barrel"}
+                                    // NOTE: no "chest" template exists yet (gap) -> chest is skipped.
+                                };
+                                int fxSpawned = 0, fxSkipped = 0;
+                                for (const auto& story : v2Program.stories) {
+                                    auto placements = Core::FurniturePlacer::furnish(
+                                        story, glm::ivec3(posX, 0, posZ), v2FloorY);
+                                    for (const auto& pl : placements) {
+                                        auto tit = kFixtureTemplate.find(pl.type);
+                                        if (tit == kFixtureTemplate.end()) { ++fxSkipped; continue; }
+                                        std::string fid = placedObjectManager->placeTemplate(
+                                            tit->second, pl.worldPos, pl.rotation, objectId, /*snap=*/false);
+                                        if (!fid.empty()) ++fxSpawned;
+                                    }
+                                }
+                                response["fixtures_spawned"] = fxSpawned;
+                                LOG_INFO_FMT("StructureV2", "FurniturePlacer: engine placed " << fxSpawned
+                                             << " fixtures (" << fxSkipped << " skipped, no template) into '"
+                                             << objectId << "'");
                             }
                         }
 

@@ -1,0 +1,26 @@
+{
+  "schema": "v2",
+  "name": "cottage",
+  "style": "timber_cottage",
+  "function": "house",
+  "footprint": [7, 9],
+  "substructure": "crawlspace",
+  "roof_style": "gable",
+  "position": { "x": 6, "y": 17, "z": 6 },
+  "stories": [
+    {
+      "height": 3,
+      "rooms": [
+        { "id": "hall",    "rect": [0, 0, 4, 9], "purpose": "living",  "floor_mat": "Wood" },
+        { "id": "kitchen", "rect": [4, 0, 3, 9], "purpose": "kitchen", "floor_mat": "Wood" }
+      ],
+      "portals": [
+        { "between": ["exterior", "hall"], "pos": [0, 3], "width": 1, "height": 2, "kind": "door",
+          "door": { "lockable": false, "key": "" } },
+        { "between": ["exterior", "hall"], "pos": [2, 0], "width": 1, "height": 2, "kind": "window" },
+        { "between": ["exterior", "kitchen"], "pos": [7, 4], "width": 1, "height": 2, "kind": "window" },
+        { "between": ["hall", "kitchen"], "pos": [4, 4], "width": 1, "height": 2, "kind": "arch" }
+      ]
+    }
+  ]
+}
