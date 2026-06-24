@@ -53,7 +53,14 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 | 13 | place_roof | P | [13_place_roof](13_place_roof.md) |
 | 14 | place_chimney | M | [14_place_chimney](14_place_chimney.md) |
 | 15 | place_trim | M | [15_place_trim](15_place_trim.md) |
-**Interior (16–20)** — place_furniture (**D**), place_fixtures, place_lights, place_clutter, place_entry — TODO
+**Interior (16–20)** — ✅ this batch
+| # | placer | Part-1 status | spec |
+|---|---|---|---|
+| 16 | place_furniture | **D** | [16_place_furniture](16_place_furniture.md) |
+| 17 | place_fixtures | P | [17_place_fixtures](17_place_fixtures.md) |
+| 18 | place_lights | M | [18_place_lights](18_place_lights.md) |
+| 19 | place_clutter | M | [19_place_clutter](19_place_clutter.md) |
+| 20 | place_entry | P | [20_place_entry](20_place_entry.md) |
 **Parcel (21–29)** — zone_parcel, place_fence, place_boundary_wall, place_path, place_garden, place_farm, place_outbuildings, place_livestock_pens, place_yard_props — TODO
 **Systems (30)** — register_systems — TODO
 **Conditional structural (31–33)** — place_fortifications, place_graveyard, apply_seasonal_state — TODO
@@ -62,4 +69,4 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 **Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
 **Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
 
-*(15 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(20 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
