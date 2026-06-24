@@ -54,6 +54,18 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 35 | `place_basement` | occupiable below-grade story at level −1: retaining walls (stone, thick) + base slab + cellar floor/ceiling; runs the per-story placers | **M** |
 | 36 | `stack_stories` | the multi-story loop — run the per-story placers at each story's base-Y, then realize each `ProgStair`; prerequisite for upper floors, basements & attics | **M** (missing — realizer hard-codes `stories[0]`) |
 | 37 | `place_attic` | story inside the roof volume: usable-area mask from pitch (headroom ≥ 1.5 m), knee walls, sloped ceiling, dormers/gable lights, hatch/stair access | **M** |
+| 38 | `site_settlement` | *(settlement tier; see Part 7)* justify the location (water / defence / crossroads / harbour / resource); set growth seed + axis | **M** |
+| 39 | `lay_street_network` | road hierarchy (high street → lane → alley), organic vs planned, market at the crossing; widths from canon | **M** |
+| 40 | `subdivide_plots` | burgage plots along street frontage (narrow × deep), fractional-perch subdivision, back lanes | **M** |
+| 41 | `zone_districts` | districts by wealth + trade; noxious trades to the edge / downwind / downstream; mixed-use core | **M** |
+| 42 | `place_town_wall` | wall circuit + towers + gates (reuses #31); intramural vs extramural growth; ditch | **M** |
+| 43 | `place_public_spaces` | market square, well / conduit / fountain, green, gallows / pillory, churchyard | **M** |
+| 44 | `place_bridges` | crossings over river / ditch; bridge houses | **M** |
+| 45 | `populate_plots` | per plot, pick a Part 6 archetype by district + status + frontage and run the building pipeline (#1–37) | **M** |
+| 46 | `compose_compound` | realize compound archetypes (castle / monastery / cathedral) as a walled mini-settlement of sub-buildings | **M** |
+| 47 | `place_signage` | pictorial trade / inn signs at shopfronts; wayfinding (illiterate clientele) | **M** |
+| 48 | `dress_street_life` | street props of occupation: market stalls, woodpiles, laundry, refuse, carts, animals | **M** |
+| 49 | `link_subterranean` | stub sewer / cellar / crypt connections for the subterranean tier (handoff) | **M** (deferred tier) |
 
 ## Part 2 — The granular checklist
 
@@ -341,6 +353,39 @@ W5. **Compound archetypes** (castle, monastery, cathedral) correctly compose sub
 W6. **Mixed-use** is honored where period-correct (shop/workshop ground floor + dwelling above in a townhouse).
 W7. Every archetype dimension is **grounded or flagged `to_ground`** — no invented footprints/heights (the standing rule, at building scale).
 
+### X. Settlement siting & street network *(settlement tier — see Part 7)*
+X1. The settlement's **location is justified** — water, defensibility, a crossroads, a harbour, a resource — not placed arbitrarily.
+X2. A **street hierarchy** exists (high street → lane → alley → court) with grounded widths; the high street links the gate(s) to the market.
+X3. The network is **connected** — every plot reaches the street network reaches a gate; no orphaned blocks.
+X4. **Form matches origin** — organic (accretive, curving around a feature) vs planned (grid / bastide) per the brief.
+X5. Gates + bridges sit on the through-routes and are **passable** (a cart can actually get through).
+
+### Y. Plots, blocks & density
+Y1. City buildings sit on **burgage-style plots** (narrow frontage × deep), street-fronting, **party walls** in the core — NOT freestanding cottages-with-yards inside a city.
+Y2. Plot frontage/depth come from the canon; subdivision in **fractional-perch** units.
+Y3. **Density gradient** — dense core (high coverage, shared walls) → looser edge → extramural suburb.
+Y4. Plot coverage + structures-per-acre within grounded bounds; **back-plots** (gardens / yards / privies / wells) sit behind the street range.
+Y5. **Accretion reads** — mixed building ages, infill, encroachment; not a uniform single-build town.
+
+### Z. Districts, zoning & social fabric
+Z1. Districts have **distinct character** — the rich quarter ≠ the slums ≠ the craft streets.
+Z2. **Trades cluster** (smiths together, the shambles for butchers) and name their streets accordingly.
+Z3. **Noxious trades** (tanners, dyers, butchers, slaughter) sit at the edge, **downwind + downstream** of dwellings and the water intake.
+Z4. The **wealth gradient is spatial** (near the centre / castle / minster = high; periphery / marsh / against the wall = low) and drives the archetype + status tier per plot.
+Z5. **Mixed-use** is the core norm — shop/workshop ground floor + dwelling above.
+
+### AA. Public realm & settlement function testers *(the "does the city function" gate)*
+AA1. **Water** — a public source per N people (wells / conduits / fountains / river access) reachable from every district.
+AA2. **Food** — markets + bakeries/butchers + granaries/storehouses + surrounding farms feed the population.
+AA3. **Waste** — sanitation handled (cesspits / sewers / middens / drainage); not flagged-and-ignored.
+AA4. **Defense** — walls / gates / watch sized to the settlement, when the brief sets a threat.
+AA5. **Governance** — a seat (town / moot hall, or the lord's castle) + gaol + market authority.
+AA6. **Worship** — a church/temple per faith, sited prominently.
+AA7. **Trade** — a market + the shop spread a town actually needs (a believable archetype mix, not one of everything).
+AA8. **Production** — mills, smiths, workshops scaled to feed + equip the population.
+AA9. **Circulation** — every district reachable; main streets, gates, bridges sized for carts; the market accessible.
+AA10. A **public square / market** exists as the social heart, at the street crossing.
+
 ## Part 3 — Per-room function programs (the "what makes it that room" library)
 
 Data-driven recipes the `FurniturePlacer` reads and the **T**-checks enforce. **Required** = without it the room
@@ -573,6 +618,67 @@ the marquee dimensions (tower house, keep, manor/great hall) are cited above; ev
 sits in its `to_ground` list and routes through the grounding-auditor before a number enters code. The library
 is **design-of-record** — it extends `room_program.json` into a `structure_archetypes.json`, not yet wired into
 runtime canon, and the **compound-composition + fantasy-overlay logic is unbuilt** (flagged).
+
+## Part 7 — Settlement tier (towns, cities & compounds)
+
+The tier *above* the building. A settlement is a **graph of plots on a street network**, within an optional
+wall, zoned into **districts**, served by a **public realm** + utilities, and **populated by Part 6 archetypes**.
+This is where the "compact city" lives — and where **compound archetypes** (castle, monastery, cathedral)
+resolve, since each is a walled mini-settlement of sub-buildings. Growth is **accretive-first** (the model you
+chose): seed a feature (crossing / market / castle), grow the street net + plots outward, wall it when it
+matters. Nothing here is built yet — it's the target spec for placers #38–49.
+
+**The pipeline** (each runs once per settlement, then `populate_plots` invokes the whole building pipeline #1–37 per lot):
+
+`site_settlement` (#38) → `lay_street_network` (#39) → `subdivide_plots` (#40) → `zone_districts` (#41) →
+`place_town_wall` (#42) + `place_bridges` (#44) → `place_public_spaces` (#43) → `populate_plots` (#45) /
+`compose_compound` (#46) → `place_signage` (#47) + `dress_street_life` (#48) → `link_subterranean` (#49, handoff).
+
+**Why-here, then how-grown.** `site_settlement` justifies the location (river crossing, defensible spur,
+harbour, crossroads, resource) — the same "no arbitrary placement" rule as building siting, one scale up. The
+street net then grows **organic** (curving lanes accreting around the feature) or **planned** (a bastide grid),
+with the **market at the main crossing** and the **high street linking gate → market**. Plots are **burgage**:
+narrow street frontage, deep back-plot, party walls in the core, subdivided in fractional-perch units.
+
+**Districts carry the social truth.** `zone_districts` assigns wealth + trade per quarter: high near the
+centre / castle / minster, low at the periphery / marsh / against the wall; trades **cluster** (a smiths'
+street, the shambles) and **noxious trades** (tanners, dyers, slaughter) go to the edge, **downwind +
+downstream** of dwellings and the water intake. This is what makes a slum read as a slum and a rich quarter
+read as wealth — it drives which Part 6 archetype + status tier lands on each plot.
+
+**Does the city function?** `AA` is the settlement-scale analog of the per-room function testers: water, food,
+waste, defense, governance, worship, trade, production, circulation — each must be *present and reachable* for
+the population, or the settlement fails its function test.
+
+### Grounded settlement dimensions
+
+| Value | Grounded figure | Source |
+|---|---|---|
+| Perch (the planning unit) | 5.5 yd ≈ 5.03 m | standard medieval rod/pole/perch |
+| Burgage plot (standard) | 3–3.5 × 12 perches = **16–18 m × 60 m** (~¼ acre) | post-Conquest town charters |
+| Burgage frontage (narrow / subdivided) | 2 perches ≈ **10 m**, split in fractional-perch units | Cricklade; Tewkesbury (4 × 40 perch primary, subdivided) |
+| Town / curtain wall height | ~**9 m (30 ft)** or more | medieval fortification norm |
+| Town / curtain wall thickness | **2.5–6 m** (siege minimum ~2.1–2.4 m) | medieval fortification |
+| Town gate (foregate example) | **6.8 × 9.5 m** | Byczyna German Gate foregate |
+| Large market square (exceptional) | **3.79 ha / 9.4 acres** | Kraków Main Square (13th c.) |
+| Population density | ~**40–61 people/acre** | RPG demographics (S. John Ross lineage, from historical estimates) |
+| Building density | ~**20–30 structures/acre** | same |
+| Town extent | usually **< 1 sq mile (640 acres)** | same |
+
+**Flagged — NOT cleanly grounded (route through the grounding-auditor before any number enters code):**
+- **Street metric widths** (high street / lane / alley) — the *regulations* are cited (the *via Regia* "wide
+  enough for two wagons to pass"; a town street passable by "a horseman with a lance across his saddle"), but no
+  clean metric. Working derivation: high street ≈ two carts passing, lane ≈ one cart, alley ≈ foot-only — flagged.
+- **Typical market-square size** — Kraków is exceptional; an ordinary market square is far smaller. Typical figure unverified.
+- **Town wall vs castle curtain** — towns were often thinner/lower than the curtain range above; the town-specific figure is unverified (uses the curtain range as a ceiling).
+- **Population-density figures** — the 40–61/acre + 20–30 structures/acre come from RPG worldbuilding (derived from historical estimates), not a primary survey; usable as a planning figure, flagged as such.
+
+*Sources (this session):* [Burgage plot (Kiddle)](https://kids.kiddle.co/Burgage), [Wiltshire community history: burgage plots](https://apps.wiltshire.gov.uk/communityhistory/Question/Details/216); [Medieval fortification (Wikipedia)](https://en.wikipedia.org/wiki/Medieval_fortification), [Byczyna town walls](https://medievalheritage.eu/en/main-page/heritage/poland/byczyna-city-defensive-walls/); [Main Square, Kraków (Wikipedia)](https://en.wikipedia.org/wiki/Main_Square,_Krak%C3%B3w); [Medieval town size (EN World)](https://www.enworld.org/threads/area-of-a-medieval-town.255833/).
+
+**Honest status:** the whole tier is **unbuilt** — design-of-record only. It depends on the building pipeline
+(#1–37, itself mostly target spec) and the archetype library (Part 6, not wired). The **subterranean handoff**
+(#49) leads into a tier that needs terrain excavation + multi-level connectivity we don't have. None of this
+realizes a voxel yet; it's the map for getting there.
 
 ---
 
