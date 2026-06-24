@@ -146,6 +146,12 @@ void main() {
     float rough;
     sampleVoxelPBR(textureIndex, texCoord, textureColor, nrmRaw, rough);
 
+    // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
+    // surfaces read as rougher (scuffed/worn) and slightly darker/dirtier.
+    float dmg = float((flags >> 11u) & 0xFu) / 15.0;
+    rough = mix(rough, 1.0, dmg);
+    textureColor.rgb *= mix(1.0, 0.55, dmg);
+
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;
 
