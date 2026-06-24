@@ -35,6 +35,30 @@ After applying any code change, you MUST verify it works at runtime, not just th
 
 **A fix is not done until the engine runs it successfully. "Compiled clean" is not verification.**
 
+### Stress Test Phase — MANDATORY for every new feature
+
+A single happy-path proof (N=1) is **not** verification. Designing the adversarial test that
+breaks a feature is the agent's job — the user should never have to invent the esoteric case
+(e.g. "build a 10-story tower"). For every feature/increment, **before calling it done**, identify
+the dimension along which it scales and push that to the extreme, asserting the invariant holds at
+*every* step (not just in aggregate):
+
+- **Count / quantity** — N=1 → N=many (10 stories, 100 NPCs, a full chunk, 1000 entities).
+- **Size / extent** — minimal → maximal, especially crossing an internal boundary (a structure
+  taller than one chunk, a path across the world).
+- **Depth / nesting** — flat → deeply nested (deep object trees, recursion).
+- **Repetition / churn** — once → many cycles (spawn+despawn ×1000, rebuild loops).
+- **Boundary crossing** — values straddling a hidden limit (the y=31→32 vertical-chunk seam,
+  voxel caps, buffer sizes).
+- **Degenerate / extreme inputs** — empty, zero, negative, max, malformed.
+
+A good stress test asserts the **invariant at scale** ("every floor reachable", "true placed/failed
+counts", "no overlap", "no silent drop") — not merely "it ran". Where practical, encode it as a
+deterministic **unit test** (geometric/scale) AND exercise it at **runtime** (functional), then
+commit it alongside the feature. The 10-story tower didn't just confirm "a building builds" — it
+surfaced three bugs (the silent voxel-cap ghost, the vertical-chunk placement gap, cross-story
+furniture stacking) that the N=1 proof hid completely. **Make this a standing phase, not a prompt.**
+
 ### Diagnostics Without a Project
 `screenshot`, `get_visual_diagnostic`, `get_engine_logs`, `get_render_stats`, `set_log_level`, `set_debug_overlay`, `stop_engine`, `restart_engine`, and `clear_engine_logs` all work in any engine mode — including `--asset-editor`, `--anim-editor`, and no-project states.
 
