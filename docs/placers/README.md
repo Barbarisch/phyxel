@@ -61,7 +61,18 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 | 18 | place_lights | M | [18_place_lights](18_place_lights.md) |
 | 19 | place_clutter | M | [19_place_clutter](19_place_clutter.md) |
 | 20 | place_entry | P | [20_place_entry](20_place_entry.md) |
-**Parcel (21–29)** — zone_parcel, place_fence, place_boundary_wall, place_path, place_garden, place_farm, place_outbuildings, place_livestock_pens, place_yard_props — TODO
+**Parcel (21–29)** — ✅ this batch
+| # | placer | spec |
+|---|---|---|
+| 21 | zone_parcel | [21_zone_parcel](21_zone_parcel.md) |
+| 22 | place_fence | [22_place_fence](22_place_fence.md) |
+| 23 | place_boundary_wall | [23_place_boundary_wall](23_place_boundary_wall.md) |
+| 24 | place_path | [24_place_path](24_place_path.md) |
+| 25 | place_garden | [25_place_garden](25_place_garden.md) |
+| 26 | place_farm | [26_place_farm](26_place_farm.md) |
+| 27 | place_outbuildings | [27_place_outbuildings](27_place_outbuildings.md) |
+| 28 | place_livestock_pens | [28_place_livestock_pens](28_place_livestock_pens.md) |
+| 29 | place_yard_props | [29_place_yard_props](29_place_yard_props.md) |
 **Systems (30)** — register_systems — TODO
 **Conditional structural (31–33)** — place_fortifications, place_graveyard, apply_seasonal_state — TODO
 **Vertical (34–37)** — excavate_basement, place_basement, stack_stories, place_attic — TODO
@@ -69,4 +80,4 @@ the `MicroCanvas` is a 9×9×9 micro-grid per cube (greedy-coarsened on export).
 **Subterranean (50–57)** — excavate_subterrane … validate_crawlability — TODO
 **Fantasy (58–59)** — author_world_bible, apply_setting_overlay — TODO
 
-*(20 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
+*(29 of 59 specced. Status mirrors Part 1; update a row when a spec lands.)*
