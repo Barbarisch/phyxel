@@ -4,6 +4,7 @@
       "all": "Bricks075A"
     },
     "license": "CC0",
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Cobblestone": {
@@ -94,6 +95,7 @@
       "all": "PavingStones070"
     },
     "license": "CC0",
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Wood": {
@@ -101,6 +103,7 @@
       "all": "WoodFloor007"
     },
     "license": "CC0",
+    "resolution": 1024,
     "source": "ambientCG"
   }
 }

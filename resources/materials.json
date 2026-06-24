@@ -160,6 +160,7 @@
       "name": "StoneBricks",
       "category": "material",
       "description": "Cut stone blocks with mortar joints",
+      "resolution": 1024,
       "physics": {
         "mass": 6.0,
         "friction": 0.8,
@@ -250,6 +251,7 @@
       "name": "Wood",
       "category": "material",
       "description": "Finished oak plank material with natural grain",
+      "resolution": 1024,
       "physics": {
         "mass": 0.7,
         "friction": 0.6,
@@ -310,6 +312,7 @@
       "name": "Bricks",
       "category": "material",
       "description": "Red clay bricks with mortar joints",
+      "resolution": 1024,
       "physics": {
         "mass": 4.0,
         "friction": 0.8,

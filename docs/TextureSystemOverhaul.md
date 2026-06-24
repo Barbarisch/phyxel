@@ -93,9 +93,27 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 > subsequent launches load in ~55ms. `uploadToGPU` now does load-cache → else encode+write →
 > upload BC7, falling back to RGBA if the device lacks BC.
 >
-> **STILL TODO in Phase 1:** the two-array mixed-res split (512 terrain / 1024 objects via the
-> textureIndex top-bit selector), and re-sourcing the remaining materials (Log/Leaf variants,
-> Gold, Sandstone tuning; Glass/glow/Mirror stay special-cased).
+> **UPDATE (commit 4, 2026-06-23): mixed-res two-array split DONE + verified.** Phase 1 complete.
+> `textureIndex` (u16) now encodes the resolution class in bit 15 (`RES_CLASS_BIT`) and the
+> within-class layer in bits 0..14 (`LAYER_MASK`); `MaterialDef.resolution` (512 default / 1024)
+> drives per-class index assignment in `MaterialRegistry::assignAtlasIndices`. `AtlasManager`
+> builds/encodes/caches TWO arrays independently (`atlas_[2]`; caches `voxel_bc7_512.bin` +
+> `voxel_bc7_1024.bin`, cache version → 2). `VulkanDevice` adds a second 1024 image at
+> **descriptor binding 5** (layout/pool updated; `uploadTextureArray*` take a `target` class;
+> `updateAtlasUVBuffer` carries per-class counts). `voxel.frag` samples binding 1 or binding 5
+> on the class bit with per-class bounds + placeholder fallback (mirror/transparent unaffected —
+> they don't sample the array). `materials.json`: StoneBricks/Wood/Bricks → `"resolution":1024`,
+> re-fetched at native 1024 by the fetch tool (per-material resolution).
+> Verified in-engine (CharacterTestbed): class 0 = 144 layers @ 512 (48 MB BC7), class 1 =
+> 18 layers @ 1024 (24 MB BC7); SSBO `count512=144, count1024=18`; building (StoneBricks/Wood/
+> Bricks) renders from the 1024 array, terrain from 512; no magenta, no validation errors,
+> 500 FPS. Tests updated (registry counts + class-aware index range).
+>
+> **PHASE 1 COMPLETE.** Net VRAM ≈ 72 MB BC7 (48 + 24) for the whole voxel texture set.
+>
+> **REMAINING (optional polish):** re-source the rest of the materials (Log/Leaf variants, Gold,
+> Sandstone tuning; Glass/glow/Mirror stay special-cased). Then **Phase 2 (PBR shading)** using
+> the normal/roughness/AO maps already cached under `resources/textures/pbr/`.
 >
 > ### ambientCG asset map (material → asset ID, all CC0)
 > Dirt=Ground003 · Grass=Grass004(top)/Ground003(sides) · Stone=Rock030 ·

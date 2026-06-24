@@ -479,40 +479,14 @@ bool WorldInitializer::initializeTextureAtlas() {
         return false;
     }
 
-    // Populate atlas UV SSBO
+    // Populate atlas-metadata SSBO with per-class layer counts (mixed-resolution split).
     {
-        const auto& info = atlas.getAtlasInfo();
-        if (!info.uvBounds.empty()) {
-            auto& registry = Core::MaterialRegistry::instance();
-            vulkanDevice->updateAtlasUVBuffer(info.uvBounds, registry.getPlaceholderIndex());
-            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries", info.textureCount);
-        } else {
-            // Fallback: compute UVs manually (same as before)
-            auto& registry = Core::MaterialRegistry::instance();
-            int textureCount = registry.getTextureCount();
-            int texturesPerRow = Core::AtlasManager::TEXTURES_PER_ROW;
-            int textureSize = Core::AtlasManager::TEXTURE_SIZE;
-            int padding = Core::AtlasManager::PADDING;
-            int cellSize = Core::AtlasManager::CELL_SIZE;
-            int rows = (textureCount + texturesPerRow - 1) / texturesPerRow;
-            int rawDim = std::max(texturesPerRow * cellSize, rows * cellSize);
-            int atlasDim = 1;
-            while (atlasDim < rawDim) atlasDim <<= 1;
-            atlasDim = std::min(atlasDim, Core::AtlasManager::MAX_ATLAS_SIZE);
-            float atlasSize = static_cast<float>(atlasDim);
-
-            std::vector<glm::vec4> uvs(textureCount);
-            for (int i = 0; i < textureCount; i++) {
-                int col = i % texturesPerRow;
-                int row = i / texturesPerRow;
-                float pixelX = static_cast<float>(col * cellSize + padding);
-                float pixelY = static_cast<float>(row * cellSize + padding);
-                uvs[i] = glm::vec4(pixelX / atlasSize, pixelY / atlasSize,
-                                   (pixelX + textureSize) / atlasSize, (pixelY + textureSize) / atlasSize);
-            }
-            vulkanDevice->updateAtlasUVBuffer(uvs, registry.getPlaceholderIndex());
-            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries (fallback)", textureCount);
-        }
+        auto& registry = Core::MaterialRegistry::instance();
+        const auto& info = atlas.getAtlasInfo(0);
+        vulkanDevice->updateAtlasUVBuffer(info.uvBounds, registry.getPlaceholderIndex(),
+                                          registry.getTextureCount(0), registry.getTextureCount(1));
+        LOG_INFO("WorldInitializer", "Populated atlas SSBO (512 class={}, 1024 class={})",
+                 registry.getTextureCount(0), registry.getTextureCount(1));
     }
 
     // Update descriptor sets with texture binding

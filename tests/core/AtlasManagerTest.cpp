@@ -20,9 +20,10 @@ TEST_F(AtlasManagerTest, BuildAtlasFromSourcePNGs) {
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
-    // Texture-array layout: one TEXTURE_SIZE² RGBA layer per texture, stored layer-major.
-    const auto& info = atlas.getAtlasInfo();
-    const int expectedCount = MaterialRegistry::instance().getTextureCount();
+    // Texture-array layout: one baseSize² RGBA layer per texture, stored layer-major.
+    // class 0 = 512px (terrain/standard materials).
+    const auto& info = atlas.getAtlasInfo(0);
+    const int expectedCount = MaterialRegistry::instance().getTextureCount(0);
     EXPECT_GT(expectedCount, 0);
     EXPECT_EQ(info.textureCount, expectedCount);
     EXPECT_EQ(info.layerCount, expectedCount);

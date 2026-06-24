@@ -57,11 +57,16 @@ struct MaterialDef {
     MaterialPhysics physics;
     MaterialTextures textures;
 
+    // Target texture resolution (per layer). 512 = standard terrain/material class,
+    // 1024 = hi-res class (objects/building detail). Drives the mixed-res two-array split.
+    int resolution = 512;
+
     // Computed at load time by MaterialRegistry
     int materialID = -1;                    // Sequential ID (0-based, stable for atlas ordering)
-    std::array<uint16_t, 6> atlasIndices;   // Per-face atlas texture indices
+    std::array<uint16_t, 6> atlasIndices;   // Per-face atlas texture indices (see encoding below)
 
     bool hasPhysics() const { return category == "material"; }
+    int resClass() const { return resolution >= 1024 ? 1 : 0; }  // 0 = 512, 1 = 1024
 };
 
 /**
@@ -116,8 +121,20 @@ public:
     /// Get total number of registered materials
     int getMaterialCount() const { return static_cast<int>(materials_.size()); }
 
-    /// Get total number of texture slots in the atlas
+    /// Get total number of texture slots across both resolution classes.
     int getTextureCount() const { return getMaterialCount() * 6; }
+
+    /// Texture-index encoding for the mixed-resolution two-array split:
+    ///   bit 15      = resolution class (0 = 512px array, 1 = 1024px array)
+    ///   bits 0..14  = layer index within that class's texture array
+    ///   0xFFFF      = invalid sentinel (renders the placeholder)
+    static constexpr uint16_t RES_CLASS_BIT = 0x8000;
+    static constexpr uint16_t LAYER_MASK    = 0x7FFF;
+
+    /// Number of texture-array LAYERS in a resolution class (0 = 512, 1 = 1024).
+    int getTextureCount(int resClass) const {
+        return resClass == 1 ? textureCount1024_ : textureCount512_;
+    }
 
     /// Get all material names (in registration order)
     std::vector<std::string> getAllMaterialNames() const;
@@ -160,6 +177,9 @@ private:
     // Fast lookup cache: [materialID][faceID] → atlas index
     // Flat array for cache-friendly access on the hot path
     uint16_t faceIndexCache_[MAX_MATERIALS][6] = {};
+
+    int textureCount512_ = 0;           // layers in the 512px class
+    int textureCount1024_ = 0;          // layers in the 1024px class
 
     uint16_t placeholderIndex_ = 0;     // Atlas index for placeholder fallback
     int defaultMaterialID_ = -1;        // Material ID for "Default"

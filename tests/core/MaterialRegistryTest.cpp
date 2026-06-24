@@ -52,12 +52,15 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getMaterialCount(), 18);
+    EXPECT_EQ(registry_->getMaterialCount(), 27);
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getTextureCount(), 108);
+    EXPECT_EQ(registry_->getTextureCount(), 162);
+    // Total splits across the two resolution classes (512 + 1024).
+    EXPECT_EQ(registry_->getTextureCount(0) + registry_->getTextureCount(1),
+              registry_->getTextureCount());
 }
 
 // ============================================================================
@@ -124,11 +127,14 @@ TEST_F(MaterialRegistryTest, TextureIndices_AllUnique) {
 
 TEST_F(MaterialRegistryTest, TextureIndices_InRange) {
     ASSERT_TRUE(loaded_);
+    // textureIndex encodes class in bit 15, within-class layer in bits 0..14.
     for (int mat = 0; mat < registry_->getMaterialCount(); mat++) {
         for (int face = 0; face < 6; face++) {
             uint16_t idx = registry_->getTextureIndex(mat, face);
-            EXPECT_LT(idx, registry_->getTextureCount())
-                << "Material " << mat << " face " << face << " out of range";
+            int cls = (idx & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
+            int layer = idx & MaterialRegistry::LAYER_MASK;
+            EXPECT_LT(layer, registry_->getTextureCount(cls))
+                << "Material " << mat << " face " << face << " out of range (class " << cls << ")";
         }
     }
 }
@@ -220,7 +226,7 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
     auto names = registry_->getAllMaterialNames();
-    EXPECT_EQ(static_cast<int>(names.size()), 18);
+    EXPECT_EQ(static_cast<int>(names.size()), 27);
 }
 
 // ============================================================================

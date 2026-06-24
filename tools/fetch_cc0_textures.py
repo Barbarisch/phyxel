@@ -35,7 +35,10 @@ PBR_DIR = os.path.join(REPO, "resources", "textures", "pbr")
 CACHE_DIR = os.path.join(REPO, ".texwork", "acg_cache")
 PROVENANCE = os.path.join(SOURCE_DIR, "CC0_SOURCES.json")
 
-OUT_SIZE = 512
+# Albedo is cached at the hi-res class size; each material is written at its own
+# resolution (materials.json "resolution": 512 default or 1024 for hi-res/objects).
+ALBEDO_NATIVE = 1024
+PBR_SIZE = 512
 UA = "PhyxelTextureBot/1.0 (bpeterson926@gmail.com)"
 API = "https://ambientcg.com/api/v2/full_json?id={id}&type=Material&include=downloadData"
 
@@ -129,18 +132,22 @@ def extract_maps(asset_id):
             if key is None:
                 continue
         img = Image.open(io.BytesIO(zf.read(name))).convert("RGBA")
-        out[key] = img.resize((OUT_SIZE, OUT_SIZE), Image.LANCZOS)
+        size = ALBEDO_NATIVE if key == "albedo" else PBR_SIZE
+        out[key] = img.resize((size, size), Image.LANCZOS)
     if "albedo" not in out:
         raise RuntimeError(f"no _Color map in '{asset_id}' bundle")
     return out
 
 
-def load_face_filenames():
-    """material name -> {face: source PNG filename} from materials.json (exact names)."""
+def load_materials_meta():
+    """material name -> {"faces": {face: filename}, "resolution": int} from materials.json."""
     data = json.load(open(MATERIALS_JSON))
     out = {}
     for mat in data["materials"]:
-        out[mat["name"]] = dict(mat.get("textures", {}))
+        out[mat["name"]] = {
+            "faces": dict(mat.get("textures", {})),
+            "resolution": int(mat.get("resolution", 512)),
+        }
     return out
 
 
@@ -151,7 +158,7 @@ def main():
             print(f"{m:14} {cfg}")
         return
     targets = args if args else list(ASSETS.keys())
-    face_files = load_face_filenames()
+    meta = load_materials_meta()
 
     os.makedirs(SOURCE_DIR, exist_ok=True)
     os.makedirs(PBR_DIR, exist_ok=True)
@@ -175,22 +182,26 @@ def main():
             print(f"[skip] no mapping for '{mat}'")
             continue
         print(f"[{mat}]")
-        if mat not in face_files:
+        if mat not in meta:
             print(f"    [skip] '{mat}' not in materials.json")
             continue
+        res = meta[mat]["resolution"]
+        faces = meta[mat]["faces"]
         used = {}
         for group, asset_id in ASSETS[mat].items():
             maps = get(asset_id)
             albedo = maps["albedo"]
+            if albedo.size[0] != res:
+                albedo = albedo.resize((res, res), Image.LANCZOS)
             for face in FACE_GROUPS[group]:
-                fname = face_files[mat].get(face)
+                fname = faces.get(face)
                 if not fname:
                     print(f"    [warn] no '{face}' filename for {mat}")
                     continue
                 albedo.save(os.path.join(SOURCE_DIR, fname))
             used[group] = asset_id
-        provenance[mat] = {"assets": used, "license": "CC0", "source": "ambientCG"}
-        print(f"    wrote faces from {used}")
+        provenance[mat] = {"assets": used, "license": "CC0", "source": "ambientCG", "resolution": res}
+        print(f"    wrote faces @ {res}px from {used}")
 
     json.dump(provenance, open(PROVENANCE, "w"), indent=2, sort_keys=True)
     print(f"\nDone. Provenance -> {PROVENANCE}")

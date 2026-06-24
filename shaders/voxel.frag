@@ -20,8 +20,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
 } ubo;
 
-layout(set = 0, binding = 1) uniform sampler2DArray textureArray;  // per-texture array layer
-layout(set = 0, binding = 2) uniform sampler2D shadowMap;     // shadow map sampler
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;    // class 0: 512px array
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;            // shadow map sampler
+layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;  // class 1: 1024px array
 
 // Point light (32 bytes, std430)
 struct PointLightGPU {
@@ -47,23 +48,27 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
 } lights;
 
 layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
-    uint textureCount;
-    uint fallbackIndex;
-    uint _pad0;
+    uint count512;        // layers in the 512px (class 0) array
+    uint fallbackIndex;   // placeholder layer (class 0)
+    uint count1024;       // layers in the 1024px (class 1) array
     uint _pad1;
-    vec4 textureUVs[];
+    vec4 textureUVs[];    // retained for layout compat; no longer sampled
 } atlasUVs;
 
 layout(location = 0) out vec4 outColor;   // output color
 
-// Resolve a per-face texture index to a safe array layer, falling back to the placeholder
-// layer for out-of-range / sentinel (0xFFFF) indices.
-float getTextureLayer(uint texIndex) {
-    uint safeIdx = texIndex;
-    if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount) {
-        safeIdx = atlasUVs.fallbackIndex;
+// Sample the voxel texture for a per-face index. The index encodes the resolution class in
+// bit 15 (0 = 512px array, 1 = 1024px array) and the within-class layer in bits 0..14. Out
+// of range / sentinel (0xFFFF) indices fall back to the placeholder layer in the 512 array.
+vec4 sampleVoxelTexture(uint texIndex, vec2 uv) {
+    uint cls   = (texIndex >> 15) & 1u;
+    uint layer = texIndex & 0x7FFFu;
+    uint count = (cls == 1u) ? atlasUVs.count1024 : atlasUVs.count512;
+    if (texIndex == 0xFFFFu || layer >= count) {
+        return texture(textureArray, vec3(uv, float(atlasUVs.fallbackIndex)));
     }
-    return float(safeIdx);
+    return (cls == 1u) ? texture(textureArrayHi, vec3(uv, float(layer)))
+                       : texture(textureArray,   vec3(uv, float(layer)));
 }
 
 // Calculate attenuation for a light at distance d with given radius
@@ -100,8 +105,7 @@ void main() {
     // Texture array: each layer is a full 0..1 tile. texCoord runs 0..sizeU, 0..sizeV for
     // greedy-merged faces (1x1 for unit faces); REPEAT wrap tiles it across the layer with
     // no atlas bleed, and hardware derivatives drive mip selection directly.
-    float texLayer = getTextureLayer(textureIndex);
-    vec4 textureColor = texture(textureArray, vec3(texCoord, texLayer));
+    vec4 textureColor = sampleVoxelTexture(textureIndex, texCoord);
 
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;
