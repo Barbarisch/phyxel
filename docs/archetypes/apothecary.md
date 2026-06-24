@@ -73,8 +73,9 @@ Counter, jar/drawer shelving, scales/balance, mortar & pestle, still, herb racks
 | apothecary/spicer as a real regulated trade | general medieval (regulated guild trade) |
 | shop pattern (counter + ingredient wall + prep workshop) | REUSE — the shop-family / `townhouse` pattern |
 | locked poison store | reasoned from the regulated/dangerous nature (period apothecaries were licensed) |
-| layout **sizes** + a specific surveyed example | `to_ground` / NEEDS-RESEARCH (not researched this session) |
+| shop-floor footprint = the urban shop-unit (~2–2.5 m frontage; small lock-up ~2.3 × 3.4 m) | CITED — Chester selds ([British History Online](https://www.british-history.ac.uk/vch/ches/vol5/pt2/pp225-239)) |
+| prep-workshop / drying-loft / store **sizes** | `to_ground` |
 
 ## 13. Open questions / unknowns
-- A surveyed medieval apothecary layout/size — NEEDS-RESEARCH.
+- Prep-workshop + drying-loft sizes — `to_ground` (the shop floor is now grounded to the shop-unit).
 - Distilling prevalence by period/region (affects the still + fire tester).

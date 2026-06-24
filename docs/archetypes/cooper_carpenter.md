@@ -68,7 +68,8 @@ Workbench + vice, shaving horse, tool rack, cooper's fire + windlass, timber rac
 |---|---|
 | cooper bends staves over a fire; carpenter workbench + timber seasoning | general craft practice (standard) |
 | shop/workshop + yard pattern | REUSE — the shop-family / `townhouse` |
-| layout **sizes** | `to_ground` / NEEDS-RESEARCH (not researched this session) |
+| storefront = the urban shop-unit (~2–2.5 m frontage); workshop + timber yard = the burgage back-plot depth | CITED — Chester selds ([British History Online](https://www.british-history.ac.uk/vch/ches/vol5/pt2/pp225-239)); REUSE Part 7 burgage |
+| workshop floor for long timber | `to_ground` |
 
 ## 13. Open questions / unknowns
 - Workshop + yard footprint for working long timber — `to_ground`.

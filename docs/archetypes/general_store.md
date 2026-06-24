@@ -73,9 +73,10 @@ Counter, shelving/display, shutters, scales/measures, crates/barrels/sacks, **tr
 | shopfront + counter + shutter-down stall form | REUSE-CANON — the shop-family / `townhouse` |
 | mixed-use (shop ground + dwelling above) | CITED — burgage sources (Part 7) |
 | "general store" breadth | GENRE-FLAG (mild) — medieval used specialised shops/mercers |
-| shopfront width + counter dims | `to_ground` |
+| shop-unit frontage ~**2–2.5 m** (6–8 ft); a small lock-up shop ~**2.3 × 3.4 m**; deeper shops run back the burgage plot | CITED — [The Rows / Chester selds (British History Online)](https://www.british-history.ac.uk/vch/ches/vol5/pt2/pp225-239) |
+| counter dims | `to_ground` |
 | curiosity / arcane overlay | BIBLE-SOURCED (Part 9) |
 
 ## 13. Open questions / unknowns
-- Shopfront width + counter dims — `to_ground`.
+- Counter dims — `to_ground` (shop-unit frontage now grounded to the Chester selds).
 - Which specific medieval trades to model as **distinct** shops vs one generic `general_store` — a design call.

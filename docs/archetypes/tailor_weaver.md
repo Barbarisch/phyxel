@@ -34,7 +34,7 @@ Defining quality: the work station + **strong natural light** (big windows) + a 
 
 ## 6. Adjacency & circulation rules
 1. The **workshop is on the best-lit side** (big / north windows).
-2. *(Loom)* the loom needs **warp clearance** — the warp beam rolls ~20 yd of cloth, so a workshop long enough to work it.
+2. *(Loom)* the loom needs **warp clearance** — the warp beam rolls a full piece (~24 yd of cloth), so a workshop long enough to work it.
 3. The cloth store is **dry + secure**.
 4. The shopfront opens to the street.
 
@@ -66,10 +66,10 @@ Loom, cutting table, tailor's bench, cloth bolts/shelving, counter, large window
 | Claim | Provenance |
 |---|---|
 | horizontal treadle loom 1.5–2.0 m tall; width ≤ weaver's arm span (practical ~0.6–1.0 m, up to ~1.5 m) | CITED — [Model of a horizontal treadle loom (EXARC)](https://exarc.net/sites/default/files/exarc-eurorea_2_2005-model_of_a_horizontal_treadle_loom.pdf); [Cloth Widths in the Middle Ages](http://www.geocities.ws/ladymairghread/clothwidth.htm) |
-| warp length ~20 yd | NEEDS-RESEARCH — the cited source covers cloth *widths*, not warp length (a "piece" ran ~24–30 yd; confirm via a textile-archaeology source) |
+| warp / piece length — a **broadcloth "of assize" was 24 yd long** (sold in 12-yd "dozens"); the cloth-yard = 37" | CITED — [Alnage / Assize of Cloth (Wikipedia)](https://en.wikipedia.org/wiki/Alnage); [Woollen industry before 1550 (British History Online)](https://www.british-history.ac.uk/vch/wilts/vol4/pp115-147) |
 | strong-light requirement for fine work | reasoned from the craft |
 | room **sizes** | `to_ground` |
 
 ## 13. Open questions / unknowns
-- Workshop length needed to work a ~20 yd warp — `to_ground` (loom + beating + sitting clearance).
+- Workshop length needed to work a ~24 yd warp — `to_ground` (loom + beating + sitting clearance).
 - Vertical (warp-weighted) vs horizontal treadle loom by period/region — affects footprint.

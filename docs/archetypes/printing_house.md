@@ -67,8 +67,8 @@ Printing press, imposing stone, type cases, drying racks, paper/ink bins, counte
 | the printing press | GENRE-FLAG — post-1450 (Gutenberg); early-modern |
 | press → compose → dry → sell workflow | reasoned from the early-modern print shop |
 | medieval alternative = scriptorium | Part 3 / `monastery` |
-| **sizes** | `to_ground` / NEEDS-RESEARCH |
+| press-room **footprint** | NEEDS-RESEARCH — searched, no surveyed early print-shop footprint found; it's a workshop in a `townhouse` shell (a single press output ~3,600 pages/day) |
 
 ## 13. Open questions / unknowns
-- A surveyed early print-shop layout for sizes — NEEDS-RESEARCH.
+- A surveyed early print-shop **footprint** — NEEDS-RESEARCH (searched this session; layout/workflow documented, dimensions not).
 - Whether to model the scriptorium as its own period-correct sheet.

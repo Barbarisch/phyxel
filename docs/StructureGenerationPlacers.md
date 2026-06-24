@@ -735,7 +735,7 @@ the population, or the settlement fails its function test.
 | Burgage frontage (narrow / subdivided) | 2 perches ≈ **10 m**, split in fractional-perch units | Cricklade; Tewkesbury (4 × 40 perch primary, subdivided) |
 | Town / curtain wall height | ~**9 m (30 ft)** or more | medieval fortification norm |
 | Town / curtain wall thickness | **2.5–6 m** (siege minimum ~2.1–2.4 m) | medieval fortification |
-| Town gate (foregate example) | **6.8 × 9.5 m** | Byczyna German Gate foregate — *NEEDS-RESEARCH: unverified this session; confirm via medievalheritage.eu / NID before encoding* |
+| Town gate (foregate example) | **6.8 × 9.5 m** | [Byczyna German Gate foregate (medievalheritage.eu)](https://medievalheritage.eu/en/main-page/heritage/poland/byczyna-city-defensive-walls/) *(single source; page not independently re-fetchable)* |
 | Large market square (exceptional) | **3.79 ha / 9.4 acres** | Kraków Main Square (13th c.) |
 | Population density | ~**40–61 people/acre** | RPG demographics (S. John Ross lineage, from historical estimates) |
 | Building density | ~**20–30 structures/acre** | same |
@@ -791,7 +791,7 @@ chancel** with body-sized loculi; dungeons sit **under the keep**, grim and secu
 | Catacomb gallery | ~**2.5 m high × ~1.0 m wide** (walk upright) | Catacombs of Rome |
 | Loculus (burial niche) | **0.4–0.6 m high × 1.2–1.5 m long** | Catacombs of Rome |
 | Catacomb depth | first level **3–8 m**; up to **20–25 m** over 4–5 levels | Catacombs of Rome |
-| Mine adit / gallery | ~**2 m high × ~1 m wide** (one miner) | medieval mining adit — *NEEDS-RESEARCH: plausible but no cited primary source; verify against Agricola* De Re Metallica *Lib. V–VI* |
+| Mine adit / gallery | **~2.3 m high × ~1.14 m wide** (≈ 2:1), one miner | CITED — Agricola, *De Re Metallica* Bk V: a tunnel "nearly twice as high as broad", **1¼ fathoms high × ~3¾ ft wide** |
 | Cramped crawl tunnel (Erdstall) | **1.0–1.4 m high × ~0.6 m wide** | Erdstall |
 | Walk-upright passage clearance (min) | ≥ **2.032 m headroom × ≥ 0.914 m wide** | IRC R311.6 / R305 (anthropometric) |
 

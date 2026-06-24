@@ -29,7 +29,7 @@ A single low human door + **flight apertures** (a roof louvre/cupola or high wal
 | Space | Purpose | Required fixtures | Size |
 |---|---|---|---|
 | chamber | house the birds | walls lined with **tiers of nest niches** (boulins) | circular |
-| nest niches (boulins) | breeding | one pair each; **hundreds** (e.g. 580 in 17 tiers) | *individual niche dims NEEDS-RESEARCH* |
+| nest niches (boulins) | breeding | one pair each; **hundreds** (e.g. 580 in 17 tiers); **entrance ~3–4″** | *internal niche depth/width NEEDS-RESEARCH* |
 | potence | reach the niches | a central **revolving ladder** | centre |
 | flight aperture | birds in/out | a louvre/cupola or wall holes | high/roof |
 | human door | access | a single low door | — |
@@ -68,7 +68,8 @@ Nest niches (boulins), potence (revolving ladder), flight louvre/cupola. →
 | Claim | Provenance |
 |---|---|
 | circular stone, metre-thick walls, tiers of niches (one pair each), hundreds (Kinwarton 580 in 17 tiers), a potence, flight apertures | CITED — [Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Dovecote); [Garway Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Garway_Dovecote); [Kinwarton Dovecote (National Trust)](https://www.nationaltrust.org.uk/visit/warwickshire/kinwarton-dovecote) |
-| individual boulin/niche dimensions | NEEDS-RESEARCH — not in the cited sources; consult Historic England's pigeon-house survey / the Dovecote Study Group |
+| boulin = one breeding pair; **entrance hole ~3–4″** (pigeon shoulder); rock/brick/cob or pottery | CITED — [Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Dovecote) |
+| individual boulin **internal** depth/width | NEEDS-RESEARCH — not cleanly sourced; consult Historic England's pigeon-house survey / the Dovecote Study Group |
 
 ## 13. Open questions / unknowns
 - Dovecote diameter vs niche count — `to_ground` (niche count drives the size).
