@@ -11782,21 +11782,45 @@ void Application::processAPICommands() {
                         }
 
                         auto shell = Core::StructureRealizer::realizeShell(program, style);
-                        // P2 seating: sample the terrain under the footprint and seat the foundation
-                        // on the MEDIAN grade (robust to a few stray high/low voxels), so the cottage
-                        // rests on the ground regardless of the requested y.
+                        // prepare_pad (#2): LEVEL the bumpy terrain under the footprint to a flat
+                        // build pad — cut the high side, fill the low side to the median grade — then
+                        // seat the foundation on it. Replaces bare median-seating, which left the
+                        // foundation perched over the low side and buried into the high side.
                         int W = std::max(program.footprintW, 1), D = std::max(program.footprintD, 1);
                         int oy = reqY;
                         if (chunkManager) {
                             std::vector<int> tops;
+                            std::vector<glm::ivec2> cells;
                             const int scanTop = reqY + 64;
                             for (int x = ox; x < ox + W; ++x)
-                                for (int z = oz; z < oz + D; ++z)
+                                for (int z = oz; z < oz + D; ++z) {
+                                    int top = -1;
                                     for (int y = scanTop; y >= 0; --y)
-                                        if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) { tops.push_back(y); break; }
+                                        if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) { top = y; break; }
+                                    if (top >= 0) { tops.push_back(top); cells.push_back(glm::ivec2(x, z)); }
+                                }
                             if (!tops.empty()) {
-                                std::sort(tops.begin(), tops.end());
-                                oy = tops[tops.size() / 2] + 1;   // foundation bottom rests on grade
+                                const int padLevel = Core::StructureGenerator::planPadLevel(tops);
+                                std::vector<glm::ivec3> cut;          // terrain above the pad -> remove
+                                Core::StructureResult fill;           // terrain below the pad -> add (Dirt)
+                                for (size_t i = 0; i < tops.size(); ++i) {
+                                    const glm::ivec2 cl = cells[i];
+                                    for (int y = padLevel + 1; y <= tops[i]; ++y)
+                                        cut.push_back(glm::ivec3(cl.x, y, cl.y));
+                                    for (int y = tops[i] + 1; y <= padLevel; ++y) {
+                                        Core::VoxelPlacement vp;
+                                        vp.position = glm::ivec3(cl.x, y, cl.y);
+                                        vp.material = "Dirt";
+                                        vp.level    = Core::VoxelLevel::Cube;
+                                        fill.voxels.push_back(vp);
+                                    }
+                                }
+                                if (!cut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, cut);
+                                if (!fill.voxels.empty()) Core::StructureGenerator::place(chunkManager, fill);
+                                if (!cut.empty() || !fill.voxels.empty()) chunkManager->buildAllChunkPhysics();
+                                oy = padLevel + 1;        // foundation bottom rests on the flat pad
+                                LOG_INFO_FMT("StructureV2", "prepare_pad: leveled footprint to y=" << padLevel
+                                             << " (cut " << cut.size() << ", fill " << fill.voxels.size() << ")");
                             }
                         }
                         structure = Core::StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));

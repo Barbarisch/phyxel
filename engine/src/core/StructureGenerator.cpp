@@ -1745,5 +1745,11 @@ int StructureGenerator::removeVoxels(ChunkManager* chunkManager, const std::vect
     return removed;
 }
 
+int StructureGenerator::planPadLevel(std::vector<int> cellTops) {
+    if (cellTops.empty()) return 0;
+    std::sort(cellTops.begin(), cellTops.end());
+    return cellTops[cellTops.size() / 2];   // median top: minimizes cut+fill, robust to outliers
+}
+
 } // namespace Core
 } // namespace Phyxel

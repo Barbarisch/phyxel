@@ -42,6 +42,16 @@ TEST(StructureGeneratorTest, FacingFromString) {
     EXPECT_EQ(StructureGenerator::facingFromString("unknown"), Facing::South); // default
 }
 
+// prepare_pad (#2): the pad level is the MEDIAN terrain top — minimizes total cut+fill
+// and ignores a few stray high/low voxels (so one peak/pit doesn't tilt the whole pad).
+TEST(StructureGeneratorTest, PlanPadLevelIsMedian) {
+    EXPECT_EQ(StructureGenerator::planPadLevel({}), 0);              // empty -> 0
+    EXPECT_EQ(StructureGenerator::planPadLevel({5}), 5);
+    EXPECT_EQ(StructureGenerator::planPadLevel({3, 5, 4}), 4);       // median of 3,4,5
+    EXPECT_EQ(StructureGenerator::planPadLevel({10, 10, 10, 10, 99}), 10); // stray peak ignored
+    EXPECT_EQ(StructureGenerator::planPadLevel({2, 10, 10, 10, 10}), 10);  // stray pit ignored
+}
+
 TEST(StructureGeneratorTest, FacingToString) {
     EXPECT_EQ(StructureGenerator::facingToString(Facing::North), "north");
     EXPECT_EQ(StructureGenerator::facingToString(Facing::East), "east");

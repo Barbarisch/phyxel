@@ -256,6 +256,12 @@ public:
     /// Remove voxels at the given positions (for door/window openings).
     static int removeVoxels(ChunkManager* chunkManager, const std::vector<glm::ivec3>& positions);
 
+    /// prepare_pad (#2) decision: choose a level build-pad height from the terrain
+    /// tops under a footprint. The MEDIAN top minimizes total cut + fill and is robust
+    /// to a few stray high/low voxels. Pure + unit-testable; the caller applies the
+    /// cut (remove above) + fill (add below) to the live world. Empty -> 0.
+    static int planPadLevel(std::vector<int> cellTops);
+
 private:
     /// Apply rotation + world offset to a StructureResult that was built in local coords.
     static void transformResult(StructureResult& result, const glm::ivec3& worldOrigin,
