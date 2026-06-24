@@ -186,15 +186,17 @@ TEST(StructureRealizerTest, StairsCutUpperFloorAndBuildFlight) {
 
     // crawl 1 + floor 3 -> story-0 walkable 12, +3-cube wall -> story-1 floor slab ~[39,42).
     const int slabY = 40;
-    // (1) the stairwell HOLE: at a low stair-rect cell (2,2) the upper slab is CUT -> air.
-    EXPECT_FALSE(r.canvas.occupiedMicro(2 * 9 + 4, slabY, 2 * 9 + 4))
-        << "the upper floor slab was not cut for the stairwell";
-    // ...while away from the stairwell the upper floor is intact -> solid.
+    const int bot0  = 12;   // story-0 walkable (the flight base)
+    // (1) the upper floor is intact AWAY from the stairwell well -> solid.
     EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 7 * 9 + 4))
         << "upper floor missing away from the stairwell";
-    // (2) a solid STEP climbs in the lower story within the stair rect (above the lower floor).
-    EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, 15, 2 * 9 + 4))
+    // (2) a solid switchback STEP climbs in the well (lane B) above the lower floor.
+    EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, bot0 + 3, 2 * 9 + 4))
         << "no stair step built in the stairwell";
+    // (3) HEADROOM: lane A above the lower half-flight is OPEN (not a solid shaft) — the
+    //     switchback's mid-landing turn leaves clearance to climb (the KI-4 fix).
+    EXPECT_FALSE(r.canvas.occupiedMicro(1 * 9 + 4, bot0 + 22, 2 * 9 + 4))
+        << "no headroom over the lower flight (solid shaft)";
 }
 
 // STRESS TEST: a 10-story tower with a stair on EVERY floor up to the next. The simple
@@ -228,18 +230,24 @@ TEST(StructureRealizerTest, TenStoryTowerStairsConnectEveryFloor) {
     auto r = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), timberCottageStyle());
     ASSERT_TRUE(r.ok) << r.error;
 
-    // story s walkable micro = 12 + 30*s (crawl1+floor3 => 12; each story adds floor3+wall27=30).
+    // story s walkable micro = 12 + 30*s. Switchback default: lane A = lower half-flight,
+    // lane B = upper half-flight, joined by a mid-landing whose 180 turn keeps consecutive
+    // floors from stacking into a solid headroom-less shaft (the KI-4 fix).
     for (int s = 1; s <= 9; ++s) {
         const int slabY = 11 + 30 * s;                 // inside story s's floor slab
-        EXPECT_FALSE(r.canvas.occupiedMicro(2 * 9 + 4, slabY, 2 * 9 + 4))
-            << "floor " << s << " was NOT holed for the stairwell";
         EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 8 * 9 + 4))
             << "floor " << s << " missing away from the stairwell";
     }
     for (int s = 0; s <= 8; ++s) {
         const int botMicro = 12 + 30 * s;
+        // a flight rises in the well (lane B) from floor s -> the floor above is reachable
         EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, botMicro + 3, 2 * 9 + 4))
             << "no flight rising from floor " << s;
+        // HEADROOM over the lower half-flight (lane A) is OPEN between every pair of floors —
+        // with the old straight stack this cell was solid (no way up). This is the stress
+        // proof at scale: all 9 stair transitions clear, not just the first.
+        EXPECT_FALSE(r.canvas.occupiedMicro(1 * 9 + 4, botMicro + 22, 2 * 9 + 4))
+            << "no headroom over the flight at floor " << s << " (solid shaft)";
     }
     glm::ivec3 lo, hi;
     ASSERT_TRUE(r.canvas.microBounds(lo, hi));

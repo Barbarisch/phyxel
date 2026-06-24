@@ -1,4 +1,5 @@
 #include "core/StructureRealizer.h"
+#include "core/StairPlanner.h"
 
 #include <algorithm>
 #include <climits>
@@ -238,26 +239,23 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 const int botMicro  = floorTopByStory[a];   // lower walkable surface
                 const int topMicro  = floorTopByStory[b];   // upper walkable surface
                 const int holeBase  = floorBaseByStory[b];  // bottom of the upper floor slab
+                const int riseMicro = topMicro - botMicro;
+
+                // Plan a CLIMBABLE stair. StairPlanner is the shared source of truth with
+                // BuildingProgramValidator, so what we build is exactly what the gate checks.
+                // maxStepMicro = the character's step-up (m_maxStepHeight 4/9 m) on the grid.
+                const int maxStepMicro = 4;
+                StairPlan plan = planStair(rc.w, rc.d, riseMicro,
+                                           stairFormFromString(sr.form), maxStepMicro);
 
                 // (1) cut the stairwell hole through the upper story's floor slab
-                for (int x = rc.x; x < rc.x1(); ++x)
-                    for (int z = rc.z; z < rc.z1(); ++z)
-                        c.fillMicroBox(x * 9, holeBase, z * 9, 9, topMicro - holeBase, 9, "");
+                c.fillMicroBox(rc.x * 9 + plan.holeX, holeBase, rc.z * 9 + plan.holeZ,
+                               plan.holeW, topMicro - holeBase, plan.holeD, "");
 
-                // (2) build a solid stepped flight along the rect's longer axis
-                const bool runZ   = rc.d >= rc.w;
-                const int  runLen = runZ ? rc.d : rc.w;
-                const int  rise   = topMicro - botMicro;
-                const int  step   = std::max(1, (rise + runLen - 1) / runLen);   // ceil
-                for (int i = 0; i < runLen; ++i) {
-                    int h = std::min(topMicro, botMicro + (i + 1) * step);
-                    if (runZ)
-                        for (int x = rc.x; x < rc.x1(); ++x)
-                            c.fillMicroBox(x * 9, botMicro, (rc.z + i) * 9, 9, h - botMicro, 9, matFloor);
-                    else
-                        for (int z = rc.z; z < rc.z1(); ++z)
-                            c.fillMicroBox((rc.x + i) * 9, botMicro, z * 9, 9, h - botMicro, 9, matFloor);
-                }
+                // (2) build the planned treads + landings (local micro → offset into the well)
+                for (const auto& s : plan.solids)
+                    c.fillMicroBox(rc.x * 9 + s.x, botMicro + s.y, rc.z * 9 + s.z,
+                                   s.w, s.h, s.d, matFloor);
             }
     }
 

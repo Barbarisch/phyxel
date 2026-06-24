@@ -1,4 +1,5 @@
 #include "core/BuildingProgramValidator.h"
+#include "core/StairPlanner.h"
 
 #include <algorithm>
 #include <cmath>
@@ -194,53 +195,50 @@ ValidationReport BuildingProgramValidator::validate(const BuildingProgram& progr
             r.addError("room_unreachable",
                        "room '" + rn + "' cannot be reached from the entrance");
 
-    // ---- stair WALKABILITY gate (physical-usability, not just topology) ----
+    // ---- stair WALKABILITY gate (physical-usability, via the shared StairPlanner) ----
     // Topological reachability (above) proves a stair *links* two stories; it does NOT
-    // prove a character can climb it. A stair must also be physically usable:
-    //   (1) riser <= the character's step-up — else each tread is an unclimbable ledge;
-    //   (2) consecutive flights must not stack into one another's headroom — identical
-    //       per-floor flights at the same well form a SOLID diagonal shaft (no landing,
-    //       no headroom), so floor N's flight blocks floor N-1's ascent (KI-4).
-    // GROUNDED: riser <= scale.maxStepRiser (engine character 4/9 m). A compliant straight
-    // flight needs ceil(rise / maxRiser) treads of run; when that won't fit the well, the
-    // stair must FOLD (switchback/L with a landing) — which also breaks the headroom stack.
+    // prove a character can climb it. Plan each stair with the SAME StairPlanner the
+    // realizer builds from (one source of truth — the gate measures what gets built), then:
+    //   (1) the flight must fit the well AND every riser <= the character's step-up;
+    //   (2) a STRAIGHT flight must not stack on the flight below it — its solid run fills
+    //       the lower flight's headroom (the KI-4 column). A switchback folds to fit and
+    //       interleaves lanes + a landing, so stacked switchbacks keep their headroom.
     {
-        const double floorThickness = 1.0 / 3.0;   // m — realizer floor slab (3 micro)
-        struct Flight { int a, b; Rect rect; };
+        const int floorThicknessMicro = 3;   // realizer floor slab (0.333 m)
+        const int maxStepMicro = std::max(1, (int)std::lround(scale.maxStepRiser * 9.0));
+        struct Flight { int a, b; Rect rect; StairForm form; };
         std::vector<Flight> flights;
         for (const auto& s : program.stories)
             for (const auto& st : s.stairs) {
                 int a = st.fromStory, b = st.toStory;
                 if (a > b) std::swap(a, b);
                 if (a < 0 || b >= (int)program.stories.size() || b != a + 1) continue;
-                flights.push_back({a, b, st.rect});
+                flights.push_back({a, b, st.rect, stairFormFromString(st.form)});
             }
         for (const auto& f : flights) {
-            const int runLen = std::max(f.rect.w, f.rect.d);      // treads = run cells
-            const double rise = floorThickness + program.stories[f.a].height;   // m, floor-to-floor
-            const int treadsNeeded = (int)std::ceil(rise / std::max(0.01, scale.maxStepRiser));
-            if (runLen < treadsNeeded) {
-                const double riser = rise / std::max(1, runLen);
+            const int riseMicro = floorThicknessMicro + program.stories[f.a].height * 9;
+            StairPlan plan = planStair(f.rect.w, f.rect.d, riseMicro, f.form, maxStepMicro);
+            if (!plan.ok)
                 r.addError("stair_riser_too_steep",
-                    "stair " + std::to_string(f.a) + "->" + std::to_string(f.b) + ": riser " +
-                    fmt(riser) + " m over " + std::to_string(runLen) + " treads exceeds the "
-                    "character step-up " + fmt(scale.maxStepRiser) + " m; needs >= " +
-                    std::to_string(treadsNeeded) + " treads of run (fold into a switchback/L "
-                    "with a landing)");
-            }
+                    "stair " + std::to_string(f.a) + "->" + std::to_string(f.b) + " (" +
+                    stairFormToString(f.form) + ", well " + std::to_string(f.rect.w) + "x" +
+                    std::to_string(f.rect.d) + "): " + (plan.error.empty()
+                        ? ("riser " + fmt(plan.maxRiserMicro / 9.0) + " m exceeds step-up " +
+                           fmt(scale.maxStepRiser) + " m")
+                        : plan.error) + " — enlarge the well or use a switchback");
         }
-        // Headroom: a flight whose well sits directly above the well below it (consecutive
-        // stories, overlapping rect) fills the lower flight's headroom — the unwalkable stack.
+        // Headroom: a STRAIGHT flight directly above another flight fills its headroom.
         for (size_t i = 0; i < flights.size(); ++i)
             for (size_t j = 0; j < flights.size(); ++j)
                 if (i != j && flights[i].b == flights[j].a &&
+                    flights[j].form == StairForm::Straight &&
                     overlap(flights[i].rect, flights[j].rect)) {
                     r.addError("stair_no_headroom",
-                        "stair " + std::to_string(flights[j].a) + "->" +
+                        "straight stair " + std::to_string(flights[j].a) + "->" +
                         std::to_string(flights[j].b) + " sits directly above stair " +
                         std::to_string(flights[i].a) + "->" + std::to_string(flights[i].b) +
-                        " (overlapping well, no landing) — the upper flight fills the lower "
-                        "flight's headroom; offset the wells or add a turn/landing");
+                        " — its solid flight fills the lower flight's headroom; use a switchback "
+                        "(folds + clears headroom) or offset the wells");
                     break;   // one report per blocked lower flight
                 }
     }

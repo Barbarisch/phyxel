@@ -68,11 +68,12 @@ ProgStair ProgStair::fromJson(const nlohmann::json& j) {
     s.toStory = jint(j, "to_story", 1);
     if (j.contains("rect")) s.rect = Rect::fromJson(j["rect"]);
     s.kind = jstr(j, "kind", "straight");
+    s.form = jstr(j, "form", "switchback");
     return s;
 }
 nlohmann::json ProgStair::toJson() const {
     return {{"from_story", fromStory}, {"to_story", toStory},
-            {"rect", rect.toJson()}, {"kind", kind}};
+            {"rect", rect.toJson()}, {"kind", kind}, {"form", form}};
 }
 
 ProgFixture ProgFixture::fromJson(const nlohmann::json& j) {

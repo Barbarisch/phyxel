@@ -62,7 +62,9 @@ struct ProgPortal {
 struct ProgStair {
     int         fromStory = 0, toStory = 1;
     Rect        rect;
-    std::string kind = "straight";   ///< straight | spiral
+    std::string kind = "straight";       ///< straight | spiral (legacy descriptor)
+    std::string form = "switchback";     ///< stair GEOMETRY form: switchback | straight
+                                         ///< (StairPlanner). Default folds to fit + clears headroom.
 
     static ProgStair fromJson(const nlohmann::json& j);
     nlohmann::json toJson() const;

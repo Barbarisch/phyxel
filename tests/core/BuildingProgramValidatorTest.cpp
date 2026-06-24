@@ -23,8 +23,9 @@ const char* kGoodCottage = R"({
     }]
 })";
 
-// Two stories stacked with IDENTICAL straight stair wells at the same rect — the KI-4
-// failure: 0.55 m risers (too steep) AND each flight fills the one below's headroom.
+// Three stories with STRAIGHT stair wells stacked at the same rect — even though each
+// straight flight is walkable per-flight, the upper one's solid run fills the lower
+// flight's headroom (the KI-4 column). Must trip stair_no_headroom.
 const char* kStackedStraightStairs = R"({
     "name": "tower", "style": "timber_cottage", "footprint": [7, 9],
     "substructure": "crawlspace",
@@ -32,17 +33,34 @@ const char* kStackedStraightStairs = R"({
         { "height": 3,
           "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
           "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
-          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [1,2,2,6], "kind": "straight" }] },
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [1,2,2,6], "form": "straight" }] },
         { "height": 3,
           "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }],
-          "stairs": [{ "from_story": 1, "to_story": 2, "rect": [1,2,2,6], "kind": "straight" }] },
+          "stairs": [{ "from_story": 1, "to_story": 2, "rect": [1,2,2,6], "form": "straight" }] },
         { "height": 3,
           "rooms": [{ "id": "r2", "rect": [0,0,7,9], "purpose": "living" }] }
     ]
 })";
 
-// A single straight flight with enough run (9 treads) for a compliant riser, and no
-// flight above it — passes the walkability gate.
+// The same stacked tower but with SWITCHBACK stairs (the default): folds to a compliant
+// riser and interleaves lanes + a landing, so stacked wells keep their headroom -> walkable.
+const char* kSwitchbackTower = R"({
+    "name": "tower", "style": "timber_cottage", "footprint": [7, 9],
+    "substructure": "crawlspace",
+    "stories": [
+        { "height": 3,
+          "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
+          "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [1,2,2,6], "form": "switchback" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }],
+          "stairs": [{ "from_story": 1, "to_story": 2, "rect": [1,2,2,6], "form": "switchback" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r2", "rect": [0,0,7,9], "purpose": "living" }] }
+    ]
+})";
+
+// A single straight flight with enough run for a compliant riser, no flight above — passes.
 const char* kWalkableStraightStair = R"({
     "name": "duplex", "style": "timber_cottage", "footprint": [7, 9],
     "substructure": "crawlspace",
@@ -50,7 +68,21 @@ const char* kWalkableStraightStair = R"({
         { "height": 3,
           "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
           "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
-          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [0,0,2,9], "kind": "straight" }] },
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [0,0,2,9], "form": "straight" }] },
+        { "height": 3,
+          "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }] }
+    ]
+})";
+
+// A well far too small to hold a walkable flight (1x1) — no run for compliant risers.
+const char* kShallowWellStair = R"({
+    "name": "tiny", "style": "timber_cottage", "footprint": [7, 9],
+    "substructure": "crawlspace",
+    "stories": [
+        { "height": 3,
+          "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
+          "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [3,3,1,1], "form": "straight" }] },
         { "height": 3,
           "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }] }
     ]
@@ -119,18 +151,30 @@ TEST(BuildingProgramValidatorTest, ExteriorPortalOffPerimeterFails) {
     EXPECT_TRUE(hasCode(r, "exterior_portal_off_perimeter"));
 }
 
-// KI-4: stairs must be physically walkable, not just topologically linked. Identical
-// straight wells stacked per floor are too steep AND fill each other's headroom.
-TEST(BuildingProgramValidatorTest, StackedStraightStairsAreNotWalkable) {
+// KI-4: stairs must be physically walkable, not just topologically linked. Stacked
+// STRAIGHT wells fill each other's headroom (solid column) — the killer the user found.
+TEST(BuildingProgramValidatorTest, StackedStraightStairsHaveNoHeadroom) {
     auto r = BuildingProgramValidator::validate(parse(kStackedStraightStairs));
-    EXPECT_TRUE(hasCode(r, "stair_riser_too_steep")) << r.summary();
     EXPECT_TRUE(hasCode(r, "stair_no_headroom")) << r.summary();
+}
+
+// The fix: the SAME stacked tower with switchback stairs is walkable — no gate failures.
+TEST(BuildingProgramValidatorTest, SwitchbackTowerIsWalkable) {
+    auto r = BuildingProgramValidator::validate(parse(kSwitchbackTower));
+    EXPECT_FALSE(hasCode(r, "stair_riser_too_steep")) << r.summary();
+    EXPECT_FALSE(hasCode(r, "stair_no_headroom")) << r.summary();
 }
 
 TEST(BuildingProgramValidatorTest, WalkableStraightStairPasses) {
     auto r = BuildingProgramValidator::validate(parse(kWalkableStraightStair));
     EXPECT_FALSE(hasCode(r, "stair_riser_too_steep")) << r.summary();
     EXPECT_FALSE(hasCode(r, "stair_no_headroom")) << r.summary();
+}
+
+// A well too small to hold a walkable flight must be flagged (can't make a compliant riser).
+TEST(BuildingProgramValidatorTest, ShallowWellStairNotWalkable) {
+    auto r = BuildingProgramValidator::validate(parse(kShallowWellStair));
+    EXPECT_TRUE(hasCode(r, "stair_riser_too_steep")) << r.summary();
 }
 
 namespace {
