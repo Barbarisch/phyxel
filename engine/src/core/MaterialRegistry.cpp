@@ -105,6 +105,7 @@ bool MaterialRegistry::loadFromJson(const std::string& path) {
         def.emissive  = matJson.value("emissive", false);
         def.alpha     = matJson.value("alpha", 1.0f);
         def.isMirror  = matJson.value("isMirror", false);
+        def.resolution = matJson.value("resolution", 512);
 
         if (def.name.empty()) {
             LOG_WARN("MaterialRegistry", "Skipping material with empty name");
@@ -169,14 +170,23 @@ bool MaterialRegistry::saveToJson(const std::string& path) const {
 // ---- Atlas Index Assignment ----
 
 void MaterialRegistry::assignAtlasIndices() {
-    // Materials are already in the order from JSON (which preserves the atlas layout).
-    // Each material gets 6 consecutive atlas slots: materialID * 6 + faceID.
+    // Mixed-resolution split: each material's 6 faces get consecutive LAYER indices within
+    // its resolution class's array. The class is encoded in bit 15 of the texture index
+    // (RES_CLASS_BIT); bits 0..14 are the within-class layer. Materials keep JSON order
+    // within each class, so the per-class array layout is stable.
+    uint16_t next[2] = {0, 0};  // [0] = next 512 layer, [1] = next 1024 layer
     for (int i = 0; i < static_cast<int>(materials_.size()); i++) {
         materials_[i].materialID = i;
+        const int cls = materials_[i].resClass();
+        const uint16_t classBit = (cls == 1) ? RES_CLASS_BIT : 0;
+        const uint16_t base = next[cls];
         for (int face = 0; face < 6; face++) {
-            materials_[i].atlasIndices[face] = static_cast<uint16_t>(i * 6 + face);
+            materials_[i].atlasIndices[face] = static_cast<uint16_t>(classBit | (base + face));
         }
+        next[cls] = static_cast<uint16_t>(next[cls] + 6);
     }
+    textureCount512_  = next[0];
+    textureCount1024_ = next[1];
 }
 
 void MaterialRegistry::rebuildLookupCache() {

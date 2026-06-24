@@ -104,6 +104,7 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<MatFace> matFaces;
     std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
     std::vector<int>     cellMat(N * N * N, -1);  // index into matFaces
+    std::vector<uint8_t> cellDamage(N * N * N, 0); // quantized 0-15 voxel damage (roughness driver)
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     for (size_t ci = 0; ci < cubes.size(); ++ci) {
@@ -113,6 +114,15 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
+        // Per-voxel accumulated damage (DamageSystem) -> 0..15 for shader roughness modulation.
+        // kDamageRef = energy at which a voxel reads as fully worn (prototype constant; a proper
+        // version would normalise by the material's break toughness).
+        {
+            constexpr float kDamageRef = 30.0f;
+            float f = cube->getAccumulatedDamage() / kDamageRef;
+            f = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+            cellDamage[cell] = static_cast<uint8_t>(f * 15.0f + 0.5f);
+        }
         const std::string& mname = cube->getMaterialName();
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
@@ -154,6 +164,7 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<uint8_t> hasFace(N * N);
     std::vector<int>     faceKey(N * N);
     std::vector<int>     faceMat(N * N);
+    std::vector<uint8_t> faceDmg(N * N);
     std::vector<uint8_t> used(N * N);
 
     // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
@@ -176,8 +187,12 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int m = cellMat[cell];
                     int mi = u * N + v;
                     hasFace[mi] = 1;
-                    faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) | matFaces[m].reserved;
+                    // Fold damage into the merge key so damaged voxels don't merge with pristine.
+                    uint16_t dmgBits = static_cast<uint16_t>(cellDamage[cell]) << 11;
+                    faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) |
+                                  (matFaces[m].reserved | dmgBits);
                     faceMat[mi] = m;
+                    faceDmg[mi] = cellDamage[cell];
                 }
             }
             // Greedy rectangle merge: width along v, then height along u (same key).
@@ -213,7 +228,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                     inst.packedData = Phyxel::InstanceDataUtils::packCubeFaceDataSized(
                         ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
-                    inst.reserved = mf.reserved;
+                    inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
                     faces.push_back(inst);
                 }
             }

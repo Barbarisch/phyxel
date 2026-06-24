@@ -20,8 +20,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
 } ubo;
 
-layout(set = 0, binding = 1) uniform sampler2D textureAtlas;  // texture atlas sampler
-layout(set = 0, binding = 2) uniform sampler2D shadowMap;     // shadow map sampler
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;             // shadow map sampler
+layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px
+layout(set = 0, binding = 6) uniform sampler2DArray textureNormal;    // class 0 normal+rough: 512px
+layout(set = 0, binding = 7) uniform sampler2DArray textureNormalHi;  // class 1 normal+rough: 1024px
 
 // Point light (32 bytes, std430)
 struct PointLightGPU {
@@ -47,22 +50,63 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
 } lights;
 
 layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
-    uint textureCount;
-    uint fallbackIndex;
-    uint _pad0;
+    uint count512;        // layers in the 512px (class 0) array
+    uint fallbackIndex;   // placeholder layer (class 0)
+    uint count1024;       // layers in the 1024px (class 1) array
     uint _pad1;
-    vec4 textureUVs[];
+    vec4 textureUVs[];    // retained for layout compat; no longer sampled
 } atlasUVs;
 
 layout(location = 0) out vec4 outColor;   // output color
 
-// Get this texture's atlas tile bounds (xy = min UV, zw = max UV).
-vec4 getAtlasBounds(uint texIndex) {
-    uint safeIdx = texIndex;
-    if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount) {
-        safeIdx = atlasUVs.fallbackIndex;
-    }
-    return atlasUVs.textureUVs[safeIdx];
+// Sample albedo + normal/roughness for a per-face index. The index encodes the resolution
+// class in bit 15 (0 = 512px, 1 = 1024px) and the within-class layer in bits 0..14. Out of
+// range / sentinel (0xFFFF) indices fall back to the placeholder layer in the 512 class.
+// nrm = raw 0..1 tangent-space normal (RGB), rough = roughness (A).
+void sampleVoxelPBR(uint texIndex, vec2 uv, out vec4 albedo, out vec3 nrm, out float rough) {
+    uint cls   = (texIndex >> 15) & 1u;
+    uint layer = texIndex & 0x7FFFu;
+    uint count = (cls == 1u) ? atlasUVs.count1024 : atlasUVs.count512;
+    bool fb = (texIndex == 0xFFFFu || layer >= count);
+    float L = fb ? float(atlasUVs.fallbackIndex) : float(layer);
+    uint c = fb ? 0u : cls;
+    vec4 nr;
+    if (c == 1u) { albedo = texture(textureArrayHi, vec3(uv, L)); nr = texture(textureNormalHi, vec3(uv, L)); }
+    else         { albedo = texture(textureArray,   vec3(uv, L)); nr = texture(textureNormal,   vec3(uv, L)); }
+    nrm = nr.rgb;
+    rough = nr.a;
+}
+
+// Cook-Torrance GGX BRDF (dielectric, F0 = 0.04). Returns outgoing radiance factor for one
+// light of given color/intensity. N,V,L unit vectors; albedo linear.
+vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, vec3 radiance) {
+    float ndl = max(dot(N, L), 0.0);
+    if (ndl <= 0.0) return vec3(0.0);
+    vec3 H = normalize(V + L);
+    float ndh = max(dot(N, H), 0.0);
+    float ndv = max(dot(N, V), 1e-4);
+    float vdh = max(dot(V, H), 0.0);
+
+    float a = max(rough * rough, 1e-3);
+    float a2 = a * a;
+    // GGX normal distribution
+    float d = ndh * ndh * (a2 - 1.0) + 1.0;
+    float D = a2 / (3.14159265 * d * d);
+    // Smith-GGX geometry (Schlick-Beckmann)
+    float k = (a + 1.0); k = (k * k) / 8.0;
+    float gv = ndv / (ndv * (1.0 - k) + k);
+    float gl = ndl / (ndl * (1.0 - k) + k);
+    float G = gv * gl;
+    // Fresnel (Schlick), dielectric F0
+    vec3 F0 = vec3(0.04);
+    vec3 F = F0 + (1.0 - F0) * pow(1.0 - vdh, 5.0);
+
+    vec3 spec = (D * G) * F / (4.0 * ndv * ndl + 1e-4);
+    vec3 kd = (vec3(1.0) - F);   // energy conservation (no metalness yet)
+    // NOTE: diffuse 1/pi omitted on purpose — light intensities are authored for the prior
+    // (non-PBR) model, so this keeps brightness parity while adding GGX specular + normal maps.
+    vec3 diffuse = kd * albedo;
+    return (diffuse + spec) * radiance * ndl;
 }
 
 // Calculate attenuation for a light at distance d with given radius
@@ -96,21 +140,17 @@ const vec2 poissonDisk[16] = vec2[](
 );
 
 void main() {
-    // Atlas tiling: texCoord runs 0..sizeU, 0..sizeV for greedy-merged faces (1x1 for
-    // unit faces). fract() wraps it into this texture's atlas tile so the texture repeats;
-    // a half-texel inset keeps bilinear filtering from bleeding into neighbouring atlas
-    // tiles at the wrap seams. textureGrad uses the continuous (un-wrapped) derivatives so
-    // mip selection has no seam at tile boundaries.
-    vec4 atlasBounds = getAtlasBounds(textureIndex);
-    vec2 atlasSpan = atlasBounds.zw - atlasBounds.xy;
-    vec2 atlasTexel = 0.5 / vec2(textureSize(textureAtlas, 0));
-    vec2 atlasUV = clamp(atlasBounds.xy + atlasSpan * fract(texCoord),
-                         atlasBounds.xy + atlasTexel, atlasBounds.zw - atlasTexel);
+    // Sample albedo + normal/roughness for this face (handles the mixed-res class split).
+    vec4 textureColor;
+    vec3 nrmRaw;
+    float rough;
+    sampleVoxelPBR(textureIndex, texCoord, textureColor, nrmRaw, rough);
 
-    // Sample from texture atlas (gradient from continuous UV to avoid mip seams)
-    vec4 textureColor = textureGrad(textureAtlas, atlasUV,
-                                    dFdx(texCoord) * atlasSpan,
-                                    dFdy(texCoord) * atlasSpan);
+    // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
+    // surfaces read as rougher (scuffed/worn) and slightly darker/dirtier.
+    float dmg = float((flags >> 11u) & 0xFu) / 15.0;
+    rough = mix(rough, 1.0, dmg);
+    textureColor.rgb *= mix(1.0, 0.55, dmg);
 
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;
@@ -118,103 +158,79 @@ void main() {
     // Discard mirror fragments — handled in the mirror pass
     if ((flags & (1u << 10u)) != 0u) discard;
 
-    // NOTE: transparent voxels (flags & 2u) render here in the opaque pass (same as
-    // kinematic/dynamic glass). OIT is not used until the bloom pipeline is also wired up.
-
-    // Check for emissive flag (bit 0)
     bool isEmissive = (flags & 1u) != 0u;
 
-    // Normal and Light Direction
-    vec3 normal = normalize(inNormal);
-    vec3 lightDir = normalize(-ubo.sunDirection);
-    vec3 viewDir = normalize(ubo.cameraPosition - inWorldPos);
+    // Geometric normal + per-face tangent basis. Voxel faces are axis-aligned, so a stable
+    // tangent is derived from the face normal; this gives correct surface relief from the
+    // tangent-space normal map even if fine feature orientation is approximate per face.
+    vec3 Ng = normalize(inNormal);
+    vec3 up = abs(Ng.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, Ng));
+    vec3 B = cross(Ng, T);
+    vec3 nTS = normalize(nrmRaw * 2.0 - 1.0);
+    vec3 N = normalize(T * nTS.x + B * nTS.y + Ng * nTS.z);
 
-    // Diffuse lighting (sun)
-    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 V = normalize(ubo.cameraPosition - inWorldPos);
+    vec3 albedo = textureColor.rgb;
 
-    // Blinn-Phong specular (sun)
-    float sunSpec = 0.0;
-    if (diff > 0.0) {
-        vec3 halfVec = normalize(lightDir + viewDir);
-        sunSpec = pow(max(dot(normal, halfVec), 0.0), 32.0) * 0.3;
-    }
-
-    // Shadow calculation — 16-sample Poisson disk PCF
+    // Shadow — 16-sample Poisson disk PCF (uses the geometric normal's shadow coord).
     float shadowFactor = 1.0;
     if (!isEmissive && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
         float shadowSum = 0.0;
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
         for (int i = 0; i < 16; i++) {
             float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
-            if (shadowCoord.z - 0.005 > pcfDepth) {
-                shadowSum += 1.0;
-            }
+            if (shadowCoord.z - 0.005 > pcfDepth) shadowSum += 1.0;
         }
         shadowFactor = 1.0 - (shadowSum / 16.0);
     }
 
-    // Apply shadow (or boost if emissive)
     if (isEmissive) {
-        outColor = vec4(textureColor.rgb * ubo.emissiveMultiplier, textureColor.a); // Boost brightness for bloom
-    } else {
-        // Combine Ambient + (Diffuse + Specular) * Shadow
-        vec3 ambient = vec3(ubo.ambientLight);
-        vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor) * shadowFactor;
-        
-        vec3 finalLight = ambient + sunContrib;
-
-        // Accumulate point light contributions
-        for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
-            vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
-            float radius = lights.pointLights[i].positionAndRadius.w;
-            vec3 lightColor = lights.pointLights[i].colorAndIntensity.xyz;
-            float intensity = lights.pointLights[i].colorAndIntensity.w;
-
-            vec3 toLight = lightPos - inWorldPos;
-            float dist = length(toLight);
-            if (dist < radius) {
-                vec3 ldir = toLight / dist;
-                float ndotl = max(dot(normal, ldir), 0.0);
-                float atten = calcAttenuation(dist, radius);
-                // Point light specular
-                float pSpec = 0.0;
-                if (ndotl > 0.0) {
-                    vec3 h = normalize(ldir + viewDir);
-                    pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
-                }
-                finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
-            }
-        }
-
-        // Accumulate spot light contributions
-        for (uint i = 0u; i < lights.numSpotLights && i < 16u; i++) {
-            vec3 lightPos = lights.spotLights[i].positionAndRadius.xyz;
-            float radius = lights.spotLights[i].positionAndRadius.w;
-            vec3 spotDir = normalize(lights.spotLights[i].directionAndInnerCone.xyz);
-            float innerCone = lights.spotLights[i].directionAndInnerCone.w;
-            vec3 lightColor = lights.spotLights[i].colorAndIntensity.xyz;
-            float intensity = lights.spotLights[i].colorAndIntensity.w;
-            float outerCone = lights.spotLights[i].outerConeAndPadding.x;
-
-            vec3 toLight = lightPos - inWorldPos;
-            float dist = length(toLight);
-            if (dist < radius) {
-                vec3 ldir = toLight / dist;
-                float ndotl = max(dot(normal, ldir), 0.0);
-                float atten = calcAttenuation(dist, radius);
-                // Spotlight cone falloff
-                float theta = dot(-ldir, spotDir);
-                float spotFactor = smoothstep(outerCone, innerCone, theta);
-                // Spot light specular
-                float sSpec = 0.0;
-                if (ndotl > 0.0) {
-                    vec3 h = normalize(ldir + viewDir);
-                    sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
-                }
-                finalLight += lightColor * intensity * (ndotl + sSpec) * atten * spotFactor;
-            }
-        }
-        
-        outColor = vec4(textureColor.rgb * finalLight, textureColor.a);
+        outColor = vec4(albedo * ubo.emissiveMultiplier, textureColor.a);
+        return;
     }
+
+    // Ambient term (flat, modulated by albedo).
+    vec3 color = vec3(ubo.ambientLight) * albedo;
+
+    // Sun (directional) via Cook-Torrance, attenuated by shadow.
+    vec3 sunL = normalize(-ubo.sunDirection);
+    color += pbrBRDF(N, V, sunL, albedo, rough, ubo.sunColor) * shadowFactor;
+
+    // Point lights
+    for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
+        vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
+        float radius = lights.pointLights[i].positionAndRadius.w;
+        vec3 lightColor = lights.pointLights[i].colorAndIntensity.xyz;
+        float intensity = lights.pointLights[i].colorAndIntensity.w;
+        vec3 toLight = lightPos - inWorldPos;
+        float dist = length(toLight);
+        if (dist < radius) {
+            vec3 ldir = toLight / dist;
+            float atten = calcAttenuation(dist, radius);
+            color += pbrBRDF(N, V, ldir, albedo, rough, lightColor * intensity * atten);
+        }
+    }
+
+    // Spot lights
+    for (uint i = 0u; i < lights.numSpotLights && i < 16u; i++) {
+        vec3 lightPos = lights.spotLights[i].positionAndRadius.xyz;
+        float radius = lights.spotLights[i].positionAndRadius.w;
+        vec3 spotDir = normalize(lights.spotLights[i].directionAndInnerCone.xyz);
+        float innerCone = lights.spotLights[i].directionAndInnerCone.w;
+        vec3 lightColor = lights.spotLights[i].colorAndIntensity.xyz;
+        float intensity = lights.spotLights[i].colorAndIntensity.w;
+        float outerCone = lights.spotLights[i].outerConeAndPadding.x;
+        vec3 toLight = lightPos - inWorldPos;
+        float dist = length(toLight);
+        if (dist < radius) {
+            vec3 ldir = toLight / dist;
+            float atten = calcAttenuation(dist, radius);
+            float theta = dot(-ldir, spotDir);
+            float spotFactor = smoothstep(outerCone, innerCone, theta);
+            color += pbrBRDF(N, V, ldir, albedo, rough, lightColor * intensity * atten * spotFactor);
+        }
+    }
+
+    outColor = vec4(color, textureColor.a);
 }

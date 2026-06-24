@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstring>
 #include <array>
+#include <cmath>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <imgui_impl_vulkan.h>
@@ -424,10 +425,22 @@ bool VulkanDevice::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    // Query supported features so we only enable what the device actually has.
+    VkPhysicalDeviceFeatures supportedFeatures{};
+    vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.fillModeNonSolid = VK_TRUE;  // Required for wireframe rendering (VK_POLYGON_MODE_LINE)
     deviceFeatures.wideLines = VK_TRUE;          // Required for line width > 1.0
     deviceFeatures.independentBlend = VK_TRUE;   // Required for OIT: accum and reveal attachments use different blend states
+    // BC texture compression (BC7 voxel texture array). Most desktop GPUs support it; if not,
+    // the texture path falls back to uncompressed RGBA.
+    if (supportedFeatures.textureCompressionBC) {
+        deviceFeatures.textureCompressionBC = VK_TRUE;
+        bc7Supported_ = true;
+    } else {
+        LOG_WARN("Vulkan", "Device lacks textureCompressionBC; voxel textures will stay uncompressed RGBA");
+    }
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1196,34 +1209,39 @@ bool VulkanDevice::createAtlasUVBuffers() {
     return true;
 }
 
-void VulkanDevice::updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex) {
-    // SSBO layout: [textureCount (uint32), fallbackIndex (uint32), pad0, pad1, vec4[] uvs]
+void VulkanDevice::updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex,
+                                       uint32_t count512, uint32_t count1024) {
+    // SSBO header carries per-class layer counts + fallback for the mixed-res split:
+    //   count512 = layers in the 512 array, count1024 = layers in the 1024 array.
+    // (textureUVs[] is retained for layout compatibility but is no longer sampled.)
     struct AtlasUVHeader {
-        uint32_t textureCount;
+        uint32_t count512;
         uint32_t fallbackIndex;
-        uint32_t _pad0;
+        uint32_t count1024;
         uint32_t _pad1;
     };
 
-    size_t dataSize = sizeof(AtlasUVHeader) + uvs.size() * sizeof(glm::vec4);
+    size_t dataSize = sizeof(AtlasUVHeader) + std::max<size_t>(1, uvs.size()) * sizeof(glm::vec4);
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         void* mapped;
         vkMapMemory(device, atlasUVBuffersMemory[i], 0, dataSize, 0, &mapped);
 
         AtlasUVHeader header;
-        header.textureCount = static_cast<uint32_t>(uvs.size());
+        header.count512 = count512;
         header.fallbackIndex = fallbackIndex;
-        header._pad0 = 0;
+        header.count1024 = count1024;
         header._pad1 = 0;
 
         memcpy(mapped, &header, sizeof(header));
-        memcpy(static_cast<char*>(mapped) + sizeof(header), uvs.data(), uvs.size() * sizeof(glm::vec4));
+        if (!uvs.empty())
+            memcpy(static_cast<char*>(mapped) + sizeof(header), uvs.data(), uvs.size() * sizeof(glm::vec4));
 
         vkUnmapMemory(device, atlasUVBuffersMemory[i]);
     }
 
-    LOG_INFO("Vulkan", "Updated atlas UV SSBO ({} textures, fallback={})", uvs.size(), fallbackIndex);
+    LOG_INFO("Vulkan", "Updated atlas SSBO (count512={}, count1024={}, fallback={})",
+             count512, count1024, fallbackIndex);
 }
 
 void VulkanDevice::cleanupAtlasUVBuffers() {
@@ -1280,7 +1298,30 @@ bool VulkanDevice::createDescriptorSetLayout() {
     atlasUVBinding.pImmutableSamplers = nullptr;
     atlasUVBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 5> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding};
+    // Hi-res (1024) texture array sampler binding (binding 5) — mixed-res split
+    VkDescriptorSetLayoutBinding samplerHiLayoutBinding{};
+    samplerHiLayoutBinding.binding = 5;
+    samplerHiLayoutBinding.descriptorCount = 1;
+    samplerHiLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerHiLayoutBinding.pImmutableSamplers = nullptr;
+    samplerHiLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // Normal+roughness array samplers: binding 6 (512), binding 7 (1024) — PBR
+    VkDescriptorSetLayoutBinding normal512Binding{};
+    normal512Binding.binding = 6;
+    normal512Binding.descriptorCount = 1;
+    normal512Binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normal512Binding.pImmutableSamplers = nullptr;
+    normal512Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding normal1024Binding{};
+    normal1024Binding.binding = 7;
+    normal1024Binding.descriptorCount = 1;
+    normal1024Binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    normal1024Binding.pImmutableSamplers = nullptr;
+    normal1024Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 8> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1299,7 +1340,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Texture Atlas + Shadow Map
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 5; // albedo 512/1024 + normal 512/1024 + Shadow
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Light SSBO + Atlas UV SSBO
 
@@ -2075,11 +2116,386 @@ bool VulkanDevice::uploadTextureAtlasPixels(const uint8_t* pixels, int width, in
     return true;
 }
 
+bool VulkanDevice::uploadTextureArray(int target, const uint8_t* pixels, int texSize, int layerCount) {
+    if (!pixels || texSize <= 0 || layerCount <= 0) return false;
+
+    // target: 0=albedo512(binding1) 1=albedo1024(binding5) 2=normal512(binding6) 3=normal1024(binding7)
+    VkImage* imgP; VkDeviceMemory* memP; VkImageView* viewP;
+    switch (target) {
+        case 1:  imgP=&textureArrayHiImage;    memP=&textureArrayHiImageMemory;    viewP=&textureArrayHiImageView;    break;
+        case 2:  imgP=&textureNormal512Image;  memP=&textureNormal512ImageMemory;  viewP=&textureNormal512ImageView;  break;
+        case 3:  imgP=&textureNormal1024Image; memP=&textureNormal1024ImageMemory; viewP=&textureNormal1024ImageView; break;
+        default: imgP=&textureAtlasImage;      memP=&textureAtlasImageMemory;      viewP=&textureAtlasImageView;      break;
+    }
+    VkImage& img = *imgP; VkDeviceMemory& mem = *memP; VkImageView& view = *viewP;
+
+    // Normal+roughness maps are linear data; albedo is sRGB.
+    const VkFormat format = (target >= 2) ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_SRGB;
+
+    // Decide mip count — only enable mip generation if the format supports linear blit.
+    VkFormatProperties fmtProps{};
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &fmtProps);
+    const bool canMip =
+        (fmtProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT) &&
+        (fmtProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) &&
+        (fmtProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+    uint32_t mipLevels = 1;
+    if (canMip) {
+        mipLevels = static_cast<uint32_t>(std::floor(std::log2(texSize))) + 1u;
+    } else {
+        LOG_WARN("Vulkan", "Texture array format lacks linear-blit support; skipping mipmaps");
+    }
+
+    vkDeviceWaitIdle(device);
+
+    // Destroy old image resources
+    if (view != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, view, nullptr);
+        view = VK_NULL_HANDLE;
+    }
+    if (img != VK_NULL_HANDLE) {
+        vkDestroyImage(device, img, nullptr);
+        img = VK_NULL_HANDLE;
+    }
+    if (mem != VK_NULL_HANDLE) {
+        vkFreeMemory(device, mem, nullptr);
+        mem = VK_NULL_HANDLE;
+    }
+
+    const VkDeviceSize imageSize =
+        static_cast<VkDeviceSize>(texSize) * texSize * 4 * layerCount;
+
+    // Staging buffer holds all layers (mip 0) contiguously, layer-major.
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingBuffer, stagingBufferMemory);
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create the 2D array image with a full mip chain.
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent = { static_cast<uint32_t>(texSize), static_cast<uint32_t>(texSize), 1 };
+    imageInfo.mipLevels = mipLevels;
+    imageInfo.arrayLayers = static_cast<uint32_t>(layerCount);
+    imageInfo.format = format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                      VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(device, &imageInfo, nullptr, &img) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create texture array image");
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(device, img, &memReq);
+    VkMemoryAllocateInfo memAlloc{};
+    memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memAlloc.allocationSize = memReq.size;
+    memAlloc.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(device, &memAlloc, nullptr, &mem) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to allocate texture array memory");
+        vkDestroyImage(device, img, nullptr); img = VK_NULL_HANDLE;
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+    vkBindImageMemory(device, img, mem, 0);
+
+    // One-shot command buffer
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    const uint32_t nLayers = static_cast<uint32_t>(layerCount);
+
+    // Transition ALL mips + layers UNDEFINED -> TRANSFER_DST
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = img;
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, nLayers };
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // Copy staging -> mip 0 (all layers in one copy; buffer is layer-major)
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, nLayers };
+    region.imageExtent = { static_cast<uint32_t>(texSize), static_cast<uint32_t>(texSize), 1 };
+    vkCmdCopyBufferToImage(cmd, stagingBuffer, img,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    // Generate mip chain by successive linear blits (across all layers each level).
+    int32_t mipW = texSize, mipH = texSize;
+    for (uint32_t i = 1; i < mipLevels; i++) {
+        // level i-1: TRANSFER_DST -> TRANSFER_SRC
+        barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, nLayers };
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { mipW, mipH, 1 };
+        blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 0, nLayers };
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { mipW > 1 ? mipW / 2 : 1, mipH > 1 ? mipH / 2 : 1, 1 };
+        blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, nLayers };
+        vkCmdBlitImage(cmd,
+            img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &blit, VK_FILTER_LINEAR);
+
+        // level i-1: TRANSFER_SRC -> SHADER_READ
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        if (mipW > 1) mipW /= 2;
+        if (mipH > 1) mipH /= 2;
+    }
+
+    // Last mip level: TRANSFER_DST -> SHADER_READ
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, mipLevels - 1, 1, 0, nLayers };
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+    // Create a 2D_ARRAY view spanning all mips + layers.
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = img;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    viewInfo.format = format;
+    viewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, nLayers };
+    if (vkCreateImageView(device, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create texture array image view");
+        return false;
+    }
+
+    // Refresh descriptors if the sampler already exists (hot-reload path). At first-time
+    // startup the sampler is created afterwards and descriptors are written by the caller.
+    if (textureAtlasSampler != VK_NULL_HANDLE) {
+        updateDescriptorSetsWithTexture();
+    }
+
+    LOG_INFO("Vulkan", "Texture array uploaded (class {}, {} layers @ {}x{}, {} mips)",
+             target, layerCount, texSize, texSize, mipLevels);
+    return true;
+}
+
+bool VulkanDevice::uploadTextureArrayBC7(int target, const uint8_t* data, size_t dataSize,
+                                         const std::vector<size_t>& levelByteOffsets,
+                                         int baseSize, int layerCount, int mipLevels) {
+    if (!data || dataSize == 0 || baseSize <= 0 || layerCount <= 0 || mipLevels <= 0) return false;
+    if (static_cast<int>(levelByteOffsets.size()) != mipLevels) return false;
+
+    // target: 0=albedo512(binding1) 1=albedo1024(binding5) 2=normal512(binding6) 3=normal1024(binding7)
+    VkImage* imgP; VkDeviceMemory* memP; VkImageView* viewP;
+    switch (target) {
+        case 1:  imgP=&textureArrayHiImage;    memP=&textureArrayHiImageMemory;    viewP=&textureArrayHiImageView;    break;
+        case 2:  imgP=&textureNormal512Image;  memP=&textureNormal512ImageMemory;  viewP=&textureNormal512ImageView;  break;
+        case 3:  imgP=&textureNormal1024Image; memP=&textureNormal1024ImageMemory; viewP=&textureNormal1024ImageView; break;
+        default: imgP=&textureAtlasImage;      memP=&textureAtlasImageMemory;      viewP=&textureAtlasImageView;      break;
+    }
+    VkImage& img = *imgP; VkDeviceMemory& mem = *memP; VkImageView& view = *viewP;
+
+    // Normal+roughness maps are linear data; albedo is sRGB.
+    const VkFormat format = (target >= 2) ? VK_FORMAT_BC7_UNORM_BLOCK : VK_FORMAT_BC7_SRGB_BLOCK;
+    const uint32_t nLayers = static_cast<uint32_t>(layerCount);
+    const uint32_t nMips = static_cast<uint32_t>(mipLevels);
+
+    vkDeviceWaitIdle(device);
+
+    if (view != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, view, nullptr); view = VK_NULL_HANDLE;
+    }
+    if (img != VK_NULL_HANDLE) {
+        vkDestroyImage(device, img, nullptr); img = VK_NULL_HANDLE;
+    }
+    if (mem != VK_NULL_HANDLE) {
+        vkFreeMemory(device, mem, nullptr); mem = VK_NULL_HANDLE;
+    }
+
+    // Staging buffer with the entire compressed blob.
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                stagingBuffer, stagingBufferMemory);
+    void* mapped;
+    vkMapMemory(device, stagingBufferMemory, 0, dataSize, 0, &mapped);
+    memcpy(mapped, data, dataSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create the BC7 2D array image (mips precomputed — no blit).
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent = { static_cast<uint32_t>(baseSize), static_cast<uint32_t>(baseSize), 1 };
+    imageInfo.mipLevels = nMips;
+    imageInfo.arrayLayers = nLayers;
+    imageInfo.format = format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(device, &imageInfo, nullptr, &img) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create BC7 texture array image");
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(device, img, &memReq);
+    VkMemoryAllocateInfo memAlloc{};
+    memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memAlloc.allocationSize = memReq.size;
+    memAlloc.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(device, &memAlloc, nullptr, &mem) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to allocate BC7 texture array memory");
+        vkDestroyImage(device, img, nullptr); img = VK_NULL_HANDLE;
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        return false;
+    }
+    vkBindImageMemory(device, img, mem, 0);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = img;
+    barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, nMips, 0, nLayers };
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // One copy region per mip level; all layers contiguous within a level.
+    std::vector<VkBufferImageCopy> regions(nMips);
+    for (uint32_t i = 0; i < nMips; i++) {
+        uint32_t dim = std::max(1u, static_cast<uint32_t>(baseSize) >> i);
+        VkBufferImageCopy& r = regions[i];
+        r = {};
+        r.bufferOffset = levelByteOffsets[i];
+        r.bufferRowLength = 0;    // tightly packed
+        r.bufferImageHeight = 0;
+        r.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, nLayers };
+        r.imageExtent = { dim, dim, 1 };
+    }
+    vkCmdCopyBufferToImage(cmd, stagingBuffer, img,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          static_cast<uint32_t>(regions.size()), regions.data());
+
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = img;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    viewInfo.format = format;
+    viewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, nMips, 0, nLayers };
+    if (vkCreateImageView(device, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+        LOG_ERROR("Vulkan", "Failed to create BC7 texture array image view");
+        return false;
+    }
+
+    if (textureAtlasSampler != VK_NULL_HANDLE) {
+        updateDescriptorSetsWithTexture();
+    }
+
+    LOG_INFO("Vulkan", "BC7 texture array uploaded (class {}, {} layers @ {}x{}, {} mips, {} MB)",
+             target, layerCount, baseSize, baseSize, mipLevels,
+             static_cast<int>(dataSize / (1024 * 1024)));
+    return true;
+}
+
 bool VulkanDevice::createTextureAtlasSampler() {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_NEAREST;  // Pixel art style
-    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    // Texture-array path: trilinear filtering + full mip chain (anisotropy not enabled as
+    // a device feature, so left off). REPEAT wrap handles greedy-merged faces whose UVs
+    // run 0..sizeU; each array layer is a full tile so there is no atlas bleed to clamp.
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -2089,10 +2505,10 @@ bool VulkanDevice::createTextureAtlasSampler() {
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
+    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
 
     if (vkCreateSampler(device, &samplerInfo, nullptr, &textureAtlasSampler) != VK_SUCCESS) {
         LOG_ERROR("Vulkan", "Failed to create texture sampler!");
@@ -2135,7 +2551,26 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         atlasUVBufferInfo.offset = 0;
         atlasUVBufferInfo.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
+        // Hi-res (1024) texture array descriptor (binding 5). Falls back to the 512 view if the
+        // 1024 class is empty so the binding is always valid.
+        VkDescriptorImageInfo imageHiInfo{};
+        imageHiInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageHiInfo.imageView = textureArrayHiImageView ? textureArrayHiImageView : textureAtlasImageView;
+        imageHiInfo.sampler = textureAtlasSampler;
+
+        // Normal+roughness descriptors (bindings 6/7), each falling back to its albedo view.
+        VkDescriptorImageInfo normal512Info{};
+        normal512Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        normal512Info.imageView = textureNormal512ImageView ? textureNormal512ImageView : textureAtlasImageView;
+        normal512Info.sampler = textureAtlasSampler;
+
+        VkDescriptorImageInfo normal1024Info{};
+        normal1024Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        normal1024Info.imageView = textureNormal1024ImageView ? textureNormal1024ImageView :
+                                   (textureArrayHiImageView ? textureArrayHiImageView : textureAtlasImageView);
+        normal1024Info.sampler = textureAtlasSampler;
+
+        std::array<VkWriteDescriptorSet, 8> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2182,6 +2617,32 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &atlasUVBufferInfo;
 
+        // Hi-res texture array write (binding 5)
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = descriptorSets[i];
+        descriptorWrites[5].dstBinding = 5;
+        descriptorWrites[5].dstArrayElement = 0;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pImageInfo = &imageHiInfo;
+
+        // Normal+roughness writes (bindings 6/7)
+        descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[6].dstSet = descriptorSets[i];
+        descriptorWrites[6].dstBinding = 6;
+        descriptorWrites[6].dstArrayElement = 0;
+        descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[6].descriptorCount = 1;
+        descriptorWrites[6].pImageInfo = &normal512Info;
+
+        descriptorWrites[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[7].dstSet = descriptorSets[i];
+        descriptorWrites[7].dstBinding = 7;
+        descriptorWrites[7].dstArrayElement = 0;
+        descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[7].descriptorCount = 1;
+        descriptorWrites[7].pImageInfo = &normal1024Info;
+
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
     
@@ -2205,6 +2666,31 @@ void VulkanDevice::cleanupTextureAtlas() {
         vkFreeMemory(device, textureAtlasImageMemory, nullptr);
         textureAtlasImageMemory = VK_NULL_HANDLE;
     }
+    // Hi-res (1024) class resources
+    if (textureArrayHiImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, textureArrayHiImageView, nullptr);
+        textureArrayHiImageView = VK_NULL_HANDLE;
+    }
+    if (textureArrayHiImage != VK_NULL_HANDLE) {
+        vkDestroyImage(device, textureArrayHiImage, nullptr);
+        textureArrayHiImage = VK_NULL_HANDLE;
+    }
+    if (textureArrayHiImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, textureArrayHiImageMemory, nullptr);
+        textureArrayHiImageMemory = VK_NULL_HANDLE;
+    }
+    // Normal+roughness resources
+    VkImageView nrViews[2] = { textureNormal512ImageView, textureNormal1024ImageView };
+    VkImage nrImages[2] = { textureNormal512Image, textureNormal1024Image };
+    VkDeviceMemory nrMems[2] = { textureNormal512ImageMemory, textureNormal1024ImageMemory };
+    for (int k = 0; k < 2; k++) {
+        if (nrViews[k] != VK_NULL_HANDLE) vkDestroyImageView(device, nrViews[k], nullptr);
+        if (nrImages[k] != VK_NULL_HANDLE) vkDestroyImage(device, nrImages[k], nullptr);
+        if (nrMems[k] != VK_NULL_HANDLE) vkFreeMemory(device, nrMems[k], nullptr);
+    }
+    textureNormal512ImageView = textureNormal1024ImageView = VK_NULL_HANDLE;
+    textureNormal512Image = textureNormal1024Image = VK_NULL_HANDLE;
+    textureNormal512ImageMemory = textureNormal1024ImageMemory = VK_NULL_HANDLE;
 }
 
 void* VulkanDevice::loadImGuiTexture(const std::string& path) {

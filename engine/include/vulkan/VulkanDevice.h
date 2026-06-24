@@ -127,7 +127,8 @@ public:
     void updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData);
     void cleanupLightBuffers();
     bool createAtlasUVBuffers();
-    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex);
+    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex,
+                             uint32_t count512, uint32_t count1024);
     void cleanupAtlasUVBuffers();
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
@@ -185,6 +186,22 @@ public:
     // Texture atlas management
     bool loadTextureAtlas(const std::string& atlasPath);
     bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
+    // Upload a layer-major RGBA texture array (one texSize² layer per textureIndex) into the
+    // voxel texture image for resolution class `target` (0 = 512 array @ binding 1, 1 = 1024
+    // array @ binding 5) as a 2D array with a full mip chain. size = texSize*texSize*4*layers.
+    bool uploadTextureArray(int target, const uint8_t* pixels, int texSize, int layerCount);
+
+    /// Whether the device supports BC texture compression (BC7). If false, callers must use
+    /// the uncompressed uploadTextureArray() path.
+    bool bc7Supported() const { return bc7Supported_; }
+
+    /// Upload a pre-compressed BC7 texture array for resolution class `target` (0/1). `data`
+    /// holds all mip levels tightly packed in level-major / layer-minor order (level 0 first;
+    /// within a level, layer 0..N-1, each layer = ceil(w/4)*ceil(h/4)*16 bytes).
+    /// `levelByteOffsets` has mipLevels entries (start of each level in `data`).
+    bool uploadTextureArrayBC7(int target, const uint8_t* data, size_t dataSize,
+                               const std::vector<size_t>& levelByteOffsets,
+                               int baseSize, int layerCount, int mipLevels);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();
@@ -341,11 +358,23 @@ private:
     VkDescriptorPool reflectionDescriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> reflectionDescriptorSets;
 
-    // Texture atlas resources
+    // Texture array resources — class 0 (512px, binding 1)
     VkImage textureAtlasImage = VK_NULL_HANDLE;
     VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
     VkImageView textureAtlasImageView = VK_NULL_HANDLE;
     VkSampler textureAtlasSampler = VK_NULL_HANDLE;
+    // Class 1 (1024px, binding 5) — hi-res object/detail array
+    VkImage textureArrayHiImage = VK_NULL_HANDLE;
+    VkDeviceMemory textureArrayHiImageMemory = VK_NULL_HANDLE;
+    VkImageView textureArrayHiImageView = VK_NULL_HANDLE;
+    // Normal+roughness arrays (RGB=normal, A=roughness; UNORM): binding 6 (512), binding 7 (1024)
+    VkImage textureNormal512Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal512ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal512ImageView = VK_NULL_HANDLE;
+    VkImage textureNormal1024Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal1024ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal1024ImageView = VK_NULL_HANDLE;
+    bool bc7Supported_ = false;  // set during logical-device creation
 
     // ImGui texture cache (for menu images, logos, etc.)
     struct ImGuiTextureEntry {

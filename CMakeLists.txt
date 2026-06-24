@@ -175,6 +175,10 @@ set(IMGUI_SOURCES
 set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
 set(STB_IMAGE_SOURCES ${STB_IMAGE_DIR}/stb_image.cpp)
 
+# bc7enc — public-domain/MIT single-file BC7 (DXGI BC7) block encoder for GPU texture compression
+set(BC7ENC_DIR ${PHYXEL_ROOT_DIR}/external/bc7enc)
+set(BC7ENC_SOURCES ${BC7ENC_DIR}/bc7enc.c)
+
 # ==========================================================================
 # Build Targets
 # ==========================================================================

@@ -13,6 +13,7 @@ add_library(phyxel_core STATIC
     ${ENGINE_SOURCES}
     ${IMGUI_SOURCES}
     ${STB_IMAGE_SOURCES}
+    ${BC7ENC_SOURCES}
 )
 
 enable_sanitizers(phyxel_core)
@@ -24,6 +25,7 @@ target_include_directories(phyxel_core PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${STB_IMAGE_DIR}
+    ${BC7ENC_DIR}
     ${PHYXEL_ROOT_DIR}/external/glm
     ${PHYXEL_ROOT_DIR}/external/miniaudio
 )

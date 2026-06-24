@@ -1,0 +1,120 @@
+{
+  "Bricks": {
+    "assets": {
+      "all": "Bricks075A"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "Cobblestone": {
+    "assets": {
+      "all": "PavingStones128"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Dirt": {
+    "assets": {
+      "all": "Ground003"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Grass": {
+    "assets": {
+      "bottom": "Ground003",
+      "side": "Ground003",
+      "top": "Grass004"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "GrassForest": {
+    "assets": {
+      "bottom": "Ground003",
+      "side": "Ground003",
+      "top": "Grass004"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "GrassSavanna": {
+    "assets": {
+      "bottom": "Ground003",
+      "side": "Ground003",
+      "top": "Grass004"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Gravel": {
+    "assets": {
+      "all": "Gravel022"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Ice": {
+    "assets": {
+      "all": "Ice001"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Metal": {
+    "assets": {
+      "all": "MetalPlates006"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Sand": {
+    "assets": {
+      "all": "Ground027"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Sandstone": {
+    "assets": {
+      "all": "Rock035"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "Stone": {
+    "assets": {
+      "all": "Rock030"
+    },
+    "license": "CC0",
+    "resolution": 512,
+    "source": "ambientCG"
+  },
+  "StoneBricks": {
+    "assets": {
+      "all": "PavingStones070"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "Wood": {
+    "assets": {
+      "all": "WoodFloor007"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  }
+}
