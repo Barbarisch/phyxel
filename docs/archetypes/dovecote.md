@@ -29,7 +29,7 @@ A single low human door + **flight apertures** (a roof louvre/cupola or high wal
 | Space | Purpose | Required fixtures | Size |
 |---|---|---|---|
 | chamber | house the birds | walls lined with **tiers of nest niches** (boulins) | circular |
-| nest niches (boulins) | breeding | one pair each; **hundreds** (e.g. 580) | ~**30–40 cm deep × 20–25 cm wide** |
+| nest niches (boulins) | breeding | one pair each; **hundreds** (e.g. 580 in 17 tiers) | *individual niche dims NEEDS-RESEARCH* |
 | potence | reach the niches | a central **revolving ladder** | centre |
 | flight aperture | birds in/out | a louvre/cupola or wall holes | high/roof |
 | human door | access | a single low door | — |
@@ -54,7 +54,7 @@ A **round stone tower with a conical roof + a flight louvre**, hundreds of niche
 - **Up:** a great circular columbarium (500+ niches + a potence — Kinwarton 580).
 
 ## 10. Function testers
-- **F1** Tiers of nest niches lining the walls (boulins ~30–40 × 20–25 cm, one pair each; hundreds).
+- **F1** Tiers of nest niches lining the walls (boulins, one pair each; hundreds — *individual niche dims NEEDS-RESEARCH*).
 - **F2** A flight aperture (louvre/cupola/holes) for the birds.
 - **F3** A means to reach all niches (a **potence** in a circular plan, or accessible tiers).
 - **F4** A single controlled human door (predator/theft).
@@ -67,7 +67,8 @@ Nest niches (boulins), potence (revolving ladder), flight louvre/cupola. →
 ## 12. Grounding ledger
 | Claim | Provenance |
 |---|---|
-| circular stone, metre-thick walls, tiers of niches (boulins ~30–40 × 20–25 cm, one pair each), hundreds (Kinwarton 580), a potence, flight apertures | CITED — [Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Dovecote); [Garway Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Garway_Dovecote); [What is a dovecote? (National Trust)](https://www.nationaltrust.org.uk/features/what-is-a-dovecote) |
+| circular stone, metre-thick walls, tiers of niches (one pair each), hundreds (Kinwarton 580 in 17 tiers), a potence, flight apertures | CITED — [Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Dovecote); [Garway Dovecote (Wikipedia)](https://en.wikipedia.org/wiki/Garway_Dovecote); [Kinwarton Dovecote (National Trust)](https://www.nationaltrust.org.uk/visit/warwickshire/kinwarton-dovecote) |
+| individual boulin/niche dimensions | NEEDS-RESEARCH — not in the cited sources; consult Historic England's pigeon-house survey / the Dovecote Study Group |
 
 ## 13. Open questions / unknowns
 - Dovecote diameter vs niche count — `to_ground` (niche count drives the size).

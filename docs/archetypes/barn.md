@@ -65,7 +65,7 @@ Aisle posts, great doors, threshing floor, hay mow. → [`WantedAssetsBacklog.md
 ## 12. Grounding ledger
 | Claim | Provenance |
 |---|---|
-| 30–50 m × 10–15 m, aisled/cruck clear span, high vented roof, opposed doors + threshing floor; examples (Great Coxwell 43.9 × 11.6 m; Bradford-on-Avon 51 × 9.5 m / 14 bays; Bredon 9 bays; Titchfield 50 × 15 m) | CITED — [Tithe barns in Europe (Wikipedia)](https://en.wikipedia.org/wiki/Tithe_barns_in_Europe); [Harmondsworth Great Barn (Wikipedia)](https://en.wikipedia.org/wiki/Harmondsworth_Great_Barn); [Tithe barns (Designing Buildings)](https://www.designingbuildings.co.uk/wiki/Tithe_barns) |
+| 30–50 m × 10–15 m, aisled/cruck clear span, high vented roof, opposed doors + threshing floor; examples (Great Coxwell **46.4 × 13.4 m external** (~43.9 × 11.6 m internal); Bradford-on-Avon 51 × 9.5 m / 14 bays; Bredon ~130 × 40 ft / 9 bays; Titchfield 50 × 15 m) | CITED — [Tithe barns in Europe (Wikipedia)](https://en.wikipedia.org/wiki/Tithe_barns_in_Europe); [Harmondsworth Great Barn (Wikipedia)](https://en.wikipedia.org/wiki/Harmondsworth_Great_Barn); [Tithe barns (Designing Buildings)](https://www.designingbuildings.co.uk/wiki/Tithe_barns) |
 
 ## 13. Open questions / unknowns
 - Aisled vs cruck vs base-cruck by region/size.

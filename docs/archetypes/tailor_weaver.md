@@ -65,7 +65,8 @@ Loom, cutting table, tailor's bench, cloth bolts/shelving, counter, large window
 ## 12. Grounding ledger
 | Claim | Provenance |
 |---|---|
-| horizontal treadle loom 1.5–2.0 m tall; width ≤ weaver's arm span (~0.6–1.5 m / 24–60"); warp rolls ~20 yd | CITED — [Model of a horizontal treadle loom (EXARC)](https://exarc.net/sites/default/files/exarc-eurorea_2_2005-model_of_a_horizontal_treadle_loom.pdf); [Cloth Widths in the Middle Ages](http://www.geocities.ws/ladymairghread/clothwidth.htm) |
+| horizontal treadle loom 1.5–2.0 m tall; width ≤ weaver's arm span (practical ~0.6–1.0 m, up to ~1.5 m) | CITED — [Model of a horizontal treadle loom (EXARC)](https://exarc.net/sites/default/files/exarc-eurorea_2_2005-model_of_a_horizontal_treadle_loom.pdf); [Cloth Widths in the Middle Ages](http://www.geocities.ws/ladymairghread/clothwidth.htm) |
+| warp length ~20 yd | NEEDS-RESEARCH — the cited source covers cloth *widths*, not warp length (a "piece" ran ~24–30 yd; confirm via a textile-archaeology source) |
 | strong-light requirement for fine work | reasoned from the craft |
 | room **sizes** | `to_ground` |
 

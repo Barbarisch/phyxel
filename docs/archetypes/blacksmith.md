@@ -73,7 +73,7 @@ rack, trade sign decal. → [`WantedAssetsBacklog.md`](../WantedAssetsBacklog.md
 ## 12. Grounding ledger
 | Claim | Provenance |
 |---|---|
-| anvil/hearth working height ~0.80 m (31.5") — knuckle height | CITED — [Planning the forge (Beautiful Iron)](https://beautifuliron.com/forge_planning.htm) |
+| anvil/hearth working height ~0.80 m (31.5") — knuckle height | CITED — [Planning the forge (Beautiful Iron)](https://beautifuliron.com/forge_planning.htm) *(a modern craft guide; the height is anthropometric/invariant, not a period survey)* |
 | forge on the back wall, vented; combustibles above/out; non-combustible structure | CITED — same; [Forge (Wikipedia)](https://en.wikipedia.org/wiki/Forge) |
 | smithy floor ~3.7 m sq (12 ft) | FLAG — modern hobby-shop reference, not medieval |
 | medieval smithy floor area | `to_ground` |

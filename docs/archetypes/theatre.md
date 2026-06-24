@@ -8,7 +8,7 @@
 - **aka:** playhouse, amphitheatre
 - **group:** Entertainment & vice (Part 6)
 - **extends:** a purpose-built polygonal timber frame
-- **genre/period:** **early-modern (Elizabethan, 1576+)** — **no permanent medieval playhouses**; medieval performance used inn-yards, guild pageant wagons, and churches. Strong genre flag (F0).
+- **genre/period:** **early-modern** — the first purpose-built playhouse was the short-lived **Red Lion (1567)**, the first *durable* one **The Theatre (1576)**. There were **no permanent *medieval* playhouses**; medieval performance used inn-yards, guild pageant wagons, and churches. Strong genre flag (F0).
 
 ## 2. Essence
 An **open-air polygonal amphitheatre** — a thrust stage backed by a tiring house, ringed by a standing **yard**
@@ -74,7 +74,7 @@ Stage, tiring-house structure, gallery bench seating, the heavens canopy, flag. 
 | Claim | Provenance |
 |---|---|
 | Globe ~100 ft wide, ~20 sides, 3 stories; stage ~43 × 27 ft (13 × 8 m) raised ~5 ft (1.5 m); yard + 3 galleries; tiring house + lords' rooms + heavens; ~3,000 capacity | CITED — [Globe Theatre design (Britannica)](https://www.britannica.com/topic/Globe-Theatre/The-design-of-the-Globe); [Globe Theatre (Wikipedia)](https://en.wikipedia.org/wiki/Globe_Theatre) |
-| no permanent medieval playhouses (inn-yards/pageants instead) | GENRE-FLAG — early-modern |
+| first playhouse = Red Lion **1567** (brief); first durable = The Theatre **1576**; no *medieval* permanent playhouses (inn-yards/pageants instead) | CITED — [Red Lion (Wikipedia)](https://en.wikipedia.org/wiki/Red_Lion_(theatre)); GENRE-FLAG early-modern |
 
 ## 13. Open questions / unknowns
 - Model the **medieval inn-yard / pageant-wagon** performance as its own mini-archetype? (recommended for a medieval brief).
