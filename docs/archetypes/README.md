@@ -36,7 +36,7 @@ Every sheet has these sections:
 
 ## Index
 
-**Progress: 20 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
+**Progress: 24 DRAFT / ~50 total.** One row per archetype (no bundling). STUB = in Part 6, no deep sheet yet.
 `BLOCKED` = waiting on an engine feature. Scaling *tiers* of a done sheet (e.g. shrine/chapel under `temple`)
 are noted, not separate files, unless they diverge enough to need their own.
 
@@ -70,13 +70,13 @@ are noted, not separate files, unless they diverge enough to need their own.
 ### Finance (1)
 | [`bank`](bank.md) / counting_house | **DRAFT** (exemplar) |
 
-### Entertainment & vice (4)
+### Entertainment & vice (4) — ✅ complete
 | Archetype | Status |
 |---|---|
-| brothel / festhall | STUB |
-| theatre / playhouse *(early-modern)* | STUB |
-| costumier | STUB |
-| gambling_den | STUB |
+| [`brothel`](brothel.md) / stews | **DRAFT** |
+| [`theatre`](theatre.md) / playhouse *(early-modern)* | **DRAFT** |
+| [`costumier`](costumier.md) | **DRAFT** |
+| [`gambling_den`](gambling_den.md) | **DRAFT** |
 
 ### Civic & institutions (10)
 | Archetype | Status |
