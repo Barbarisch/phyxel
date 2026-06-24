@@ -11821,6 +11821,25 @@ void Application::processAPICommands() {
                                 oy = padLevel + 1;        // foundation bottom rests on the flat pad
                                 LOG_INFO_FMT("StructureV2", "prepare_pad: leveled footprint to y=" << padLevel
                                              << " (cut " << cut.size() << ", fill " << fill.voxels.size() << ")");
+
+                                // excavate_basement (#34): a basement seats BELOW grade — the ground
+                                // floor lands at the surface and the cellar is DUG OUT beneath it,
+                                // instead of a void perched on / buried in the ground. The realizer's
+                                // foundation ring (substructure=="basement" -> crawlH cubes) becomes the
+                                // retaining walls; the ground-floor slab is the cellar ceiling.
+                                if (program.substructure == "basement" && shell.crawlHeightCubes > 0) {
+                                    const int depth = shell.crawlHeightCubes;     // cellar height (cubes)
+                                    oy = padLevel + 1 - depth;                    // ground floor stays at grade
+                                    std::vector<glm::ivec3> dig;
+                                    for (int x = ox; x < ox + W; ++x)
+                                        for (int z = oz; z < oz + D; ++z)
+                                            for (int y = oy; y <= padLevel; ++y)
+                                                dig.push_back(glm::ivec3(x, y, z));
+                                    Core::StructureGenerator::removeVoxels(chunkManager, dig);
+                                    chunkManager->buildAllChunkPhysics();
+                                    LOG_INFO_FMT("StructureV2", "excavate_basement: dug cellar " << depth
+                                                 << " cubes below grade (" << dig.size() << " voxels)");
+                                }
                             }
                         }
                         structure = Core::StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));
