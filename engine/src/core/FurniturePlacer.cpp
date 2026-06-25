@@ -71,6 +71,59 @@ std::vector<FixtureLabel> FurniturePlacer::labelFixtures(
     return labels;
 }
 
+FurniturePlacer::FurnitureEdit FurniturePlacer::planEdit(
+    const Rect& room, int curX, int curZ, const std::string& op, int rotationArg) {
+    FurnitureEdit e;
+    if (room.w < 1 || room.d < 1) { e.error = "degenerate room"; return e; }
+    const int rx = room.x, rz = room.z, rw = room.w, rd = room.d;
+
+    // wall id: 0=min-x(west), 1=max-x(east), 2=min-z(south), 3=max-z(north)
+    auto wallCell = [&](int wll) -> std::pair<int, int> {
+        switch (wll) {
+            case 0:  return {rx,          rz + rd / 2};
+            case 1:  return {rx + rw - 1, rz + rd / 2};
+            case 2:  return {rx + rw / 2, rz};
+            default: return {rx + rw / 2, rz + rd - 1};
+        }
+    };
+    auto wallFacing = [&](int wll) {
+        switch (wll) {                              // inward normal -> facing INTO the room
+            case 0:  return facingIntoRoom(+1, 0);  // off west wall -> face +x (270)
+            case 1:  return facingIntoRoom(-1, 0);  // off east wall -> face -x (90)
+            case 2:  return facingIntoRoom(0, +1);  // off south wall -> face +z (0)
+            default: return facingIntoRoom(0, -1);  // off north wall -> face -z (180)
+        }
+    };
+    auto seatOnWall = [&](int wll) {
+        auto c = wallCell(wll);
+        e.x = c.first; e.z = c.second; e.rotation = wallFacing(wll); e.ok = true;
+    };
+    auto currentWall = [&]() {                      // nearest wall to (curX,curZ)
+        const int d[4] = {curX - rx, (rx + rw - 1) - curX, curZ - rz, (rz + rd - 1) - curZ};
+        int best = 0;
+        for (int w = 1; w < 4; ++w) if (d[w] < d[best]) best = w;
+        return best;
+    };
+
+    if (op == "rotate") {
+        e.x = curX; e.z = curZ; e.rotation = ((rotationArg % 360) + 360) % 360; e.ok = true;
+        return e;
+    }
+    if (op == "center")     { e.x = rx + rw / 2; e.z = rz + rd / 2; e.rotation = 0; e.ok = true; return e; }
+    if (op == "wall:west")  { seatOnWall(0); return e; }
+    if (op == "wall:east")  { seatOnWall(1); return e; }
+    if (op == "wall:south") { seatOnWall(2); return e; }
+    if (op == "wall:north") { seatOnWall(3); return e; }
+    if (op == "opposite_wall") {
+        int cur = currentWall();
+        int opp = (cur == 0) ? 1 : (cur == 1) ? 0 : (cur == 2) ? 3 : 2;   // 0<->1 (x), 2<->3 (z)
+        seatOnWall(opp);
+        return e;
+    }
+    e.error = "unknown op: " + op;
+    return e;
+}
+
 int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
     if (inwardDx > 0) return 270;  // against min-x wall, front +x
     if (inwardDx < 0) return 90;   // against max-x wall, front -x

@@ -68,6 +68,26 @@ public:
     /// the fixture later. Returned in the SAME order as `placements`.
     static std::vector<FixtureLabel> labelFixtures(const ProgStory& story,
                                                    const std::vector<FurniturePlacement>& placements);
+
+    /// The result of re-placing a single fixture within its room (a session edit). Cell coords are
+    /// in the SAME space as the `room` rect passed in (pass a WORLD-space rect -> world cells).
+    struct FurnitureEdit {
+        bool        ok = false;
+        int         x = 0, z = 0;   ///< new cell for the fixture
+        int         rotation = 0;   ///< new facing — points INTO the room for wall ops
+        std::string error;
+    };
+
+    /// Compute a wall-relative move for a fixture currently at (curX,curZ) in `room`, reusing the
+    /// same wall-cell + facing-into-room math as furnish() so the moved piece stays usable (backed
+    /// onto the wall, facing inward). `op`:
+    ///   "wall:north"|"south"|"east"|"west"  -> seat on that wall, centered, facing in
+    ///   "opposite_wall"                     -> seat on the wall opposite the one it's currently on
+    ///   "center"                            -> room centre
+    ///   "rotate"                            -> keep the cell, set rotation = rotationArg
+    /// Returns ok=false + error on an unknown op or a degenerate room.
+    static FurnitureEdit planEdit(const Rect& room, int curX, int curZ,
+                                  const std::string& op, int rotationArg = 0);
 };
 
 } // namespace Core
