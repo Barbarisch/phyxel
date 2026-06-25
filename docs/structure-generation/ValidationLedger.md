@@ -55,7 +55,7 @@ floor scan, paths…).
 | 06 | place_exterior_walls | P | L2 | **L2** (`WallsAreThinNotFullCube`,`ExteriorWallExists…`) | 1/1/2 = **4** | met-ish; gate no-gap continuity across chunk seams |
 | 07 | place_interior_walls | P | L2 | L1 (`NoInternalVoxelOverlap` covers overlap only) | 1/2/1 = **4** | L1→L2: partitions don't *seal* a room (would make it unreachable) |
 | 08 | cut_openings | P | L2 | **L2** (`FrontDoorIsCarvedThroughTheWall`) | 2/2/1 = **5** | met-ish; sills/reveals/lintels still P |
-| 09 | place_doors | M | **L3** | L2-topology (`ShortDoorFails`,`ExteriorPortalOffPerimeter…`) | 2/2/1 = **5** | **L2→L3: a character-box passes through the opening** (TraversalProbe) |
+| 09 | place_doors | M | **L3** | **L3** ✅ (`DoorPlacerTest`: gate-min door walkable + sealed/cat-flap teeth; ties door_too_short to head-room on real voxels, auditor PASS) | 2/2/1 = **5** | ✅ met — character-box passes the carved opening; gate ⟺ physical passability |
 | 10 | place_windows | M | L1 | L0 | 0/0/1 = **1** | L0→L1: present, correctly placed on a wall |
 | 11 | place_ceiling / intermediate_floor | P | L2 | L1/L2 (`CeilingAndRoofExist…`) | 2/2/2 = **6** | inter-story floor continuous + holed at the stair, **per story** |
 | 12 | place_stairs | D | **L3** | **L3** ✅ (`AgentCanClimbSwitchbackToTopFloor` + gate + clearance) | 2/2/2 = **6** | ✅ **EXEMPLAR — fully met** (geometry + gate + traversal, auditor PASS) |
@@ -108,14 +108,15 @@ The actual work queue — the placers shipping below their required depth, highe
 **Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 11/12), so they drop
 off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
-1. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
-   the ground-floor entrance; extend to interior doors).
-2. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).
-3. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair (harness already does basement
+1. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).
+2. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair (harness already does basement
    substructure; add cellar rooms + a down-stair case).
-4. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
+3. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
 
-Done to required depth: **12 place_stairs (L3)**; multi-story **11/36** circulation (corpus L2+L3);
+Done to required depth: **12 place_stairs (L3)**; **09 place_doors (L3)** — `DoorPlacerTest` proves a
+character-box crosses the carved opening on real voxels and ties `door_too_short` to physical head-room
+(sealed + cat-flap negative controls, auditor PASS); **16 place_furniture (L2)** — KI-2 per-story
+floorY; multi-story **11/36** circulation (corpus L2+L3);
 **05 generate_room_layout** — BSP generator BUILT + harness-validated (tiling, navigable rooms, L3
 `rooms` layer with a generated negative control, auditor-PASS) AND WIRED into the build handler via
 `autofillRoomLayout` (empty-rooms stories auto-fill; unit + harness enforced, auditor-PASS). *Remaining
