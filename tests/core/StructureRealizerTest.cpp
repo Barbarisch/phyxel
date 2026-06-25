@@ -248,7 +248,7 @@ TEST(StructureRealizerTest, TenStoryTowerStairsConnectEveryFloor) {
         if (s < 9) {
             nlohmann::json stair;
             stair["from_story"] = s; stair["to_story"] = s + 1;
-            stair["rect"] = nlohmann::json::array({1, 2, 2, 6}); stair["kind"] = "straight";
+            stair["rect"] = nlohmann::json::array({1, 2, 2, 6}); stair["form"] = "switchback";
             story["stairs"].push_back(stair);
         }
         j["stories"].push_back(story);
