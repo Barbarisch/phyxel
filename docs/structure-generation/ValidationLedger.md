@@ -24,6 +24,19 @@ the real output (no overlap, continuous, fits, clearance — `BuildingProgramVal
 
 ### Build status (from the placer specs): **D** done · **P** partial · **M** not-built.
 
+## The validation harness (the sign-off instrument)
+
+`tests/core/BuildingHarnessTest.cpp` runs the pipeline across a **corpus** (1/2/3/5/10 stories,
+small→large footprints, switchback & straight stairs, slab/crawlspace/basement) and prints a per-layer
+PASS/FAIL **matrix** + a pass rate — the number you sign off on. It carries a NEGATIVE CONTROL
+(stairless multi-story → unreachable) so the checks have teeth. **Current: 11/12** (only the control
+fails). v1 layers: `build` (L1), `floors` (L2 room-has-floor), `reach` (L3 every floor reachable via
+`TraversalProbe`). Later placers ADD cases + layers (furniture/KI-2, finer floor scan, doors, paths…).
+
+> Note: the harness moves several rows' *current* layer up — multi-story **reach (L3) and floor
+> continuity (L2) are now corpus-validated**, not single-test. The status (D/P/M) column below is the
+> stale placer-spec tag; trust *current layer* + the harness.
+
 ---
 
 ## Building-scale placers (01–37) — the live set
@@ -87,15 +100,22 @@ Validate when each lands; required layer noted so the plan is set up front.
 
 ## Prioritized backlog (required > current, by score)
 
-The actual work queue — the placers shipping below their required depth, highest-leverage first:
+The actual work queue — the placers shipping below their required depth, highest-leverage first.
+**Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 11/12), so they drop
+off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
-1. **11 place_ceiling/intermediate_floor (6)** — per-story floor continuity + stair holes (ties to 36).
-2. **36 stack_stories (6)** — multi-story generation + every-floor reachability.
-3. **05 generate_room_layout (5)** — L2-topology → L3 agent-navigable rooms.
-4. **09 place_doors (5)** — L2 → L3: character-box passes the opening.
-5. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap.
-6. **24 place_path (5)** — L0 → L3 walkable path entry↔gate.
-7. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair.
-8. **13 place_roof (1, but an open KI-1)** — eave-flush L2 (low score: visible, not traversed — fix as cosmetic-correctness, not safety).
+1. **05 generate_room_layout (5)** — currently rooms are HAND-AUTHORED (gen missing). A town can't be
+   hand-authored — this is the biggest end-goal blocker. Build the generator; gate L3 navigable rooms;
+   add multi-room cases to the harness.
+2. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap. Add a furniture layer
+   to the harness (needs the FurniturePlacer in the loop).
+3. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
+   the ground-floor entrance; extend to interior doors).
+4. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).
+5. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair (harness already does basement
+   substructure; add cellar rooms + a down-stair case).
+6. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
+
+Done to required depth: **12 place_stairs (L3)**, and multi-story **11/36** circulation (corpus L2+L3).
 
 **12 place_stairs is the worked exemplar** of a row reaching its required layer (L3, red→green, auditor PASS). Every backlog item closes the same way: write the red test at the required layer, watch it fail, fix, green, audit.
