@@ -119,8 +119,9 @@ BuildingProgram generated(int W, int D, int targetRooms, unsigned seed, bool con
     return p;
 }
 
-// A building whose interior is filled by the HANDLER SEAM `autofillRoomLayout` (program authored
-// with no rooms). Exercises the wiring path end-to-end, not just direct layout injection.
+// A building whose interior is filled by the CORE SEAM `autofillRoomLayout` — the SAME function the
+// build handler calls. This exercises the autofill FUNCTION (empty program -> navigable rooms); it
+// does NOT exercise Application.cpp's call site (that is verified at runtime only — see commit log).
 BuildingProgram autofilled(int W, int D, unsigned seed) {
     nlohmann::json j;
     j["name"] = "auto"; j["style"] = "timber_cottage";
@@ -250,7 +251,7 @@ TEST(BuildingHarness, Corpus) {
         {"gen 7x9 rooms=4 seed2",       generated(7, 9, 4, 2)},
         {"gen 10x12 rooms=5 seed3",     generated(10, 12, 5, 3)},
         {"gen 9x11 rooms=6 seed4",      generated(9, 11, 6, 4)},
-        {"autofill 8x10 (handler seam)",autofilled(8, 10, 5)},
+        {"autofill 8x10 (core seam)",   autofilled(8, 10, 5)},
         {"BAD: 3-story NO stairs",      tower(3, 7, 9, "switchback", "crawlspace", false)},
         {"BAD: 2-room sealed kitchen",  twoRoom(false)},
         {"BAD: gen doors stripped",     generated(9, 11, 6, 4, /*connectInterior=*/false)},
@@ -259,7 +260,7 @@ TEST(BuildingHarness, Corpus) {
     std::cout << "\n=== BUILDING VALIDATION HARNESS ===\n";
     std::cout << "case                              build  floors  reach  rooms  OVERALL\n";
     int passed = 0;
-    CaseResult badStairs, badRooms, exemplar, twoRoomOk, genStripped, genOk;
+    CaseResult badStairs, badRooms, exemplar, twoRoomOk, genStripped, genOk, autofillCase;
     for (const auto& c : corpus) {
         CaseResult r = runCase(c.name, c.p, style);
         auto yn = [](bool b) { return b ? " ok " : "FAIL"; };
@@ -275,6 +276,7 @@ TEST(BuildingHarness, Corpus) {
         if (c.name == "2-room connected") twoRoomOk = r;
         if (c.name == "BAD: gen doors stripped") genStripped = r;
         if (c.name == "gen 9x11 rooms=6 seed4") genOk = r;
+        if (c.name == "autofill 8x10 (core seam)") autofillCase = r;
     }
     std::cout << "--- " << passed << " / " << corpus.size() << " cases pass ---\n\n";
 
@@ -287,4 +289,7 @@ TEST(BuildingHarness, Corpus) {
     EXPECT_TRUE(exemplar.pass())    << "the 3-story switchback exemplar regressed";
     EXPECT_TRUE(twoRoomOk.pass())   << "a connected two-room cottage is not fully navigable";
     EXPECT_TRUE(genOk.pass())       << "an auto-generated room layout is not fully navigable";
+    // The autofill core seam must produce a navigable multi-room building (rooms check applicable).
+    EXPECT_TRUE(autofillCase.pass())     << "autofillRoomLayout produced a non-navigable building";
+    EXPECT_TRUE(autofillCase.roomsTested) << "autofill produced no multi-room story (rooms was n/a)";
 }
