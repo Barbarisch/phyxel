@@ -321,6 +321,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     plan.roof.push_back({bx0, bz0, bx1, bz1, eaveSub / 3, style.roofOf("pitch_deg", 0.0),
                          rectangular ? roofStyle : "flat", matRoof});
 
+    res.floorTopByStory = floorTopByStory;   // per-story walkable micro-Y (for the harness / KI-2)
     res.ok = true;
     return res;
 }

@@ -16,6 +16,7 @@
 // ============================================================================
 
 #include <string>
+#include <vector>
 
 #include "core/BuildingProgram.h"
 #include "core/StyleProfile.h"
@@ -31,7 +32,8 @@ public:
     struct ShellResult {
         MicroCanvas  canvas;            ///< the painted shell (local coords)
         AssemblyPlan plan;             ///< derived anatomy (for gates/inspection)
-        int  floorTopMicro = 0;        ///< micro Y of the walkable finish-floor surface
+        int  floorTopMicro = 0;        ///< micro Y of the walkable finish-floor surface (story 0)
+        std::vector<int> floorTopByStory;  ///< micro Y of EACH story's walkable surface (per-story)
         int  crawlHeightCubes = 0;     ///< foundation/crawlspace height below the floor
         bool ok = false;
         std::string error;
