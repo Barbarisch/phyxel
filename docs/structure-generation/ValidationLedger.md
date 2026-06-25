@@ -51,7 +51,7 @@ floor scan, paths…).
 | 02 | prepare_pad | M→P | L2 | **L2** (`PlanPadLevelIsMedian` + runtime cut/fill) | 1/2/1 = **4** | ✅ met (median-seat); add a footprint-leveled invariant |
 | 03 | place_foundation | P | L2 | L1 (no test) | 1/1/1 = **3** | L1→L2: supports full footprint, correct depth, no gaps |
 | 04 | place_floor | P | L2 | **L2** (`FloorIsContinuousOverFootprint`) | 2/2/1 = **5** | mostly met; gate "holed only at the stairwell" |
-| 05 | generate_room_layout | M | **L3** | L2-topology (`UnreachableRoomFails`,`OverlappingRoomsFail`,typology) | 2/2/1 = **5** | gen missing; L2→L3 every room agent-navigable, not just graph-linked |
+| 05 | generate_room_layout | M | **L3** | **L2+** (BSP + **typology-driven** purposed rooms; `RoomLayoutTest` tiling/sizes-by-bays/navigable + **end-to-end purpose→furniture**, auditor PASS) | 2/2/1 = **5** | ✅ **a generated house is a real house** — `generateRoomLayoutFromProgram` gives service/hall/solar (not N "living"), furnished by purpose. Remaining: multi-story typologies (upper floors generic); L3 agent-nav per room |
 | 06 | place_exterior_walls | P | L2 | **L2** (`WallsAreThinNotFullCube`,`ExteriorWallExists…`) | 1/1/2 = **4** | met-ish; gate no-gap continuity across chunk seams |
 | 07 | place_interior_walls | P | L2 | L1 (`NoInternalVoxelOverlap` covers overlap only) | 1/2/1 = **4** | L1→L2: partitions don't *seal* a room (would make it unreachable) |
 | 08 | cut_openings | P | L2 | **L2** (`FrontDoorIsCarvedThroughTheWall`) | 2/2/1 = **5** | met-ish; sills/reveals/lintels still P |
