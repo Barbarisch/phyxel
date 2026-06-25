@@ -44,22 +44,23 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
   not a narrative. `stair_riser_too_steep` IS a real check (measures riser vs. step-up) and stays.
 - **What DID get built (and is real):** the riser check; a switchback generator that fits + keeps
   risers ≤ step-up; the `StairPlanner` shared-source-of-truth structure.
-- **PROGRESS (geometry done; gate + runtime NOT):**
+- **PROGRESS (geometry + gate done; runtime NOT — auditor-verified):**
   - DONE — real clearance check `StructureRealizerTest.SwitchbackEmergenceHasHeadroom` scans the
     built MicroCanvas for headroom above a foothold at an INTERMEDIATE floor. Shown RED first on the
     solid-pillar switchback (best clearance = 1 micro, need 16), then GREEN after the fix.
   - DONE — fix: `StairPlanner` now emits THIN treads/landings (a slab at each step surface, open
-    underneath) instead of pillars from `y=0`. `TenStoryTower...` rewritten to assert emergence
-    clearance at every intermediate floor (1..8) — the real reachability invariant at scale. Full
-    stair suite (37) green.
-  - NOT DONE — the validator gate is STILL the fake `form==Straight` `overlap()` check; it must be
-    replaced by running the real clearance scan on the StairPlan (stack two stories' solids into a
-    temp grid, scan emergence) so a regression to pillars is caught at the gate, not just by the unit
-    test.
+    underneath) instead of pillars from `y=0`. `TenStoryTower...` asserts emergence clearance at
+    every intermediate floor (1..8) — the real reachability invariant at scale.
+  - DONE — the validator gate is now REAL (solution-auditor verdict PASS). The `form==Straight`
+    `overlap()` was replaced by `StairPlanner::stackedEmergenceClearance`, which builds occupancy
+    from two stacked flights' plan solids and measures vertical air above the emergence; it fires
+    `stair_no_headroom` on a solid-fill regression OR a too-short story, form-agnostic. Red-first:
+    `ShortStoriesLackStairHeadroom` failed on the old gate (switchback exempt), green now. 39/39
+    stair tests pass.
   - NOT DONE — no runtime/traversal proof: thin 2-micro tread slabs are unverified for character
     collision/step-up in the live engine; a real walk up a built thin-tread tower is still owed.
-  So: geometry clearance is fixed and proven by a red→green measurement, but KI-4 stays OPEN until
-  the gate is real and a character is shown traversing it.
+  So: the clearance bug is fixed in geometry AND guarded by a real gate (both red→green, both
+  auditor-verified). KI-4 stays OPEN only on the runtime-traversal proof.
 
 ### KI-3 — Tall structures failed to place above the generated chunk-Y range
 - **Was:** the material/subcube/microcube placement paths (unlike `addCube`) returned `false`
