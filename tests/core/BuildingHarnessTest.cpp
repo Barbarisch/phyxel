@@ -119,6 +119,22 @@ BuildingProgram generated(int W, int D, int targetRooms, unsigned seed, bool con
     return p;
 }
 
+// A building whose interior is filled by the HANDLER SEAM `autofillRoomLayout` (program authored
+// with no rooms). Exercises the wiring path end-to-end, not just direct layout injection.
+BuildingProgram autofilled(int W, int D, unsigned seed) {
+    nlohmann::json j;
+    j["name"] = "auto"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({W, D});
+    j["substructure"] = "crawlspace"; j["roof_style"] = "gable";
+    nlohmann::json story;
+    story["height"] = 3; story["rooms"] = nlohmann::json::array();
+    story["portals"] = nlohmann::json::array(); story["stairs"] = nlohmann::json::array();
+    j["stories"] = nlohmann::json::array({story});
+    BuildingProgram p = BuildingProgram::fromJson(j);   // no authored rooms
+    autofillRoomLayout(p, seed);                        // the handler seam fills them
+    return p;
+}
+
 // L3 (interior): on every story, a character-box can physically walk from the entrance room to
 // EVERY other room's centre through the carved doorways. A sealed room (no portal) => unreachable.
 bool roomsReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
@@ -234,6 +250,7 @@ TEST(BuildingHarness, Corpus) {
         {"gen 7x9 rooms=4 seed2",       generated(7, 9, 4, 2)},
         {"gen 10x12 rooms=5 seed3",     generated(10, 12, 5, 3)},
         {"gen 9x11 rooms=6 seed4",      generated(9, 11, 6, 4)},
+        {"autofill 8x10 (handler seam)",autofilled(8, 10, 5)},
         {"BAD: 3-story NO stairs",      tower(3, 7, 9, "switchback", "crawlspace", false)},
         {"BAD: 2-room sealed kitchen",  twoRoom(false)},
         {"BAD: gen doors stripped",     generated(9, 11, 6, 4, /*connectInterior=*/false)},

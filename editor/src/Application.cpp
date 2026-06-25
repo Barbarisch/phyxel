@@ -64,6 +64,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/GameDefinitionLoader.h"
 #include "core/StructureGenerator.h"
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
+#include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
@@ -11728,6 +11729,27 @@ void Application::processAPICommands() {
                     int  v2FloorY = 0;                 // world Y of the walkable floor (fixtures sit here)
                     if (v2Mode) {
                         Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
+                        // generate_room_layout (#05): auto-fill interiors for any story that authored
+                        // no rooms, so a program need not hand-author them. Deterministic in a seed
+                        // derived from the build position (stable on rebuild). Validated below.
+                        {
+                            unsigned seed = cmd.params.value("seed", 0u);
+                            if (seed == 0u && cmd.params.contains("position")) {
+                                int sx = cmd.params["position"].value("x", 0);
+                                int sz = cmd.params["position"].value("z", 0);
+                                seed = (static_cast<unsigned>(sx) * 73856093u) ^
+                                       (static_cast<unsigned>(sz) * 19349663u) ^ 0x9e3779b9u;
+                            }
+                            int emptyBefore = 0;
+                            for (const auto& st : program.stories) if (st.rooms.empty()) ++emptyBefore;
+                            Core::autofillRoomLayout(program, seed ? seed : 1u);
+                            if (emptyBefore > 0) {
+                                int total = 0;
+                                for (const auto& st : program.stories) total += (int)st.rooms.size();
+                                LOG_INFO_FMT("StructureV2", "generate_room_layout: auto-filled "
+                                             << emptyBefore << " story(ies) -> " << total << " rooms total");
+                            }
+                        }
                         Core::StyleProfileRegistry styleReg;
                         styleReg.loadFromFile("resources/structure_styles.json");
                         const Core::StyleProfile* sp = styleReg.get(program.style);

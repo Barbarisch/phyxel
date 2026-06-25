@@ -81,3 +81,35 @@ TEST(RoomLayoutTest, GeneratedLayoutPassesValidatorGates) {
     EXPECT_FALSE(hasCode(r, "room_unreachable")) << r.summary();
     EXPECT_FALSE(hasCode(r, "no_entrance")) << r.summary();
 }
+
+// autofillRoomLayout (the build-handler seam): a story with no authored rooms gets a tiling layout
+// + an entrance, and the result clears the validator gates.
+TEST(RoomLayoutTest, AutofillFillsEmptyStory) {
+    BuildingProgram p;
+    p.name = "x"; p.style = "timber_cottage"; p.footprintW = 7; p.footprintD = 9; p.substructure = "crawlspace";
+    p.stories.push_back(ProgStory{});       // one story, height default, NO rooms
+    autofillRoomLayout(p, 42);
+    ASSERT_FALSE(p.stories[0].rooms.empty()) << "autofill left the story empty";
+    int area = 0;
+    for (const auto& rm : p.stories[0].rooms) area += rm.rect.w * rm.rect.d;
+    EXPECT_EQ(area, 7 * 9) << "autofilled rooms don't tile the footprint";
+    bool ext = false;
+    for (const auto& pt : p.stories[0].portals) if (pt.a == "exterior" || pt.b == "exterior") ext = true;
+    EXPECT_TRUE(ext) << "no exterior entrance after autofill";
+    auto r = BuildingProgramValidator::validate(p);
+    EXPECT_FALSE(hasCode(r, "room_overlap")) << r.summary();
+    EXPECT_FALSE(hasCode(r, "room_unreachable")) << r.summary();
+}
+
+// autofill must NOT clobber a hand-authored layout.
+TEST(RoomLayoutTest, AutofillRespectsAuthoredRooms) {
+    BuildingProgram p;
+    p.name = "x"; p.style = "timber_cottage"; p.footprintW = 7; p.footprintD = 9;
+    ProgStory s; s.height = 3;
+    ProgRoom hall; hall.id = "hall"; hall.rect = {0, 0, 7, 9}; hall.purpose = "living";
+    s.rooms.push_back(hall);
+    p.stories.push_back(s);
+    autofillRoomLayout(p, 42);
+    ASSERT_EQ(p.stories[0].rooms.size(), 1u) << "autofill clobbered authored rooms";
+    EXPECT_EQ(p.stories[0].rooms[0].id, "hall");
+}

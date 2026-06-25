@@ -105,5 +105,25 @@ RoomLayout generateRoomLayout(int W, int D, int targetRooms, unsigned seed, int 
     return out;
 }
 
+void autofillRoomLayout(BuildingProgram& program, unsigned seed) {
+    const int W = program.footprintW, D = program.footprintD;
+    if (W <= 0 || D <= 0) return;                            // no footprint -> nothing to fill
+    for (size_t i = 0; i < program.stories.size(); ++i) {
+        ProgStory& st = program.stories[i];
+        if (!st.rooms.empty()) continue;                     // respect authored room layouts
+        // Layout DENSITY knob (a tunable design default, NOT a grounded clearance): ~1 room per
+        // ~16 m^2 (a 4x4 m room), at least 1. Room *sizes* stay grounded — generateRoomLayout
+        // enforces minDim (the validator's min usable room dimension).
+        const int targetRooms = std::max(1, (W * D) / 16);
+        RoomLayout rl = generateRoomLayout(W, D, targetRooms, seed + static_cast<unsigned>(i));
+        st.rooms = rl.rooms;
+        for (const auto& p : rl.portals) {
+            const bool ext = (p.a == "exterior" || p.b == "exterior");
+            if (ext && i != 0) continue;                     // exterior entrance: ground story only
+            st.portals.push_back(p);                         // keep any authored stairs/portals
+        }
+    }
+}
+
 }  // namespace Core
 }  // namespace Phyxel

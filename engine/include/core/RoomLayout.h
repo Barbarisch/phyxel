@@ -26,5 +26,11 @@ struct RoomLayout {
 /// connected so every room is reachable from the entrance. Deterministic in `seed`.
 RoomLayout generateRoomLayout(int W, int D, int targetRooms, unsigned seed, int minDim = 2);
 
+/// Fill in rooms for any story that has NO authored rooms, using generateRoomLayout over the
+/// program's footprint (the exterior entrance is added to the ground story only; authored rooms,
+/// stairs, and portals are left untouched). Deterministic in `seed`. This is what the build handler
+/// calls so a program need not hand-author interiors. No-op if the footprint is unset.
+void autofillRoomLayout(BuildingProgram& program, unsigned seed);
+
 }  // namespace Core
 }  // namespace Phyxel
