@@ -43,6 +43,15 @@ public:
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).
     static int facingIntoRoom(int inwardDx, int inwardDz);
+
+    /// The furniture a room of this purpose REQUIRES, as fixture-type names (the recipe that
+    /// furnish() places). Exposed so the asset-coverage validator can assert each required type
+    /// resolves to a real template; uses the SAME purpose-matching as furnish().
+    static std::vector<std::string> requiredFurniture(const std::string& purpose);
+
+    /// Canonical purposes the recipe distinguishes. Iterate these to enumerate the FULL furniture
+    /// vocabulary (every type the placer can ever emit) — the coverage gate's demand side.
+    static std::vector<std::string> knownPurposes();
 };
 
 } // namespace Core

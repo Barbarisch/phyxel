@@ -68,6 +68,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
+#include "core/FurnitureCatalog.h"          // type->template single source + asset-coverage gate
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -11976,12 +11977,24 @@ void Application::processAPICommands() {
                             // the program's hand-authored fixtures (if any) are IGNORED. Pieces are
                             // parented to the structure so they group and are removed with it.
                             if (v2Mode && v2HasFixtures && !objectId.empty()) {
-                                static const std::map<std::string, std::string> kFixtureTemplate = {
-                                    {"fireplace", "fireplace"}, {"table", "table_wood"},
-                                    {"counter", "counter"},     {"bed", "bed_single"},
-                                    {"bench", "bench_wood"},     {"barrel", "barrel"}
-                                    // NOTE: no "chest" template exists yet (gap) -> chest is skipped.
+                                // Up-front coverage gate: flag furniture a room NEEDS but the catalog
+                                // can't supply (template unmapped OR not loaded) — surfaced by ROOM,
+                                // not silently dropped. Existence is checked against the live catalog.
+                                auto templateLoaded = [&](const std::string& n) {
+                                    return objectTemplateManager &&
+                                           objectTemplateManager->getTemplate(n) != nullptr;
                                 };
+                                auto coverage = Core::validateFurnitureCoverage(templateLoaded);
+                                if (!coverage.ok()) {
+                                    nlohmann::json gaps = nlohmann::json::array();
+                                    for (const auto& g : coverage.gaps) {
+                                        gaps.push_back({{"purpose", g.purpose}, {"type", g.type},
+                                                        {"template", g.templateName}, {"message", g.message}});
+                                        LOG_WARN("StructureV2", "asset gap: " + g.message);
+                                    }
+                                    response["asset_gaps"] = gaps;
+                                }
+
                                 int fxSpawned = 0, fxSkipped = 0;
                                 for (size_t si = 0; si < v2Program.stories.size(); ++si) {
                                     const auto& story = v2Program.stories[si];
@@ -11993,16 +12006,18 @@ void Application::processAPICommands() {
                                     auto placements = Core::FurniturePlacer::furnish(
                                         story, glm::ivec3(posX, 0, posZ), storyFloorY);
                                     for (const auto& pl : placements) {
-                                        auto tit = kFixtureTemplate.find(pl.type);
-                                        if (tit == kFixtureTemplate.end()) { ++fxSkipped; continue; }
+                                        // Single source of truth (Core::FurnitureCatalog), not a
+                                        // private map that drifts from the placer's vocabulary.
+                                        std::string tmpl = Core::FurnitureCatalog::templateFor(pl.type);
+                                        if (tmpl.empty()) { ++fxSkipped; continue; }
                                         std::string fid = placedObjectManager->placeTemplate(
-                                            tit->second, pl.worldPos, pl.rotation, objectId, /*snap=*/false);
-                                        if (!fid.empty()) ++fxSpawned;
+                                            tmpl, pl.worldPos, pl.rotation, objectId, /*snap=*/false);
+                                        if (!fid.empty()) ++fxSpawned; else ++fxSkipped;
                                     }
                                 }
                                 response["fixtures_spawned"] = fxSpawned;
                                 LOG_INFO_FMT("StructureV2", "FurniturePlacer: engine placed " << fxSpawned
-                                             << " fixtures (" << fxSkipped << " skipped, no template) into '"
+                                             << " fixtures (" << fxSkipped << " skipped) into '"
                                              << objectId << "'");
                             }
                         }

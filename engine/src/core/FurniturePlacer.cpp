@@ -34,6 +34,17 @@ std::vector<Piece> recipeFor(const std::string& purpose) {
 
 } // namespace
 
+std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& purpose) {
+    std::vector<std::string> types;
+    for (const auto& pc : recipeFor(purpose)) types.push_back(pc.type);
+    return types;
+}
+
+std::vector<std::string> FurniturePlacer::knownPurposes() {
+    // One representative per recipe branch in recipeFor(); their union is the full vocabulary.
+    return {"kitchen", "bedchamber", "hall", "store", "other"};
+}
+
 int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
     if (inwardDx > 0) return 270;  // against min-x wall, front +x
     if (inwardDx < 0) return 90;   // against max-x wall, front -x
