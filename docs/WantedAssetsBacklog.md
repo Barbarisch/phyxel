@@ -1,7 +1,7 @@
 # Wanted Assets & Materials Backlog
 
 The **"wanted assets" backlog** referenced by the content-library mechanism in
-[`StructureGenerationPlacers.md`](StructureGenerationPlacers.md) Part 4 (and checklist U5). When a build needs
+[`StructureGenerationPlacers.md`](structure-generation/StructureGenerationPlacers.md) Part 4 (and checklist U5). When a build needs
 something the engine doesn't have, it is **logged here once** — never silently faked or improvised — and then
 authored through the generate → validate → **user-approve** → persist flow so it becomes a permanent library
 item (Part 4). This is how the engine, not Claude, remembers.

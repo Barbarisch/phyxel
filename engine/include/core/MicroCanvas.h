@@ -3,7 +3,7 @@
 // ============================================================================
 // MicroCanvas — multi-resolution voxel painter with greedy coarsening.
 //
-// Structure Generation v2 (docs/StructureGenerationV2.md), level-5 realization.
+// Structure Generation v2 (docs/structure-generation/StructureGenerationV2.md), level-5 realization.
 //
 // The idea: paint EVERYTHING into one fine grid — the microcube grid, 9x9x9
 // micro-cells per cube (9 micro = 1 cube, 3 micro = 1 subcube) — then export()

@@ -239,7 +239,7 @@ public:
     static StructureResult generateFromJson(const nlohmann::json& def);
 
     /// Realize a functional BuildingSpec (rooms/portals/stairs/fixtures) into voxels +
-    /// door requests. See docs/StructureGenerationPipeline.md and tools/structure_pipeline.
+    /// door requests. See docs/structure-generation/StructureGenerationPipeline.md and tools/structure_pipeline.
     /// Built in the spec's local frame, offset by spec["position"] (no rotation in P1).
     static StructureResult generateFromSpec(const nlohmann::json& spec);
 

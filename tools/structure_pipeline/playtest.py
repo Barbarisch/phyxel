@@ -510,7 +510,7 @@ def runtime_playtest(spec: BuildingSpec, position, engine: str = ENGINE) -> dict
         out["ok"] = out["ok"] and ok
 
     # Navigation is ADVISORY: the engine's NavGrid isn't rebuilt after runtime world edits /
-    # structure spawns (see docs/StructurePipelineGaps.md), so it may not reflect a freshly
+    # structure spawns (see docs/structure-generation/StructurePipelineGaps.md), so it may not reflect a freshly
     # built building. Tier B is the authoritative navigability check; this is a live cross-check.
     ent = sorted(_entrance_cells(spec))
     if ent:

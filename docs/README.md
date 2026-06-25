@@ -24,6 +24,12 @@ Phyxel is a voxel game engine and development application. The engine (`phyxel_c
 - **[StoryEngineDesign.md](StoryEngineDesign.md)** — Story arc, character agent, and narrative system design
 - **[StoryEngineProgress.md](StoryEngineProgress.md)** — Story engine implementation progress
 
+## World & Structure Generation
+
+- **[structure-generation/](structure-generation/README.md)** — the **structure generator** (buildings/settlements): design, the grounded `StructureBrief` intake, placers, room/archetype data sheets, known issues, and the standing validation discipline. **Start at its README** — the canonical entry point for all structure-gen work.
+- **[TerrainGenerationBiomes.md](TerrainGenerationBiomes.md)** — terrain/biome world generation (the sibling pipeline).
+- **[WorldRecipeAndFlora.md](WorldRecipeAndFlora.md)** — per-world generation recipe + flora.
+
 ## Engine Architecture
 
 - **[ArchitectureOverview.md](ArchitectureOverview.md)** — Visual architecture diagrams

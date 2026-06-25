@@ -2,7 +2,7 @@
 
 // ============================================================================
 // AssemblyPlan — the DERIVED physical anatomy (level 4 of Structure Generation
-// v2; docs/StructureGenerationV2.md). "How it's built."
+// v2; docs/structure-generation/StructureGenerationV2.md). "How it's built."
 //
 // Computed deterministically in-engine from a BuildingProgram + a StyleProfile +
 // live terrain by the (future) StructureRealizer, then realized into voxels via

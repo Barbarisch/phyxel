@@ -1,7 +1,7 @@
 #pragma once
 
 // ============================================================================
-// StructureBriefValidator — the engine-resident intake gate (docs/StructureBrief.md).
+// StructureBriefValidator — the engine-resident intake gate (docs/structure-generation/StructureBrief.md).
 //
 // Validates a filled StructureBrief against the StructureBriefSchema and returns a
 // ValidationReport: every BLOCKING field must be set; every set value must carry a

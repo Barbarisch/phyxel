@@ -2,7 +2,7 @@
 
 // ============================================================================
 // StructureRealizer — the in-engine, ground-up shell builder for Structure
-// Generation v2 (docs/StructureGenerationV2.md). P1: single-story shell on FLAT
+// Generation v2 (docs/structure-generation/StructureGenerationV2.md). P1: single-story shell on FLAT
 // ground (passes 0-5: substructure -> floor -> walls -> ceiling -> roof, plus
 // carved openings). Terrain adaptation (stepped footings, excavation) is P2.
 //

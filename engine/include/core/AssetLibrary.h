@@ -2,7 +2,7 @@
 
 // ============================================================================
 // AssetLibrary — the TRUSTED store for generated objects (Structure Generation
-// v2; docs/StructureGenerationV2.md, "the trust mechanism — library status, not
+// v2; docs/structure-generation/StructureGenerationV2.md, "the trust mechanism — library status, not
 // self-claim").
 //
 // Every asset is a record with provenance + a status. The realizer may select

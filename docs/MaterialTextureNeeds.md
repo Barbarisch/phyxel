@@ -80,4 +80,4 @@ The user intends to **redo the texture system** for higher fidelity. Implication
 - When the new system lands, the structure/furniture pipelines should be re-audited to use the
   new materials (this doc is the worklist).
 
-See also: `docs/StructurePipelineGaps.md` (asset backlog: furniture, door types, lamps+lighting).
+See also: `docs/structure-generation/StructurePipelineGaps.md` (asset backlog: furniture, door types, lamps+lighting).

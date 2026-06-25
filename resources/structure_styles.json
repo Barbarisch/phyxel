@@ -1,5 +1,5 @@
 {
-  "_comment": "StyleProfile — per-style construction knobs for Structure Generation v2. Thickness/ceiling values in CUBES (1 cube = 1 m); roof 'pitch_deg' in DEGREES. GROUNDED per the medieval period (see docs/StructureGenerationV2.md). Each style carries a primary `source` + a per-value `sources` map (the grounding rule). Confidence is noted inline: sourced vs INFERRED (from a sourced system, low confidence). Material gaps (thatch, clay tile) are placeholders pending MaterialTextureNeeds.md. NOTE: the realizer must be wired to honor roof.pitch_deg (currently hardcoded) — follow-up.",
+  "_comment": "StyleProfile — per-style construction knobs for Structure Generation v2. Thickness/ceiling values in CUBES (1 cube = 1 m); roof 'pitch_deg' in DEGREES. GROUNDED per the medieval period (see docs/structure-generation/StructureGenerationV2.md). Each style carries a primary `source` + a per-value `sources` map (the grounding rule). Confidence is noted inline: sourced vs INFERRED (from a sourced system, low confidence). Material gaps (thatch, clay tile) are placeholders pending MaterialTextureNeeds.md. NOTE: the realizer must be wired to honor roof.pitch_deg (currently hardcoded) — follow-up.",
   "styles": {
     "timber_cottage": {
       "description": "Humble medieval timber frame + wattle-and-daub, thatch roof, on a low stone plinth.",
@@ -101,7 +101,7 @@
       "description": "Castle keep / great tower: massive stone walls, battlemented, vaulted basement.",
       "roof_style": "flat",
       "foundation": "basement",
-      "source": "medieval keep / great tower (Dover walls to 6.4 m; general keep 2-4 m; auditor-confirmed, docs/archetypes/keep.md)",
+      "source": "medieval keep / great tower (Dover walls to 6.4 m; general keep 2-4 m; auditor-confirmed, docs/structure-generation/archetypes/keep.md)",
       "thickness": {
         "exterior_wall": 3.0,
         "interior_wall": 1.0,

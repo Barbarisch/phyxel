@@ -8,7 +8,7 @@
 // micro-blocks (treads + landings) with a guaranteed walkable riser, and reports
 // whether it actually fits. Both the realizer (to BUILD) and the validator (to
 // GATE) call this, so the gate measures exactly what gets built (no drift). See
-// docs/BuildKnownIssues.md KI-4.
+// docs/structure-generation/BuildKnownIssues.md KI-4.
 //
 // Forms:
 //   * Switchback — two half-flights + a mid-landing, 180° turn. Compact square

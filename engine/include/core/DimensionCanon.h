@@ -3,7 +3,7 @@
 // ============================================================================
 // DimensionCanon — the objective ruler for generated OBJECTS.
 //
-// Structure Generation v2 (docs/StructureGenerationV2.md), the component/asset
+// Structure Generation v2 (docs/structure-generation/StructureGenerationV2.md), the component/asset
 // tier. A sibling of resources/character_design_constraints.json (which anchors
 // everything to the 1.751-cube character): per-archetype real-world canonical
 // dimensions (converted to cubes; 1 cube ~= 1 m) + tolerance + structural rules

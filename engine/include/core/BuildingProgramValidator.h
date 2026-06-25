@@ -2,7 +2,7 @@
 
 // ============================================================================
 // BuildingProgramValidator — the PRE-BUILD gate (no voxels yet) for Structure
-// Generation v2 (docs/StructureGenerationV2.md). Proves a BuildingProgram is
+// Generation v2 (docs/structure-generation/StructureGenerationV2.md). Proves a BuildingProgram is
 // legal before the realizer spends any work, and feeds the LLM repair loop.
 //
 // Gates:

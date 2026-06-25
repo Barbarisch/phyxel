@@ -1063,7 +1063,7 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // GET /api/structure/brief/schema — the engine-resident intake field schema
     // (the StructureBrief question bank). Single source of truth for ALL drivers
-    // (in-engine wizard/CLI, the Claude /structure skill). See docs/StructureBrief.md.
+    // (in-engine wizard/CLI, the Claude /structure skill). See docs/structure-generation/StructureBrief.md.
     // ====================================================================
     srv.Get("/api/structure/brief/schema", [](const httplib::Request&, httplib::Response& res) {
         std::ifstream f("resources/structure_brief_schema.json");

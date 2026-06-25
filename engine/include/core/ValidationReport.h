@@ -2,7 +2,7 @@
 
 // ============================================================================
 // ValidationReport / Issue — shared validation result type for Structure
-// Generation v2 (docs/StructureGenerationV2.md).
+// Generation v2 (docs/structure-generation/StructureGenerationV2.md).
 //
 // One report type for every gate in the pipeline: the pre-build BuildingProgram
 // validator, the AssetValidator, and the post-build geometry checks. An Issue is

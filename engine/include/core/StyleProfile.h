@@ -3,7 +3,7 @@
 // ============================================================================
 // StyleProfile — per-style construction knobs for Structure Generation v2.
 //
-// docs/StructureGenerationV2.md. This is where "wall/assembly thickness is
+// docs/structure-generation/StructureGenerationV2.md. This is where "wall/assembly thickness is
 // configurable per style and material" lives: each style (timber_cottage,
 // stone_manor, ...) declares assembly thicknesses (in cubes), per-layer
 // materials, trim rules, roof params, ceiling targets, and a foundation

@@ -2,7 +2,7 @@
 
 // ============================================================================
 // BuildingProgram — the SEMANTIC, LLM-authorable building spec (level 3 of the
-// Structure Generation v2 stack; docs/StructureGenerationV2.md).
+// Structure Generation v2 stack; docs/structure-generation/StructureGenerationV2.md).
 //
 // "What the building is": function, footprint, per-story rooms / portals /
 // stairs / fixtures, substructure choice (slab | crawlspace | basement), roof,

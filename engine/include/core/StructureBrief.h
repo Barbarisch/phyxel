@@ -1,7 +1,7 @@
 #pragma once
 
 // ============================================================================
-// StructureBrief — a filled-in intake (docs/StructureBrief.md), engine-resident.
+// StructureBrief — a filled-in intake (docs/structure-generation/StructureBrief.md), engine-resident.
 //
 // Schema-driven: rather than rigid typed sections, the brief is a flat map of
 // fieldId -> {value, source, confirmed}. This stays in lock-step with the

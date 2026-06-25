@@ -2,7 +2,7 @@
 
 // ============================================================================
 // StructureBriefSchema — engine-resident, machine-readable field list for the
-// mandatory structure-generation intake (docs/StructureBrief.md).
+// mandatory structure-generation intake (docs/structure-generation/StructureBrief.md).
 //
 // This is the SINGLE SOURCE OF TRUTH for every driver of the intake — the
 // in-engine wizard/CLI and the Claude `/structure` skill all read THIS schema

@@ -1,5 +1,5 @@
 {
-  "_comment": "Room Program canon — period-grounded room/building sizing for Structure Generation v2. MEDIEVAL frame: sizes derive from the BAY (the structural module between cross-frames) + house typology, NOT from modern residential area tables. Units = CUBES (1 cube = 1 m). Every value carries a `sources` entry (the grounding rule). 'bays' on a room = how many structural bays it occupies. See docs/StructureBrief.md + docs/StructureGenerationV2.md. Modern 1500/2100 sq ft figures DO NOT apply here.",
+  "_comment": "Room Program canon — period-grounded room/building sizing for Structure Generation v2. MEDIEVAL frame: sizes derive from the BAY (the structural module between cross-frames) + house typology, NOT from modern residential area tables. Units = CUBES (1 cube = 1 m). Every value carries a `sources` entry (the grounding rule). 'bays' on a room = how many structural bays it occupies. See docs/structure-generation/StructureBrief.md + docs/structure-generation/StructureGenerationV2.md. Modern 1500/2100 sq ft figures DO NOT apply here.",
   "_units": "cubes (metres). bay_length/width in cubes; 'bays' = structural-bay count.",
   "programs": {
     "croft": {

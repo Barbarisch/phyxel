@@ -4,7 +4,7 @@ Structure Pipeline P2 — LLM spec author.
 Turns a natural-language description into a *validated* BuildingSpec: the LLM does the
 spatial/semantic design, the P0 validator + scale canon guarantee correctness, and a
 repair loop feeds validation errors back to the LLM until the spec is clean (or rounds
-run out). This is the "LLM + deterministic" combination from docs/StructureGenerationPipeline.md.
+run out). This is the "LLM + deterministic" combination from docs/structure-generation/StructureGenerationPipeline.md.
 
 The LLM call is pluggable (`LLMFn = (system, user) -> text`) so the prompt and repair loop
 are testable without API calls. The default backend calls the Anthropic Messages API directly

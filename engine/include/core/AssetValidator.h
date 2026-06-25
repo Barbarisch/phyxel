@@ -3,7 +3,7 @@
 // ============================================================================
 // AssetValidator — deterministic gates for generated OBJECTS (no LLM in the
 // verdict). Structure Generation v2, the component/asset tier
-// (docs/StructureGenerationV2.md).
+// (docs/structure-generation/StructureGenerationV2.md).
 //
 // Measures a realized asset (a MicroCanvas) against its DimensionCanon archetype
 // and returns a ValidationReport. An asset must pass these before it can even

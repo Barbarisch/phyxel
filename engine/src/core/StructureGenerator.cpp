@@ -1188,7 +1188,7 @@ StructureResult StructureGenerator::generateTower(const glm::ivec3& pos, int rad
 }
 
 // ============================================================================
-// Spec-driven generation (functional BuildingSpec — see docs/StructureGenerationPipeline.md)
+// Spec-driven generation (functional BuildingSpec — see docs/structure-generation/StructureGenerationPipeline.md)
 // ============================================================================
 
 StructureResult StructureGenerator::generateFromSpec(const nlohmann::json& spec) {

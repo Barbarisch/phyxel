@@ -9,7 +9,7 @@ This module:
   * holds the DOOR_CATALOG (each door's real size + traits), shared by the realizer AND the checks,
   * selects a door deterministically from the opening width + room purpose + lockable + exterior.
 
-Free-swinging (physics) doors and left/right hinge MIRRORING are tracked in docs/StructurePipelineGaps.md
+Free-swinging (physics) doors and left/right hinge MIRRORING are tracked in docs/structure-generation/StructurePipelineGaps.md
 (the engine + mirrored templates are follow-ups); this module records the intended `swing` per door.
 """
 
