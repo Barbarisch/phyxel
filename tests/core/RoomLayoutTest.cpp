@@ -114,6 +114,21 @@ TEST(RoomLayoutTest, AutofillUsesTypologyOnGroundStory) {
     EXPECT_FALSE(hasPurpose(p.stories[0].rooms, "living")) << "autofill ignored the typology";
 }
 
+// DEFAULT path: a bare build that declares NO typology must still resolve to a real dwelling
+// typology (via function), else an undeclared "house" silently builds a generic all-"living" box.
+// This pins the handler's resolution contract (program.typology empty -> function default).
+TEST(RoomLayoutTest, BareHouseDefaultsToHallHouseTypology) {
+    BuildingProgram p;   // nothing declared
+    EXPECT_EQ(p.function, "house") << "a bare program must default to a house function";
+    EXPECT_TRUE(p.typology.empty());
+    EXPECT_EQ(RoomProgramRegistry::defaultTypologyForFunction(p.function), "hall_house")
+        << "an undeclared house must default to a real typology, not a generic box";
+    // cottage/manor/farmhouse get their own grounded dwellings; church/tower get none (no room gate)
+    EXPECT_EQ(RoomProgramRegistry::defaultTypologyForFunction("cottage"), "croft");
+    EXPECT_EQ(RoomProgramRegistry::defaultTypologyForFunction("manor"), "manor_hall");
+    EXPECT_TRUE(RoomProgramRegistry::defaultTypologyForFunction("church").empty());
+}
+
 // END-TO-END (the whole "real house" chain in one assertion): typology -> purposed rooms ->
 // purpose-appropriate furniture. An autofilled hall_house, furnished, must put a barrel in the
 // service end, a bed in the solar (bedroom), and a hearth in the hall — NOT the same furniture
