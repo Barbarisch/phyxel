@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <set>
+#include <tuple>
+
 #include "core/FurniturePlacer.h"
 #include "core/BuildingProgram.h"
 
@@ -7,11 +10,40 @@ using namespace Phyxel::Core;
 
 namespace {
 ProgStory story(const char* s) { return ProgStory::fromJson(nlohmann::json::parse(s)); }
+std::set<std::tuple<int, int, int>> posSet(const std::vector<FurniturePlacement>& v) {
+    std::set<std::tuple<int, int, int>> s;
+    for (const auto& f : v) s.insert({f.worldPos.x, f.worldPos.y, f.worldPos.z});
+    return s;
+}
+int sharedPositions(const std::vector<FurniturePlacement>& a, const std::vector<FurniturePlacement>& b) {
+    auto sa = posSet(a); int n = 0;
+    for (const auto& f : b) if (sa.count({f.worldPos.x, f.worldPos.y, f.worldPos.z})) ++n;
+    return n;
+}
 const FurniturePlacement* find(const std::vector<FurniturePlacement>& v, const std::string& t) {
     for (const auto& f : v) if (f.type == t) return &f;
     return nullptr;
 }
 } // namespace
+
+// KI-2: multi-story furniture must NOT stack. The handler used to pass the SAME floorY to every
+// story, so every story's furniture landed at the ground floor (overlapping). A per-story floorY
+// puts each story's pieces on their own floor. This is the FurniturePlacer logic the fix relies on.
+TEST(FurniturePlacerTest, PerStoryFloorYStopsCrossStoryStacking) {
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,7,9],"purpose":"living"}]})json");
+    const glm::ivec3 origin{0, 0, 0};
+    // BUG repro (teeth): identical floorY for two stories -> identical world positions -> collide.
+    const auto bug0 = FurniturePlacer::furnish(s, origin, 18);
+    const auto bug1 = FurniturePlacer::furnish(s, origin, 18);
+    ASSERT_GT(bug0.size(), 0u) << "no fixtures placed — can't exercise the bug";
+    EXPECT_GT(sharedPositions(bug0, bug1), 0)
+        << "same-floorY furniture did NOT collide — the check would have no teeth";
+    // FIX: distinct per-story floorY -> no shared world position across stories.
+    const auto fix0 = FurniturePlacer::furnish(s, origin, 18);
+    const auto fix1 = FurniturePlacer::furnish(s, origin, 22);
+    EXPECT_EQ(sharedPositions(fix0, fix1), 0)
+        << "per-story floorY still stacks furniture across stories (KI-2 not fixed)";
+}
 
 // The convention I kept getting wrong by hand: a piece against the MIN-X wall faces
 // +x (into the room) => rotation 270, NOT 90/"east".

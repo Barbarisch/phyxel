@@ -11727,6 +11727,7 @@ void Application::processAPICommands() {
                     Core::BuildingProgram v2Program;   // kept for the post-registration fixture pass
                     bool v2HasFixtures = false;
                     int  v2FloorY = 0;                 // world Y of the walkable floor (fixtures sit here)
+                    std::vector<int> v2FloorYByStory;  // per-story walkable Y (KI-2: furniture per floor)
                     if (v2Mode) {
                         Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
                         // generate_room_layout (#05): auto-fill interiors for any story that authored
@@ -11869,6 +11870,11 @@ void Application::processAPICommands() {
                         // above the foundation top (foundation rows [oy, oy+crawl), floor at oy+crawl).
                         v2Program = program;
                         v2FloorY = oy + shell.crawlHeightCubes;
+                        // KI-2: per-story walkable Y (world cubes) from the realizer's per-story
+                        // micro-Y — so the post-registration furniture pass places each story's
+                        // furniture on ITS floor, not all on the ground floor.
+                        v2FloorYByStory.clear();
+                        for (int ft : shell.floorTopByStory) v2FloorYByStory.push_back(oy + ft / 9);
                         v2HasFixtures = true;
                     } else {
                         structure = specMode
@@ -11977,9 +11983,15 @@ void Application::processAPICommands() {
                                     // NOTE: no "chest" template exists yet (gap) -> chest is skipped.
                                 };
                                 int fxSpawned = 0, fxSkipped = 0;
-                                for (const auto& story : v2Program.stories) {
+                                for (size_t si = 0; si < v2Program.stories.size(); ++si) {
+                                    const auto& story = v2Program.stories[si];
+                                    // KI-2 fix: per-story floor Y (ground story == v2FloorY).
+                                    // Previously a constant v2FloorY for EVERY story stacked all
+                                    // furniture on the ground floor.
+                                    int storyFloorY = (si < v2FloorYByStory.size())
+                                        ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
-                                        story, glm::ivec3(posX, 0, posZ), v2FloorY);
+                                        story, glm::ivec3(posX, 0, posZ), storyFloorY);
                                     for (const auto& pl : placements) {
                                         auto tit = kFixtureTemplate.find(pl.type);
                                         if (tit == kFixtureTemplate.end()) { ++fxSkipped; continue; }
