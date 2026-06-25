@@ -119,7 +119,10 @@ off the top; the real frontier is *automatic interiors* and the remaining usabil
 
 Done to required depth: **12 place_stairs (L3)**; multi-story **11/36** circulation (corpus L2+L3);
 **05 generate_room_layout** — BSP generator BUILT + harness-validated (tiling, navigable rooms, L3
-`rooms` layer with a generated negative control, auditor-PASS). *Remaining for 05: wire it into the
-build handler so the pipeline auto-generates rooms when a program doesn't author them.*
+`rooms` layer with a generated negative control, auditor-PASS) AND WIRED into the build handler via
+`autofillRoomLayout` (empty-rooms stories auto-fill; unit + harness enforced, auditor-PASS). *Remaining
+for 05: typology-aware autofill (footprint must match the declared typology, else the gate warns
+`footprint_too_wide`); multi-story autofill doesn't auto-add stairs; the Application.cpp call site is
+runtime-observed only — an e2e test driving the build command is a noted gap.*
 
 **12 place_stairs is the worked exemplar** of a row reaching its required layer (L3, red→green, auditor PASS). Every backlog item closes the same way: write the red test at the required layer, watch it fail, fix, green, audit.

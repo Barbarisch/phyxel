@@ -132,7 +132,7 @@ BuildingProgram autofilled(int W, int D, unsigned seed) {
     story["portals"] = nlohmann::json::array(); story["stairs"] = nlohmann::json::array();
     j["stories"] = nlohmann::json::array({story});
     BuildingProgram p = BuildingProgram::fromJson(j);   // no authored rooms
-    autofillRoomLayout(p, seed);                        // the handler seam fills them
+    autofillRoomLayout(p, seed);                        // core seam (same fn the handler calls)
     return p;
 }
 
