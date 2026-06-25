@@ -108,11 +108,7 @@ The actual work queue — the placers shipping below their required depth, highe
 **Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 11/12), so they drop
 off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
-1. **05 generate_room_layout (5)** — currently rooms are HAND-AUTHORED (gen missing). A town can't be
-   hand-authored — the biggest end-goal blocker. The **validation layer now exists** (harness `rooms`
-   L3 + a real interior-doorway fix, auditor-PASS); what remains is the GENERATOR (auto-partition the
-   footprint into navigable rooms) — build it to PASS the existing layer + add generated cases.
-2. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap. Add a furniture layer
+1. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap. Add a furniture layer
    to the harness (needs the FurniturePlacer in the loop).
 3. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
    the ground-floor entrance; extend to interior doors).
@@ -121,6 +117,9 @@ off the top; the real frontier is *automatic interiors* and the remaining usabil
    substructure; add cellar rooms + a down-stair case).
 6. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
 
-Done to required depth: **12 place_stairs (L3)**, and multi-story **11/36** circulation (corpus L2+L3).
+Done to required depth: **12 place_stairs (L3)**; multi-story **11/36** circulation (corpus L2+L3);
+**05 generate_room_layout** — BSP generator BUILT + harness-validated (tiling, navigable rooms, L3
+`rooms` layer with a generated negative control, auditor-PASS). *Remaining for 05: wire it into the
+build handler so the pipeline auto-generates rooms when a program doesn't author them.*
 
 **12 place_stairs is the worked exemplar** of a row reaching its required layer (L3, red→green, auditor PASS). Every backlog item closes the same way: write the red test at the required layer, watch it fail, fix, green, audit.
