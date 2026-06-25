@@ -1,6 +1,7 @@
 #include "core/FurniturePlacer.h"
 
 #include <cctype>
+#include <map>
 #include <set>
 #include <string>
 #include <utility>
@@ -43,6 +44,31 @@ std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& p
 std::vector<std::string> FurniturePlacer::knownPurposes() {
     // One representative per recipe branch in recipeFor(); their union is the full vocabulary.
     return {"kitchen", "bedchamber", "hall", "store", "other"};
+}
+
+std::vector<FixtureLabel> FurniturePlacer::labelFixtures(
+    const ProgStory& story, const std::vector<FurniturePlacement>& placements) {
+    // room id -> purpose, and room id -> ordinal among same-purpose rooms (in story order).
+    std::map<std::string, std::string> purposeOf;
+    std::map<std::string, int> purposeIdxOf;
+    std::map<std::string, int> seenPerPurpose;
+    for (const auto& rm : story.rooms) {
+        purposeOf[rm.id] = rm.purpose;
+        purposeIdxOf[rm.id] = seenPerPurpose[rm.purpose]++;   // ordinal among same-purpose rooms
+    }
+    std::vector<FixtureLabel> labels;
+    labels.reserve(placements.size());
+    for (const auto& pl : placements) {
+        FixtureLabel L;
+        L.room = pl.room;
+        L.type = pl.type;
+        auto itp = purposeOf.find(pl.room);
+        L.purpose = (itp == purposeOf.end()) ? std::string() : itp->second;
+        auto iti = purposeIdxOf.find(pl.room);
+        L.purposeIndex = (iti == purposeIdxOf.end()) ? 0 : iti->second;
+        labels.push_back(L);
+    }
+    return labels;
 }
 
 int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {

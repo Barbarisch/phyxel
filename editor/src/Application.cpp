@@ -11996,6 +11996,7 @@ void Application::processAPICommands() {
                                 }
 
                                 int fxSpawned = 0, fxSkipped = 0;
+                                nlohmann::json fixturesJson = nlohmann::json::array();
                                 for (size_t si = 0; si < v2Program.stories.size(); ++si) {
                                     const auto& story = v2Program.stories[si];
                                     // KI-2 fix: per-story floor Y (ground story == v2FloorY).
@@ -12005,17 +12006,40 @@ void Application::processAPICommands() {
                                         ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
                                         story, glm::ivec3(posX, 0, posZ), storyFloorY);
-                                    for (const auto& pl : placements) {
+                                    // Semantic identity per fixture (room/purpose/ordinal/type), 1:1
+                                    // with placements — so a session can address "the 2nd bedroom's bed".
+                                    auto labels = Core::FurniturePlacer::labelFixtures(story, placements);
+                                    for (size_t k = 0; k < placements.size(); ++k) {
+                                        const auto& pl = placements[k];
                                         // Single source of truth (Core::FurnitureCatalog), not a
                                         // private map that drifts from the placer's vocabulary.
                                         std::string tmpl = Core::FurnitureCatalog::templateFor(pl.type);
                                         if (tmpl.empty()) { ++fxSkipped; continue; }
                                         std::string fid = placedObjectManager->placeTemplate(
                                             tmpl, pl.worldPos, pl.rotation, objectId, /*snap=*/false);
-                                        if (!fid.empty()) ++fxSpawned; else ++fxSkipped;
+                                        if (fid.empty()) { ++fxSkipped; continue; }
+                                        ++fxSpawned;
+                                        const auto& L = labels[k];
+                                        nlohmann::json fx = {
+                                            {"structure", objectId}, {"room", L.room},
+                                            {"purpose", L.purpose}, {"purpose_index", L.purposeIndex},
+                                            {"type", L.type}, {"story", (int)si}};
+                                        // Tag the placed object so the identity survives (persisted).
+                                        placedObjectManager->setMetadata(fid, "fixture", fx);
+                                        fx["id"] = fid;
+                                        fx["position"] = {{"x", pl.worldPos.x}, {"y", pl.worldPos.y},
+                                                          {"z", pl.worldPos.z}};
+                                        fx["rotation"] = pl.rotation;
+                                        fixturesJson.push_back(fx);
                                     }
                                 }
                                 response["fixtures_spawned"] = fxSpawned;
+                                response["fixtures"] = fixturesJson;   // labeled, addressable
+                                // Persist the metadata tags (same path as move/rotate).
+                                if (chunkManager) {
+                                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                                    if (ws) placedObjectManager->saveToDb(ws->getDb());
+                                }
                                 LOG_INFO_FMT("StructureV2", "FurniturePlacer: engine placed " << fxSpawned
                                              << " fixtures (" << fxSkipped << " skipped) into '"
                                              << objectId << "'");

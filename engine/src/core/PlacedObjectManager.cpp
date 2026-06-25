@@ -865,6 +865,15 @@ const PlacedObject* PlacedObjectManager::get(const std::string& id) const {
     return (it != m_objects.end()) ? &it->second : nullptr;
 }
 
+bool PlacedObjectManager::setMetadata(const std::string& id, const std::string& key,
+                                      const nlohmann::json& value) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_objects.find(id);
+    if (it == m_objects.end()) return false;
+    it->second.metadata[key] = value;
+    return true;
+}
+
 std::vector<PlacedObject> PlacedObjectManager::list() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<PlacedObject> result;

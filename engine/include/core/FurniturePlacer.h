@@ -33,6 +33,16 @@ struct FurniturePlacement {
     std::string room;        ///< owning room id
 };
 
+/// The semantic identity of a placed fixture — what's needed to address it later in a session
+/// ("rotate the bed", "move the 2nd bedroom's bed"). Carried into the PlacedObject's metadata.
+struct FixtureLabel {
+    std::string room;            ///< owning room id
+    std::string purpose;         ///< that room's purpose (e.g. "bedchamber", "kitchen")
+    int         purposeIndex = 0;///< 0-based ordinal among rooms of the SAME purpose (story order):
+                                 ///< "2nd bedroom" == purposeIndex 1
+    std::string type;            ///< fixture type (e.g. "bed")
+};
+
 class FurniturePlacer {
 public:
     /// Furnish every room in `story`. `origin` = structure world origin (room rects
@@ -52,6 +62,12 @@ public:
     /// Canonical purposes the recipe distinguishes. Iterate these to enumerate the FULL furniture
     /// vocabulary (every type the placer can ever emit) — the coverage gate's demand side.
     static std::vector<std::string> knownPurposes();
+
+    /// Label each placement (as returned by furnish(story,...)) with its room's purpose and the
+    /// room's ordinal among same-purpose rooms (story order) — the semantic identity used to address
+    /// the fixture later. Returned in the SAME order as `placements`.
+    static std::vector<FixtureLabel> labelFixtures(const ProgStory& story,
+                                                   const std::vector<FurniturePlacement>& placements);
 };
 
 } // namespace Core

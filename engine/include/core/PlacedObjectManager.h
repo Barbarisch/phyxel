@@ -256,6 +256,11 @@ public:
     /// Get a placed object by ID.
     const PlacedObject* get(const std::string& id) const;
 
+    /// Merge one key/value into an object's metadata blob (persisted to SQLite via saveToDb).
+    /// Returns false if the id is unknown. Used to tag a placed fixture with its semantic identity
+    /// (structure/room/purpose/type) so it can be addressed later in a session.
+    bool setMetadata(const std::string& id, const std::string& key, const nlohmann::json& value);
+
     /// List all placed objects.
     std::vector<PlacedObject> list() const;
 
