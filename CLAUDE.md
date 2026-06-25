@@ -59,6 +59,23 @@ commit it alongside the feature. The 10-story tower didn't just confirm "a build
 surfaced three bugs (the silent voxel-cap ghost, the vertical-chunk placement gap, cross-story
 furniture stacking) that the N=1 proof hid completely. **Make this a standing phase, not a prompt.**
 
+### Validation Layers — plan the depth up front
+
+Validation is a **planned deliverable, not an afterthought** (the stress-test phase is the *scale*
+axis; this is the *depth* axis). For every placer / bit of generation logic, name in the plan:
+1. the functional **contract** — what "works" actually means;
+2. the **required validation layer**, set by what the output is *used for* — **L1** artifact exists ·
+   **L2** structural invariant measured on the real output (no overlap, continuous, clearance —
+   validator / canvas scans) · **L3** functional agent simulation (a character-box can *use* it, via
+   `TraversalProbe`) · **L4** live-engine runtime;
+3. the **red test** that proves it, shown failing first.
+
+Pick depth by use: usability-critical + silent-failure + scaling placers get L3 first; spatial-only →
+L2; cosmetic → L1. A placer isn't done until **current layer ≥ required**, red-before-green, auditor-
+confirmed. Track every placer's required-vs-current depth in
+[`docs/structure-generation/ValidationLedger.md`](docs/structure-generation/ValidationLedger.md);
+`place_stairs` is the worked exemplar (L3, geometry + gate + traversal).
+
 ### Diagnostics Without a Project
 `screenshot`, `get_visual_diagnostic`, `get_engine_logs`, `get_render_stats`, `set_log_level`, `set_debug_overlay`, `stop_engine`, `restart_engine`, and `clear_engine_logs` all work in any engine mode — including `--asset-editor`, `--anim-editor`, and no-project states.
 

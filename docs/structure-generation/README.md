@@ -70,6 +70,9 @@ scaling things first and deepest:
 
 Cross-cutting: **scale** (rule 3) and **adversarial audit** (rule 5) at every layer.
 
+**Track each placer's required-vs-current depth in [ValidationLedger.md](ValidationLedger.md)** — the
+prioritized validation backlog (a placer isn't done until current ≥ required, auditor-confirmed).
+
 ## Engine components (where the logic lives)
 
 `engine/include/core/` + `engine/src/core/`: `StructureBrief*` (intake + schema + validator),
