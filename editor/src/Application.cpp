@@ -11731,9 +11731,21 @@ void Application::processAPICommands() {
                     std::vector<int> v2FloorYByStory;  // per-story walkable Y (KI-2: furniture per floor)
                     if (v2Mode) {
                         Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
+
+                        // Resolve the grounded room-program typology ONCE: it drives both the
+                        // purposed room layout (autofill) and the validation gate. Declared typology
+                        // wins, else a coarse function default (croft/hall_house/...).
+                        Core::RoomProgramRegistry roomReg;
+                        roomReg.loadFromFile("resources/room_program.json");
+                        const std::string typ = program.typology.empty()
+                            ? Core::RoomProgramRegistry::defaultTypologyForFunction(program.function)
+                            : program.typology;
+                        const Core::RoomProgram* rp = typ.empty() ? nullptr : roomReg.get(typ);
+
                         // generate_room_layout (#05): auto-fill interiors for any story that authored
-                        // no rooms, so a program need not hand-author them. Deterministic in a seed
-                        // derived from the build position (stable on rebuild). Validated below.
+                        // no rooms. With a typology, the ground floor gets that typology's PURPOSED
+                        // rooms (service/hall/solar) — a real house, not N identical "living" rooms.
+                        // Deterministic in a seed derived from the build position (stable on rebuild).
                         {
                             unsigned seed = cmd.params.value("seed", 0u);
                             if (seed == 0u && cmd.params.contains("position")) {
@@ -11744,12 +11756,13 @@ void Application::processAPICommands() {
                             }
                             int emptyBefore = 0;
                             for (const auto& st : program.stories) if (st.rooms.empty()) ++emptyBefore;
-                            Core::autofillRoomLayout(program, seed ? seed : 1u);
+                            Core::autofillRoomLayout(program, seed ? seed : 1u, rp);
                             if (emptyBefore > 0) {
                                 int total = 0;
                                 for (const auto& st : program.stories) total += (int)st.rooms.size();
                                 LOG_INFO_FMT("StructureV2", "generate_room_layout: auto-filled "
-                                             << emptyBefore << " story(ies) -> " << total << " rooms total");
+                                             << emptyBefore << " story(ies) -> " << total << " rooms total"
+                                             << (rp ? " [typology " + typ + "]" : " [generic]"));
                             }
                         }
                         Core::StyleProfileRegistry styleReg;
@@ -11758,21 +11771,13 @@ void Application::processAPICommands() {
                         Core::StyleProfile style = sp ? *sp : Core::StyleProfile{};
 
                         // Pre-build validation gate (WARN-BUT-ALLOW): grounded checks + the
-                        // room-program typology gate (when the program declares a `typology`).
-                        // Logged loudly; the build still proceeds.
+                        // room-program typology gate. Logged loudly; the build still proceeds.
                         {
-                            Core::RoomProgramRegistry roomReg;
-                            roomReg.loadFromFile("resources/room_program.json");
-                            // Use the program's declared typology, else a coarse function default.
-                            std::string typ = program.typology.empty()
-                                ? Core::RoomProgramRegistry::defaultTypologyForFunction(program.function)
-                                : program.typology;
-                            const Core::RoomProgram* rp = typ.empty() ? nullptr : roomReg.get(typ);
                             Core::ValidationReport vr =
                                 Core::BuildingProgramValidator::validate(program, {}, rp);
                             if (vr.ok())
                                 LOG_INFO_FMT("StructureV2", "program validation: OK"
-                                             << (rp ? " [typology " + program.typology + "]" : ""));
+                                             << (rp ? " [typology " + typ + "]" : ""));
                             else
                                 LOG_WARN_FMT("StructureV2", "program validation FAILED (warn-but-allow,"
                                              " building anyway): " << vr.summary());

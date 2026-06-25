@@ -1,8 +1,12 @@
 #include "core/RoomLayout.h"
 
 #include <algorithm>
+#include <cmath>
+#include <map>
 #include <queue>
 #include <string>
+
+#include "core/RoomProgram.h"
 
 namespace Phyxel {
 namespace Core {
@@ -105,17 +109,95 @@ RoomLayout generateRoomLayout(int W, int D, int targetRooms, unsigned seed, int 
     return out;
 }
 
-void autofillRoomLayout(BuildingProgram& program, unsigned seed) {
+RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typology, int minDim) {
+    RoomLayout out;
+    const auto& specs = typology.rooms;
+    const int n = static_cast<int>(specs.size());
+    if (n == 0 || W < minDim || D < minDim) return out;
+
+    // Partition along the LONGER axis (medieval houses are linear). Rooms span the full width.
+    const bool lengthIsX = (W >= D);
+    const int length = lengthIsX ? W : D;
+    const int width  = lengthIsX ? D : W;
+    if (length < minDim * n) return out;                     // can't fit every room -> caller falls back
+
+    double totalBays = 0.0;
+    for (const auto& rs : specs) totalBays += std::max(0.0, rs.bays);
+    if (totalBays <= 0.0) return out;
+
+    // Largest-remainder allocation: each room gets minDim, then the (length - minDim*n) leftover
+    // cubes are split proportional to bay weight (so the slices sum to EXACTLY length -> tiles).
+    const int extra = length - minDim * n;
+    std::vector<double> want(n);
+    std::vector<int> give(n, 0);
+    int given = 0;
+    for (int i = 0; i < n; ++i) {
+        want[i] = extra * (std::max(0.0, specs[i].bays) / totalBays);
+        give[i] = static_cast<int>(std::floor(want[i]));
+        given += give[i];
+    }
+    std::vector<int> order(n);
+    for (int i = 0; i < n; ++i) order[i] = i;
+    std::sort(order.begin(), order.end(),
+              [&](int a, int b) { return (want[a] - give[a]) > (want[b] - give[b]); });
+    for (int k = 0, leftover = extra - given; k < leftover; ++k) give[order[k % n]]++;
+
+    std::map<std::string, int> idSeen;
+    int pos = 0;
+    for (int i = 0; i < n; ++i) {
+        const int slice = minDim + give[i];
+        Rect r;
+        if (lengthIsX) { r.x = pos; r.z = 0; r.w = slice; r.d = width; }
+        else           { r.x = 0; r.z = pos; r.w = width; r.d = slice; }
+        ProgRoom pr;
+        std::string id = specs[i].id.empty() ? ("r" + std::to_string(i)) : specs[i].id;
+        if (idSeen[id]++ > 0) id += "_" + std::to_string(idSeen[id] - 1);   // disambiguate dup ids
+        pr.id = id;
+        pr.purpose = specs[i].purpose;  // the point: real grounded purposes (service/hall/solar/...)
+        pr.rect = r;
+        out.rooms.push_back(pr);
+        pos += slice;
+    }
+
+    // Linear chain of doors between consecutive rooms.
+    for (int i = 0; i + 1 < n; ++i) {
+        const Wall w = shared(out.rooms[i].rect, out.rooms[i + 1].rect);
+        if (!w.ok) continue;
+        int mid = (w.lo + w.hi) / 2;
+        if (mid >= w.hi) mid = w.hi - 1;
+        ProgPortal p; p.a = out.rooms[i].id; p.b = out.rooms[i + 1].id;
+        p.width = 1; p.height = 2; p.kind = "door";
+        if (w.axis == 'x') { p.px = w.coord; p.pz = mid; }
+        else               { p.px = mid;     p.pz = w.coord; }
+        out.portals.push_back(p);
+    }
+    // One exterior entrance into the first room (it sits at length-pos 0 -> touches the perimeter).
+    {
+        const Rect& r = out.rooms[0].rect;
+        ProgPortal e; e.a = "exterior"; e.b = out.rooms[0].id; e.width = 1; e.height = 2; e.kind = "door";
+        if (r.x == 0)         { e.px = 0; e.pz = r.z + r.d / 2; out.portals.push_back(e); }
+        else if (r.z == 0)    { e.px = r.x + r.w / 2; e.pz = 0; out.portals.push_back(e); }
+        else if (r.x1() == W) { e.px = W; e.pz = r.z + r.d / 2; out.portals.push_back(e); }
+        else if (r.z1() == D) { e.px = r.x + r.w / 2; e.pz = D; out.portals.push_back(e); }
+    }
+    return out;
+}
+
+void autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
     const int W = program.footprintW, D = program.footprintD;
     if (W <= 0 || D <= 0) return;                            // no footprint -> nothing to fill
     for (size_t i = 0; i < program.stories.size(); ++i) {
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
-        // Layout DENSITY knob (a tunable design default, NOT a grounded clearance): ~1 room per
-        // ~16 m^2 (a 4x4 m room), at least 1. Room *sizes* stay grounded — generateRoomLayout
-        // enforces minDim (the validator's min usable room dimension).
-        const int targetRooms = std::max(1, (W * D) / 16);
-        RoomLayout rl = generateRoomLayout(W, D, targetRooms, seed + static_cast<unsigned>(i));
+        RoomLayout rl;
+        if (typology && i == 0)                              // ground floor = the typology's plan
+            rl = generateRoomLayoutFromProgram(W, D, *typology);
+        if (rl.rooms.empty()) {
+            // Fallback (no typology / doesn't fit / upper story): generic BSP. DENSITY knob (a
+            // tunable design default, NOT a grounded clearance): ~1 room per ~16 m^2, at least 1.
+            const int targetRooms = std::max(1, (W * D) / 16);
+            rl = generateRoomLayout(W, D, targetRooms, seed + static_cast<unsigned>(i));
+        }
         st.rooms = rl.rooms;
         for (const auto& p : rl.portals) {
             const bool ext = (p.a == "exterior" || p.b == "exterior");
