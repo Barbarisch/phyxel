@@ -28,10 +28,14 @@ the real output (no overlap, continuous, fits, clearance — `BuildingProgramVal
 
 `tests/core/BuildingHarnessTest.cpp` runs the pipeline across a **corpus** (1/2/3/5/10 stories,
 small→large footprints, switchback & straight stairs, slab/crawlspace/basement) and prints a per-layer
-PASS/FAIL **matrix** + a pass rate — the number you sign off on. It carries a NEGATIVE CONTROL
-(stairless multi-story → unreachable) so the checks have teeth. **Current: 11/12** (only the control
-fails). v1 layers: `build` (L1), `floors` (L2 room-has-floor), `reach` (L3 every floor reachable via
-`TraversalProbe`). Later placers ADD cases + layers (furniture/KI-2, finer floor scan, doors, paths…).
+PASS/FAIL **matrix** + a pass rate — the number you sign off on. It carries NEGATIVE CONTROLS
+(stairless multi-story → unreachable; sealed room → unreachable) so the checks have teeth. **Current:
+12/14** (only the two controls fail). Layers: `build` (L1), `floors` (L2 room-has-floor), `reach`
+(L3 every floor reachable), `rooms` (L3 every room reachable from the entrance — `n/a` for single-room
+cases, not a false "ok"). All L3 via `TraversalProbe`. The `rooms` layer (auditor-PASS, red→green)
+immediately caught + drove the fix of a real bug: **interior doorways were impassable** (the carve
+left a ~1-micro wall sliver) — now fixed. Later placers ADD cases + layers (furniture/KI-2, finer
+floor scan, paths…).
 
 > Note: the harness moves several rows' *current* layer up — multi-story **reach (L3) and floor
 > continuity (L2) are now corpus-validated**, not single-test. The status (D/P/M) column below is the
@@ -105,8 +109,9 @@ The actual work queue — the placers shipping below their required depth, highe
 off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
 1. **05 generate_room_layout (5)** — currently rooms are HAND-AUTHORED (gen missing). A town can't be
-   hand-authored — this is the biggest end-goal blocker. Build the generator; gate L3 navigable rooms;
-   add multi-room cases to the harness.
+   hand-authored — the biggest end-goal blocker. The **validation layer now exists** (harness `rooms`
+   L3 + a real interior-doorway fix, auditor-PASS); what remains is the GENERATOR (auto-partition the
+   footprint into navigable rooms) — build it to PASS the existing layer + add generated cases.
 2. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap. Add a furniture layer
    to the harness (needs the FurniturePlacer in the loop).
 3. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
