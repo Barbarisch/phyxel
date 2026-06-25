@@ -6,6 +6,7 @@
 #include "core/RoomProgram.h"
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
+#include "core/FurniturePlacer.h"
 
 using namespace Phyxel::Core;
 
@@ -111,6 +112,33 @@ TEST(RoomLayoutTest, AutofillUsesTypologyOnGroundStory) {
     EXPECT_TRUE(hasPurpose(p.stories[0].rooms, "service"));
     EXPECT_TRUE(hasPurpose(p.stories[0].rooms, "solar"));
     EXPECT_FALSE(hasPurpose(p.stories[0].rooms, "living")) << "autofill ignored the typology";
+}
+
+// END-TO-END (the whole "real house" chain in one assertion): typology -> purposed rooms ->
+// purpose-appropriate furniture. An autofilled hall_house, furnished, must put a barrel in the
+// service end, a bed in the solar (bedroom), and a hearth in the hall — NOT the same furniture
+// everywhere. This is the seam the runtime log showed (house_22); now it's a regression guard.
+// (Red on the "living" stub: every room furnishes as a hall -> no barrel, no bed.)
+TEST(RoomLayoutTest, TypologyFurnishesByPurposeEndToEnd) {
+    BuildingProgram p;
+    p.name = "h"; p.footprintW = 16; p.footprintD = 7; p.typology = "hall_house";
+    ProgStory s; s.height = 3;
+    p.stories.push_back(s);
+    const RoomProgram rp = hallHouse();
+    autofillRoomLayout(p, 1u, &rp);
+    ASSERT_FALSE(p.stories[0].rooms.empty());
+
+    const auto placements = FurniturePlacer::furnish(p.stories[0], glm::ivec3(0, 0, 0), 10);
+    const auto labels = FurniturePlacer::labelFixtures(p.stories[0], placements);
+    ASSERT_EQ(labels.size(), placements.size());
+    auto inPurpose = [&](const std::string& type, const std::string& purpose) {
+        for (size_t i = 0; i < placements.size(); ++i)
+            if (placements[i].type == type && labels[i].purpose == purpose) return true;
+        return false;
+    };
+    EXPECT_TRUE(inPurpose("barrel", "service"))  << "service end has no barrel (storage)";
+    EXPECT_TRUE(inPurpose("bed", "solar"))       << "solar (bedroom) has no bed";
+    EXPECT_TRUE(inPurpose("fireplace", "hall"))  << "hall has no hearth";
 }
 
 TEST(RoomLayoutTest, AdjacencyIsConnected) {
