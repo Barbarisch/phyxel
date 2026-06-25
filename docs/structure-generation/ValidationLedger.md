@@ -62,7 +62,7 @@ floor scan, paths…).
 | 13 | place_roof | P | L2 | L1 (`HonorsRoofPitchDegree`; KI-1 hover ungated) | 0/0/1 = **1** | L1→L2: eave rests flush on the wall top (KI-1) |
 | 14 | place_chimney | M | L1 | L0 | 0/0/0 = **0** | L0→L1 |
 | 15 | place_trim | M | L1 | L0 | 0/0/0 = **0** | decorative — L1 |
-| 16 | place_furniture | D | L2 | L2-partial (`FurniturePlacerTest` ×4; **KI-2** cross-story overlap ungated) | 1/2/2 = **5** | **per-story floorY invariant: no overlap/stack across stories (KI-2)** |
+| 16 | place_furniture | D | L2 | **L2** ✅ (`FurniturePlacerTest` ×5; **KI-2 resolved** — `PerStoryFloorYStopsCrossStoryStacking`, two-story repro, auditor PASS) | 1/2/2 = **5** | ✅ per-story floorY invariant met; remaining: e2e guard at the handler call site (shared w/ #05) |
 | 17 | place_fixtures | P | L2 | L1 (via the furniture map) | 1/1/1 = **3** | L1→L2: function-defining fixtures present + non-overlapping |
 | 18 | place_lights | M | L1 | L0 | 0/1/1 = **2** | L0→L1: light coverage per room |
 | 19 | place_clutter | M | L1 | L0 | 0/0/1 = **1** | decorative |
@@ -108,14 +108,12 @@ The actual work queue — the placers shipping below their required depth, highe
 **Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 11/12), so they drop
 off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
-1. **16 place_furniture (5)** — KI-2: per-story floorY, no cross-story overlap. Add a furniture layer
-   to the harness (needs the FurniturePlacer in the loop).
-3. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
+1. **09 place_doors (5)** — L2 → L3: character-box passes the opening (harness reach already exercises
    the ground-floor entrance; extend to interior doors).
-4. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).
-5. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair (harness already does basement
+2. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).
+3. **35 place_basement (5)** — L0 → L3 cellar reachable via down-stair (harness already does basement
    substructure; add cellar rooms + a down-stair case).
-6. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
+4. **13 place_roof (KI-1)** — eave-flush L2 (low score: visible, not traversed — cosmetic-correctness).
 
 Done to required depth: **12 place_stairs (L3)**; multi-story **11/36** circulation (corpus L2+L3);
 **05 generate_room_layout** — BSP generator BUILT + harness-validated (tiling, navigable rooms, L3

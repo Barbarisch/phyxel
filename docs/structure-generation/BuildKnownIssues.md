@@ -11,19 +11,30 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
 - **Severity:** cosmetic/structural-lie (the roof should rest on the walls).
 - **Fix sketch:** align the roof eave row to the ceiling/wall top; verify the eave course is continuous around the perimeter; check the gable-end fill meets the eave. Add a realizer unit test (`microBounds` continuity between wall top and roof base).
 
-### KI-2 — Overlapping furniture across stories
-- **Symptom:** furniture/fixtures overlap inside a multi-story structure.
-- **Cause (pinned):** the v2 build handler (`editor/src/Application.cpp`) calls
-  `FurniturePlacer::furnish(story, glm::ivec3(posX,0,posZ), v2FloorY)` for **each** story in the
-  loop but passes the **same ground-floor `v2FloorY`** every time — so every story's furniture is
-  placed at the ground-floor Y and stacks/overlaps. Introduced/exposed by `stack_stories` (#36):
-  the furniture loop pre-existed and assumed a single floor.
-- **Severity:** functional (upper floors are unfurnished; ground floor is double-stacked).
-- **Fix sketch:** compute a per-story walkable Y (the realizer already tracks `floorTopByStory`;
-  surface it on `ShellResult`) and pass the correct floorY into `FurniturePlacer::furnish` per story.
-  Small, well-scoped.
-
 ## Resolved
+
+### KI-2 — Overlapping furniture across stories (resolved, audited)
+- **Was:** the v2 build handler (`editor/src/Application.cpp`) called
+  `FurniturePlacer::furnish(story, origin, v2FloorY)` for **each** story but passed the **same
+  ground-floor `v2FloorY`** every time — so every story's furniture landed at the ground-floor Y and
+  stacked. The user's framing: "every floor is exactly the same and therefore one floor blocks the
+  one below it." Exposed by `stack_stories` (#36); the furniture loop pre-dated multi-story and
+  assumed one floor.
+- **Fixed:** the realizer already tracked per-story walkable micro-Y (`ShellResult.floorTopByStory`,
+  surfaced for the harness). The handler now bridges that out of the v2Mode block
+  (`v2FloorYByStory`, `oy + ft/9` per story, populated where `shell` is in scope) and the furniture
+  loop indexes it per story (`storyFloorY = v2FloorYByStory[si]`), so each story is furnished at its
+  own floor.
+- **Red→green (`FurniturePlacerTest.PerStoryFloorYStopsCrossStoryStacking`):** reproduces the actual
+  call shape — TWO distinct stories of one identical-floor building. Furnishing both at the **same**
+  floorY collides (`sharedPositions > 0` = teeth, the real stack), at **distinct** per-story Y it
+  does not (`== 0`). `furnish()` writes `worldPos.y = floorY` directly, so the test exercises the
+  handler's exact before/after. Audited PASS by the solution-auditor (which also pushed the test from
+  a same-object-twice tautology to this faithful two-story repro).
+- **Runtime-verified:** a 2-story furnished house placed 6 fixtures across **two** distinct world Ys
+  (`y=18` ground, `y=21` upper) — was all at `y=18` before.
+- **Caveat:** the `Application.cpp` call site is runtime-observed only; an e2e guard that builds a
+  multi-story v2 building and asserts ≥2 distinct fixture Ys remains the standing gap (shared with #05).
 
 ### KI-4 — Stairs functionally walkable (was falsely closed once; now real, audited)
 - **Was:** stairs were geometry-only and unwalkable. Both forms stamped solid pillars from `y=0`, so

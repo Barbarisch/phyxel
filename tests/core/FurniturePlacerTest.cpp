@@ -26,22 +26,35 @@ const FurniturePlacement* find(const std::vector<FurniturePlacement>& v, const s
 }
 } // namespace
 
-// KI-2: multi-story furniture must NOT stack. The handler used to pass the SAME floorY to every
-// story, so every story's furniture landed at the ground floor (overlapping). A per-story floorY
-// puts each story's pieces on their own floor. This is the FurniturePlacer logic the fix relies on.
+// KI-2: multi-story furniture must NOT stack. The origin of the bug (user's words): "every floor is
+// exactly the same and therefore one floor blocks the one below it." The handler iterated the
+// stories of ONE building and furnished each with the SAME constant floorY, so a tower of identical
+// floors landed every story's furniture at the same world positions. This test reproduces that exact
+// call shape — TWO distinct stories of one program — not the same story object furnished twice.
 TEST(FurniturePlacerTest, PerStoryFloorYStopsCrossStoryStacking) {
-    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,7,9],"purpose":"living"}]})json");
+    // A 2-story building whose floors are identical (the worst case the user described).
+    const auto program = BuildingProgram::fromJson(nlohmann::json::parse(R"json({
+        "name":"twin","footprintW":7,"footprintD":9,
+        "stories":[
+            {"height":3,"rooms":[{"id":"r","rect":[0,0,7,9],"purpose":"living"}]},
+            {"height":3,"rooms":[{"id":"r","rect":[0,0,7,9],"purpose":"living"}]}
+        ]
+    })json"));
+    ASSERT_EQ(program.stories.size(), 2u);
     const glm::ivec3 origin{0, 0, 0};
-    // BUG repro (teeth): identical floorY for two stories -> identical world positions -> collide.
-    const auto bug0 = FurniturePlacer::furnish(s, origin, 18);
-    const auto bug1 = FurniturePlacer::furnish(s, origin, 18);
-    ASSERT_GT(bug0.size(), 0u) << "no fixtures placed — can't exercise the bug";
-    EXPECT_GT(sharedPositions(bug0, bug1), 0)
-        << "same-floorY furniture did NOT collide — the check would have no teeth";
-    // FIX: distinct per-story floorY -> no shared world position across stories.
-    const auto fix0 = FurniturePlacer::furnish(s, origin, 18);
-    const auto fix1 = FurniturePlacer::furnish(s, origin, 22);
-    EXPECT_EQ(sharedPositions(fix0, fix1), 0)
+
+    // BUG repro (teeth): the handler's OLD behavior — furnish each story at one constant floorY.
+    const auto bugLo = FurniturePlacer::furnish(program.stories[0], origin, 18);
+    const auto bugHi = FurniturePlacer::furnish(program.stories[1], origin, 18);
+    ASSERT_GT(bugLo.size(), 0u) << "no fixtures placed — can't exercise the bug";
+    ASSERT_GT(bugHi.size(), 0u);
+    EXPECT_GT(sharedPositions(bugLo, bugHi), 0)
+        << "two stories at the SAME floorY did NOT collide — the check would have no teeth";
+
+    // FIX: the handler's NEW behavior — each story gets its own walkable floor Y.
+    const auto fixLo = FurniturePlacer::furnish(program.stories[0], origin, 18);
+    const auto fixHi = FurniturePlacer::furnish(program.stories[1], origin, 21);
+    EXPECT_EQ(sharedPositions(fixLo, fixHi), 0)
         << "per-story floorY still stacks furniture across stories (KI-2 not fixed)";
 }
 
