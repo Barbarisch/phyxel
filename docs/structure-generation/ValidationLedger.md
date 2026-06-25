@@ -64,6 +64,7 @@ floor scan, paths…).
 | 15 | place_trim | M | L1 | L0 | 0/0/0 = **0** | decorative — L1 |
 | 16 | place_furniture | D | L2 | **L2** ✅ (`FurniturePlacerTest` ×5; **KI-2 resolved** — `PerStoryFloorYStopsCrossStoryStacking`, two-story repro, auditor PASS) | 1/2/2 = **5** | ✅ per-story floorY invariant met; remaining: e2e guard at the handler call site (shared w/ #05) |
 | 17 | place_fixtures | P | L2 | L1 (via the furniture map) | 1/1/1 = **3** | L1→L2: function-defining fixtures present + non-overlapping |
+| 16a | furniture_asset_coverage | D | L2 | **L2** ✅ (`FurnitureCatalogTest`: every emittable type maps to a loadable template; teeth + on-disk L2 + red-first chest gap, auditor PASS) | 2/2/2 = **6** | ✅ **silent-drop killed** — `FurnitureCatalog` single source + `validateFurnitureCoverage` flags missing assets by room (`asset_gaps`), not a buried skip count |
 | 18 | place_lights | M | L1 | L0 | 0/1/1 = **2** | L0→L1: light coverage per room |
 | 19 | place_clutter | M | L1 | L0 | 0/0/1 = **1** | decorative |
 | 20 | place_entry | P | **L3** | L1 (step logic) | 2/2/0 = **4** | L1→L3: the entry threshold is step-up traversable |
@@ -116,7 +117,11 @@ off the top; the real frontier is *automatic interiors* and the remaining usabil
 Done to required depth: **12 place_stairs (L3)**; **09 place_doors (L3)** — `DoorPlacerTest` proves a
 character-box crosses the carved opening on real voxels and ties `door_too_short` to physical head-room
 (sealed + cat-flap negative controls, auditor PASS); **16 place_furniture (L2)** — KI-2 per-story
-floorY; multi-story **11/36** circulation (corpus L2+L3);
+floorY; **16a furniture_asset_coverage (L2)** — `FurnitureCatalog` single source + `validateFurnitureCoverage`
+flags any furniture a room needs but the catalog can't supply (mapped + loadable), named by room; killed
+the silent `chest` drop (red→green, auditor PASS). *Remaining: the v1 `StructureGenerator.cpp` fixture map
++ the spec-path fixtures are a SEPARATE drifting copy not yet under the gate; no runtime e2e forces an
+`asset_gaps` response.* multi-story **11/36** circulation (corpus L2+L3);
 **05 generate_room_layout** — BSP generator BUILT + harness-validated (tiling, navigable rooms, L3
 `rooms` layer with a generated negative control, auditor-PASS) AND WIRED into the build handler via
 `autofillRoomLayout` (empty-rooms stories auto-fill; unit + harness enforced, auditor-PASS). *Remaining
