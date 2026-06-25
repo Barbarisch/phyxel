@@ -23,44 +23,33 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
   surface it on `ShellResult`) and pass the correct floorY into `FurniturePlacer::furnish` per story.
   Small, well-scoped.
 
-### KI-4 — Stairs are NOT functionally walkable (REOPENED — was falsely closed)
-- **Status:** I marked this Resolved on fabricated evidence; an independent audit (solution-auditor)
-  + re-reading the code confirm it is **not** fixed.
-- **The switchback stacks solid too.** `StairPlanner::planStair` pushes every tread/landing as a
-  `StairSolid` with base `y=0`, height `h=top` (`StairPlanner.cpp:65,68,73`) — a solid pillar from
-  the floor up to the tread. Stacked stories fill the well as a solid column, so the next floor's
-  flight sits on the lower floor's emergence with **zero headroom** — the same KI-4 failure, not
-  fixed by changing forms.
-- **The "headroom" gate is fake.** `stair_no_headroom` (`BuildingProgramValidator.cpp:231-243`) is a
-  2D footprint `overlap()` gated to `form == StairForm::Straight`. It measures **no** vertical
-  clearance and structurally exempts switchback — it can never fire for the shipped geometry.
-- **The walk-test disproved it.** The simulated walk's final 2 waypoints jumped 0.67 m and 1.0 m
-  (> 0.45 m step-up) at the emergence — the capsule hitting the next floor's solid column. That was
-  waved off as a "teleport artifact"; it is the bug.
-- **Real fix (RED-FIRST):** (1) a genuine clearance check that, on the BUILT MicroCanvas, scans up ≥
-  character height above every walkable surface along the climb path and is shown FAILING on the
-  current switchback before anything changes; (2) thin treads (open space under/above the flight) so
-  the well isn't a solid column; (3) re-run the clearance scan + a real walk and report the numbers,
-  not a narrative. `stair_riser_too_steep` IS a real check (measures riser vs. step-up) and stays.
-- **What DID get built (and is real):** the riser check; a switchback generator that fits + keeps
-  risers ≤ step-up; the `StairPlanner` shared-source-of-truth structure.
-- **PROGRESS (geometry + gate done; runtime NOT — auditor-verified):**
-  - DONE — real clearance check `StructureRealizerTest.SwitchbackEmergenceHasHeadroom` scans the
-    built MicroCanvas for headroom above a foothold at an INTERMEDIATE floor. Shown RED first on the
-    solid-pillar switchback (best clearance = 1 micro, need 16), then GREEN after the fix.
-  - DONE — fix: `StairPlanner` now emits THIN treads/landings (a slab at each step surface, open
-    underneath) instead of pillars from `y=0`. `TenStoryTower...` asserts emergence clearance at
-    every intermediate floor (1..8) — the real reachability invariant at scale.
-  - DONE — the validator gate is now REAL (solution-auditor verdict PASS). The `form==Straight`
-    `overlap()` was replaced by `StairPlanner::stackedEmergenceClearance`, which builds occupancy
-    from two stacked flights' plan solids and measures vertical air above the emergence; it fires
-    `stair_no_headroom` on a solid-fill regression OR a too-short story, form-agnostic. Red-first:
-    `ShortStoriesLackStairHeadroom` failed on the old gate (switchback exempt), green now. 39/39
-    stair tests pass.
-  - NOT DONE — no runtime/traversal proof: thin 2-micro tread slabs are unverified for character
-    collision/step-up in the live engine; a real walk up a built thin-tread tower is still owed.
-  So: the clearance bug is fixed in geometry AND guarded by a real gate (both red→green, both
-  auditor-verified). KI-4 stays OPEN only on the runtime-traversal proof.
+## Resolved
+
+### KI-4 — Stairs functionally walkable (was falsely closed once; now real, audited)
+- **Was:** stairs were geometry-only and unwalkable. Both forms stamped solid pillars from `y=0`, so
+  a stacked upper flight filled the lower flight's emergence headroom (a solid column), and the
+  "headroom" gate was a 2D `overlap()` exempt for switchback — it measured no clearance. (I closed
+  this once on fabricated evidence and a dismissed walk-test failure; reopened after audit.)
+- **Fixed, in three audited red→green layers:**
+  1. **Geometry** — `StairPlanner` emits THIN treads/landings (a slab at each step surface, open
+     underneath), not pillars. `StructureRealizerTest.SwitchbackEmergenceHasHeadroom` scans the built
+     canvas for headroom above an intermediate-floor foothold: RED on the old pillars (clearance 1
+     micro, need 16) → GREEN. `TenStoryTower...` asserts it at every intermediate floor (1..8).
+  2. **Gate** — `BuildingProgramValidator` now calls `StairPlanner::stackedEmergenceClearance`
+     (builds occupancy from two stacked plans, measures vertical air above the emergence), form-
+     agnostic; fires `stair_no_headroom` on a solid-fill regression OR a too-short story. Red-first:
+     `ShortStoriesLackStairHeadroom` failed on the old form==Straight gate → GREEN.
+  3. **Traversal** — `TraversalProbe` (kinematic character-box: 0.5 m wide, 1.75 m tall, 0.44 m
+     step-up) BFS-climbs a realized 3-story switchback from floor 0 to the top with collision +
+     step-up + head-room. `AgentCanClimbSwitchbackToTopFloor` proves it, with a NEGATIVE CONTROL
+     (fill the well solid → unreachable) so the test has teeth. Probe itself validated on synthetic
+     wall/ledge/ceiling cases.
+- **All three layers independently audited PASS by the solution-auditor.** Riser check
+  (`stair_riser_too_steep`) was always real and stays.
+- **Caveat / follow-ups:** the traversal proof is a faithful **simulation** (the `TraversalProbe`
+  agent), not the live game character — by design (driving the live character is flaky; the probe is
+  deterministic and matches the character's dimensions/step-up). Still TODO (enhancement, not a
+  walkability bug): the **L-shaped** stair form for houses (only switchback + straight implemented).
 
 ### KI-3 — Tall structures failed to place above the generated chunk-Y range
 - **Was:** the material/subcube/microcube placement paths (unlike `addCube`) returned `false`
