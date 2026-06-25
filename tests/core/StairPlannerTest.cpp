@@ -12,12 +12,12 @@ constexpr int kRise = 30;
 
 bool hasLanding(const StairPlan& p, int wmMicro, int h1) {
     for (const auto& s : p.solids)
-        if (s.w == wmMicro && s.h == h1) return true;   // full-width platform at mid-height
+        if (s.w == wmMicro && (s.y + s.h) == h1) return true;   // full-width platform whose TOP is at mid
     return false;
 }
 int topReached(const StairPlan& p) {
     int t = 0;
-    for (const auto& s : p.solids) t = std::max(t, s.h);
+    for (const auto& s : p.solids) t = std::max(t, s.y + s.h);  // surface height = base + thickness
     return t;
 }
 }  // namespace

@@ -45,6 +45,28 @@ StructureRealizer::ShellResult build() {
     return StructureRealizer::realizeShell(BuildingProgram::fromJson(nlohmann::json::parse(kCottage)),
                                            timberCottageStyle());
 }
+
+// Emergence-clearance probe: the most open headroom above any standable foothold at `floorMicro`
+// inside a stairwell well (micro x in [xLo,xHi), z in [zLo,zHi)). A character can emerge onto that
+// floor only if some foothold there has >= character-height of air above it. Returns best clearance
+// found (in micro). A solid-column well returns ~0; a thin-tread well with real headroom returns
+// the full inter-floor gap.
+int wellEmergenceClearance(const MicroCanvas& c, int xLo, int xHi, int zLo, int zHi,
+                           int floorMicro, int charH) {
+    int best = 0;
+    for (int mx = xLo; mx < xHi; ++mx)
+        for (int mz = zLo; mz < zHi; ++mz)
+            for (int fy = floorMicro - 2; fy <= floorMicro; ++fy) {
+                if (!c.occupiedMicro(mx, fy, mz)) continue;   // need a foothold
+                int clear = 0;
+                for (int k = 1; k <= charH; ++k) {
+                    if (c.occupiedMicro(mx, fy + k, mz)) break;
+                    ++clear;
+                }
+                best = std::max(best, clear);
+            }
+    return best;
+}
 } // namespace
 
 TEST(StructureRealizerTest, RealizesAndIsNotEmpty) {
@@ -190,13 +212,17 @@ TEST(StructureRealizerTest, StairsCutUpperFloorAndBuildFlight) {
     // (1) the upper floor is intact AWAY from the stairwell well -> solid.
     EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 7 * 9 + 4))
         << "upper floor missing away from the stairwell";
-    // (2) a solid switchback STEP climbs in the well (lane B) above the lower floor.
-    EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, bot0 + 3, 2 * 9 + 4))
-        << "no stair step built in the stairwell";
-    // (3) HEADROOM: lane A above the lower half-flight is OPEN (not a solid shaft) — the
-    //     switchback's mid-landing turn leaves clearance to climb (the KI-4 fix).
-    EXPECT_FALSE(r.canvas.occupiedMicro(1 * 9 + 4, bot0 + 22, 2 * 9 + 4))
-        << "no headroom over the lower flight (solid shaft)";
+    // (2) the well contains climbable tread SURFACES (a foothold with air above) between floors —
+    //     i.e. a flight is actually built, not just a hole cut.
+    const int floor1 = 42;
+    bool stepSurface = false;
+    for (int mx = 9; mx < 27 && !stepSurface; ++mx)
+        for (int mz = 18; mz < 72 && !stepSurface; ++mz)
+            for (int my = bot0 + 1; my < floor1; ++my)
+                if (r.canvas.occupiedMicro(mx, my, mz) && !r.canvas.occupiedMicro(mx, my + 1, mz)) {
+                    stepSurface = true; break;
+                }
+    EXPECT_TRUE(stepSurface) << "no climbable tread surface built in the stairwell";
 }
 
 // STRESS TEST: a 10-story tower with a stair on EVERY floor up to the next. The simple
@@ -238,20 +264,59 @@ TEST(StructureRealizerTest, TenStoryTowerStairsConnectEveryFloor) {
         EXPECT_TRUE(r.canvas.occupiedMicro(5 * 9 + 4, slabY, 8 * 9 + 4))
             << "floor " << s << " missing away from the stairwell";
     }
-    for (int s = 0; s <= 8; ++s) {
-        const int botMicro = 12 + 30 * s;
-        // a flight rises in the well (lane B) from floor s -> the floor above is reachable
-        EXPECT_TRUE(r.canvas.occupiedMicro(2 * 9 + 4, botMicro + 3, 2 * 9 + 4))
-            << "no flight rising from floor " << s;
-        // HEADROOM over the lower half-flight (lane A) is OPEN between every pair of floors —
-        // with the old straight stack this cell was solid (no way up). This is the stress
-        // proof at scale: all 9 stair transitions clear, not just the first.
-        EXPECT_FALSE(r.canvas.occupiedMicro(1 * 9 + 4, botMicro + 22, 2 * 9 + 4))
-            << "no headroom over the flight at floor " << s << " (solid shaft)";
+    // EVERY intermediate floor's emergence must have character-height headroom — the real
+    // "all floors reachable" invariant, and exactly what the solid-column bug violated at scale.
+    // (Floors 1..8 have a flight both below and above; floor 9 is the top, floor 0 the bottom.)
+    for (int s = 1; s <= 8; ++s) {
+        const int floorMicro = 12 + 30 * s;
+        const int clr = wellEmergenceClearance(r.canvas, 9, 27, 18, 72, floorMicro, 16);
+        EXPECT_GE(clr, 16) << "floor " << s << " emergence blocked (clearance " << clr
+                           << " micro) — stairwell is a solid column at scale";
     }
     glm::ivec3 lo, hi;
     ASSERT_TRUE(r.canvas.microBounds(lo, hi));
     EXPECT_GT(hi.y, 12 + 30 * 9) << "tower is not 10 stories tall";
+}
+
+// KI-4 CLEARANCE (the real walkability invariant — written RED-first; must FAIL on the current
+// solid-pillar switchback). To climb past an INTERMEDIATE floor a character must be able to EMERGE
+// off the lower flight onto that floor: somewhere in the stairwell there must be a standable surface
+// at that floor's walkable level with >= character height of open air above it. The bug only appears
+// with a flight STACKED above (3+ stories) — planStair fills every tread as a solid pillar from y=0,
+// so the upper flight sits directly on the lower emergence -> zero clearance at the intermediate
+// floor. (A 2-story building has no stack and is NOT a valid test of this.) Scans the WHOLE well.
+TEST(StructureRealizerTest, SwitchbackEmergenceHasHeadroom) {
+    nlohmann::json j;
+    j["name"] = "sbtower"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({7, 9});
+    j["substructure"] = "crawlspace"; j["roof_style"] = "gable";
+    j["stories"] = nlohmann::json::array();
+    for (int s = 0; s < 3; ++s) {                 // 3 stories => floor 1 has a flight above AND below
+        nlohmann::json room;
+        room["id"] = "r"; room["rect"] = nlohmann::json::array({0,0,7,9}); room["purpose"] = "living";
+        nlohmann::json story;
+        story["height"] = 3; story["rooms"] = nlohmann::json::array({room});
+        story["portals"] = nlohmann::json::array();
+        story["stairs"] = nlohmann::json::array();
+        if (s < 2) {
+            nlohmann::json st;
+            st["from_story"] = s; st["to_story"] = s + 1;
+            st["rect"] = nlohmann::json::array({1,2,2,6}); st["form"] = "switchback";
+            story["stairs"].push_back(st);
+        }
+        j["stories"].push_back(story);
+    }
+    auto r = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), timberCottageStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+
+    const int floor1 = 42;   // INTERMEDIATE walkable micro (12 + 30) — flight 0->1 below, 1->2 above
+    const int charH  = 16;   // ~1.75 m character height in micro cells
+    // well rect [1,2,2,6] -> micro x in [9,27), z in [18,72)
+    const int clr = wellEmergenceClearance(r.canvas, 9, 27, 18, 72, floor1, charH);
+    EXPECT_GE(clr, charH)
+        << "no headroom at intermediate floor 1 — the stairwell is a solid column (KI-4); best "
+           "clearance above any floor-1 foothold in the well = " << clr << " micro, need " << charH
+        << ". A character cannot emerge off the lower flight.";
 }
 
 namespace {

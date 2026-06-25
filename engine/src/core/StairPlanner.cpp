@@ -59,18 +59,25 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
             p.error = "upper flight does not fit walkably in well"; return p;
         }
 
-        // Flight 1 — lane A, running +z, rising 0 → h1 (each tread solid from base up).
+        // Flight 1 — lane A, running +z, rising 0 → h1. THIN treads (a slab at each step's
+        // surface with open air underneath), NOT solid pillars — otherwise a stacked upper flight
+        // fills the lower flight's headroom and the well becomes an unwalkable solid column (KI-4).
         for (int i = 0; i < t1; ++i) {
-            const int top = std::min(h1, (i + 1) * R1);
-            p.solids.push_back({0, 0, i * T1, laneW, top, T1});
+            const int top  = std::min(h1, (i + 1) * R1);
+            const int base = std::max(0, top - std::max(R1, 2));
+            p.solids.push_back({0, base, i * T1, laneW, top - base, T1});
         }
-        // Mid-landing — both lanes, at h1, just past the run.
-        p.solids.push_back({0, 0, runUsed, WM, h1, Ld});
-        // Flight 2 — lane B, running −z back from the landing, rising h1 → rise.
+        // Mid-landing — both lanes, a thin platform at h1 (open underneath).
+        {
+            const int lt = std::max(2, std::min(3, h1));
+            p.solids.push_back({0, h1 - lt, runUsed, WM, lt, Ld});
+        }
+        // Flight 2 — lane B, running −z back from the landing, rising h1 → rise. THIN treads.
         for (int j = 0; j < t2; ++j) {
-            const int top = std::min(riseMicro, h1 + (j + 1) * R2);
-            const int z0  = std::max(0, runUsed - (j + 1) * T2);
-            p.solids.push_back({laneW, 0, z0, WM - laneW, top, T2});
+            const int top  = std::min(riseMicro, h1 + (j + 1) * R2);
+            const int base = std::max(h1, top - std::max(R2, 2));
+            const int z0   = std::max(0, runUsed - (j + 1) * T2);
+            p.solids.push_back({laneW, base, z0, WM - laneW, top - base, T2});
         }
 
         p.maxRiserMicro = std::max(R1, R2);
@@ -91,9 +98,10 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
         return p;
     }
     for (int i = 0; i < t; ++i) {
-        const int top = std::min(riseMicro, (i + 1) * R);
-        if (runZ) p.solids.push_back({0,     0, i * T, crossW, top, T});       // tread runs along z
-        else      p.solids.push_back({i * T, 0, 0,     T,      top, crossW});  // tread runs along x
+        const int top  = std::min(riseMicro, (i + 1) * R);
+        const int base = std::max(0, top - std::max(R, 2));                    // THIN tread, open below
+        if (runZ) p.solids.push_back({0,     base, i * T, crossW, top - base, T});       // runs along z
+        else      p.solids.push_back({i * T, base, 0,     T,      top - base, crossW});  // runs along x
     }
     p.maxRiserMicro = R;
     p.topMicro = riseMicro;

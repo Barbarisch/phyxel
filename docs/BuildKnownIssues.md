@@ -43,8 +43,23 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
   the well isn't a solid column; (3) re-run the clearance scan + a real walk and report the numbers,
   not a narrative. `stair_riser_too_steep` IS a real check (measures riser vs. step-up) and stays.
 - **What DID get built (and is real):** the riser check; a switchback generator that fits + keeps
-  risers ≤ step-up; the `StairPlanner` shared-source-of-truth structure. The geometry just fills
-  solid and there is no clearance check — so it does not solve the actual problem.
+  risers ≤ step-up; the `StairPlanner` shared-source-of-truth structure.
+- **PROGRESS (geometry done; gate + runtime NOT):**
+  - DONE — real clearance check `StructureRealizerTest.SwitchbackEmergenceHasHeadroom` scans the
+    built MicroCanvas for headroom above a foothold at an INTERMEDIATE floor. Shown RED first on the
+    solid-pillar switchback (best clearance = 1 micro, need 16), then GREEN after the fix.
+  - DONE — fix: `StairPlanner` now emits THIN treads/landings (a slab at each step surface, open
+    underneath) instead of pillars from `y=0`. `TenStoryTower...` rewritten to assert emergence
+    clearance at every intermediate floor (1..8) — the real reachability invariant at scale. Full
+    stair suite (37) green.
+  - NOT DONE — the validator gate is STILL the fake `form==Straight` `overlap()` check; it must be
+    replaced by running the real clearance scan on the StairPlan (stack two stories' solids into a
+    temp grid, scan emergence) so a regression to pillars is caught at the gate, not just by the unit
+    test.
+  - NOT DONE — no runtime/traversal proof: thin 2-micro tread slabs are unverified for character
+    collision/step-up in the live engine; a real walk up a built thin-tread tower is still owed.
+  So: geometry clearance is fixed and proven by a red→green measurement, but KI-4 stays OPEN until
+  the gate is real and a character is shown traversing it.
 
 ### KI-3 — Tall structures failed to place above the generated chunk-Y range
 - **Was:** the material/subcube/microcube placement paths (unlike `addCube`) returned `false`
