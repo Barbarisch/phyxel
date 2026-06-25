@@ -74,6 +74,50 @@ BuildingProgram tower(int stories, int w, int d, const std::string& form,
     return BuildingProgram::fromJson(j);
 }
 
+// A single-story two-room layout (hall + kitchen) tiling a 7x9 footprint, with the exterior door
+// on the hall. `connected` adds the hall<->kitchen interior arch; when false the kitchen is SEALED.
+BuildingProgram twoRoom(bool connected) {
+    nlohmann::json j;
+    j["name"] = "2room"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({7, 9});
+    j["substructure"] = "crawlspace"; j["roof_style"] = "gable";
+    nlohmann::json hall, kitchen, story;
+    hall["id"] = "hall"; hall["rect"] = nlohmann::json::array({0, 0, 4, 9}); hall["purpose"] = "living";
+    kitchen["id"] = "kitchen"; kitchen["rect"] = nlohmann::json::array({4, 0, 3, 9}); kitchen["purpose"] = "kitchen";
+    story["height"] = 3; story["rooms"] = nlohmann::json::array({hall, kitchen});
+    story["portals"] = nlohmann::json::array();
+    story["portals"].push_back({{"between", {"exterior", "hall"}}, {"pos", {0, 4}}, {"width", 1}, {"height", 2}, {"kind", "door"}});
+    if (connected)
+        story["portals"].push_back({{"between", {"hall", "kitchen"}}, {"pos", {4, 4}}, {"width", 1}, {"height", 2}, {"kind", "arch"}});
+    story["stairs"] = nlohmann::json::array();
+    j["stories"] = nlohmann::json::array({story});
+    return BuildingProgram::fromJson(j);
+}
+
+// L3 (interior): on every story, a character-box can physically walk from the entrance room to
+// EVERY other room's centre through the carved doorways. A sealed room (no portal) => unreachable.
+bool roomsReachable(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
+    for (size_t s = 0; s < p.stories.size() && s < sh.floorTopByStory.size(); ++s) {
+        const auto& rooms = p.stories[s].rooms;
+        if (rooms.size() <= 1) continue;                       // single room: trivially navigable
+        const int floorY = sh.floorTopByStory[s];
+        const int W = p.footprintW * 9, D = p.footprintD * 9;
+        TraversalProbe probe([&](int x, int y, int z) { return sh.canvas.occupiedMicro(x, y, z); },
+                             AgentBox{2, 16, 4});
+        const auto& r0 = rooms[0].rect;
+        const glm::ivec3 start((r0.x + r0.w / 2) * 9 + 4, floorY, (r0.z + r0.d / 2) * 9 + 4);
+        const glm::ivec3 bLo(0, floorY - 2, 0), bHi(W, floorY + 28, D);
+        for (size_t r = 1; r < rooms.size(); ++r) {
+            const auto& rc = rooms[r].rect;
+            const int gx = (rc.x + rc.w / 2) * 9 + 4, gz = (rc.z + rc.d / 2) * 9 + 4;
+            if (!probe.reachable(start, glm::ivec3(gx - 2, floorY - 1, gz - 2),
+                                 glm::ivec3(gx + 2, floorY + 1, gz + 2), bLo, bHi))
+                return false;
+        }
+    }
+    return true;
+}
+
 // L2: every room on every story has a floor cell at its centre (somewhere to stand).
 bool floorsContinuous(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
     for (size_t s = 0; s < p.stories.size() && s < sh.floorTopByStory.size(); ++s) {
@@ -116,9 +160,16 @@ bool topReachable(const StructureRealizer::ShellResult& sh, const BuildingProgra
 
 struct CaseResult {
     std::string name;
-    bool build = false, floors = false, reach = false;
-    bool pass() const { return build && floors && reach; }
+    bool build = false, floors = false, reach = false, rooms = false;
+    bool roomsTested = false;   // false => single-room everywhere => rooms check is N/A (not "ok")
+    bool pass() const { return build && floors && reach && rooms; }
 };
+
+// True if any story has >1 room — i.e. the room-reachability check actually measures something.
+bool hasMultiRoomStory(const BuildingProgram& p) {
+    for (const auto& s : p.stories) if (s.rooms.size() > 1) return true;
+    return false;
+}
 
 CaseResult runCase(const std::string& name, const BuildingProgram& p, const StyleProfile& style) {
     CaseResult r; r.name = name;
@@ -128,6 +179,8 @@ CaseResult runCase(const std::string& name, const BuildingProgram& p, const Styl
     if (!r.build) return r;
     r.floors = floorsContinuous(sh, p);
     r.reach  = topReachable(sh, p);
+    r.roomsTested = hasMultiRoomStory(p);
+    r.rooms  = roomsReachable(sh, p);   // trivially true when not roomsTested
     return r;
 }
 
@@ -151,28 +204,35 @@ TEST(BuildingHarness, Corpus) {
         {"3-story switchback basement", tower(3, 7, 9, "switchback", "basement", true)},
         {"2-story straight",            tower(2, 7, 9, "straight", "crawlspace", true)},
         {"3-story straight",            tower(3, 7, 9, "straight", "crawlspace", true)},
+        {"2-room connected",            twoRoom(true)},
         {"BAD: 3-story NO stairs",      tower(3, 7, 9, "switchback", "crawlspace", false)},
+        {"BAD: 2-room sealed kitchen",  twoRoom(false)},
     };
 
     std::cout << "\n=== BUILDING VALIDATION HARNESS ===\n";
-    std::cout << "case                              build  floors  reach(L3)  OVERALL\n";
+    std::cout << "case                              build  floors  reach  rooms  OVERALL\n";
     int passed = 0;
-    CaseResult bad, exemplar;
+    CaseResult badStairs, badRooms, exemplar, twoRoomOk;
     for (const auto& c : corpus) {
         CaseResult r = runCase(c.name, c.p, style);
         auto yn = [](bool b) { return b ? " ok " : "FAIL"; };
+        const std::string roomsCol = r.build ? (r.roomsTested ? yn(r.rooms) : "n/a ") : "----";
         std::cout << "  " << c.name;
         for (int i = (int)c.name.size(); i < 32; ++i) std::cout << ' ';
-        std::cout << "  " << yn(r.build) << "    " << yn(r.floors) << "     " << yn(r.reach)
-                  << "      " << (r.pass() ? "PASS" : "----") << "\n";
+        std::cout << "  " << yn(r.build) << "   " << yn(r.floors) << "   " << yn(r.reach)
+                  << "   " << roomsCol << "   " << (r.pass() ? "PASS" : "----") << "\n";
         if (r.pass()) ++passed;
-        if (c.name.rfind("BAD", 0) == 0) bad = r;
-        if (c.name.rfind("3-story switchback (exemplar)", 0) == 0) exemplar = r;
+        if (c.name == "BAD: 3-story NO stairs") badStairs = r;
+        if (c.name == "BAD: 2-room sealed kitchen") badRooms = r;
+        if (c.name == "3-story switchback (exemplar)") exemplar = r;
+        if (c.name == "2-room connected") twoRoomOk = r;
     }
     std::cout << "--- " << passed << " / " << corpus.size() << " cases pass ---\n\n";
 
-    // Teeth: a multi-story building with no stairs MUST be flagged unreachable.
-    EXPECT_FALSE(bad.reach) << "harness has no teeth: a stairless 3-story read as reachable";
-    // Regression guard: the canonical switchback exemplar must fully pass.
-    EXPECT_TRUE(exemplar.pass()) << "the 3-story switchback exemplar regressed";
+    // Teeth: a stairless multi-story is unreachable; a sealed room is unreachable.
+    EXPECT_FALSE(badStairs.reach) << "no teeth: a stairless 3-story read as reachable";
+    EXPECT_FALSE(badRooms.rooms)  << "no teeth: a sealed kitchen read as reachable";
+    // Regression guards: the canonical exemplar + a properly-doored two-room cottage fully pass.
+    EXPECT_TRUE(exemplar.pass())  << "the 3-story switchback exemplar regressed";
+    EXPECT_TRUE(twoRoomOk.pass()) << "a connected two-room cottage is not fully navigable";
 }

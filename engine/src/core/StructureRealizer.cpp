@@ -200,11 +200,28 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             int oyBase = wBase + sill * 9;
             int oyTop  = std::min(wTop, oyBase + p.height * 9);
             bool alongZ = (p.px == 0 || p.px == W);        // wall faces +/-x -> opening runs in Z
-            for (int k = 0; k < std::max(1, p.width); ++k) {
-                int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
-                int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
-                if (!ext) { cx = p.px + (alongZ ? 0 : k); cz = p.pz + (alongZ ? k : 0); }
-                c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");   // carve to air
+            if (ext) {
+                for (int k = 0; k < std::max(1, p.width); ++k) {
+                    int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
+                    int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
+                    c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");   // carve to air
+                }
+            } else {
+                // Interior: the wall band is CENTERED on the shared coord (coord*9), straddling the
+                // cube boundary, so a single-cube carve leaves a wall sliver and the doorway isn't
+                // passable. Clear the full band — both cubes straddling the coord — over the opening
+                // run at door height. (BuildingHarness rooms-reachable caught the sliver.)
+                Seg sw = sharedWall(srooms[p.a], srooms[p.b]);
+                if (sw.ok) {
+                    for (int k = 0; k < std::max(1, p.width); ++k) {
+                        if (sw.axis == 'x')   // wall runs along Z at x=coord; doorway runs along Z
+                            c.fillMicroBox((sw.coord - 1) * 9, oyBase, (p.pz + k) * 9,
+                                           18, oyTop - oyBase, 9, "");
+                        else                  // wall runs along X at z=coord; doorway runs along X
+                            c.fillMicroBox((p.px + k) * 9, oyBase, (sw.coord - 1) * 9,
+                                           9, oyTop - oyBase, 18, "");
+                    }
+                }
             }
             plan.openings.push_back({p.px, yCubes + sill, p.pz, p.width, p.height, 1, p.kind, "open"});
         }
