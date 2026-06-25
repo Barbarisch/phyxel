@@ -40,7 +40,10 @@ RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typolo
 /// GROUND story uses generateRoomLayoutFromProgram (purposed rooms); other empty stories (and the
 /// no-typology / doesn't-fit case) fall back to generateRoomLayout. The exterior entrance is added to
 /// the ground story only; authored rooms/stairs/portals are left untouched. Deterministic in `seed`.
-void autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology = nullptr);
+/// Returns TRUE iff the typology was actually applied to the ground story — FALSE means it didn't fit
+/// (footprint long axis < minDim × room count) and the ground floor fell back to a generic layout, so
+/// the caller can SURFACE the degradation instead of silently shipping a generic box.
+bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology = nullptr);
 
 }  // namespace Core
 }  // namespace Phyxel

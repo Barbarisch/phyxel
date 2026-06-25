@@ -129,6 +129,40 @@ TEST(RoomLayoutTest, BareHouseDefaultsToHallHouseTypology) {
     EXPECT_TRUE(RoomProgramRegistry::defaultTypologyForFunction("church").empty());
 }
 
+// END-TO-END SEAM: a BARE program (no typology, no function set) flows resolution -> autofill ->
+// PURPOSED rooms. Drives all three links the handler chains; the registry-load link is covered
+// separately by RoomProgramTest, so this uses the canon hall_house shape inline.
+TEST(RoomLayoutTest, BareHouseResolutionProducesPurposedRooms) {
+    BuildingProgram p;                       // nothing declared
+    p.footprintW = 14; p.footprintD = 7;
+    p.stories.push_back(ProgStory{});
+    const std::string typ = p.typology.empty()
+        ? RoomProgramRegistry::defaultTypologyForFunction(p.function) : p.typology;
+    ASSERT_EQ(typ, "hall_house");
+    const RoomProgram rp = hallHouse();      // == the shipped hall_house room set
+    const bool applied = autofillRoomLayout(p, 1u, &rp);
+    EXPECT_TRUE(applied) << "typology should apply on a fitting footprint";
+    EXPECT_TRUE(hasPurpose(p.stories[0].rooms, "service"));
+    EXPECT_TRUE(hasPurpose(p.stories[0].rooms, "solar"));
+    EXPECT_FALSE(hasPurpose(p.stories[0].rooms, "living")) << "bare house fell back to generic";
+}
+
+// BOUNDARY (the gap the auditor flagged): a footprint too small for the typology (long axis <
+// minDim×rooms) must NOT silently ship a generic box claiming to be a real house. autofill SIGNALS
+// the miss (applied==false) so the handler can WARN; the ground floor falls back to generic.
+TEST(RoomLayoutTest, BareHouseTooSmallSignalsFallback) {
+    BuildingProgram p;
+    p.footprintW = 5; p.footprintD = 5;      // long axis 5 < 2×3 = 6 -> can't fit service/hall/solar
+    p.stories.push_back(ProgStory{});
+    const RoomProgram rp = hallHouse();
+    const bool applied = autofillRoomLayout(p, 1u, &rp);
+    EXPECT_FALSE(applied) << "5x5 can't fit 3 rooms — autofill must SIGNAL the miss (not silent)";
+    ASSERT_FALSE(p.stories[0].rooms.empty());                 // still filled (generic), not empty
+    EXPECT_FALSE(hasPurpose(p.stories[0].rooms, "service")) << "no purposed rooms when it doesn't fit";
+    for (const auto& r : p.stories[0].rooms)
+        EXPECT_EQ(r.purpose, "living") << "the documented fallback is a generic 'living' layout";
+}
+
 // END-TO-END (the whole "real house" chain in one assertion): typology -> purposed rooms ->
 // purpose-appropriate furniture. An autofilled hall_house, furnished, must put a barrel in the
 // service end, a bed in the solar (bedroom), and a hearth in the hall — NOT the same furniture

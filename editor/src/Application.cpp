@@ -11756,13 +11756,27 @@ void Application::processAPICommands() {
                             }
                             int emptyBefore = 0;
                             for (const auto& st : program.stories) if (st.rooms.empty()) ++emptyBefore;
-                            Core::autofillRoomLayout(program, seed ? seed : 1u, rp);
+                            const bool typologyApplied =
+                                Core::autofillRoomLayout(program, seed ? seed : 1u, rp);
                             if (emptyBefore > 0) {
                                 int total = 0;
                                 for (const auto& st : program.stories) total += (int)st.rooms.size();
                                 LOG_INFO_FMT("StructureV2", "generate_room_layout: auto-filled "
                                              << emptyBefore << " story(ies) -> " << total << " rooms total"
                                              << (rp ? " [typology " + typ + "]" : " [generic]"));
+                                // Surface silent degradation: a typology was resolved but the
+                                // footprint couldn't fit it, so the ground floor is a generic box.
+                                if (rp && !typologyApplied) {
+                                    const int need = 2 * (int)rp->rooms.size();
+                                    LOG_WARN_FMT("StructureV2", "typology " << typ << " did NOT fit "
+                                                 "footprint " << program.footprintW << "x"
+                                                 << program.footprintD << " (need long axis >= " << need
+                                                 << ") — ground floor used a GENERIC layout (no purposed"
+                                                 " rooms)");
+                                    response["typology_unfit"] = {
+                                        {"typology", typ}, {"need_long_axis", need},
+                                        {"footprint", {program.footprintW, program.footprintD}}};
+                                }
                             }
                         }
                         Core::StyleProfileRegistry styleReg;

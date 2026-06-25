@@ -183,15 +183,18 @@ RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typolo
     return out;
 }
 
-void autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
+bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
     const int W = program.footprintW, D = program.footprintD;
-    if (W <= 0 || D <= 0) return;                            // no footprint -> nothing to fill
+    if (W <= 0 || D <= 0) return false;                      // no footprint -> nothing to fill
+    bool typologyApplied = false;
     for (size_t i = 0; i < program.stories.size(); ++i) {
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
         RoomLayout rl;
-        if (typology && i == 0)                              // ground floor = the typology's plan
+        if (typology && i == 0) {                            // ground floor = the typology's plan
             rl = generateRoomLayoutFromProgram(W, D, *typology);
+            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
+        }
         if (rl.rooms.empty()) {
             // Fallback (no typology / doesn't fit / upper story): generic BSP. DENSITY knob (a
             // tunable design default, NOT a grounded clearance): ~1 room per ~16 m^2, at least 1.
@@ -205,6 +208,7 @@ void autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
             st.portals.push_back(p);                         // keep any authored stairs/portals
         }
     }
+    return typologyApplied;
 }
 
 }  // namespace Core
