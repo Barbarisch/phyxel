@@ -5,6 +5,7 @@
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
 #include "core/BuildingProgram.h"
+#include "core/TraversalProbe.h"
 
 using namespace Phyxel::Core;
 
@@ -317,6 +318,56 @@ TEST(StructureRealizerTest, SwitchbackEmergenceHasHeadroom) {
         << "no headroom at intermediate floor 1 — the stairwell is a solid column (KI-4); best "
            "clearance above any floor-1 foothold in the well = " << clr << " micro, need " << charH
         << ". A character cannot emerge off the lower flight.";
+}
+
+// KI-4 TRAVERSAL: the real "can a character climb it" proof — a character-sized box (TraversalProbe)
+// must be able to walk from floor 0 up the switchback to the top floor, with collision + step-up +
+// head-room, no hand-picked path (BFS finds the route or proves there isn't one).
+TEST(StructureRealizerTest, AgentCanClimbSwitchbackToTopFloor) {
+    nlohmann::json j;
+    j["name"] = "climbtower"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({7, 9});
+    j["substructure"] = "crawlspace"; j["roof_style"] = "gable";
+    j["stories"] = nlohmann::json::array();
+    for (int s = 0; s < 3; ++s) {
+        nlohmann::json room;
+        room["id"] = "r"; room["rect"] = nlohmann::json::array({0,0,7,9}); room["purpose"] = "living";
+        nlohmann::json story;
+        story["height"] = 3; story["rooms"] = nlohmann::json::array({room});
+        story["portals"] = nlohmann::json::array(); story["stairs"] = nlohmann::json::array();
+        if (s < 2) {
+            nlohmann::json st;
+            st["from_story"] = s; st["to_story"] = s + 1;
+            st["rect"] = nlohmann::json::array({1,2,2,6}); st["form"] = "switchback";
+            story["stairs"].push_back(st);
+        }
+        j["stories"].push_back(story);
+    }
+    auto r = StructureRealizer::realizeShell(BuildingProgram::fromJson(j), timberCottageStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+
+    TraversalProbe probe([&](int x, int y, int z) { return r.canvas.occupiedMicro(x, y, z); },
+                         AgentBox{2, 16, 4});   // ~0.5 m wide, ~1.75 m tall, 0.44 m step-up
+    // start: floor-0 walkable (12 micro), lane-A column, just south of the well; goal: standing at
+    // the top floor (72 micro) anywhere around the well; bounds: the stairwell + a margin.
+    const bool reached = probe.reachable(
+        glm::ivec3(13, 12, 14), glm::ivec3(5, 71, 10), glm::ivec3(30, 74, 75),
+        glm::ivec3(5, 8, 10), glm::ivec3(30, 80, 75));
+    EXPECT_TRUE(reached) << "character-box could not climb the switchback to the top floor";
+
+    // NEGATIVE CONTROL (proves the test has teeth): fill the well solid above floor 1 — the old
+    // solid-column bug. The box can climb to floor 1 but has no head-room to emerge -> the SAME
+    // start/goal must now be UNREACHABLE. If this were still reachable, the test above is hollow.
+    TraversalProbe blocked(
+        [&](int x, int y, int z) {
+            if (x >= 9 && x < 27 && z >= 18 && z < 72 && y >= 44 && y < 70) return true;  // filled
+            return r.canvas.occupiedMicro(x, y, z);
+        },
+        AgentBox{2, 16, 4});
+    const bool reachedBlocked = blocked.reachable(
+        glm::ivec3(13, 12, 14), glm::ivec3(5, 71, 10), glm::ivec3(30, 74, 75),
+        glm::ivec3(5, 8, 10), glm::ivec3(30, 80, 75));
+    EXPECT_FALSE(reachedBlocked) << "agent reached the top through a solid-filled well — test is hollow";
 }
 
 namespace {
