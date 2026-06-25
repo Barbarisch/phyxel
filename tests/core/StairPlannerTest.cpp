@@ -70,3 +70,23 @@ TEST(StairPlannerTest, TallerStoryStillCompliantInDeeperWell) {
     EXPECT_LE(p.maxRiserMicro, kMaxStep);
     EXPECT_EQ(p.topMicro, 3 + 5 * 9);
 }
+
+// The clearance function the validator gates on must MEASURE real geometry: a stacked pair of
+// SOLID-pillar flights (the KI-4 bug) leaves no headroom; a stacked pair of THIN switchback flights
+// leaves a full inter-floor gap. This is the falsifiable check — if the function ignored geometry it
+// could not tell these two apart.
+TEST(StairPlannerTest, StackedClearanceCatchesSolidAllowsThin) {
+    const int charH = 16;
+    // Two SOLID pillars filling the whole 2x6 well from the floor to the tread top (old geometry).
+    StairPlan solidL, solidU;
+    solidL.topMicro = kRise; solidL.solids.push_back({0, 0, 0, 18, kRise, 54});   // y[0,30] solid
+    solidU.topMicro = kRise; solidU.solids.push_back({0, 0, 0, 18, kRise, 54});   // sits at y[30,60]
+    EXPECT_LT(stackedEmergenceClearance(solidL, solidU, 0, 0, 2, 6, charH), charH)
+        << "clearance function failed to detect a solid stacked column";
+
+    // The real thin switchback (the fix) leaves head-room.
+    StairPlan thinL = planStair(2, 6, kRise, StairForm::Switchback, kMaxStep);
+    StairPlan thinU = planStair(2, 6, kRise, StairForm::Switchback, kMaxStep);
+    EXPECT_GE(stackedEmergenceClearance(thinL, thinU, 0, 0, 2, 6, charH), charH)
+        << "thin switchback wrongly flagged as blocked";
+}

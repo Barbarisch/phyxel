@@ -110,5 +110,34 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
     return p;
 }
 
+int stackedEmergenceClearance(const StairPlan& lower, const StairPlan& upper,
+                              int upperDxMicro, int upperDzMicro,
+                              int wellWcubes, int wellDcubes, int charHeightMicro) {
+    const int WM = wellWcubes * 9, DM = wellDcubes * 9;
+    const int floorMicro = lower.topMicro;   // the intermediate floor = lower flight's top
+    auto inBox = [](int x, int y, int z, const StairSolid& s) {
+        return x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h && z >= s.z && z < s.z + s.d;
+    };
+    auto occ = [&](int x, int y, int z) -> bool {
+        for (const auto& s : lower.solids) if (inBox(x, y, z, s)) return true;
+        for (const auto& s : upper.solids)               // upper sits one floor up, offset in plane
+            if (inBox(x - upperDxMicro, y - floorMicro, z - upperDzMicro, s)) return true;
+        return false;
+    };
+    int best = 0;
+    for (int mx = 0; mx < WM; ++mx)
+        for (int mz = 0; mz < DM; ++mz)
+            for (int fy = floorMicro - 2; fy <= floorMicro; ++fy) {
+                if (!occ(mx, fy, mz)) continue;          // need a foothold at the floor
+                int clear = 0;
+                for (int k = 1; k <= charHeightMicro; ++k) {
+                    if (occ(mx, fy + k, mz)) break;
+                    ++clear;
+                }
+                best = std::max(best, clear);
+            }
+    return best;
+}
+
 }  // namespace Core
 }  // namespace Phyxel

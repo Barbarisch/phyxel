@@ -88,6 +88,26 @@ const char* kShallowWellStair = R"({
     ]
 })";
 
+// Stacked switchback stairs in stories TOO SHORT for head-room: floor-to-floor rise (~1.3 m) is
+// below the character's standing height, so the upper flight sits within head-room of the lower
+// emergence — a real, GEOMETRY-driven clearance failure (the old form==Straight gate misses it
+// entirely because the form is switchback).
+const char* kShortStoryTower = R"({
+    "name": "squashed", "style": "timber_cottage", "footprint": [7, 9],
+    "substructure": "crawlspace",
+    "stories": [
+        { "height": 1,
+          "rooms": [{ "id": "r0", "rect": [0,0,7,9], "purpose": "living" }],
+          "portals": [{ "between": ["exterior","r0"], "pos": [0,4], "width": 1, "height": 2, "kind": "door" }],
+          "stairs": [{ "from_story": 0, "to_story": 1, "rect": [1,2,2,6], "form": "switchback" }] },
+        { "height": 1,
+          "rooms": [{ "id": "r1", "rect": [0,0,7,9], "purpose": "living" }],
+          "stairs": [{ "from_story": 1, "to_story": 2, "rect": [1,2,2,6], "form": "switchback" }] },
+        { "height": 1,
+          "rooms": [{ "id": "r2", "rect": [0,0,7,9], "purpose": "living" }] }
+    ]
+})";
+
 BuildingProgram parse(const char* s) {
     return BuildingProgram::fromJson(nlohmann::json::parse(s));
 }
@@ -151,10 +171,19 @@ TEST(BuildingProgramValidatorTest, ExteriorPortalOffPerimeterFails) {
     EXPECT_TRUE(hasCode(r, "exterior_portal_off_perimeter"));
 }
 
-// KI-4: stairs must be physically walkable, not just topologically linked. Stacked
-// STRAIGHT wells fill each other's headroom (solid column) — the killer the user found.
-TEST(BuildingProgramValidatorTest, StackedStraightStairsHaveNoHeadroom) {
+// KI-4: the gate measures REAL vertical clearance on the planned geometry (not a form label).
+// Thin treads give head-room regardless of form, so a stacked STRAIGHT tower with room-height
+// stories is now clear — the old "straight stack is always blocked" premise is obsolete.
+TEST(BuildingProgramValidatorTest, StackedStraightStairsAreClearWithThinTreads) {
     auto r = BuildingProgramValidator::validate(parse(kStackedStraightStairs));
+    EXPECT_FALSE(hasCode(r, "stair_no_headroom")) << r.summary();
+}
+
+// The clearance gate fires on a GEOMETRY-driven failure the old form-label gate could not see:
+// stacked switchback flights in stories too SHORT for head-room. RED on the old gate (switchback
+// is exempt), GREEN once the gate measures real clearance on the StairPlan.
+TEST(BuildingProgramValidatorTest, ShortStoriesLackStairHeadroom) {
+    auto r = BuildingProgramValidator::validate(parse(kShortStoryTower));
     EXPECT_TRUE(hasCode(r, "stair_no_headroom")) << r.summary();
 }
 

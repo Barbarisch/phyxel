@@ -53,5 +53,15 @@ struct StairPlan {
 /// keeping risers ≤ maxStepMicro. Geometry is local to the well's lower-walkable origin.
 StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro);
 
+/// Worst-case head clearance (micro) a character has when emerging off the LOWER flight onto the
+/// shared intermediate floor, given the UPPER flight stacked above it (offset up by lower.topMicro,
+/// and by upperDx/upperDz micro in the well plane). Scans the combined plan solids for footholds at
+/// the intermediate floor and measures the open air above each. A solid-pillar stack returns ~0; a
+/// thin-tread stack returns the full inter-floor gap. This is the REAL clearance the validator gates
+/// on — geometry-driven, not a form label. Returns >= charHeightMicro means clear.
+int stackedEmergenceClearance(const StairPlan& lower, const StairPlan& upper,
+                              int upperDxMicro, int upperDzMicro,
+                              int wellWcubes, int wellDcubes, int charHeightMicro);
+
 }  // namespace Core
 }  // namespace Phyxel

@@ -227,20 +227,34 @@ ValidationReport BuildingProgramValidator::validate(const BuildingProgram& progr
                            fmt(scale.maxStepRiser) + " m")
                         : plan.error) + " — enlarge the well or use a switchback");
         }
-        // Headroom: a STRAIGHT flight directly above another flight fills its headroom.
+        // Headroom: measure REAL vertical clearance on the planned geometry. For consecutive
+        // flights whose wells overlap, plan both and compute the open air above the lower flight's
+        // emergence onto the shared floor; < character height means the upper flight blocks the
+        // climb. Geometry-driven (catches a solid-fill regression OR a too-short story) — not a form
+        // label. The old check was a 2D footprint overlap exempt for switchback, which measured no
+        // clearance at all (KI-4).
+        const int charHeightMicro = std::max(1, (int)std::lround(scale.characterHeight * 9.0));
         for (size_t i = 0; i < flights.size(); ++i)
-            for (size_t j = 0; j < flights.size(); ++j)
-                if (i != j && flights[i].b == flights[j].a &&
-                    flights[j].form == StairForm::Straight &&
-                    overlap(flights[i].rect, flights[j].rect)) {
+            for (size_t j = 0; j < flights.size(); ++j) {
+                if (i == j || flights[i].b != flights[j].a) continue;       // U stacked directly on L
+                const Flight& L = flights[i];
+                const Flight& U = flights[j];
+                if (!overlap(L.rect, U.rect)) continue;                     // share the well
+                const int riseL = floorThicknessMicro + program.stories[L.a].height * 9;
+                const int riseU = floorThicknessMicro + program.stories[U.a].height * 9;
+                StairPlan pl = planStair(L.rect.w, L.rect.d, riseL, L.form, maxStepMicro);
+                StairPlan pu = planStair(U.rect.w, U.rect.d, riseU, U.form, maxStepMicro);
+                const int clr = stackedEmergenceClearance(pl, pu, (U.rect.x - L.rect.x) * 9,
+                                                          (U.rect.z - L.rect.z) * 9,
+                                                          L.rect.w, L.rect.d, charHeightMicro);
+                if (clr < charHeightMicro)
                     r.addError("stair_no_headroom",
-                        "straight stair " + std::to_string(flights[j].a) + "->" +
-                        std::to_string(flights[j].b) + " sits directly above stair " +
-                        std::to_string(flights[i].a) + "->" + std::to_string(flights[i].b) +
-                        " — its solid flight fills the lower flight's headroom; use a switchback "
-                        "(folds + clears headroom) or offset the wells");
-                    break;   // one report per blocked lower flight
-                }
+                        "stair " + std::to_string(U.a) + "->" + std::to_string(U.b) +
+                        " leaves only " + std::to_string(clr) + " micro of headroom (need " +
+                        std::to_string(charHeightMicro) + ") above the emergence off stair " +
+                        std::to_string(L.a) + "->" + std::to_string(L.b) + " onto floor " +
+                        std::to_string(L.b) + " — the upper flight blocks the climb");
+            }
     }
 
     // ---- room-program typology gate (grounded, period sizing from room_program.json) ----
