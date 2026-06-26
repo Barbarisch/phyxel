@@ -324,10 +324,10 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
     // sky/block light so light bleeds across chunk boundaries (no seams).
-    auto getNeighborLight = [this, &chunk](const glm::ivec3& worldPos, uint8_t& sky, uint8_t& block) -> bool {
+    auto getNeighborLight = [this, &chunk](const glm::ivec3& worldPos, Chunk::BakedLight& out) -> bool {
         Chunk* neighborChunk = getChunkAtCoord(worldToChunkCoord(worldPos));
         if (!neighborChunk || neighborChunk == &chunk) return false;
-        return neighborChunk->bakedLightAt(worldToLocalCoord(worldPos), sky, block);
+        return neighborChunk->bakedLightAt(worldToLocalCoord(worldPos), out);
     };
 
     // Call rebuildFaces with cross-chunk culling + light bleed enabled

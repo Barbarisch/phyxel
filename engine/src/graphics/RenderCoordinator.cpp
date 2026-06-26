@@ -152,7 +152,15 @@ RenderCoordinator::RenderCoordinator(
             return lightManager.addPointLight(pos, color, intensity, radius);
         },
         [this](int id, const glm::vec3& pos) { lightManager.updatePointLightPosition(id, pos); },
-        [this](int id) { lightManager.removeLight(id); });
+        [this](int id) { lightManager.removeLight(id); },
+        // Intensity fade for transient explosion flashes (burst lights).
+        [this](int id, float intensity) {
+            if (const auto* pl = lightManager.getPointLight(id)) {
+                auto upd = *pl;
+                upd.intensity = intensity;
+                lightManager.updatePointLight(id, upd);
+            }
+        });
     vfxDirector = std::make_unique<VfxDirector>(vfxSystem.get());
     vfxPipeline = std::make_unique<VfxRenderPipeline>();
     vfxPipeline->initialize(

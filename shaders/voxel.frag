@@ -8,7 +8,7 @@ layout(location = 3) in flat uint flags;         // from vertex shader
 layout(location = 4) in vec3 inNormal;           // from vertex shader
 layout(location = 5) in vec3 inWorldPos;         // from vertex shader
 layout(location = 6) in flat float vSkyLight;    // baked skylight 0..1 (0 = enclosed/no sky access)
-layout(location = 7) in flat float vBlockLight;  // baked block light 0..1 (from emissive voxels)
+layout(location = 7) in flat vec3  vBlockColor;  // baked coloured block light 0..1/channel (emissive voxels)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -221,7 +221,12 @@ void main() {
     }
 
     if (isEmissive) {
-        outColor = vec4(albedo * ubo.emissiveMultiplier, textureColor.a);
+        // Tint the self-illumination by the block's own emitted colour (its baked block-light hue)
+        // so a blue-glow block reads blue, a green one green, etc. — not just the texture colour.
+        vec3 tint = vBlockColor;
+        float m = max(tint.r, max(tint.g, max(tint.b, 0.001)));
+        tint = (m > 0.05) ? tint / m : vec3(1.0);  // hue only; fall back to white if unknown
+        outColor = vec4(albedo * ubo.emissiveMultiplier * tint, textureColor.a);
         return;
     }
 
@@ -243,13 +248,11 @@ void main() {
     vec3 sunL = normalize(-ubo.sunDirection);
     color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
 
-    // Baked block light from emissive voxels (torches/glow). Warm, omnidirectional fill (the
-    // bake stores no direction, like a lightmap) that brightens surfaces near emissive blocks —
-    // so a glow block actually lights its room instead of only self-illuminating. Independent of
-    // sky access, so it's the light source indoors / at night. Convex falloff for a natural rolloff.
-    const vec3 kBlockColor = vec3(1.0, 0.80, 0.50);
-    float blockCurve = vBlockLight * vBlockLight;
-    color += kBlockColor * blockCurve * albedo;
+    // Baked COLOURED block light from emissive voxels (torches/glow/crystals). Omnidirectional
+    // fill (the bake stores no direction, like a lightmap) carrying each source's own colour, so a
+    // glow block lights its room warm, a blue crystal blue, etc. Independent of sky access, so it's
+    // the light source indoors / at night. Per-channel convex falloff for a natural rolloff.
+    color += (vBlockColor * vBlockColor) * albedo;
 
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {

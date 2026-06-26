@@ -76,31 +76,33 @@ uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
     }
     // Out-of-chunk: read the neighbour chunk's baked light if available, else assume open sky.
     if (m_neighborLight) {
-        uint8_t sky = 0, block = 0;
-        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), sky, block)) return sky;
+        BakedLight nl;
+        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), nl)) return nl.sky;
     }
     return 15;
 }
 
-uint8_t ChunkRenderManager::blockLightAt(int x, int y, int z) const {
+void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const {
     if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
-        if (m_blockLight.empty()) return 0;
-        return m_blockLight[static_cast<size_t>(z + y * 32 + x * 1024)];
+        if (m_blockR.empty()) { r = g = b = 0; return; }
+        size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
+        r = m_blockR[i]; g = m_blockG[i]; b = m_blockB[i];
+        return;
     }
-    // Out-of-chunk: read the neighbour chunk's baked block light if available, else none.
+    // Out-of-chunk: read the neighbour chunk's baked block colour if available, else none.
+    r = g = b = 0;
     if (m_neighborLight) {
-        uint8_t sky = 0, block = 0;
-        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), sky, block)) return block;
+        BakedLight nl;
+        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), nl)) { r = nl.r; g = nl.g; b = nl.b; }
     }
-    return 0;
 }
 
-bool ChunkRenderManager::bakedLightAt(int x, int y, int z, uint8_t& sky, uint8_t& block) const {
-    if (m_skyLight.empty() || m_blockLight.empty()) return false;
+bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) const {
+    if (m_skyLight.empty() || m_blockR.empty()) return false;
     if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
     size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
-    sky = m_skyLight[i];
-    block = m_blockLight[i];
+    out.sky = m_skyLight[i];
+    out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
     return true;
 }
 
@@ -141,7 +143,9 @@ void ChunkRenderManager::rebuildCubeFaces(
     auto cellIdx = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
 
     // Per-material face textures + flags (computed once per distinct material in chunk).
-    struct MatFace { uint16_t tex[6]; uint16_t reserved; };
+    // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
+    // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
     std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
@@ -177,6 +181,17 @@ void ChunkRenderManager::rebuildCubeFaces(
             uint16_t qa = tr ? static_cast<uint16_t>(md->alpha * 255.0f) : 255u;
             mf.reserved = static_cast<uint16_t>((em ? 1u : 0u) | (tr ? 2u : 0u) |
                                                 (qa << 2u) | (mi ? (1u << 10) : 0u));
+            // Emissive light colour from the material tint, normalised so the brightest channel
+            // emits at full range (15) and the hue is preserved.
+            mf.emR = mf.emG = mf.emB = 0;
+            if (em && md) {
+                glm::vec3 t = md->physics.colorTint;
+                float mx = std::max(t.x, std::max(t.y, std::max(t.z, 0.0001f)));
+                float s = 15.0f / mx;
+                mf.emR = static_cast<uint8_t>(glm::clamp(t.x * s, 0.0f, 15.0f) + 0.5f);
+                mf.emG = static_cast<uint8_t>(glm::clamp(t.y * s, 0.0f, 15.0f) + 0.5f);
+                mf.emB = static_cast<uint8_t>(glm::clamp(t.z * s, 0.0f, 15.0f) + 0.5f);
+            }
             int newId = static_cast<int>(matFaces.size());
             matFaces.push_back(mf);
             matIdByName[mname] = newId;
@@ -228,10 +243,10 @@ void ChunkRenderManager::rebuildCubeFaces(
             auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
                 int cell = cellIdx(x, y, z);
                 if (solidVis[cell]) return;
-                uint8_t ns = 0, nb = 0;
-                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), ns, nb) && ns > 1) {
-                    uint8_t nl = static_cast<uint8_t>(ns - 1);
-                    if (m_skyLight[cell] < nl) { m_skyLight[cell] = nl; q.push_back(cell); }
+                BakedLight nl;
+                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl) && nl.sky > 1) {
+                    uint8_t v = static_cast<uint8_t>(nl.sky - 1);
+                    if (m_skyLight[cell] < v) { m_skyLight[cell] = v; q.push_back(cell); }
                 }
             };
             for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
@@ -265,30 +280,37 @@ void ChunkRenderManager::rebuildCubeFaces(
         }
     }
 
-    // --- Baked block light (Phase 2 + cross-chunk bleed) ---
-    // Emissive voxels (glow/etc.) flood-fill light into surrounding air at -1 per step, blocked by
-    // opaque voxels, AND light bleeds in from emissive sources in neighbouring chunks via the
-    // boundary seed below. Faces adjacent to lit air read this, so a torch illuminates the room
-    // around it even across a chunk seam.
-    m_blockLight.assign(N * N * N, 0);
+    // --- Baked coloured block light (Phase 2 + colour + cross-chunk bleed) ---
+    // Emissive voxels flood-fill light into surrounding air at -1 per step (per RGB channel),
+    // blocked by opaque voxels, tinted by each material's colour, AND bleeding in from emissive
+    // sources in neighbouring chunks via the boundary seed. So a glow block lights its room warm,
+    // a blue crystal lights it blue, even across a chunk seam.
+    m_blockR.assign(N * N * N, 0);
+    m_blockG.assign(N * N * N, 0);
+    m_blockB.assign(N * N * N, 0);
     {
         std::deque<int> q;
+        auto bump = [&](int cell, uint8_t r, uint8_t g, uint8_t b) {
+            bool up = false;
+            if (m_blockR[cell] < r) { m_blockR[cell] = r; up = true; }
+            if (m_blockG[cell] < g) { m_blockG[cell] = g; up = true; }
+            if (m_blockB[cell] < b) { m_blockB[cell] = b; up = true; }
+            if (up) q.push_back(cell);
+        };
         for (int cell = 0; cell < N * N * N; ++cell) {
             int m = cellMat[cell];
             if (m >= 0 && (matFaces[m].reserved & 1u)) {  // emissive flag (reserved bit 0)
-                m_blockLight[cell] = 15;
-                q.push_back(cell);
+                bump(cell, matFaces[m].emR, matFaces[m].emG, matFaces[m].emB);
             }
         }
-        // Cross-chunk seed from neighbouring chunks' baked block light across the 6 boundary planes.
+        // Cross-chunk seed from neighbouring chunks' baked block colour across the 6 boundary planes.
         if (m_neighborLight) {
             auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
                 int cell = cellIdx(x, y, z);
                 if (solidVis[cell]) return;
-                uint8_t ns = 0, nb = 0;
-                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), ns, nb) && nb > 1) {
-                    uint8_t nl = static_cast<uint8_t>(nb - 1);
-                    if (m_blockLight[cell] < nl) { m_blockLight[cell] = nl; q.push_back(cell); }
+                BakedLight nl;
+                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl)) {
+                    bump(cell, nl.r > 0 ? nl.r - 1 : 0, nl.g > 0 ? nl.g - 1 : 0, nl.b > 0 ? nl.b - 1 : 0);
                 }
             };
             for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
@@ -302,21 +324,18 @@ void ChunkRenderManager::rebuildCubeFaces(
         const int ndz[6] = {0, 0, 0, 0, 1, -1};
         while (!q.empty()) {
             int cell = q.front(); q.pop_front();
-            int level = m_blockLight[cell];
-            if (level <= 1) continue;
+            uint8_t r = m_blockR[cell], g = m_blockG[cell], b = m_blockB[cell];
+            if (r <= 1 && g <= 1 && b <= 1) continue;
             int cz = cell % 32;
             int cy = (cell / 32) % 32;
             int cx = cell / 1024;
+            uint8_t pr = r > 0 ? r - 1 : 0, pg = g > 0 ? g - 1 : 0, pb = b > 0 ? b - 1 : 0;
             for (int d = 0; d < 6; ++d) {
                 int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
                 if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
                 int ncell = cellIdx(nx, ny, nz);
                 if (solidVis[ncell]) continue;  // light fills air, blocked by opaque
-                uint8_t nl = static_cast<uint8_t>(level - 1);
-                if (m_blockLight[ncell] < nl) {
-                    m_blockLight[ncell] = nl;
-                    q.push_back(ncell);
-                }
+                bump(ncell, pr, pg, pb);
             }
         }
     }
@@ -326,15 +345,16 @@ void ChunkRenderManager::rebuildCubeFaces(
     // ripples outward and converges (light is monotonic, capped at 15).
     {
         std::vector<uint8_t> border;
-        border.reserve(6 * N * N);
-        auto pk = [&](int x, int y, int z) -> uint8_t {
+        border.reserve(6 * N * N * 2);
+        auto pk = [&](int x, int y, int z) {
             int c = cellIdx(x, y, z);
-            return static_cast<uint8_t>((m_skyLight[c] & 0xF) | ((m_blockLight[c] & 0xF) << 4));
+            border.push_back(static_cast<uint8_t>((m_skyLight[c] & 0xF) | ((m_blockR[c] & 0xF) << 4)));
+            border.push_back(static_cast<uint8_t>((m_blockG[c] & 0xF) | ((m_blockB[c] & 0xF) << 4)));
         };
         for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
-            border.push_back(pk(0, a, b));     border.push_back(pk(N - 1, a, b));
-            border.push_back(pk(a, 0, b));     border.push_back(pk(a, N - 1, b));
-            border.push_back(pk(a, b, 0));     border.push_back(pk(a, b, N - 1));
+            pk(0, a, b);     pk(N - 1, a, b);
+            pk(a, 0, b);     pk(a, N - 1, b);
+            pk(a, b, 0);     pk(a, b, N - 1);
         }
         m_lightBordersChanged = (border != m_prevBorderLight);
         m_prevBorderLight = std::move(border);
@@ -361,7 +381,7 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<int>     faceKey(N * N);
     std::vector<int>     faceMat(N * N);
     std::vector<uint8_t> faceDmg(N * N);
-    std::vector<uint8_t> faceLight(N * N);   // packed baked light of the air cell each face looks into: skylight(0-3) | blocklight(4-7)
+    std::vector<uint16_t> faceLight(N * N);  // packed baked light of the air cell each face looks into: sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
     std::vector<uint8_t> used(N * N);
 
     // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
@@ -391,12 +411,13 @@ void ChunkRenderManager::rebuildCubeFaces(
                     faceMat[mi] = m;
                     faceDmg[mi] = cellDamage[cell];
                     // Light of the air cell this face looks into (face is visible => neighbour is air):
-                    // skylight in low nibble, block light in high nibble.
+                    // sky(0-3) | blockR(4-7) | blockG(8-11) | blockB(12-15).
                     {
                         int nbx = x + fdx[faceID], nby = y + fdy[faceID], nbz = z + fdz[faceID];
                         uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
-                        uint8_t blkV = blockLightAt(nbx, nby, nbz) & 0xF;
-                        faceLight[mi] = static_cast<uint8_t>(skyV | (blkV << 4));
+                        uint8_t br = 0, bg = 0, bb = 0;
+                        blockLightAt(nbx, nby, nbz, br, bg, bb);
+                        faceLight[mi] = static_cast<uint16_t>(skyV | ((br & 0xF) << 4) | ((bg & 0xF) << 8) | ((bb & 0xF) << 12));
                     }
                 }
             }
@@ -406,7 +427,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int mi = u * N + v;
                     if (!hasFace[mi] || used[mi]) continue;
                     int k = faceKey[mi];
-                    uint8_t lite = faceLight[mi];  // only merge faces with equal baked light
+                    uint16_t lite = faceLight[mi];  // only merge faces with equal baked light
                     int w = 1;
                     while (v + w < N) {
                         int t = u * N + (v + w);
@@ -435,7 +456,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                         ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
                     inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
-                    inst.light = static_cast<uint32_t>(lite);  // skylight bits0-3, blocklight bits4-7
+                    inst.light = static_cast<uint32_t>(lite);  // sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
                     faces.push_back(inst);
                 }
             }
@@ -505,8 +526,9 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     int nby = parentChunkPos.y + FDY[faceID];
                     int nbz = parentChunkPos.z + FDZ[faceID];
                     uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
-                    uint8_t blkV = blockLightAt(nbx, nby, nbz) & 0xF;
-                    faceInstance.light = static_cast<uint32_t>(skyV | (blkV << 4));
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(nbx, nby, nbz, br, bg, bb);
+                    faceInstance.light = static_cast<uint32_t>(skyV | ((br & 0xF) << 4) | ((bg & 0xF) << 8) | ((bb & 0xF) << 12));
                 }
                 faces.push_back(faceInstance);
             }
@@ -592,8 +614,9 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     int nby = parentChunkPos.y + FDY[faceID];
                     int nbz = parentChunkPos.z + FDZ[faceID];
                     uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
-                    uint8_t blkV = blockLightAt(nbx, nby, nbz) & 0xF;
-                    faceInstance.light = static_cast<uint32_t>(skyV | (blkV << 4));
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(nbx, nby, nbz, br, bg, bb);
+                    faceInstance.light = static_cast<uint32_t>(skyV | ((br & 0xF) << 4) | ((bg & 0xF) << 8) | ((bb & 0xF) << 12));
                 }
                 faces.push_back(faceInstance);
             }

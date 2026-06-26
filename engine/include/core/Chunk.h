@@ -204,14 +204,15 @@ public:
     // plus an optional cross-chunk baked-light lookup for light bleed across chunk boundaries.
     using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
     using NeighborLightFunc  = Graphics::ChunkRenderManager::NeighborLightFunc;
+    using BakedLight         = Graphics::ChunkRenderManager::BakedLight;
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                       const NeighborLightFunc& getNeighborLight = nullptr);
 
     // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
     bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }
     // Read this chunk's baked light at a local cell (for neighbours' bleed). False if not baked.
-    bool bakedLightAt(const glm::ivec3& localPos, uint8_t& sky, uint8_t& block) const {
-        return renderManager.bakedLightAt(localPos.x, localPos.y, localPos.z, sky, block);
+    bool bakedLightAt(const glm::ivec3& localPos, BakedLight& out) const {
+        return renderManager.bakedLightAt(localPos.x, localPos.y, localPos.z, out);
     }
 
     void updateVulkanBuffer();                     // Update GPU buffer with face data

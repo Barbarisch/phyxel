@@ -28,9 +28,11 @@ class ChunkRenderManager {
 public:
     // Neighbor lookup function type for cross-chunk culling
     using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
-    // Cross-chunk baked-light lookup: fills sky/block (0-15) for the given WORLD cell from a
-    // neighbouring chunk's already-baked light; returns false if there's no baked neighbour there.
-    using NeighborLightFunc = std::function<bool(const glm::ivec3& worldPos, uint8_t& sky, uint8_t& block)>;
+    // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
+    struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
+    // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
+    // chunk's already-baked light; returns false if there's no baked neighbour there.
+    using NeighborLightFunc = std::function<bool(const glm::ivec3& worldPos, BakedLight& out)>;
 
     ChunkRenderManager();
     ~ChunkRenderManager();
@@ -66,7 +68,7 @@ public:
     // the caller re-meshes neighbours so cross-chunk light bleed converges.
     bool lightBordersChanged() const { return m_lightBordersChanged; }
     // Read this chunk's baked light at a local cell (for neighbours). Returns false if not baked.
-    bool bakedLightAt(int x, int y, int z, uint8_t& sky, uint8_t& block) const;
+    bool bakedLightAt(int x, int y, int z, BakedLight& out) const;
 
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
@@ -159,10 +161,12 @@ private:
     // Skylight of the air cell at local (x,y,z); 15 (open sky) if out of chunk bounds.
     uint8_t skyLightAt(int x, int y, int z) const;
 
-    // Baked per-cell block light (32x32x32, 0-15): flood-filled from emissive voxels (glow/etc.)
-    // so they illuminate nearby surfaces. Computed alongside skylight; 0 out of chunk bounds.
-    std::vector<uint8_t> m_blockLight;
-    uint8_t blockLightAt(int x, int y, int z) const;
+    // Baked per-cell COLORED block light (32x32x32, each channel 0-15): flood-filled from emissive
+    // voxels in their material colour (physics.colorTint), so a torch glows warm, a crystal blue,
+    // etc. Three channels propagate independently (correct colour blending where lights overlap).
+    std::vector<uint8_t> m_blockR, m_blockG, m_blockB;
+    // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
+    void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
 
     // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
     // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.

@@ -42,7 +42,7 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out flat float vSkyLight;    // baked skylight (debris: full sky until Phase 4)
-layout(location = 7) out flat float vBlockLight;  // baked block light (debris: none until Phase 4)
+layout(location = 7) out flat vec3  vBlockColor;  // baked block light (debris: none until Phase 4)
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -258,7 +258,7 @@ void main() {
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
     vSkyLight = 1.0;  // debris uses full sky ambient until Phase 4 light-field sampling
-    vBlockLight = 0.0;
+    vBlockColor = vec3(0.0);
 
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;
