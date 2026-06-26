@@ -127,10 +127,10 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     // silently drift — fixing an asset (or a new one drifting) flips a status and fails this test,
     // prompting an update here + in AssetConformance.md.
     EXPECT_EQ(statusOf(rep, "bed"),       "ok");                 // bed_single conforms
+    EXPECT_EQ(statusOf(rep, "chest"),     "ok");                 // REGENERATED -> coffer 1.22x0.56x0.67
+    EXPECT_EQ(statusOf(rep, "fireplace"), "ok");                 // REGENERATED -> hearth 1.56x1.22x0.56
     EXPECT_EQ(statusOf(rep, "barrel"),    "no_canon");           // no object_dimensions archetype
     EXPECT_EQ(statusOf(rep, "counter"),   "no_metrics");         // no .metrics.json sidecar
     EXPECT_EQ(statusOf(rep, "bench"),     "no_checkable_dims");  // canon has only feature dims
-    EXPECT_EQ(statusOf(rep, "chest"),     "out_of_tolerance");   // 1x1x1 cube vs coffer canon
-    EXPECT_EQ(statusOf(rep, "fireplace"), "out_of_tolerance");   // 3x2x1 vs hearth canon
-    EXPECT_EQ(statusOf(rep, "table"),     "out_of_tolerance");   // depth 1.0 vs 0.84
+    EXPECT_EQ(statusOf(rep, "table"),     "out_of_tolerance");   // depth 1.0 vs 0.84 (still drifts)
 }
