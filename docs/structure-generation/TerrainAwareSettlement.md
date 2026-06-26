@@ -51,7 +51,10 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
   `footprint_too_wide`) — warn-but-allow builds them, but a real follow-up is **vary plot size per
   typology** (or assign typologies that fit the plot); (3) exterior variety is interior-only today
   (all timber_cottage gable) — a separate refinement.
-- ▶ **Phase 1** (`analyze_site`) — next (the keystone).
+- ▶ **Phase 1** (`analyze_site`) — CORE DONE (auditor PASS): `SiteAnalysis` classifies Flat/SlopeOk/
+  TooSteep/Water from the max 4-neighbour slope, L2-tested on synthetic fixtures (flat/cliff/hilltop/
+  water). **Remaining Phase 1 slice:** a runtime `ChunkManager` column-scan sampler + validate the
+  classification against a generated **Perlin (rolling hills) / Mountains (steep)** world.
 - ☐ Phases 2–4 — planned (this doc).
 
 ### Follow-ups surfaced (not yet scheduled)
