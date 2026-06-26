@@ -1053,6 +1053,24 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/settlement/build — Compose a whole settlement (the engine drives
+    // subdivide_plots + populate_plots, then queues one building build per plot).
+    // Body: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
+    //         "street_width":4, "setback":2, "min_building":8, "typology":"hall_house" }
+    // ====================================================================
+    srv.Post("/api/settlement/build", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("build_settlement", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/structure/types — List available structure types
     // ====================================================================
     srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {

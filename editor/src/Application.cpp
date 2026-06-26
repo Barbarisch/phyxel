@@ -65,6 +65,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/StructureGenerator.h"
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
+#include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
@@ -432,6 +433,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Register CommandRegistry-based API handlers (incrementally replacing the processAPICommands
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
+    registerSettlementCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10136,6 +10138,65 @@ void Application::registerWaterCommands() {
             glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
             r["mass_at"] = waterManager->massAtWorld(p);
         }
+    });
+}
+
+// build_settlement — the engine composes a whole settlement in one call: subdivide_plots +
+// populate_plots (the tested layout) decide the plots/buildings, then ONE build_structure command is
+// queued per building (reusing the proven single-building v2 path; the builds run over the next
+// frame). Returns the plan synchronously. Productionizes the previously client-orchestrated hamlet.
+void Application::registerSettlementCommands() {
+    auto& reg = m_commandRegistry;
+    reg.on("build_settlement", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const auto& p = cmd.params;
+        const int W = p.value("width", 52), D = p.value("depth", 36);
+        const int cols = p.value("cols", 2), rows = p.value("rows", 2);
+        const int streetWidth = p.value("street_width", 4);
+        const int setback = p.value("setback", 2);
+        const int minBuilding = p.value("min_building", 8);
+        const std::string typology = p.value("typology", std::string("hall_house"));
+        const std::string style = p.value("style", std::string("timber_cottage"));
+        int ox = 0, oy = 16, oz = 0;
+        if (p.contains("position")) {
+            ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
+        }
+
+        const Core::SettlementLayout layout =
+            Core::subdividePlots(W, D, cols, rows, streetWidth, minBuilding);
+        if (layout.plots.empty()) {
+            r = {{"error", "settlement footprint too small for the requested grid + min_building"}};
+            return;
+        }
+        const auto buildings = Core::populatePlots(layout, setback, minBuilding, typology);
+        if (buildings.empty()) {
+            r = {{"error", "no buildable plots (setback too large for the plots)"}};
+            return;
+        }
+
+        nlohmann::json queued = nlohmann::json::array();
+        for (const auto& b : buildings) {
+            const int bx = ox + b.footprint.x, bz = oz + b.footprint.z;
+            nlohmann::json bp = {
+                {"schema", "v2"}, {"type", "house"}, {"style", style}, {"typology", b.typology},
+                {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
+                {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
+                {"substructure", "slab"},
+                {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})}
+            };
+            Core::APICommand sub;
+            sub.action = "build_structure";
+            sub.params = bp;
+            apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
+            queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
+                              {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
+                              {"typology", b.typology}});
+        }
+        LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
+                     << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
+        r = {{"success", true},
+             {"settlement", {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
+                             {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}}},
+             {"queued_builds", queued}};
     });
 }
 
