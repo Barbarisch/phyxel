@@ -105,6 +105,10 @@ Validate when each lands; required layer noted so the plan is set up front.
   plot; runtime-built a 4-house hamlet, 0 overlapping bboxes; `RealizerStaysWithinPlotFootprint` encodes
   no-spill; auditor PASS). *OPEN: HTTP-route e2e test; MCP tool; the queued builds run as a synchronous
   next-frame batch (stalls the frame for a big settlement) — spread over frames is a follow-up.*
+  **Terrain-aware settlement (the deployer on real terrain) is the next major arc — roadmap +
+  per-phase validation in [`TerrainAwareSettlement.md`](TerrainAwareSettlement.md): Phase 0 flat
+  stress → Phase 1 `analyze_site` buildability map (keystone) → 2 terrain placement → 3 walkable
+  paths → 4 terrain stress.**
 - **Subterranean (50–57):** traversable spaces → **L3**: `excavate_subterrane` 50, `carve_sewer_network`
   51, `place_crypt` 52, `excavate_dungeon` 53, `place_mine` 54, `connect_underground` 55,
   `place_secret_passages` 56. **57 `validate_crawlability` is itself an L3 validator** (a TraversalProbe
