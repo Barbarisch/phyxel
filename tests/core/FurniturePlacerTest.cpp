@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <map>
 #include <set>
 #include <tuple>
 
@@ -56,6 +57,50 @@ TEST(FurniturePlacerTest, PerStoryFloorYStopsCrossStoryStacking) {
     const auto fixHi = FurniturePlacer::furnish(program.stories[1], origin, 21);
     EXPECT_EQ(sharedPositions(fixLo, fixHi), 0)
         << "per-story floorY still stacks furniture across stories (KI-2 not fixed)";
+}
+
+// FOOTPRINT-AWARE: two room-filling pieces must NOT both be placed (the second can't fit without
+// overlapping). The with-vs-without contrast is the falsifiable measurement: dimension-blind (1×1)
+// places BOTH (silent overlap); footprint-aware places only the one that fits.
+TEST(FurniturePlacerTest, OversizedSecondPieceSkippedNotOverlapped) {
+    // a service room (recipe: barrel + chest) sized 4×4, no doors
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"service"}]})json");
+    const glm::ivec3 origin{0, 0, 0};
+    // each piece fills the whole 4×4 room
+    const std::map<std::string, Footprint> fp = {{"barrel", {4, 4}}, {"chest", {4, 4}}};
+
+    const auto blind = FurniturePlacer::furnish(s, origin, 10);          // 1×1 -> both placed
+    EXPECT_EQ(blind.size(), 2u) << "dimension-blind should place both (the overlap bug)";
+
+    const auto aware = FurniturePlacer::furnish(s, origin, 10, fp);      // footprint-aware
+    EXPECT_EQ(aware.size(), 1u) << "footprint-aware must skip the second room-filling piece";
+}
+
+// A piece deeper than the room is skipped entirely (can't be forced into an out-of-bounds spot).
+TEST(FurniturePlacerTest, PieceTooBigForRoomIsSkipped) {
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"bedchamber"}]})json");
+    // bed depth 9 >> room depth 4; chest is fine (1×1)
+    const std::map<std::string, Footprint> fp = {{"bed", {1, 9}}, {"chest", {1, 1}}};
+    const auto aware = FurniturePlacer::furnish(s, glm::ivec3(0,0,0), 10, fp);
+    for (const auto& f : aware) EXPECT_NE(f.type, "bed") << "an oversized bed must not be placed";
+    EXPECT_TRUE(find(aware, "chest") != nullptr) << "the chest still fits";
+}
+
+// A deep piece must not cover a doorway threshold — it relocates or is skipped, never blocks the door.
+TEST(FurniturePlacerTest, DeepPieceDoesNotBlockDoorway) {
+    // 4×4 room, a door on the south wall at x=2; a single deep barrel that would span to the door.
+    const auto s = story(R"json({
+        "height":3,
+        "rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"store"}],
+        "portals":[{"between":["exterior","r"],"pos":[2,0],"width":1,"height":2,"kind":"door"}]
+    })json");
+    const std::map<std::string, Footprint> fp = {{"barrel", {1, 4}}, {"chest", {1, 1}}};
+    const auto aware = FurniturePlacer::furnish(s, glm::ivec3(0,0,0), 10, fp);
+    // the doorway threshold cell (2,0)/(1,0) must be free of every placed piece's anchor span.
+    for (const auto& f : aware) {
+        EXPECT_FALSE(f.worldPos.x == 2 && f.worldPos.z == 0) << "a piece sits on the doorway";
+        EXPECT_FALSE(f.worldPos.x == 1 && f.worldPos.z == 0) << "a piece sits on the doorway";
+    }
 }
 
 // The convention I kept getting wrong by hand: a piece against the MIN-X wall faces

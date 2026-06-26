@@ -16,6 +16,7 @@
 // So a piece against the MIN-X (left) wall faces +x  => rot 270 (NOT "east").
 // ============================================================================
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,14 @@ struct FurniturePlacement {
     std::string room;        ///< owning room id
 };
 
+/// A fixture's real footprint in CUBES (from the asset library's .metrics.json bounding box).
+/// `width` = extent across the front (along the wall it backs onto); `depth` = front-to-back
+/// (extends into the room). Default 1×1 keeps a piece a single cell (legacy / unknown asset).
+struct Footprint {
+    int width = 1;   ///< cubes along the wall
+    int depth = 1;   ///< cubes into the room
+};
+
 /// The semantic identity of a placed fixture — what's needed to address it later in a session
 /// ("rotate the bed", "move the 2nd bedroom's bed"). Carried into the PlacedObject's metadata.
 struct FixtureLabel {
@@ -47,8 +56,13 @@ class FurniturePlacer {
 public:
     /// Furnish every room in `story`. `origin` = structure world origin (room rects
     /// are local to it); `floorY` = world Y of the walkable floor (pieces sit here).
+    /// `footprints` (type -> real cube footprint, from the asset library) makes placement
+    /// FOOTPRINT-AWARE: a piece reserves all the cells it covers; one that won't fit the room or
+    /// would overlap another piece / a doorway is relocated to another wall or skipped. Omitted or
+    /// missing types default to 1×1 (legacy single-cell behavior).
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
-                                                   const glm::ivec3& origin, int floorY);
+                                                   const glm::ivec3& origin, int floorY,
+                                                   const std::map<std::string, Footprint>& footprints = {});
 
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).

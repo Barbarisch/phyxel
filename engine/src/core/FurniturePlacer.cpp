@@ -131,58 +131,97 @@ int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
     return 180;                    // against max-z wall, front -z
 }
 
-std::vector<FurniturePlacement> FurniturePlacer::furnish(const ProgStory& story,
-                                                         const glm::ivec3& origin, int floorY) {
+std::vector<FurniturePlacement> FurniturePlacer::furnish(
+    const ProgStory& story, const glm::ivec3& origin, int floorY,
+    const std::map<std::string, Footprint>& footprints) {
     std::vector<FurniturePlacement> out;
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
         if (rw < 2 || rd < 2) continue;   // too small to furnish
 
-        // Which of the 4 walls carry a door/window (avoid backing furniture onto them).
+        // Which of the 4 walls carry a door/window (avoid backing furniture onto them), and the
+        // in-room cells next to each opening (so a deep piece doesn't block a doorway).
         bool doorWall[4] = {false, false, false, false};
+        std::set<std::pair<int, int>> blocked;   // doorway thresholds inside this room
         for (const auto& po : story.portals) {
             if (po.a != room.id && po.b != room.id) continue;
             if (po.px == rx)        doorWall[0] = true;
             else if (po.px == rx + rw) doorWall[1] = true;
             if (po.pz == rz)        doorWall[2] = true;
             else if (po.pz == rz + rd) doorWall[3] = true;
+            for (int dx = -1; dx <= 0; ++dx)
+                for (int dz = -1; dz <= 0; ++dz) {
+                    const int cx = po.px + dx, cz = po.pz + dz;
+                    if (cx >= rx && cx < rx + rw && cz >= rz && cz < rz + rd) blocked.insert({cx, cz});
+                }
         }
-
-        auto wallCell = [&](int w) -> std::pair<int, int> {
-            switch (w) {
-                case 0:  return {rx,          rz + rd / 2};
-                case 1:  return {rx + rw - 1, rz + rd / 2};
-                case 2:  return {rx + rw / 2, rz};
-                default: return {rx + rw / 2, rz + rd - 1};
-            }
-        };
 
         std::set<std::pair<int, int>> occupied;
         bool usedWall[4] = {false, false, false, false};
-        auto place = [&](const std::string& type, int cx, int cz, int rot) {
-            if (!occupied.insert({cx, cz}).second) return;  // already a piece here
+        auto footprintOf = [&](const std::string& type) -> Footprint {
+            auto it = footprints.find(type);
+            return it == footprints.end() ? Footprint{} : it->second;
+        };
+        // Cells a piece of (width along the wall, depth into the room) covers when backed onto wall
+        // `w` (or centred). Anchored at the wall, centred along it. Returns {} if degenerate.
+        auto coverFor = [&](int w, Footprint fp, bool center) -> std::vector<std::pair<int, int>> {
+            const int width = std::max(1, fp.width), depth = std::max(1, fp.depth);
+            int x0, z0, ew, ed;   // origin + extents in (x, z)
+            if (center) {
+                x0 = rx + rw / 2 - width / 2; z0 = rz + rd / 2 - depth / 2; ew = width; ed = depth;
+            } else if (w == 0) {            // west wall, depth extends +x
+                x0 = rx;                 z0 = rz + rd / 2 - width / 2; ew = depth; ed = width;
+            } else if (w == 1) {            // east wall, depth extends -x
+                x0 = rx + rw - depth;    z0 = rz + rd / 2 - width / 2; ew = depth; ed = width;
+            } else if (w == 2) {            // south wall, depth extends +z
+                x0 = rx + rw / 2 - width / 2; z0 = rz;               ew = width; ed = depth;
+            } else {                        // north wall, depth extends -z
+                x0 = rx + rw / 2 - width / 2; z0 = rz + rd - depth;  ew = width; ed = depth;
+            }
+            std::vector<std::pair<int, int>> cells;
+            for (int x = x0; x < x0 + ew; ++x)
+                for (int z = z0; z < z0 + ed; ++z) cells.push_back({x, z});
+            return cells;
+        };
+        auto fits = [&](const std::vector<std::pair<int, int>>& cells) {
+            if (cells.empty()) return false;
+            for (const auto& c : cells) {
+                if (c.first < rx || c.first >= rx + rw || c.second < rz || c.second >= rz + rd)
+                    return false;                               // out of room
+                if (occupied.count(c) || blocked.count(c)) return false;  // overlap / doorway
+            }
+            return true;
+        };
+        auto reserve = [&](const std::vector<std::pair<int, int>>& cells, const std::string& type,
+                           int rot) {
+            int mx = cells[0].first, mz = cells[0].second;
+            for (const auto& c : cells) { occupied.insert(c); mx = std::min(mx, c.first); mz = std::min(mz, c.second); }
             FurniturePlacement f;
-            f.type = type;
-            f.room = room.id;
-            f.rotation = rot;
-            f.worldPos = glm::ivec3(origin.x + cx, floorY, origin.z + cz);
+            f.type = type; f.room = room.id; f.rotation = rot;
+            f.worldPos = glm::ivec3(origin.x + mx, floorY, origin.z + mz);   // anchor = footprint corner
             out.push_back(f);
         };
 
         for (const auto& piece : recipeFor(room.purpose)) {
+            const Footprint fp = footprintOf(piece.type);
             if (piece.center) {
-                place(piece.type, rx + rw / 2, rz + rd / 2, 0);
+                auto cells = coverFor(0, fp, /*center=*/true);
+                if (fits(cells)) reserve(cells, piece.type, 0);
                 continue;
             }
-            // Prefer a wall with no door and not yet used; fall back to any unused wall.
-            int chosen = -1;
-            for (int w = 0; w < 4; ++w) if (!doorWall[w] && !usedWall[w]) { chosen = w; break; }
-            if (chosen < 0) for (int w = 0; w < 4; ++w) if (!usedWall[w]) { chosen = w; break; }
-            if (chosen < 0) chosen = 0;
-            usedWall[chosen] = true;
-            auto cell = wallCell(chosen);
-            place(piece.type, cell.first, cell.second,
-                  facingIntoRoom(WALLS[chosen].inwardDx, WALLS[chosen].inwardDz));
+            // Try walls in preference order, placing the footprint on the first wall where it
+            // actually fits. A piece that fits nowhere is skipped (not forced into an overlap).
+            int order[4]; int n = 0;
+            for (int w = 0; w < 4; ++w) if (!usedWall[w] && !doorWall[w]) order[n++] = w;  // free, no door
+            for (int w = 0; w < 4; ++w) if (!usedWall[w] &&  doorWall[w]) order[n++] = w;  // free door wall
+            for (int k = 0; k < n; ++k) {
+                const int w = order[k];
+                auto cells = coverFor(w, fp, /*center=*/false);
+                if (!fits(cells)) continue;
+                usedWall[w] = true;
+                reserve(cells, piece.type, facingIntoRoom(WALLS[w].inwardDx, WALLS[w].inwardDz));
+                break;
+            }
         }
     }
     return out;
