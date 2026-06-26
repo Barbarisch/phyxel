@@ -60,8 +60,14 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
   water) + real-terrain test, red-confirmed teeth.
   **Remaining glue (with Phase 2):** a runtime `ChunkManager` column-scan sampler so the live deployer
   analyses the actual world (the encoded validation already uses the generator's height fn).
-- ▶ **Phase 2** — next: terrain-aware plot placement on the buildable cells (consumes the relief map).
-- ☐ Phases 3–4 — planned (this doc).
+- ▶ **Phase 2** — CORE DONE (auditor PASS): `selectBuildablePlots(site, plotSize, spacing, maxPlots)`
+  picks non-overlapping plots whose ENTIRE footprint is buildable (no TooSteep/Water), spaced,
+  flattest-first; plots land on flat valleys + hilltop plateaus, never cliffs/water; **graceful
+  degradation** — a sheer mountain yields 0 plots. Red-confirmed (stub placed on cliff/mountain).
+  **Remaining Phase 2 glue (makes it LIVE):** a runtime `ChunkManager` column-scan sampler +
+  `build_settlement` "terrain" mode (analyse the live world → `selectBuildablePlots` → build), verified
+  on a generated Perlin/Mountains world.
+- ☐ Phases 3–4 — planned (this doc): walkable paths over terrain; terrain stress + degradation.
 
 ### Follow-ups surfaced (not yet scheduled)
 - **Per-typology plot sizing** — the uniform grid mismatches croft (narrow) / manor (elongated); plots
