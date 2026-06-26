@@ -36,5 +36,19 @@ struct SettlementLayout {
 /// (caller reduces density) if the grid can't fit every plot at >= minPlot. Deterministic.
 SettlementLayout subdividePlots(int W, int D, int cols, int rows, int streetWidth, int minPlot = 6);
 
+/// One building sited on a plot (populate_plots #45).
+struct PlacedBuilding {
+    int         plotIndex = 0;
+    Rect        footprint;   ///< building footprint (settlement-local), inset within the plot by the yard
+    std::string typology;    ///< RoomProgram typology to build (passthrough to the building generator)
+};
+
+/// Site one building per plot: footprint = the plot inset by `setback` on every side (the yard that
+/// leaves room for a path/garden between the building and the street). Plots too small for a building
+/// + yard (footprint < minBuilding) are SKIPPED. Buildings inherit `typology`. Because each footprint
+/// is contained in its plot and plots don't overlap, the buildings can't overlap or spill into a street.
+std::vector<PlacedBuilding> populatePlots(const SettlementLayout& layout, int setback,
+                                          int minBuilding, const std::string& typology = "hall_house");
+
 } // namespace Core
 } // namespace Phyxel

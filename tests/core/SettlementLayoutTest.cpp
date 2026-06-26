@@ -88,3 +88,42 @@ TEST(SettlementLayoutTest, TooDenseReturnsEmpty) {
     auto s = subdividePlots(20, 20, 5, 5, 4, 6);
     EXPECT_TRUE(s.plots.empty());
 }
+
+// populate_plots: each building is INSET from its plot by the yard setback (red on the no-inset stub)
+// — a building can't fill the plot edge-to-edge with no yard for a path/garden between it and the road.
+TEST(SettlementLayoutTest, BuildingInsetFromPlotByYard) {
+    const int setback = 2;
+    auto s = subdividePlots(60, 60, 2, 2, 4, 8);
+    auto bs = populatePlots(s, setback, 6, "hall_house");
+    ASSERT_EQ(bs.size(), 4u);
+    for (const auto& b : bs) {
+        const Rect& plot = s.plots[b.plotIndex].rect;
+        EXPECT_GE(b.footprint.x, plot.x + setback)   << "no yard on the -x side";
+        EXPECT_LE(b.footprint.x1(), plot.x1() - setback) << "no yard on the +x side";
+        EXPECT_GE(b.footprint.z, plot.z + setback)   << "no yard on the -z side";
+        EXPECT_LE(b.footprint.z1(), plot.z1() - setback) << "no yard on the +z side";
+    }
+}
+
+// Buildings fit their plots, don't overlap, carry the typology, and tiny plots are skipped.
+TEST(SettlementLayoutTest, BuildingsFitDontOverlapAndCarryTypology) {
+    auto s = subdividePlots(60, 60, 2, 2, 4, 8);
+    auto bs = populatePlots(s, 2, 6, "hall_house");
+    ASSERT_FALSE(bs.empty());
+    for (const auto& b : bs) {
+        const Rect& plot = s.plots[b.plotIndex].rect;
+        EXPECT_GE(b.footprint.x, plot.x); EXPECT_LE(b.footprint.x1(), plot.x1());
+        EXPECT_GE(b.footprint.z, plot.z); EXPECT_LE(b.footprint.z1(), plot.z1());
+        EXPECT_EQ(b.typology, "hall_house");
+    }
+    for (size_t i = 0; i < bs.size(); ++i)
+        for (size_t j = i + 1; j < bs.size(); ++j)
+            EXPECT_FALSE(overlaps(bs[i].footprint, bs[j].footprint)) << "buildings overlap";
+}
+
+// A plot too small for a building + yard is skipped (no sliver buildings).
+TEST(SettlementLayoutTest, TinyPlotSkipped) {
+    auto s = subdividePlots(40, 40, 2, 2, 4, 6);   // plots ~14x14
+    auto bs = populatePlots(s, 5, 8, "hall_house"); // 14 - 2*5 = 4 < minBuilding 8 -> all skipped
+    EXPECT_TRUE(bs.empty());
+}
