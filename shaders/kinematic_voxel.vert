@@ -45,6 +45,7 @@ layout(location = 3) out flat uint flags;
 layout(location = 4) out vec3      outNormal;
 layout(location = 5) out vec3      outWorldPos;
 layout(location = 6) out flat float vSkyLight;    // baked skylight (furniture: full sky until Phase 4)
+layout(location = 7) out flat float vBlockLight;  // baked block light (furniture: none until Phase 4)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
@@ -108,6 +109,7 @@ void main() {
     texCoord     = uv;
     outWorldPos  = worldPos;
     vSkyLight    = 1.0;  // furniture uses full sky ambient until Phase 4 light-field sampling
+    vBlockLight  = 0.0;
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
 }

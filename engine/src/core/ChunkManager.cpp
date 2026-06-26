@@ -313,17 +313,37 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     auto getNeighborCube = [this, &chunk](const glm::ivec3& worldPos) -> const Cube* {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
         Chunk* neighborChunk = getChunkAtCoord(chunkCoord);
-        
+
         if (neighborChunk) {
             glm::ivec3 localPos = worldToLocalCoord(worldPos);
             return neighborChunk->getCubeAt(localPos);
         }
-        
+
         return nullptr;
     };
-    
-    // Call rebuildFaces with cross-chunk neighbor lookup enabled
-    chunk.rebuildFaces(getNeighborCube);
+
+    // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
+    // sky/block light so light bleeds across chunk boundaries (no seams).
+    auto getNeighborLight = [this, &chunk](const glm::ivec3& worldPos, uint8_t& sky, uint8_t& block) -> bool {
+        Chunk* neighborChunk = getChunkAtCoord(worldToChunkCoord(worldPos));
+        if (!neighborChunk || neighborChunk == &chunk) return false;
+        return neighborChunk->bakedLightAt(worldToLocalCoord(worldPos), sky, block);
+    };
+
+    // Call rebuildFaces with cross-chunk culling + light bleed enabled
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight);
+
+    // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
+    // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges
+    // (light is monotonic and capped) rather than looping forever.
+    if (chunk.lightBordersChanged()) {
+        glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+        const glm::ivec3 dirs[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+        for (const auto& d : dirs) {
+            Chunk* nb = getChunkAtCoord(cc + d);
+            if (nb && nb != &chunk) markChunkDirty(nb);
+        }
+    }
 }
 
 // ===============================================================

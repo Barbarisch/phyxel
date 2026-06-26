@@ -200,10 +200,20 @@ public:
     void initializeForLoading();                   // Initialize empty chunk for database loading
     void rebuildFaces();                           // Regenerate face data from cubes (intra-chunk culling only)
     
-    // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks
+    // Overload for cross-chunk culling: accepts a function to check neighbors in adjacent chunks,
+    // plus an optional cross-chunk baked-light lookup for light bleed across chunk boundaries.
     using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
-    void rebuildFaces(const NeighborLookupFunc& getNeighborCube);
-    
+    using NeighborLightFunc  = Graphics::ChunkRenderManager::NeighborLightFunc;
+    void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
+                      const NeighborLightFunc& getNeighborLight = nullptr);
+
+    // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
+    bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }
+    // Read this chunk's baked light at a local cell (for neighbours' bleed). False if not baked.
+    bool bakedLightAt(const glm::ivec3& localPos, uint8_t& sky, uint8_t& block) const {
+        return renderManager.bakedLightAt(localPos.x, localPos.y, localPos.z, sky, block);
+    }
+
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
     // Efficient partial updates for hover effects (avoids full rebuild)

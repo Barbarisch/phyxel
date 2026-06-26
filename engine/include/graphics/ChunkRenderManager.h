@@ -28,6 +28,9 @@ class ChunkRenderManager {
 public:
     // Neighbor lookup function type for cross-chunk culling
     using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
+    // Cross-chunk baked-light lookup: fills sky/block (0-15) for the given WORLD cell from a
+    // neighbouring chunk's already-baked light; returns false if there's no baked neighbour there.
+    using NeighborLightFunc = std::function<bool(const glm::ivec3& worldPos, uint8_t& sky, uint8_t& block)>;
 
     ChunkRenderManager();
     ~ChunkRenderManager();
@@ -49,7 +52,8 @@ public:
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr
+        const NeighborLookupFunc& getNeighborCube = nullptr,
+        const NeighborLightFunc& getNeighborLight = nullptr
     );
 
     void rebuildCubeFaces(
@@ -57,6 +61,12 @@ public:
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr
     );
+
+    // True if this chunk's boundary light (what neighbours sample) changed on the last rebuild —
+    // the caller re-meshes neighbours so cross-chunk light bleed converges.
+    bool lightBordersChanged() const { return m_lightBordersChanged; }
+    // Read this chunk's baked light at a local cell (for neighbours). Returns false if not baked.
+    bool bakedLightAt(int x, int y, int z, uint8_t& sky, uint8_t& block) const;
 
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
@@ -148,6 +158,20 @@ private:
     std::vector<uint8_t> m_skyLight;
     // Skylight of the air cell at local (x,y,z); 15 (open sky) if out of chunk bounds.
     uint8_t skyLightAt(int x, int y, int z) const;
+
+    // Baked per-cell block light (32x32x32, 0-15): flood-filled from emissive voxels (glow/etc.)
+    // so they illuminate nearby surfaces. Computed alongside skylight; 0 out of chunk bounds.
+    std::vector<uint8_t> m_blockLight;
+    uint8_t blockLightAt(int x, int y, int z) const;
+
+    // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
+    // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.
+    NeighborLightFunc m_neighborLight;
+    glm::ivec3 m_lightWorldOrigin{0};
+    // Previous boundary light (6 faces, packed sky|block<<4) to detect changes that require
+    // neighbour re-meshing; m_lightBordersChanged is set when it differs after a rebuild.
+    std::vector<uint8_t> m_prevBorderLight;
+    bool m_lightBordersChanged = false;
 
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)

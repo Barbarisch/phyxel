@@ -44,6 +44,7 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out flat float vSkyLight;    // baked skylight, normalized 0..1
+layout(location = 7) out flat float vBlockLight;  // baked block light (emissive sources), 0..1
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -316,5 +317,6 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord = uv;
     flags = inFlags;
-    vSkyLight = float(inLight & 0xFu) / 15.0;  // baked skylight 0..15 -> 0..1
+    vSkyLight = float(inLight & 0xFu) / 15.0;          // skylight 0..15 -> 0..1
+    vBlockLight = float((inLight >> 4u) & 0xFu) / 15.0; // block light 0..15 -> 0..1
 }
