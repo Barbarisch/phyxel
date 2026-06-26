@@ -1,7 +1,51 @@
 #include "core/SettlementLayout.h"
 
+#include <algorithm>
+
 namespace Phyxel {
 namespace Core {
+
+std::vector<Plot> selectBuildablePlots(const BuildabilityMap& site, int plotSize, int spacing,
+                                       int maxPlots) {
+    std::vector<Plot> out;
+    if (plotSize <= 0 || site.W < plotSize || site.D < plotSize) return out;
+
+    // Candidate = a top-left where a fully-BUILDABLE plotSize x plotSize footprint fits. Score =
+    // total relief over the footprint (lower = flatter = better).
+    struct Cand { int x, z, score; };
+    std::vector<Cand> cands;
+    for (int z = 0; z + plotSize <= site.D; ++z)
+        for (int x = 0; x + plotSize <= site.W; ++x) {
+            int relief = 0; bool buildable = true;
+            for (int dz = 0; dz < plotSize && buildable; ++dz)
+                for (int dx = 0; dx < plotSize; ++dx) {
+                    const SiteCell& c = site.at(x + dx, z + dz);
+                    if (c.cls == Buildability::TooSteep || c.cls == Buildability::Water) {
+                        buildable = false; break;          // any unbuildable cell disqualifies the plot
+                    }
+                    relief += c.relief;
+                }
+            if (buildable) cands.push_back({x, z, relief});
+        }
+    // Flattest-first; stable tiebreak by position for determinism.
+    std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
+        if (a.score != b.score) return a.score < b.score;
+        if (a.z != b.z) return a.z < b.z;
+        return a.x < b.x;
+    });
+    for (const auto& cd : cands) {
+        if (static_cast<int>(out.size()) >= maxPlots) break;
+        const Rect r{cd.x, cd.z, plotSize, plotSize};
+        bool clash = false;
+        for (const auto& p : out) {                       // reject if within `spacing` of a placed plot
+            const Rect e{p.rect.x - spacing, p.rect.z - spacing,
+                         p.rect.w + 2 * spacing, p.rect.d + 2 * spacing};
+            if (r.x < e.x1() && e.x < r.x1() && r.z < e.z1() && e.z < r.z1()) { clash = true; break; }
+        }
+        if (!clash) { Plot pl; pl.rect = r; out.push_back(pl); }
+    }
+    return out;
+}
 
 SettlementLayout subdividePlots(int W, int D, int cols, int rows, int streetWidth, int minPlot) {
     SettlementLayout out;

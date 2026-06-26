@@ -23,6 +23,15 @@ int separation(const Rect& a, const Rect& b) {
     int dz = std::max(0, std::max(a.z, b.z) - std::min(a.z1(), b.z1()));
     return std::max(dx, dz);   // adjacent plots share one axis-band; the street is the gap on the other
 }
+// Every cell under the plot must be buildable (no TooSteep/Water) — the terrain-placement invariant.
+bool plotFullyBuildable(const BuildabilityMap& site, const Rect& r) {
+    for (int z = r.z; z < r.z1(); ++z)
+        for (int x = r.x; x < r.x1(); ++x) {
+            const auto cls = site.at(x, z).cls;
+            if (cls == Buildability::TooSteep || cls == Buildability::Water) return false;
+        }
+    return true;
+}
 } // namespace
 
 // THE new invariant (red on the missing-street-offset stub): adjacent plots must be separated by a
@@ -126,6 +135,44 @@ TEST(SettlementLayoutTest, TinyPlotSkipped) {
     auto s = subdividePlots(40, 40, 2, 2, 4, 6);   // plots ~14x14
     auto bs = populatePlots(s, 5, 8, "hall_house"); // 14 - 2*5 = 4 < minBuilding 8 -> all skipped
     EXPECT_TRUE(bs.empty());
+}
+
+// PHASE 2 — terrain-aware placement: selected plots must land ONLY on buildable terrain (no TooSteep/
+// Water cell under any plot). Fixture: a small flat patch surrounded by chaotic steep ground; with
+// maxPlots > the few buildable spots, a buildability-blind placer is forced onto the steep cells.
+// (Red on the stub that ignores TooSteep/Water -> plots land on the cliff.)
+TEST(SettlementLayoutTest, TerrainPlotsLandOnlyOnBuildable) {
+    auto terrain = [](int x, int z) {
+        if (x < 6 && z < 6) return 16;          // a flat buildable patch
+        return (x * 9 + z * 11) % 60;           // chaotic steep ground elsewhere (high relief)
+    };
+    const auto site = analyzeSite(20, 12, /*maxRelief=*/3, terrain, /*waterAt=*/{}, /*flatRelief=*/1, /*window=*/1);
+    const auto plots = selectBuildablePlots(site, /*plotSize=*/4, /*spacing=*/1, /*maxPlots=*/8);
+    ASSERT_FALSE(plots.empty()) << "no plots found on the buildable patch";
+    for (const auto& p : plots)
+        EXPECT_TRUE(plotFullyBuildable(site, p.rect))
+            << "a plot landed on TooSteep/Water terrain at (" << p.rect.x << "," << p.rect.z << ")";
+}
+
+// Graceful degradation: all-too-steep terrain (a sheer mountain) yields NO plots — not a broken result.
+TEST(SettlementLayoutTest, SteepMountainYieldsNoPlots) {
+    auto steep = [](int x, int z) { return (x * 9 + z * 11) % 60; };  // chaotic, high relief everywhere
+    const auto site = analyzeSite(16, 16, 3, steep, {}, 1, 1);
+    const auto plots = selectBuildablePlots(site, 4, 1, 10);
+    EXPECT_TRUE(plots.empty()) << "placed buildings on an unbuildable mountain (no graceful degradation)";
+}
+
+// On buildable terrain, selected plots don't overlap and are >= spacing apart (the street/yard gap).
+TEST(SettlementLayoutTest, TerrainPlotsDontOverlapAndAreSpaced) {
+    auto flat = [](int, int) { return 16; };
+    const auto site = analyzeSite(30, 30, 3, flat, {}, 1, 1);   // all flat -> all buildable
+    const auto plots = selectBuildablePlots(site, /*plotSize=*/4, /*spacing=*/2, /*maxPlots=*/30);
+    ASSERT_GT(plots.size(), 1u);
+    for (size_t i = 0; i < plots.size(); ++i)
+        for (size_t j = i + 1; j < plots.size(); ++j) {
+            EXPECT_FALSE(overlaps(plots[i].rect, plots[j].rect));
+            EXPECT_GE(separation(plots[i].rect, plots[j].rect), 2) << "plots closer than spacing";
+        }
 }
 
 // STRESS (Phase 0): the invariants must hold AT SCALE, not just N=4. A 6x6 grid = 36 plots / 36

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "core/BuildingProgram.h"   // Rect
+#include "core/SiteAnalysis.h"      // BuildabilityMap (terrain-aware placement, Phase 2)
 
 namespace Phyxel {
 namespace Core {
@@ -42,6 +43,14 @@ struct PlacedBuilding {
     Rect        footprint;   ///< building footprint (settlement-local), inset within the plot by the yard
     std::string typology;    ///< RoomProgram typology to build (passthrough to the building generator)
 };
+
+/// TERRAIN-AWARE plot placement (Phase 2): choose up to `maxPlots` non-overlapping plotSize×plotSize
+/// plots whose ENTIRE footprint is buildable (no TooSteep/Water cell in `site`), separated by >=
+/// `spacing` cells (the street/yard gap), preferring the FLATTEST spots (lowest total relief). On
+/// mostly-unbuildable terrain (a steep mountain) it returns few/none — graceful degradation, not a
+/// broken result. Plot rects are in site-cell coords. Deterministic (flattest-first, stable tiebreak).
+std::vector<Plot> selectBuildablePlots(const BuildabilityMap& site, int plotSize, int spacing,
+                                       int maxPlots);
 
 /// Site one building per plot: footprint = the plot inset by `setback` on every side. A positive
 /// setback leaves a yard (room for a path/garden) between the building and the street; setback=0 is
