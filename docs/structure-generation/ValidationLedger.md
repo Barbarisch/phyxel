@@ -97,11 +97,13 @@ Validate when each lands; required layer noted so the plan is set up front.
   street[] artifact tested; auditor PASS), `zone_districts` 41, `place_town_wall` 42, `place_public_spaces`
   43, **`populate_plots` 45 — ✅ L2** (one building/plot inset by yard, composed-world non-overlap, setback=0
   boundary; auditor PASS), `compose_compound` 46. Circulation → **L3** (traversable/connected):
-  `lay_street_network` 39, `place_bridges` 44, `link_subterranean` 49. Dressing → **L1**: `place_signage`
-  47, `dress_street_life` 48. *First runtime hamlet (2×2 hall_houses, streets) built client-orchestrated
-  in StructGenTest — see `engine/core/SettlementLayout`. OPEN: engine-side `build_settlement` action;
-  integration test the realizer respects plot footprints; L3 inter-building walkability (TraversalProbe
-  walks the street to every door).*
+  `lay_street_network` 39, `place_bridges` 44, `link_subterranean` 49. **Inter-building walkability — ✅ L3**
+  (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
+  composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
+  just non-overlapping. Dressing → **L1**: `place_signage` 47, `dress_street_life` 48. *First runtime
+  hamlet (2×2 hall_houses, streets) built client-orchestrated in StructGenTest. OPEN (task #28):
+  engine-side `build_settlement` action + integration test the realizer respects plot footprints at
+  runtime (L4).*
 - **Subterranean (50–57):** traversable spaces → **L3**: `excavate_subterrane` 50, `carve_sewer_network`
   51, `place_crypt` 52, `excavate_dungeon` 53, `place_mine` 54, `connect_underground` 55,
   `place_secret_passages` 56. **57 `validate_crawlability` is itself an L3 validator** (a TraversalProbe
