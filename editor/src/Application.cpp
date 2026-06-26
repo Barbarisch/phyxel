@@ -12014,6 +12014,33 @@ void Application::processAPICommands() {
                                     response["asset_gaps"] = gaps;
                                 }
 
+                                // Footprint-aware placement: each fixture type's real cube footprint
+                                // from its template's .metrics.json bounding box (x=width, z=depth),
+                                // so pieces fit the room and don't overlap. Missing metrics -> 1x1.
+                                std::map<std::string, Core::Footprint> fixtureFootprints;
+                                for (const auto& type : Core::FurnitureCatalog::mappedTypes()) {
+                                    const std::string tmpl = Core::FurnitureCatalog::templateFor(type);
+                                    if (tmpl.empty()) continue;
+                                    nlohmann::json m = loadAssetMetricsSidecar(tmpl);
+                                    if (!m.is_object() || !m.contains("overall_max") ||
+                                        !m["overall_max"].is_array() || m["overall_max"].size() < 3)
+                                        continue;
+                                    const double ex = m["overall_max"][0].get<double>();
+                                    const double ez = m["overall_max"][2].get<double>();
+                                    Core::Footprint fp;
+                                    fp.width = std::max(1, (int)std::ceil(ex));   // x-extent (cubes)
+                                    fp.depth = std::max(1, (int)std::ceil(ez));   // z-extent (cubes)
+                                    fixtureFootprints[type] = fp;
+                                }
+                                {
+                                    auto bedIt = fixtureFootprints.find("bed");
+                                    LOG_INFO_FMT("StructureV2", "footprint-aware: loaded "
+                                                 << fixtureFootprints.size() << " fixture footprints"
+                                                 << (bedIt != fixtureFootprints.end()
+                                                     ? " (bed=" + std::to_string(bedIt->second.width) + "x"
+                                                       + std::to_string(bedIt->second.depth) + ")" : ""));
+                                }
+
                                 int fxSpawned = 0, fxSkipped = 0;
                                 nlohmann::json fixturesJson = nlohmann::json::array();
                                 for (size_t si = 0; si < v2Program.stories.size(); ++si) {
@@ -12024,7 +12051,7 @@ void Application::processAPICommands() {
                                     int storyFloorY = (si < v2FloorYByStory.size())
                                         ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
-                                        story, glm::ivec3(posX, 0, posZ), storyFloorY);
+                                        story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints);
                                     // Semantic identity per fixture (room/purpose/ordinal/type), 1:1
                                     // with placements — so a session can address "the 2nd bedroom's bed".
                                     auto labels = Core::FurniturePlacer::labelFixtures(story, placements);
