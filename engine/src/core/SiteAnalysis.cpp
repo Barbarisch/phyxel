@@ -14,32 +14,41 @@ double BuildabilityMap::buildableFraction() const {
     return static_cast<double>(ok) / static_cast<double>(cells.size());
 }
 
-BuildabilityMap analyzeSite(int W, int D, int maxBuildableSlope,
+BuildabilityMap analyzeSite(int W, int D, int maxBuildableRelief,
                             const std::function<int(int, int)>& heightOf,
                             const std::function<bool(int, int)>& waterAt,
-                            int flatSlope) {
+                            int flatRelief, int window) {
     BuildabilityMap m;
     if (W <= 0 || D <= 0 || !heightOf) return m;
-    m.W = W; m.D = D; m.maxBuildableSlope = maxBuildableSlope;
+    if (window < 0) window = 0;
+    m.W = W; m.D = D; m.maxBuildableRelief = maxBuildableRelief; m.window = window;
     m.cells.resize(static_cast<size_t>(W) * D);
+
+    // Precompute the height grid once (heightOf may be expensive — a column scan).
+    std::vector<int> h(static_cast<size_t>(W) * D);
+    for (int z = 0; z < D; ++z)
+        for (int x = 0; x < W; ++x) h[static_cast<size_t>(z) * W + x] = heightOf(x, z);
 
     for (int z = 0; z < D; ++z)
         for (int x = 0; x < W; ++x) {
             SiteCell c;
-            c.height = heightOf(x, z);
+            c.height = h[static_cast<size_t>(z) * W + x];
             c.water = waterAt ? waterAt(x, z) : false;
-            // slope = the max ground-height delta to an in-bounds 4-neighbour (a cliff -> large slope).
-            int slope = 0;
-            const int nb[4][2] = {{x - 1, z}, {x + 1, z}, {x, z - 1}, {x, z + 1}};
-            for (const auto& n : nb) {
-                if (n[0] < 0 || n[0] >= W || n[1] < 0 || n[1] >= D) continue;
-                slope = std::max(slope, std::abs(c.height - heightOf(n[0], n[1])));
-            }
-            c.slope = slope;
-            if (c.water)                            c.cls = Buildability::Water;
-            else if (c.slope <= flatSlope)          c.cls = Buildability::Flat;
-            else if (c.slope <= maxBuildableSlope)  c.cls = Buildability::SlopeOk;
-            else                                    c.cls = Buildability::TooSteep;
+            // relief = max-min ground height over the footprint window (in-bounds) — the cut/fill a
+            // building of that footprint would need. A cliff/peak inside the window -> large relief.
+            int hi = c.height, lo = c.height;
+            for (int dz = -window; dz <= window; ++dz)
+                for (int dx = -window; dx <= window; ++dx) {
+                    const int nx = x + dx, nz = z + dz;
+                    if (nx < 0 || nx >= W || nz < 0 || nz >= D) continue;
+                    const int v = h[static_cast<size_t>(nz) * W + nx];
+                    hi = std::max(hi, v); lo = std::min(lo, v);
+                }
+            c.relief = hi - lo;
+            if (c.water)                              c.cls = Buildability::Water;
+            else if (c.relief <= flatRelief)          c.cls = Buildability::Flat;
+            else if (c.relief <= maxBuildableRelief)  c.cls = Buildability::SlopeOk;
+            else                                      c.cls = Buildability::TooSteep;
             m.cells[static_cast<size_t>(z) * W + x] = c;
         }
     return m;
