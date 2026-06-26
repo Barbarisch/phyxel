@@ -51,11 +51,17 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
   `footprint_too_wide`) — warn-but-allow builds them, but a real follow-up is **vary plot size per
   typology** (or assign typologies that fit the plot); (3) exterior variety is interior-only today
   (all timber_cottage gable) — a separate refinement.
-- ▶ **Phase 1** (`analyze_site`) — CORE DONE (auditor PASS): `SiteAnalysis` classifies Flat/SlopeOk/
-  TooSteep/Water from the max 4-neighbour slope, L2-tested on synthetic fixtures (flat/cliff/hilltop/
-  water). **Remaining Phase 1 slice:** a runtime `ChunkManager` column-scan sampler + validate the
-  classification against a generated **Perlin (rolling hills) / Mountains (steep)** world.
-- ☐ Phases 2–4 — planned (this doc).
+- ✅ **Phase 1** (`analyze_site`) — DONE + validated against REAL terrain. `SiteAnalysis` classifies
+  Flat/SlopeOk/TooSteep/Water from the height **RELIEF over a building-footprint window** (= cut/fill
+  needed). **Key finding (real-terrain validation drove a redesign):** the original point 1-cube slope
+  was WRONG — real Perlin/Mountains terrain is smooth at 1-cube spacing, so both read 100% buildable;
+  the footprint-relief metric discriminates them. Encoded against `WorldGenerator::sampleSurface`:
+  **Perlin hills = 98% buildable, Mountains = 60%**. Synthetic fixtures (cliff/plateau-skirt-cliff/
+  water) + real-terrain test, red-confirmed teeth.
+  **Remaining glue (with Phase 2):** a runtime `ChunkManager` column-scan sampler so the live deployer
+  analyses the actual world (the encoded validation already uses the generator's height fn).
+- ▶ **Phase 2** — next: terrain-aware plot placement on the buildable cells (consumes the relief map).
+- ☐ Phases 3–4 — planned (this doc).
 
 ### Follow-ups surfaced (not yet scheduled)
 - **Per-typology plot sizing** — the uniform grid mismatches croft (narrow) / manor (elongated); plots
