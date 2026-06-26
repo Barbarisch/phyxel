@@ -100,10 +100,11 @@ Validate when each lands; required layer noted so the plan is set up front.
   `lay_street_network` 39, `place_bridges` 44, `link_subterranean` 49. **Inter-building walkability — ✅ L3**
   (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
   composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
-  just non-overlapping. Dressing → **L1**: `place_signage` 47, `dress_street_life` 48. *First runtime
-  hamlet (2×2 hall_houses, streets) built client-orchestrated in StructGenTest. OPEN (task #28):
-  engine-side `build_settlement` action + integration test the realizer respects plot footprints at
-  runtime (L4).*
+  just non-overlapping. Dressing → **L1**: `place_signage` 47, `dress_street_life` 48. **`build_settlement`
+  — ✅ engine-side** (`POST /api/settlement/build`: one call drives subdivide+populate, queues a build per
+  plot; runtime-built a 4-house hamlet, 0 overlapping bboxes; `RealizerStaysWithinPlotFootprint` encodes
+  no-spill; auditor PASS). *OPEN: HTTP-route e2e test; MCP tool; the queued builds run as a synchronous
+  next-frame batch (stalls the frame for a big settlement) — spread over frames is a follow-up.*
 - **Subterranean (50–57):** traversable spaces → **L3**: `excavate_subterrane` 50, `carve_sewer_network`
   51, `place_crypt` 52, `excavate_dungeon` 53, `place_mine` 54, `connect_underground` 55,
   `place_secret_passages` 56. **57 `validate_crawlability` is itself an L3 validator** (a TraversalProbe
