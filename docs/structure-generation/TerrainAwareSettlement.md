@@ -43,5 +43,18 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
 - ✅ Settlement composition on flat ground: `subdivide_plots` (L2), `populate_plots` (L2), inter-building
   walkability (L3), `build_settlement` (engine-side) — see [`ValidationLedger.md`](ValidationLedger.md)
   settlement tier.
-- ▶ **Phase 0** — in progress.
-- ☐ Phases 1–4 — planned (this doc).
+- ✅ **Phase 0** — DONE. `ScaleSixBySixAllInvariantsHold` (36 plots/buildings, no overlap at scale);
+  `build_settlement` mixed typologies (`typologies` array). Runtime: 25-building mixed village built,
+  0 overlapping bboxes. **Findings:** (1) frame-stall is MILD (builds ~3-4s, API stayed responsive —
+  spreading over frames is low priority); (2) **mixed typologies on a UNIFORM grid trip per-typology
+  footprint gates** (manor wants elongated → `footprint_too_square`; croft wants narrow →
+  `footprint_too_wide`) — warn-but-allow builds them, but a real follow-up is **vary plot size per
+  typology** (or assign typologies that fit the plot); (3) exterior variety is interior-only today
+  (all timber_cottage gable) — a separate refinement.
+- ▶ **Phase 1** (`analyze_site`) — next (the keystone).
+- ☐ Phases 2–4 — planned (this doc).
+
+### Follow-ups surfaced (not yet scheduled)
+- **Per-typology plot sizing** — the uniform grid mismatches croft (narrow) / manor (elongated); plots
+  should be sized to the assigned typology's grounded width/length range.
+- **Exterior variety** — vary style/roof/size across buildings so a settlement isn't visually uniform.
