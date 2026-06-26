@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "core/FurniturePlacer.h"   // Footprint
+
 namespace Phyxel {
 namespace Core {
 
@@ -28,6 +30,11 @@ public:
     /// Every furniture type this catalog maps (the supply side, for enumeration/diagnostics).
     static std::vector<std::string> mappedTypes();
 };
+
+/// Footprint (cubes) from an asset's metric bounding-box extents (metres; 1 cube == 1 m). width <-
+/// x-extent, depth <- z-extent, each ceil'd and floored at 1. ASSUMES the template is authored with
+/// its front toward +z (the engine convention), so the z-extent is the depth that backs onto a wall.
+Footprint footprintFromExtents(double xExtentMetres, double zExtentMetres);
 
 /// One missing-asset finding — what the pipeline surfaces instead of silently dropping a piece.
 struct AssetGap {

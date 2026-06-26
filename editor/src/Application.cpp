@@ -12027,10 +12027,7 @@ void Application::processAPICommands() {
                                         continue;
                                     const double ex = m["overall_max"][0].get<double>();
                                     const double ez = m["overall_max"][2].get<double>();
-                                    Core::Footprint fp;
-                                    fp.width = std::max(1, (int)std::ceil(ex));   // x-extent (cubes)
-                                    fp.depth = std::max(1, (int)std::ceil(ez));   // z-extent (cubes)
-                                    fixtureFootprints[type] = fp;
+                                    fixtureFootprints[type] = Core::footprintFromExtents(ex, ez);
                                 }
                                 {
                                     auto bedIt = fixtureFootprints.find("bed");

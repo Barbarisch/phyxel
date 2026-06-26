@@ -86,21 +86,26 @@ TEST(FurniturePlacerTest, PieceTooBigForRoomIsSkipped) {
     EXPECT_TRUE(find(aware, "chest") != nullptr) << "the chest still fits";
 }
 
-// A deep piece must not cover a doorway threshold — it relocates or is skipped, never blocks the door.
-TEST(FurniturePlacerTest, DeepPieceDoesNotBlockDoorway) {
-    // 4×4 room, a door on the south wall at x=2; a single deep barrel that would span to the door.
+// A piece FORCED onto a door wall must skip rather than block the doorway. Doors on ALL FOUR walls
+// (centred) make every wall-centre cell a doorway threshold — so whichever wall a centred piece tries,
+// the ONLY thing that can reject it is the blocked-cell guard (not the door-wall preference, since
+// every wall is a door wall). With the guard, both pieces are skipped; delete `blocked.count(c)` from
+// fits() and they'd land ON the door cells, so this test has real teeth on that guard.
+TEST(FurniturePlacerTest, PieceForcedOntoDoorWallSkipsNotBlocks) {
     const auto s = story(R"json({
         "height":3,
         "rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"store"}],
-        "portals":[{"between":["exterior","r"],"pos":[2,0],"width":1,"height":2,"kind":"door"}]
+        "portals":[
+            {"between":["exterior","r"],"pos":[2,0],"width":1,"height":2,"kind":"door"},
+            {"between":["exterior","r"],"pos":[2,4],"width":1,"height":2,"kind":"door"},
+            {"between":["exterior","r"],"pos":[0,2],"width":1,"height":2,"kind":"door"},
+            {"between":["exterior","r"],"pos":[4,2],"width":1,"height":2,"kind":"door"}
+        ]
     })json");
-    const std::map<std::string, Footprint> fp = {{"barrel", {1, 4}}, {"chest", {1, 1}}};
-    const auto aware = FurniturePlacer::furnish(s, glm::ivec3(0,0,0), 10, fp);
-    // the doorway threshold cell (2,0)/(1,0) must be free of every placed piece's anchor span.
-    for (const auto& f : aware) {
-        EXPECT_FALSE(f.worldPos.x == 2 && f.worldPos.z == 0) << "a piece sits on the doorway";
-        EXPECT_FALSE(f.worldPos.x == 1 && f.worldPos.z == 0) << "a piece sits on the doorway";
-    }
+    const std::map<std::string, Footprint> fp = {{"barrel", {1, 1}}, {"chest", {1, 1}}};
+    const auto aware = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp);
+    EXPECT_TRUE(aware.empty())
+        << "a piece was placed on a doorway threshold — the blocked-cell guard didn't fire";
 }
 
 // The convention I kept getting wrong by hand: a piece against the MIN-X wall faces

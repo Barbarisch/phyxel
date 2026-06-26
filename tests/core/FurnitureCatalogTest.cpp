@@ -32,6 +32,19 @@ bool contains(const std::vector<std::string>& v, const std::string& s) {
 }
 } // namespace
 
+// The metrics->footprint wiring (Slice B): an asset's .metrics.json bounding box (metres) becomes a
+// cube footprint by ceil, floored at 1. bed_single is x=1.0 z=2.0 -> 1 wide x 2 deep. This is the
+// computation the handler feeds into furnish(); previously only runtime-observed.
+TEST(FurnitureCatalogTest, FootprintFromExtentsCeilsToCubes) {
+    EXPECT_EQ(footprintFromExtents(1.0, 2.0).width, 1);   // bed_single x
+    EXPECT_EQ(footprintFromExtents(1.0, 2.0).depth, 2);   // bed_single z (long axis backs the wall)
+    EXPECT_EQ(footprintFromExtents(0.9, 1.9).width, 1);   // 0.9 -> 1 (ceil)
+    EXPECT_EQ(footprintFromExtents(0.9, 1.9).depth, 2);   // 1.9 -> 2 (ceil)
+    EXPECT_EQ(footprintFromExtents(1.2, 0.55).width, 2);  // chest 1.2 -> 2
+    EXPECT_EQ(footprintFromExtents(0.0, 0.0).width, 1);   // floored at 1 (no zero/negative footprint)
+    EXPECT_EQ(footprintFromExtents(0.0, 0.0).depth, 1);
+}
+
 // The semantic requirement contract is exposed (the user's ask: know what a room NEEDS): a kitchen
 // needs a counter; a bedchamber needs a bed AND storage (chest). This is the demand side the
 // coverage gate scans.

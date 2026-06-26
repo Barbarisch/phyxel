@@ -1,11 +1,20 @@
 #include "core/FurnitureCatalog.h"
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 
 #include "core/FurniturePlacer.h"
 
 namespace Phyxel {
 namespace Core {
+
+Footprint footprintFromExtents(double xExtentMetres, double zExtentMetres) {
+    Footprint fp;
+    fp.width = std::max(1, (int)std::ceil(xExtentMetres));
+    fp.depth = std::max(1, (int)std::ceil(zExtentMetres));
+    return fp;
+}
 
 namespace {
 // type -> template asset (resources/templates/<name>.voxel). The complete v2 FurniturePlacer
