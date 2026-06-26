@@ -7,6 +7,7 @@ layout(location = 2) in vec4 shadowCoord;        // from vertex shader
 layout(location = 3) in flat uint flags;         // from vertex shader
 layout(location = 4) in vec3 inNormal;           // from vertex shader
 layout(location = 5) in vec3 inWorldPos;         // from vertex shader
+layout(location = 6) in flat float vSkyLight;    // baked skylight 0..1 (0 = enclosed/no sky access)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -97,11 +98,19 @@ vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, float metallic, v
     float gv = ndv / (ndv * (1.0 - k) + k);
     float gl = ndl / (ndl * (1.0 - k) + k);
     float G = gv * gl;
-    // Fresnel (Schlick): dielectric F0 = 0.04, lerping to albedo (tinted reflectance) for metals
+    // Fresnel (Schlick): dielectric F0 = 0.04, lerping to albedo (tinted reflectance) for metals.
+    // Roughness-aware grazing cap: rough surfaces (grass/dirt/stone) don't blow up to full
+    // mirror reflectance at grazing angles, which otherwise produces per-texel specular sparkle
+    // (fireflies) under a low sun. Glossy metal/gold keep their strong grazing specular.
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
-    vec3 F = F0 + (1.0 - F0) * pow(1.0 - vdh, 5.0);
+    vec3 Fgrazing = max(vec3(1.0 - rough), F0);
+    vec3 F = F0 + (Fgrazing - F0) * pow(1.0 - vdh, 5.0);
 
-    vec3 spec = (D * G) * F / (4.0 * ndv * ndl + 1e-4);
+    vec3 spec = (D * G) * F / (4.0 * ndv * ndl + 1e-3);
+    // Rough surfaces (grass/dirt/stone, roughness >~0.8) shed their sun specular so they read
+    // matte and don't sparkle from normal-map detail at the reflection hotspot. Glossy materials
+    // (metal/gold, low roughness) keep their FULL specular glare. Clean matte/glossy separation.
+    spec *= 1.0 - smoothstep(0.55, 0.95, rough);
     vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);  // metals have no diffuse lobe
     // NOTE: diffuse 1/pi omitted on purpose — light intensities are authored for the prior
     // (non-PBR) model, so this keeps brightness parity while adding GGX specular + normal maps.
@@ -147,8 +156,11 @@ void main() {
     sampleVoxelPBR(textureIndex, texCoord, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
-    // = within-class layer, offset by count512 for the 1024 class. Metals use their authored
-    // roughness scalar; dielectrics keep the map's roughness.
+    // = within-class layer, offset by count512 for the 1024 class. The authored roughness scalar
+    // (materials.json) drives roughness for ALL materials — natural surfaces (grass/dirt/stone)
+    // are matte, metal/gold stay glossy — and we keep a little of the map for surface variation.
+    // (Previously the scalar was applied only to metals, so dielectrics used the map's roughness,
+    // which read too shiny and produced a sun glare on grass.)
     uint giCls = (textureIndex >> 15) & 1u;
     uint giLayer = textureIndex & 0x7FFFu;
     uint gi = (giCls == 1u) ? atlasUVs.count512 + giLayer : giLayer;
@@ -156,7 +168,7 @@ void main() {
     if (gi < atlasUVs.count512 + atlasUVs.count1024) {
         vec4 mprops = atlasUVs.textureUVs[gi];
         metallic = mprops.x;
-        rough = mix(rough, mprops.y, metallic);
+        rough = mprops.y;  // authored roughness is authoritative (matte nature, glossy metal); avoids grazing-angle specular sparkle from the shiny roughness map
     }
 
     // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
@@ -187,13 +199,22 @@ void main() {
     vec3 albedo = textureColor.rgb;
 
     // Shadow — 16-sample Poisson disk PCF (uses the geometric normal's shadow coord).
+    // Only inside the shadow map's [0,1] UV footprint; outside it (beyond the fitted volume)
+    // there is no shadow data, so treat as lit rather than sampling the clamped edge (which would
+    // smear the border texel's occlusion across everything off to the side).
     float shadowFactor = 1.0;
-    if (!isEmissive && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
+    bool inShadowMap = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 &&
+                       shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
+    if (!isEmissive && inShadowMap && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
         float shadowSum = 0.0;
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+        // Small constant bias: the shadow pass records occluder BACK faces (front-face culled),
+        // so receivers no longer self-shadow and this can be tiny — keeping shadows attached to
+        // bases (no peter-panning) instead of the old large 0.005 bias.
+        const float kShadowBias = 0.0006;
         for (int i = 0; i < 16; i++) {
             float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
-            if (shadowCoord.z - 0.005 > pcfDepth) shadowSum += 1.0;
+            if (shadowCoord.z - kShadowBias > pcfDepth) shadowSum += 1.0;
         }
         shadowFactor = 1.0 - (shadowSum / 16.0);
     }
@@ -203,12 +224,23 @@ void main() {
         return;
     }
 
-    // Ambient term (flat, modulated by albedo).
-    vec3 color = vec3(ubo.ambientLight) * albedo;
+    // Sky-ambient is a soft FILL light, not the key. The directional sun (below) is the key
+    // light that gives the scene form + shadows. Keeping ambient near 1.0 washes out all
+    // directionality (everything looks flat/omnidirectionally lit) — so we scale it down to a
+    // fill level. A convex (gamma) curve on skylight makes partial sky fall off fast, so
+    // interiors read dramatically dimmer than outdoors. kAmbientFloor keeps fully-sealed cells
+    // from being pitch black before block lights (Phase 2) exist.
+    const float kAmbientFloor = 0.02;
+    const float kSkyFill = 0.35;                        // sky ambient as a fraction (fill, not key)
+    float skyCurve = vSkyLight * vSkyLight;             // gamma ~2 falloff
+    float skyAmbient = ubo.ambientLight * skyCurve * kSkyFill;
+    vec3 color = (skyAmbient + kAmbientFloor) * albedo;
 
-    // Sun (directional) via Cook-Torrance, attenuated by shadow.
+    // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by
+    // sky access (curved) so surfaces with no sky exposure don't receive direct sun. This is
+    // what casts shadows across the scene whenever the sun isn't directly overhead.
     vec3 sunL = normalize(-ubo.sunDirection);
-    color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor;
+    color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
 
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {

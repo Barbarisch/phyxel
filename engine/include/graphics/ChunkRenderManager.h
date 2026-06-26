@@ -142,6 +142,13 @@ private:
         const std::vector<std::unique_ptr<Cube>>& cubes
     ) const;
 
+    // Baked per-cell skylight for this chunk (32x32x32, value 0-15 per air cell; solid=0).
+    // Computed in rebuildCubeFaces from chunk occupancy; consumed by all three face builders
+    // to set per-face light. Phase 1: per-chunk only (boundaries fall back to open sky).
+    std::vector<uint8_t> m_skyLight;
+    // Skylight of the air cell at local (x,y,z); 15 (open sky) if out of chunk bounds.
+    uint8_t skyLightAt(int x, int y, int z) const;
+
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)
     uint32_t numInstances;                     // Count of visible faces

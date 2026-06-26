@@ -22,7 +22,13 @@ void main() {
     uint scaleLevel = (inPackedData >> 18) & 0x3u;      // bits 18-19: scale level
     uint subcubeEncoded = (inPackedData >> 20) & 0x3Fu; // bits 20-25: parent subcube position
     uint microcubeEncoded = (inPackedData >> 26) & 0x3Fu; // bits 26-31: microcube position
-    
+
+    // For a CUBE face (scaleLevel 0) bits 20-31 carry the greedy-merged rectangle extents
+    // (sizeU on bit0 axis, sizeV on bit1 axis), stored as size-1. MUST match static_voxel.vert
+    // or shadow casters collapse to 1x1 quads (tiny/short shadows).
+    uint sizeU = (subcubeEncoded & 0x3Fu) + 1u;
+    uint sizeV = (microcubeEncoded & 0x3Fu) + 1u;
+
     // Decode subcube position
     uint subcubeLocalX = subcubeEncoded % 3u;
     uint subcubeLocalY = (subcubeEncoded / 3u) % 3u;
@@ -56,7 +62,13 @@ void main() {
     vec3 worldPos;
     
     if (scaleLevel == 0u) {
-        worldPos = basePos + faceOffset;
+        // Scale the in-plane axes of the unit quad by the greedy-merged rectangle extents,
+        // matching static_voxel.vert (Z faces: u=x,v=y; X faces: u=z,v=y; Y faces: u=x,v=z).
+        vec3 sizeVec;
+        if (faceID == 0u || faceID == 1u)      sizeVec = vec3(float(sizeU), float(sizeV), 1.0);
+        else if (faceID == 2u || faceID == 3u) sizeVec = vec3(1.0, float(sizeV), float(sizeU));
+        else                                   sizeVec = vec3(float(sizeU), 1.0, float(sizeV));
+        worldPos = basePos + faceOffset * sizeVec;
     } else if (scaleLevel == 1u) {
         const float SUBCUBE_SCALE = 1.0 / 3.0;
         vec3 subcubeOffset = vec3(float(subcubeLocalX), float(subcubeLocalY), float(subcubeLocalZ)) * SUBCUBE_SCALE;

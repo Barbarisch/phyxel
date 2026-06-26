@@ -38,12 +38,15 @@ struct Vertex {
     }
 };
 
-// Instance data structure - compressed format with texture support
+// Instance data structure - compressed format with texture support.
+// MUST stay layout-identical to Phyxel::InstanceData (core/Types.h): the CPU writes that
+// struct into the instance buffer and this defines how the pipeline reads it.
 struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
-    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
-    
+    uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
+    uint32_t light;           // Baked voxel light: bits0-3 skylight (0-15); blocklight/color reserved (Phase 2)
+
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 1;
@@ -51,15 +54,15 @@ struct InstanceData {
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
         return bindingDescription;
     }
-    
+
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
-        
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(4);
+
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
         attributeDescriptions[0].format = VK_FORMAT_R32_UINT;  // uint32 packed data
         attributeDescriptions[0].offset = offsetof(InstanceData, packedData);
-        
+
         attributeDescriptions[1].binding = 1;
         attributeDescriptions[1].location = 2;
         attributeDescriptions[1].format = VK_FORMAT_R16_UINT;  // uint16 texture index
@@ -69,7 +72,12 @@ struct InstanceData {
         attributeDescriptions[2].location = 3;
         attributeDescriptions[2].format = VK_FORMAT_R16_UINT;  // uint16 reserved (flags)
         attributeDescriptions[2].offset = offsetof(InstanceData, reserved);
-        
+
+        attributeDescriptions[3].binding = 1;
+        attributeDescriptions[3].location = 4;
+        attributeDescriptions[3].format = VK_FORMAT_R32_UINT;  // uint32 baked light
+        attributeDescriptions[3].offset = offsetof(InstanceData, light);
+
         return attributeDescriptions;
     }
 };

@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm>
+#include <deque>
 
 namespace Phyxel {
 namespace Graphics {
@@ -66,6 +67,13 @@ void ChunkRenderManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
     renderBuffer = ChunkRenderBuffer(device, physicalDevice);
+}
+
+uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
+    // Out-of-chunk neighbours fall back to open sky (Phase 1: no cross-chunk light yet).
+    if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return 15;
+    if (m_skyLight.empty()) return 15;
+    return m_skyLight[static_cast<size_t>(z + y * 32 + x * 1024)];
 }
 
 void ChunkRenderManager::rebuildAllFaces(
@@ -144,6 +152,67 @@ void ChunkRenderManager::rebuildCubeFaces(
         }
     }
 
+    // --- Baked skylight (Phase 1, per-chunk) ---
+    // Air cells open to the top of the chunk receive full sky (15) straight down through air
+    // (lossless), then light spreads to neighbouring air cells at -1 per step via BFS. Air that
+    // can't reach a source (a sealed room) stays 0 -> genuinely dark interiors. Boundaries fall
+    // back to open sky in skyLightAt(); cross-chunk bleed is a later phase.
+    m_skyLight.assign(N * N * N, 0);
+    {
+        std::deque<int> q;
+        // Is the world directly above this column's chunk-top open to the sky? We can't assume
+        // the chunk top (y=31) is exposed — a structure's roof often lives in the chunk ABOVE
+        // (e.g. a room ceiling at world y=32). Walk upward through neighbouring chunks; if any
+        // opaque cube is found the column is roofed, so its top air must NOT be seeded as sky
+        // (BFS will instead light it through windows/holes). Without a neighbour lookup we fall
+        // back to assuming open (correct for single-chunk content like a freestanding box).
+        constexpr int kSkyProbeHeight = 96;  // ~3 chunks; enough for typical buildings
+        auto columnOpenAbove = [&](int x, int z) -> bool {
+            if (!getNeighborCube) return true;
+            for (int wy = N; wy < N + kSkyProbeHeight; ++wy) {
+                const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, wy, z));
+                if (nc && nc->isVisible()) return false;  // roofed somewhere above
+            }
+            return true;
+        };
+        // Column seed: from the top, full sky straight down through air until the first solid —
+        // but only for columns actually exposed to the sky above the chunk.
+        for (int x = 0; x < N; ++x) {
+            for (int z = 0; z < N; ++z) {
+                if (!columnOpenAbove(x, z)) continue;  // roofed: no direct sky into this column
+                for (int y = N - 1; y >= 0; --y) {
+                    int cell = cellIdx(x, y, z);
+                    if (solidVis[cell]) break;  // blocked: cells below are not direct sky
+                    m_skyLight[cell] = 15;
+                    q.push_back(cell);
+                }
+            }
+        }
+        // BFS relaxation: spread to air neighbours at -1 per step.
+        const int ndx[6] = {1, -1, 0, 0, 0, 0};
+        const int ndy[6] = {0, 0, 1, -1, 0, 0};
+        const int ndz[6] = {0, 0, 0, 0, 1, -1};
+        while (!q.empty()) {
+            int cell = q.front(); q.pop_front();
+            int level = m_skyLight[cell];
+            if (level <= 1) continue;
+            int cz = cell % 32;
+            int cy = (cell / 32) % 32;
+            int cx = cell / 1024;
+            for (int d = 0; d < 6; ++d) {
+                int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
+                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
+                int ncell = cellIdx(nx, ny, nz);
+                if (solidVis[ncell]) continue;  // opaque blocks light
+                uint8_t nl = static_cast<uint8_t>(level - 1);
+                if (m_skyLight[ncell] < nl) {
+                    m_skyLight[ncell] = nl;
+                    q.push_back(ncell);
+                }
+            }
+        }
+    }
+
     // Neighbor solidity (handles cross-chunk via getNeighborCube). A face is visible when
     // its neighbor in that direction is NOT a visible solid.
     auto neighborSolid = [&](int x, int y, int z) -> bool {
@@ -165,6 +234,7 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<int>     faceKey(N * N);
     std::vector<int>     faceMat(N * N);
     std::vector<uint8_t> faceDmg(N * N);
+    std::vector<uint8_t> faceLight(N * N);   // baked skylight (0-15) of the air cell each face looks into
     std::vector<uint8_t> used(N * N);
 
     // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
@@ -193,6 +263,8 @@ void ChunkRenderManager::rebuildCubeFaces(
                                   (matFaces[m].reserved | dmgBits);
                     faceMat[mi] = m;
                     faceDmg[mi] = cellDamage[cell];
+                    // Light of the air cell this face looks into (face is visible => neighbour is air).
+                    faceLight[mi] = skyLightAt(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID]);
                 }
             }
             // Greedy rectangle merge: width along v, then height along u (same key).
@@ -201,17 +273,18 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int mi = u * N + v;
                     if (!hasFace[mi] || used[mi]) continue;
                     int k = faceKey[mi];
+                    uint8_t lite = faceLight[mi];  // only merge faces with equal baked light
                     int w = 1;
                     while (v + w < N) {
                         int t = u * N + (v + w);
-                        if (!hasFace[t] || used[t] || faceKey[t] != k) break;
+                        if (!hasFace[t] || used[t] || faceKey[t] != k || faceLight[t] != lite) break;
                         ++w;
                     }
                     int h = 1; bool ok = true;
                     while (u + h < N && ok) {
                         for (int vv = v; vv < v + w; ++vv) {
                             int t = (u + h) * N + vv;
-                            if (!hasFace[t] || used[t] || faceKey[t] != k) { ok = false; break; }
+                            if (!hasFace[t] || used[t] || faceKey[t] != k || faceLight[t] != lite) { ok = false; break; }
                         }
                         if (ok) ++h;
                     }
@@ -229,6 +302,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                         ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
                     inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
+                    inst.light = static_cast<uint32_t>(lite & 0xF);  // skylight in bits 0-3
                     faces.push_back(inst);
                 }
             }
@@ -288,6 +362,13 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     faceInstance.reserved = static_cast<uint16_t>(
                         (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
                 }
+                // Baked skylight: sample the air cell the parent cube's face looks into.
+                static const int FDX[6] = {0, 0, 1, -1, 0, 0};
+                static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+                static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+                faceInstance.light = static_cast<uint32_t>(
+                    skyLightAt(parentChunkPos.x + FDX[faceID], parentChunkPos.y + FDY[faceID],
+                               parentChunkPos.z + FDZ[faceID]) & 0xF);
                 faces.push_back(faceInstance);
             }
         }
@@ -362,6 +443,13 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     faceInstance.reserved = static_cast<uint16_t>(
                         (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
                 }
+                // Baked skylight: sample the air cell the parent cube's face looks into.
+                static const int FDX[6] = {0, 0, 1, -1, 0, 0};
+                static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+                static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+                faceInstance.light = static_cast<uint32_t>(
+                    skyLightAt(parentChunkPos.x + FDX[faceID], parentChunkPos.y + FDY[faceID],
+                               parentChunkPos.z + FDZ[faceID]) & 0xF);
                 faces.push_back(faceInstance);
             }
         }

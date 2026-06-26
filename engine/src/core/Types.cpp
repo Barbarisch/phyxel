@@ -69,27 +69,33 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 3> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 3> desc{};
-    
+std::array<VkVertexInputAttributeDescription, 4> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 4> desc{};
+
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
     desc[0].location = 1;  // layout(location = 1) in uint inPackedData
     desc[0].format = VK_FORMAT_R32_UINT;  // uint32_t packedData
     desc[0].offset = offsetof(InstanceData, packedData);
-    
+
     // Texture index
     desc[1].binding = 1;
     desc[1].location = 2;  // layout(location = 2) in uint inTextureIndex
     desc[1].format = VK_FORMAT_R16_UINT;  // uint16_t textureIndex
     desc[1].offset = offsetof(InstanceData, textureIndex);
-    
+
     // Flags (emissive bit 0, transparent bit 1, quantized alpha bits 2-9)
     desc[2].binding = 1;
     desc[2].location = 3;  // layout(location = 3) in uint inFlags
     desc[2].format = VK_FORMAT_R16_UINT;  // uint16_t reserved
     desc[2].offset = offsetof(InstanceData, reserved);
-    
+
+    // Baked voxel light (skylight nibble bits0-3; blocklight/color reserved)
+    desc[3].binding = 1;
+    desc[3].location = 4;  // layout(location = 4) in uint inLight
+    desc[3].format = VK_FORMAT_R32_UINT;  // uint32_t light
+    desc[3].offset = offsetof(InstanceData, light);
+
     return desc;
 }
 

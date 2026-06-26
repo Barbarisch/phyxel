@@ -23,6 +23,7 @@ layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for qua
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFlags;           // per-instance flags (emissive, etc.)
+layout(location = 4) in uint inLight;           // per-instance baked light (bits0-3 skylight)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -42,6 +43,7 @@ layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to 
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
+layout(location = 6) out flat float vSkyLight;    // baked skylight, normalized 0..1
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -314,4 +316,5 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord = uv;
     flags = inFlags;
+    vSkyLight = float(inLight & 0xFu) / 15.0;  // baked skylight 0..15 -> 0..1
 }

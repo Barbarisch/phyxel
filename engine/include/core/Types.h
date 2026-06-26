@@ -85,11 +85,12 @@ struct Vertex {
 struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
-    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
-    // Total: 8 bytes (50% reduction from previous 16 bytes!)
-    
+    uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
+    uint32_t light = 0;       // Baked voxel light: bits0-3 skylight (0-15). bits4-7 blocklight, bits8-23 block color (Phase 2)
+    // Total: 12 bytes
+
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();  // packedData + textureIndex + flags
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions();  // packedData + textureIndex + flags + light
 };
 
 struct CharacterInstanceData {

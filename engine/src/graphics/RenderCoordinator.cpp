@@ -76,7 +76,9 @@ RenderCoordinator::RenderCoordinator(
     if (const char* e = std::getenv("PHYXEL_OCCLUSION"))
         m_occlusionCullingEnabled = (e[0] == '1');
 
-    shadowMap = std::make_unique<ShadowMap>(vulkanDevice);
+    // 4096² shadow map: with the view-frustum-fit covering a large shadow distance (see drawFrame),
+    // the higher resolution keeps shadows crisp over that bigger area.
+    shadowMap = std::make_unique<ShadowMap>(vulkanDevice, 4096, 4096);
     shadowMap->initialize();
     
     // Pass shadow map resources to VulkanDevice for descriptor updates
@@ -704,12 +706,14 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
     visibleChunkIndices.swap(kept);
 }
 
-void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix) {
+void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
+                                         const glm::vec3& cullCenter, float cullRadius) {
     if (!shadowMap) return;
 
     shadowMap->beginRenderPass(commandBuffer);
 
-    glm::vec3 cameraPos = camera->getPosition();
+    // Cull chunks to the fitted shadow volume (the view-frustum bounding sphere computed in
+    // drawFrame). Pad by a chunk radius + caster margin so tall/edge casters aren't dropped.
 
     // Bind global vertex buffer (binding 0) and index buffer
     // We use bindVertexBuffers to bind the shared vertex buffer to binding 0
@@ -726,7 +730,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              glm::vec3 minBounds = chunk->getMinBounds();
              glm::vec3 maxBounds = chunk->getMaxBounds();
              glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-             if (glm::length(chunkCenter - cameraPos) > shadowMap->getShadowRange() + 32.0f) continue; // Shadow range + chunk radius
+             if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue; // fitted sphere + chunk radius + caster margin
 
              // Bind chunk instance buffer
              VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
@@ -1022,7 +1026,67 @@ void RenderCoordinator::drawFrame() {
         }
     }
 
-    glm::mat4 lightSpaceMatrix = shadowMap ? shadowMap->getLightSpaceMatrix(sunDirection, cameraPos, shadowMap->getShadowRange()) : glm::mat4(1.0f);
+    // Fit the shadow frustum to the camera's VIEW FRUSTUM (bounding-sphere fit), capped at a max
+    // shadow distance. The shadow box is sized/positioned to cover exactly what the camera can
+    // see, so any on-screen caster is — by construction — always inside the shadow map (panning
+    // can't cut off a visible shadow). Using the frustum's bounding SPHERE makes the box size
+    // rotation-invariant, which avoids shadow-edge shimmer as the camera turns. Replaces the old
+    // fixed-range sphere centred on/ahead of the camera, which dropped shadows near its edge.
+    glm::mat4 lightSpaceMatrix = glm::mat4(1.0f);
+    glm::vec3 shadowCullCenter = cameraPos;
+    float shadowCullRadius = 1.0f;
+    if (shadowMap) {
+        // Shadow draw distance — how far shadows render (must be <= view distance; full view-
+        // distance shadows at this quality would need cascades). Capped to the render distance so
+        // we never fit past what's visible. 400 + 4096² map keeps ~0.12 units/texel.
+        const float kMaxShadowDist = std::min(maxChunkRenderDistance, 400.0f);
+        const float kNear = 0.5f;
+        float a00 = cachedProjectionMatrix[0][0];
+        float a11 = cachedProjectionMatrix[1][1];
+        float aspect = (std::abs(a00) > 1e-6f) ? std::abs(a11 / a00) : (16.0f / 9.0f);
+
+        // World-space corners of the (distance-capped) view frustum via inverse view-proj.
+        glm::mat4 shadowVP = camera->getProjectionMatrix(aspect, kNear, kMaxShadowDist) * view;
+        glm::mat4 invVP = glm::inverse(shadowVP);
+        glm::vec3 corners[8];
+        int ci = 0;
+        for (int x = 0; x < 2; ++x)
+            for (int y = 0; y < 2; ++y)
+                for (int z = 0; z < 2; ++z) {
+                    glm::vec4 c = invVP * glm::vec4(x ? 1.0f : -1.0f, y ? 1.0f : -1.0f, z ? 1.0f : 0.0f, 1.0f);
+                    corners[ci++] = glm::vec3(c) / c.w;
+                }
+
+        glm::vec3 center(0.0f);
+        for (auto& c : corners) center += c;
+        center /= 8.0f;
+        float radius = 0.0f;
+        for (auto& c : corners) radius = std::max(radius, glm::length(c - center));
+        // Expand beyond the tight frustum sphere so casters JUST outside the view (off-screen at
+        // the edges, or a tall caster whose top pokes above the frustum) are still recorded and
+        // cast shadows INTO the view. Without this, edge casters slice in/out as the camera moves
+        // (one pillar shadowed, one half, one none). kCasterMargin ~ max caster reach.
+        const float kCasterMargin = 48.0f;
+        radius = std::ceil(radius) + kCasterMargin;
+
+        shadowCullCenter = center;
+        shadowCullRadius = radius;
+
+        glm::vec3 lightDir = glm::normalize(sunDirection);
+        glm::vec3 up = (std::abs(lightDir.y) > 0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+        // Pull the light back past the sphere so casters between the sun and the frustum (e.g. a
+        // tall pillar just off-screen toward the sun) still register in the depth map.
+        const float kCasterBack = 120.0f;
+        glm::vec3 lightPos = center - lightDir * (radius + kCasterBack);
+        glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+        // orthoRH_ZO → Vulkan [0,1] clip depth, matching the D32 shadow buffer and the [0,1]
+        // shadowCoord.z used in voxel.frag. Plain glm::ortho gives OpenGL [-1,1], which half-clips
+        // the scene and breaks the depth compare (GLM_FORCE_DEPTH_ZERO_TO_ONE is NOT set here).
+        glm::mat4 lightProj = glm::orthoRH_ZO(-radius, radius, -radius, radius,
+                                              0.0f, 2.0f * radius + 2.0f * kCasterBack);
+        lightProj[1][1] *= -1;  // Vulkan Y flip
+        lightSpaceMatrix = lightProj * lightView;
+    }
     
     auto uboEnd = std::chrono::high_resolution_clock::now();
     
@@ -1052,7 +1116,7 @@ void RenderCoordinator::drawFrame() {
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         // Render Shadow Pass
-        renderShadowPass(cmd, lightSpaceMatrix);
+        renderShadowPass(cmd, lightSpaceMatrix, shadowCullCenter, shadowCullRadius);
     }
 
     // GPU particle physics compute (integrate → collide → expand)

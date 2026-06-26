@@ -479,15 +479,15 @@ bool WorldInitializer::initializeTextureAtlas() {
         return false;
     }
 
-    // Populate atlas-metadata SSBO with per-class layer counts (mixed-resolution split).
-    {
-        auto& registry = Core::MaterialRegistry::instance();
-        const auto& info = atlas.getAtlasInfo(0);
-        vulkanDevice->updateAtlasUVBuffer(info.uvBounds, registry.getPlaceholderIndex(),
-                                          registry.getTextureCount(0), registry.getTextureCount(1));
-        LOG_INFO("WorldInitializer", "Populated atlas SSBO (512 class={}, 1024 class={})",
-                 registry.getTextureCount(0), registry.getTextureCount(1));
-    }
+    // Populate the atlas SSBO with per-material PBR props (metallic/roughness) AND the per-class
+    // layer-count header. Must use AtlasManager::updateUVSSBO — NOT updateAtlasUVBuffer(uvBounds),
+    // which clobbers textureUVs[] with UV coords, leaving metallic/roughness at ~0 so every
+    // surface renders mirror-smooth (sun glints, no real metals). voxel.frag reads textureUVs[gi]
+    // as (metallic, roughness).
+    atlas.updateUVSSBO(vulkanDevice);
+    LOG_INFO("WorldInitializer", "Populated atlas SSBO with material PBR props (512 class={}, 1024 class={})",
+             Core::MaterialRegistry::instance().getTextureCount(0),
+             Core::MaterialRegistry::instance().getTextureCount(1));
 
     // Update descriptor sets with texture binding
     vulkanDevice->updateDescriptorSetsWithTexture();

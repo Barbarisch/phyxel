@@ -233,7 +233,8 @@ private:
     // they upload byte-identical data, so the redundant upload is harmless.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
                                    VkPipeline pipeline);
-    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
+    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
+                          const glm::vec3& cullCenter, float cullRadius);
     
     // Dependencies (non-owning pointers)
     Vulkan::VulkanDevice* vulkanDevice;
@@ -263,7 +264,7 @@ private:
     uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
     bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
     float ambientLightStrength = 1.0f; // Default brightness multiplier
-    glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
+    glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.6f, -0.7f, -0.45f)); // ~43 deg elevation — angled so structures cast clear shadows (used when day/night is off)
     glm::vec3 sunColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float emissiveMultiplier = 2.0f;
     
