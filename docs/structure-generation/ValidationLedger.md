@@ -47,7 +47,7 @@ floor scan, paths…).
 
 | # | placer | status | required | current (cite) | score U/S/Sc | gap / red test owed |
 |---|--------|:--:|:--:|---|:--:|---|
-| 01 | analyze_site | P | L2 | L1 (runs; no test asserts the site facts) | 0/2/1 = **3** | assert grade/slope/water match a known terrain fixture |
+| 01 | analyze_site | P | L2 | **L2** ✅ (`SiteAnalysisTest`: buildability = footprint RELIEF; classes asserted on synthetic fixtures + **real Perlin/Mountains terrain** (98% vs 60% buildable); relief=0 red-confirmed, auditor PASS) | 0/2/1 = **3** | ✅ met. Remaining: runtime `ChunkManager` sampler for the LIVE world (Phase 2 glue) |
 | 02 | prepare_pad | M→P | L2 | **L2** (`PlanPadLevelIsMedian` + runtime cut/fill) | 1/2/1 = **4** | ✅ met (median-seat); add a footprint-leveled invariant |
 | 03 | place_foundation | P | L2 | L1 (no test) | 1/1/1 = **3** | L1→L2: supports full footprint, correct depth, no gaps |
 | 04 | place_floor | P | L2 | **L2** (`FloorIsContinuousOverFootprint`) | 2/2/1 = **5** | mostly met; gate "holed only at the stairwell" |
