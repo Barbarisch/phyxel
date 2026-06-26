@@ -10156,6 +10156,11 @@ void Application::registerSettlementCommands() {
         const int minBuilding = p.value("min_building", 8);
         const std::string typology = p.value("typology", std::string("hall_house"));
         const std::string style = p.value("style", std::string("timber_cottage"));
+        // Optional mixed typologies: cycle a list per plot (deterministic) so a settlement is a varied
+        // village, not N identical houses. Empty -> the single `typology` everywhere.
+        std::vector<std::string> mix;
+        if (p.contains("typologies") && p["typologies"].is_array())
+            for (const auto& t : p["typologies"]) if (t.is_string()) mix.push_back(t.get<std::string>());
         int ox = 0, oy = 16, oz = 0;
         if (p.contains("position")) {
             ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
@@ -10174,10 +10179,12 @@ void Application::registerSettlementCommands() {
         }
 
         nlohmann::json queued = nlohmann::json::array();
-        for (const auto& b : buildings) {
+        for (size_t i = 0; i < buildings.size(); ++i) {
+            const auto& b = buildings[i];
             const int bx = ox + b.footprint.x, bz = oz + b.footprint.z;
+            const std::string btyp = mix.empty() ? b.typology : mix[i % mix.size()];
             nlohmann::json bp = {
-                {"schema", "v2"}, {"type", "house"}, {"style", style}, {"typology", b.typology},
+                {"schema", "v2"}, {"type", "house"}, {"style", style}, {"typology", btyp},
                 {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
                 {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
                 {"substructure", "slab"},
@@ -10189,7 +10196,7 @@ void Application::registerSettlementCommands() {
             apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
-                              {"typology", b.typology}});
+                              {"typology", btyp}});
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");

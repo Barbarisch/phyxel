@@ -128,6 +128,32 @@ TEST(SettlementLayoutTest, TinyPlotSkipped) {
     EXPECT_TRUE(bs.empty());
 }
 
+// STRESS (Phase 0): the invariants must hold AT SCALE, not just N=4. A 6x6 grid = 36 plots / 36
+// buildings — assert EVERY plot tiles without overlap, every building fits + is inset, no pair
+// overlaps. (The stress-test discipline: push N to the extreme, assert the invariant at every step.)
+TEST(SettlementLayoutTest, ScaleSixBySixAllInvariantsHold) {
+    const int cols = 6, rows = 6, sw = 4, setback = 2, minPlot = 8, minBuilding = 6;
+    // size the footprint so 6x6 plots of >= minPlot fit: W = cols*plotW + (cols+1)*sw, plotW ~12
+    const int W = cols * 12 + (cols + 1) * sw, D = rows * 12 + (rows + 1) * sw;
+    auto s = subdividePlots(W, D, cols, rows, sw, minPlot);
+    ASSERT_EQ(s.plots.size(), static_cast<size_t>(cols * rows)) << "lost plots at scale";
+    auto bs = populatePlots(s, setback, minBuilding, "hall_house");
+    ASSERT_EQ(bs.size(), static_cast<size_t>(cols * rows)) << "lost buildings at scale";
+    // every building fits + is inset by the yard
+    for (const auto& b : bs) {
+        const Rect& plot = s.plots[b.plotIndex].rect;
+        EXPECT_GE(b.footprint.x, plot.x + setback);
+        EXPECT_LE(b.footprint.x1(), plot.x1() - setback);
+        EXPECT_GE(b.footprint.w, minBuilding);
+        EXPECT_LE(b.footprint.x1(), W); EXPECT_LE(b.footprint.z1(), D);
+    }
+    // NO pair of the 36 buildings overlaps (the invariant at scale, every pair)
+    for (size_t i = 0; i < bs.size(); ++i)
+        for (size_t j = i + 1; j < bs.size(); ++j)
+            ASSERT_FALSE(overlaps(bs[i].footprint, bs[j].footprint))
+                << "buildings " << i << "," << j << " overlap at scale";
+}
+
 // setback=0 is allowed (urban row-house: building flush to the plot edge, NO yard). The scope-honest
 // boundary: "no yard" must NOT mean "in the street" — a flush building still can't overlap a street
 // corridor (the plot starts a streetWidth in). (Auditor flagged the "guaranteed yard" overclaim.)
