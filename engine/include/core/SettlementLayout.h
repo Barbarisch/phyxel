@@ -43,10 +43,12 @@ struct PlacedBuilding {
     std::string typology;    ///< RoomProgram typology to build (passthrough to the building generator)
 };
 
-/// Site one building per plot: footprint = the plot inset by `setback` on every side (the yard that
-/// leaves room for a path/garden between the building and the street). Plots too small for a building
-/// + yard (footprint < minBuilding) are SKIPPED. Buildings inherit `typology`. Because each footprint
-/// is contained in its plot and plots don't overlap, the buildings can't overlap or spill into a street.
+/// Site one building per plot: footprint = the plot inset by `setback` on every side. A positive
+/// setback leaves a yard (room for a path/garden) between the building and the street; setback=0 is
+/// allowed and puts the building FLUSH to the plot edge (an urban row-house — NO yard, but still clear
+/// of the street, since the plot itself starts a streetWidth in). Plots too small for the building
+/// (footprint < minBuilding) are SKIPPED. Buildings inherit `typology`. Each footprint is contained in
+/// its plot and plots don't overlap, so the buildings don't overlap each other or sit in a street.
 std::vector<PlacedBuilding> populatePlots(const SettlementLayout& layout, int setback,
                                           int minBuilding, const std::string& typology = "hall_house");
 

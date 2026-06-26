@@ -127,3 +127,31 @@ TEST(SettlementLayoutTest, TinyPlotSkipped) {
     auto bs = populatePlots(s, 5, 8, "hall_house"); // 14 - 2*5 = 4 < minBuilding 8 -> all skipped
     EXPECT_TRUE(bs.empty());
 }
+
+// setback=0 is allowed (urban row-house: building flush to the plot edge, NO yard). The scope-honest
+// boundary: "no yard" must NOT mean "in the street" — a flush building still can't overlap a street
+// corridor (the plot starts a streetWidth in). (Auditor flagged the "guaranteed yard" overclaim.)
+TEST(SettlementLayoutTest, ZeroSetbackFlushButClearOfStreet) {
+    auto s = subdividePlots(40, 40, 2, 2, 4, 6);
+    auto bs = populatePlots(s, 0, 6, "hall_house");
+    ASSERT_FALSE(bs.empty());
+    for (const auto& b : bs)
+        for (const auto& st : s.streets)
+            EXPECT_FALSE(overlaps(b.footprint, st)) << "a flush (setback 0) building sits in a street";
+}
+
+// Composed at a world origin, the buildings' world footprints don't overlap — the settlement-
+// composition invariant the runtime hamlet relies on (translation preserves the layout's non-overlap).
+// NB: this asserts the LAYOUT math; that the realizer stays WITHIN each footprint at runtime is
+// runtime-observed (the placed bboxes), not asserted here — an integration test is the open gap.
+TEST(SettlementLayoutTest, ComposedWorldFootprintsDontOverlap) {
+    const int ox = 10, oz = 10;
+    auto s = subdividePlots(52, 36, 2, 2, 4, 6);
+    auto bs = populatePlots(s, 2, 6, "hall_house");
+    ASSERT_EQ(bs.size(), 4u);
+    std::vector<Rect> world;
+    for (const auto& b : bs) { Rect w = b.footprint; w.x += ox; w.z += oz; world.push_back(w); }
+    for (size_t i = 0; i < world.size(); ++i)
+        for (size_t j = i + 1; j < world.size(); ++j)
+            EXPECT_FALSE(overlaps(world[i], world[j])) << "composed buildings " << i << "," << j << " overlap";
+}
