@@ -26,7 +26,8 @@ int separation(const Rect& a, const Rect& b) {
 } // namespace
 
 // THE new invariant (red on the missing-street-offset stub): adjacent plots must be separated by a
-// street >= streetWidth — buildings can't abut with no road between them.
+// >= streetWidth GEOMETRIC GAP — buildings can't abut with no road between them. (L2: gap is wide
+// enough on paper; walking it with a TraversalProbe is the deferred L3 slice, not asserted here.)
 TEST(SettlementLayoutTest, AdjacentPlotsSeparatedByStreet) {
     const int sw = 4;
     auto s = subdividePlots(40, 40, 2, 2, sw, 6);
@@ -59,6 +60,25 @@ TEST(SettlementLayoutTest, PlotsFitTheFootprint) {
         EXPECT_GE(p.rect.x, 0); EXPECT_LE(p.rect.x1(), W);
         EXPECT_GE(p.rect.z, 0); EXPECT_LE(p.rect.z1(), D);
     }
+}
+
+// The emitted street[] corridors (the artifact the L3 walkability slice will probe) are well-formed:
+// one band per grid line, each >= streetWidth wide, spanning the full perpendicular extent, and NOT
+// overlapping any plot (streets live in the gaps, not under buildings).
+TEST(SettlementLayoutTest, StreetsCoverTheGapsAndDontOverlapPlots) {
+    const int W = 40, D = 40, cols = 2, rows = 2, sw = 4;
+    auto s = subdividePlots(W, D, cols, rows, sw, 6);
+    ASSERT_FALSE(s.plots.empty());
+    EXPECT_EQ(s.streets.size(), static_cast<size_t>((cols + 1) + (rows + 1)));
+    for (const auto& st : s.streets) {
+        const bool vertical = (st.d == D);     // vertical band spans full depth
+        const bool horizontal = (st.w == W);   // horizontal band spans full width
+        EXPECT_TRUE(vertical || horizontal) << "a street doesn't span the footprint";
+        EXPECT_GE(std::min(st.w, st.d), sw) << "a street is narrower than streetWidth";
+    }
+    for (const auto& st : s.streets)
+        for (const auto& p : s.plots)
+            EXPECT_FALSE(overlaps(st, p.rect)) << "a street runs under a plot";
 }
 
 // Too-dense request (plots would be below minPlot) returns EMPTY so the caller can reduce density,

@@ -7,9 +7,10 @@
 // settlement analog of generateRoomLayout: deterministic, tiling-with-gaps.
 //
 // L2 invariants (gated by SettlementLayoutTest): plots don't overlap, all fit the
-// footprint, each >= minPlot, and adjacent plots are separated by >= streetWidth
-// (a character-walkable corridor). The emitted street bands feed the later L3
-// walkability slice (a TraversalProbe walks the streets to every plot frontage).
+// footprint, each >= minPlot, and adjacent plots are separated by a >= streetWidth
+// GEOMETRIC GAP. (L2 = the gap is wide enough on paper; actually WALKING it with a
+// TraversalProbe is the deferred L3 slice — not proven here.) The emitted street
+// bands are the corridors that L3 slice will probe.
 // ============================================================================
 
 #include <vector>
