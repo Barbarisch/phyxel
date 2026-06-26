@@ -113,6 +113,29 @@ TEST(SettlementTraversalTest, StreetReachesEveryBuildingInterior) {
     }
 }
 
+// build_settlement relies on the realizer staying WITHIN each plot footprint — else a wall/roof could
+// spill into a neighbouring plot or a street and the composed non-overlap (proven on the footprint
+// RECTANGLES) wouldn't hold on the actual voxels. This ENCODES that containment (the auditor flagged
+// that the runtime bbox check was a one-shot, not a regression guard): scan a margin around each
+// realized building and assert NO occupied voxel falls outside its footprint.
+TEST(SettlementTraversalTest, RealizerStaysWithinPlotFootprint) {
+    const auto bs = twoBuildingSettlement(/*sealIndex=*/-1);
+    ASSERT_EQ(bs.size(), 2u);
+    for (const auto& b : bs) {
+        ASSERT_TRUE(b.shell.ok) << b.shell.error;
+        const int W = b.footprint.w * 9, D = b.footprint.d * 9;
+        const auto& cv = b.shell.canvas;
+        for (int x = -9; x < W + 9; ++x)
+            for (int z = -9; z < D + 9; ++z) {
+                if (x >= 0 && x < W && z >= 0 && z < D) continue;   // inside the footprint -> allowed
+                for (int y = 0; y < 40; ++y)
+                    ASSERT_FALSE(cv.occupiedMicro(x, y, z))
+                        << "a building voxel at (" << x << "," << y << "," << z
+                        << ") spills OUTSIDE its " << W << "x" << D << " footprint (into a yard/street)";
+            }
+    }
+}
+
 // TEETH: a SEALED building (exterior door stripped) is NOT reachable from the street — so the positive
 // test depends on the carved door, not the probe phasing through walls.
 TEST(SettlementTraversalTest, SealedBuildingIsUnreachable) {
