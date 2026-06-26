@@ -139,19 +139,29 @@ TEST(SettlementLayoutTest, ScaleSixBySixAllInvariantsHold) {
     ASSERT_EQ(s.plots.size(), static_cast<size_t>(cols * rows)) << "lost plots at scale";
     auto bs = populatePlots(s, setback, minBuilding, "hall_house");
     ASSERT_EQ(bs.size(), static_cast<size_t>(cols * rows)) << "lost buildings at scale";
-    // every building fits + is inset by the yard
+    // every building fits + is inset by the yard on ALL FOUR sides
     for (const auto& b : bs) {
         const Rect& plot = s.plots[b.plotIndex].rect;
         EXPECT_GE(b.footprint.x, plot.x + setback);
         EXPECT_LE(b.footprint.x1(), plot.x1() - setback);
-        EXPECT_GE(b.footprint.w, minBuilding);
+        EXPECT_GE(b.footprint.z, plot.z + setback);
+        EXPECT_LE(b.footprint.z1(), plot.z1() - setback);
+        EXPECT_GE(b.footprint.w, minBuilding); EXPECT_GE(b.footprint.d, minBuilding);
         EXPECT_LE(b.footprint.x1(), W); EXPECT_LE(b.footprint.z1(), D);
     }
-    // NO pair of the 36 buildings overlaps (the invariant at scale, every pair)
+    // NO pair of the 36 buildings overlaps (entailed by inset+non-overlapping plots, but cheap)
     for (size_t i = 0; i < bs.size(); ++i)
         for (size_t j = i + 1; j < bs.size(); ++j)
             ASSERT_FALSE(overlaps(bs[i].footprint, bs[j].footprint))
                 << "buildings " << i << "," << j << " overlap at scale";
+    // THE scale-specific invariant: every adjacent plot pair still has a >= streetWidth street AT
+    // SCALE — a per-column stride off-by-one would narrow streets only at larger grids (auditor caught
+    // that the no-overlap check alone passes such a bug, since abutting != overlapping).
+    for (size_t i = 0; i < s.plots.size(); ++i)
+        for (size_t j = i + 1; j < s.plots.size(); ++j)
+            if (s.plots[i].row == s.plots[j].row || s.plots[i].col == s.plots[j].col)
+                EXPECT_GE(separation(s.plots[i].rect, s.plots[j].rect), sw)
+                    << "adjacent plots " << i << "," << j << " have no street at scale";
 }
 
 // setback=0 is allowed (urban row-house: building flush to the plot edge, NO yard). The scope-honest
