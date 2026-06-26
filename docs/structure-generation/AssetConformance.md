@@ -6,17 +6,23 @@ Tracks which furniture **templates** are not dimensionally valid against grounde
 `tests/core/FurnitureConformanceTest.RealLibraryAuditReportsKnownGaps` (prints the table, asserts the
 structural gaps as teeth). Re-run that test to refresh this list.
 
-Each finding: **ok** · **no_metrics** (template has no `.metrics.json` sidecar) · **no_canon** (no
-grounded archetype to measure against) · **out_of_tolerance** (actual dims drift from canon ± tol).
+Each finding: **ok** (measured AND conforms) · **no_metrics** (template has no `.metrics.json`
+sidecar) · **no_canon** (no grounded archetype to measure against) · **no_checkable_dims** (the canon
+archetype declares only *feature* dims like `seat_top`/`length_min`, no overall-size key, so the
+bounding box can't be measured — NOT a pass) · **out_of_tolerance** (actual dims drift from canon ±
+tol). Only **ok** counts as conforming.
 
-## Current audit (2026-06-25) — 5 of 7 non-conforming
+## Current audit (2026-06-25) — 6 of 7 non-conforming
+
+The real audit's full verdict is **pinned** in `RealLibraryAuditReportsKnownGaps` — regenerating an
+asset (or a new one drifting) flips a status and fails that test, prompting an update here.
 
 | type | template | archetype | status | action |
 |------|----------|-----------|--------|--------|
-| bed | bed_single | bed_single | ✅ ok | — |
-| bench | bench_wood | bench | ✅ ok | — |
+| bed | bed_single | bed_single | ✅ ok | — (the only conforming one) |
 | barrel | barrel | _(none)_ | **no_canon** | add a grounded `barrel` archetype to `object_dimensions.json` (cooper's cask ~0.5 m dia × 0.9 m) |
 | counter | counter | counter_kitchen | **no_metrics** | recompute the `.metrics.json` sidecar for `counter.voxel` |
+| bench | bench_wood | bench | **no_checkable_dims** | the `bench` canon has only `seat_top`/`seat_depth`/`length_min` — add overall `height`/`width`/`depth` (or accept it's unmeasurable) |
 | chest | chest_closed | chest | **out_of_tolerance** | actual 1×1×1 cube vs canon coffer 1.2 w × 0.55 d × 0.7 h — regenerate as a proper chest shape |
 | fireplace | fireplace | hearth | **out_of_tolerance** | actual 3×2×1 vs hearth canon 1.5 w × 1.2 h × 0.6 d — 2× oversized, regenerate |
 | table | table_wood | table_dining | **out_of_tolerance** | depth 1.0 vs canon 0.84 (minor; tol 0.05) |

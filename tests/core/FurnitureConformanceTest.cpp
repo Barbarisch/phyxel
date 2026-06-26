@@ -69,6 +69,20 @@ TEST(FurnitureConformanceTest, FlagsNoCanonArchetype) {
     EXPECT_EQ(archetypeForType("bed"), "bed_single");
 }
 
+// "ok" must mean MEASURED-and-conforms, never "nothing to check". An archetype with only FEATURE dims
+// (seat_top/length_min, no height/width/depth/length) gives no overall-size key, so the verdict is
+// no_checkable_dims — not a vacuous "ok". (The real `bench` canon is exactly this shape.)
+TEST(FurnitureConformanceTest, FeatureOnlyArchetypeIsNotVacuouslyOk) {
+    DimensionCanonRegistry canon;
+    canon.loadFromJson(nlohmann::json::parse(R"({
+        "bench": {"category":"furniture","seat_top":0.45,"seat_depth":0.4,"length_min":1.2,"tol":0.15}
+    })"));
+    auto present = [](const std::string&) -> AssetExtents { return {2.0, 1.0, 1.0, true}; };
+    const auto st = statusOf(checkFurnitureConformance(canon, present), "bench");
+    EXPECT_EQ(st, "no_checkable_dims") << "a feature-only archetype must not read as 'ok'";
+    EXPECT_NE(st, "ok");
+}
+
 // THE TRACKER on the REAL library: load real object_dimensions.json + real .metrics.json, audit every
 // furniture type, PRINT the non-conforming ones (what to regenerate), and assert the detector surfaces
 // the two KNOWN gaps (barrel has no canon; counter has no metrics) so the real audit isn't vacuous.
@@ -109,7 +123,14 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
         std::cout << "  " << f.type << " (" << f.templateName << ") [" << f.archetype << "]: "
                   << f.status << (f.detail.empty() ? "" : " — " + f.detail) << "\n";
 
-    // Teeth: the known gaps must be surfaced (proves the real audit measures, not passes blindly).
-    EXPECT_EQ(statusOf(rep, "barrel"), "no_canon")   << "barrel has no object_dimensions archetype";
-    EXPECT_EQ(statusOf(rep, "counter"), "no_metrics") << "counter template has no .metrics.json";
+    // Teeth + REGRESSION GUARD: pin the FULL current conformance verdict, so the regenerate-list can't
+    // silently drift — fixing an asset (or a new one drifting) flips a status and fails this test,
+    // prompting an update here + in AssetConformance.md.
+    EXPECT_EQ(statusOf(rep, "bed"),       "ok");                 // bed_single conforms
+    EXPECT_EQ(statusOf(rep, "barrel"),    "no_canon");           // no object_dimensions archetype
+    EXPECT_EQ(statusOf(rep, "counter"),   "no_metrics");         // no .metrics.json sidecar
+    EXPECT_EQ(statusOf(rep, "bench"),     "no_checkable_dims");  // canon has only feature dims
+    EXPECT_EQ(statusOf(rep, "chest"),     "out_of_tolerance");   // 1x1x1 cube vs coffer canon
+    EXPECT_EQ(statusOf(rep, "fireplace"), "out_of_tolerance");   // 3x2x1 vs hearth canon
+    EXPECT_EQ(statusOf(rep, "table"),     "out_of_tolerance");   // depth 1.0 vs 0.84
 }

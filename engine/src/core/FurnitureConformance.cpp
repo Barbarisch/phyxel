@@ -69,6 +69,16 @@ FurnitureConformanceReport checkFurnitureConformance(
             f.detail = "template '" + f.templateName + "' has no .metrics.json sidecar";
             rep.findings.push_back(f); continue;
         }
+        // If the archetype declares NO overall-size key, "ok" would be a vacuous pass — we measured
+        // nothing. Flag it: the canon needs a bounding-box dim (or the asset can't be size-validated).
+        const bool hasBoundingKey = arch->has("height") || arch->has("width") || arch->has("depth")
+                                 || arch->has("length") || arch->has("diameter");
+        if (!hasBoundingKey) {
+            f.status = "no_checkable_dims";
+            f.detail = "canon '" + f.archetype + "' has only feature dims (no height/width/depth/"
+                       "length) — overall size can't be measured against canon";
+            rep.findings.push_back(f); continue;
+        }
         std::string detail;
         const double horiz = std::max(e.width, e.depth);
         cmpDim(*arch, "height", e.height, detail);
