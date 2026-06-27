@@ -43,6 +43,7 @@ struct PathPlan {
                                    ///< Populated for switchbacks; empty for the 1-wide straight ramp
                                    ///< (caller carves the centre line to width).
     int maxRiser = 0;              ///< largest |step| along the ROUTE (`cells`) (<= step-up when ok)
+    int maxCutMicro = 0;           ///< deepest cut (terrain - surface) for a terrain-following path (0 otherwise)
 };
 
 /// Grade a STRAIGHT run (4-connected micro line) from `startMicro` to `goalMicro` over terrain into a
@@ -67,6 +68,17 @@ PathPlan planStraightRamp(const std::function<int(int, int)>& groundMicroAt,
 PathPlan planSwitchback(const std::function<int(int, int)>& groundMicroAt,
                         glm::ivec3 startMicro, int targetSurfaceY, const AgentBox& box,
                         int flightRunMicro, int lateralBudgetMicro);
+
+/// TERRAIN-FOLLOWING grade: a path that HUGS the ground instead of cutting a straight line between the
+/// anchor heights. Samples the terrain along the route and produces a walkable surface that follows it,
+/// regrading only the cube-steps that exceed the step-up: the result is a slope-limited LOWER envelope
+/// of the terrain (S[i] = min_j terrain[j] + |i-j|*gradeCap), so every riser <= gradeCap AND the path
+/// stays AT or just below the terrain (a shallow cut, no deep fill/causeway). This is the right model
+/// for settlement paths over rolling hills — unlike planStraightRamp, which interpolates the endpoints
+/// linearly and dives under intervening terrain. `gradeCap = step-up/halfWidth` (footprint flushness).
+/// Reports the deepest cut (terrain - surface) so the caller can reject would-be tunnels. Deterministic.
+PathPlan planTerrainPath(const std::function<int(int, int)>& groundMicroAt,
+                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box);
 
 // --- Settlement path network (3c) -------------------------------------------------------------------
 

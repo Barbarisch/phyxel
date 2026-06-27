@@ -170,27 +170,69 @@ PathPlan planSwitchback(const std::function<int(int, int)>& /*groundMicroAt*/,
 }
 
 namespace {
-// Prepend/append a flat apron (depth `apron`) at each end of a graded ramp, at the end's height, so the
-// ramp is enterable from FLAT ground at its anchors (a path has a flat threshold at a door). Without it
-// the footprint, standing at the door height, reaches halfWidth into the immediately-climbing ramp and
-// can't settle. Extends opposite the first step at the front, and along the last step at the back.
-void addFlatAprons(PathPlan& p, int apron) {
-    const int n = static_cast<int>(p.cells.size());
-    if (n < 2 || apron < 1) return;
-    const int fdx = (p.cells[1].x > p.cells[0].x) - (p.cells[1].x < p.cells[0].x);
-    const int fdz = (p.cells[1].z > p.cells[0].z) - (p.cells[1].z < p.cells[0].z);
-    const int fy = p.cells.front().surfaceY;
-    const int bdx = (p.cells[n - 1].x > p.cells[n - 2].x) - (p.cells[n - 1].x < p.cells[n - 2].x);
-    const int bdz = (p.cells[n - 1].z > p.cells[n - 2].z) - (p.cells[n - 1].z < p.cells[n - 2].z);
-    const int by = p.cells.back().surfaceY;
+// 4-connected straight-ish micro line from a to b (Bresenham staircase) — the cells a path runs through.
+std::vector<PathCell> buildLine(glm::ivec3 a, glm::ivec3 b) {
     std::vector<PathCell> out;
-    out.reserve(n + 2 * apron);
-    for (int k = apron; k >= 1; --k) out.push_back({p.cells.front().x - fdx * k, p.cells.front().z - fdz * k, fy});
-    for (const auto& c : p.cells) out.push_back(c);
-    for (int k = 1; k <= apron; ++k) out.push_back({p.cells.back().x + bdx * k, p.cells.back().z + bdz * k, by});
-    p.cells = std::move(out);
+    const int sx = (b.x > a.x) - (b.x < a.x), sz = (b.z > a.z) - (b.z < a.z);
+    const int adx = std::abs(b.x - a.x), adz = std::abs(b.z - a.z);
+    int cx = a.x, cz = a.z, dox = 0, doz = 0;
+    out.push_back({cx, cz, 0});
+    while (cx != b.x || cz != b.z) {
+        bool stepX;
+        if (cx == b.x) stepX = false;
+        else if (cz == b.z) stepX = true;
+        else stepX = (static_cast<long>(dox + 1) * adz <= static_cast<long>(doz + 1) * adx);
+        if (stepX) { cx += sx; ++dox; } else { cz += sz; ++doz; }
+        out.push_back({cx, cz, 0});
+    }
+    return out;
 }
 }  // namespace
+
+PathPlan planTerrainPath(const std::function<int(int, int)>& groundMicroAt,
+                         glm::ivec3 startMicro, glm::ivec3 goalMicro, const AgentBox& box) {
+    PathPlan p;
+    p.cells = buildLine(startMicro, goalMicro);
+    const int N = static_cast<int>(p.cells.size());
+    if (N < 2 || !groundMicroAt) { p.reason = "degenerate route"; return p; }
+    const int cap = std::max(1, box.maxStepUpMicro / std::max(1, box.halfWidthMicro));  // grade cap (flushness)
+
+    // Sample terrain along the route; the endpoints ARE the door grades.
+    std::vector<int> terr(N);
+    for (int i = 0; i < N; ++i) terr[i] = groundMicroAt(p.cells[i].x, p.cells[i].z);
+    terr[0] = startMicro.y;
+    terr[N - 1] = goalMicro.y;
+
+    // Reachability TUBE: at cell i the surface must be within `cap` per cell of BOTH pinned endpoints, so
+    // lo[i] = max(startY - i*cap, goalY - (N-1-i)*cap), hi[i] = the symmetric upper bound. If the tube is
+    // empty anywhere, no slope-limited surface connects the doors over this run (too steep / too short).
+    const long S0 = startMicro.y, SG = goalMicro.y;
+    for (int i = 0; i < N; ++i) {
+        const long lo = std::max(S0 - static_cast<long>(i) * cap, SG - static_cast<long>(N - 1 - i) * cap);
+        const long hi = std::min(S0 + static_cast<long>(i) * cap, SG + static_cast<long>(N - 1 - i) * cap);
+        if (lo > hi) { p.ok = false; p.reason = "terrain too steep to reach a door at grade"; p.cells.clear(); return p; }
+    }
+
+    // Walk the tube greedily toward the terrain: each cell is the terrain height clamped into the tube AND
+    // to <= cap from the previous cell. This HUGS the ground (cut through bulges, fill to a perched door),
+    // minimising cut/fill, and the endpoints are pinned (the tube collapses to the door grade at each end).
+    auto clampL = [](long v, long lo, long hi) { return v < lo ? lo : (v > hi ? hi : v); };
+    p.maxRiser = 0; p.maxCutMicro = 0;
+    long prev = S0;
+    for (int i = 0; i < N; ++i) {
+        const long lo = std::max(S0 - static_cast<long>(i) * cap, SG - static_cast<long>(N - 1 - i) * cap);
+        const long hi = std::min(S0 + static_cast<long>(i) * cap, SG + static_cast<long>(N - 1 - i) * cap);
+        long s = clampL(terr[i], lo, hi);
+        if (i > 0) s = clampL(s, prev - cap, prev + cap);  // enforce the walkable riser
+        s = clampL(s, lo, hi);                              // stay reachable (tube is cap-consistent)
+        p.cells[i].surfaceY = static_cast<int>(s);
+        if (i > 0) p.maxRiser = std::max(p.maxRiser, static_cast<int>(std::labs(s - prev)));
+        p.maxCutMicro = std::max(p.maxCutMicro, static_cast<int>(terr[i] - s));
+        prev = s;
+    }
+    p.ok = true;
+    return p;
+}
 
 SettlementPaths planSettlementPaths(const std::vector<DoorAnchor>& doors,
                                     const std::function<int(int, int)>& groundMicroAt,
@@ -218,8 +260,13 @@ SettlementPaths planSettlementPaths(const std::vector<DoorAnchor>& doors,
         // grade the tree edge (parent[u] -> u) into a walkable ramp over the terrain
         const DoorAnchor& a = doors[parent[u]];
         const DoorAnchor& b = doors[u];
-        PathPlan ramp = planStraightRamp(groundMicroAt, {a.x, a.surfaceY, a.z}, {b.x, b.surfaceY, b.z}, box);
-        if (ramp.ok) { addFlatAprons(ramp, box.halfWidthMicro + 1); out.paths.push_back(std::move(ramp)); ++out.connected; }
+        // Terrain-FOLLOWING grade (hugs the ground; shallow cut) — the right model for surface paths over
+        // rolling hills. (planStraightRamp/planSwitchback stay for open-space connections.) No flat aprons:
+        // the terrain-following path already meets each door at its grade and follows the (flat) plot terrain
+        // into it; a flat apron would instead slam door-height across the NEXT edge's approach ramp at a
+        // shared door, manufacturing a step.
+        PathPlan ramp = planTerrainPath(groundMicroAt, {a.x, a.surfaceY, a.z}, {b.x, b.surfaceY, b.z}, box);
+        if (ramp.ok) { out.paths.push_back(std::move(ramp)); ++out.connected; }
         else out.failedEdges.emplace_back(parent[u], u);
         for (int j = 0; j < n; ++j)   // relax remaining doors against the newly added node
             if (!inTree[j] && hdist(u, j) < best[j]) { best[j] = hdist(u, j); parent[j] = u; }

@@ -109,6 +109,71 @@ TEST(PathPlannerTest, RampHonoursAnchorsAndStepUp) {
             << "riser at cell " << i << " exceeds step-up";
 }
 
+// ============================================================================
+// Terrain-following grade (3c redesign) — a settlement path must HUG the ground, not cut a straight
+// line between the anchor heights and dive under the hill between them. planTerrainPath follows a
+// terraced hill with only a shallow step-smoothing cut, where planStraightRamp would tunnel through it.
+// ============================================================================
+namespace {
+// A terraced HILL rising in whole-cube (9-micro) steps to a mid peak then back down; doors sit at the
+// equal-height feet. Bare terrain is impassable (9-micro risers > step-up).
+struct Hill {
+    int base, x0, x1;
+    int at(int x, int /*z*/) const {
+        if (x <= x0 || x >= x1) return base;
+        const int up = (x - x0) / 9, down = (x1 - x) / 9;
+        return base + 9 * std::min(up, down);
+    }
+};
+// Cut-stamp occupancy: corridor cells (perpendicular ±hw at exact surfaceY) REPLACE the column (solid
+// below S, terrain above removed); off-corridor is bare terrain.
+struct HillStamp {
+    Hill t; std::unordered_map<long long,int> cor;
+    static long long key(int x,int z){ return (static_cast<long long>(x)<<32)^(z&0xffffffffLL); }
+    void stamp(const PathPlan& p,int hw){
+        const auto& cs=p.cells;
+        for(size_t i=0;i<cs.size();++i){
+            bool tX=false,tZ=false;
+            if(i+1<cs.size()){tX|=cs[i+1].x!=cs[i].x;tZ|=cs[i+1].z!=cs[i].z;}
+            if(i>0){tX|=cs[i].x!=cs[i-1].x;tZ|=cs[i].z!=cs[i-1].z;}
+            if(!tX&&!tZ)tX=true;
+            if(tX)for(int d=-hw;d<=hw;++d)cor[key(cs[i].x,cs[i].z+d)]=cs[i].surfaceY;
+            if(tZ)for(int d=-hw;d<=hw;++d)cor[key(cs[i].x+d,cs[i].z)]=cs[i].surfaceY;
+        }
+    }
+    bool occ(int x,int y,int z)const{ auto it=cor.find(key(x,z)); return y<(it!=cor.end()?it->second:t.at(x,z)); }
+};
+int maxCutVsTerrain(const PathPlan& p,const Hill& t){ int m=0; for(const auto&c:p.cells) m=std::max(m,t.at(c.x,c.z)-c.surfaceY); return m; }
+}  // namespace
+
+TEST(PathPlannerTest, TerrainPathHugsHillWhereStraightTunnels) {
+    const Hill t{18, 10, 90};                       // terraced hill, peak ~+36 micro at x=50, feet at 18
+    const glm::ivec3 start(10, 18, 11), goal(90, 18, 11);
+    auto ground = [&](int x, int z) { return t.at(x, z); };
+
+    const PathPlan tf = planTerrainPath(ground, start, goal, kAgent);
+    ASSERT_TRUE(tf.ok) << tf.reason;
+    EXPECT_LE(tf.maxRiser, kAgent.maxStepUpMicro);
+    // Hugs the terrain: cut is only local step-smoothing (within ~one cube), not a tunnel.
+    EXPECT_LE(tf.maxCutMicro, 9) << "terrain-following path cut too deep — not hugging the surface";
+
+    // CONTRAST: the linear ramp dives under the hill (cut ~= the hill height) — the bug this fixes.
+    const PathPlan lin = planStraightRamp(ground, start, goal, kAgent);
+    ASSERT_TRUE(lin.ok) << lin.reason;
+    EXPECT_GE(maxCutVsTerrain(lin, t), 30) << "linear ramp should tunnel through the hill (the contrast)";
+    EXPECT_LT(tf.maxCutMicro, maxCutVsTerrain(lin, t) / 2) << "terrain-following must cut far less than linear";
+
+    // TEETH: bare terraced hill blocks travel (9-micro risers); the graded path makes it walkable.
+    const glm::ivec3 lo(0,0,0), hi(100,80,30);
+    TraversalProbe bare([&](int x,int y,int z){ return y < t.at(x,z); }, kAgent);
+    ASSERT_FALSE(bare.reachable(start, goal-glm::ivec3(2,1,2), goal+glm::ivec3(2,1,2), lo, hi))
+        << "bare terraced hill must block the far foot (else no teeth)";
+    HillStamp w{t,{}}; w.stamp(tf, kAgent.halfWidthMicro);
+    TraversalProbe walk([&](int x,int y,int z){ return w.occ(x,y,z); }, kAgent);
+    EXPECT_TRUE(walk.reachable(start, goal-glm::ivec3(2,1,2), goal+glm::ivec3(2,1,2), lo, hi))
+        << "the terrain-following path should be walkable foot-to-foot over the hill";
+}
+
 // TEETH: a run too SHORT to absorb the elevation at <= step-up must be reported (ok=false), not faked
 // as a walkable path. 4-cell run, 18-micro rise needs >= 5 steps -> infeasible.
 TEST(PathPlannerTest, TooShortRunReportsTooSteep) {
