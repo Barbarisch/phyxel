@@ -22,6 +22,9 @@ public:
     void cleanup();
     void resize(uint32_t width, uint32_t height);
 
+    // Background sky colour the scene pass clears to (driven by DayNightCycle). Default day blue.
+    void setSkyColor(const glm::vec3& c) { m_skyColor = c; }
+
     // Render Pass Management
     void beginSceneRenderPass(VkCommandBuffer commandBuffer);
     void endSceneRenderPass(VkCommandBuffer commandBuffer);
@@ -63,6 +66,7 @@ private:
     Vulkan::VulkanDevice* device;
     uint32_t width;
     uint32_t height;
+    glm::vec3 m_skyColor{0.45f, 0.65f, 0.95f};  // scene-pass clear colour (day blue default)
 
     // Offscreen Resources
     VkImage offscreenImage = VK_NULL_HANDLE;

@@ -682,7 +682,7 @@ void PostProcessor::beginSceneRenderPass(VkCommandBuffer commandBuffer) {
     renderPassInfo.renderArea.extent = {width, height};
 
     std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    clearValues[0].color = {{m_skyColor.r, m_skyColor.g, m_skyColor.b, 1.0f}};  // sky background
     clearValues[1].depthStencil = {1.0f, 0};
 
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());

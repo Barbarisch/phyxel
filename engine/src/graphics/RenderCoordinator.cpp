@@ -1047,6 +1047,12 @@ void RenderCoordinator::drawFrame() {
             sunColor = m_dayNightCycle.getSunColor();
             ambientLightStrength = m_dayNightCycle.getAmbientStrength();
         }
+        // Drive the background sky colour: from the cycle when enabled, else a default day blue
+        // (so the scene never clears to black). Shows behind the world in editor + standalone.
+        if (postProcessor) {
+            postProcessor->setSkyColor(m_dayNightCycle.isEnabled()
+                ? m_dayNightCycle.getSkyColor() : glm::vec3(0.45f, 0.65f, 0.95f));
+        }
     }
 
     // Fit the shadow frustum to the camera's VIEW FRUSTUM (bounding-sphere fit), capped at a max
