@@ -75,6 +75,25 @@ TEST(PathPlannerTest, StraightRampMakesCliffWalkable) {
         << "the graded ramp should be walkable end to end";
 }
 
+// TEETH (grading does the work, not the headroom carve): take the REAL plan but flatten every cell's
+// surface to the start elevation, then stamp+walk. The carved corridor still tunnels through the cliff,
+// but the agent never gains elevation, so it cannot reach the high-plateau goal box. Proves the probe
+// success in StraightRampMakesCliffWalkable depends on the grader's surfaceY values, not the tunnel.
+TEST(PathPlannerTest, FlatStampDoesNotReachRaisedGoal) {
+    const Cliff t{27, 45, 40};
+    const int zc = 11;
+    const glm::ivec3 start(12, t.Hlow, zc), goal(68, t.Hhigh, zc);
+    const glm::ivec3 lo(0, 0, 0), hi(80, 80, 22);
+    auto ground = [&](int x, int z) { return t.at(x, z); };
+    PathPlan plan = planStraightRamp(ground, start, goal, kAgent);
+    ASSERT_TRUE(plan.ok) << plan.reason;
+    for (auto& c : plan.cells) c.surfaceY = start.y;   // strip the grading, keep the route + carve
+    const Stamped s = stamp(t, plan, zc);
+    TraversalProbe walk([&](int x, int y, int z) { return s.occ(x, y, z); }, kAgent);
+    EXPECT_FALSE(walk.reachable(start, goal - glm::ivec3(2, 1, 2), goal + glm::ivec3(2, 1, 2), lo, hi))
+        << "an ungraded (flat) path reached the raised goal — the cliff proof rests on the carve, not the grade";
+}
+
 // Endpoints keep their anchor grade, and every riser is within the step-up (the walkability invariant).
 TEST(PathPlannerTest, RampHonoursAnchorsAndStepUp) {
     const Cliff t{27, 45, 40};
