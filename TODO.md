@@ -183,3 +183,26 @@
 
 - [x] **39. Day/Night cycle**
   - Time-based sun animation (direction, color, ambient). Integrated into RenderCoordinator UBO pipeline. 2 MCP tools. 18 tests. Commit `4b555ba`.
+
+## Deferred: Render Optimization for Microcube-Dense Worlds
+
+- [ ] **40. Greedy-mesh subcube/microcube faces (microcube-density render)**
+  - **Why deferred:** user wants "better than Minecraft" microcube fidelity, but render is the wall.
+    MEASURED (DEBUG, settlement on Perlin hills): terrain only = 7,892 visible face instances; +20
+    subcube buildings +21,745 path microcubes = **3,424,612 face instances**, 59 ms render (~15 FPS,
+    STUTTER). Placement is fine (~60 µs/microcube) — RENDER is the bottleneck.
+  - **Root cause:** the static renderer greedy-merges CUBE faces (instance bits 20-31 = merged-rect
+    extents) but NOT subcube/microcube faces (those bits carry the grid position for sub-tile UV — no
+    free bits for a merge extent). So dense sub/micro surfaces = 1 instance/face.
+  - **Plan + encoding constraint + ranked options + red-before-green validation:** `docs/RenderOptimization.md`.
+    (1) greedy-merge sub/micro same-material runs [needs wider instance format OR a "full-tile UV" mode
+    for same-material runs like paths]; (2) full-tile-UV merge subset (cheap, helps paths/walls);
+    (3) distance LOD. Validation: face count must drop >=10x, + a Release-build measurement.
+  - **Instrumented:** `RenderStats.totalVisibleFaces` -> `GET /api/render/stats` `total_visible_faces`.
+  - **Until then:** keep generation at regular cube/subcube resolution; don't pursue microcube density.
+
+- [ ] **41. Faithful path cut removal + runtime walkability probe (low priority)**
+  - build_settlement paves terrain-following paths (level caps + fill); ~6% "cut" cells at steep
+    terrace transitions stay unpaved (terrain bulge remains). Deemed acceptable (rough patches on a
+    real path are fine). If revisited: `removeMicrocube` above S at cut cells + a TraversalProbe over
+    the STAMPED chunks (live L3). See `docs/structure-generation/ValidationLedger.md` row 24.
