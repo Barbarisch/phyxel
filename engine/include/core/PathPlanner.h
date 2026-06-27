@@ -34,11 +34,15 @@ struct PathCell {
 struct PathPlan {
     bool ok = false;
     std::string reason;            ///< why it failed (e.g. "too steep for a straight run")
-    std::vector<PathCell> cells;   ///< ordered start -> goal (centre line; the walk route)
-    std::vector<PathCell> surface; ///< full walkable ground (flight bands + flat landing squares); the
-                                   ///< exact cells to fill. Populated for switchbacks; empty for the
-                                   ///< 1-wide straight ramp (caller carves the centre line to width).
-    int maxRiser = 0;              ///< largest |surface step| along the route (<= step-up when ok)
+    std::vector<PathCell> cells;   ///< ordered start -> goal (centre line; THE walk route). The step-up
+                                   ///< invariant (maxRiser) is measured along THIS, cell to cell.
+    std::vector<PathCell> surface; ///< the exact ground cells to FILL (flight bands + flat landings +
+                                   ///< aprons). NOT uniformly step-bounded: adjacent cells of different
+                                   ///< flights differ by a flight's climb — intentional RETAINING WALLS
+                                   ///< the character never steps across (it detours via the landings).
+                                   ///< Populated for switchbacks; empty for the 1-wide straight ramp
+                                   ///< (caller carves the centre line to width).
+    int maxRiser = 0;              ///< largest |step| along the ROUTE (`cells`) (<= step-up when ok)
 };
 
 /// Grade a STRAIGHT run (4-connected micro line) from `startMicro` to `goalMicro` over terrain into a
