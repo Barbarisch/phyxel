@@ -67,6 +67,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
 #include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
+#include "core/FenceBuilder.h"        // build_settlement: thin grounded typed fences (picket/privacy)
+#include "core/DimensionCanon.h"      // build_settlement: grounded fence dims (object_dimensions.json)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
@@ -10336,32 +10338,69 @@ void Application::registerSettlementCommands() {
                          {"fill_microcubes", placedFill}, {"cut_cells_unpaved", cut},
                          {"stamp_ms", static_cast<long>(stampMs)}};
 
-            // FENCES + YARDS (#39): enclose each plot (parcel) with a Log fence; the gate faces the
-            // settlement centre (toward the path network). The yard is the plot minus the building.
-            // Cubes (not microcubes) so the fence greedy-merges and stays render-cheap.
+            // FENCES + YARDS (#39, GROUNDED): a THIN typed fence (not a 1 m cube wall) along each parcel
+            // edge, built from the dimension canon (object_dimensions.json: fence_picket height 0.9 m,
+            // post_spacing 1.8 m, 2 rails) as posts + rails + pickets at MICROCUBE resolution (~0.11 m
+            // thick). Gate (a gap) faces the settlement centre / path network.
+            Core::DimensionCanonRegistry fenceCanon;
+            fenceCanon.loadFromFile("resources/object_dimensions.json");
+            const Core::FenceType fenceType = Core::FenceType::Picket;
+            const Core::ArchetypeDims* fd = fenceCanon.get(Core::fenceArchetype(fenceType));
+            const int fH  = fd ? std::max(1, (int)std::lround(fd->value("height") * 9.0)) : 8;       // ~0.9 m
+            const int fSp = fd ? std::max(1, (int)std::lround(fd->value("post_spacing") * 9.0)) : 16; // ~1.8 m
+            const int fRails = fd ? (int)fd->value("rails") : 2;
+            const int gateW = 2;  // cubes
             double scx = 0, scz = 0;
             for (const auto& d : doorCenters) { scx += d.x; scz += d.z; }
             if (!doorCenters.empty()) { scx /= doorCenters.size(); scz /= doorCenters.size(); }
-            long fencePosts = 0; int parcels = 0;
+            std::unordered_map<long long, int> gtMemo;   // memoise terrain top per cube column (groundTopAt is a scan)
+            auto gtAt = [&](int cx, int cz) -> int {
+                const long long k = (static_cast<long long>(cx) << 32) ^ (cz & 0xffffffffLL);
+                auto it = gtMemo.find(k);
+                if (it != gtMemo.end()) return it->second;
+                const int v = groundTopAt(cx, cz); gtMemo[k] = v; return v;
+            };
+            auto fenceMicro = [&](int mx, int my, int mz) {
+                const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
+                const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
+                chunkManager->ensureChunkAt(cube);
+                return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+                    cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), "Log");
+            };
+            long fenceMicros = 0; int parcels = 0;
             for (const auto& pl : layout.plots) {
                 const Core::Rect& pr = pl.rect;
+                if (pr.w < 2 || pr.d < 2) continue;
                 const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
-                const char side = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
+                const char gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
                                                                               : (scz > pcz ? 'N' : 'S');
-                const Core::FencePlan fp = Core::planParcelFence(pr, side, 2);
-                if (!fp.ok) continue;
                 ++parcels;
-                for (const auto& post : fp.posts) {
-                    const int wx = ox + post.first, wz = oz + post.second;
-                    const glm::ivec3 cell(wx, groundTopAt(wx, wz) + 1, wz);   // 1-cube fence on the ground
-                    chunkManager->ensureChunkAt(cell);
-                    if (chunkManager->m_voxelModificationSystem.addCubeWithMaterial(cell, "Log")) ++fencePosts;
-                }
+                // stamp one parcel edge: run along an axis at a fixed boundary cube row; leave the gate gap.
+                auto stampEdge = [&](bool alongX, int fixedCube, int runFrom, int runTo, char thisSide) {
+                    const int runLenMicro = (runTo - runFrom) * 9;
+                    const Core::FenceProfile prof = Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType);
+                    if (!prof.ok) return;
+                    int gLo = -1, gHi = -1;
+                    if (thisSide == gate) { const int gs = ((runTo - runFrom) - gateW) / 2; gLo = gs * 9; gHi = (gs + gateW) * 9; }
+                    for (const auto& c : prof.cells) {
+                        if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
+                        const int wx = alongX ? (ox + runFrom) * 9 + c.u : (ox + fixedCube) * 9 + c.w;
+                        const int wz = alongX ? (oz + fixedCube) * 9 + c.w : (oz + runFrom) * 9 + c.u;
+                        const int base = (gtAt(fl9(wx), fl9(wz)) + 1) * 9;     // top face of terrain
+                        if (fenceMicro(wx, base + c.y, wz)) ++fenceMicros;
+                    }
+                };
+                stampEdge(true,  pr.z,        pr.x, pr.x1(), 'S');
+                stampEdge(true,  pr.z1() - 1, pr.x, pr.x1(), 'N');
+                stampEdge(false, pr.x,        pr.z, pr.z1(), 'W');
+                stampEdge(false, pr.x1() - 1, pr.z, pr.z1(), 'E');
             }
             chunkManager->rebuildOccupancyFromChunks();
-            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fencePosts << " posts");
+            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fenceMicros
+                         << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
             pathsJson["parcels"] = parcels;
-            pathsJson["fence_posts"] = fencePosts;
+            pathsJson["fence_micros"] = fenceMicros;
+            pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
         }
 
         r = {{"success", true},
