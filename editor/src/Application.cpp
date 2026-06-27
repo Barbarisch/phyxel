@@ -66,6 +66,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
+#include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
@@ -10213,6 +10214,7 @@ void Application::registerSettlementCommands() {
         }
 
         nlohmann::json queued = nlohmann::json::array();
+        std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
         for (size_t i = 0; i < buildings.size(); ++i) {
             const auto& b = buildings[i];
             const int bx = ox + b.footprint.x, bz = oz + b.footprint.z;
@@ -10239,12 +10241,32 @@ void Application::registerSettlementCommands() {
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
                               {"typology", btyp}});
+            doorCenters.push_back(glm::ivec3(bx + b.footprint.w / 2, by, bz + b.footprint.d / 2));  // path anchor
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
+
+        // PATH NETWORK (3c): connect the buildings into a walkable graded network over the live terrain.
+        // Anchors are each building's footprint-centre at its seated ground (micro = cube*9). The planner
+        // (MST + grade each edge to <= step-up risers) decides the routes; edges too steep for a straight
+        // ramp are reported, not dropped. (Voxel stamping of the surfaces: sub-slice 2.)
+        nlohmann::json pathsJson = nlohmann::json::object();
+        if (terrain && chunkManager && doorCenters.size() >= 2) {
+            std::vector<Core::DoorAnchor> doors;
+            for (const auto& d : doorCenters) doors.push_back({d.x * 9, d.z * 9, d.y * 9});
+            const Core::AgentBox abox;  // defaults match the engine character (step-up 4 micro)
+            auto groundMicro = [&](int mx, int mz) { return groundTopAt(mx / 9, mz / 9) * 9; };
+            const Core::SettlementPaths net = Core::planSettlementPaths(doors, groundMicro, abox);
+            LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
+                         << " edges graded, " << net.failedEdges.size() << " too steep");
+            pathsJson = {{"edges", net.edges}, {"connected", net.connected},
+                         {"failed", static_cast<int>(net.failedEdges.size())}};
+        }
+
         r = {{"success", true},
              {"settlement", {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
                              {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}}},
+             {"paths", pathsJson},
              {"queued_builds", queued}};
     });
 }
