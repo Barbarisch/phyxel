@@ -74,7 +74,7 @@ floor scan, paths…).
 | 21 | zone_parcel | M | L2 | L0 | 1/1/1 = **3** | L0→L2: parcels don't overlap, fit the site |
 | 22 | place_fence | M | L2 | L0 | 0/1/1 = **2** | L0→L2: encloses, no gaps a character slips through |
 | 23 | place_boundary_wall | M | L2 | L0 | 0/1/1 = **2** | L0→L2 |
-| 24 | place_path | M | **L3** | L0 | 2/2/1 = **5** | **L0→L3: walkable path connects entry ↔ gate (TraversalProbe)** |
+| 24 | place_path | M | **L3** | 🟡 **L3 (straight ramp)** | 2/2/1 = **5** | `PathPlanner::planStraightRamp` grades a straight run into ≤step-up risers; **`PathPlannerTest` L3** (TraversalProbe walks the stamped ramp; cliff teeth + too-short reported, red-before-green). Owed: switchbacks for over-steep (3b), multi-building network + `build_settlement` wiring (3c) |
 | 25 | place_garden | M | L1 | L0 | 0/0/1 = **1** | L0→L1 |
 | 26 | place_farm | M | L2 | L0 | 1/0/1 = **2** | L0→L2: plots fit, don't overlap structures |
 | 27 | place_outbuildings | M | L2 | L0 | 1/1/1 = **3** | L0→L2 (recurse the building gates per outbuilding) |

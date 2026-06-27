@@ -22,7 +22,13 @@ around the garden beds.
 G (access — a real route to the door), L (path/approach), P.
 
 ## Engine capability needed
-- Path-surface paint — ✅; routing + grade/step logic — ⚠️.
+- Path-surface paint — ✅; routing + grade/step logic — 🟡 **started**: `PathPlanner::planStraightRamp`
+  (`engine/core/PathPlanner`) grades a STRAIGHT run between two anchors over terrain into a walkable
+  ramp (each riser ≤ the character step-up, 4 micro), and reports `ok=false` when the run is too short
+  to absorb the grade (needs switchbacks). L3-proven: `PathPlannerTest` stamps the ramp and a
+  `TraversalProbe` walks it; teeth = a bare 18-micro cliff is unreachable, a too-short run is reported
+  not faked. **Still ⚠️:** switchbacks/contour routing for over-steep connections (increment 3b), and
+  wiring the network into `build_settlement` (increment 3c).
 
 ## Failure modes
 - No path at all (mud to the door).
