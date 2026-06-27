@@ -35,6 +35,11 @@ int columnsAtHeight(const FenceProfile& p, int y, int runLen) {
     std::set<int> us; for (const auto& c : p.cells) if (c.y == y && c.u >= 0 && c.u < runLen) us.insert(c.u);
     return static_cast<int>(us.size());
 }
+// thickness MEASURED from the emitted cells (across-run extent), not the echoed thickMicro field.
+int measuredThickness(const FenceProfile& p) {
+    int maxW = -1; for (const auto& c : p.cells) maxW = std::max(maxW, c.w);
+    return maxW + 1;
+}
 }  // namespace
 
 // A picket fence is THIN and ~0.9 m tall with posts at ~1.8 m — measured against the canon.
@@ -49,8 +54,12 @@ TEST(FenceProfileTest, PicketIsThinAndGroundedToCanon) {
     ASSERT_TRUE(p.ok);
 
     // THE point: a fence is THIN, not a 1 m (9-micro) cube wall.
-    EXPECT_LE(p.thickMicro, 2) << "fence is " << p.thickMicro << " micro thick — a wall, not a fence";
-    EXPECT_LT(p.thickMicro, 9) << "fence is a full cube thick";
+    // Measured from the EMITTED cells (max c.w extent), NOT the echoed p.thickMicro field —
+    // an impl that emits w=0..8 while leaving p.thickMicro=1 must still fail this.
+    const int actualThick = measuredThickness(p);
+    EXPECT_LE(actualThick, 2) << "fence is " << actualThick << " micro thick (measured) — a wall, not a fence";
+    EXPECT_LT(actualThick, 9) << "fence is a full cube thick (measured)";
+    EXPECT_EQ(p.thickMicro, actualThick) << "reported thickMicro disagrees with the emitted geometry";
     // grounded height (~0.9 m), not 1 m or 1.6 m
     EXPECT_EQ(p.heightMicro, h) << "picket height not grounded to the canon (0.9 m)";
     EXPECT_EQ(h, 8);  // sanity: 0.9 m -> 8 micro
@@ -58,6 +67,18 @@ TEST(FenceProfileTest, PicketIsThinAndGroundedToCanon) {
     // posts at the grounded spacing: full-height columns at u=0 and u≈post_spacing
     EXPECT_TRUE(cellAt(p, 0, 0) && cellAt(p, 0, h - 1)) << "no post at the run start";
     EXPECT_TRUE(cellAt(p, sp, 0) && cellAt(p, sp, h - 1)) << "no post at one post_spacing";
+}
+
+// TEETH for the thinness assertion: if a profile is built thick (thickMicro=9, a cube wall), the
+// measured-from-cells thickness MUST come out 9 and trip the ≤2 bar. This is the red case the thin
+// assertion above is guarding against — proving that assertion can actually fail, not just echo "1".
+TEST(FenceProfileTest, ThickProfileMeasuresThick_SoThinBarHasTeeth) {
+    const FenceProfile wall = planFenceProfile(27, 8, 16, 2, FenceType::Picket, /*thickMicro=*/9);
+    ASSERT_TRUE(wall.ok);
+    const int actualThick = measuredThickness(wall);
+    EXPECT_EQ(actualThick, 9) << "a 9-thick profile didn't emit cells out to w=8";
+    EXPECT_GT(actualThick, 2) << "the thin bar can't distinguish a wall from a fence";
+    EXPECT_EQ(wall.thickMicro, actualThick) << "reported thickMicro disagrees with emitted geometry";
 }
 
 // Type changes the infill: picket has GAPS (spaced slats), privacy is SOLID close boards.
