@@ -18,6 +18,16 @@
 namespace Phyxel {
 namespace Vulkan {
 
+// Log (don't throw) on a non-success VkResult. Used to wrap setup/upload-time calls
+// (vkBindBufferMemory, vkAllocateCommandBuffers, vkBegin/EndCommandBuffer) that were
+// previously fire-and-forget — a failure there silently corrupted a resource. Preserves
+// existing control flow; only adds visibility. NOT for per-frame hot-loop calls.
+#define VK_LOG_IF_FAILED(call) do { \
+        VkResult vk_res_ = (call); \
+        if (vk_res_ != VK_SUCCESS) \
+            LOG_ERROR("Vulkan", "{} failed (VkResult {})", #call, static_cast<int>(vk_res_)); \
+    } while (0)
+
 VulkanDevice::VulkanDevice() {
     // Constructor - initialize everything to default state
 }
@@ -1417,7 +1427,7 @@ void VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
         throw std::runtime_error("Failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(device, buffer, bufferMemory, 0);
+    VK_LOG_IF_FAILED(vkBindBufferMemory(device, buffer, bufferMemory, 0));
 }
 
 void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -1428,19 +1438,19 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
     VkBufferCopy copyRegion{};
     copyRegion.size = size;
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-    vkEndCommandBuffer(commandBuffer);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(commandBuffer));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1834,19 +1844,19 @@ VkCommandBuffer VulkanDevice::beginSingleTimeCommands() {
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
     return commandBuffer;
 }
 
 void VulkanDevice::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-    vkEndCommandBuffer(commandBuffer);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(commandBuffer));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1931,13 +1941,13 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
     // Transition to transfer destination
     VkImageMemoryBarrier barrier{};
@@ -1982,7 +1992,7 @@ bool VulkanDevice::loadTextureAtlas(const std::string& atlasPath) {
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    vkEndCommandBuffer(commandBuffer);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(commandBuffer));
 
     // Submit command buffer
     VkSubmitInfo submitInfo{};
@@ -2053,12 +2063,12 @@ bool VulkanDevice::uploadTextureAtlasPixels(const uint8_t* pixels, int width, in
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer cmd;
-    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &cmd));
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(cmd, &beginInfo));
 
     // Barrier: undefined → transfer dst
     VkImageMemoryBarrier barrier{};
@@ -2089,7 +2099,7 @@ bool VulkanDevice::uploadTextureAtlasPixels(const uint8_t* pixels, int width, in
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    vkEndCommandBuffer(cmd);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(cmd));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2219,11 +2229,11 @@ bool VulkanDevice::uploadTextureArray(int target, const uint8_t* pixels, int tex
     allocInfo.commandPool = commandPool;
     allocInfo.commandBufferCount = 1;
     VkCommandBuffer cmd;
-    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &cmd));
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(cmd, &beginInfo));
 
     const uint32_t nLayers = static_cast<uint32_t>(layerCount);
 
@@ -2296,7 +2306,7 @@ bool VulkanDevice::uploadTextureArray(int target, const uint8_t* pixels, int tex
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    vkEndCommandBuffer(cmd);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(cmd));
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
@@ -2414,11 +2424,11 @@ bool VulkanDevice::uploadTextureArrayBC7(int target, const uint8_t* data, size_t
     allocInfo.commandPool = commandPool;
     allocInfo.commandBufferCount = 1;
     VkCommandBuffer cmd;
-    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+    VK_LOG_IF_FAILED(vkAllocateCommandBuffers(device, &allocInfo, &cmd));
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &beginInfo);
+    VK_LOG_IF_FAILED(vkBeginCommandBuffer(cmd, &beginInfo));
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -2456,7 +2466,7 @@ bool VulkanDevice::uploadTextureArrayBC7(int target, const uint8_t* data, size_t
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    vkEndCommandBuffer(cmd);
+    VK_LOG_IF_FAILED(vkEndCommandBuffer(cmd));
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
