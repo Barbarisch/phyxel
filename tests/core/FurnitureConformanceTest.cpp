@@ -133,4 +133,9 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     EXPECT_EQ(statusOf(rep, "counter"),   "no_metrics");         // no .metrics.json sidecar
     EXPECT_EQ(statusOf(rep, "bench"),     "no_checkable_dims");  // canon has only feature dims
     EXPECT_EQ(statusOf(rep, "table"),     "out_of_tolerance");   // depth 1.0 vs 0.84 (still drifts)
+    // Inn asset depth (bar + stools): deterministic microcube builds grounded to object_dimensions.
+    EXPECT_EQ(statusOf(rep, "tavern_bar"), "ok");                // counter 1.11h x 0.67d vs canon 1.07/0.6
+    EXPECT_EQ(statusOf(rep, "bar_stool"),  "ok");                // 0.78h x 0.44 vs canon 0.78/0.44
+    EXPECT_EQ(statusOf(rep, "back_bar"),   "ok");                // shelving 1.89h x 0.33d vs canon 1.85/0.35
+    EXPECT_EQ(statusOf(rep, "tavern_table"), "no_canon");        // varied-tables follow-up (not yet grounded)
 }

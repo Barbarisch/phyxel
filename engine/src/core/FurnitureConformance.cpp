@@ -18,6 +18,7 @@ const std::map<std::string, std::string>& typeArchetype() {
     static const std::map<std::string, std::string> m = {
         {"bed", "bed_single"}, {"chest", "chest"},   {"table", "table_dining"},
         {"counter", "counter_kitchen"}, {"bench", "bench"}, {"fireplace", "hearth"},
+        {"tavern_bar", "tavern_bar"}, {"back_bar", "back_bar"}, {"bar_stool", "bar_stool"},
     };
     return m;
 }

@@ -88,7 +88,7 @@ class Model:
         return out
 
 
-def write(name, header, body_lines, model):
+def write(name, header, body_lines, model, anchors=None):
     (mnx, mny, mnz), (mxx, mxy, mxz) = model.bounds()
     # overall extent in metres: a micro at index p occupies [p/9, (p+1)/9]
     omin = [mnx / 9.0, mny / 9.0, mnz / 9.0]
@@ -104,10 +104,25 @@ def write(name, header, body_lines, model):
             "template_name": name,
             "overall_min": omin,
             "overall_max": omax,
-            "interaction_points": [],
+            "interaction_points": anchors or [],
         }, f, indent=2)
     w, h, d = omax[0] - omin[0], omax[1] - omin[1], omax[2] - omin[2]
     print(f"{name}: {len(model.cells)} micro, bounds {w:.3f}w x {h:.3f}h x {d:.3f}d m -> {vox_path}")
+
+
+def seat_anchor(cx_micro, top_micro, cz_micro, depth_micro=4):
+    """A 'seat' interaction point at the seat-slab top centre (micro indices -> metres)."""
+    cx, cy, cz = (cx_micro + 0.5) / 9.0, top_micro / 9.0, (cz_micro + 0.5) / 9.0
+    return [{
+        "point_id": "seat_0", "kind": "seat",
+        "local_position": [round(cx, 3), round(cy, 3), round(cz, 3)],
+        "facing_yaw": 0.0,
+        "features": {
+            "seat_top_y": round(cy, 3),
+            "seat_center": [round(cx, 3), round(cy, 3), round(cz, 3)],
+            "backrest_present": False,
+        },
+    }]
 
 
 def gen_chest():
@@ -188,6 +203,112 @@ def gen_fireplace():
     write("fireplace", header, m.emit_lines([]), m)
 
 
+def gen_bar():
+    # tavern_bar (front counter): top ~1.11 m (42" bar, grounded barstoolcomforts/Mor Furniture; nearest
+    # micro to the 40-42" band), depth 0.67 m (24-26" bar w/ overhang), length 3.0 m. facing +Z (patron).
+    L = 27                          # length (x), 3.0 m — variable; length not conformance-checked
+    BODY_TOP = 8                    # cabinet y 0..8 (top face 1.0 m); cap at y9 -> top 1.111 m
+    m = Model()
+    # front panel (patron side, z=0..1) + end panels + a back kick, leaving the cabinet hollow.
+    m.fill(0, L - 1, 0, BODY_TOP, 1, 1, "Wood")            # front face (set back 1 micro for a toe kick)
+    m.fill(0, 0, 0, BODY_TOP, 1, 5, "Wood")                # left end
+    m.fill(L - 1, L - 1, 0, BODY_TOP, 1, 5, "Wood")        # right end
+    m.fill(0, L - 1, 0, 0, 5, 5, "Wood")                   # back kick rail (bartender side)
+    m.fill(0, L - 1, BODY_TOP + 1, BODY_TOP + 1, 0, 5, "Wood")  # top cap (overhangs to z=0 for legroom)
+    m.fill(0, L - 1, BODY_TOP, BODY_TOP, 0, 0, "Log")      # dark front rail under the cap edge
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         tavern_bar\n"
+        "# display_name: Tavern Bar (Counter)\n"
+        "# description:  A long wooden serving counter — toe-kick front, overhanging top, dark front rail.\n"
+        "# category:     furniture\n"
+        "# subcategory:  counter\n"
+        "# tags:         bar, counter, tavern, inn, serving\n"
+        "# materials:    Wood, Log\n"
+        "# facing:       +Z (patron side; bartender works behind, +z)\n"
+        "# bounds:       3.0W x 1.11H x 0.67D m (grounded object_dimensions 'tavern_bar' 42\" counter)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("tavern_bar", header, m.emit_lines([]), m)
+
+
+def gen_back_bar():
+    # back_bar (shelving behind the counter, against the wall): ~1.78 m tall, 0.33 m deep, 3.0 m long.
+    # Three shelves of bottles (Glass) — the "shelves behind and above the bar".
+    L, H, D = 27, 16, 3
+    m = Model()
+    m.fill(0, L - 1, 0, H - 1, D - 1, D - 1, "Wood")       # back panel (against the wall)
+    m.fill(0, 0, 0, H - 1, 0, D - 1, "Wood")               # left end
+    m.fill(L - 1, L - 1, 0, H - 1, 0, D - 1, "Wood")       # right end
+    m.fill(0, L - 1, 0, 0, 0, D - 1, "Wood")               # base
+    shelves = (4, 9, 14)
+    for sy in shelves:
+        m.fill(0, L - 1, sy, sy, 0, D - 1, "Wood")         # shelf board
+    # bottles: pairs of Glass micro standing on each shelf (1 above the board), spaced along the run.
+    for sy in shelves:
+        for bx in range(2, L - 2, 3):
+            m.m(bx, sy + 1, 1, "Glass")
+            m.m(bx, sy + 2, 1, "Glass")                    # ~0.22 m bottles
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         back_bar\n"
+        "# display_name: Back Bar (Shelving)\n"
+        "# description:  Wall shelving behind a tavern bar — three shelves lined with glass bottles.\n"
+        "# category:     furniture\n"
+        "# subcategory:  shelving\n"
+        "# tags:         bar, shelf, bottles, tavern, inn\n"
+        "# materials:    Wood, Glass\n"
+        "# facing:       +Z (open shelf face toward the bartender / room)\n"
+        "# bounds:       3.0W x 1.78H x 0.33D m (grounded object_dimensions 'back_bar')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("back_bar", header, m.emit_lines([]), m)
+
+
+def gen_bar_stool():
+    # bar_stool: seat top ~0.78 m (30" bar stool, grounded; 10-12\" below a 42\" counter -> ~13\" gap at
+    # the micro grid), seat 0.44 m, four legs + a footrest ring. Backless. facing +Z.
+    W = 4                           # seat 4x4 micro (0.444 m, within 12-18\" seat)
+    SEAT_Y = 6                      # seat slab at y6 -> top face 7/9 = 0.778 m
+    m = Model()
+    m.fill(0, W - 1, SEAT_Y, SEAT_Y, 0, W - 1, "Wood")     # seat slab
+    legs = [(0, 0), (W - 1, 0), (0, W - 1), (W - 1, W - 1)]
+    for lx, lz in legs:
+        m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "Wood")      # leg
+    # footrest ring at y2 connecting the legs (a square rail)
+    ry = 2
+    m.fill(0, W - 1, ry, ry, 0, 0, "Log")
+    m.fill(0, W - 1, ry, ry, W - 1, W - 1, "Log")
+    m.fill(0, 0, ry, ry, 0, W - 1, "Log")
+    m.fill(W - 1, W - 1, ry, ry, 0, W - 1, "Log")
+    # seat centre in micro-index space: seat spans 0..W-1 -> centre (W-1)/2; anchor at the slab top.
+    anchors = seat_anchor((W - 1) / 2.0, SEAT_Y + 1, (W - 1) / 2.0)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         bar_stool\n"
+        "# display_name: Bar Stool\n"
+        "# description:  A tall backless wooden bar stool with four legs and a footrest ring.\n"
+        "# category:     furniture\n"
+        "# subcategory:  seating\n"
+        "# tags:         stool, bar, seat, tavern, inn\n"
+        "# materials:    Wood, Log\n"
+        "# facing:       +Z\n"
+        "# seat_height:  0.778\n"
+        "# bounds:       0.44W x 0.78H x 0.44D m (grounded object_dimensions 'bar_stool' 30\" bar stool)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("bar_stool", header, m.emit_lines([]), m, anchors)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
+    gen_bar()
+    gen_back_bar()
+    gen_bar_stool()

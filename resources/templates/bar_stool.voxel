@@ -1,0 +1,63 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bar_stool
+# display_name: Bar Stool
+# description:  A tall backless wooden bar stool with four legs and a footrest ring.
+# category:     furniture
+# subcategory:  seating
+# tags:         stool, bar, seat, tavern, inn
+# materials:    Wood, Log
+# facing:       +Z
+# seat_height:  0.778
+# bounds:       0.44W x 0.78H x 0.44D m (grounded object_dimensions 'bar_stool' 30" bar stool)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Wood
+M 0 0 0 0 0 1 0 0 0 Wood
+M 0 0 0 0 0 0 0 1 0 Wood
+M 0 0 0 0 0 1 0 1 0 Wood
+M 0 0 0 0 0 0 0 2 0 Log
+M 0 0 0 0 0 0 0 2 1 Log
+M 0 0 0 0 0 0 0 2 2 Log
+M 0 0 0 0 0 1 0 2 0 Log
+M 0 0 0 0 1 0 0 0 0 Wood
+M 0 0 0 0 1 1 0 0 0 Wood
+M 0 0 0 0 1 0 0 1 0 Wood
+M 0 0 0 0 1 1 0 1 0 Wood
+M 0 0 0 0 1 0 0 2 0 Wood
+M 0 0 0 0 1 1 0 2 0 Wood
+M 0 0 0 0 2 0 0 0 0 Wood
+M 0 0 0 0 2 0 0 0 1 Wood
+M 0 0 0 0 2 0 0 0 2 Wood
+M 0 0 0 0 2 1 0 0 0 Wood
+M 0 0 0 0 0 0 1 2 0 Log
+M 0 0 0 0 0 1 1 2 0 Log
+M 0 0 0 0 2 0 1 0 0 Wood
+M 0 0 0 0 2 0 1 0 1 Wood
+M 0 0 0 0 2 0 1 0 2 Wood
+M 0 0 0 0 2 1 1 0 0 Wood
+M 0 0 0 0 0 0 2 2 0 Log
+M 0 0 0 0 0 1 2 2 0 Log
+M 0 0 0 0 2 0 2 0 0 Wood
+M 0 0 0 0 2 0 2 0 1 Wood
+M 0 0 0 0 2 0 2 0 2 Wood
+M 0 0 0 0 2 1 2 0 0 Wood
+M 0 0 0 1 0 0 0 0 0 Wood
+M 0 0 0 1 0 1 0 0 0 Wood
+M 0 0 0 1 0 0 0 1 0 Wood
+M 0 0 0 1 0 1 0 1 0 Wood
+M 0 0 0 1 0 0 0 2 0 Log
+M 0 0 0 1 0 0 0 2 1 Log
+M 0 0 0 1 0 0 0 2 2 Log
+M 0 0 0 1 0 1 0 2 0 Log
+M 0 0 0 1 1 0 0 0 0 Wood
+M 0 0 0 1 1 1 0 0 0 Wood
+M 0 0 0 1 1 0 0 1 0 Wood
+M 0 0 0 1 1 1 0 1 0 Wood
+M 0 0 0 1 1 0 0 2 0 Wood
+M 0 0 0 1 1 1 0 2 0 Wood
+M 0 0 0 1 2 0 0 0 0 Wood
+M 0 0 0 1 2 0 0 0 1 Wood
+M 0 0 0 1 2 0 0 0 2 Wood
+M 0 0 0 1 2 1 0 0 0 Wood

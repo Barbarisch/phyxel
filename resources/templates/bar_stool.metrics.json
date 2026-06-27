@@ -1,0 +1,35 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "bar_stool",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.4444444444444444,
+    0.7777777777777778,
+    0.4444444444444444
+  ],
+  "interaction_points": [
+    {
+      "point_id": "seat_0",
+      "kind": "seat",
+      "local_position": [
+        0.222,
+        0.778,
+        0.222
+      ],
+      "facing_yaw": 0.0,
+      "features": {
+        "seat_top_y": 0.778,
+        "seat_center": [
+          0.222,
+          0.778,
+          0.222
+        ],
+        "backrest_present": false
+      }
+    }
+  ]
+}
