@@ -76,5 +76,20 @@ struct BuildingVariant {
 BuildingVariant pickBuildingVariant(int plotIndex, const std::vector<std::string>& typologies,
                                     const std::vector<std::string>& styles, unsigned seed);
 
+/// A parcel fence: which perimeter CELLS get a fence post vs the gate opening. The fence runs the whole
+/// parcel boundary so a character can't slip through anywhere EXCEPT the gate (a >= gateWidth gap on one
+/// side). Posts ∪ gate == the full perimeter; posts ∩ gate == empty.
+struct FencePlan {
+    std::vector<std::pair<int, int>> posts;  ///< perimeter cells to fence (cubes, parcel-local or world)
+    std::vector<std::pair<int, int>> gate;   ///< the gate opening cells (the only passable boundary run)
+    bool ok = false;
+};
+
+/// Enclose `parcel` (a plot rect, cubes) with a fence on its whole perimeter, leaving a gate of
+/// `gateWidth` cubes centred on `gateSide` ('N'=+z, 'S'=-z, 'E'=+x, 'W'=-x). The yard is the parcel
+/// minus the building inside it (the fence doesn't touch the building). Returns ok=false if the parcel
+/// is too small for a gate. Deterministic. (place_fence #22 / zone_parcel #21.)
+FencePlan planParcelFence(const Rect& parcel, char gateSide, int gateWidth);
+
 } // namespace Core
 } // namespace Phyxel

@@ -1,6 +1,7 @@
 #include "core/SettlementLayout.h"
 
 #include <algorithm>
+#include <set>
 
 namespace Phyxel {
 namespace Core {
@@ -114,6 +115,34 @@ BuildingVariant pickBuildingVariant(int plotIndex, const std::vector<std::string
     v.style    = styles.empty() ? "timber_cottage" : styles[hash(2) % styles.size()];
     v.footprintShape = (hash(3) % 3u == 0u) ? "L" : "rect";   // ~1/3 of buildings get an L-plan
     return v;
+}
+
+FencePlan planParcelFence(const Rect& parcel, char gateSide, int gateWidth) {
+    FencePlan f;
+    if (parcel.w < 2 || parcel.d < 2 || gateWidth < 1) return f;
+    const bool horiz = (gateSide == 'N' || gateSide == 'S');   // gate runs along X on a Z-edge
+    const int sideLen = horiz ? parcel.w : parcel.d;
+    if (gateWidth > sideLen) return f;                          // gate can't fit on that side
+
+    // full perimeter (cube cells)
+    std::set<std::pair<int, int>> perim;
+    for (int x = parcel.x; x < parcel.x1(); ++x) { perim.insert({x, parcel.z}); perim.insert({x, parcel.z1() - 1}); }
+    for (int z = parcel.z; z < parcel.z1(); ++z) { perim.insert({parcel.x, z}); perim.insert({parcel.x1() - 1, z}); }
+
+    // gate run: gateWidth cells centred on the requested side
+    const int start = (horiz ? parcel.x : parcel.z) + (sideLen - gateWidth) / 2;
+    std::set<std::pair<int, int>> gate;
+    for (int k = 0; k < gateWidth; ++k) {
+        if (gateSide == 'S')      gate.insert({start + k, parcel.z});
+        else if (gateSide == 'N') gate.insert({start + k, parcel.z1() - 1});
+        else if (gateSide == 'W') gate.insert({parcel.x, start + k});
+        else                      gate.insert({parcel.x1() - 1, start + k});   // 'E'
+    }
+
+    for (const auto& g : gate) f.gate.push_back(g);
+    for (const auto& c : perim) if (!gate.count(c)) f.posts.push_back(c);   // fence everything but the gate
+    f.ok = true;
+    return f;
 }
 
 } // namespace Core

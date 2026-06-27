@@ -10335,6 +10335,33 @@ void Application::registerSettlementCommands() {
                          {"paved_microcubes", placedFill + levelPaved}, {"level_caps", levelPaved},
                          {"fill_microcubes", placedFill}, {"cut_cells_unpaved", cut},
                          {"stamp_ms", static_cast<long>(stampMs)}};
+
+            // FENCES + YARDS (#39): enclose each plot (parcel) with a Log fence; the gate faces the
+            // settlement centre (toward the path network). The yard is the plot minus the building.
+            // Cubes (not microcubes) so the fence greedy-merges and stays render-cheap.
+            double scx = 0, scz = 0;
+            for (const auto& d : doorCenters) { scx += d.x; scz += d.z; }
+            if (!doorCenters.empty()) { scx /= doorCenters.size(); scz /= doorCenters.size(); }
+            long fencePosts = 0; int parcels = 0;
+            for (const auto& pl : layout.plots) {
+                const Core::Rect& pr = pl.rect;
+                const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
+                const char side = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
+                                                                              : (scz > pcz ? 'N' : 'S');
+                const Core::FencePlan fp = Core::planParcelFence(pr, side, 2);
+                if (!fp.ok) continue;
+                ++parcels;
+                for (const auto& post : fp.posts) {
+                    const int wx = ox + post.first, wz = oz + post.second;
+                    const glm::ivec3 cell(wx, groundTopAt(wx, wz) + 1, wz);   // 1-cube fence on the ground
+                    chunkManager->ensureChunkAt(cell);
+                    if (chunkManager->m_voxelModificationSystem.addCubeWithMaterial(cell, "Log")) ++fencePosts;
+                }
+            }
+            chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fencePosts << " posts");
+            pathsJson["parcels"] = parcels;
+            pathsJson["fence_posts"] = fencePosts;
         }
 
         r = {{"success", true},
