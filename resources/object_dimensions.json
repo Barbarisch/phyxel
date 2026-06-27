@@ -44,7 +44,7 @@
       "source": "chandelier diameter ~1/2-2/3 table width (megcohomes.com; lightopia.com); medieval candle-corona",
       "sources": { "diameter": "chandelier ~1/2 to 2/3 the table width; for a ~1 m tavern table -> ~0.5-0.6 m (megcohomes.com; lightopia.com)", "height": "INFERRED ring + chain ~0.6 m", "hang_height": "bottom of a dining chandelier 66-76 in = 1.68-1.93 m from the floor; ~1.85 m midpoint (megcohomes.com) — a PLACEMENT height, not a bound (the 7 ft figure is for entry halls with no table)", "_note": "medieval halls/churches used hanging candle coronas (period-appropriate)" } },
     "mug":            { "category": "tableware", "description": "Drinking mug / tankard", "height": 0.13, "width": 0.095, "depth": 0.095, "tol": 0.05,
-      "source": "pint pewter tankard ~125 mm (englishpewter.com; studioburkedc.com); beer stein 14 cm (dimensions.com)",
+      "source": "pint pewter tankard 127-140 mm (englishpewter.com; studioburkedc.com); beer stein 14 cm (dimensions.com)",
       "sources": { "height": "pint pewter tankard 130 mm (englishpewter.com straight-body); ~127 mm / 'a little over 5 in' (studioburkedc.com); beer stein 140 mm / 5.5 in (dimensions.com/element/beer-stein). Range 127-140 mm; target 130 mm.", "width": "tankard/stein dia ~80-95 mm (englishpewter.com 8 cm; dimensions.com beer-stein 9.5 cm)", "depth": "= width (round vessel)", "_note": "PERIOD-APPROPRIATE: wooden treen mugs / leather blackjacks / pewter tankards all medieval. Microcube floor (1/9 m) -> a single 0.11 m block." } },
     "bottle":         { "category": "tableware", "description": "Bottle (wine/ale)", "height": 0.3, "width": 0.075, "depth": 0.075, "tol": 0.06,
       "source": "standard 750 ml wine bottle 30 cm x 7.5 cm (dimensions.com)",
