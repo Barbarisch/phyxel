@@ -134,10 +134,20 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   taproom → generated stair → guest chamber) + `GuestChambersInterconnect` + `WithoutStairUpstairsIsUnreachable`
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
-  stories=2 from the New Inn, Gloucester). solution-auditor PASS. **Owed:** asset depth (mugs/bottles/
-  stools/shelved bar/lighting/varied tables — see structure-asset-depth); per-fixture conformance of
-  `tavern_bar` (ledger 16c); add `tavern` to the `build_settlement` typology palette so inns spawn in
-  settlements (tied to #38); gallery/corridor upstairs (today the landing is room 0 of a linear plan).
+  stories=2 from the New Inn, Gloucester). solution-auditor PASS.
+  - **Asset depth (the "necessary extras") — IN PROGRESS:** bar + stools ✅ — deterministic MICROCUBE
+    builds (`tools/regen_furniture.py` gen_bar/gen_back_bar/gen_bar_stool, conformant by construction,
+    `.metrics.json` from emitted bounds): **`tavern_bar`** (toe-kick counter + overhang + Log rail,
+    1.11 m / 42″), **`back_bar`** (3 shelves of Glass bottles — "shelves behind & above"), **`bar_stool`**
+    (tall backless + footrest + seat anchor, 0.78 m / 30″). Grounded in `object_dimensions.json`
+    (ergonomic heights cited; honestly POST-MEDIEVAL/fantasy-tavern); `FurnitureConformanceTest` pins all
+    three **ok**; taproom recipe now places the full bar ensemble. Both auditors PASS. **NOT yet
+    runtime-screenshot-verified** ("good looking" is a visual claim). Materials: none new (Wood/Log/Glass);
+    mugs/tankards may want Pewter/Ceramic later (recorded, not made).
+  - **Owed:** runtime visual check of the taproom; mugs/bottles-as-clutter, lighting (lanterns + point
+    lights), varied tables/chairs, private party rooms; per-asset L2 placement test (bar against wall, stools
+    fronting it, no nav block); add `tavern` to the `build_settlement` typology palette (#38);
+    gallery/corridor upstairs (today the landing is room 0 of a linear plan).
 - **Owed typologies (the work ahead):** smithy/forge (anvil+furnace fixtures), market/shop, temple/
   shrine, well/fountain, barn/stable, town hall, mill, gatehouse. Each: grounded canon + room-purpose
   recipe + L3 interior nav, red-before-green, both auditors.
