@@ -118,3 +118,82 @@ TEST(PathPlannerTest, TooShortRunReportsTooSteep) {
     const PathPlan plan = planStraightRamp(ground, start, goal, kAgent);
     EXPECT_FALSE(plan.ok) << "a too-short steep run must not claim a walkable straight path";
 }
+
+// ============================================================================
+// Switchback (3b) — when a connection is too steep for a straight run, planSwitchback folds the route
+// back and forth to gain length, keeping every riser <= step-up. The character climbs it; flights are
+// wall-separated so the climb genuinely uses the switchback.
+// ============================================================================
+namespace {
+// Flat ground at terrainTop; the switchback is a raised structure (fill) above it. The planner emits
+// the EXACT walkable ground (plan.surface = flight bands + flat landing squares), so the test stamps it
+// verbatim — no inference. Adjacent flights (>= Wf apart in z) stay separated by their climb-difference
+// (a retaining wall); flat landing squares let the footprint turn the corner.
+struct SwitchWorld {
+    int terrainTop;
+    std::unordered_map<long long, int> surf;
+    static long long key(int x, int z) { return (static_cast<long long>(x) << 32) ^ (z & 0xffffffffLL); }
+    void stamp(const PathPlan& plan) {
+        for (const auto& c : plan.surface) surf[key(c.x, c.z)] = c.surfaceY;
+    }
+    bool occ(int x, int y, int z) const {
+        auto it = surf.find(key(x, z));
+        return y < (it != surf.end() ? it->second : terrainTop);
+    }
+};
+}  // namespace
+
+// A straight run can't do it, but a switchback can — and the character walks the switchback end to end.
+TEST(PathPlannerTest, SwitchbackClimbsWhereStraightCannot) {
+    const int base = 9, target = 45;                   // climb 36 micro (4 cubes)
+    const glm::ivec3 start(20, base, 20);
+    auto ground = [&](int, int) { return base; };      // flat terrain
+
+    // Straight run over the same horizontal room (8 micro) is too steep -> ok=false (motivates the fold).
+    const PathPlan straight = planStraightRamp(ground, start, glm::ivec3(28, target, 20), kAgent);
+    ASSERT_FALSE(straight.ok) << "straight run should be too steep here (else the switchback isn't needed)";
+
+    const PathPlan plan = planSwitchback(ground, start, target, kAgent, /*flightRun=*/10, /*lateralBudget=*/20);
+    ASSERT_TRUE(plan.ok) << "switchback should fit within the budget: " << plan.reason;
+    EXPECT_LE(plan.maxRiser, kAgent.maxStepUpMicro);
+    ASSERT_GE(plan.cells.size(), 2u);
+    EXPECT_EQ(plan.cells.front().surfaceY, base);
+    EXPECT_EQ(plan.cells.back().surfaceY, target);
+
+    // The route begins/ends on flat aprons; the probe starts on the entry apron and aims for the exit one.
+    const PathCell entry = plan.cells.front(), term = plan.cells.back();
+    const glm::ivec3 entryFeet(entry.x, base, entry.z);
+    const glm::ivec3 lo(0, 0, 0), hi(60, 80, 60);
+
+    // TEETH: on bare flat terrain the raised terminus is unreachable (you can't climb 36 micro of air).
+    SwitchWorld bareW{base, {}};
+    TraversalProbe bare([&](int x, int y, int z) { return bareW.occ(x, y, z); }, kAgent);
+    ASSERT_FALSE(bare.reachable(entryFeet, glm::ivec3(term.x - 2, target - 1, term.z - 2),
+                               glm::ivec3(term.x + 2, target + 1, term.z + 2), lo, hi))
+        << "the elevated terminus must be unreachable without the switchback";
+
+    SwitchWorld w{base, {}};
+    w.stamp(plan);
+    TraversalProbe walk([&](int x, int y, int z) { return w.occ(x, y, z); }, kAgent);
+    EXPECT_TRUE(walk.reachable(entryFeet, glm::ivec3(term.x - 2, target - 1, term.z - 2),
+                              glm::ivec3(term.x + 2, target + 1, term.z + 2), lo, hi))
+        << "the character should climb the switchback from base to the terminus";
+}
+
+// Every riser along the folded route is within the step-up (the walkability invariant), end-to-end.
+TEST(PathPlannerTest, SwitchbackRisersWithinStepUp) {
+    auto ground = [&](int, int) { return 9; };
+    const PathPlan plan = planSwitchback(ground, glm::ivec3(20, 9, 20), 45, kAgent, 10, 20);
+    ASSERT_TRUE(plan.ok) << plan.reason;
+    for (size_t i = 1; i < plan.cells.size(); ++i)
+        EXPECT_LE(std::abs(plan.cells[i].surfaceY - plan.cells[i - 1].surfaceY), kAgent.maxStepUpMicro)
+            << "riser at route cell " << i << " exceeds step-up";
+}
+
+// TEETH (degradation): too little lateral room for the needed folds -> ok=false, not a broken path.
+TEST(PathPlannerTest, SwitchbackReportsInsufficientLateralRoom) {
+    auto ground = [&](int, int) { return 9; };
+    // climb 36 at gradeCap 2 over flightRun 8 needs 3 flights * 5 wide = 15 lateral; budget 8 is too small.
+    const PathPlan plan = planSwitchback(ground, glm::ivec3(20, 9, 20), 45, kAgent, 8, /*lateralBudget=*/8);
+    EXPECT_FALSE(plan.ok) << "must report when there isn't enough lateral room for switchbacks";
+}

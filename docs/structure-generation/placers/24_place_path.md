@@ -22,13 +22,20 @@ around the garden beds.
 G (access — a real route to the door), L (path/approach), P.
 
 ## Engine capability needed
-- Path-surface paint — ✅; routing + grade/step logic — 🟡 **started**: `PathPlanner::planStraightRamp`
-  (`engine/core/PathPlanner`) grades a STRAIGHT run between two anchors over terrain into a walkable
-  ramp (each riser ≤ the character step-up, 4 micro), and reports `ok=false` when the run is too short
-  to absorb the grade (needs switchbacks). L3-proven: `PathPlannerTest` stamps the ramp and a
-  `TraversalProbe` walks it; teeth = a bare 18-micro cliff is unreachable, a too-short run is reported
-  not faked. **Still ⚠️:** switchbacks/contour routing for over-steep connections (increment 3b), and
-  wiring the network into `build_settlement` (increment 3c).
+- Path-surface paint — ✅; routing + grade/step logic — 🟡 **grader done, integration pending**
+  (`engine/core/PathPlanner`):
+  - `planStraightRamp` grades a STRAIGHT run into a walkable ramp (every riser ≤ the character
+    step-up), reporting `ok=false` when too short for the grade.
+  - `planSwitchback` (3b) folds the route back and forth — flights stacked in Z, **flat landing
+    platforms** at the turns, flat aprons at the ends — to climb where a straight run can't; grade is
+    capped at `step-up/halfWidth` so the footprint can step on/off each flight, and it reports
+    `ok=false` when the lateral budget is too small (graceful degradation).
+  - Grounding: grade cap = the character step-up / footprint half-width (a flight must be enterable
+    from flat); flights are `2*halfWidth+1` wide so the footprint fits one flight.
+  L3-proven: `PathPlannerTest` stamps the geometry and a `TraversalProbe` walks it end to end; teeth =
+  a bare cliff / an elevated terminus is unreachable, a flat (ungraded) path doesn't reach a raised
+  goal, a too-short run / too-tight budget is reported not faked. **Still ⚠️:** wiring the network
+  into `build_settlement` (door↔door over real terrain, L4) — increment 3c.
 
 ## Failure modes
 - No path at all (mud to the door).
