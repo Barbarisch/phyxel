@@ -86,7 +86,7 @@ floor scan, paths…).
 | 33 | apply_seasonal_state | M | L1 | L0 | 0/0/1 = **1** | dressing |
 | 34 | excavate_basement | M | L2 | L2 (runtime cellar-dig verify) | 1/1/1 = **3** | encode the runtime check as a unit invariant (void at depth) |
 | 35 | place_basement | M | **L3** | L0 | 2/2/1 = **5** | **L0→L3: cellar rooms reachable via the down-stair** |
-| 36 | stack_stories | M | **L3** | L2 (`StacksMultipleStories`,`TenStoryTower…`; gen hard-codes story 0) | 2/2/2 = **6** | gen missing; reachability of every floor (stair traversal already L3) |
+| 36 | stack_stories | P | **L3** | **L3** ✅ (`autofillRoomLayout` GROWS to typology stories + generates a connecting switchback stair per floor; `TavernUpstairsTest.CharacterWalksFromTaproomUpIntoGuestChamber` walks ground→stair→upper chamber, `WithoutStairUpstairsIsUnreachable` teeth; auditor PASS) | 2/2/2 = **6** | ✅ gen no longer hard-codes story 0 — multi-story is GENERATED + reach-proven. Owed: per-typology story count beyond the inn; gallery upstairs |
 | 37 | place_attic | M | L2 | L0 | 1/1/1 = **3** | L0→L2 (L3 if made accessible) |
 
 ## Settlement / Subterranean / Fantasy tiers (38–59) — future, all currently **M / L0**
@@ -126,15 +126,18 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
 
 - **Residential (shipped):** croft · longhouse · hall_house · manor_hall — L3 via
   `TypologyHouseTraversalTest` + the harness `rooms` layer.
-- **`tavern` — ✅ L3 + GROUNDED** (first non-residential typology): ground-floor public **taproom**
-  (2 bays) + kitchen + service/storage end. `TavernTypologyTest`: canon grounded + taproom recipe
-  places a **bar** (`tavern_bar`/`tavern_table` resolve, coverage gate green) + **L3
-  `CharacterWalksTaproomToKitchen`** with sealed-interior teeth. Dimensions grounding-auditor PASS
-  (room program from the medieval-inn record; the 4-bay frame honestly labelled a DESIGN DECISION by
-  analogy to the grounded hall_house, NOT a claimed inn measurement; width_max=7 from the documented
-  Rufford Old Hall footprint). solution-auditor PASS. **Owed:** upstairs guest chambers (needs
-  generative multi-story, ledger #36) → the inn's defining feature; per-fixture conformance of
-  `tavern_bar` (ledger 16c, 1.22 m tall is unverified).
+- **`tavern` — ✅ L3 + GROUNDED + MULTI-STORY** (first non-residential typology): ground-floor public
+  **taproom** (2 bays) + kitchen + service/storage end, **+ upstairs guest chambers** (`stories`=2,
+  `upper_purpose`=bedchamber). `TavernTypologyTest`: canon grounded + taproom recipe places a **bar**
+  (`tavern_bar`/`tavern_table` resolve, coverage gate green) + **L3 `CharacterWalksTaproomToKitchen`**
+  with sealed teeth. `TavernUpstairsTest`: **L3 `CharacterWalksFromTaproomUpIntoGuestChamber`** (ground
+  taproom → generated stair → guest chamber) + `GuestChambersInterconnect` + `WithoutStairUpstairsIsUnreachable`
+  teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
+  honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
+  stories=2 from the New Inn, Gloucester). solution-auditor PASS. **Owed:** asset depth (mugs/bottles/
+  stools/shelved bar/lighting/varied tables — see structure-asset-depth); per-fixture conformance of
+  `tavern_bar` (ledger 16c); add `tavern` to the `build_settlement` typology palette so inns spawn in
+  settlements (tied to #38); gallery/corridor upstairs (today the landing is room 0 of a linear plan).
 - **Owed typologies (the work ahead):** smithy/forge (anvil+furnace fixtures), market/shop, temple/
   shrine, well/fountain, barn/stable, town hall, mill, gatehouse. Each: grounded canon + room-purpose
   recipe + L3 interior nav, red-before-green, both auditors.
