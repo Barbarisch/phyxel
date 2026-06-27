@@ -10280,8 +10280,12 @@ void Application::registerSettlementCommands() {
                 return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
                     cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), pave);
             };
-            long placedFill = 0, level = 0, cut = 0;
+            // READ PASS: collect the unique corridor cells (perpendicular carve, deduped) with their target
+            // surface S and the ORIGINAL terrain — BEFORE any stamping, so the paving we add doesn't raise
+            // the terrain we measure against for later cells.
             const int hw = abox.halfWidthMicro;
+            std::unordered_map<long long, std::pair<int, int>> col;  // key(cx,cz) -> (S, originalTerr)
+            auto colKey = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ (z & 0xffffffffLL); };
             for (const auto& p : net.paths) {
                 const auto& cs = p.cells;
                 for (size_t i = 0; i < cs.size(); ++i) {
@@ -10292,19 +10296,30 @@ void Application::registerSettlementCommands() {
                     const int S = cs[i].surfaceY;
                     for (int o = -hw; o <= hw; ++o) {
                         const int cx = cs[i].x + (tZ ? o : 0), cz = cs[i].z + (tX ? o : 0);
-                        const int terr = surfMicro(fl9(cx), fl9(cz));
-                        if (S > terr) { for (int my = terr; my <= S - 1; ++my) if (stampMicro(cx, my, cz)) ++placedFill; }
-                        else if (S == terr) ++level;   // terrain already provides the walkable surface here
-                        else ++cut;                    // S below terrain -> owed: remove terrain above S
+                        col.emplace(colKey(cx, cz), std::make_pair(S, surfMicro(fl9(cx), fl9(cz))));
                     }
                 }
             }
+            // WRITE PASS: pave each cell. FILL/LEVEL (S>=terr) place a Cobblestone ribbon from the terrain
+            // up to S — the top microcube sits in open air (no terrain cube to subdivide), so it is cheap.
+            long placedFill = 0, levelPaved = 0, cut = 0;
+            const double t0 = glfwGetTime();
+            for (const auto& kv : col) {
+                const int cx = static_cast<int>(kv.first >> 32), cz = static_cast<int>(static_cast<int32_t>(kv.first & 0xffffffffLL));
+                const int S = kv.second.first, terr = kv.second.second;
+                if (S >= terr) for (int my = terr; my <= S; ++my) { if (stampMicro(cx, my, cz)) (S == terr ? ++levelPaved : ++placedFill); }
+                else ++cut;  // S below terrain -> owed: removeMicrocube above S (36b)
+            }
+            const double stampMs = (glfwGetTime() - t0) * 1000.0;
             chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
-            LOG_INFO_FMT("Settlement", "paths: stamped " << placedFill << " fill microcubes; "
-                         << level << " level cells (terrain surface), " << cut << " cut cells NOT paved (owed)");
+            LOG_INFO_FMT("Settlement", "paths: paved " << (placedFill + levelPaved) << " microcubes ("
+                         << levelPaved << " level caps, " << placedFill << " fill), " << cut
+                         << " cut cells owed; stamp " << static_cast<long>(stampMs) << " ms");
             pathsJson = {{"edges", net.edges}, {"connected", net.connected},
                          {"too_steep", static_cast<int>(net.failedEdges.size())},
-                         {"fill_microcubes", placedFill}, {"level_cells", level}, {"cut_cells_unpaved", cut}};
+                         {"paved_microcubes", placedFill + levelPaved}, {"level_caps", levelPaved},
+                         {"fill_microcubes", placedFill}, {"cut_cells_unpaved", cut},
+                         {"stamp_ms", static_cast<long>(stampMs)}};
         }
 
         r = {{"success", true},
