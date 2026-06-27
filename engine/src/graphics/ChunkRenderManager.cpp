@@ -156,9 +156,14 @@ void ChunkRenderManager::rebuildCubeFaces(
     struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
-    std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
-    std::vector<int>     cellMat(N * N * N, -1);  // index into matFaces
-    std::vector<uint8_t> cellDamage(N * N * N, 0); // quantized 0-15 voxel damage (roughness driver)
+    // Reused member scratch buffers (.assign re-zeros without reallocating once warm) — avoids
+    // a per-rebuild heap alloc/free of these three N^3 arrays. See header m_solidVis/m_cellMat/m_cellDamage.
+    m_solidVis.assign(N * N * N, 0);   // 1 = a visible cube occupies the cell
+    m_cellMat.assign(N * N * N, -1);   // index into matFaces
+    m_cellDamage.assign(N * N * N, 0); // quantized 0-15 voxel damage (roughness driver)
+    std::vector<uint8_t>& solidVis   = m_solidVis;
+    std::vector<int>&     cellMat    = m_cellMat;
+    std::vector<uint8_t>& cellDamage = m_cellDamage;
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     for (size_t ci = 0; ci < cubes.size(); ++ci) {

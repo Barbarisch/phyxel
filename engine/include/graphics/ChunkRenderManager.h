@@ -186,6 +186,13 @@ private:
     // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
     void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
 
+    // Reused scratch buffers for rebuildCubeFaces occupancy (32x32x32). Promoted from per-call
+    // locals to members + .assign() (like m_skyLight) to avoid a heap alloc/free of ~190KB on
+    // every chunk rebuild — meaningful on streaming/edit-heavy scenes.
+    std::vector<uint8_t> m_solidVis;    // 1 = a visible cube occupies the cell
+    std::vector<int>     m_cellMat;     // index into the per-rebuild matFaces table (-1 = none)
+    std::vector<uint8_t> m_cellDamage;  // quantized 0-15 voxel damage (roughness driver)
+
     // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
     // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.
     NeighborLightFunc m_neighborLight;

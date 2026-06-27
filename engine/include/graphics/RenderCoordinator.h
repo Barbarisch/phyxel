@@ -12,6 +12,8 @@
 #include <chrono>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
 #include <glm/glm.hpp>
 
 // Forward declarations
@@ -295,6 +297,11 @@ private:
     bool m_occlusionCullingEnabled = false;  // default OFF; PHYXEL_OCCLUSION=1 env var enables (debug)
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
     void applyOcclusionCulling(const glm::vec3& cameraPos);
+    // Scratch containers reused across applyOcclusionCulling() calls (cleared, not
+    // reallocated, each frame — .clear() retains bucket/capacity). Avoids per-frame heap churn.
+    std::unordered_map<int64_t, size_t> m_occCoordToIdx;
+    std::unordered_set<int64_t> m_occReached;
+    std::vector<size_t> m_occKept;
 
     // Mirror reflection state (updated per-frame when mirror voxels are visible)
     bool hasMirrorVoxels = false;

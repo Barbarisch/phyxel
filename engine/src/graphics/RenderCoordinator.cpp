@@ -682,8 +682,10 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
     };
 
-    // Index the frustum-visible chunks by packed chunk coord.
-    std::unordered_map<int64_t, size_t> coordToIdx;
+    // Index the frustum-visible chunks by packed chunk coord. Reused scratch maps
+    // (.clear() keeps bucket arrays) so this hot path doesn't allocate every frame.
+    std::unordered_map<int64_t, size_t>& coordToIdx = m_occCoordToIdx;
+    coordToIdx.clear();
     coordToIdx.reserve(visibleChunkIndices.size() * 2);
     for (size_t idx : visibleChunkIndices) {
         glm::ivec3 coord = toCoord(glm::vec3(chunkManager->chunks[idx]->getWorldOrigin()));
@@ -694,7 +696,8 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
     // out of your own chunk in any direction); thereafter sight must pass from the
     // entry face to the exit face through the chunk's air (facesConnected).
     glm::ivec3 camCoord = toCoord(cameraPos);
-    std::unordered_set<int64_t> reached;
+    std::unordered_set<int64_t>& reached = m_occReached;
+    reached.clear();
     reached.reserve(visibleChunkIndices.size() * 2);
     std::queue<std::pair<glm::ivec3, int>> q;
     reached.insert(packCoord(camCoord));
@@ -719,7 +722,8 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
 
     // Keep only frustum-visible chunks the BFS reached.
     const size_t before = visibleChunkIndices.size();
-    std::vector<size_t> kept;
+    std::vector<size_t>& kept = m_occKept;
+    kept.clear();
     kept.reserve(before);
     for (size_t idx : visibleChunkIndices) {
         glm::ivec3 coord = toCoord(glm::vec3(chunkManager->chunks[idx]->getWorldOrigin()));
