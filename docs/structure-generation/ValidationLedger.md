@@ -135,7 +135,14 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
   stories=2 from the New Inn, Gloucester). solution-auditor PASS.
-  - **Asset depth (the "necessary extras") — IN PROGRESS:** lighting fixtures ✅ — `candle_stand`
+  - **Asset depth (the "necessary extras") — IN PROGRESS:** mugs + bottles ✅ — `mug` (treen tankard,
+    period-appropriate) + `bottle` (750 ml, glass flagged mild-anachronism) micro-floor props, grounded
+    + conformance **ok**, both auditors PASS. **NEW surface-placement path** `FurniturePlacer::placeSurfaceClutter`
+    (distinct in-footprint cells, on the surface TOP, no overflow, deterministic — `SurfaceClutterTest` ×4
+    incl. overflow teeth); build_structure handler scatters mugs/bottles on table tops. NOT runtime-verified
+    (handler clutter pass not screenshot-checked); latent edge: a table type missing from the footprint map
+    falls back to a 1×1 surface (auditor-noted follow-up).
+  - lighting fixtures ✅ — `candle_stand`
     (floor candelabra, placed in the taproom now), `wall_lantern`, `chandelier` — deterministic
     MICROCUBE builds with **`glow` emissive flames**, grounded (sconce mount 60-72″, chandelier dia
     ~½ table width cited; period-appropriate — pricket stands/horn lanterns/candle coronas), all three
