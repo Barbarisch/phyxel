@@ -74,7 +74,7 @@ floor scan, paths…).
 | 21 | zone_parcel | M | L2 | L0 | 1/1/1 = **3** | L0→L2: parcels don't overlap, fit the site |
 | 22 | place_fence | M | L2 | L0 | 0/1/1 = **2** | L0→L2: encloses, no gaps a character slips through |
 | 23 | place_boundary_wall | M | L2 | L0 | 0/1/1 = **2** | L0→L2 |
-| 24 | place_path | M | **L3** | 🟡 **L3 (ramp + switchback)** | 2/2/1 = **5** | `PathPlanner::planStraightRamp` + `planSwitchback` (flights + flat landings/aprons, grade cap = step-up/halfWidth); **`PathPlannerTest` L3** (TraversalProbe walks both; cliff/terminus teeth, flat-stamp negative control, too-short + too-tight-budget reported, red-before-green). Owed: multi-building network + `build_settlement` wiring (3c) |
+| 24 | place_path | M | **L3** | 🟡 **L3 (ramp + switchback + network)** | 2/2/1 = **5** | `PathPlanner::planStraightRamp` + `planSwitchback` (flights + flat landings/aprons, grade cap = step-up/halfWidth) + `planSettlementPaths` (MST over building doors, each edge graded with flat aprons); **`PathPlannerTest` + `SettlementPathsTest` L3** (TraversalProbe walks ramp/switchback/whole network; cliff/terminus/terraced-cube teeth, flat-stamp negative control, too-short + too-tight-budget + degenerate reported, red-before-green). Owed: wire `planSettlementPaths` into `build_settlement` + stamp paths as voxels (3c-2, L4) |
 | 25 | place_garden | M | L1 | L0 | 0/0/1 = **1** | L0→L1 |
 | 26 | place_farm | M | L2 | L0 | 1/0/1 = **2** | L0→L2: plots fit, don't overlap structures |
 | 27 | place_outbuildings | M | L2 | L0 | 1/1/1 = **3** | L0→L2 (recurse the building gates per outbuilding) |

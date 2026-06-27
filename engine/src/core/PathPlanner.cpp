@@ -1,6 +1,7 @@
 #include "core/PathPlanner.h"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -166,6 +167,64 @@ PathPlan planSwitchback(const std::function<int(int, int)>& /*groundMicroAt*/,
                              static_cast<int>(static_cast<int32_t>(kv.first & 0xffffffffLL)), kv.second});
     p.ok = true;
     return p;
+}
+
+namespace {
+// Prepend/append a flat apron (depth `apron`) at each end of a graded ramp, at the end's height, so the
+// ramp is enterable from FLAT ground at its anchors (a path has a flat threshold at a door). Without it
+// the footprint, standing at the door height, reaches halfWidth into the immediately-climbing ramp and
+// can't settle. Extends opposite the first step at the front, and along the last step at the back.
+void addFlatAprons(PathPlan& p, int apron) {
+    const int n = static_cast<int>(p.cells.size());
+    if (n < 2 || apron < 1) return;
+    const int fdx = (p.cells[1].x > p.cells[0].x) - (p.cells[1].x < p.cells[0].x);
+    const int fdz = (p.cells[1].z > p.cells[0].z) - (p.cells[1].z < p.cells[0].z);
+    const int fy = p.cells.front().surfaceY;
+    const int bdx = (p.cells[n - 1].x > p.cells[n - 2].x) - (p.cells[n - 1].x < p.cells[n - 2].x);
+    const int bdz = (p.cells[n - 1].z > p.cells[n - 2].z) - (p.cells[n - 1].z < p.cells[n - 2].z);
+    const int by = p.cells.back().surfaceY;
+    std::vector<PathCell> out;
+    out.reserve(n + 2 * apron);
+    for (int k = apron; k >= 1; --k) out.push_back({p.cells.front().x - fdx * k, p.cells.front().z - fdz * k, fy});
+    for (const auto& c : p.cells) out.push_back(c);
+    for (int k = 1; k <= apron; ++k) out.push_back({p.cells.back().x + bdx * k, p.cells.back().z + bdz * k, by});
+    p.cells = std::move(out);
+}
+}  // namespace
+
+SettlementPaths planSettlementPaths(const std::vector<DoorAnchor>& doors,
+                                    const std::function<int(int, int)>& groundMicroAt,
+                                    const AgentBox& box) {
+    SettlementPaths out;
+    const int n = static_cast<int>(doors.size());
+    if (n < 2) return out;            // nothing to connect
+
+    auto hdist = [&](int a, int b) {  // horizontal (Manhattan) distance between two doors
+        return std::abs(doors[a].x - doors[b].x) + std::abs(doors[a].z - doors[b].z);
+    };
+
+    // Prim's MST: grow a tree from door 0, always adding the cheapest edge to a not-yet-connected door.
+    std::vector<char> inTree(n, 0);
+    std::vector<int> best(n, INT_MAX), parent(n, -1);
+    inTree[0] = 1;
+    for (int j = 1; j < n; ++j) { best[j] = hdist(0, j); parent[j] = 0; }
+    for (int added = 1; added < n; ++added) {
+        int u = -1;
+        for (int j = 0; j < n; ++j)
+            if (!inTree[j] && (u == -1 || best[j] < best[u])) u = j;
+        if (u == -1) break;
+        inTree[u] = 1;
+        ++out.edges;
+        // grade the tree edge (parent[u] -> u) into a walkable ramp over the terrain
+        const DoorAnchor& a = doors[parent[u]];
+        const DoorAnchor& b = doors[u];
+        PathPlan ramp = planStraightRamp(groundMicroAt, {a.x, a.surfaceY, a.z}, {b.x, b.surfaceY, b.z}, box);
+        if (ramp.ok) { addFlatAprons(ramp, box.halfWidthMicro + 1); out.paths.push_back(std::move(ramp)); ++out.connected; }
+        else out.failedEdges.emplace_back(parent[u], u);
+        for (int j = 0; j < n; ++j)   // relax remaining doors against the newly added node
+            if (!inTree[j] && hdist(u, j) < best[j]) { best[j] = hdist(u, j); parent[j] = u; }
+    }
+    return out;
 }
 
 }  // namespace Core

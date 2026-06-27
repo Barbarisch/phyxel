@@ -68,5 +68,30 @@ PathPlan planSwitchback(const std::function<int(int, int)>& groundMicroAt,
                         glm::ivec3 startMicro, int targetSurfaceY, const AgentBox& box,
                         int flightRunMicro, int lateralBudgetMicro);
 
+// --- Settlement path network (3c) -------------------------------------------------------------------
+
+struct DoorAnchor {
+    int x = 0;         ///< micro coord of the building's threshold
+    int z = 0;
+    int surfaceY = 0;  ///< ground height (micro) at the threshold (where the path must meet the door)
+};
+
+struct SettlementPaths {
+    std::vector<PathPlan> paths;                      ///< a graded ramp per CONNECTED edge
+    int edges = 0;                                    ///< edges attempted (a spanning tree -> doors-1)
+    int connected = 0;                                ///< edges successfully graded (paths.size())
+    std::vector<std::pair<int, int>> failedEdges;     ///< door index pairs too steep for a straight ramp
+};
+
+/// Connect a settlement's building doors into a walkable network: a minimum spanning tree over the
+/// doors (by horizontal distance), each edge graded into a walkable ramp over the terrain via
+/// planStraightRamp. On real CUBE-resolution terrain adjacent columns differ by >= a cube (9 micro) >
+/// the step-up, so doors at different heights are NOT walkable between on bare ground — the graded
+/// ramps cut/fill the connection down to <= step-up risers. Edges too steep for a straight ramp are
+/// reported in failedEdges (a switchback-routing follow-up), not silently dropped. Deterministic.
+SettlementPaths planSettlementPaths(const std::vector<DoorAnchor>& doors,
+                                    const std::function<int(int, int)>& groundMicroAt,
+                                    const AgentBox& box);
+
 }  // namespace Core
 }  // namespace Phyxel
