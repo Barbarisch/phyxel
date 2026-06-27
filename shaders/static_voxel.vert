@@ -43,7 +43,7 @@ layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to 
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
-layout(location = 6) out flat float vSkyLight;    // baked skylight, normalized 0..1
+layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) out flat vec3  vBlockColor;  // baked coloured block light (emissive sources), 0..1 per channel
 
 void main() {
@@ -317,9 +317,14 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord = uv;
     flags = inFlags;
-    vSkyLight = float(inLight & 0xFu) / 15.0;          // skylight 0..15 -> 0..1
-    vBlockColor = vec3(float((inLight >> 4u)  & 0xFu),  // block R
-                       float((inLight >> 8u)  & 0xFu),  // block G
-                       float((inLight >> 12u) & 0xFu))  // block B
-                  / 15.0;
+    // Smooth skylight: bits 0-15 hold one 4-bit sky value per quad corner. The corner index is
+    // the in-plane (bit0,bit1) of the cube vertex (vertexID is 0-7 cube corners; faceOffset uses
+    // only bits 0-1), so mask with 3. Outputting per-vertex (non-flat) lets the rasterizer
+    // interpolate it, turning blocky per-face steps into smooth gradients + ambient occlusion.
+    uint cornerSky = (inLight >> ((vertexID & 3u) * 4u)) & 0xFu;
+    vSkyLight = float(cornerSky) / 15.0;
+    // Block light is per-face (flat), now at bits 16-27: R(16-19) G(20-23) B(24-27).
+    vBlockColor = vec3(float((inLight >> 16u) & 0xFu),
+                       float((inLight >> 20u) & 0xFu),
+                       float((inLight >> 24u) & 0xFu)) / 15.0;
 }

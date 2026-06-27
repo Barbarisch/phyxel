@@ -7,7 +7,7 @@ layout(location = 2) in vec4 shadowCoord;        // from vertex shader
 layout(location = 3) in flat uint flags;         // from vertex shader
 layout(location = 4) in vec3 inNormal;           // from vertex shader
 layout(location = 5) in vec3 inWorldPos;         // from vertex shader
-layout(location = 6) in flat float vSkyLight;    // baked skylight 0..1 (0 = enclosed/no sky access)
+layout(location = 6) in float vSkyLight;          // baked skylight 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) in flat vec3  vBlockColor;  // baked coloured block light 0..1/channel (emissive voxels)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
