@@ -267,10 +267,10 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
         LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
-        
+
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);
-        
+
         // Update GPU buffer with new face data
         chunk->updateVulkanBuffer();
         chunk->setNeedsUpdate(false);
@@ -309,16 +309,23 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
 }
 
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
-    // Provide a neighbor lookup function that can check cubes in adjacent chunks
-    auto getNeighborCube = [this, &chunk](const glm::ivec3& worldPos) -> const Cube* {
+    // Provide a neighbor lookup function that can check cubes in adjacent chunks.
+    // PERF: caches the last-resolved chunk. The skylight bake's columnOpenAbove probe walks
+    // ~96 cells straight up per column (×1024 columns = ~98k calls), all hitting the same few
+    // vertical chunks consecutively — without this memo each call did a chunk-map hash lookup,
+    // which dominated rebuild time (~43ms of a ~50ms chunk rebuild). The memo collapses it to
+    // one lookup per chunk transition (getCubeAt itself is an O(1) array index).
+    bool ncValid = false;
+    glm::ivec3 ncCoord(0);
+    Chunk* ncChunk = nullptr;
+    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> const Cube* {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-        Chunk* neighborChunk = getChunkAtCoord(chunkCoord);
-
-        if (neighborChunk) {
-            glm::ivec3 localPos = worldToLocalCoord(worldPos);
-            return neighborChunk->getCubeAt(localPos);
+        if (!ncValid || chunkCoord != ncCoord) {
+            ncValid = true;
+            ncCoord = chunkCoord;
+            ncChunk = getChunkAtCoord(chunkCoord);
         }
-
+        if (ncChunk) return ncChunk->getCubeAt(worldToLocalCoord(worldPos));
         return nullptr;
     };
 
