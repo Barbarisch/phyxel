@@ -10164,7 +10164,10 @@ void Application::registerSettlementCommands() {
         std::vector<std::string> mix;
         if (p.contains("typologies") && p["typologies"].is_array())
             for (const auto& t : p["typologies"]) if (t.is_string()) mix.push_back(t.get<std::string>());
-        if (mix.empty()) mix.push_back(typology);
+        // Default to a VARIED typology palette (like styles below) so a settlement varies by default;
+        // a caller wanting one typology passes typologies:["croft"]. (typology param seeds it if given.)
+        if (mix.empty()) mix = (typology == "hall_house") ? std::vector<std::string>{"croft", "longhouse", "hall_house"}
+                                                          : std::vector<std::string>{typology};
         // Style palette for per-building variation (material + roof form). Default = the three shipped
         // styles so a village mixes timber/stone, thatch/wood/stone roofs, gable/flat.
         std::vector<std::string> styles;
