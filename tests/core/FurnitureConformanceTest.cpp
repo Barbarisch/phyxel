@@ -142,4 +142,7 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     EXPECT_EQ(statusOf(rep, "candle_stand"), "ok");              // 1.33h x 0.33 vs canon 1.3/0.33
     EXPECT_EQ(statusOf(rep, "wall_lantern"), "ok");              // 0.44h x 0.33 x 0.22 vs canon 0.4/0.33/0.22
     EXPECT_EQ(statusOf(rep, "chandelier"),   "ok");              // 0.67h x 0.56dia vs canon 0.6/0.6
+    // Tableware clutter (mugs + bottles): microcube-floor props grounded to object_dimensions.
+    EXPECT_EQ(statusOf(rep, "mug"),    "ok");                    // 0.11 cube vs canon 0.13/0.095
+    EXPECT_EQ(statusOf(rep, "bottle"), "ok");                    // 0.11x0.33 vs canon 0.08/0.30
 }

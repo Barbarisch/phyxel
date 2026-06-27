@@ -20,6 +20,7 @@ const std::map<std::string, std::string>& typeArchetype() {
         {"counter", "counter_kitchen"}, {"bench", "bench"}, {"fireplace", "hearth"},
         {"tavern_bar", "tavern_bar"}, {"back_bar", "back_bar"}, {"bar_stool", "bar_stool"},
         {"candle_stand", "candle_stand"}, {"wall_lantern", "wall_lantern"}, {"chandelier", "chandelier"},
+        {"mug", "mug"}, {"bottle", "bottle"},
     };
     return m;
 }

@@ -391,6 +391,54 @@ def gen_chandelier():
     write("chandelier", header, m.emit_lines([]), m)
 
 
+def gen_mug():
+    # mug / tankard: a pint pewter/wood tankard ~0.125 m tall, ~0.095 m dia. At the 1/9 m micro floor
+    # that is ~1 micro -> a single small block (table clutter; reads as a cup at player scale).
+    m = Model()
+    m.m(0, 0, 0, "Wood")                            # wooden tankard (treen) — 0.111 m cube
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         mug\n"
+        "# display_name: Mug / Tankard\n"
+        "# description:  A wooden drinking tankard — table clutter (microcube-floor sized).\n"
+        "# category:     furniture\n"
+        "# subcategory:  tableware\n"
+        "# tags:         mug, tankard, cup, drink, tavern, clutter\n"
+        "# materials:    Wood\n"
+        "# facing:       +Z\n"
+        "# bounds:       0.11W x 0.11H x 0.11D m (grounded object_dimensions 'mug' ~pint tankard)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("mug", header, m.emit_lines([]), m)
+
+
+def gen_bottle():
+    # bottle: a standard 750 ml wine/ale bottle ~0.30 m tall, ~0.075 m dia. Micro: 1 wide x 3 tall
+    # (Glass body + a Wood cork/stopper on top). Table / back-bar clutter.
+    m = Model()
+    m.m(0, 0, 0, "Glass")
+    m.m(0, 1, 0, "Glass")
+    m.m(0, 2, 0, "Wood")                            # cork / stopper
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         bottle\n"
+        "# display_name: Bottle\n"
+        "# description:  A glass bottle with a cork — table / back-bar clutter.\n"
+        "# category:     furniture\n"
+        "# subcategory:  tableware\n"
+        "# tags:         bottle, glass, drink, tavern, clutter\n"
+        "# materials:    Glass, Wood\n"
+        "# facing:       +Z\n"
+        "# bounds:       0.11W x 0.33H x 0.11D m (grounded object_dimensions 'bottle' 750 ml = 30 cm)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("bottle", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -400,3 +448,5 @@ if __name__ == "__main__":
     gen_candle_stand()
     gen_wall_lantern()
     gen_chandelier()
+    gen_mug()
+    gen_bottle()

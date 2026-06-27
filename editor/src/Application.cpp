@@ -12347,6 +12347,27 @@ void Application::processAPICommands() {
                                         fx["rotation"] = pl.rotation;
                                         fixturesJson.push_back(fx);
                                     }
+                                    // Surface clutter: scatter mugs/bottles ON table tops (the
+                                    // surface-placement path furnish() lacks). Deterministic per table
+                                    // position so a rebuild is stable. Table top ~= floor + 1 cube.
+                                    for (const auto& pl : placements) {
+                                        if (pl.type.find("table") == std::string::npos) continue;
+                                        Core::Footprint fp = fixtureFootprints.count(pl.type)
+                                            ? fixtureFootprints[pl.type] : Core::Footprint{1, 1};
+                                        Core::Rect surf{pl.worldPos.x, pl.worldPos.z, fp.width, fp.depth};
+                                        unsigned cseed =
+                                            (static_cast<unsigned>(pl.worldPos.x) * 73856093u) ^
+                                            (static_cast<unsigned>(pl.worldPos.z) * 19349663u) ^ 0x9e3779b9u;
+                                        auto clutter = Core::FurniturePlacer::placeSurfaceClutter(
+                                            pl.room, surf, storyFloorY + 1, {"mug", "mug", "bottle"}, cseed);
+                                        for (const auto& c : clutter) {
+                                            std::string ct = Core::FurnitureCatalog::templateFor(c.type);
+                                            if (ct.empty()) continue;
+                                            if (!placedObjectManager->placeTemplate(
+                                                    ct, c.worldPos, 0, objectId, /*snap=*/false).empty())
+                                                ++fxSpawned;
+                                        }
+                                    }
                                 }
                                 response["fixtures_spawned"] = fxSpawned;
                                 response["fixtures"] = fixturesJson;   // labeled, addressable

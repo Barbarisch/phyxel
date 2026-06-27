@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "bottle",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.1111111111111111,
+    0.3333333333333333,
+    0.1111111111111111
+  ],
+  "interaction_points": []
+}

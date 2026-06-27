@@ -64,6 +64,15 @@ public:
                                                    const glm::ivec3& origin, int floorY,
                                                    const std::map<std::string, Footprint>& footprints = {});
 
+    /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
+    /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on
+    /// the floor); `items` = clutter types to place. Each item gets a DISTINCT cell inside the surface
+    /// (no overlap), chosen deterministically from `seed`. If there are more items than cells, only as
+    /// many as fit are placed (no overflow). This is the surface-placement path furnish() lacks.
+    static std::vector<FurniturePlacement> placeSurfaceClutter(
+        const std::string& room, const Rect& surface, int topY,
+        const std::vector<std::string>& items, unsigned seed);
+
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).
     static int facingIntoRoom(int inwardDx, int inwardDz);

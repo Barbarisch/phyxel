@@ -1,0 +1,15 @@
+# ==========================================================
+# ASSET METADATA
+# name:         mug
+# display_name: Mug / Tankard
+# description:  A wooden drinking tankard — table clutter (microcube-floor sized).
+# category:     furniture
+# subcategory:  tableware
+# tags:         mug, tankard, cup, drink, tavern, clutter
+# materials:    Wood
+# facing:       +Z
+# bounds:       0.11W x 0.11H x 0.11D m (grounded object_dimensions 'mug' ~pint tankard)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Wood

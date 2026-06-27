@@ -37,6 +37,8 @@ const std::map<std::string, std::string>& table() {
         {"candle_stand", "candle_stand"},  // floor candelabra (emissive glow) — lighting
         {"wall_lantern", "wall_lantern"},  // wall sconce lantern (awaiting wall placement)
         {"chandelier",   "chandelier"},    // hanging candle ring (awaiting ceiling placement)
+        {"mug",          "mug"},           // tankard — table clutter (surface placement)
+        {"bottle",       "bottle"},        // bottle — table/back-bar clutter
     };
     return t;
 }

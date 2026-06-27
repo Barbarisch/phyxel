@@ -2,25 +2,16 @@
 # ASSET METADATA
 # name:         bottle
 # display_name: Bottle
+# description:  A glass bottle with a cork — table / back-bar clutter.
 # category:     furniture
-# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
-# clutter:      surface prop
-# primitives:   0 C + 0 S + 14 M = 14
-# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
+# subcategory:  tableware
+# tags:         bottle, glass, drink, tavern, clutter
+# materials:    Glass, Wood
+# facing:       +Z
+# bounds:       0.11W x 0.33H x 0.11D m (grounded object_dimensions 'bottle' 750 ml = 30 cm)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
 # ==========================================================
-# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
 
 M 0 0 0 0 0 0 0 0 0 Glass
-M 0 0 0 0 0 0 0 0 1 Glass
 M 0 0 0 0 0 0 0 1 0 Glass
-M 0 0 0 0 0 0 0 1 1 Glass
-M 0 0 0 0 0 0 0 2 0 Glass
-M 0 0 0 0 0 0 0 2 1 Glass
-M 0 0 0 0 0 0 1 0 0 Glass
-M 0 0 0 0 0 0 1 0 1 Glass
-M 0 0 0 0 0 0 1 1 0 Glass
-M 0 0 0 0 0 0 1 1 1 Glass
-M 0 0 0 0 0 0 1 2 0 Glass
-M 0 0 0 0 0 0 1 2 1 Glass
-M 0 0 0 0 1 0 0 0 0 Glass
-M 0 0 0 0 1 0 0 1 0 Wood
+M 0 0 0 0 0 0 0 2 0 Wood

@@ -42,6 +42,31 @@ std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& p
     return types;
 }
 
+std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
+    const std::string& room, const Rect& surface, int topY,
+    const std::vector<std::string>& items, unsigned seed) {
+    std::vector<FurniturePlacement> out;
+    if (surface.w <= 0 || surface.d <= 0 || items.empty()) return out;
+    // candidate cells = the surface footprint; each holds at most one clutter item (no overlap).
+    std::vector<glm::ivec2> cells;
+    for (int x = surface.x; x < surface.x1(); ++x)
+        for (int z = surface.z; z < surface.z1(); ++z)
+            cells.push_back({x, z});
+    // deterministic Fisher-Yates shuffle (LCG) so the scatter is stable per seed.
+    unsigned s = seed ? seed : 1u;
+    auto rnd = [&]() { s = s * 1664525u + 1013904223u; return s; };
+    for (int i = static_cast<int>(cells.size()) - 1; i > 0; --i)
+        std::swap(cells[i], cells[rnd() % static_cast<unsigned>(i + 1)]);
+    const size_t n = std::min(items.size(), cells.size());   // never overflow the surface
+    for (size_t i = 0; i < n; ++i) {
+        FurniturePlacement p;
+        p.type = items[i]; p.room = room; p.rotation = 0;
+        p.worldPos = glm::ivec3(cells[i].x, topY, cells[i].y);
+        out.push_back(p);
+    }
+    return out;
+}
+
 std::vector<std::string> FurniturePlacer::knownPurposes() {
     // One representative per recipe branch in recipeFor(); their union is the full vocabulary.
     return {"taproom", "kitchen", "bedchamber", "hall", "store", "other"};
