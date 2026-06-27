@@ -40,6 +40,21 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
     SpotLightGPU spotLights[16];
 } lights;
 
+// Sun shadow map (shared set-0 binding 2, same as voxel.frag). Characters now RECEIVE
+// sun shadows so a character standing in a building's shadow is darkened like the world.
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;
+
+const vec2 poissonDisk[16] = vec2[](
+    vec2(-0.94201624,  -0.39906216), vec2( 0.94558609,  -0.76890725),
+    vec2(-0.094184101, -0.92938870), vec2( 0.34495938,   0.29387760),
+    vec2(-0.91588581,   0.45771432), vec2(-0.81544232,  -0.87912464),
+    vec2(-0.38277543,   0.27676845), vec2( 0.97484398,   0.75648379),
+    vec2( 0.44323325,  -0.97511554), vec2( 0.53742981,  -0.47373420),
+    vec2(-0.26496911,  -0.41893023), vec2( 0.79197514,   0.19090188),
+    vec2(-0.24188840,   0.99706507), vec2(-0.81409955,   0.91437590),
+    vec2( 0.19984126,   0.78641367), vec2( 0.14383161,  -0.14100790)
+);
+
 layout(location = 0) out vec4 outColor;
 
 float calcAttenuation(float d, float radius) {
@@ -71,8 +86,29 @@ void main() {
     float skyCurve   = sky * sky;
     const float kSkyFill = 0.35;
 
+    // Sun shadow: compute the light-space coord in the frag (the vert has no UBO) and PCF-sample
+    // the same shadow map the world uses. biasMat maps clip xy→[0,1]; z stays [0,1] (orthoRH_ZO).
+    const mat4 biasMat = mat4(0.5, 0.0, 0.0, 0.0,
+                              0.0, 0.5, 0.0, 0.0,
+                              0.0, 0.0, 1.0, 0.0,
+                              0.5, 0.5, 0.0, 1.0);
+    vec4 shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(fragWorldPos, 1.0);
+    float shadowFactor = 1.0;
+    bool inShadowMap = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 &&
+                       shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
+    if (inShadowMap && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
+        float shadowSum = 0.0;
+        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+        const float kShadowBias = 0.0009; // slightly larger than world's 0.0006 (chars aren't greedy-merged casters)
+        for (int i = 0; i < 16; i++) {
+            float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
+            if (shadowCoord.z - kShadowBias > pcfDepth) shadowSum += 1.0;
+        }
+        shadowFactor = 1.0 - (shadowSum / 16.0);
+    }
+
     vec3 ambient = vec3(ubo.ambientLight) * skyCurve * kSkyFill;
-    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * skyCurve;
+    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * skyCurve * shadowFactor;
     finalLight += blockColor * blockColor; // omnidirectional warm/colored fill from baked block light
 
     // Point lights
