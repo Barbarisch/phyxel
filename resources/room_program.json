@@ -46,8 +46,9 @@
     },
     "tavern": {
       "_grounding_note": "The room PROGRAM (a public common room + kitchen + service/storage end) is grounded in the medieval-inn record. The BAY FRAME (4 bays, 2+1+1 split) is an explicit DESIGN DECISION by analogy to the grounded hall_house ground floor, NOT a measured inn — no inn-specific bay count was sourced (would need Pantin, 'Medieval Inns', Studies in Building History 1961). Upstairs lodging (guest chambers) is added by multi-story generation.",
-      "description": "Town inn / tavern, ground floor — public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system.",
+      "description": "Town inn / tavern — ground floor: public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system. Upper floor: guest chambers (lodging), reached by a generated stair.",
       "width_min": 6, "width_max": 7, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
+      "stories": 2, "upper_purpose": "bedchamber",
       "rooms": [
         { "id": "taproom", "purpose": "taproom", "bays": 2 },
         { "id": "kitchen", "purpose": "kitchen", "bays": 1 },
@@ -60,6 +61,7 @@
         "width_min": "cruck dwelling <=6 m (buildingconservation.com, timber-framed buildings) — lower bound of the framed range",
         "bays": "DESIGN DECISION (analogy, not an inn measurement): modelled on the grounded hall_house 4-bay frame, inn ground floor ~= a hall. Taproom = the 2 middle bays (cf. hall_house open hall = middle 2 bays, Wikipedia Hall house); kitchen + store one bay each. No inn-specific bay count was sourced.",
         "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; same Brunskill 1985 TBD caveat as those entries)",
+        "stories": "2 storeys: ground-floor public rooms + upper-floor guest chambers — the standard town-inn lodging form. Attested: medieval inns provided upstairs chambers (Medievalists.net); The New Inn, Gloucester is three-storey galleried (Wikipedia). 2 is the conservative town-tavern default; multi-story gen supports more.",
         "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn)."
       }
     },

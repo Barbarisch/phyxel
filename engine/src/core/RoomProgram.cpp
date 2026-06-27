@@ -1,5 +1,6 @@
 #include "core/RoomProgram.h"
 
+#include <algorithm>
 #include <fstream>
 
 #include "utils/Logger.h"
@@ -20,6 +21,8 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
     p.bays = rec.value("bays", 0);
     p.proportionMin = rec.value("proportion_min", 0.0);
     p.proportionMax = rec.value("proportion_max", 0.0);
+    p.stories = std::max(1, rec.value("stories", 1));
+    p.upperPurpose = rec.value("upper_purpose", "");
 
     if (rec.contains("rooms") && rec["rooms"].is_array())
         for (const auto& r : rec["rooms"]) {

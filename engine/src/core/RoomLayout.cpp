@@ -223,9 +223,57 @@ RoomLayout generateWingedLayout(int W, int D, const std::string& shape, unsigned
     return out;
 }
 
+// Upper floors of a multi-story typology = linear guest chambers (full-width slices), so the FIRST
+// slice (room 0, low end of the longer axis) is the stair-landing the flight emerges into — kept big
+// enough to hold the well clear of any interior wall. minBays caps the chamber count to the footprint.
+static RoomLayout generateUpperChambers(int W, int D, const std::string& purpose) {
+    const int length = std::max(W, D);
+    // Wider slices (length/5, 2..4) so room 0 — the stair landing — has floor BESIDE the shaft (the
+    // switchback cuts its whole well from the upper slab), not an all-hole room.
+    const int chambers = std::max(2, std::min(length / 5, 4));
+    RoomProgram up;
+    for (int c = 0; c < chambers; ++c)
+        up.rooms.push_back({"chamber", purpose.empty() ? "bedchamber" : purpose, 1.0});
+    return generateRoomLayoutFromProgram(W, D, up);
+}
+
+// The missing circulation: a switchback stair connecting every consecutive story. The well is a
+// compact 2x(<=6) cube shaft at the LOW end of the longer axis — fully inside room 0 of BOTH the
+// ground typology plan (taproom) and the upper chamber plan (the landing), so the emergence hole is
+// never crossed by an interior wall. 2x6 is the harness-proven switchback footprint for a ~3 m story.
+static void generateStoryStairs(BuildingProgram& program) {
+    const int n = static_cast<int>(program.stories.size());
+    if (n < 2) return;
+    const bool lengthIsX = (program.footprintW >= program.footprintD);
+    const int wellRun = std::min(6, lengthIsX ? program.footprintD : program.footprintW);  // across-width
+    Rect well;
+    if (lengthIsX) well = {1, 0, 2, wellRun};   // x in [1,3] (clear of x=0 wall + the first interior wall)
+    else           well = {0, 1, wellRun, 2};
+    for (int s = 0; s + 1 < n; ++s) {
+        bool authored = false;
+        for (const auto& st : program.stories[s].stairs)
+            if (st.fromStory == s && st.toStory == s + 1) authored = true;
+        if (authored) continue;
+        ProgStair stair;
+        stair.fromStory = s; stair.toStory = s + 1; stair.rect = well;
+        stair.kind = "straight"; stair.form = "switchback";
+        program.stories[s].stairs.push_back(stair);
+    }
+}
+
 bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
     const int W = program.footprintW, D = program.footprintD;
     if (W <= 0 || D <= 0) return false;                      // no footprint -> nothing to fill
+
+    // Grow to the typology's story count (e.g. an inn = 2: ground + lodging). Only when the caller
+    // gave a single EMPTY story -> respect any authored multi-story program.
+    if (typology && typology->stories > 1 &&
+        program.stories.size() == 1 && program.stories[0].rooms.empty()) {
+        const ProgStory proto = program.stories[0];          // copy height/etc. for each added floor
+        while (static_cast<int>(program.stories.size()) < typology->stories)
+            program.stories.push_back(proto);
+    }
+
     bool typologyApplied = false;
     for (size_t i = 0; i < program.stories.size(); ++i) {
         ProgStory& st = program.stories[i];
@@ -240,8 +288,13 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
             rl = generateRoomLayoutFromProgram(W, D, *typology);
             if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
         }
+        // upper floor of a multi-story typology: grounded guest chambers (linear, landing = room 0).
+        if (rl.rooms.empty() && i != 0 && typology && typology->stories > 1) {
+            rl = generateUpperChambers(W, D, typology->upperPurpose);
+            if (!rl.rooms.empty()) typologyApplied = true;
+        }
         if (rl.rooms.empty()) {
-            // Fallback (no typology / doesn't fit / upper story): generic BSP. DENSITY knob (a
+            // Fallback (no typology / doesn't fit / generic upper story): generic BSP. DENSITY knob (a
             // tunable design default, NOT a grounded clearance): ~1 room per ~16 m^2, at least 1.
             const int targetRooms = std::max(1, (W * D) / 16);
             rl = generateRoomLayout(W, D, targetRooms, seed + static_cast<unsigned>(i));
@@ -253,6 +306,9 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
             st.portals.push_back(p);                         // keep any authored stairs/portals
         }
     }
+
+    // Generate the connecting stair(s) for any multi-story building (the missing circulation).
+    generateStoryStairs(program);
     return typologyApplied;
 }
 

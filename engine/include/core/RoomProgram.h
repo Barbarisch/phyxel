@@ -38,7 +38,11 @@ struct RoomProgram {
     int    bays = 0;                         ///< total bay count
     double proportionMin = 0.0, proportionMax = 0.0;  ///< length:width sanity bounds (0 = unset)
 
-    std::vector<RoomSpec> rooms;             ///< rooms + their bay allocation
+    int    stories = 1;                      ///< number of stories the typology generates (>=1)
+    std::string upperPurpose;                ///< room purpose for AUTO-generated upper floors
+                                             ///< (e.g. "bedchamber" = inn guest chambers); ""=generic
+
+    std::vector<RoomSpec> rooms;             ///< GROUND-floor rooms + their bay allocation
     std::map<std::string, std::string> sources;  ///< per-value provenance
 
     bool hasSource(const std::string& key) const { return sources.find(key) != sources.end(); }
