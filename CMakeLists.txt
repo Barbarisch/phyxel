@@ -98,8 +98,9 @@ elseif(PLATFORM_LINUX)
     endif()
 endif()
 
-# Bullet Physics submodule kept as reference but NOT built or linked.
-# Bullet-dependent character classes have been moved to engine/deprecated/bullet/.
+# Bullet Physics has been fully removed (submodule dropped). Physics is the in-house stack:
+# GpuParticlePhysics (Vulkan compute) + VoxelDynamicsWorld (CPU). stb_image is vendored at
+# external/stb (formerly sourced from the bullet3 submodule). Old Bullet code is in git history.
 
 # ==========================================================================
 # FetchContent Dependencies
@@ -172,7 +173,7 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
-set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
+set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/stb)
 set(STB_IMAGE_SOURCES ${STB_IMAGE_DIR}/stb_image.cpp)
 
 # bc7enc — public-domain/MIT single-file BC7 (DXGI BC7) block encoder for GPU texture compression
