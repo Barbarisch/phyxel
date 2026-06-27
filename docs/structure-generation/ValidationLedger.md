@@ -117,6 +117,28 @@ Validate when each lands; required layer noted so the plan is set up front.
 - **Fantasy (58–59):** narrative/dressing, not physical → **L1/data**: `author_world_bible` 58,
   `apply_setting_overlay` 59.
 
+## Functional typology library (the "various structures" track)
+
+A town is its **functional** buildings, not a scatter of identical houses. Typologies are data in
+`resources/room_program.json` (bay-driven, grounded) + a furniture recipe per room *purpose*
+(`FurniturePlacer::recipeFor`) + a type→template map (`FurnitureCatalog`). Required depth: **L3**
+(interior navigable — a character can enter and reach each room), since these are *used* spaces.
+
+- **Residential (shipped):** croft · longhouse · hall_house · manor_hall — L3 via
+  `TypologyHouseTraversalTest` + the harness `rooms` layer.
+- **`tavern` — ✅ L3 + GROUNDED** (first non-residential typology): ground-floor public **taproom**
+  (2 bays) + kitchen + service/storage end. `TavernTypologyTest`: canon grounded + taproom recipe
+  places a **bar** (`tavern_bar`/`tavern_table` resolve, coverage gate green) + **L3
+  `CharacterWalksTaproomToKitchen`** with sealed-interior teeth. Dimensions grounding-auditor PASS
+  (room program from the medieval-inn record; the 4-bay frame honestly labelled a DESIGN DECISION by
+  analogy to the grounded hall_house, NOT a claimed inn measurement; width_max=7 from the documented
+  Rufford Old Hall footprint). solution-auditor PASS. **Owed:** upstairs guest chambers (needs
+  generative multi-story, ledger #36) → the inn's defining feature; per-fixture conformance of
+  `tavern_bar` (ledger 16c, 1.22 m tall is unverified).
+- **Owed typologies (the work ahead):** smithy/forge (anvil+furnace fixtures), market/shop, temple/
+  shrine, well/fountain, barn/stable, town hall, mill, gatehouse. Each: grounded canon + room-purpose
+  recipe + L3 interior nav, red-before-green, both auditors.
+
 ---
 
 ## Prioritized backlog (required > current, by score)
