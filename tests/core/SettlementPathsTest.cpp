@@ -96,6 +96,19 @@ TEST(SettlementPathsTest, EveryEdgeRouteWithinStepUp) {
             EXPECT_LE(std::abs(p.cells[i].surfaceY - p.cells[i - 1].surfaceY), kAgent.maxStepUpMicro);
 }
 
+// An edge too steep for a straight ramp must be REPORTED (failedEdges), not silently dropped or faked
+// as connected. Doors 4 micro apart but 90 micro up: (5-1)*gradeCap(2)=8 < 90 -> infeasible.
+TEST(SettlementPathsTest, SteepEdgeReportedNotDropped) {
+    const std::vector<DoorAnchor> doors = {{10, 10, 9}, {14, 10, 99}};
+    auto ground = [](int, int) { return 9; };
+    const SettlementPaths net = planSettlementPaths(doors, ground, kAgent);
+    EXPECT_EQ(net.edges, 1);
+    EXPECT_EQ(net.connected, 0) << "a too-steep edge must not be graded as a straight ramp";
+    ASSERT_EQ(net.failedEdges.size(), 1u) << "the un-gradeable edge must be reported, not dropped";
+    EXPECT_EQ(net.failedEdges[0], std::make_pair(0, 1));
+    EXPECT_TRUE(net.paths.empty());
+}
+
 // A single door (or none) yields an empty, well-formed network (no crash, no phantom edges).
 TEST(SettlementPathsTest, DegenerateInputsYieldEmptyNetwork) {
     auto ground = [](int x, int z) { return terraceMicro(x, z); };
