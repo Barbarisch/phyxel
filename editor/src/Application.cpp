@@ -10732,11 +10732,11 @@ void Application::processAPICommands() {
                 int sz = cmd.params.value("sz", 0);
                 if (chunkManager) {
                     std::string material = cmd.params.value("material", "Default");
-                    LOG_DEBUG("API", "place_subcube: world(%d,%d,%d) sub(%d,%d,%d) mat=%s",
-                              x, y, z, sx, sy, sz, material.c_str());
+                    LOG_DEBUG("API", "place_subcube: world({},{},{}) sub({},{},{}) mat={}",
+                              x, y, z, sx, sy, sz, material);
                     bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
                         glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
-                    LOG_DEBUG("API", "place_subcube result: %s", ok ? "true" : "false");
+                    LOG_DEBUG("API", "place_subcube result: {}", ok ? "true" : "false");
                     response = {{"success", ok},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                 {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};

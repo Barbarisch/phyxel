@@ -419,16 +419,16 @@ VoxelLocation VoxelRaycaster::resolveSubcubeInVoxel(
     // Return the closest hit (microcube or subcube), or invalid if nothing was hit
     if (closestHit.isValid()) {
         if (closestHit.isMicrocube()) {
-            LOG_ERROR_FMT("VoxelRaycaster", "[RESOLVE] *** RETURNING MICROCUBE *** at subcube (" 
+            LOG_TRACE_FMT("VoxelRaycaster", "[RESOLVE] returning microcube at subcube ("
                       << closestHit.subcubePos.x << "," << closestHit.subcubePos.y << "," << closestHit.subcubePos.z
                       << ") micro (" << closestHit.microcubePos.x << "," << closestHit.microcubePos.y << "," << closestHit.microcubePos.z
                       << ") distance: " << closestDistance);
         } else if (closestHit.isSubcube()) {
-            LOG_ERROR_FMT("VoxelRaycaster", "[RESOLVE] *** RETURNING SUBCUBE *** at pos (" 
+            LOG_TRACE_FMT("VoxelRaycaster", "[RESOLVE] returning subcube at pos ("
                       << closestHit.subcubePos.x << "," << closestHit.subcubePos.y << "," << closestHit.subcubePos.z
                       << ") distance: " << closestDistance);
         } else {
-            LOG_ERROR_FMT("VoxelRaycaster", "[RESOLVE] *** RETURNING REGULAR CUBE *** distance: " << closestDistance);
+            LOG_TRACE_FMT("VoxelRaycaster", "[RESOLVE] returning regular cube, distance: " << closestDistance);
         }
         return closestHit;
     }

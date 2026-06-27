@@ -1591,7 +1591,7 @@ bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
     if (m_positionLogging) stopPositionLog();
     m_posLogFile.open(filePath, std::ios::out | std::ios::trunc);
     if (!m_posLogFile.is_open()) {
-        LOG_ERROR("GpuParticlePhysics", "Failed to open position log: %s", filePath.c_str());
+        LOG_ERROR("GpuParticlePhysics", "Failed to open position log: {}", filePath);
         return false;
     }
     // Write CSV header comment
@@ -1602,7 +1602,7 @@ bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
     m_posLogFrameCounter = 0;
     m_readbackPending = false;
     m_positionLogging = true;
-    LOG_INFO("GpuParticlePhysics", "Position logging started: %s", filePath.c_str());
+    LOG_INFO("GpuParticlePhysics", "Position logging started: {}", filePath);
     return true;
 }
 
@@ -1613,7 +1613,7 @@ void GpuParticlePhysics::stopPositionLog() {
     if (m_posLogFile.is_open()) {
         m_posLogFile.close();
     }
-    LOG_INFO("GpuParticlePhysics", "Position logging stopped (%u frames captured)", m_posLogFrameCounter);
+    LOG_INFO("GpuParticlePhysics", "Position logging stopped ({} frames captured)", m_posLogFrameCounter);
 }
 
 // ============================================================

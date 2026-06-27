@@ -680,7 +680,7 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
     auto fragments = findConnectedComponents(voxels, localContact, fractureRadius);
 
     if (fragments.size() <= 1) {
-        LOG_DEBUG("DynamicFurniture", "Shatter produced %zu fragments, not enough to split",
+        LOG_DEBUG("DynamicFurniture", "Shatter produced {} fragments, not enough to split",
                   fragments.size());
         return 0;
     }
@@ -804,7 +804,7 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
 
 bool DynamicFurnitureManager::grab(const std::string& placedObjectId) {
     if (isGrabbing()) {
-        LOG_WARN("DynamicFurniture", "Already grabbing '%s', release first", m_grabbedObjectId.c_str());
+        LOG_WARN("DynamicFurniture", "Already grabbing '{}', release first", m_grabbedObjectId);
         return false;
     }
 
