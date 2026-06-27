@@ -30,6 +30,8 @@ const std::map<std::string, std::string>& table() {
         {"bench",     "bench_wood"},
         {"barrel",    "barrel"},
         {"chest",     "chest_closed"},
+        {"tavern_bar",   "tavern_bar"},    // the taproom's defining fixture (the serving counter)
+        {"tavern_table", "tavern_table"},  // long communal drinking table
     };
     return t;
 }

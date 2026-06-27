@@ -58,7 +58,8 @@ std::string RoomProgramRegistry::defaultTypologyForFunction(const std::string& f
     // Coarse default ONLY (overridden by an explicit BuildingProgram.typology). The general
     // medieval dwelling is the hall house; small/rural and grand cases should declare their
     // typology so the brief-driven, status-aware path can pick croft/longhouse/manor_hall.
-    if (function == "house" || function == "tavern" || function == "shop") return "hall_house";
+    if (function == "tavern" || function == "inn")                        return "tavern";
+    if (function == "house" || function == "shop")                        return "hall_house";
     if (function == "cottage")                                            return "croft";
     if (function == "farmhouse" || function == "longhouse")               return "longhouse";
     if (function == "manor" || function == "hall")                        return "manor_hall";

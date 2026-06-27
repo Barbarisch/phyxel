@@ -41,7 +41,26 @@
       "sources": {
         "bays": "'four-bay cruck-framed structure, with the open hall taking up the two bays in the middle' (Wikipedia Hall house)",
         "rooms": "open hall (middle 2 bays) + service end + solar (Wikipedia Hall house)",
-        "example": "c.1530 hall house 14.2 m x 6.7 m (Wikipedia Great hall)"
+        "example": "c.1530 hall house 14.2 m x 6.7 m (Wikipedia Hall house, Rufford Old Hall, built for Sir Robert Hesketh)"
+      }
+    },
+    "tavern": {
+      "_grounding_note": "The room PROGRAM (a public common room + kitchen + service/storage end) is grounded in the medieval-inn record. The BAY FRAME (4 bays, 2+1+1 split) is an explicit DESIGN DECISION by analogy to the grounded hall_house ground floor, NOT a measured inn — no inn-specific bay count was sourced (would need Pantin, 'Medieval Inns', Studies in Building History 1961). Upstairs lodging (guest chambers) is added by multi-story generation.",
+      "description": "Town inn / tavern, ground floor — public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system.",
+      "width_min": 6, "width_max": 7, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
+      "rooms": [
+        { "id": "taproom", "purpose": "taproom", "bays": 2 },
+        { "id": "kitchen", "purpose": "kitchen", "bays": 1 },
+        { "id": "store",   "purpose": "service", "bays": 1 }
+      ],
+      "source": "Medieval inn room program (Medievalists.net) + timber-frame hall-house frame (Wikipedia Hall house / Great hall) as the modelling analogy",
+      "sources": {
+        "rooms": "medieval inn = main hall / common room + kitchen + chambers + innkeeper's quarters + stables + common area ('Ye Ol' Bed & Breakfast', Medievalists.net 2015). The taproom = the public common room; the service/storage end is general medieval building practice (not attributed to that article).",
+        "width_max": "DOCUMENTED framed hall-house footprint c.1530 = 14.2 m x 6.7 m wide -> 7 m (Wikipedia Hall house, Rufford Old Hall: '46.5 feet (14.2 m) long and 22 feet (6.7 m) wide', built for Sir Robert Hesketh c.1530). NOT the unsourced '8 m framed hall' claim.",
+        "width_min": "cruck dwelling <=6 m (buildingconservation.com, timber-framed buildings) — lower bound of the framed range",
+        "bays": "DESIGN DECISION (analogy, not an inn measurement): modelled on the grounded hall_house 4-bay frame, inn ground floor ~= a hall. Taproom = the 2 middle bays (cf. hall_house open hall = middle 2 bays, Wikipedia Hall house); kitchen + store one bay each. No inn-specific bay count was sourced.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; same Brunskill 1985 TBD caveat as those entries)",
+        "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn)."
       }
     },
     "manor_hall": {
