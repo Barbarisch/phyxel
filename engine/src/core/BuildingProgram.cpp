@@ -120,6 +120,7 @@ BuildingProgram BuildingProgram::fromJson(const nlohmann::json& j) {
     b.substructure = jstr(j, "substructure", "slab");
     b.roofStyle = jstr(j, "roof_style");
     b.typology = jstr(j, "typology");
+    b.footprintShape = jstr(j, "footprint_shape");
     if (j.contains("stories"))
         for (const auto& e : j["stories"]) b.stories.push_back(ProgStory::fromJson(e));
     return b;
@@ -129,7 +130,8 @@ nlohmann::json BuildingProgram::toJson() const {
     for (const auto& s : this->stories) stories.push_back(s.toJson());
     return {{"name", name}, {"style", style}, {"function", function},
             {"footprint", {footprintW, footprintD}}, {"substructure", substructure},
-            {"roof_style", roofStyle}, {"typology", typology}, {"stories", stories}};
+            {"roof_style", roofStyle}, {"typology", typology}, {"footprint_shape", footprintShape},
+            {"stories", stories}};
 }
 
 } // namespace Core

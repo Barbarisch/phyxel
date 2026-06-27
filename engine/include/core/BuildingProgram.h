@@ -100,6 +100,7 @@ struct BuildingProgram {
     std::string substructure = "slab";  ///< slab | crawlspace | basement
     std::string roofStyle;              ///< optional override; empty = use the style's roof
     std::string typology;               ///< RoomProgram id (croft|longhouse|hall_house|manor_hall); ""=skip room gate
+    std::string footprintShape;         ///< ""/"rect" = filled box; "L" = winged non-rect (generateWingedLayout)
     std::vector<ProgStory> stories;
 
     static BuildingProgram fromJson(const nlohmann::json& j);

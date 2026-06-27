@@ -183,6 +183,46 @@ RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typolo
     return out;
 }
 
+RoomLayout generateWingedLayout(int W, int D, const std::string& shape, unsigned /*seed*/, int minDim) {
+    RoomLayout out;
+    if (shape != "L") return out;                              // only the L-plan for now
+    const int halfW = W / 2, rangeD = D / 2;
+    // need: a 2-room main range (each >= minDim wide) + a wing (>= minDim deep), notch >= 1 wide.
+    if (halfW < minDim || (W - halfW) < minDim || rangeD < minDim || (D - rangeD) < minDim || (W - halfW) < 1)
+        return out;                                           // too small -> caller falls back to a rect
+
+    // L-plan cross-wing: a 2-room main range across z[0,rangeD), + a wing under the LEFT room into
+    // z[rangeD,D). The bottom-right block x[halfW,W) x z[rangeD,D) stays EMPTY (the notch) -> the union
+    // is an L, which the realizer walls/roofs along its outline.
+    auto add = [&](const char* id, const char* purpose, int x, int z, int w, int d) {
+        ProgRoom r; r.id = id; r.purpose = purpose; r.rect = {x, z, w, d}; out.rooms.push_back(r);
+    };
+    add("hall",    "hall",    0,     0,      halfW,     rangeD);       // main range, left
+    add("service", "service", halfW, 0,      W - halfW, rangeD);       // main range, right
+    add("solar",   "solar",   0,     rangeD, halfW,     D - rangeD);   // wing (under hall)
+
+    // doors: spanning tree through the hall hub (hall-service, hall-solar).
+    auto connect = [&](size_t i, size_t j) {
+        const Wall w = shared(out.rooms[i].rect, out.rooms[j].rect);
+        if (!w.ok) return;
+        int mid = (w.lo + w.hi) / 2; if (mid >= w.hi) mid = w.hi - 1;
+        ProgPortal p; p.a = out.rooms[i].id; p.b = out.rooms[j].id; p.width = 1; p.height = 2; p.kind = "door";
+        if (w.axis == 'x') { p.px = w.coord; p.pz = mid; } else { p.px = mid; p.pz = w.coord; }
+        out.portals.push_back(p);
+    };
+    connect(0, 1);   // hall - service
+    connect(0, 2);   // hall - solar (wing)
+
+    // one exterior entrance into the service end on the front (z=0) wall.
+    {
+        const Rect& r = out.rooms[1].rect;
+        ProgPortal e; e.a = "exterior"; e.b = out.rooms[1].id; e.width = 1; e.height = 2; e.kind = "door";
+        e.px = r.x + r.w / 2; e.pz = 0;
+        out.portals.push_back(e);
+    }
+    return out;
+}
+
 bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
     const int W = program.footprintW, D = program.footprintD;
     if (W <= 0 || D <= 0) return false;                      // no footprint -> nothing to fill
@@ -191,7 +231,12 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
         RoomLayout rl;
-        if (typology && i == 0) {                            // ground floor = the typology's plan
+        // ground floor: a winged (non-rect) plan if requested, else the typology's linear plan.
+        if (i == 0 && !program.footprintShape.empty() && program.footprintShape != "rect") {
+            rl = generateWingedLayout(W, D, program.footprintShape, seed);
+            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through
+        }
+        if (rl.rooms.empty() && typology && i == 0) {        // ground floor = the typology's plan
             rl = generateRoomLayoutFromProgram(W, D, *typology);
             if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
         }

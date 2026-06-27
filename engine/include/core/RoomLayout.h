@@ -36,6 +36,15 @@ RoomLayout generateRoomLayout(int W, int D, int targetRooms, unsigned seed, int 
 /// a generated house a real house — a kitchen-end, a hall, a bedroom — not N identical "living" rooms.
 RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typology, int minDim = 2);
 
+/// NON-RECTANGULAR footprint via WINGS: arrange purposed rooms into an L/T/... so the building's
+/// footprint (= the union of its rooms) is non-rectangular, leaving a NOTCH the bounding box doesn't
+/// fill. The realizer already follows the room-union outline (walls/floor/roof), so this is what makes
+/// a house an L-plan cross-wing instead of a filled box. Rooms tile their wings (no overlap), are
+/// connected by doors (spanning tree through the main range), and get one exterior entrance. Returns an
+/// EMPTY layout if W/D can't fit the wings at >= minDim (caller falls back to a rectangular layout).
+/// shape: "L" (more later). Deterministic in `seed` (orientation).
+RoomLayout generateWingedLayout(int W, int D, const std::string& shape, unsigned seed, int minDim = 2);
+
 /// Fill in rooms for any story that has NO authored rooms. If `typology` is non-null and fits, the
 /// GROUND story uses generateRoomLayoutFromProgram (purposed rooms); other empty stories (and the
 /// no-typology / doesn't-fit case) fall back to generateRoomLayout. The exterior entrance is added to
