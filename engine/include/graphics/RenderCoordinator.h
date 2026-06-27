@@ -111,6 +111,7 @@ public:
         int    reflectionDrawCalls   = 0;
         int    mirrorGeomDrawCalls   = 0;
         int    visibleChunkCount     = 0;
+        int    totalVisibleFaces     = 0;   // per-face instances across visible chunks (greedy-merged cubes count as 1)
         float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
         float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;

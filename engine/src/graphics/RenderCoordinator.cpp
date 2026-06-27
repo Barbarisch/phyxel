@@ -1082,6 +1082,8 @@ void RenderCoordinator::drawFrame() {
     // Reset per-frame stats
     lastFrameStats = {};
     lastFrameStats.visibleChunkCount = static_cast<int>(visibleChunkIndices.size());
+    if (chunkManager && !chunkManager->chunks.empty())
+        lastFrameStats.totalVisibleFaces = static_cast<int>(chunkStats.totalVisibleFaces);
 
     hasMirrorVoxels = scanForMirrorVoxels();
     LOG_DEBUG("RenderCoordinator", "Frame: visibleChunks={} hasMirrorVoxels={}", visibleChunkIndices.size(), hasMirrorVoxels);

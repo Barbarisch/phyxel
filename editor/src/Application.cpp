@@ -7158,6 +7158,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"reflection_draw_calls",    s.reflectionDrawCalls},
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
+                {"total_visible_faces",      s.totalVisibleFaces},
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
                 {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
                 {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}
