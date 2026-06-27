@@ -245,6 +245,19 @@ void ChunkManager::rebuildAllChunkFaces() {
     m_chunkInitializer.rebuildAllChunkFaces();
 }
 
+void ChunkManager::rebuildAllChunkLighting() {
+    // Force every chunk through the proper cross-chunk bake (rebuildChunkFacesWithCrosschunkCulling
+    // + GPU upload), e.g. after toggling smooth lighting. Mark all dirty, then drain a few times so
+    // cross-chunk light bleed converges.
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        chunks[i]->setNeedsUpdate(true);
+        m_dirtyChunkTracker.markChunkDirty(i);
+    }
+    for (int pass = 0; pass < 4 && m_dirtyChunkTracker.hasDirty(); ++pass) {
+        m_dirtyChunkTracker.updateDirtyChunks();  // unlimited budget: drain the whole list
+    }
+}
+
 void ChunkManager::buildAllChunkPhysics() {
     m_chunkInitializer.buildAllChunkPhysics();
 }

@@ -907,6 +907,20 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/smooth_lighting — toggle smooth per-corner lighting + set merge tolerance,
+    // then re-bake all chunks. Body: { "enabled": bool (opt), "tolerance": int (opt) }
+    srv.Post("/api/debug/smooth_lighting", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_smooth_lighting", params, 30000); // re-bakes all chunks
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // POST /api/ui/click — inject a synthetic UI click at a screen coordinate
     // Body: { "x": float, "y": float }  (UI/offscreen space = window resolution)

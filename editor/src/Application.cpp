@@ -10451,6 +10451,21 @@ void Application::processAPICommands() {
                 continue;
             }
 
+            // Toggle smooth per-corner lighting + merge tolerance, then re-bake all chunks.
+            // (Handled here in the early-continue region to avoid the deep if-chain nesting limit.)
+            if (cmd.action == "set_smooth_lighting") {
+                if (cmd.params.contains("enabled"))
+                    Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
+                if (cmd.params.contains("tolerance"))
+                    Graphics::ChunkRenderManager::setMergeTolerance(cmd.params["tolerance"].get<int>());
+                if (chunkManager) chunkManager->rebuildAllChunkLighting();
+                response = {{"success", true},
+                            {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
+                            {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
+                if (cmd.onComplete) cmd.onComplete(response);
+                continue;
+            }
+
             // Raise a sustained field/shell VFX (Phase 2) at a center position
             if (cmd.action == "cast_vfx_field") {
                 if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {

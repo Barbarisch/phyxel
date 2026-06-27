@@ -34,6 +34,19 @@ public:
     // chunk's already-baked light; returns false if there's no baked neighbour there.
     using NeighborLightFunc = std::function<bool(const glm::ivec3& worldPos, BakedLight& out)>;
 
+    // --- Smooth-lighting controls (global; require a chunk re-bake to take effect) ---
+    // s_smoothLighting OFF → flat per-face light (single cell, all corners equal) → faces greedy-
+    // merge freely (fast, looks blocky). ON → per-corner smooth lighting + AO.
+    // s_mergeTolerance: when smooth, a face whose 4 corners differ by <= this many light levels
+    // (per channel) is snapped to its average and treated as uniform so it can still greedy-merge
+    // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
+    static bool s_smoothLighting;
+    static int  s_mergeTolerance;
+    static void setSmoothLighting(bool on) { s_smoothLighting = on; }
+    static void setMergeTolerance(int t)   { s_mergeTolerance = t < 0 ? 0 : t; }
+    static bool getSmoothLighting()        { return s_smoothLighting; }
+    static int  getMergeTolerance()        { return s_mergeTolerance; }
+
     ChunkRenderManager();
     ~ChunkRenderManager();
 

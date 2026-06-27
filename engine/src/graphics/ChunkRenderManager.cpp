@@ -16,6 +16,12 @@
 namespace Phyxel {
 namespace Graphics {
 
+// Smooth-lighting globals (see header). Default: smooth ON, tolerance 0 (pure smooth — no snapping,
+// so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
+// as an opt-in perf lever; the default prioritizes look.
+bool ChunkRenderManager::s_smoothLighting = true;
+int  ChunkRenderManager::s_mergeTolerance = 0;
+
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
     , needsUpdate(false)
@@ -437,28 +443,50 @@ void ChunkRenderManager::rebuildCubeFaces(
                         const glm::ivec3 A = glm::ivec3(x, y, z) + faceA[faceID];
                         const glm::ivec3& uD = faceU[faceID];
                         const glm::ivec3& vD = faceV[faceID];
-                        uint32_t skyPack = 0, blkLo = 0, blkHi = 0;
-                        int sky0 = -1, r0 = -1, g0 = -1, b0 = -1; bool uniform = true;
+                        // Compute the 4 per-corner light values (sky + block RGB). When smooth
+                        // lighting is OFF, collapse to a single per-face sample so every face is
+                        // uniform and greedy-merges freely (fast/blocky).
+                        int skyC[4], rC[4], gC[4], bC[4];
+                        const bool smooth = s_smoothLighting;
                         for (int vid = 0; vid < 4; ++vid) {
-                            glm::ivec3 us = (vid & 1) ? uD : -uD;
-                            glm::ivec3 vs = (vid & 2) ? vD : -vD;
-                            const glm::ivec3 c[4] = { A, A + us, A + vs, A + us + vs };
-                            int sSum = 0, rSum = 0, gSum = 0, bSum = 0;
-                            for (int j = 0; j < 4; ++j) {
-                                sSum += skyLightAt(c[j].x, c[j].y, c[j].z) & 0xF;
+                            if (smooth) {
+                                glm::ivec3 us = (vid & 1) ? uD : -uD;
+                                glm::ivec3 vs = (vid & 2) ? vD : -vD;
+                                const glm::ivec3 c[4] = { A, A + us, A + vs, A + us + vs };
+                                int sSum = 0, rSum = 0, gSum = 0, bSum = 0;
+                                for (int j = 0; j < 4; ++j) {
+                                    sSum += skyLightAt(c[j].x, c[j].y, c[j].z) & 0xF;
+                                    uint8_t r = 0, gg = 0, bb = 0;
+                                    blockLightAt(c[j].x, c[j].y, c[j].z, r, gg, bb);
+                                    rSum += r; gSum += gg; bSum += bb;
+                                }
+                                skyC[vid] = sSum / 4; rC[vid] = rSum / 4; gC[vid] = gSum / 4; bC[vid] = bSum / 4;
+                            } else {
+                                skyC[vid] = skyLightAt(A.x, A.y, A.z) & 0xF;
                                 uint8_t r = 0, gg = 0, bb = 0;
-                                blockLightAt(c[j].x, c[j].y, c[j].z, r, gg, bb);
-                                rSum += r; gSum += gg; bSum += bb;
+                                blockLightAt(A.x, A.y, A.z, r, gg, bb);
+                                rC[vid] = r; gC[vid] = gg; bC[vid] = bb;
                             }
-                            int sky = sSum / 4, rr = rSum / 4, gAvg = gSum / 4, bAvg = bSum / 4;  // 0..15
-                            skyPack |= static_cast<uint32_t>(sky & 0xF) << (vid * 4);
-                            uint32_t rgb12 = (static_cast<uint32_t>(rr & 0xF))
-                                           | (static_cast<uint32_t>(gAvg & 0xF) << 4)
-                                           | (static_cast<uint32_t>(bAvg & 0xF) << 8);
+                        }
+                        // Merge tolerance: if every channel's corner spread is within tolerance, snap
+                        // each channel to its average and mark uniform so the face can greedy-merge.
+                        auto spread = [](const int* a) { int mn = a[0], mx = a[0]; for (int i=1;i<4;++i){ mn=a[i]<mn?a[i]:mn; mx=a[i]>mx?a[i]:mx;} return mx-mn; };
+                        const int tol = smooth ? s_mergeTolerance : 99;
+                        bool uniform = false;
+                        if (spread(skyC) <= tol && spread(rC) <= tol && spread(gC) <= tol && spread(bC) <= tol) {
+                            int sa=(skyC[0]+skyC[1]+skyC[2]+skyC[3])/4, ra=(rC[0]+rC[1]+rC[2]+rC[3])/4;
+                            int ga=(gC[0]+gC[1]+gC[2]+gC[3])/4, ba=(bC[0]+bC[1]+bC[2]+bC[3])/4;
+                            for (int i=0;i<4;++i){ skyC[i]=sa; rC[i]=ra; gC[i]=ga; bC[i]=ba; }
+                            uniform = true;
+                        }
+                        uint32_t skyPack = 0, blkLo = 0, blkHi = 0;
+                        for (int vid = 0; vid < 4; ++vid) {
+                            skyPack |= static_cast<uint32_t>(skyC[vid] & 0xF) << (vid * 4);
+                            uint32_t rgb12 = (static_cast<uint32_t>(rC[vid] & 0xF))
+                                           | (static_cast<uint32_t>(gC[vid] & 0xF) << 4)
+                                           | (static_cast<uint32_t>(bC[vid] & 0xF) << 8);
                             if (vid < 2) blkLo |= rgb12 << (vid * 12);
                             else         blkHi |= rgb12 << ((vid - 2) * 12);
-                            if (sky0 < 0) { sky0 = sky; r0 = rr; g0 = gAvg; b0 = bAvg; }
-                            else if (sky != sky0 || rr != r0 || gAvg != g0 || bAvg != b0) uniform = false;
                         }
                         faceLight[mi]  = skyPack;  // 4 corner skies (bits 0-15)
                         faceLight2[mi] = blkLo;    // corner0 RGB | corner1 RGB
