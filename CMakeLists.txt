@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
+
+# CMP0092: don't put a default /W3 in CMAKE_CXX_FLAGS, so first-party targets can
+# set /W4 cleanly without MSVC D9025 "overriding /W3 with /W4" warnings.
+if(POLICY CMP0092)
+    cmake_policy(SET CMP0092 NEW)
+endif()
+
 project(phyxel VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 17)

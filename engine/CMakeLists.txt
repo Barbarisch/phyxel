@@ -2,7 +2,9 @@
 # phyxel_core — Engine static library
 # ==========================================================================
 
-file(GLOB_RECURSE ENGINE_SOURCES "src/*.cpp" "src/*.h")
+# CONFIGURE_DEPENDS makes CMake re-glob at build time, so newly added/removed
+# source files are picked up without a manual reconfigure (avoids stale builds).
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/*.h")
 
 # Add SQLite3 amalgamation if available
 if(SQLITE3_FOUND AND DEFINED SQLITE3_SOURCES)
@@ -89,4 +91,22 @@ endif()
 if(PLATFORM_WINDOWS AND MSVC)
     set_property(TARGET phyxel_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     target_compile_options(phyxel_core PRIVATE /FS)
+endif()
+
+# ==========================================================================
+# Warnings — /W4 on first-party engine code to surface latent bugs.
+# Not /WX yet: there are too many pre-existing warnings to gate the build on.
+# Third-party amalgamations (imgui, stb, bc7enc, sqlite3) compile quiet so the
+# signal isn't buried.
+# ==========================================================================
+if(MSVC)
+    target_compile_options(phyxel_core PRIVATE /W4)
+    set_source_files_properties(
+        ${IMGUI_SOURCES} ${STB_IMAGE_SOURCES} ${BC7ENC_SOURCES} ${SQLITE3_SOURCES}
+        PROPERTIES COMPILE_FLAGS "/W0")
+else()
+    target_compile_options(phyxel_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    set_source_files_properties(
+        ${IMGUI_SOURCES} ${STB_IMAGE_SOURCES} ${BC7ENC_SOURCES} ${SQLITE3_SOURCES}
+        PROPERTIES COMPILE_FLAGS "-w")
 endif()
