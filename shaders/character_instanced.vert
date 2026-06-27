@@ -3,6 +3,7 @@
 layout(push_constant) uniform PushConstants {
     mat4 model;
     mat4 viewProj;
+    vec4 bakedLight; // x = skylight (0..1), yzw = block light RGB (0..1) — sampled per character
 } pushConsts;
 
 // Instance attributes
@@ -13,6 +14,7 @@ layout(location = 2) in vec4 inColor;
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec3 fragWorldPos;
+layout(location = 3) out vec4 fragBakedLight;
 
 // Cube vertices (positions)
 const vec3 positions[36] = vec3[36](
@@ -73,4 +75,5 @@ void main() {
     fragNormal = mat3(pushConsts.model) * normal;
     fragColor = inColor.rgb;
     fragWorldPos = (pushConsts.model * vec4(localPos, 1.0)).xyz;
+    fragBakedLight = pushConsts.bakedLight;
 }

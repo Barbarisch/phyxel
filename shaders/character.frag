@@ -3,6 +3,7 @@
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec3 fragWorldPos;
+layout(location = 3) in vec4 fragBakedLight; // x = skylight (0..1), yzw = block RGB (0..1)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -62,8 +63,17 @@ void main() {
         sunSpec = pow(max(dot(normal, halfVec), 0.0), 32.0) * 0.3;
     }
 
-    vec3 ambient = vec3(ubo.ambientLight);
-    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor;
+    // Baked light field (Phase 4): characters react to the same skylight + block light
+    // as the world, so they darken in sealed rooms and pick up glow/spell light. Mirrors
+    // voxel.frag: sky is a FILL (kSkyFill), sun is the KEY gated by skylight, block adds on top.
+    float sky        = fragBakedLight.x;
+    vec3  blockColor = fragBakedLight.yzw;
+    float skyCurve   = sky * sky;
+    const float kSkyFill = 0.35;
+
+    vec3 ambient = vec3(ubo.ambientLight) * skyCurve * kSkyFill;
+    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * skyCurve;
+    finalLight += blockColor * blockColor; // omnidirectional warm/colored fill from baked block light
 
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {

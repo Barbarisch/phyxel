@@ -143,6 +143,12 @@ RenderCoordinator::RenderCoordinator(
         postProcessor->getSceneRenderPass(),
         vulkanDevice->getSwapChainExtent()
     );
+    // Phase 4c: break-debris samples the baked light field (darkens indoors, lit by glow).
+    debrisPipeline->setLightSampler([cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
+        if (!cm) return glm::vec4(1.0f);
+        auto bl = cm->sampleBakedLight(glm::ivec3(glm::floor(wp)));
+        return glm::vec4(bl.sky, bl.r, bl.g, bl.b) / 15.0f;
+    });
 
     // Initialize VFX particle system + its additive instanced-cube renderer.
     vfxSystem = std::make_unique<VfxSystem>();
@@ -202,6 +208,15 @@ RenderCoordinator::RenderCoordinator(
             vulkanDevice->getDescriptorSet(0))) {
         LOG_ERROR("RenderCoordinator", "Failed to initialize KinematicVoxelPipeline");
         kinematicPipeline.reset();
+    }
+    // Phase 4: let furniture/doors sample the baked light field so they darken indoors
+    // and pick up glow/spell light (matches the static world + characters).
+    if (kinematicPipeline) {
+        kinematicPipeline->setLightSampler([cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
+            if (!cm) return glm::vec4(1.0f);
+            auto bl = cm->sampleBakedLight(glm::ivec3(glm::floor(wp)));
+            return glm::vec4(bl.sky, bl.r, bl.g, bl.b) / 15.0f;
+        });
     }
 }
 
@@ -1525,11 +1540,24 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     if (instancedCharacters.empty()) return;
 
     std::vector<CharacterInstanceData> instanceData;
-    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
+    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; glm::vec4 bakedLight; };
     std::vector<Batch> batches;
 
     auto batchParts = [&](Scene::RagdollCharacter* ch) {
         const auto& charParts = ch->getParts();
+        // Sample the baked light field ONCE per character (uniform across limbs — avoids
+        // per-bone popping and sampling floor solids). Use a torso-height point ~1 cube
+        // above the first active part. Phase 4: dynamic objects react to baked lighting.
+        glm::vec4 charLight(1.0f); // default full-bright (no chunk manager / outside world)
+        if (chunkManager) {
+            for (const auto& p : charParts) {
+                if (!p.active) continue;
+                glm::ivec3 wp = glm::ivec3(glm::floor(p.worldPos + glm::vec3(0.0f, 1.0f, 0.0f)));
+                auto bl = chunkManager->sampleBakedLight(wp);
+                charLight = glm::vec4(bl.sky, bl.r, bl.g, bl.b) / 15.0f;
+                break;
+            }
+        }
         for (const auto& grp : ch->getPartGroups()) {
             if (grp.partIndices.empty()) continue;
             const auto& first = charParts[grp.partIndices[0]];
@@ -1537,6 +1565,7 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
                             * glm::mat4_cast(first.worldRot);
             Batch batch;
             batch.model = model;
+            batch.bakedLight = charLight;
             batch.firstInstance = static_cast<uint32_t>(instanceData.size());
             batch.instanceCount = 0;
             for (int pi : grp.partIndices) {
@@ -1566,9 +1595,10 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
     for (const auto& batch : batches) {
-        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; } pushConsts;
+        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
         pushConsts.model = batch.model;
         pushConsts.viewProj = viewProj;
+        pushConsts.bakedLight = batch.bakedLight;
         vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
         vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace Phyxel {
 namespace Graphics {
@@ -71,6 +72,13 @@ public:
 
     /// Recreate pipeline after swapchain resize.
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D extent);
+
+    /// Phase 4: sample the baked light field at a world position so furniture reacts to
+    /// skylight + block light like the world (darkens indoors, picks up glow/spell light).
+    /// Returns vec4(skylight, blockR, blockG, blockB) each 0..1. If unset, furniture is
+    /// rendered full-bright (vec4(1)). Wired from RenderCoordinator (which owns ChunkManager).
+    using LightSampler = std::function<glm::vec4(const glm::vec3& worldPos)>;
+    void setLightSampler(LightSampler fn) { m_lightSampler = std::move(fn); }
 private:
     void     createPipeline(VkRenderPass renderPass, VkExtent2D extent,
                              VkDescriptorSetLayout uboLayout);
@@ -92,6 +100,8 @@ private:
     std::unordered_map<std::string, ObjectRange> m_objectRanges;
 
     uint32_t m_totalFaces = 0;
+
+    LightSampler m_lightSampler; // Phase 4 baked-light sampler (null = full bright)
 };
 
 } // namespace Graphics

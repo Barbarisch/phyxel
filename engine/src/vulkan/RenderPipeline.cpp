@@ -1378,7 +1378,7 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(glm::mat4) * 2; // model + viewProj
+    pushConstantRange.size = sizeof(glm::mat4) * 2 + sizeof(glm::vec4); // model + viewProj + bakedLight
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

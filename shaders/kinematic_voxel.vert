@@ -24,6 +24,7 @@ layout(location = 4) in uint  inFaceId;          // 0=+Z  1=-Z  2=+X  3=-X  4=+Y
 
 layout(push_constant) uniform PushConstants {
     mat4 modelMatrix;
+    vec4 bakedLight; // x = skylight (0..1), yzw = block light RGB (0..1) — sampled per object
 } pc;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
@@ -108,8 +109,8 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord     = uv;
     outWorldPos  = worldPos;
-    vSkyLight    = 1.0;  // furniture uses full sky ambient until Phase 4 light-field sampling
-    vBlockColor  = vec3(0.0);
+    vSkyLight    = pc.bakedLight.x;    // Phase 4: baked skylight sampled at the object's position
+    vBlockColor  = pc.bakedLight.yzw;  // Phase 4: baked block light (glow/spell) at the object
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
 }

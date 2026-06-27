@@ -4,6 +4,7 @@
 #include "core/DebrisSystem.h"
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <functional>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -32,6 +33,12 @@ public:
     // Update pipeline if window resizes
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
+    // Phase 4c: sample the baked light field at a world position so break-debris darkens
+    // in unlit interiors and picks up glow/spell light (folded into per-particle color on
+    // upload; debris.vert/.frag unchanged). Returns vec4(sky, blockR, blockG, blockB) 0..1.
+    using LightSampler = std::function<glm::vec4(const glm::vec3& worldPos)>;
+    void setLightSampler(LightSampler fn) { m_lightSampler = std::move(fn); }
+
 private:
     void createDescriptorSetLayout();
     void createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
@@ -54,6 +61,8 @@ private:
     VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
     
+    LightSampler m_lightSampler; // Phase 4c baked-light sampler (null = unlit color passthrough)
+
     // Constants
     static const size_t MAX_INSTANCES = 10000;
 };

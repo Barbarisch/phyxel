@@ -346,6 +346,15 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     }
 }
 
+Graphics::ChunkRenderManager::BakedLight ChunkManager::sampleBakedLight(const glm::ivec3& worldPos) const {
+    Chunk::BakedLight out;
+    const Chunk* c = getChunkAtCoord(worldToChunkCoord(worldPos));
+    if (c && c->bakedLightAt(worldToLocalCoord(worldPos), out)) return out;
+    // No loaded chunk here → treat as open sky (outdoor), no block light.
+    out.sky = 15; out.r = out.g = out.b = 0;
+    return out;
+}
+
 // ===============================================================
 // OPTIMIZED O(1) CHUNK AND CUBE LOOKUP FUNCTIONS
 // ===============================================================

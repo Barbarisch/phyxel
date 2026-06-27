@@ -275,6 +275,12 @@ public:
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
     const Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord) const; // Const version
     Chunk* getChunkAtFast(const glm::ivec3& worldPos);        // Fast O(1) world position lookup
+
+    // Sample the baked per-voxel light (skylight + RGB block light) at a WORLD cell, for
+    // lighting dynamic objects (characters, furniture, debris) that aren't baked into the
+    // static chunk mesh. Returns full sky / no block light when the cell has no loaded chunk,
+    // so objects outside the world default to lit (outdoor) rather than black.
+    Graphics::ChunkRenderManager::BakedLight sampleBakedLight(const glm::ivec3& worldPos) const;
     
     // Fast O(1) cube lookup functions
     Cube* getCubeAtFast(const glm::ivec3& worldPos);          // Fast O(1) cube lookup

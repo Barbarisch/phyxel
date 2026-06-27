@@ -200,10 +200,18 @@ void KinematicVoxelPipeline::recordDraws(
         auto it = objects.find(id);
         if (it == objects.end() || !it->second.visible) continue;
 
-        // Push the object's current world transform (pivot rotation baked in)
+        // Push the object's current world transform (pivot rotation baked in) plus the
+        // baked light sampled at the object's position (Phase 4: furniture reacts to lighting).
+        struct PushConsts { glm::mat4 model; glm::vec4 bakedLight; } pc;
+        pc.model = it->second.currentTransform;
+        pc.bakedLight = glm::vec4(1.0f);
+        if (m_lightSampler) {
+            // Sample ~1 cube above the object origin (interior air cell, not the floor it rests on).
+            glm::vec3 wp = glm::vec3(it->second.currentTransform[3]) + glm::vec3(0.0f, 1.0f, 0.0f);
+            pc.bakedLight = m_lightSampler(wp);
+        }
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-                           0, sizeof(glm::mat4),
-                           glm::value_ptr(it->second.currentTransform));
+                           0, sizeof(PushConsts), &pc);
 
         // Bind this object's slice of the shared instance buffer
         VkDeviceSize offset = range.startFace * sizeof(Core::KinematicFaceData);
@@ -325,11 +333,11 @@ void KinematicVoxelPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D 
     colorBlend.attachmentCount = 1;
     colorBlend.pAttachments    = &blendAttach;
 
-    // Push constant: mat4 model matrix (64 bytes)
+    // Push constant: mat4 model matrix + vec4 baked light (80 bytes)
     VkPushConstantRange pushRange{};
     pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushRange.offset     = 0;
-    pushRange.size       = sizeof(glm::mat4);
+    pushRange.size       = sizeof(glm::mat4) + sizeof(glm::vec4);
 
     VkPipelineLayoutCreateInfo layoutInfo{};
     layoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

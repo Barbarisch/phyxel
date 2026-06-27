@@ -367,9 +367,21 @@ void DebrisRenderPipeline::updateInstanceBuffer(const std::vector<DebrisParticle
         if (p.active) {
             instances[copiedCount].position = p.position;
             instances[copiedCount].scale = p.scale;
-            instances[copiedCount].color = p.color;
+            glm::vec4 color = p.color;
+            // Phase 4c: modulate debris colour by the baked light at its position so it
+            // darkens in unlit rooms and warms up near a glow/torch. (debris.frag adds a
+            // small fixed directional term on top for form.)
+            if (m_lightSampler) {
+                glm::vec4 bl = m_lightSampler(p.position); // sky, blockR, blockG, blockB in 0..1
+                float skyCurve = bl.x * bl.x;
+                glm::vec3 block(bl.y, bl.z, bl.w);
+                glm::vec3 lightFactor = glm::vec3(0.12f + 0.88f * skyCurve) + block * block;
+                lightFactor = glm::min(lightFactor, glm::vec3(2.0f));
+                color = glm::vec4(glm::vec3(color) * lightFactor, color.a);
+            }
+            instances[copiedCount].color = color;
             copiedCount++;
-            
+
             if (copiedCount >= MAX_INSTANCES) break;
         }
     }
