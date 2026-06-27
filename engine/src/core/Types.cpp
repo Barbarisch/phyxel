@@ -120,8 +120,8 @@ VkVertexInputBindingDescription DynamicSubcubeInstanceData::getBindingDescriptio
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 6> desc{};
+std::array<VkVertexInputAttributeDescription, 7> DynamicSubcubeInstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 7> desc{};
     
     // World position (vec3)
     desc[0].binding = 1;
@@ -158,7 +158,13 @@ std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::get
     desc[5].location = 6;  // layout(location = 6) in ivec3 inLocalPosition
     desc[5].format = VK_FORMAT_R32G32B32_SINT;
     desc[5].offset = offsetof(DynamicSubcubeInstanceData, localPosition);
-    
+
+    // Baked light (reserved2) — Phase 4c debris lighting
+    desc[6].binding = 1;
+    desc[6].location = 7;  // layout(location = 7) in uint inDebrisLight
+    desc[6].format = VK_FORMAT_R32_UINT;
+    desc[6].offset = offsetof(DynamicSubcubeInstanceData, reserved2);
+
     return desc;
 }
 

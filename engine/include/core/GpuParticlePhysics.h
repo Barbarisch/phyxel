@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <functional>
 #include <fstream>
 #include <utility>
 
@@ -81,6 +82,13 @@ public:
 
     /** Queue a particle to spawn next frame. Thread-safe within a single frame. */
     void queueSpawn(const SpawnParams& p);
+
+    /** Phase 4c: sample the baked light field at a world pos so debris is lit like the world
+     *  (darkens in unlit interiors, picks up glow). Returns vec4(sky, blockR, blockG, blockB),
+     *  each 0..15. Sampled once per particle at spawn and carried via the (render-unused) color
+     *  field → reserved2 → dynamic_voxel.vert. If unset, debris defaults to full sky (old look). */
+    using LightSampler = std::function<glm::vec4(const glm::vec3& worldPos)>;
+    void setLightSampler(LightSampler fn) { m_lightSampler = std::move(fn); }
 
     /**
      * Advance CPU-side lifetime tracking and upload pending spawns to staging.
@@ -368,6 +376,7 @@ private:
     };
     std::vector<SlotInfo> m_slots;         // per-particle CPU tracking
     std::vector<uint32_t> m_freeSlots;     // freelist of inactive particle indices
+    LightSampler          m_lightSampler;  // Phase 4c: baked-light sampler for spawned debris (null = full sky)
     uint32_t              m_activeCount = 0;
     uint32_t              m_highWaterSlot = 0; // highest active slot index + 1 (dispatch range)
 

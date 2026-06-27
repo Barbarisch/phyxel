@@ -1081,7 +1081,11 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     gp.flags        = 1u | p.typeFlags; // PARTICLE_ACTIVE
     gp.scale        = p.scale;
     gp.materialIndex= materialNameToIndex(p.materialName);
-    gp.color        = p.color;
+    // color is unused by debris rendering (debris is textured), so repurpose it to carry the baked
+    // light sampled at the spawn position (sky, blockR, blockG, blockB, each 0..15). The expand
+    // compute shader packs it into the instance's reserved2; dynamic_voxel.vert reads it. Default
+    // = full sky (15,0,0,0) so debris without a sampler / outside loaded chunks looks as before.
+    gp.color = m_lightSampler ? m_lightSampler(p.position) : glm::vec4(15.0f, 0.0f, 0.0f, 0.0f);
 
     m_pendingSpawns.push_back({ slot, gp });
 }

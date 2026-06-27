@@ -142,12 +142,12 @@ struct DynamicSubcubeInstanceData {
     glm::vec3 scale;          // Scale factor (vec3 for non-uniform scaling)
     glm::vec4 rotation;       // Quaternion rotation (x, y, z, w) for tumbling effect
     glm::ivec3 localPosition; // Original local position in 3x3x3 grid (0-2 for each axis)
-    uint32_t reserved2;       // Alignment padding
-    // Total: 44 bytes
-    
+    uint32_t reserved2;       // Baked light (Phase 4c): sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
+    // Total: 64 bytes (matches particle_expand.comp stride)
+
     // Vulkan vertex input description for dynamic subcubes
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions();  // Now 6 attributes
+    static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions();  // + reserved2/light
 };
 
 // Face visibility structure

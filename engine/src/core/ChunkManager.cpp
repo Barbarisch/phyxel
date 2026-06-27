@@ -401,6 +401,18 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     }
 }
 
+void ChunkManager::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
+    m_gpuParticles = gpp;
+    // Wire the debris light sampler so GPU particle debris is lit by the baked light field
+    // (sampled per particle at spawn). Returns sky/blockRGB each 0..15 (matches the nibble packing).
+    if (gpp) {
+        gpp->setLightSampler([this](const glm::vec3& wp) -> glm::vec4 {
+            auto bl = sampleBakedLight(glm::ivec3(glm::floor(wp)));
+            return glm::vec4(bl.sky, bl.r, bl.g, bl.b);
+        });
+    }
+}
+
 Graphics::ChunkRenderManager::BakedLight ChunkManager::sampleBakedLight(const glm::ivec3& worldPos) const {
     Chunk::BakedLight out;
     const Chunk* c = getChunkAtCoord(worldToChunkCoord(worldPos));

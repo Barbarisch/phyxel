@@ -127,8 +127,8 @@ public:
     // Set physics world for proper cleanup of dynamic objects
     void setPhysicsWorld(Physics::PhysicsWorld* physics);
 
-    // Set GPU particle system for occupancy grid updates
-    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+    // Set GPU particle system for occupancy grid updates (also wires its debris light sampler)
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp);
 
     // Notified (worldX, worldY, worldZ, solid) whenever a single voxel's occupancy
     // changes (break/place/occupancy update). Used to keep the water sim's solid mask

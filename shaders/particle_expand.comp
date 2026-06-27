@@ -66,7 +66,7 @@ layout(push_constant) uniform PC {
 // Write one face instance at faceSlot (in face units, not uint units).
 // Each face instance = 16 uint32s = 64 bytes.
 void writeFace(uint faceSlot, vec3 worldPos, uint texIdx, uint faceID,
-               vec3 scale, vec4 rot, ivec3 localPos) {
+               vec3 scale, vec4 rot, ivec3 localPos, uint light) {
     uint base = faceSlot * 16u;
     // worldPosition (vec3, offset 0)
     faceData[base + 0u] = floatBitsToUint(worldPos.x);
@@ -89,8 +89,8 @@ void writeFace(uint faceSlot, vec3 worldPos, uint texIdx, uint faceID,
     faceData[base + 12u] = uint(localPos.x);
     faceData[base + 13u] = uint(localPos.y);
     faceData[base + 14u] = uint(localPos.z);
-    // reserved2, offset 60
-    faceData[base + 15u] = 0u;
+    // reserved2, offset 60 — baked light: sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
+    faceData[base + 15u] = light;
 }
 
 void main() {
@@ -133,8 +133,14 @@ void main() {
     // For full cubes: center (1,1,1). For subcubes/micro: also center (UV covers full face).
     ivec3 localPos = ivec3(1, 1, 1);
 
+    // Baked light carried in p.color (sky, blockR, blockG, blockB, each 0..15) → packed nibbles.
+    uint light = (uint(clamp(p.color.x, 0.0, 15.0)) & 0xFu)
+               | ((uint(clamp(p.color.y, 0.0, 15.0)) & 0xFu) << 4u)
+               | ((uint(clamp(p.color.z, 0.0, 15.0)) & 0xFu) << 8u)
+               | ((uint(clamp(p.color.w, 0.0, 15.0)) & 0xFu) << 12u);
+
     for (uint f = 0u; f < 6u; ++f) {
         uint texIdx = matTextures[matIdx * 6u + f];
-        writeFace(baseSlot + f, renderPos, texIdx, f, p.scale, p.rotation, localPos);
+        writeFace(baseSlot + f, renderPos, texIdx, f, p.scale, p.rotation, localPos, light);
     }
 }
