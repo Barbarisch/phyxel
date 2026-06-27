@@ -1,0 +1,38 @@
+# ==========================================================
+# ASSET METADATA
+# name:         wall_lantern
+# display_name: Wall Lantern (Sconce)
+# description:  A wall-mounted lantern — metal frame, glass panes, glowing core.
+# category:     furniture
+# subcategory:  lighting
+# tags:         light, lantern, sconce, wall, tavern, inn
+# materials:    Metal, Glass, glow
+# facing:       +Z (glass face to the room; mounts on a wall ~1.68 m up)
+# bounds:       0.33W x 0.44H x 0.22D m (grounded object_dimensions 'wall_lantern')
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Metal
+M 0 0 0 0 0 0 0 0 1 Metal
+M 0 0 0 0 0 0 0 1 0 Glass
+M 0 0 0 0 0 0 0 1 1 Metal
+M 0 0 0 0 0 0 0 2 0 Glass
+M 0 0 0 0 0 0 0 2 1 Metal
+M 0 0 0 0 1 0 0 0 0 Metal
+M 0 0 0 0 1 0 0 0 1 Metal
+M 0 0 0 0 0 0 1 0 0 Metal
+M 0 0 0 0 0 0 1 0 1 Metal
+M 0 0 0 0 0 0 1 1 0 Glass
+M 0 0 0 0 0 0 1 1 1 glow
+M 0 0 0 0 0 0 1 2 0 Glass
+M 0 0 0 0 0 0 1 2 1 glow
+M 0 0 0 0 1 0 1 0 0 Metal
+M 0 0 0 0 1 0 1 0 1 Metal
+M 0 0 0 0 0 0 2 0 0 Metal
+M 0 0 0 0 0 0 2 0 1 Metal
+M 0 0 0 0 0 0 2 1 0 Glass
+M 0 0 0 0 0 0 2 1 1 Metal
+M 0 0 0 0 0 0 2 2 0 Glass
+M 0 0 0 0 0 0 2 2 1 Metal
+M 0 0 0 0 1 0 2 0 0 Metal
+M 0 0 0 0 1 0 2 0 1 Metal

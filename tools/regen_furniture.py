@@ -306,9 +306,97 @@ def gen_bar_stool():
     write("bar_stool", header, m.emit_lines([]), m, anchors)
 
 
+def gen_candle_stand():
+    # candle_stand: a floor candelabra ~1.3 m tall (floor-standing -> the placer can place it against a
+    # wall). Metal base + pole, a top tray of candles (Wood) each with a glow flame. Emissive 'glow'.
+    m = Model()
+    m.fill(0, 2, 0, 0, 0, 2, "Metal")              # splayed base (3x3 foot)
+    m.fill(1, 1, 1, 8, 1, 1, "Metal")              # central pole
+    m.fill(0, 2, 9, 9, 0, 2, "Metal")              # top tray
+    for cx, cz in [(0, 0), (2, 0), (0, 2), (2, 2), (1, 1)]:
+        m.m(cx, 10, cz, "Wood")                    # candle
+        m.m(cx, 11, cz, "glow")                    # flame (emissive)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         candle_stand\n"
+        "# display_name: Candle Stand (Candelabra)\n"
+        "# description:  A tall floor candelabra — metal pole + tray of candles with glowing flames.\n"
+        "# category:     furniture\n"
+        "# subcategory:  lighting\n"
+        "# tags:         light, candle, candelabra, tavern, hall, floor\n"
+        "# materials:    Metal, Wood, glow\n"
+        "# facing:       +Z\n"
+        "# bounds:       0.33W x 1.33H x 0.33D m (grounded object_dimensions 'candle_stand')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("candle_stand", header, m.emit_lines([]), m)
+
+
+def gen_wall_lantern():
+    # wall_lantern: a wall sconce lantern (Metal frame + Glass panes + a glow core). The MOUNT height
+    # (~1.68 m) is a placement concern; the asset is just the lantern body (~0.44 m tall).
+    m = Model()
+    m.fill(0, 2, 0, 0, 0, 1, "Metal")              # bottom plate
+    m.fill(0, 2, 3, 3, 0, 1, "Metal")              # top cap (roof)
+    for cx in (0, 2):                               # corner posts
+        for cz in (0, 1):
+            m.fill(cx, cx, 1, 2, cz, cz, "Metal")
+    m.fill(0, 2, 1, 2, 0, 0, "Glass")              # front glass pane
+    m.fill(1, 1, 1, 2, 1, 1, "glow")               # glowing core (the flame)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         wall_lantern\n"
+        "# display_name: Wall Lantern (Sconce)\n"
+        "# description:  A wall-mounted lantern — metal frame, glass panes, glowing core.\n"
+        "# category:     furniture\n"
+        "# subcategory:  lighting\n"
+        "# tags:         light, lantern, sconce, wall, tavern, inn\n"
+        "# materials:    Metal, Glass, glow\n"
+        "# facing:       +Z (glass face to the room; mounts on a wall ~1.68 m up)\n"
+        "# bounds:       0.33W x 0.44H x 0.22D m (grounded object_dimensions 'wall_lantern')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("wall_lantern", header, m.emit_lines([]), m)
+
+
+def gen_chandelier():
+    # chandelier: a hanging ring of candles (~0.56 m diameter) with a chain up to the ceiling. Metal
+    # ring + Wood candles + glow flames. Hangs ~2.1 m above the floor (a placement concern).
+    R = 5                                           # 5x5 ring -> ~0.56 m diameter
+    m = Model()
+    m.box_shell(0, R - 1, 0, 0, 0, R - 1, "Metal", faces=("x", "z"))  # ring rim at y0
+    for (cx, cz) in [(0, 2), (2, 0), (4, 2), (2, 4), (0, 0), (4, 4), (0, 4), (4, 0)]:
+        m.m(cx, 1, cz, "Wood")                      # candle on the rim
+        m.m(cx, 2, cz, "glow")                      # flame
+    m.fill(2, 2, 1, 5, 2, 2, "Metal")              # central chain up to the ceiling
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         chandelier\n"
+        "# display_name: Chandelier (Candle Ring)\n"
+        "# description:  A hanging iron candle-ring chandelier with glowing flames and a chain.\n"
+        "# category:     furniture\n"
+        "# subcategory:  lighting\n"
+        "# tags:         light, chandelier, hanging, tavern, hall, feast\n"
+        "# materials:    Metal, Wood, glow\n"
+        "# facing:       +Z (hangs from the ceiling; chain up)\n"
+        "# bounds:       0.56 diameter x 0.67H m (grounded object_dimensions 'chandelier')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("chandelier", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
     gen_bar()
     gen_back_bar()
     gen_bar_stool()
+    gen_candle_stand()
+    gen_wall_lantern()
+    gen_chandelier()

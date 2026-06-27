@@ -26,7 +26,7 @@ struct Piece { std::string type; bool center; };
 std::vector<Piece> recipeFor(const std::string& purpose) {
     const std::string p = lower(purpose);
     auto has = [&](const char* k) { return p.find(k) != std::string::npos; };
-    if (has("taproom") || has("tap"))                return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"fireplace", false}};
+    if (has("taproom") || has("tap"))                return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"fireplace", false}, {"candle_stand", false}};
     if (has("kitchen"))                              return {{"counter", false}, {"fireplace", false}};
     if (has("bed") || has("chamber") || has("solar")) return {{"bed", false}, {"chest", false}};
     if (has("hall") || has("living") || has("great")) return {{"fireplace", false}, {"table", true}, {"bench", false}};

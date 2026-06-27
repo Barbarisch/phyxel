@@ -1,0 +1,50 @@
+# ==========================================================
+# ASSET METADATA
+# name:         candle_stand
+# display_name: Candle Stand (Candelabra)
+# description:  A tall floor candelabra — metal pole + tray of candles with glowing flames.
+# category:     furniture
+# subcategory:  lighting
+# tags:         light, candle, candelabra, tavern, hall, floor
+# materials:    Metal, Wood, glow
+# facing:       +Z
+# bounds:       0.33W x 1.33H x 0.33D m (grounded object_dimensions 'candle_stand')
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Metal
+M 0 0 0 0 0 0 0 0 1 Metal
+M 0 0 0 0 0 0 0 0 2 Metal
+M 0 1 0 0 0 0 0 0 0 Metal
+M 0 1 0 0 0 0 0 0 1 Metal
+M 0 1 0 0 0 0 0 0 2 Metal
+M 0 1 0 0 0 0 0 1 0 Wood
+M 0 1 0 0 0 0 0 1 2 Wood
+M 0 1 0 0 0 0 0 2 0 glow
+M 0 1 0 0 0 0 0 2 2 glow
+M 0 0 0 0 0 0 1 0 0 Metal
+M 0 0 0 0 0 0 1 0 1 Metal
+M 0 0 0 0 0 0 1 0 2 Metal
+M 0 0 0 0 0 0 1 1 1 Metal
+M 0 0 0 0 0 0 1 2 1 Metal
+M 0 0 0 0 1 0 1 0 1 Metal
+M 0 0 0 0 1 0 1 1 1 Metal
+M 0 0 0 0 1 0 1 2 1 Metal
+M 0 0 0 0 2 0 1 0 1 Metal
+M 0 0 0 0 2 0 1 1 1 Metal
+M 0 0 0 0 2 0 1 2 1 Metal
+M 0 1 0 0 0 0 1 0 0 Metal
+M 0 1 0 0 0 0 1 0 1 Metal
+M 0 1 0 0 0 0 1 0 2 Metal
+M 0 1 0 0 0 0 1 1 1 Wood
+M 0 1 0 0 0 0 1 2 1 glow
+M 0 0 0 0 0 0 2 0 0 Metal
+M 0 0 0 0 0 0 2 0 1 Metal
+M 0 0 0 0 0 0 2 0 2 Metal
+M 0 1 0 0 0 0 2 0 0 Metal
+M 0 1 0 0 0 0 2 0 1 Metal
+M 0 1 0 0 0 0 2 0 2 Metal
+M 0 1 0 0 0 0 2 1 0 Wood
+M 0 1 0 0 0 0 2 1 2 Wood
+M 0 1 0 0 0 0 2 2 0 glow
+M 0 1 0 0 0 0 2 2 2 glow

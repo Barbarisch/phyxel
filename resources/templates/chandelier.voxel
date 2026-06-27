@@ -1,35 +1,51 @@
 # ==========================================================
 # ASSET METADATA
 # name:         chandelier
-# display_name: Chandelier
+# display_name: Chandelier (Candle Ring)
+# description:  A hanging iron candle-ring chandelier with glowing flames and a chain.
 # category:     furniture
-# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
-# light:        ceiling-hung (centre of a room)
-# primitives:   0 C + 0 S + 23 M = 23
-# method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
+# subcategory:  lighting
+# tags:         light, chandelier, hanging, tavern, hall, feast
+# materials:    Metal, Wood, glow
+# facing:       +Z (hangs from the ceiling; chain up)
+# bounds:       0.56 diameter x 0.67H m (grounded object_dimensions 'chandelier')
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
 # ==========================================================
-# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
 
-M 0 0 0 0 0 1 2 2 1 Gold
-M 0 0 0 0 1 1 2 0 1 Sand
-M 0 0 0 0 1 1 2 1 1 glow
-M 0 0 0 1 0 0 1 2 2 Gold
-M 0 0 0 1 0 1 0 2 1 Gold
-M 0 0 0 1 0 1 1 2 0 Gold
-M 0 0 0 1 0 1 1 2 1 Gold
-M 0 0 0 1 0 1 1 2 2 Gold
-M 0 0 0 1 0 1 2 2 1 Gold
-M 0 0 0 1 0 2 1 2 0 Gold
-M 0 0 0 1 1 0 1 0 2 Sand
-M 0 0 0 1 1 0 1 1 2 glow
-M 0 0 0 1 1 1 1 0 1 Gold
-M 0 0 0 1 1 1 1 1 1 Gold
-M 0 0 0 1 1 1 1 2 1 Gold
-M 0 0 0 1 1 2 1 0 0 Sand
-M 0 0 0 1 1 2 1 1 0 glow
-M 0 0 0 1 2 1 1 0 1 Gold
-M 0 0 0 1 2 1 1 1 1 Gold
-M 0 0 0 1 2 1 1 2 1 Gold
-M 0 0 0 2 0 1 0 2 1 Gold
-M 0 0 0 2 1 1 0 0 1 Sand
-M 0 0 0 2 1 1 0 1 1 glow
+M 0 0 0 0 0 0 0 0 0 Metal
+M 0 0 0 0 0 0 0 0 1 Metal
+M 0 0 0 0 0 0 0 0 2 Metal
+M 0 0 0 0 0 1 0 0 0 Metal
+M 0 0 0 0 0 1 0 0 1 Metal
+M 0 0 0 0 0 0 0 1 0 Wood
+M 0 0 0 0 0 0 0 1 2 Wood
+M 0 0 0 0 0 1 0 1 1 Wood
+M 0 0 0 0 0 0 0 2 0 glow
+M 0 0 0 0 0 0 0 2 2 glow
+M 0 0 0 0 0 1 0 2 1 glow
+M 0 0 0 0 0 0 1 0 0 Metal
+M 0 0 0 0 0 1 1 0 1 Metal
+M 0 0 0 0 0 0 2 0 0 Metal
+M 0 0 0 0 0 1 2 0 1 Metal
+M 0 0 0 0 0 0 2 1 0 Wood
+M 0 0 0 0 0 0 2 1 2 Metal
+M 0 0 0 0 0 1 2 1 1 Wood
+M 0 0 0 0 0 0 2 2 0 glow
+M 0 0 0 0 0 0 2 2 2 Metal
+M 0 0 0 0 0 1 2 2 1 glow
+M 0 0 0 0 1 0 2 0 2 Metal
+M 0 0 0 0 1 0 2 1 2 Metal
+M 0 0 0 0 1 0 2 2 2 Metal
+M 0 0 0 1 0 0 0 0 0 Metal
+M 0 0 0 1 0 1 0 0 1 Metal
+M 0 0 0 1 0 0 1 0 0 Metal
+M 0 0 0 1 0 0 1 0 1 Metal
+M 0 0 0 1 0 0 1 0 2 Metal
+M 0 0 0 1 0 1 1 0 0 Metal
+M 0 0 0 1 0 1 1 0 1 Metal
+M 0 0 0 1 0 0 1 1 0 Wood
+M 0 0 0 1 0 0 1 1 2 Wood
+M 0 0 0 1 0 1 1 1 1 Wood
+M 0 0 0 1 0 0 1 2 0 glow
+M 0 0 0 1 0 0 1 2 2 glow
+M 0 0 0 1 0 1 1 2 1 glow

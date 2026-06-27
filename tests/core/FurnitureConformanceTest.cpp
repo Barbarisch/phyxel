@@ -138,4 +138,8 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     EXPECT_EQ(statusOf(rep, "bar_stool"),  "ok");                // 0.78h x 0.44 vs canon 0.78/0.44
     EXPECT_EQ(statusOf(rep, "back_bar"),   "ok");                // shelving 1.89h x 0.33d vs canon 1.85/0.35
     EXPECT_EQ(statusOf(rep, "tavern_table"), "no_canon");        // varied-tables follow-up (not yet grounded)
+    // Lighting fixtures (emissive glow): deterministic micro builds grounded to object_dimensions.
+    EXPECT_EQ(statusOf(rep, "candle_stand"), "ok");              // 1.33h x 0.33 vs canon 1.3/0.33
+    EXPECT_EQ(statusOf(rep, "wall_lantern"), "ok");              // 0.44h x 0.33 x 0.22 vs canon 0.4/0.33/0.22
+    EXPECT_EQ(statusOf(rep, "chandelier"),   "ok");              // 0.67h x 0.56dia vs canon 0.6/0.6
 }

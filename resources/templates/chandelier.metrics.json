@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "chandelier",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.5555555555555556,
+    0.6666666666666666,
+    0.5555555555555556
+  ],
+  "interaction_points": []
+}
