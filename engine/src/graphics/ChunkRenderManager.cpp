@@ -112,7 +112,8 @@ void ChunkRenderManager::rebuildAllFaces(
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
-    const NeighborLightFunc& getNeighborLight)
+    const NeighborLightFunc& getNeighborLight,
+    const std::vector<uint8_t>* columnOpenMask)
 {
     faces.clear();
 
@@ -121,7 +122,7 @@ void ChunkRenderManager::rebuildAllFaces(
     m_lightWorldOrigin = worldOrigin;
 
     // Rebuild faces for each voxel type
-    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube);
+    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, columnOpenMask);
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
 
@@ -133,7 +134,8 @@ void ChunkRenderManager::rebuildAllFaces(
 void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
-    const NeighborLookupFunc& getNeighborCube)
+    const NeighborLookupFunc& getNeighborCube,
+    const std::vector<uint8_t>* columnOpenMask)
 {
     // Greedy meshing for cube faces: merge coplanar, same-material visible faces into
     // rectangles, emitting one sized instance per rectangle (packCubeFaceDataSized)
@@ -216,7 +218,11 @@ void ChunkRenderManager::rebuildCubeFaces(
         // (BFS will instead light it through windows/holes). Without a neighbour lookup we fall
         // back to assuming open (correct for single-chunk content like a freestanding box).
         constexpr int kSkyProbeHeight = 96;  // ~3 chunks; enough for typical buildings
+        // Fast path: the caller precomputed which columns are open to the sky (from the chunks
+        // above) — an O(1) lookup instead of probing ~96 cells per column. Fallback (no mask):
+        // the original per-cell getNeighborCube probe.
         auto columnOpenAbove = [&](int x, int z) -> bool {
+            if (columnOpenMask) return (*columnOpenMask)[x * 32 + z] != 0;
             if (!getNeighborCube) return true;
             for (int wy = N; wy < N + kSkyProbeHeight; ++wy) {
                 const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, wy, z));

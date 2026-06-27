@@ -270,7 +270,6 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
 
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);
-
         // Update GPU buffer with new face data
         chunk->updateVulkanBuffer();
         chunk->setNeedsUpdate(false);
@@ -337,8 +336,44 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         return neighborChunk->bakedLightAt(worldToLocalCoord(worldPos), out);
     };
 
-    // Call rebuildFaces with cross-chunk culling + light bleed enabled
-    chunk.rebuildFaces(getNeighborCube, getNeighborLight);
+    // Precompute the skylight roof mask: for each of the 32x32 columns, is it open to the sky
+    // above this chunk? The skylight bake needs this to seed sky columns. Doing it here (where we
+    // can resolve whole neighbour chunks directly) replaces the bake's ~98k per-cell roof probe:
+    // we resolve the up-to-3 chunks ABOVE once and scan only the ones that exist & are non-empty,
+    // marking roofed columns. Absent/empty chunks above (the common surface case) cost nothing.
+    std::vector<uint8_t> columnOpen(32 * 32, 1);  // 1 = open to sky (index x*32+z)
+    {
+        const glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+        constexpr int kProbeChunks = 3;  // 3*32 = 96 cells, matches the old kSkyProbeHeight
+        // Resolve the up-to-3 chunks above ONCE (no per-cell hash lookups). Open terrain has none
+        // → mask stays all-open at ~zero cost. Then probe each column directly with an early break
+        // on the first solid (cheap array indexing, no coord conversion / lambda like the old probe).
+        Chunk* above[kProbeChunks] = {nullptr, nullptr, nullptr};
+        bool anyAbove = false;
+        for (int i = 0; i < kProbeChunks; ++i) {
+            Chunk* a = getChunkAtCoord(cc + glm::ivec3(0, i + 1, 0));
+            if (a && a->getCubeCount() > 0) { above[i] = a; anyAbove = true; }
+        }
+        if (anyAbove) {
+            for (int x = 0; x < 32; ++x) {
+                for (int z = 0; z < 32; ++z) {
+                    bool roofed = false;
+                    for (int ci = 0; ci < kProbeChunks && !roofed; ++ci) {
+                        Chunk* a = above[ci];
+                        if (!a) continue;
+                        for (int y = 0; y < 32; ++y) {
+                            const Cube* c = a->getCubeAtIndex(static_cast<size_t>(z + y * 32 + x * 1024));
+                            if (c && c->isVisible()) { roofed = true; break; }
+                        }
+                    }
+                    if (roofed) columnOpen[x * 32 + z] = 0;
+                }
+            }
+        }
+    }
+
+    // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen);
 
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
     // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges

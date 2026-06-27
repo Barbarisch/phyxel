@@ -49,19 +49,24 @@ public:
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice);
 
     // Face rebuilding - split into focused methods
+    // columnOpenMask (optional): a 32x32 byte grid (index x*32+z, 1 = open to sky) precomputed by
+    // the caller from the chunks ABOVE, so the skylight bake can seed sky columns without the slow
+    // per-cell roof probe. nullptr → fall back to the in-bake getNeighborCube probe.
     void rebuildAllFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
-        const NeighborLightFunc& getNeighborLight = nullptr
+        const NeighborLightFunc& getNeighborLight = nullptr,
+        const std::vector<uint8_t>* columnOpenMask = nullptr
     );
 
     void rebuildCubeFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr
+        const NeighborLookupFunc& getNeighborCube = nullptr,
+        const std::vector<uint8_t>* columnOpenMask = nullptr
     );
 
     // True if this chunk's boundary light (what neighbours sample) changed on the last rebuild —

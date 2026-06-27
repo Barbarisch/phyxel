@@ -205,8 +205,11 @@ public:
     using NeighborLookupFunc = Graphics::ChunkRenderManager::NeighborLookupFunc;
     using NeighborLightFunc  = Graphics::ChunkRenderManager::NeighborLightFunc;
     using BakedLight         = Graphics::ChunkRenderManager::BakedLight;
+    // columnOpenMask (optional): 32x32 sky-open grid (x*32+z) precomputed by ChunkManager from
+    // the chunks above, so the skylight bake skips the slow per-cell roof probe.
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
-                      const NeighborLightFunc& getNeighborLight = nullptr);
+                      const NeighborLightFunc& getNeighborLight = nullptr,
+                      const std::vector<uint8_t>* columnOpenMask = nullptr);
 
     // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
     bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }
