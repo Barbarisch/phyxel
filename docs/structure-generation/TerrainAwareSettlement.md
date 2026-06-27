@@ -60,14 +60,31 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
   water) + real-terrain test, red-confirmed teeth.
   **Remaining glue (with Phase 2):** a runtime `ChunkManager` column-scan sampler so the live deployer
   analyses the actual world (the encoded validation already uses the generator's height fn).
-- ▶ **Phase 2** — CORE DONE (auditor PASS): `selectBuildablePlots(site, plotSize, spacing, maxPlots)`
-  picks non-overlapping plots whose ENTIRE footprint is buildable (no TooSteep/Water), spaced,
-  flattest-first; plots land on flat valleys + hilltop plateaus, never cliffs/water; **graceful
-  degradation** — a sheer mountain yields 0 plots. Red-confirmed (stub placed on cliff/mountain).
-  **Remaining Phase 2 glue (makes it LIVE):** a runtime `ChunkManager` column-scan sampler +
-  `build_settlement` "terrain" mode (analyse the live world → `selectBuildablePlots` → build), verified
-  on a generated Perlin/Mountains world.
+- ✅ **Phase 2** — DONE + LIVE-VERIFIED (auditor PASS on substance). `selectBuildablePlots(site,
+  plotSize, spacing, maxPlots)` picks non-overlapping plots whose ENTIRE footprint is buildable (no
+  TooSteep/Water), spaced, flattest-first; plots land on flat valleys + hilltop plateaus, never
+  cliffs/water; **graceful degradation** — a sheer mountain yields 0 plots. Red-confirmed (stub on
+  cliff/mountain).
+  **Glue is now LIVE:** `build_settlement` "terrain" mode (`editor/src/Application.cpp`) wires a
+  runtime `groundTopAt` `ChunkManager` column scan into `analyzeSite` → `selectBuildablePlots` →
+  per-building seating (`by = groundTopAt(footprint centre)`). Verified at runtime (L4) on a generated
+  Perlin rolling-hills world (StructGenHills, seed 7, heightScale 18):
+  - **Discrimination (live log):** FLAT world `buildable=1.0`; HILLS world `buildable=0.926509` —
+    same code path, not unit tests (`scripts/seating_evidence/buildable_flat_vs_hills.txt`).
+  - **Seating invariant (recorded red-before-green):** for every building, `|seatY − median(terrain
+    ringing the footprint)| ≤ 2`. RED (`seat_flat` toggle → terrain-blind `by=oy`, same plots) buries
+    buildings, **max dev 3.0 → FAIL**; GREEN (shipped seating) tracks the ground, **max dev 1.0 →
+    PASS**. Threshold 2 sits strictly between (justified by data separation, not chosen to pass).
+    Proof: `scripts/verify_terrain_seating.py` (+ `--seat-flat`), driver
+    `scripts/run_seating_redgreen.sh`, evidence in `scripts/seating_evidence/`.
+  - **Known race (not a logic bug):** if `build_settlement` is called while async `generate_world` is
+    still populating, `groundTopAt` reads incomplete columns and seats low — buildings buried (≈7 in
+    the rough-terrain repro). In normal use the world is pre-generated (loaded from DB) so no race; the
+    driver waits until terrain is complete (`voxel_top==terrain_height`) before building.
 - ☐ Phases 3–4 — planned (this doc): walkable paths over terrain; terrain stress + degradation.
+  **Phase 2 follow-up (carried):** the v2 build path seats the floor at the footprint-centre ground
+  but does NOT yet cut/fill flush across the footprint, so on a slope corners can clip/float by the
+  local grade — Phase 3 (cut/fill budget + steps) closes this.
 
 ### Follow-ups surfaced (not yet scheduled)
 - **Per-typology plot sizing** — the uniform grid mismatches croft (narrow) / manor (elongated); plots

@@ -1,0 +1,26 @@
+MODE: GREEN (terrain seating, expect PASS)
+queued 20 buildings; waiting for build queue to drain before sampling rings
+  plot  0: seatY= 14  ring_median=13.0  dev=1.0  OK
+  plot  1: seatY= 18  ring_median=18.0  dev=0.0  OK
+  plot  2: seatY= 15  ring_median=15.0  dev=0.0  OK
+  plot  3: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot  4: seatY= 17  ring_median=16.0  dev=1.0  OK
+  plot  5: seatY= 15  ring_median=14.0  dev=1.0  OK
+  plot  6: seatY= 15  ring_median=14.5  dev=0.5  OK
+  plot  7: seatY= 18  ring_median=18.0  dev=0.0  OK
+  plot  8: seatY= 14  ring_median=14.0  dev=0.0  OK
+  plot  9: seatY= 14  ring_median=15.0  dev=1.0  OK
+  plot 10: seatY= 16  ring_median=16.0  dev=0.0  OK
+  plot 11: seatY= 15  ring_median=15.0  dev=0.0  OK
+  plot 12: seatY= 15  ring_median=15.0  dev=0.0  OK
+  plot 13: seatY= 16  ring_median=16.5  dev=0.5  OK
+  plot 14: seatY= 13  ring_median=14.0  dev=1.0  OK
+  plot 15: seatY= 15  ring_median=15.0  dev=0.0  OK
+  plot 16: seatY= 13  ring_median=14.0  dev=1.0  OK
+  plot 17: seatY= 19  ring_median=18.0  dev=1.0  OK
+  plot 18: seatY= 13  ring_median=13.0  dev=0.0  OK
+  plot 19: seatY= 18  ring_median=17.0  dev=1.0  OK
+
+MAX DEVIATION = 1.0  (tolerance 2)
+SEATING INVARIANT: PASS
+EXPECTED: PASS -> as expected

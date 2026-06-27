@@ -1,0 +1,6 @@
+Live runtime discrimination (flat vs hills), terrain-mode build_settlement, SAME code path:
+  FLAT  world (all surfaceY=16): terrain analyse 124x124: buildable=1        -> 20 plots
+  HILLS world (Perlin seed 7)  : terrain analyse 124x124: buildable=0.926509 -> 20 plots
+
+Flat-world seating: all 20 buildings seatY=16 (flush on flat ground); queued positions all y=16.
+Both numbers are live engine log lines (LOG "Settlement: terrain analyse ..."), not unit tests.

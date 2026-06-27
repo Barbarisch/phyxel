@@ -1,0 +1,26 @@
+MODE: RED (seat_flat -> terrain-blind, expect FAIL)
+queued 20 buildings; waiting for build queue to drain before sampling rings
+  plot  0: seatY= 16  ring_median=13.0  dev=3.0  BURIED/FLOAT
+  plot  1: seatY= 16  ring_median=18.0  dev=2.0  OK
+  plot  2: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot  3: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot  4: seatY= 16  ring_median=16.0  dev=0.0  OK
+  plot  5: seatY= 16  ring_median=14.0  dev=2.0  OK
+  plot  6: seatY= 16  ring_median=14.5  dev=1.5  OK
+  plot  7: seatY= 16  ring_median=18.0  dev=2.0  OK
+  plot  8: seatY= 16  ring_median=14.0  dev=2.0  OK
+  plot  9: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot 10: seatY= 16  ring_median=16.0  dev=0.0  OK
+  plot 11: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot 12: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot 13: seatY= 16  ring_median=16.5  dev=0.5  OK
+  plot 14: seatY= 16  ring_median=14.0  dev=2.0  OK
+  plot 15: seatY= 16  ring_median=15.0  dev=1.0  OK
+  plot 16: seatY= 16  ring_median=14.0  dev=2.0  OK
+  plot 17: seatY= 16  ring_median=18.0  dev=2.0  OK
+  plot 18: seatY= 16  ring_median=13.0  dev=3.0  BURIED/FLOAT
+  plot 19: seatY= 16  ring_median=17.0  dev=1.0  OK
+
+MAX DEVIATION = 3.0  (tolerance 2)
+SEATING INVARIANT: FAIL
+EXPECTED: FAIL -> as expected

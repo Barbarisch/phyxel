@@ -10156,6 +10156,7 @@ void Application::registerSettlementCommands() {
         const int minBuilding = p.value("min_building", 8);
         const std::string typology = p.value("typology", std::string("hall_house"));
         const std::string style = p.value("style", std::string("timber_cottage"));
+        const bool seatFlat = p.value("seat_flat", false);  // debug: force base-Y seating (red baseline)
         // Optional mixed typologies: cycle a list per plot (deterministic) so a settlement is a varied
         // village, not N identical houses. Empty -> the single `typology` everywhere.
         std::vector<std::string> mix;
@@ -10166,11 +10167,44 @@ void Application::registerSettlementCommands() {
             ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
         }
 
-        const Core::SettlementLayout layout =
-            Core::subdividePlots(W, D, cols, rows, streetWidth, minBuilding);
-        if (layout.plots.empty()) {
-            r = {{"error", "settlement footprint too small for the requested grid + min_building"}};
-            return;
+        // ground top at a WORLD column = the top solid voxel (the seatStructure primitive). Shared by
+        // the terrain buildability scan AND per-building seating.
+        auto groundTopAt = [&](int wx, int wz) -> int {
+            if (!chunkManager) return oy;
+            const int top = oy + 96;
+            for (int wy = top; wy >= 0 && wy >= top - 200; --wy)
+                if (chunkManager->hasVoxelAt(glm::ivec3(wx, wy, wz))) return wy;
+            return oy;
+        };
+
+        // TERRAIN MODE: analyse the live world's buildability and place plots on the buildable cells
+        // (flat valleys + hilltops), skipping cliffs/steep. Else: the flat-plane grid.
+        const bool terrain = p.value("terrain", false);
+        Core::SettlementLayout layout;
+        if (terrain) {
+            if (!chunkManager) { r = {{"error", "terrain mode needs a loaded world (no ChunkManager)"}}; return; }
+            const int plotSize  = p.value("plot_size", 12);
+            const int maxRelief = p.value("max_relief", 6);
+            const int maxPlots  = p.value("max_plots", 25);
+            const int window    = std::max(1, plotSize / 2);
+            const Core::BuildabilityMap site =
+                Core::analyzeSite(W, D, maxRelief,
+                                  [&](int x, int z) { return groundTopAt(ox + x, oz + z); },
+                                  {}, 1, window);
+            layout.plots = Core::selectBuildablePlots(site, plotSize, streetWidth, maxPlots);
+            LOG_INFO_FMT("Settlement", "terrain analyse " << W << "x" << D << ": buildable="
+                         << site.buildableFraction() << " -> " << layout.plots.size() << " plots");
+            if (layout.plots.empty()) {
+                r = {{"error", "terrain too steep — no buildable plots"},
+                     {"buildable_fraction", site.buildableFraction()}};
+                return;
+            }
+        } else {
+            layout = Core::subdividePlots(W, D, cols, rows, streetWidth, minBuilding);
+            if (layout.plots.empty()) {
+                r = {{"error", "settlement footprint too small for the requested grid + min_building"}};
+                return;
+            }
         }
         const auto buildings = Core::populatePlots(layout, setback, minBuilding, typology);
         if (buildings.empty()) {
@@ -10182,10 +10216,18 @@ void Application::registerSettlementCommands() {
         for (size_t i = 0; i < buildings.size(); ++i) {
             const auto& b = buildings[i];
             const int bx = ox + b.footprint.x, bz = oz + b.footprint.z;
+            // terrain mode: seat each house on its LOCAL ground (top voxel at the footprint centre) so
+            // it adapts to the hill, not the flat base Y. (Flush cut/fill is a Phase 2 follow-up.)
+            // `seat_flat` (debug/test, default off): force base-Y seating even in terrain mode, so the
+            // terrain-BLIND red baseline for the seating invariant is REPRODUCIBLE (verify_terrain_seating.py
+            // --seat-flat). This isolates the seating variable: same buildable plots, only `by` changes.
+            const int by = (terrain && !seatFlat)
+                ? groundTopAt(bx + b.footprint.w / 2, bz + b.footprint.d / 2)
+                : oy;
             const std::string btyp = mix.empty() ? b.typology : mix[i % mix.size()];
             nlohmann::json bp = {
                 {"schema", "v2"}, {"type", "house"}, {"style", style}, {"typology", btyp},
-                {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
+                {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                 {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
                 {"substructure", "slab"},
                 {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})}
@@ -10194,7 +10236,7 @@ void Application::registerSettlementCommands() {
             sub.action = "build_structure";
             sub.params = bp;
             apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
-            queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", oy}, {"z", bz}}},
+            queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
                               {"typology", btyp}});
         }
