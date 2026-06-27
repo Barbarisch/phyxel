@@ -390,8 +390,10 @@ void ChunkRenderManager::rebuildCubeFaces(
     // Packed baked light, NEW layout for smooth (per-corner) skylight:
     //   bits 0-15  = 4 per-vertex skylight nibbles (corner v at bits v*4..v*4+3), AO-averaged
     //   bits 16-27 = block light R(16-19) G(20-23) B(24-27), per-face (flat)
-    std::vector<uint32_t> faceLight(N * N);
-    std::vector<uint8_t>  faceUniform(N * N);  // 1 = all 4 corner skies equal → safe to greedy-merge
+    std::vector<uint32_t> faceLight(N * N);   // 4 corner skies (bits 0-15)
+    std::vector<uint32_t> faceLight2(N * N);  // per-corner block: corner0 RGB | corner1 RGB
+    std::vector<uint32_t> faceLight3(N * N);  // per-corner block: corner2 RGB | corner3 RGB
+    std::vector<uint8_t>  faceUniform(N * N); // 1 = all 4 corners equal (sky+block) → safe to greedy-merge
     std::vector<uint8_t>  used(N * N);
 
     // In-plane axes per face for smooth corner lighting — MUST match static_voxel.vert's
@@ -426,33 +428,41 @@ void ChunkRenderManager::rebuildCubeFaces(
                                   (matFaces[m].reserved | dmgBits);
                     faceMat[mi] = m;
                     faceDmg[mi] = cellDamage[cell];
-                    // Smooth per-corner skylight + ambient occlusion. For each of the 4 quad
-                    // corners (indexed by vertexID), average the skylight of the 4 cells touching
-                    // that corner in the air cell's plane; solid cells read sky 0 (m_skyLight is 0
-                    // for solids), so concave corners darken (AO). Block light stays per-face.
+                    // Smooth per-corner skylight + block light + ambient occlusion. For each of the
+                    // 4 quad corners (indexed by vertexID), average the light of the 4 cells touching
+                    // that corner in the air cell's plane; solid cells read 0 (m_skyLight/m_blockR..
+                    // are 0 for solids), so concave corners darken (AO). The GPU interpolates the
+                    // 4 corners across the face → smooth gradients instead of per-voxel steps.
                     {
                         const glm::ivec3 A = glm::ivec3(x, y, z) + faceA[faceID];
                         const glm::ivec3& uD = faceU[faceID];
                         const glm::ivec3& vD = faceV[faceID];
-                        uint8_t br = 0, bg = 0, bb = 0;
-                        blockLightAt(A.x, A.y, A.z, br, bg, bb);
-                        uint32_t cornerPack = 0;
-                        int firstCorner = -1; bool uniform = true;
+                        uint32_t skyPack = 0, blkLo = 0, blkHi = 0;
+                        int sky0 = -1, r0 = -1, g0 = -1, b0 = -1; bool uniform = true;
                         for (int vid = 0; vid < 4; ++vid) {
                             glm::ivec3 us = (vid & 1) ? uD : -uD;
                             glm::ivec3 vs = (vid & 2) ? vD : -vD;
-                            int s0 = skyLightAt(A.x, A.y, A.z) & 0xF;
-                            int s1 = skyLightAt(A.x + us.x, A.y + us.y, A.z + us.z) & 0xF;
-                            int s2 = skyLightAt(A.x + vs.x, A.y + vs.y, A.z + vs.z) & 0xF;
-                            int s3 = skyLightAt(A.x + us.x + vs.x, A.y + us.y + vs.y, A.z + us.z + vs.z) & 0xF;
-                            int avg = (s0 + s1 + s2 + s3) / 4;  // 0..15
-                            cornerPack |= static_cast<uint32_t>(avg & 0xF) << (vid * 4);
-                            if (firstCorner < 0) firstCorner = avg; else if (avg != firstCorner) uniform = false;
+                            const glm::ivec3 c[4] = { A, A + us, A + vs, A + us + vs };
+                            int sSum = 0, rSum = 0, gSum = 0, bSum = 0;
+                            for (int j = 0; j < 4; ++j) {
+                                sSum += skyLightAt(c[j].x, c[j].y, c[j].z) & 0xF;
+                                uint8_t r = 0, gg = 0, bb = 0;
+                                blockLightAt(c[j].x, c[j].y, c[j].z, r, gg, bb);
+                                rSum += r; gSum += gg; bSum += bb;
+                            }
+                            int sky = sSum / 4, rr = rSum / 4, gAvg = gSum / 4, bAvg = bSum / 4;  // 0..15
+                            skyPack |= static_cast<uint32_t>(sky & 0xF) << (vid * 4);
+                            uint32_t rgb12 = (static_cast<uint32_t>(rr & 0xF))
+                                           | (static_cast<uint32_t>(gAvg & 0xF) << 4)
+                                           | (static_cast<uint32_t>(bAvg & 0xF) << 8);
+                            if (vid < 2) blkLo |= rgb12 << (vid * 12);
+                            else         blkHi |= rgb12 << ((vid - 2) * 12);
+                            if (sky0 < 0) { sky0 = sky; r0 = rr; g0 = gAvg; b0 = bAvg; }
+                            else if (sky != sky0 || rr != r0 || gAvg != g0 || bAvg != b0) uniform = false;
                         }
-                        faceLight[mi] = cornerPack
-                                      | (static_cast<uint32_t>(br & 0xF) << 16)
-                                      | (static_cast<uint32_t>(bg & 0xF) << 20)
-                                      | (static_cast<uint32_t>(bb & 0xF) << 24);
+                        faceLight[mi]  = skyPack;  // 4 corner skies (bits 0-15)
+                        faceLight2[mi] = blkLo;    // corner0 RGB | corner1 RGB
+                        faceLight3[mi] = blkHi;    // corner2 RGB | corner3 RGB
                         faceUniform[mi] = uniform ? 1u : 0u;
                     }
                 }
@@ -463,22 +473,25 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int mi = u * N + v;
                     if (!hasFace[mi] || used[mi]) continue;
                     int k = faceKey[mi];
-                    uint32_t lite = faceLight[mi];
-                    // Only greedy-merge faces with identical packed light AND uniform corners
-                    // (a non-uniform/AO face would render wrong if stretched across a rectangle,
-                    // so it stays a 1x1 quad and the GPU interpolates its 4 corner skies).
+                    uint32_t lite = faceLight[mi], lite2 = faceLight2[mi], lite3 = faceLight3[mi];
+                    // Only greedy-merge faces with identical packed light (sky + block) AND uniform
+                    // corners (a non-uniform/AO/gradient face would render wrong if stretched across
+                    // a rectangle, so it stays a 1x1 quad and the GPU interpolates its 4 corners).
+                    auto sameLight = [&](int t) {
+                        return faceLight[t] == lite && faceLight2[t] == lite2 && faceLight3[t] == lite3 && faceUniform[t];
+                    };
                     bool canMerge = faceUniform[mi] != 0;
                     int w = 1;
                     while (canMerge && v + w < N) {
                         int t = u * N + (v + w);
-                        if (!hasFace[t] || used[t] || faceKey[t] != k || faceLight[t] != lite || !faceUniform[t]) break;
+                        if (!hasFace[t] || used[t] || faceKey[t] != k || !sameLight(t)) break;
                         ++w;
                     }
                     int h = 1; bool ok = canMerge;
                     while (canMerge && u + h < N && ok) {
                         for (int vv = v; vv < v + w; ++vv) {
                             int t = (u + h) * N + vv;
-                            if (!hasFace[t] || used[t] || faceKey[t] != k || faceLight[t] != lite || !faceUniform[t]) { ok = false; break; }
+                            if (!hasFace[t] || used[t] || faceKey[t] != k || !sameLight(t)) { ok = false; break; }
                         }
                         if (ok) ++h;
                     }
@@ -496,7 +509,9 @@ void ChunkRenderManager::rebuildCubeFaces(
                         ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
                     inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
-                    inst.light = lite;  // 4 corner skies (bits0-15) | block RGB (bits16-27)
+                    inst.light  = lite;   // 4 corner skies (bits0-15)
+                    inst.light2 = lite2;  // per-corner block RGB (corners 0,1)
+                    inst.light3 = lite3;  // per-corner block RGB (corners 2,3)
                     faces.push_back(inst);
                 }
             }
@@ -568,13 +583,17 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
                     uint8_t br = 0, bg = 0, bb = 0;
                     blockLightAt(nbx, nby, nbz, br, bg, bb);
-                    // New light layout (matches static_voxel.vert): replicate the single sky value
-                    // to all 4 corner nibbles (subcubes/microcubes don't get smooth lighting), block
-                    // RGB at bits 16-27.
-                    faceInstance.light = (static_cast<uint32_t>(skyV & 0xF) * 0x1111u)
-                                       | (static_cast<uint32_t>(br & 0xF) << 16)
-                                       | (static_cast<uint32_t>(bg & 0xF) << 20)
-                                       | (static_cast<uint32_t>(bb & 0xF) << 24);
+                    // New light layout (matches static_voxel.vert): replicate the single value to all
+                    // 4 corners (subcubes/microcubes don't get smooth lighting). Sky → light nibbles,
+                    // block RGB → light2/light3 (12 bits per corner: R|G<<4|B<<8).
+                    {
+                        uint32_t rgb12 = (static_cast<uint32_t>(br & 0xF))
+                                       | (static_cast<uint32_t>(bg & 0xF) << 4)
+                                       | (static_cast<uint32_t>(bb & 0xF) << 8);
+                        faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
+                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
+                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
+                    }
                 }
                 faces.push_back(faceInstance);
             }
@@ -662,13 +681,17 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
                     uint8_t br = 0, bg = 0, bb = 0;
                     blockLightAt(nbx, nby, nbz, br, bg, bb);
-                    // New light layout (matches static_voxel.vert): replicate the single sky value
-                    // to all 4 corner nibbles (subcubes/microcubes don't get smooth lighting), block
-                    // RGB at bits 16-27.
-                    faceInstance.light = (static_cast<uint32_t>(skyV & 0xF) * 0x1111u)
-                                       | (static_cast<uint32_t>(br & 0xF) << 16)
-                                       | (static_cast<uint32_t>(bg & 0xF) << 20)
-                                       | (static_cast<uint32_t>(bb & 0xF) << 24);
+                    // New light layout (matches static_voxel.vert): replicate the single value to all
+                    // 4 corners (subcubes/microcubes don't get smooth lighting). Sky → light nibbles,
+                    // block RGB → light2/light3 (12 bits per corner: R|G<<4|B<<8).
+                    {
+                        uint32_t rgb12 = (static_cast<uint32_t>(br & 0xF))
+                                       | (static_cast<uint32_t>(bg & 0xF) << 4)
+                                       | (static_cast<uint32_t>(bb & 0xF) << 8);
+                        faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
+                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
+                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
+                    }
                 }
                 faces.push_back(faceInstance);
             }

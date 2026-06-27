@@ -69,8 +69,8 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 4> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 4> desc{};
+std::array<VkVertexInputAttributeDescription, 6> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 6> desc{};
 
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
@@ -90,11 +90,23 @@ std::array<VkVertexInputAttributeDescription, 4> InstanceData::getAttributeDescr
     desc[2].format = VK_FORMAT_R16_UINT;  // uint16_t reserved
     desc[2].offset = offsetof(InstanceData, reserved);
 
-    // Baked voxel light (skylight nibble bits0-3; blocklight/color reserved)
+    // Baked voxel light: 4 per-corner skylight nibbles (bits0-15)
     desc[3].binding = 1;
     desc[3].location = 4;  // layout(location = 4) in uint inLight
     desc[3].format = VK_FORMAT_R32_UINT;  // uint32_t light
     desc[3].offset = offsetof(InstanceData, light);
+
+    // Per-corner block light (corners 0,1)
+    desc[4].binding = 1;
+    desc[4].location = 5;  // layout(location = 5) in uint inLight2
+    desc[4].format = VK_FORMAT_R32_UINT;  // uint32_t light2
+    desc[4].offset = offsetof(InstanceData, light2);
+
+    // Per-corner block light (corners 2,3)
+    desc[5].binding = 1;
+    desc[5].location = 6;  // layout(location = 6) in uint inLight3
+    desc[5].format = VK_FORMAT_R32_UINT;  // uint32_t light3
+    desc[5].offset = offsetof(InstanceData, light3);
 
     return desc;
 }

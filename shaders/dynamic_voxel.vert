@@ -42,7 +42,7 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
-layout(location = 7) out flat vec3  vBlockColor;  // baked block light (debris: none until Phase 4)
+layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {

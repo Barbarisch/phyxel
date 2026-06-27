@@ -86,11 +86,13 @@ struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
     uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
-    uint32_t light = 0;       // Baked voxel light: bits0-3 skylight (0-15). bits4-7 blocklight, bits8-23 block color (Phase 2)
-    // Total: 12 bytes
+    uint32_t light = 0;       // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
+    uint32_t light2 = 0;      // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
+    uint32_t light3 = 0;      // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    // Total: 20 bytes
 
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions();  // packedData + textureIndex + flags + light
+    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions();  // packedData + textureIndex + flags + light + light2 + light3
 };
 
 struct CharacterInstanceData {

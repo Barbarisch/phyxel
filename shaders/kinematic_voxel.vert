@@ -46,7 +46,7 @@ layout(location = 3) out flat uint flags;
 layout(location = 4) out vec3      outNormal;
 layout(location = 5) out vec3      outWorldPos;
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
-layout(location = 7) out flat vec3  vBlockColor;  // baked block light (furniture: none until Phase 4)
+layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
