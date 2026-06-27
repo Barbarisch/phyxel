@@ -10262,22 +10262,25 @@ void Application::registerSettlementCommands() {
             LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
                          << " edges graded, " << net.failedEdges.size() << " too steep");
 
-            // STAMP the graded path surfaces as voxels (sub-slice 2): a Cobblestone paving ribbon at the
-            // walkable top S, carved PERPENDICULAR to travel (±halfWidth), filled DOWN to terrain so it is
-            // supported (fill) / connects to the surface (level). Cut-through-terrain (S below terrain) is
-            // best-effort (single paving microcube) — gentle MST edges between similar-relief plots need
-            // little cut. micro -> (cube, subcube, microcube): 1 cube = 9 micro = 3 subcubes x 3 microcubes.
+            // STAMP the graded path surfaces as voxels (sub-slice 2): a Cobblestone paving ribbon carved
+            // PERPENDICULAR to travel (±halfWidth). HONEST SCOPE — this stamps ONLY the FILL portion (where
+            // the graded surface S rises ABOVE the terrain): those microcubes sit in open air and place
+            // cleanly, forming the raised causeways. On LEVEL cells the terrain surface already is the
+            // walkable top (no voxel needed). On CUT cells (S below terrain) a microcube can't be added
+            // where a terrain CUBE already sits, and the terrain above S is NOT removed — so cut sections
+            // are NOT yet paved/walkable. Faithful level-replace + cut-removal (micro-subdividing terrain)
+            // is owed (Phase 4). micro -> (cube, subcube, microcube): 1 cube = 9 micro = 3 sub x 3 micro.
             const std::string pave = "Cobblestone";
             auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
             auto rem9 = [](int v) { int r = v % 9; return r < 0 ? r + 9 : r; };
-            auto stampMicro = [&](int mx, int my, int mz) {
+            auto stampMicro = [&](int mx, int my, int mz) -> bool {
                 const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
                 const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
                 chunkManager->ensureChunkAt(cube);
-                chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+                return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
                     cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), pave);
             };
-            long placed = 0;
+            long placedFill = 0, level = 0, cut = 0;
             const int hw = abox.halfWidthMicro;
             for (const auto& p : net.paths) {
                 const auto& cs = p.cells;
@@ -10290,16 +10293,18 @@ void Application::registerSettlementCommands() {
                     for (int o = -hw; o <= hw; ++o) {
                         const int cx = cs[i].x + (tZ ? o : 0), cz = cs[i].z + (tX ? o : 0);
                         const int terr = surfMicro(fl9(cx), fl9(cz));
-                        const int top = S - 1, base = std::min(top, terr - 1);  // top microcube's top = S
-                        for (int my = base; my <= top; ++my) { stampMicro(cx, my, cz); ++placed; }
+                        if (S > terr) { for (int my = terr; my <= S - 1; ++my) if (stampMicro(cx, my, cz)) ++placedFill; }
+                        else if (S == terr) ++level;   // terrain already provides the walkable surface here
+                        else ++cut;                    // S below terrain -> owed: remove terrain above S
                     }
                 }
             }
             chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
-            LOG_INFO_FMT("Settlement", "paths: stamped " << placed << " paving microcubes");
+            LOG_INFO_FMT("Settlement", "paths: stamped " << placedFill << " fill microcubes; "
+                         << level << " level cells (terrain surface), " << cut << " cut cells NOT paved (owed)");
             pathsJson = {{"edges", net.edges}, {"connected", net.connected},
-                         {"failed", static_cast<int>(net.failedEdges.size())},
-                         {"paving_microcubes", placed}};
+                         {"too_steep", static_cast<int>(net.failedEdges.size())},
+                         {"fill_microcubes", placedFill}, {"level_cells", level}, {"cut_cells_unpaved", cut}};
         }
 
         r = {{"success", true},
