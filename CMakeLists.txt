@@ -33,6 +33,13 @@ if(ENABLE_ASAN)
     message(STATUS "Address Sanitizer ENABLED for Debug builds")
 endif()
 
+# Silence MSVC "unsafe CRT" deprecations (C4996) for fopen/getenv/strncpy etc. — these are
+# used intentionally and the _s variants are non-portable. Removes ~93 warnings so the
+# bug-candidate warnings under /W4 stay visible.
+if(MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
 # Prevent pybind11 from auto-linking python library via pragma
 add_compile_definitions(PYBIND11_NOPYTHON_LIB_PRAGMA)
 # Force disable GIL disabled mode (free-threading)

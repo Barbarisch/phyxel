@@ -15518,7 +15518,9 @@ void Application::renderAnimEditorUI() {
             //
             // The simplest correct approach: maintain our own copy of the original model.
             // We'll use a lazy-initialized "original model" cache.
-            static std::map<int, Phyxel::VoxelModel> s_originalModels;
+            // Key by the full pointer width — an int key truncates the 64-bit pointer and
+            // two characters can collide on the low 32 bits.
+            static std::map<intptr_t, Phyxel::VoxelModel> s_originalModels;
             auto charKey = (intptr_t)m_animEditorChar;
             if (s_originalModels.find(charKey) == s_originalModels.end()) {
                 s_originalModels[charKey] = m_animEditorChar->getVoxelModel();
