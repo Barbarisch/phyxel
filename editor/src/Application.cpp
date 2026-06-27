@@ -10164,6 +10164,14 @@ void Application::registerSettlementCommands() {
         std::vector<std::string> mix;
         if (p.contains("typologies") && p["typologies"].is_array())
             for (const auto& t : p["typologies"]) if (t.is_string()) mix.push_back(t.get<std::string>());
+        if (mix.empty()) mix.push_back(typology);
+        // Style palette for per-building variation (material + roof form). Default = the three shipped
+        // styles so a village mixes timber/stone, thatch/wood/stone roofs, gable/flat.
+        std::vector<std::string> styles;
+        if (p.contains("styles") && p["styles"].is_array())
+            for (const auto& s : p["styles"]) if (s.is_string()) styles.push_back(s.get<std::string>());
+        if (styles.empty()) styles = {style, "stone_manor", "stone_keep"};
+        const unsigned varietySeed = static_cast<unsigned>(p.value("variety_seed", 1));
         int ox = 0, oy = 16, oz = 0;
         if (p.contains("position")) {
             ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
@@ -10227,9 +10235,12 @@ void Application::registerSettlementCommands() {
             const int by = (terrain && !seatFlat)
                 ? groundTopAt(bx + b.footprint.w / 2, bz + b.footprint.d / 2)
                 : oy;
-            const std::string btyp = mix.empty() ? b.typology : mix[i % mix.size()];
+            // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
+            const Core::BuildingVariant var =
+                Core::pickBuildingVariant(static_cast<int>(i), mix, styles, varietySeed);
             nlohmann::json bp = {
-                {"schema", "v2"}, {"type", "house"}, {"style", style}, {"typology", btyp},
+                {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
+                {"footprint_shape", var.footprintShape},
                 {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                 {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
                 {"substructure", "slab"},
@@ -10241,7 +10252,7 @@ void Application::registerSettlementCommands() {
             apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
-                              {"typology", btyp}});
+                              {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
             doorCenters.push_back(glm::ivec3(bx + b.footprint.w / 2, by, bz + b.footprint.d / 2));  // path anchor
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "

@@ -100,5 +100,21 @@ std::vector<PlacedBuilding> populatePlots(const SettlementLayout& layout, int se
     return out;
 }
 
+BuildingVariant pickBuildingVariant(int plotIndex, const std::vector<std::string>& typologies,
+                                    const std::vector<std::string>& styles, unsigned seed) {
+    // Independent hash per dimension (different salts) so typology, style and shape vary INDEPENDENTLY
+    // — neighbours can share a typology yet differ in style/shape. Deterministic in (plotIndex, seed).
+    auto hash = [&](unsigned salt) {
+        unsigned x = static_cast<unsigned>(plotIndex) * 2654435761u + seed * 2246822519u + salt * 40503u;
+        x ^= x >> 16; x *= 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16;
+        return x;
+    };
+    BuildingVariant v;
+    v.typology = typologies.empty() ? "hall_house" : typologies[hash(1) % typologies.size()];
+    v.style    = styles.empty() ? "timber_cottage" : styles[hash(2) % styles.size()];
+    v.footprintShape = (hash(3) % 3u == 0u) ? "L" : "rect";   // ~1/3 of buildings get an L-plan
+    return v;
+}
+
 } // namespace Core
 } // namespace Phyxel

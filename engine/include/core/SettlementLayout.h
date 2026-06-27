@@ -61,5 +61,20 @@ std::vector<Plot> selectBuildablePlots(const BuildabilityMap& site, int plotSize
 std::vector<PlacedBuilding> populatePlots(const SettlementLayout& layout, int setback,
                                           int minBuilding, const std::string& typology = "hall_house");
 
+/// One building's chosen VARIATION (so a village isn't N identical boxes). Each dimension is picked
+/// deterministically + independently from the plot index, so neighbours differ in typology AND style
+/// AND footprint shape, reproducibly.
+struct BuildingVariant {
+    std::string typology;        ///< from the typologies palette (room layout)
+    std::string style;           ///< from the styles palette (wall/roof material + roof form)
+    std::string footprintShape;  ///< "rect" | "L" (non-rectangular winged plan)
+};
+
+/// Pick a deterministic, varied building for `plotIndex` from the typology + style palettes (cycled via
+/// independent hashes so the three dimensions vary independently). ~1/3 of buildings get an L-plan
+/// footprint. Empty palettes fall back to sane defaults. Deterministic in (plotIndex, seed).
+BuildingVariant pickBuildingVariant(int plotIndex, const std::vector<std::string>& typologies,
+                                    const std::vector<std::string>& styles, unsigned seed);
+
 } // namespace Core
 } // namespace Phyxel
