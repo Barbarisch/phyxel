@@ -135,7 +135,15 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
   stories=2 from the New Inn, Gloucester). solution-auditor PASS.
-  - **Asset depth (the "necessary extras") — IN PROGRESS:** bar + stools ✅ — deterministic MICROCUBE
+  - **Asset depth (the "necessary extras") — IN PROGRESS:** lighting fixtures ✅ — `candle_stand`
+    (floor candelabra, placed in the taproom now), `wall_lantern`, `chandelier` — deterministic
+    MICROCUBE builds with **`glow` emissive flames**, grounded (sconce mount 60-72″, chandelier dia
+    ~½ table width cited; period-appropriate — pricket stands/horn lanterns/candle coronas), all three
+    conformance **ok**, both auditors PASS. **CAVEAT: these are emissive FIXTURES (glowing objects), NOT
+    room illumination** — `glow` self-lights only. Actual point-light lighting (place_lights #18, the
+    32-light `MAX_POINT_LIGHTS` budget) is an unbuilt systems follow-up. wall_lantern/chandelier are
+    cataloged assets awaiting wall/ceiling placement.
+  - bar + stools ✅ — deterministic MICROCUBE
     builds (`tools/regen_furniture.py` gen_bar/gen_back_bar/gen_bar_stool, conformant by construction,
     `.metrics.json` from emitted bounds): **`tavern_bar`** (toe-kick counter + overhang + Log rail,
     1.11 m / 42″), **`back_bar`** (3 shelves of Glass bottles — "shelves behind & above"), **`bar_stool`**
