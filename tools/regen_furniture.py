@@ -439,6 +439,131 @@ def gen_bottle():
     write("bottle", header, m.emit_lines([]), m)
 
 
+def _table(name, L, D, display, tags, desc):
+    # a slab-top table: top surface at 7 micro (0.778 m ~ 0.75 m dining height), 4 corner legs.
+    m = Model()
+    m.fill(0, L - 1, 6, 6, 0, D - 1, "Wood")        # top slab (y6 -> top face 0.778 m)
+    for lx in (1, L - 2):
+        for lz in (1, D - 2):
+            m.fill(lx, lx, 0, 5, lz, lz, "Wood")    # leg
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        f"# name:         {name}\n"
+        f"# display_name: {display}\n"
+        f"# description:  {desc}\n"
+        "# category:     furniture\n"
+        "# subcategory:  table\n"
+        f"# tags:         {tags}\n"
+        "# materials:    Wood\n"
+        "# facing:       +Z\n"
+        f"# bounds:       {L/9:.2f}W x 0.78H x {D/9:.2f}D m (grounded object_dimensions 'table_dining' 0.75 top / 0.84 deep)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write(name, header, m.emit_lines([]), m, [{"point_id": "surface", "kind": "surface",
+        "local_position": [round((L/2)/9, 3), round(7/9, 3), round((D/2)/9, 3)], "facing_yaw": 0.0,
+        "features": {"surface_y": round(7/9, 3)}}])
+
+
+def gen_table_wood():  # 4-person dining table: ~1.44 x 0.78 x 0.89 m
+    _table("table_wood", 13, 8, "Wooden Table", "table, dining, house, tavern, common",
+           "A four-person wooden dining table with corner legs.")
+
+
+def gen_tavern_table():  # long communal table: ~1.89 x 0.78 x 0.78 m
+    _table("tavern_table", 17, 7, "Tavern Table (Long)", "table, tavern, communal, feast",
+           "A long communal tavern table for shared seating.")
+
+
+def gen_counter():
+    # kitchen work surface: top ~0.89 m (0.9 m canon), depth 0.56 m (~0.6), length ~1.56 m.
+    L = 14
+    m = Model()
+    m.fill(0, L - 1, 0, 6, 1, 1, "Wood")            # front panel (toe kick at z0)
+    m.fill(0, 0, 0, 6, 1, 4, "Wood")                # left end
+    m.fill(L - 1, L - 1, 0, 6, 1, 4, "Wood")        # right end
+    m.fill(0, L - 1, 7, 7, 0, 4, "Wood")            # work top (overhang to z0)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         counter\n"
+        "# display_name: Kitchen Counter\n"
+        "# description:  A kitchen work surface / dresser board with a plank front and overhanging top.\n"
+        "# category:     furniture\n"
+        "# subcategory:  counter\n"
+        "# tags:         counter, kitchen, work, dresser\n"
+        "# materials:    Wood\n"
+        "# facing:       +Z\n"
+        "# bounds:       1.56W x 0.89H x 0.56D m (grounded object_dimensions 'counter_kitchen' 0.9 top / 0.6 deep)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("counter", header, m.emit_lines([]), m)
+
+
+def gen_barrel():
+    # storage cask: ~0.89 m tall, ~0.56 m dia (octagon-ish staves + iron hoops). Wood + Metal.
+    H, R = 8, 5
+    corners = {(0, 0), (0, R - 1), (R - 1, 0), (R - 1, R - 1)}
+    m = Model()
+    for y in range(H):
+        for x in range(R):
+            for z in range(R):
+                if (x, z) in corners:
+                    continue                         # bevel the corners -> rounder barrel
+                m.cells[(x, y, z)] = "Wood"
+    for hoop in (1, H - 2):                          # iron hoops near top + bottom
+        for x in range(R):
+            for z in range(R):
+                if (x, z) in corners:
+                    continue
+                if x in (0, R - 1) or z in (0, R - 1):
+                    m.cells[(x, hoop, z)] = "Metal"
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         barrel\n"
+        "# display_name: Barrel (Cask)\n"
+        "# description:  A wooden storage cask with iron hoops — ale/wine/stores.\n"
+        "# category:     furniture\n"
+        "# subcategory:  storage\n"
+        "# tags:         barrel, cask, storage, tavern, cellar, common\n"
+        "# materials:    Wood, Metal\n"
+        "# facing:       +Z\n"
+        "# bounds:       0.56W x 0.89H x 0.56D m (grounded object_dimensions 'barrel' ~31 gal cask)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("barrel", header, m.emit_lines([]), m)
+
+
+def gen_bench_wood():
+    # backless bench / settle: seat top ~0.44 m (0.45 canon), depth ~0.44 m, length ~1.44 m.
+    L, D, SEAT_Y = 13, 4, 3
+    m = Model()
+    m.fill(0, L - 1, SEAT_Y, SEAT_Y, 0, D - 1, "Wood")   # seat slab (top face 0.444 m)
+    for lx in (0, L - 1):
+        for lz in (0, D - 1):
+            m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "Wood")
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         bench_wood\n"
+        "# display_name: Bench\n"
+        "# description:  A long backless wooden bench / settle seat.\n"
+        "# category:     furniture\n"
+        "# subcategory:  seating\n"
+        "# tags:         bench, settle, seat, tavern, hall, common\n"
+        "# materials:    Wood\n"
+        "# facing:       +Z\n"
+        "# bounds:       1.44W x 0.44H x 0.44D m (grounded object_dimensions 'bench' seat 0.45)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("bench_wood", header, m.emit_lines([]), m, seat_anchor((L - 1) / 2.0, SEAT_Y + 1, (D - 1) / 2.0))
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -450,3 +575,8 @@ if __name__ == "__main__":
     gen_chandelier()
     gen_mug()
     gen_bottle()
+    gen_table_wood()
+    gen_tavern_table()
+    gen_counter()
+    gen_barrel()
+    gen_bench_wood()

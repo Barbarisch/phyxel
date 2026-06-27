@@ -60,12 +60,15 @@ TEST(FurnitureConformanceTest, FlagsMissingMetrics) {
     EXPECT_EQ(statusOf(checkFurnitureConformance(canon, noCounterMetrics), "counter"), "no_metrics");
 }
 
-// A type with no grounded archetype (barrel isn't in object_dimensions) can't be measured -> no_canon.
+// no_canon has two causes, both flagged: (a) an archetype the LOADED canon lacks, (b) a type with no
+// archetype mapping at all. (barrel now HAS a real archetype + canon; this hermetic canon omits it.)
 TEST(FurnitureConformanceTest, FlagsNoCanonArchetype) {
-    const auto canon = hermeticCanon();
+    const auto canon = hermeticCanon();   // a SUBSET — has bed/chest/hearth/table/counter/bench only
     auto present = [](const std::string&) -> AssetExtents { return {1.0, 1.0, 1.0, true}; };
+    // (a) barrel maps to an archetype, but it's absent from THIS canon -> no_canon.
     EXPECT_EQ(statusOf(checkFurnitureConformance(canon, present), "barrel"), "no_canon");
-    EXPECT_EQ(archetypeForType("barrel"), "");
+    // (b) a type with no archetype mapping at all -> "".
+    EXPECT_EQ(archetypeForType("anvil"), "");
     EXPECT_EQ(archetypeForType("bed"), "bed_single");
 }
 
@@ -129,15 +132,16 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     EXPECT_EQ(statusOf(rep, "bed"),       "ok");                 // bed_single conforms
     EXPECT_EQ(statusOf(rep, "chest"),     "ok");                 // REGENERATED -> coffer 1.22x0.56x0.67
     EXPECT_EQ(statusOf(rep, "fireplace"), "ok");                 // REGENERATED -> hearth 1.56x1.22x0.56
-    EXPECT_EQ(statusOf(rep, "barrel"),    "no_canon");           // no object_dimensions archetype
-    EXPECT_EQ(statusOf(rep, "counter"),   "no_metrics");         // no .metrics.json sidecar
-    EXPECT_EQ(statusOf(rep, "bench"),     "no_checkable_dims");  // canon has only feature dims
-    EXPECT_EQ(statusOf(rep, "table"),     "out_of_tolerance");   // depth 1.0 vs 0.84 (still drifts)
+    // Un-grounded furniture REGENERATED to canon (deterministic micro builds):
+    EXPECT_EQ(statusOf(rep, "barrel"),    "ok");                 // cask 0.89h x 0.56dia vs canon 0.88/0.56
+    EXPECT_EQ(statusOf(rep, "counter"),   "ok");                 // worktop 0.89h x 0.56d vs canon 0.9/0.6
+    EXPECT_EQ(statusOf(rep, "bench"),     "ok");                 // bench 0.44h x 0.44d vs canon 0.45/0.4
+    EXPECT_EQ(statusOf(rep, "table"),     "ok");                 // table 0.78h x 0.89d vs canon 0.75/0.84
+    EXPECT_EQ(statusOf(rep, "tavern_table"), "ok");              // long table 0.78h x 0.78d vs canon 0.75/0.8
     // Inn asset depth (bar + stools): deterministic microcube builds grounded to object_dimensions.
     EXPECT_EQ(statusOf(rep, "tavern_bar"), "ok");                // counter 1.11h x 0.67d vs canon 1.07/0.6
     EXPECT_EQ(statusOf(rep, "bar_stool"),  "ok");                // 0.78h x 0.44 vs canon 0.78/0.44
     EXPECT_EQ(statusOf(rep, "back_bar"),   "ok");                // shelving 1.89h x 0.33d vs canon 1.85/0.35
-    EXPECT_EQ(statusOf(rep, "tavern_table"), "no_canon");        // varied-tables follow-up (not yet grounded)
     // Lighting fixtures (emissive glow): deterministic micro builds grounded to object_dimensions.
     EXPECT_EQ(statusOf(rep, "candle_stand"), "ok");              // 1.33h x 0.33 vs canon 1.3/0.33
     EXPECT_EQ(statusOf(rep, "wall_lantern"), "ok");              // 0.44h x 0.33 x 0.22 vs canon 0.4/0.33/0.22
