@@ -23,6 +23,9 @@ layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for qua
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFlags;           // per-instance flags (emissive, etc.)
+layout(location = 4) in uint inLight;           // per-instance: 4 per-corner skylight nibbles (bits0-15)
+layout(location = 5) in uint inLight2;          // per-instance: per-corner block RGB (corner0 bits0-11, corner1 bits12-23)
+layout(location = 6) in uint inLight3;          // per-instance: per-corner block RGB (corner2 bits0-11, corner3 bits12-23)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -42,6 +45,8 @@ layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to 
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
+layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
+layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -314,4 +319,19 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord = uv;
     flags = inFlags;
+    // Smooth skylight: bits 0-15 hold one 4-bit sky value per quad corner. The corner index is
+    // the in-plane (bit0,bit1) of the cube vertex (vertexID is 0-7 cube corners; faceOffset uses
+    // only bits 0-1), so mask with 3. Outputting per-vertex (non-flat) lets the rasterizer
+    // interpolate it, turning blocky per-face steps into smooth gradients + ambient occlusion.
+    uint corner = vertexID & 3u;
+    uint cornerSky = (inLight >> (corner * 4u)) & 0xFu;
+    vSkyLight = float(cornerSky) / 15.0;
+    // Smooth per-corner block light: corners 0,1 in inLight2, corners 2,3 in inLight3
+    // (12 bits each: R bits0-3, G bits4-7, B bits8-11). Interpolated like skylight.
+    uint blkSrc   = (corner < 2u) ? inLight2 : inLight3;
+    uint blkShift = (corner < 2u) ? (corner * 12u) : ((corner - 2u) * 12u);
+    uint rgb12 = (blkSrc >> blkShift) & 0xFFFu;
+    vBlockColor = vec3(float(rgb12 & 0xFu),
+                       float((rgb12 >> 4u) & 0xFu),
+                       float((rgb12 >> 8u) & 0xFu)) / 15.0;
 }

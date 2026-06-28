@@ -750,14 +750,14 @@ bool ChunkVoxelManager::addSubcube(
     if (parentPos.x < 0 || parentPos.x >= 32 ||
         parentPos.y < 0 || parentPos.y >= 32 ||
         parentPos.z < 0 || parentPos.z >= 32) {
-        LOG_DEBUG("VoxelManager", "addSubcube FAIL: parentPos(%d,%d,%d) out of bounds",
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: parentPos({},{},{}) out of bounds",
                   parentPos.x, parentPos.y, parentPos.z);
         return false;
     }
     if (subcubePos.x < 0 || subcubePos.x >= 3 || 
         subcubePos.y < 0 || subcubePos.y >= 3 || 
         subcubePos.z < 0 || subcubePos.z >= 3) {
-        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcubePos(%d,%d,%d) out of bounds",
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcubePos({},{},{}) out of bounds",
                   subcubePos.x, subcubePos.y, subcubePos.z);
         return false;
     }
@@ -773,7 +773,7 @@ bool ChunkVoxelManager::addSubcube(
 
     // Check if subcube already exists
     if (getSubcubeHelper(parentPos, subcubePos)) {
-        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcube already exists at parent(%d,%d,%d) sub(%d,%d,%d)",
+        LOG_DEBUG("VoxelManager", "addSubcube FAIL: subcube already exists at parent({},{},{}) sub({},{},{})",
                   parentPos.x, parentPos.y, parentPos.z, subcubePos.x, subcubePos.y, subcubePos.z);
         return false;
     }

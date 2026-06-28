@@ -10,7 +10,7 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 |---|---|---|---|
 | **Shader** | `static_voxel.vert` | `kinematic_voxel.vert` | `dynamic_voxel.vert` |
 | **Draw type** | `vkCmdDrawIndexed` | `vkCmdDrawIndexed` | `vkCmdDrawIndirect` (non-indexed) |
-| **Instance data** | `InstanceData` (8B) | `KinematicFaceData` (40B) | `DynamicSubcubeInstanceData` (64B) |
+| **Instance data** | `InstanceData` (20B) | `KinematicFaceData` (40B) | `DynamicSubcubeInstanceData` (64B) |
 | **UV offset** | GPU decodes from packed grid bits | CPU pre-computes per face in `buildFaces()` | GPU decodes from `localPosition` ivec3 |
 | **Face culling** | CPU-side per chunk (only exposed faces) | None (all 6 faces per voxel) | None (all 6 faces per particle) |
 | **Owner** | `ChunkManager` / `Chunk` | `KinematicVoxelPipeline` + `KinematicVoxelManager` | `GpuParticlePhysics` |
@@ -73,7 +73,7 @@ The static vertex shader (`static_voxel.vert`) uses `vertexID` to index into har
 
 ### Instance Buffer (Binding 1)
 
-`InstanceData` — 8 bytes per instance, packed:
+`InstanceData` — 20 bytes per instance, packed:
 
 ```
 Bits  0-4:  X position (0-31 within chunk)
@@ -85,7 +85,10 @@ Bits 20-25: Parent subcube encoded position
 Bits 26-31: Microcube encoded position
 + uint16 textureIndex
 + uint16 reserved
++ uint32 light  + uint32 light2 + uint32 light3   (per-corner lighting)
 ```
+
+The three trailing `light`/`light2`/`light3` words (12 bytes) hold the smooth per-corner skylight + per-corner block-light values baked by the lighting overhaul — they grew the struct from 8B to 20B.
 
 Each chunk has its own instance buffer. A push constant provides the chunk's world-space origin offset. The GPU decodes grid positions from the packed bits to compute the per-face UV offset for subcubes and microcubes.
 

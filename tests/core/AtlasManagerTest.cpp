@@ -12,33 +12,27 @@ protected:
     }
 };
 
-TEST_F(AtlasManagerTest, CalcAtlasDimensionsBasic) {
-    int w, h;
-    AtlasManager::calcAtlasDimensions(78, w, h);
-    // 78 textures, 6 per row = 13 rows, 13*66=858 → next pow2 = 1024
-    EXPECT_EQ(w, 1024);
-    EXPECT_EQ(h, 1024);
-}
-
-TEST_F(AtlasManagerTest, CalcAtlasDimensionsSmall) {
-    int w, h;
-    AtlasManager::calcAtlasDimensions(6, w, h);
-    // 1 row, 6*66=396px wide → next pow2 = 512
-    EXPECT_EQ(w, 512);
-    EXPECT_EQ(h, 512);
-}
+// NOTE: the legacy packed-2D-atlas dimension tests (calcAtlasDimensions) were removed in
+// the texture-array migration — that path no longer packs textures into a 2D grid.
 
 TEST_F(AtlasManagerTest, BuildAtlasFromSourcePNGs) {
     auto& atlas = AtlasManager::instance();
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
-    const auto& info = atlas.getAtlasInfo();
-    EXPECT_EQ(info.textureCount, 108);
-    EXPECT_EQ(info.atlasWidth, 2048);
-    EXPECT_EQ(info.atlasHeight, 2048);
-    EXPECT_EQ(info.pixels.size(), 2048u * 2048u * 4u);
-    EXPECT_EQ(info.uvBounds.size(), 108u);
+    // Texture-array layout: one baseSize² RGBA layer per texture, stored layer-major.
+    // class 0 = 512px (terrain/standard materials).
+    const auto& info = atlas.getAtlasInfo(0);
+    const int expectedCount = MaterialRegistry::instance().getTextureCount(0);
+    EXPECT_GT(expectedCount, 0);
+    EXPECT_EQ(info.textureCount, expectedCount);
+    EXPECT_EQ(info.layerCount, expectedCount);
+    EXPECT_EQ(info.atlasWidth, AtlasManager::TEXTURE_SIZE);   // per-layer dimensions
+    EXPECT_EQ(info.atlasHeight, AtlasManager::TEXTURE_SIZE);
+    const size_t layerBytes = static_cast<size_t>(AtlasManager::TEXTURE_SIZE)
+                            * AtlasManager::TEXTURE_SIZE * 4u;
+    EXPECT_EQ(info.pixels.size(), layerBytes * static_cast<size_t>(expectedCount));
+    EXPECT_EQ(info.uvBounds.size(), static_cast<size_t>(expectedCount));
 }
 
 TEST_F(AtlasManagerTest, GetTextureSlotPixels) {
@@ -47,7 +41,9 @@ TEST_F(AtlasManagerTest, GetTextureSlotPixels) {
     ASSERT_TRUE(atlas.buildAtlas());
 
     auto pixels = atlas.getTextureSlotPixels(0);
-    EXPECT_EQ(pixels.size(), 64u * 64u * 4u);
+    const size_t layerBytes = static_cast<size_t>(AtlasManager::TEXTURE_SIZE)
+                            * AtlasManager::TEXTURE_SIZE * 4u;
+    EXPECT_EQ(pixels.size(), layerBytes);
     // Should have non-zero pixels (not all transparent)
     bool hasContent = false;
     for (size_t i = 3; i < pixels.size(); i += 4) {
@@ -61,9 +57,10 @@ TEST_F(AtlasManagerTest, UpdateTextureSlot) {
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
-    // Create red texture
-    std::vector<uint8_t> red(64 * 64 * 4);
-    for (int i = 0; i < 64 * 64; i++) {
+    // Create red texture sized to one array layer
+    const int N = AtlasManager::TEXTURE_SIZE;
+    std::vector<uint8_t> red(static_cast<size_t>(N) * N * 4);
+    for (int i = 0; i < N * N; i++) {
         red[i * 4 + 0] = 255; // R
         red[i * 4 + 3] = 255; // A
     }
@@ -75,16 +72,17 @@ TEST_F(AtlasManagerTest, UpdateTextureSlot) {
     EXPECT_EQ(readBack[1], 0);   // Green
 }
 
-TEST_F(AtlasManagerTest, UVBoundsCorrectness) {
+TEST_F(AtlasManagerTest, UVBoundsAreFullTilePerLayer) {
     auto& atlas = AtlasManager::instance();
     atlas.setSourceDirectory("resources/textures/source");
     ASSERT_TRUE(atlas.buildAtlas());
 
+    // In the texture-array path each layer is a full 0..1 tile; uvBounds carries only
+    // SSBO metadata, so every entry is (0,0,1,1).
     const auto& info = atlas.getAtlasInfo();
-    // Slot 0: col=0, row=0, pixelX=1, pixelY=1, size=64px on 2048 atlas
     glm::vec4 uv0 = info.uvBounds[0];
-    EXPECT_NEAR(uv0.x,  1.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.y,  1.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.z, 65.0f / 2048.0f, 0.001f);
-    EXPECT_NEAR(uv0.w, 65.0f / 2048.0f, 0.001f);
+    EXPECT_NEAR(uv0.x, 0.0f, 0.001f);
+    EXPECT_NEAR(uv0.y, 0.0f, 0.001f);
+    EXPECT_NEAR(uv0.z, 1.0f, 0.001f);
+    EXPECT_NEAR(uv0.w, 1.0f, 0.001f);
 }

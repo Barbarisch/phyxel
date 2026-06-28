@@ -58,7 +58,23 @@ if configured as a generic MCP server.
 | `PHYXEL_API_URL` | `http://localhost:8090` | Engine HTTP API base URL |
 | `PHYXEL_API_TIMEOUT` | `10` | HTTP request timeout in seconds |
 
-## Available Tools (182 total)
+## Available Tools (~275 total)
+
+The tool surface is large and **auto-generated** from the engine's HTTP API — the
+authoritative, always-current description of each tool lives in the tool's own
+`description` field (returned by MCP `list_tools`), not in this doc. The categories
+below are a representative sampling, not an exhaustive enumeration. Beyond the groups
+listed here, the server also exposes whole categories this doc does not break out
+individually, including:
+
+- **Placed Objects** — `list_placed_objects`, `get_placed_object`, `move_placed_object`, `rotate_placed_object`, `remove_placed_object`, object hierarchy (`get_object_tree`, `set_object_parent`)
+- **Dynamic Furniture** — `list_dynamic_furniture`, `activate_furniture`, `deactivate_furniture`, `shatter_furniture`
+- **Doors** — `list_doors`, `open_door`, `close_door`, `toggle_door`, `set_door_lock`, `register_door`
+- **Interaction Editor** — `ie_sit_preview`, `ie_stand_preview`, `ie_preview_state`, `validate_ie_animation`, `get_interaction_profile`, `set_interaction_profile`
+- **VFX** — `spawn_vfx`, `cast_vfx_beam`, `cast_vfx_field`, `cast_vfx_projectile`
+- **Structures & Templates** — `build_structure`, `list_structure_types`, `build_building`, `generate_template`, `search_templates`, `refine_template`, `inspect_template`
+- **Scenes** — `list_scenes`, `get_active_scene`, `transition_scene`, `add_scene`, `remove_scene`, `save_scene_manifest`
+- **Spells / Materials / Triggers** — `cast_spell`, `add_material`/`remove_material`/`save_materials`, `add_trigger`/`list_triggers`/`remove_trigger`
 
 ### Status & Observation
 

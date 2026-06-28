@@ -102,16 +102,16 @@ void main() {
 
 | Chunks | Total Cubes | Memory Usage | Draw Calls |
 |--------|-------------|--------------|------------|
-| 1      | 32,768      | ~0.5 MB      | 1          |
-| 10     | 327,680     | ~5 MB        | 10         |
-| 25     | 819,200     | ~12.5 MB     | 25         |
-| 50     | 1,638,400   | ~25 MB       | 50         |
-| 100    | 3,276,800   | ~50 MB       | 100        |
+| 1      | 32,768      | ~0.625 MB    | 1          |
+| 10     | 327,680     | ~6.25 MB     | 10         |
+| 25     | 819,200     | ~15.6 MB     | 25         |
+| 50     | 1,638,400   | ~31.25 MB    | 50         |
+| 100    | 3,276,800   | ~62.5 MB     | 100        |
 
 ## Memory Layout
 
-Each chunk uses approximately 0.5 MB:
-- 32,768 instances × 16 bytes per instance = 524,288 bytes
+Each chunk uses approximately 0.625 MB:
+- 32,768 instances × 20 bytes per instance = 655,360 bytes
 - Plus Vulkan buffer overhead
 
 ## Integration Steps

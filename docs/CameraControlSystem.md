@@ -1,9 +1,15 @@
 # Camera & Control System — Design
 
-> Status: **design pass** (no code yet). Target home: the roadmapped engine-side
-> **`GameShell`** (see `docs/AgentContext.md` "engine-side game-shell base classes").
-> Author intent: default cameras (first-person, third-person, overhead, isometric) and
-> default character control schemes that dev sessions can pick from and **override**.
+> Status: **implemented on main (Phases 1–4).** The design below shipped:
+> `Graphics::CameraRig` (first-person / third-person / overhead / isometric, with the
+> orthographic projection path), `Input::ControlScheme` (FPS / tank), and a single
+> `Core::GameplayCameraController` that drives both — so the editor and standalone games
+> share one input→character→camera path. Selection is **data-driven** and supports **live
+> switching** (`set_camera` MCP tool + editor panel). The engine-side **`Core::GameShell`**
+> base owns the shared loop; MazeRunner and the scaffold template subclass it.
+> Remaining polish is deferred: `game.json` rig knobs (§4.1), migrating the rest of the
+> scaffold shell into `GameShell`, and regenerating older scaffolds.
+> The sections below remain the authoritative design rationale.
 
 ## 1. Motivation — why this exists
 

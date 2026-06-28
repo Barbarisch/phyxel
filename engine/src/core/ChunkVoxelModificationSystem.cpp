@@ -108,13 +108,13 @@ bool ChunkVoxelModificationSystem::addCubeWithMaterial(const glm::ivec3& worldPo
 bool ChunkVoxelModificationSystem::addSubcubeWithMaterial(const glm::ivec3& worldPos, const glm::ivec3& subcubePos, const std::string& material) {
     Chunk* chunk = m_getChunk(worldPos);
     if (!chunk) {
-        LOG_DEBUG("VoxelMod", "addSubcubeWithMaterial FAIL: no chunk for world(%d,%d,%d)",
+        LOG_DEBUG("VoxelMod", "addSubcubeWithMaterial FAIL: no chunk for world({},{},{})",
                   worldPos.x, worldPos.y, worldPos.z);
         return false;
     }
 
     glm::ivec3 localPos = worldToLocalCoord(worldPos);
-    LOG_DEBUG("VoxelMod", "addSubcubeWithMaterial: world(%d,%d,%d)->local(%d,%d,%d) sub(%d,%d,%d)",
+    LOG_DEBUG("VoxelMod", "addSubcubeWithMaterial: world({},{},{})->local({},{},{}) sub({},{},{})",
               worldPos.x, worldPos.y, worldPos.z, localPos.x, localPos.y, localPos.z,
               subcubePos.x, subcubePos.y, subcubePos.z);
     bool result = chunk->addSubcube(localPos, subcubePos, material);

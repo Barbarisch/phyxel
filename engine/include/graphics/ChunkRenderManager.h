@@ -28,6 +28,24 @@ class ChunkRenderManager {
 public:
     // Neighbor lookup function type for cross-chunk culling
     using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
+    // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
+    struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
+    // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
+    // chunk's already-baked light; returns false if there's no baked neighbour there.
+    using NeighborLightFunc = std::function<bool(const glm::ivec3& worldPos, BakedLight& out)>;
+
+    // --- Smooth-lighting controls (global; require a chunk re-bake to take effect) ---
+    // s_smoothLighting OFF → flat per-face light (single cell, all corners equal) → faces greedy-
+    // merge freely (fast, looks blocky). ON → per-corner smooth lighting + AO.
+    // s_mergeTolerance: when smooth, a face whose 4 corners differ by <= this many light levels
+    // (per channel) is snapped to its average and treated as uniform so it can still greedy-merge
+    // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
+    static bool s_smoothLighting;
+    static int  s_mergeTolerance;
+    static void setSmoothLighting(bool on) { s_smoothLighting = on; }
+    static void setMergeTolerance(int t)   { s_mergeTolerance = t < 0 ? 0 : t; }
+    static bool getSmoothLighting()        { return s_smoothLighting; }
+    static int  getMergeTolerance()        { return s_mergeTolerance; }
 
     ChunkRenderManager();
     ~ChunkRenderManager();
@@ -44,19 +62,31 @@ public:
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice);
 
     // Face rebuilding - split into focused methods
+    // columnOpenMask (optional): a 32x32 byte grid (index x*32+z, 1 = open to sky) precomputed by
+    // the caller from the chunks ABOVE, so the skylight bake can seed sky columns without the slow
+    // per-cell roof probe. nullptr → fall back to the in-bake getNeighborCube probe.
     void rebuildAllFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr
+        const NeighborLookupFunc& getNeighborCube = nullptr,
+        const NeighborLightFunc& getNeighborLight = nullptr,
+        const std::vector<uint8_t>* columnOpenMask = nullptr
     );
 
     void rebuildCubeFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const glm::ivec3& worldOrigin,
-        const NeighborLookupFunc& getNeighborCube = nullptr
+        const NeighborLookupFunc& getNeighborCube = nullptr,
+        const std::vector<uint8_t>* columnOpenMask = nullptr
     );
+
+    // True if this chunk's boundary light (what neighbours sample) changed on the last rebuild —
+    // the caller re-meshes neighbours so cross-chunk light bleed converges.
+    bool lightBordersChanged() const { return m_lightBordersChanged; }
+    // Read this chunk's baked light at a local cell (for neighbours). Returns false if not baked.
+    bool bakedLightAt(int x, int y, int z, BakedLight& out) const;
 
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
@@ -141,6 +171,36 @@ private:
         const glm::ivec3& localPos,
         const std::vector<std::unique_ptr<Cube>>& cubes
     ) const;
+
+    // Baked per-cell skylight for this chunk (32x32x32, value 0-15 per air cell; solid=0).
+    // Computed in rebuildCubeFaces from chunk occupancy; consumed by all three face builders
+    // to set per-face light. Phase 1: per-chunk only (boundaries fall back to open sky).
+    std::vector<uint8_t> m_skyLight;
+    // Skylight of the air cell at local (x,y,z); 15 (open sky) if out of chunk bounds.
+    uint8_t skyLightAt(int x, int y, int z) const;
+
+    // Baked per-cell COLORED block light (32x32x32, each channel 0-15): flood-filled from emissive
+    // voxels in their material colour (physics.colorTint), so a torch glows warm, a crystal blue,
+    // etc. Three channels propagate independently (correct colour blending where lights overlap).
+    std::vector<uint8_t> m_blockR, m_blockG, m_blockB;
+    // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
+    void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
+
+    // Reused scratch buffers for rebuildCubeFaces occupancy (32x32x32). Promoted from per-call
+    // locals to members + .assign() (like m_skyLight) to avoid a heap alloc/free of ~190KB on
+    // every chunk rebuild — meaningful on streaming/edit-heavy scenes.
+    std::vector<uint8_t> m_solidVis;    // 1 = a visible cube occupies the cell
+    std::vector<int>     m_cellMat;     // index into the per-rebuild matFaces table (-1 = none)
+    std::vector<uint8_t> m_cellDamage;  // quantized 0-15 voxel damage (roughness driver)
+
+    // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
+    // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.
+    NeighborLightFunc m_neighborLight;
+    glm::ivec3 m_lightWorldOrigin{0};
+    // Previous boundary light (6 faces, packed sky|block<<4) to detect changes that require
+    // neighbour re-meshing; m_lightBordersChanged is set when it differs after a rebuild.
+    std::vector<uint8_t> m_prevBorderLight;
+    bool m_lightBordersChanged = false;
 
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)

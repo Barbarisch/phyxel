@@ -29,7 +29,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
 } ubo;
 
-layout(set = 0, binding = 1) uniform sampler2D textureAtlas;
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 
 struct PointLightGPU {
@@ -65,12 +65,11 @@ layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
 layout(location = 0) out vec4 accumColor;  // OIT accumulation
 layout(location = 1) out float revealFactor; // OIT reveal (1 - alpha)
 
-vec2 getAtlasUV(uint texIndex, vec2 localUV) {
+float getTextureLayer(uint texIndex) {
     uint safeIdx = texIndex;
     if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount)
         safeIdx = atlasUVs.fallbackIndex;
-    vec4 bounds = atlasUVs.textureUVs[safeIdx];
-    return mix(bounds.xy, bounds.zw, localUV);
+    return float(safeIdx);
 }
 
 float calcAttenuation(float d, float radius) {
@@ -103,8 +102,7 @@ void main() {
     if ((flags & 2u) == 0u) discard;
     if ((flags & (1u << 10u)) != 0u) discard;
 
-    vec2 atlasUV = getAtlasUV(textureIndex, texCoord);
-    vec4 textureColor = texture(textureAtlas, atlasUV);
+    vec4 textureColor = texture(textureArray, vec3(texCoord, getTextureLayer(textureIndex)));
 
     if (textureColor.a < 0.01) discard;
 

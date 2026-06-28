@@ -146,6 +146,7 @@ void VfxSystem::update(float dt) {
     updateProjectiles(dt);
     updateBeams(dt);
     updateFields(dt);
+    updateFlashes(dt);
 
     size_t active = 0;
     for (auto& p : m_particles) {
@@ -239,6 +240,28 @@ void VfxSystem::spawnBurst(const glm::vec3& position, const VfxBurstParams& para
         ++m_activeCount; // keep count live between updates
     }
 
+    // Explosion flash: a transient point light that fades out (gated to named
+    // presets so per-frame emitters don't spawn lights — see VfxBurstParams::light).
+    if (params.light && m_addLight) {
+        int lid = m_addLight(position, params.color, params.lightIntensity, params.lightRadius);
+        if (lid >= 0) {
+            int fi = allocFlash();
+            if (fi >= 0) {
+                VfxFlash& fl = m_flashes[fi];
+                fl.lightId       = lid;
+                fl.position      = position;
+                fl.color         = params.color;
+                fl.baseIntensity = params.lightIntensity;
+                fl.radius        = params.lightRadius;
+                fl.age           = 0.0f;
+                fl.duration      = std::max(0.05f, params.lightDuration);
+                fl.active        = true;
+            } else if (m_removeLight) {
+                m_removeLight(lid); // no slot — don't leak the light
+            }
+        }
+    }
+
     // DEBUG, not INFO: continuous emitters (e.g. waterfall mist) call this every frame.
     LOG_DEBUG("VfxSystem", "Burst spawned {} particles at ({}, {}, {})",
               spawned, position.x, position.y, position.z);
@@ -253,16 +276,19 @@ int VfxSystem::spawnEffect(const std::string& effect, const glm::vec3& position)
         p.gravity = -3.0f; p.drag = 1.0f; p.lifetime = 1.0f; p.lifetimeVar = 0.4f;
         p.size = 0.22f; p.sizeVar = 0.1f; p.intensity = 1.8f;
         p.color = glm::vec3(1.0f, 0.4f, 0.08f);
+        p.light = true; p.lightRadius = 9.0f; p.lightIntensity = 4.5f; p.lightDuration = 0.32f;
     } else if (effect == "magic_missile") {
         p.count = 45; p.speed = 5.0f; p.speedVar = 2.0f; p.upBias = 0.25f;
         p.gravity = -2.0f; p.drag = 1.4f; p.lifetime = 0.8f; p.lifetimeVar = 0.3f;
         p.size = 0.14f; p.sizeVar = 0.06f; p.intensity = 1.7f;
         p.color = glm::vec3(0.5f, 0.25f, 1.0f); // arcane violet
+        p.light = true; p.lightRadius = 5.5f; p.lightIntensity = 2.4f; p.lightDuration = 0.22f;
     } else if (effect == "eldritch_blast") {
         p.count = 60; p.speed = 6.5f; p.speedVar = 2.5f; p.upBias = 0.15f;
         p.gravity = -1.0f; p.drag = 1.2f; p.lifetime = 0.85f; p.lifetimeVar = 0.3f;
         p.size = 0.16f; p.sizeVar = 0.07f; p.intensity = 1.9f;
         p.color = glm::vec3(0.2f, 0.9f, 0.6f); // sickly green
+        p.light = true; p.lightRadius = 6.5f; p.lightIntensity = 3.0f; p.lightDuration = 0.24f;
     } else if (effect == "shield") {
         p.count = 70; p.speed = 3.0f; p.speedVar = 1.0f; p.upBias = 0.4f;
         p.gravity = 0.5f; p.drag = 2.0f; p.lifetime = 1.1f; p.lifetimeVar = 0.3f;
@@ -273,6 +299,7 @@ int VfxSystem::spawnEffect(const std::string& effect, const glm::vec3& position)
         p.gravity = 1.5f; p.drag = 1.0f; p.lifetime = 1.3f; p.lifetimeVar = 0.4f;
         p.size = 0.13f; p.sizeVar = 0.05f; p.intensity = 1.6f;
         p.color = glm::vec3(1.0f, 0.95f, 0.4f); // golden
+        p.light = true; p.lightRadius = 5.0f; p.lightIntensity = 1.8f; p.lightDuration = 0.45f;
     } else {
         // "spark" / generic fallback.
         p.count = 40; p.color = glm::vec3(1.0f, 0.7f, 0.2f);
@@ -715,6 +742,35 @@ void VfxSystem::updateFields(float dt) {
         }
     }
     m_activeFields = active;
+}
+
+int VfxSystem::allocFlash() {
+    for (size_t i = 0; i < m_flashes.size(); ++i) {
+        if (!m_flashes[i].active) return static_cast<int>(i);
+    }
+    if (m_flashes.size() < MAX_FLASHES) {
+        m_flashes.emplace_back();
+        return static_cast<int>(m_flashes.size() - 1);
+    }
+    return -1;
+}
+
+void VfxSystem::updateFlashes(float dt) {
+    if (m_flashes.empty()) return;
+    for (auto& fl : m_flashes) {
+        if (!fl.active) continue;
+        fl.age += dt;
+        if (fl.age >= fl.duration) {
+            if (fl.lightId >= 0 && m_removeLight) m_removeLight(fl.lightId);
+            fl.lightId = -1;
+            fl.active = false;
+            continue;
+        }
+        // Ease-out fade: bright initial flash, soft decay (t² of remaining life).
+        float t = 1.0f - (fl.age / fl.duration); // 1 -> 0
+        float intensity = fl.baseIntensity * t * t;
+        if (fl.lightId >= 0 && m_setIntensity) m_setIntensity(fl.lightId, intensity);
+    }
 }
 
 VfxShape VfxSystem::shapeFromString(const std::string& s) {

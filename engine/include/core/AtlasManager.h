@@ -13,23 +13,46 @@ namespace Core {
 
 class MaterialRegistry;
 
-/// Manages the texture atlas: builds from source PNGs, hot-reloads at runtime.
-/// Works with MaterialRegistry for material→texture slot mapping and
-/// VulkanDevice for GPU texture upload + SSBO updates.
+/// Manages the voxel texture set: builds from source PNGs, hot-reloads at runtime.
+/// Works with MaterialRegistry for material→texture slot mapping and VulkanDevice for GPU
+/// texture upload + SSBO updates.
+///
+/// Texture container = two sampler2DArrays (mixed-resolution split):
+///   class 0 = 512px  (terrain / standard materials)
+///   class 1 = 1024px (objects / building detail; materials with "resolution":1024)
+/// The per-face textureIndex (u16) encodes the class in bit 15 (RES_CLASS_BIT) and the
+/// within-class array layer in bits 0..14 (see MaterialRegistry). Each class is BC7-encoded
+/// and cached independently. `pixels` is stored layer-major (layer = within-class index).
 class AtlasManager {
 public:
-    static constexpr int TEXTURE_SIZE = 64;      // Pixels per texture side
-    static constexpr int PADDING = 1;            // Pixels between textures
-    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // 66
-    static constexpr int TEXTURES_PER_ROW = 6;
-    static constexpr int MAX_ATLAS_SIZE = 2048;  // Max atlas dimension
+    static constexpr int TEXTURE_SIZE = 512;       // class 0 layer size
+    static constexpr int TEXTURE_SIZE_HI = 1024;   // class 1 layer size
+    static constexpr int NUM_CLASSES = 2;
+    static constexpr int PADDING = 1;            // Legacy (unused by array path)
+    static constexpr int CELL_SIZE = TEXTURE_SIZE + 2 * PADDING; // legacy
+    static constexpr int TEXTURES_PER_ROW = 6;   // Legacy (unused by array path)
+    static constexpr int MAX_ATLAS_SIZE = 2048;  // Legacy (unused by array path)
 
+    /// One resolution class's CPU-side build (RGBA layers + BC7-compressed mip chain).
     struct AtlasInfo {
-        int atlasWidth = 0;
-        int atlasHeight = 0;
+        int atlasWidth = 0;                // = baseSize (per-layer dimensions)
+        int atlasHeight = 0;               // = baseSize
+        int baseSize = TEXTURE_SIZE;       // layer size for this class (512 or 1024)
         int textureCount = 0;
-        std::vector<uint8_t> pixels;       // RGBA pixel data
-        std::vector<glm::vec4> uvBounds;   // Per-slot UV bounds (u_min, v_min, u_max, v_max)
+        int layerCount = 0;                // texture array layer count for this class
+        std::vector<uint8_t> pixels;       // albedo RGBA, LAYER-MAJOR (layer = within-class index)
+        std::vector<glm::vec4> uvBounds;   // Per-layer full-tile bounds (0,0,1,1); SSBO metadata only
+        // BC7-compressed albedo mip chain (set by encodeBC7). Layout: for each mip level (level 0
+        // first), all layers contiguous, each layer = ceil(dim/4)^2 * 16 bytes.
+        std::vector<uint8_t> bc7Data;
+        std::vector<size_t>  bc7LevelOffsets;
+        int                  bc7MipLevels = 0;
+
+        // Normal+roughness map (RGB = tangent-space normal, A = roughness), parallel layers.
+        std::vector<uint8_t> nrPixels;     // RGBA, layer-major; flat normal where no sidecar
+        std::vector<uint8_t> nrBc7Data;    // BC7-UNORM compressed mip chain
+        std::vector<size_t>  nrBc7LevelOffsets;
+        int                  nrBc7MipLevels = 0;
     };
 
     AtlasManager();
@@ -43,57 +66,65 @@ public:
     /// Set the directory containing source PNGs (e.g. "resources/textures/source")
     void setSourceDirectory(const std::string& dir) { sourceDirectory_ = dir; }
 
-    /// Build the atlas from MaterialRegistry + source PNGs.
-    /// Returns true if successful. The result is stored internally.
+    /// Build both resolution-class arrays from MaterialRegistry + source PNGs.
     bool buildAtlas();
 
-    /// Get the last built atlas info (pixels + UVs).
-    const AtlasInfo& getAtlasInfo() const { return atlasInfo_; }
+    /// Get a resolution class's build info (0 = 512, 1 = 1024). Default = class 0.
+    const AtlasInfo& getAtlasInfo(int resClass = 0) const { return atlas_[resClass & 1]; }
 
-    /// Hot-reload: rebuild atlas from source PNGs, upload to Vulkan, update SSBO.
-    /// Call this after editing textures or adding materials.
-    /// Returns true on success.
+    /// Number of texture array layers in class 0 (512).
+    int getLayerCount() const { return atlas_[0].layerCount; }
+
     bool hotReload(Vulkan::VulkanDevice* device);
-
-    /// Per-material hot-reload: re-read source PNGs for a single material and
-    /// upload only those atlas slots to the GPU.  Other materials are untouched.
-    /// Returns true on success; false if material not found or GPU upload fails.
     bool reloadMaterial(const std::string& materialName, Vulkan::VulkanDevice* device);
 
-    /// Write a single texture slot's pixel data into the atlas.
-    /// Used by the pixel editor to update a texture in-place without full rebuild.
-    /// slotIndex is the atlas texture index (materialID * 6 + faceID style).
-    /// pixels must be TEXTURE_SIZE * TEXTURE_SIZE * 4 bytes (RGBA).
+    /// Write a single texture slot's pixel data (encoded textureIndex → class + layer).
+    /// pixels must be (class baseSize)² * 4 bytes RGBA.
     bool updateTextureSlot(int slotIndex, const uint8_t* pixels);
 
-    /// Upload the current atlas pixels to the Vulkan texture image.
+    /// Upload both class arrays to the Vulkan texture images (binding 1 = 512, binding 5 = 1024).
     bool uploadToGPU(Vulkan::VulkanDevice* device);
 
-    /// Update the atlas UV SSBO on the GPU from current UV data.
+    /// Update the atlas-metadata SSBO (per-class layer counts + fallback index).
     void updateUVSSBO(Vulkan::VulkanDevice* device);
 
-    /// Save the current atlas to a PNG file.
     bool saveAtlasPNG(const std::string& path) const;
 
-    /// Get pixel data for a specific texture slot (TEXTURE_SIZE x TEXTURE_SIZE, RGBA).
-    /// Returns empty vector if slot is out of range.
+    /// Get pixel data for a specific encoded texture slot. Size = (class baseSize)² * 4.
     std::vector<uint8_t> getTextureSlotPixels(int slotIndex) const;
 
-    /// Calculate required atlas dimensions for a given texture count.
     static void calcAtlasDimensions(int textureCount, int& outWidth, int& outHeight);
 
 private:
-    /// Load a single PNG file into RGBA pixels. Returns empty vector on failure.
-    std::vector<uint8_t> loadPNG(const std::string& path) const;
+    /// Load a PNG, resampling to `size` x `size` RGBA. Empty vector on failure.
+    std::vector<uint8_t> loadPNG(const std::string& path, int size) const;
 
-    /// Generate a colored fallback texture for a slot.
-    std::vector<uint8_t> generateFallbackTexture(int slotIndex) const;
+    /// Generate a size x size magenta/black fallback texture.
+    std::vector<uint8_t> generateFallbackTexture(int size) const;
 
-    /// Blit a TEXTURE_SIZE x TEXTURE_SIZE RGBA image into the atlas at the given slot.
-    void blitToAtlas(int slotIndex, const uint8_t* texPixels);
+    /// Build one resolution class's albedo + normal/roughness layer arrays from source PNGs.
+    bool buildClass(int resClass);
+
+    /// Blit one layer's RGBA into a class array (dst = the target layer buffer) at `layer`.
+    void blitLayer(std::vector<uint8_t>& dst, int baseSize, int layer, const uint8_t* texPixels);
+
+    /// BC7-encode a layer-major RGBA buffer into a compressed mip chain (level-major /
+    /// layer-minor, multithreaded across layers). Used for both albedo and normal/roughness.
+    static void bc7EncodeLayers(const std::vector<uint8_t>& src, int baseSize, int layers,
+                                std::vector<uint8_t>& outData,
+                                std::vector<size_t>& outOffsets, int& outMips);
+
+    // Per-class, per-map BC7 disk cache, keyed by a hash of the source textures + materials.json
+    // + format version + class base size, so a map is re-encoded only when its inputs change.
+    static constexpr uint32_t BC7_CACHE_VERSION = 3;  // bumped for normal/roughness maps
+    uint64_t computeSourceHash(int resClass) const;
+    bool loadBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                     std::vector<uint8_t>& outData, std::vector<size_t>& outOffsets, int& outMips) const;
+    void writeBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
+                      const std::vector<uint8_t>& data, const std::vector<size_t>& offsets, int mips) const;
 
     std::string sourceDirectory_ = "resources/textures/source";
-    AtlasInfo atlasInfo_;
+    AtlasInfo atlas_[NUM_CLASSES];   // [0] = 512, [1] = 1024
 };
 
 } // namespace Core

@@ -4,7 +4,7 @@
 # ==========================================================================
 
 # Collect editor source files (everything except main.cpp)
-file(GLOB_RECURSE EDITOR_SOURCES "src/*.cpp" "src/*.h")
+file(GLOB_RECURSE EDITOR_SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/*.h")
 list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*main\\.cpp$")
 
 # Editor static library (Application, InputController, AI, scene entities, scripting bindings)
@@ -24,7 +24,10 @@ if(PLATFORM_WINDOWS AND MSVC)
     set_property(TARGET phyxel_editor PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     # Application.cpp has grown too many sections for the default object format;
     # /bigobj raises the COFF section limit to ~4 billion.
-    target_compile_options(phyxel_editor PRIVATE /bigobj)
+    # /W4 surfaces latent bugs in editor code (not /WX — see engine/CMakeLists.txt).
+    target_compile_options(phyxel_editor PRIVATE /bigobj /W4)
+elseif(NOT MSVC)
+    target_compile_options(phyxel_editor PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
 # ==========================================================================

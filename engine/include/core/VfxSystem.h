@@ -72,6 +72,15 @@ struct VfxBurstParams {
     float     coneAngleDeg = 45.0f;        // Cone half-angle
     glm::vec3 extent{1.0f};                // Cube half-extent (world units)
     glm::vec3 posJitter{0.0f};             // random +/- offset on each particle's start position
+    // Transient flash light (explosions). OFF by default so continuous emitters
+    // (waterfall mist, etc., which call spawnBurst every frame) don't spawn a
+    // light per frame; the named explosion presets in spawnEffect enable it.
+    // Needs light callbacks set. The flash fades to 0 over lightDuration, then
+    // removes itself.
+    bool  light = false;
+    float lightRadius = 7.0f;
+    float lightIntensity = 3.0f;
+    float lightDuration = 0.25f;
 };
 
 // Parameters for a travelling projectile (Phase 2). The projectile's glowing
@@ -198,8 +207,13 @@ public:
     using AddLightFn    = std::function<int(const glm::vec3& pos, const glm::vec3& color, float intensity, float radius)>;
     using MoveLightFn   = std::function<void(int id, const glm::vec3& pos)>;
     using RemoveLightFn = std::function<void(int id)>;
-    void setLightCallbacks(AddLightFn add, MoveLightFn move, RemoveLightFn remove) {
+    // Optional: set a light's intensity (drives the burst-flash fade-out). If not
+    // wired, flash lights hold full intensity until they're removed at end-of-life.
+    using SetIntensityFn = std::function<void(int id, float intensity)>;
+    void setLightCallbacks(AddLightFn add, MoveLightFn move, RemoveLightFn remove,
+                           SetIntensityFn setIntensity = nullptr) {
         m_addLight = std::move(add); m_moveLight = std::move(move); m_removeLight = std::move(remove);
+        m_setIntensity = std::move(setIntensity);
     }
 
     size_t getActiveProjectileCount() const { return m_activeProjectiles; }
@@ -289,6 +303,19 @@ private:
         bool  active = false;
     };
 
+    // A one-shot explosion flash: a point light that fades over `duration` then
+    // removes itself. Position is fixed (explosions don't travel).
+    struct VfxFlash {
+        int   lightId = -1;
+        glm::vec3 position{0.0f};
+        glm::vec3 color{1.0f};
+        float baseIntensity = 0.0f;
+        float radius = 7.0f;
+        float age = 0.0f;
+        float duration = 0.25f;
+        bool  active = false;
+    };
+
     int allocParticle();          // find/grow a free slot; -1 if at capacity
     // Emit one particle into the pool (used by trails/cores/beams/fields); returns idx or -1.
     int emitParticle(const glm::vec3& pos, const glm::vec3& vel, float size,
@@ -299,6 +326,8 @@ private:
     void updateBeams(float dt);
     int allocField();
     void updateFields(float dt);
+    int allocFlash();
+    void updateFlashes(float dt);
     glm::vec3 randomUnitVector();
     // Random direction within a cone of half-angle (radians) around `axis`.
     glm::vec3 randomConeDir(const glm::vec3& axis, float halfAngleRad);
@@ -320,15 +349,17 @@ private:
     size_t m_activeBeams = 0;
     std::vector<VfxField> m_fields;
     size_t m_activeFields = 0;
+    std::vector<VfxFlash> m_flashes;       // transient explosion flash lights
 
     std::vector<VfxEvent> m_events;          // lifecycle events drained by VfxDirector
     uint32_t m_instanceCounter = 0;          // for unique effect ids
     std::string nextId(const char* prefix);
     void emitEvent(VfxEvent::Type type, const std::string& id, const glm::vec3& pos);
 
-    AddLightFn    m_addLight;
-    MoveLightFn   m_moveLight;
-    RemoveLightFn m_removeLight;
+    AddLightFn     m_addLight;
+    MoveLightFn    m_moveLight;
+    RemoveLightFn  m_removeLight;
+    SetIntensityFn m_setIntensity;
 
     uint32_t m_rngState = 0x9E3779B9u;
 
@@ -336,6 +367,7 @@ private:
     static const size_t MAX_PROJECTILES = 256;
     static const size_t MAX_BEAMS = 64;
     static const size_t MAX_FIELDS = 32;
+    static const size_t MAX_FLASHES = 64;
 };
 
 } // namespace Phyxel

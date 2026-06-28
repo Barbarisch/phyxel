@@ -38,12 +38,17 @@ struct Vertex {
     }
 };
 
-// Instance data structure - compressed format with texture support
+// Instance data structure - compressed format with texture support.
+// MUST stay layout-identical to Phyxel::InstanceData (core/Types.h): the CPU writes that
+// struct into the instance buffer and this defines how the pipeline reads it.
 struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
-    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
-    
+    uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
+    uint32_t light;           // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
+    uint32_t light2;          // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
+    uint32_t light3;          // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 1;
@@ -51,15 +56,15 @@ struct InstanceData {
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
         return bindingDescription;
     }
-    
+
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
-        
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(6);
+
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
         attributeDescriptions[0].format = VK_FORMAT_R32_UINT;  // uint32 packed data
         attributeDescriptions[0].offset = offsetof(InstanceData, packedData);
-        
+
         attributeDescriptions[1].binding = 1;
         attributeDescriptions[1].location = 2;
         attributeDescriptions[1].format = VK_FORMAT_R16_UINT;  // uint16 texture index
@@ -69,7 +74,22 @@ struct InstanceData {
         attributeDescriptions[2].location = 3;
         attributeDescriptions[2].format = VK_FORMAT_R16_UINT;  // uint16 reserved (flags)
         attributeDescriptions[2].offset = offsetof(InstanceData, reserved);
-        
+
+        attributeDescriptions[3].binding = 1;
+        attributeDescriptions[3].location = 4;
+        attributeDescriptions[3].format = VK_FORMAT_R32_UINT;  // uint32 baked light (corner skies)
+        attributeDescriptions[3].offset = offsetof(InstanceData, light);
+
+        attributeDescriptions[4].binding = 1;
+        attributeDescriptions[4].location = 5;
+        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 0,1)
+        attributeDescriptions[4].offset = offsetof(InstanceData, light2);
+
+        attributeDescriptions[5].binding = 1;
+        attributeDescriptions[5].location = 6;
+        attributeDescriptions[5].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 2,3)
+        attributeDescriptions[5].offset = offsetof(InstanceData, light3);
+
         return attributeDescriptions;
     }
 };
@@ -127,7 +147,8 @@ public:
     void updateLightBuffer(uint32_t frameIndex, const Graphics::LightBufferGPU& lightData);
     void cleanupLightBuffers();
     bool createAtlasUVBuffers();
-    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex);
+    void updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex,
+                             uint32_t count512, uint32_t count1024);
     void cleanupAtlasUVBuffers();
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
@@ -185,6 +206,22 @@ public:
     // Texture atlas management
     bool loadTextureAtlas(const std::string& atlasPath);
     bool uploadTextureAtlasPixels(const uint8_t* pixels, int width, int height);
+    // Upload a layer-major RGBA texture array (one texSize² layer per textureIndex) into the
+    // voxel texture image for resolution class `target` (0 = 512 array @ binding 1, 1 = 1024
+    // array @ binding 5) as a 2D array with a full mip chain. size = texSize*texSize*4*layers.
+    bool uploadTextureArray(int target, const uint8_t* pixels, int texSize, int layerCount);
+
+    /// Whether the device supports BC texture compression (BC7). If false, callers must use
+    /// the uncompressed uploadTextureArray() path.
+    bool bc7Supported() const { return bc7Supported_; }
+
+    /// Upload a pre-compressed BC7 texture array for resolution class `target` (0/1). `data`
+    /// holds all mip levels tightly packed in level-major / layer-minor order (level 0 first;
+    /// within a level, layer 0..N-1, each layer = ceil(w/4)*ceil(h/4)*16 bytes).
+    /// `levelByteOffsets` has mipLevels entries (start of each level in `data`).
+    bool uploadTextureArrayBC7(int target, const uint8_t* data, size_t dataSize,
+                               const std::vector<size_t>& levelByteOffsets,
+                               int baseSize, int layerCount, int mipLevels);
     bool createTextureAtlasSampler();
     void updateDescriptorSetsWithTexture();
     void cleanupTextureAtlas();
@@ -341,11 +378,23 @@ private:
     VkDescriptorPool reflectionDescriptorPool = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> reflectionDescriptorSets;
 
-    // Texture atlas resources
+    // Texture array resources — class 0 (512px, binding 1)
     VkImage textureAtlasImage = VK_NULL_HANDLE;
     VkDeviceMemory textureAtlasImageMemory = VK_NULL_HANDLE;
     VkImageView textureAtlasImageView = VK_NULL_HANDLE;
     VkSampler textureAtlasSampler = VK_NULL_HANDLE;
+    // Class 1 (1024px, binding 5) — hi-res object/detail array
+    VkImage textureArrayHiImage = VK_NULL_HANDLE;
+    VkDeviceMemory textureArrayHiImageMemory = VK_NULL_HANDLE;
+    VkImageView textureArrayHiImageView = VK_NULL_HANDLE;
+    // Normal+roughness arrays (RGB=normal, A=roughness; UNORM): binding 6 (512), binding 7 (1024)
+    VkImage textureNormal512Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal512ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal512ImageView = VK_NULL_HANDLE;
+    VkImage textureNormal1024Image = VK_NULL_HANDLE;
+    VkDeviceMemory textureNormal1024ImageMemory = VK_NULL_HANDLE;
+    VkImageView textureNormal1024ImageView = VK_NULL_HANDLE;
+    bool bc7Supported_ = false;  // set during logical-device creation
 
     // ImGui texture cache (for menu images, logos, etc.)
     struct ImGuiTextureEntry {

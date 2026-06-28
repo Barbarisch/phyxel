@@ -253,9 +253,11 @@ void Chunk::rebuildFaces() {
     rebuildFaces(nullptr);
 }
 
-void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube) {
+void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
+                         const NeighborLightFunc& getNeighborLight,
+                         const std::vector<uint8_t>* columnOpenMask) {
     // Delegate to render manager
-    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube);
+    renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask);
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).

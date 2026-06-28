@@ -2377,16 +2377,32 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="build_project",
             description=(
-                "Build the Phyxel engine project using CMake. Runs cmake -B build -S . and "
-                "cmake --build build --config <config>. Returns build output including errors."
+                "Build the Phyxel engine project using CMake (cmake -B build -S . then "
+                "cmake --build build --config <config>). The build runs OFF the server's event "
+                "loop, so the MCP connection stays responsive during long builds. "
+                "Default (background=false) waits for the build and returns the result. "
+                "For long/interactive builds, pass background=true to return immediately and "
+                "poll build_status (avoids tying up a single tool call for many minutes)."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "config": {"type": "string", "enum": ["Debug", "Release"], "description": "Build configuration (default: Debug)"},
-                    "reconfigure": {"type": "boolean", "description": "Run cmake configure before build (default: false)"}
+                    "reconfigure": {"type": "boolean", "description": "Run cmake configure before build (default: false)"},
+                    "background": {"type": "boolean", "description": "Start the build and return immediately; poll build_status for progress/result (default: false)"},
+                    "timeout": {"type": "integer", "description": "Max seconds for a foreground build before the process tree is killed (default: 1800)"}
                 }
             }
+        ),
+        Tool(
+            name="build_status",
+            description=(
+                "Report the status of the most recent background build started by "
+                "build_project(background=true): whether it is still running, its exit code, "
+                "success, and the tail of the build log. Call this before launch_engine when "
+                "you started a background build."
+            ),
+            inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
             name="launch_engine",
@@ -4346,7 +4362,7 @@ async def call_tool(name: str, arguments: dict) -> list:
 
 # Tools that are safe to call without a project loaded
 _NO_PROJECT_TOOLS = {
-    "engine_status", "engine_running", "build_project", "launch_engine",
+    "engine_status", "engine_running", "build_project", "build_status", "launch_engine",
     "stop_engine", "restart_engine", "clear_engine_logs",
     "project_info", "list_projects", "create_project", "open_project",
     "package_game",
@@ -5286,6 +5302,9 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "build_project":
         return await _build_project(args)
 
+    elif name == "build_status":
+        return await _build_status(args)
+
     elif name == "launch_engine":
         return await _launch_engine(args)
 
@@ -6108,51 +6127,124 @@ def _get_cmake():
     return "cmake"
 
 
-async def _build_project(args: dict) -> dict:
-    """Build the project using CMake."""
-    config = args.get("config", "Debug")
-    reconfigure = args.get("reconfigure", False)
+# --- Build state (for non-blocking background builds) -----------------------
+_BUILD_PROC = None      # subprocess.Popen of the most recent background build
+_BUILD_META: dict = {}  # {config, log_path, pid}
+_DEFAULT_BUILD_TIMEOUT = 1800  # 30 min; a full reconfigure+build can exceed the old 300s cap
+
+
+def _build_command(config: str, reconfigure: bool, build_exists: bool) -> str:
+    """Compose the configure(+)build command line, run via `cmd /c`."""
     cmake = _get_cmake()
-    build_dir = PROJECT_ROOT / "build"
+    steps = []
+    if reconfigure or not build_exists:
+        steps.append(f'"{cmake}" -B build -S .')
+    steps.append(f'"{cmake}" --build build --config {config}')
+    return " && ".join(steps)
 
-    output_lines = []
 
-    if reconfigure or not build_dir.exists():
-        try:
-            result = subprocess.run(
-                [cmake, "-B", "build", "-S", "."],
-                cwd=str(PROJECT_ROOT),
-                capture_output=True, text=True, timeout=120
-            )
-            output_lines.append("=== CMake Configure ===")
-            if result.stdout:
-                output_lines.append(result.stdout[-2000:])
-            if result.returncode != 0:
-                output_lines.append(f"Configure failed (exit {result.returncode})")
-                if result.stderr:
-                    output_lines.append(result.stderr[-2000:])
-                return {"success": False, "output": "\n".join(output_lines)}
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "CMake configure timed out"}
-
+def _tail_file(path: str, max_chars: int = 3500) -> str:
     try:
-        result = subprocess.run(
-            [cmake, "--build", "build", "--config", config],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True, text=True, timeout=300
-        )
-        output_lines.append(f"=== CMake Build ({config}) ===")
-        if result.stdout:
-            # Trim to last 3000 chars to avoid huge output
-            output_lines.append(result.stdout[-3000:])
-        if result.returncode != 0:
-            output_lines.append(f"Build failed (exit {result.returncode})")
-            if result.stderr:
-                output_lines.append(result.stderr[-2000:])
-            return {"success": False, "output": "\n".join(output_lines)}
-        return {"success": True, "output": "\n".join(output_lines)}
+        return Path(path).read_text(encoding="utf-8", errors="replace")[-max_chars:]
+    except Exception:
+        return ""
+
+
+def _run_build_blocking(cmdline: str, timeout: int) -> tuple:
+    """Run a build to completion in a worker thread (called via asyncio.to_thread so the
+    event loop stays free). Returns (returncode|None, combined_output). On timeout, kills the
+    WHOLE process tree (cmd -> cmake -> msbuild -> cl.exe) — otherwise inherited stdout pipes
+    keep communicate() blocked far past the timeout (the original hang)."""
+    # Pass as a STRING (not a list): on Windows, a list arg gets list2cmdline-escaped,
+    # which turns the quotes around the cmake path into \" and breaks `cmd` parsing
+    # ("'\"C:\...cmake.exe\"' is not recognized"). As a string, Popen hands it to
+    # CreateProcess verbatim; the outer quotes let `cmd /c` strip exactly one layer,
+    # leaving the inner quoted cmake path intact.
+    proc = subprocess.Popen(
+        f'cmd /c "{cmdline}"',
+        cwd=str(PROJECT_ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+        return proc.returncode, out or ""
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "CMake build timed out (300s)"}
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        try:
+            out, _ = proc.communicate(timeout=15)
+        except Exception:
+            out = ""
+        return None, (out or "") + f"\n[build exceeded {timeout}s — process tree killed]"
+
+
+async def _build_project(args: dict) -> dict:
+    """Build the project using CMake.
+
+    Default: runs to completion OFF the asyncio event loop (the MCP server keeps answering
+    other calls / keepalives) and returns the result. With background=true, starts a detached
+    build, returns immediately, and the caller polls build_status.
+    """
+    global _BUILD_PROC, _BUILD_META
+    config = args.get("config", "Debug")
+    reconfigure = bool(args.get("reconfigure", False))
+    background = bool(args.get("background", False))
+    timeout = int(args.get("timeout", _DEFAULT_BUILD_TIMEOUT))
+    build_dir = PROJECT_ROOT / "build"
+    cmdline = _build_command(config, reconfigure, build_dir.exists())
+
+    if background:
+        if _BUILD_PROC is not None and _BUILD_PROC.poll() is None:
+            return {"success": True, "status": "already_running",
+                    "message": "A background build is already running. Poll build_status.",
+                    "log_path": _BUILD_META.get("log_path")}
+        build_dir.mkdir(parents=True, exist_ok=True)
+        log_path = build_dir / "mcp_build.log"
+        logf = open(log_path, "wb")  # child writes raw bytes via the file descriptor
+        # String (not list) — see _run_build_blocking: a list re-escapes the quoted
+        # cmake path and breaks `cmd` parsing.
+        proc = subprocess.Popen(
+            f'cmd /c "{cmdline}"',
+            cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+        )
+        _BUILD_PROC = proc
+        _BUILD_META = {"config": config, "log_path": str(log_path), "pid": proc.pid}
+        return {"success": True, "status": "started", "pid": proc.pid,
+                "log_path": str(log_path),
+                "message": ("Build running in background. Call build_status to check "
+                            "progress/result before launch_engine.")}
+
+    # Foreground (default): off the event loop, with a tree-killing timeout.
+    rc, out = await asyncio.to_thread(_run_build_blocking, cmdline, timeout)
+    out_trimmed = (out or "")[-3500:]
+    if rc is None:
+        return {"success": False, "timed_out": True, "output": out_trimmed}
+    if rc != 0:
+        return {"success": False, "output": f"Build failed (exit {rc})\n{out_trimmed}"}
+    return {"success": True, "output": out_trimmed}
+
+
+async def _build_status(args: dict) -> dict:
+    """Report the status of the most recent background build."""
+    proc = _BUILD_PROC
+    if proc is None:
+        return {"running": False,
+                "message": "No background build has been started this session."}
+    rc = proc.poll()
+    return {
+        "running": rc is None,
+        "returncode": rc,
+        "success": (rc == 0) if rc is not None else None,
+        "config": _BUILD_META.get("config"),
+        "pid": _BUILD_META.get("pid"),
+        "log_path": _BUILD_META.get("log_path"),
+        "log_tail": _tail_file(_BUILD_META.get("log_path", "")),
+    }
 
 
 _LEVEL_ORDER = {"trace": 0, "debug": 1, "info": 2, "warn": 3, "error": 4, "fatal": 5}

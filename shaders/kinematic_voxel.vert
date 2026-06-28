@@ -24,6 +24,7 @@ layout(location = 4) in uint  inFaceId;          // 0=+Z  1=-Z  2=+X  3=-X  4=+Y
 
 layout(push_constant) uniform PushConstants {
     mat4 modelMatrix;
+    vec4 bakedLight; // x = skylight (0..1), yzw = block light RGB (0..1) — sampled per object
 } pc;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
@@ -44,6 +45,8 @@ layout(location = 2) out vec4      shadowCoord;
 layout(location = 3) out flat uint flags;
 layout(location = 4) out vec3      outNormal;
 layout(location = 5) out vec3      outWorldPos;
+layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
+layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
@@ -106,6 +109,8 @@ void main() {
     textureIndex = inTextureIndex;
     texCoord     = uv;
     outWorldPos  = worldPos;
+    vSkyLight    = pc.bakedLight.x;    // Phase 4: baked skylight sampled at the object's position
+    vBlockColor  = pc.bakedLight.yzw;  // Phase 4: baked block light (glow/spell) at the object
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
 }

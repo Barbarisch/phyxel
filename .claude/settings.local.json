@@ -373,7 +373,18 @@
       "PowerShell(Start-Sleep -Seconds 5; Invoke-RestMethod -Uri \"http://localhost:8090/api/status\" | Select-Object -ExpandProperty status)",
       "PowerShell(taskkill *)",
       "PowerShell(Start-Sleep -Seconds 4; try { $r = Invoke-RestMethod -Uri \"http://localhost:8090/api/world/state\" -Method GET; Write-Output \"Engine ready\"; $r | ConvertTo-Json } catch { Write-Output \"Not ready yet: $_\" })",
-      "PowerShell(*)"
+      "PowerShell(*)",
+      "mcp__phyxel__generate_world",
+      "mcp__phyxel__load_game_definition",
+      "mcp__phyxel__apply_damage",
+      "mcp__phyxel__save_world",
+      "mcp__phyxel__set_day_night",
+      "mcp__phyxel__list_lights",
+      "mcp__phyxel__cast_vfx_field",
+      "mcp__phyxel__cast_vfx_projectile",
+      "mcp__phyxel__build_status",
+      "mcp__phyxel__list_doors",
+      "mcp__phyxel__toggle_door"
     ]
   },
   "enableAllProjectMcpServers": true,

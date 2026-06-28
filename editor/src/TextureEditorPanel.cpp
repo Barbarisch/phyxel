@@ -417,6 +417,12 @@ void TextureEditorPanel::applyToAtlas() {
     if (atlasIdx == Core::MaterialRegistry::INVALID_TEXTURE_INDEX) return;
 
     auto& atlas = Core::AtlasManager::instance();
+    // Guard against a class/size mismatch (e.g. editing a 1024px material with a 512px
+    // buffer): updateTextureSlot copies (class baseSize)² bytes from pixels_.
+    if (atlas.getTextureSlotPixels(atlasIdx).size() != pixels_.size()) {
+        LOG_WARN("TextureEditor", "Buffer size mismatch for atlas idx {}; skipping apply", atlasIdx);
+        return;
+    }
     atlas.updateTextureSlot(atlasIdx, pixels_.data());
 
     // Hot-reload: upload to GPU + update SSBO

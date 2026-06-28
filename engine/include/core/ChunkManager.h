@@ -127,8 +127,8 @@ public:
     // Set physics world for proper cleanup of dynamic objects
     void setPhysicsWorld(Physics::PhysicsWorld* physics);
 
-    // Set GPU particle system for occupancy grid updates
-    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+    // Set GPU particle system for occupancy grid updates (also wires its debris light sampler)
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp);
 
     // Notified (worldX, worldY, worldZ, solid) whenever a single voxel's occupancy
     // changes (break/place/occupancy update). Used to keep the water sim's solid mask
@@ -181,6 +181,7 @@ public:
     
     // Post-loading face rebuilding (call after all chunks are loaded)
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
+    void rebuildAllChunkLighting(); // Re-bake + re-upload every chunk via the cross-chunk path (use after a global lighting-mode change)
     void buildAllChunkPhysics(); // Build collision + register occupancy grids for all chunks (call after bulk DB load)
 
     // Initialize hash maps for all existing chunks (call after loading chunks)
@@ -278,6 +279,12 @@ public:
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);      // Get chunk by chunk coordinates
     const Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord) const; // Const version
     Chunk* getChunkAtFast(const glm::ivec3& worldPos);        // Fast O(1) world position lookup
+
+    // Sample the baked per-voxel light (skylight + RGB block light) at a WORLD cell, for
+    // lighting dynamic objects (characters, furniture, debris) that aren't baked into the
+    // static chunk mesh. Returns full sky / no block light when the cell has no loaded chunk,
+    // so objects outside the world default to lit (outdoor) rather than black.
+    Graphics::ChunkRenderManager::BakedLight sampleBakedLight(const glm::ivec3& worldPos) const;
     
     // Fast O(1) cube lookup functions
     Cube* getCubeAtFast(const glm::ivec3& worldPos);          // Fast O(1) cube lookup

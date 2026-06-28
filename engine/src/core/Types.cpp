@@ -69,27 +69,45 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 3> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 3> desc{};
-    
+std::array<VkVertexInputAttributeDescription, 6> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 6> desc{};
+
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
     desc[0].location = 1;  // layout(location = 1) in uint inPackedData
     desc[0].format = VK_FORMAT_R32_UINT;  // uint32_t packedData
     desc[0].offset = offsetof(InstanceData, packedData);
-    
+
     // Texture index
     desc[1].binding = 1;
     desc[1].location = 2;  // layout(location = 2) in uint inTextureIndex
     desc[1].format = VK_FORMAT_R16_UINT;  // uint16_t textureIndex
     desc[1].offset = offsetof(InstanceData, textureIndex);
-    
+
     // Flags (emissive bit 0, transparent bit 1, quantized alpha bits 2-9)
     desc[2].binding = 1;
     desc[2].location = 3;  // layout(location = 3) in uint inFlags
     desc[2].format = VK_FORMAT_R16_UINT;  // uint16_t reserved
     desc[2].offset = offsetof(InstanceData, reserved);
-    
+
+    // Baked voxel light: 4 per-corner skylight nibbles (bits0-15)
+    desc[3].binding = 1;
+    desc[3].location = 4;  // layout(location = 4) in uint inLight
+    desc[3].format = VK_FORMAT_R32_UINT;  // uint32_t light
+    desc[3].offset = offsetof(InstanceData, light);
+
+    // Per-corner block light (corners 0,1)
+    desc[4].binding = 1;
+    desc[4].location = 5;  // layout(location = 5) in uint inLight2
+    desc[4].format = VK_FORMAT_R32_UINT;  // uint32_t light2
+    desc[4].offset = offsetof(InstanceData, light2);
+
+    // Per-corner block light (corners 2,3)
+    desc[5].binding = 1;
+    desc[5].location = 6;  // layout(location = 6) in uint inLight3
+    desc[5].format = VK_FORMAT_R32_UINT;  // uint32_t light3
+    desc[5].offset = offsetof(InstanceData, light3);
+
     return desc;
 }
 
@@ -102,8 +120,8 @@ VkVertexInputBindingDescription DynamicSubcubeInstanceData::getBindingDescriptio
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 6> desc{};
+std::array<VkVertexInputAttributeDescription, 7> DynamicSubcubeInstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 7> desc{};
     
     // World position (vec3)
     desc[0].binding = 1;
@@ -140,7 +158,13 @@ std::array<VkVertexInputAttributeDescription, 6> DynamicSubcubeInstanceData::get
     desc[5].location = 6;  // layout(location = 6) in ivec3 inLocalPosition
     desc[5].format = VK_FORMAT_R32G32B32_SINT;
     desc[5].offset = offsetof(DynamicSubcubeInstanceData, localPosition);
-    
+
+    // Baked light (reserved2) — Phase 4c debris lighting
+    desc[6].binding = 1;
+    desc[6].location = 7;  // layout(location = 7) in uint inDebrisLight
+    desc[6].format = VK_FORMAT_R32_UINT;
+    desc[6].offset = offsetof(DynamicSubcubeInstanceData, reserved2);
+
     return desc;
 }
 

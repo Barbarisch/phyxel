@@ -437,6 +437,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
     registerSettlementCommands();
+    registerDoorCommands();
+    registerLightCommands();
+    registerSnapshotCommands();
+    registerProfilingCommands();
+    registerEffectsCommands();
+    registerEnvAudioCommands();
+    registerCameraCommands();
+    registerStoryCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -6941,147 +6949,6 @@ static bool handleDynamicFurnitureCommand(
     return false; // not a furniture command
 }
 
-// Helper: handle door management API commands (extracted to avoid nesting depth limit)
-static bool handleDoorCommand(
-    const Core::APICommand& cmd,
-    nlohmann::json& response,
-    Core::DoorManager* doorManager,
-    Core::PlacedObjectManager* placedObjectManager)
-{
-    if (cmd.action == "register_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
-            response = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            std::string tmplName = cmd.params.value("template_name", "");
-            int baseRot = cmd.params.value("base_rotation", 0);
-            float openAngle = cmd.params.value("open_angle", 90.0f);
-            float swingSpeed = cmd.params.value("swing_speed", 120.0f);
-            int   thickness  = cmd.params.value("thickness", 2);
-
-            glm::vec3 hingePos(0.0f);
-            if (cmd.params.contains("hinge")) {
-                hingePos.x = cmd.params["hinge"].value("x", 0.0f);
-                hingePos.y = cmd.params["hinge"].value("y", 0.0f);
-                hingePos.z = cmd.params["hinge"].value("z", 0.0f);
-            } else if (placedObjectManager) {
-                const auto* obj = placedObjectManager->get(poId);
-                if (obj) {
-                    hingePos = glm::vec3(obj->position);
-                }
-            }
-
-            bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
-            response = {{"success", ok}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "toggle_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->toggle(poId);
-            const auto& doors = doorManager->getDoors();
-            auto it = doors.find(poId);
-            if (it != doors.end()) {
-                response = {{"success", true}, {"placed_object_id", poId},
-                            {"is_open", it->second.isOpen},
-                            {"current_angle", it->second.currentAngle},
-                            {"target_angle", it->second.targetAngle}};
-            } else {
-                response = {{"error", "Door not found: " + poId}};
-            }
-        }
-        return true;
-    }
-
-    if (cmd.action == "open_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->open(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "close_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->close(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "list_doors") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else {
-            const auto& doors = doorManager->getDoors();
-            nlohmann::json doorList = nlohmann::json::array();
-            for (const auto& [id, state] : doors) {
-                doorList.push_back({
-                    {"placed_object_id", id},
-                    {"is_open", state.isOpen},
-                    {"locked", state.locked},
-                    {"current_angle", state.currentAngle},
-                    {"open_angle", state.openAngle},
-                    {"base_rotation", state.baseRotation},
-                    {"swing_speed", state.swingSpeed},
-                    {"settled", state.settled},
-                    {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
-                });
-            }
-            response = {{"doors", doorList}, {"count", doors.size()}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "set_door_lock") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            bool locked = cmd.params.value("locked", true);
-            std::string keyItemId = cmd.params.value("key_item_id", "");
-            doorManager->setLocked(poId, locked, keyItemId);
-            response = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "unregister_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->unregisterDoor(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    return false; // not a door command
-}
-
 // Debug/Diagnostic API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
@@ -10411,6 +10278,719 @@ void Application::registerSettlementCommands() {
     });
 }
 
+// Door management commands, migrated from the static handleDoorCommand() helper onto the
+// CommandRegistry. Handlers read doorManager/placedObjectManager lazily at dispatch.
+void Application::registerDoorCommands() {
+    auto& reg = m_commandRegistry;
+    auto noDoor = [](nlohmann::json& r) { r = {{"error", "DoorManager not available"}}; };
+    auto needId = [](nlohmann::json& r) { r = {{"error", "Missing 'placed_object_id'"}}; };
+
+    reg.on("register_door", [this, noDoor](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
+            r = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
+            return;
+        }
+        std::string poId = cmd.params.value("placed_object_id", "");
+        std::string tmplName = cmd.params.value("template_name", "");
+        int baseRot = cmd.params.value("base_rotation", 0);
+        float openAngle = cmd.params.value("open_angle", 90.0f);
+        float swingSpeed = cmd.params.value("swing_speed", 120.0f);
+        int   thickness  = cmd.params.value("thickness", 2);
+        glm::vec3 hingePos(0.0f);
+        if (cmd.params.contains("hinge")) {
+            hingePos.x = cmd.params["hinge"].value("x", 0.0f);
+            hingePos.y = cmd.params["hinge"].value("y", 0.0f);
+            hingePos.z = cmd.params["hinge"].value("z", 0.0f);
+        } else if (placedObjectManager) {
+            const auto* obj = placedObjectManager->get(poId);
+            if (obj) hingePos = glm::vec3(obj->position);
+        }
+        bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
+        r = {{"success", ok}, {"placed_object_id", poId}};
+    });
+
+    reg.on("toggle_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->toggle(poId);
+        const auto& doors = doorManager->getDoors();
+        auto it = doors.find(poId);
+        if (it != doors.end()) {
+            r = {{"success", true}, {"placed_object_id", poId},
+                 {"is_open", it->second.isOpen},
+                 {"current_angle", it->second.currentAngle},
+                 {"target_angle", it->second.targetAngle}};
+        } else {
+            r = {{"error", "Door not found: " + poId}};
+        }
+    });
+
+    reg.on("open_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->open(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+
+    reg.on("close_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->close(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+
+    reg.on("list_doors", [this, noDoor](const Core::APICommand&, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        const auto& doors = doorManager->getDoors();
+        nlohmann::json doorList = nlohmann::json::array();
+        for (const auto& [id, state] : doors) {
+            doorList.push_back({
+                {"placed_object_id", id},
+                {"is_open", state.isOpen},
+                {"locked", state.locked},
+                {"current_angle", state.currentAngle},
+                {"open_angle", state.openAngle},
+                {"base_rotation", state.baseRotation},
+                {"swing_speed", state.swingSpeed},
+                {"settled", state.settled},
+                {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
+            });
+        }
+        r = {{"doors", doorList}, {"count", doors.size()}};
+    });
+
+    reg.on("set_door_lock", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        bool locked = cmd.params.value("locked", true);
+        std::string keyItemId = cmd.params.value("key_item_id", "");
+        doorManager->setLocked(poId, locked, keyItemId);
+        r = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
+    });
+
+    reg.on("unregister_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->unregisterDoor(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+}
+
+// Dynamic point/spot light commands, migrated from the processAPICommands if-chain onto the
+// CommandRegistry. Read renderCoordinator->getLightManager() lazily at dispatch.
+void Application::registerLightCommands() {
+    auto& reg = m_commandRegistry;
+    auto noRC = [](nlohmann::json& r) { r = {{"error", "RenderCoordinator not available"}}; };
+
+    reg.on("add_point_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        Graphics::PointLight pl;
+        pl.position = glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        if (cmd.params.contains("color")) {
+            pl.color = glm::vec3(cmd.params["color"].value("r", 1.0f), cmd.params["color"].value("g", 1.0f), cmd.params["color"].value("b", 1.0f));
+        }
+        pl.intensity = cmd.params.value("intensity", 1.0f);
+        pl.radius = cmd.params.value("radius", 10.0f);
+        pl.enabled = cmd.params.value("enabled", true);
+        int id = lm.addPointLight(pl);
+        if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "point"}};
+        else r = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
+    });
+
+    reg.on("add_spot_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        Graphics::SpotLight sl;
+        sl.position = glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        sl.direction = glm::vec3(cmd.params.value("dx", 0.0f), cmd.params.value("dy", -1.0f), cmd.params.value("dz", 0.0f));
+        if (cmd.params.contains("color")) {
+            sl.color = glm::vec3(cmd.params["color"].value("r", 1.0f), cmd.params["color"].value("g", 1.0f), cmd.params["color"].value("b", 1.0f));
+        }
+        sl.intensity = cmd.params.value("intensity", 1.0f);
+        sl.radius = cmd.params.value("radius", 20.0f);
+        sl.innerCone = cmd.params.value("inner_cone", 0.9f);
+        sl.outerCone = cmd.params.value("outer_cone", 0.8f);
+        sl.enabled = cmd.params.value("enabled", true);
+        int id = lm.addSpotLight(sl);
+        if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "spot"}};
+        else r = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
+    });
+
+    reg.on("remove_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        int lightId = cmd.params.value("id", -1);
+        if (lightId < 0) { r = {{"error", "Missing 'id' field"}}; return; }
+        bool ok = renderCoordinator->getLightManager().removeLight(lightId);
+        r = {{"success", ok}, {"id", lightId}};
+    });
+
+    reg.on("update_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        int lightId = cmd.params.value("id", -1);
+        if (lightId < 0) { r = {{"error", "Missing 'id' field"}}; return; }
+        const auto* pl = lm.getPointLight(lightId);
+        if (pl) {
+            Graphics::PointLight updated = *pl;
+            if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
+            if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
+            if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
+            if (cmd.params.contains("color")) {
+                updated.color = glm::vec3(cmd.params["color"].value("r", updated.color.r), cmd.params["color"].value("g", updated.color.g), cmd.params["color"].value("b", updated.color.b));
+            }
+            if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
+            if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
+            if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
+            lm.updatePointLight(lightId, updated);
+            r = {{"success", true}, {"id", lightId}, {"type", "point"}};
+        } else {
+            const auto* sl = lm.getSpotLight(lightId);
+            if (sl) {
+                Graphics::SpotLight updated = *sl;
+                if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
+                if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
+                if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
+                if (cmd.params.contains("dx")) updated.direction.x = cmd.params["dx"].get<float>();
+                if (cmd.params.contains("dy")) updated.direction.y = cmd.params["dy"].get<float>();
+                if (cmd.params.contains("dz")) updated.direction.z = cmd.params["dz"].get<float>();
+                if (cmd.params.contains("color")) {
+                    updated.color = glm::vec3(cmd.params["color"].value("r", updated.color.r), cmd.params["color"].value("g", updated.color.g), cmd.params["color"].value("b", updated.color.b));
+                }
+                if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
+                if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
+                if (cmd.params.contains("inner_cone")) updated.innerCone = cmd.params["inner_cone"].get<float>();
+                if (cmd.params.contains("outer_cone")) updated.outerCone = cmd.params["outer_cone"].get<float>();
+                if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
+                lm.updateSpotLight(lightId, updated);
+                r = {{"success", true}, {"id", lightId}, {"type", "spot"}};
+            } else {
+                r = {{"error", "Light not found"}, {"id", lightId}};
+            }
+        }
+    });
+}
+
+// Region snapshot + undo/redo commands, migrated from the processAPICommands if-chain.
+// Use the free captureRegionAllLevels/placeVoxelEntries helpers and SnapshotManager.
+void Application::registerSnapshotCommands() {
+    auto& reg = m_commandRegistry;
+    auto needName = [](nlohmann::json& r) { r = {{"error", "Snapshot name required"}}; };
+    auto noSnap = [](nlohmann::json& r) { r = {{"error", "SnapshotManager not available"}}; };
+    auto noCMSnap = [](nlohmann::json& r) { r = {{"error", "ChunkManager or SnapshotManager not available"}}; };
+
+    // Clear a world-space region's cubes + subdivisions in chunk-batched form (shared by
+    // restore_snapshot/undo/redo). Returns cubes+subdivisions cleared.
+    auto clearRegion = [this](const glm::ivec3& mn, const glm::ivec3& mx) -> int {
+        int cleared = 0;
+        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+        for (int ix = mn.x; ix <= mx.x; ++ix)
+            for (int iy = mn.y; iy <= mx.y; ++iy)
+                for (int iz = mn.z; iz <= mx.z; ++iz) {
+                    glm::ivec3 wp(ix, iy, iz);
+                    chunkBatches[ChunkManager::worldToChunkCoord(wp)].push_back(ChunkManager::worldToLocalCoord(wp));
+                }
+        for (auto& [cc, positions] : chunkBatches) {
+            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+            if (!chunk) continue;
+            cleared += chunk->removeCubesBatch(positions);
+            for (const auto& p : positions)
+                if (chunk->clearSubdivisionAt(p)) ++cleared;
+        }
+        return cleared;
+    };
+
+    reg.on("create_snapshot", [this, needName, noCMSnap](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (volume > Core::SnapshotManager::MAX_VOLUME) {
+            r = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
+            return;
+        }
+        Core::RegionSnapshot snap;
+        snap.name = name;
+        snap.min = glm::ivec3(minX, minY, minZ);
+        snap.max = glm::ivec3(maxX, maxY, maxZ);
+        snap.size = snap.max - snap.min + glm::ivec3(1);
+        snap.totalVolume = volume;
+        snap.createdAt = std::chrono::system_clock::now();
+        snap.voxels = captureRegionAllLevels(chunkManager, snap.min, snap.max);
+        bool ok = snapshotManager->addSnapshot(snap);
+        if (ok) {
+            r = {{"success", true}, {"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume},
+                 {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}}, {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+            if (gameEventLog) gameEventLog->emit("snapshot_created", {{"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume}});
+        } else {
+            r = {{"error", "Snapshot name already exists or invalid"}, {"name", name}};
+        }
+    });
+
+    reg.on("restore_snapshot", [this, needName, noCMSnap, clearRegion](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        const auto* snap = snapshotManager->getSnapshot(name);
+        if (!snap) { r = {{"error", "Snapshot not found"}, {"name", name}}; return; }
+        int cleared = clearRegion(snap->min, snap->max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, snap->voxels, snap->min);
+        r = {{"success", true}, {"name", name}, {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
+        if (gameEventLog) gameEventLog->emit("snapshot_restored", {{"name", name}, {"cleared", cleared}, {"placed", placed}});
+    });
+
+    reg.on("delete_snapshot", [this, needName, noSnap](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!snapshotManager) return noSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        bool ok = snapshotManager->deleteSnapshot(name);
+        r = {{"success", ok}, {"name", name}};
+    });
+
+    reg.on("undo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        if (!snapshotManager->canUndo()) { r = {{"error", "Nothing to undo"}, {"undo_depth", 0}}; return; }
+        Core::RegionSnapshot before = snapshotManager->popUndo();
+        Core::RegionSnapshot current;
+        current.name = before.name; current.min = before.min; current.max = before.max;
+        current.size = before.size; current.totalVolume = before.totalVolume;
+        current.createdAt = std::chrono::system_clock::now();
+        current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+        clearRegion(before.min, before.max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, before.voxels, before.min);
+        snapshotManager->pushRedo(std::move(current));
+        r = {{"success", true}, {"operation", before.name}, {"restored_voxels", placed}, {"failed", failed},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()}};
+        if (gameEventLog) gameEventLog->emit("undo", {{"operation", before.name}, {"restored", placed}});
+    });
+
+    reg.on("redo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        if (!snapshotManager->canRedo()) { r = {{"error", "Nothing to redo"}, {"redo_depth", 0}}; return; }
+        Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
+        Core::RegionSnapshot current;
+        current.name = redoSnap.name; current.min = redoSnap.min; current.max = redoSnap.max;
+        current.size = redoSnap.size; current.totalVolume = redoSnap.totalVolume;
+        current.createdAt = std::chrono::system_clock::now();
+        current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+        clearRegion(redoSnap.min, redoSnap.max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
+        snapshotManager->pushUndoOnly(std::move(current));
+        r = {{"success", true}, {"operation", redoSnap.name}, {"restored_voxels", placed}, {"failed", failed},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()}};
+        if (gameEventLog) gameEventLog->emit("redo", {{"operation", redoSnap.name}, {"restored", placed}});
+    });
+
+    reg.on("get_undo_status", [this, noSnap](const Core::APICommand&, nlohmann::json& r) {
+        if (!snapshotManager) return noSnap(r);
+        auto undoEntries = snapshotManager->listUndoStack();
+        auto redoEntries = snapshotManager->listRedoStack();
+        auto toArr = [](const auto& entries) {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& e : entries)
+                arr.push_back({{"label", e.label},
+                               {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
+                               {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
+                               {"voxel_count", e.voxelCount}});
+            return arr;
+        };
+        r = {{"can_undo", snapshotManager->canUndo()}, {"can_redo", snapshotManager->canRedo()},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()},
+             {"undo_stack", toArr(undoEntries)}, {"redo_stack", toArr(redoEntries)}};
+    });
+}
+
+// VFX, area-damage, and smooth-lighting toggle commands, migrated from the processAPICommands
+// early-continue region. (cast_spell/cast_test_spell stay inline -- complex anim logic.)
+void Application::registerEffectsCommands() {
+    auto& reg = m_commandRegistry;
+    auto noVfx = [](nlohmann::json& r) { r = {{"error", "VfxSystem not available"}}; };
+
+    reg.on("spawn_vfx", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("spark"));
+        glm::vec3 pos(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        int spawned = renderCoordinator->getVfxSystem()->spawnEffect(effect, pos);
+        r = {{"success", true}, {"effect", effect}, {"spawned", spawned},
+             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+    });
+
+    reg.on("apply_damage", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
+        glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        float radius = cmd.params.value("radius", 4.0f);
+        float energy = cmd.params.value("energy", 400.0f);
+        std::string type = cmd.params.value("type", std::string("force"));
+        glm::vec3 dir(0.0f);
+        if (cmd.params.contains("direction")) {
+            auto d = cmd.params["direction"];
+            dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
+        }
+        float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
+        bool collapse = cmd.params.value("collapse", true);
+        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
+        r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
+             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned}};
+    });
+
+    reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("fireball"));
+        auto from = cmd.params.value("from", nlohmann::json::object());
+        auto to = cmd.params.value("to", nlohmann::json::object());
+        glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+        glm::vec3 target(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castProjectile(effect, origin, target);
+        r = {{"success", true}, {"effect", effect}, {"projectiles", n},
+             {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+             {"to", {{"x", target.x}, {"y", target.y}, {"z", target.z}}}};
+    });
+
+    reg.on("cast_vfx_beam", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("eldritch_blast"));
+        auto from = cmd.params.value("from", nlohmann::json::object());
+        auto to = cmd.params.value("to", nlohmann::json::object());
+        glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+        glm::vec3 target(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castBeam(effect, origin, target);
+        r = {{"success", true}, {"effect", effect}, {"beams", n},
+             {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+             {"to", {{"x", target.x}, {"y", target.y}, {"z", target.z}}}};
+    });
+
+    reg.on("cast_vfx_field", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("shield"));
+        std::string shape = cmd.params.value("shape", std::string(""));
+        glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
+        r = {{"success", true}, {"effect", effect}, {"fields", n},
+             {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}};
+    });
+
+    reg.on("set_smooth_lighting", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
+        if (cmd.params.contains("tolerance"))
+            Graphics::ChunkRenderManager::setMergeTolerance(cmd.params["tolerance"].get<int>());
+        if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        r = {{"success", true}, {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
+             {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
+    });
+}
+
+// Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.
+void Application::registerStoryCommands() {
+    auto& reg = m_commandRegistry;
+    auto noStory = [](nlohmann::json& r) { r = {{"error", "Story engine not initialized"}}; };
+
+    reg.on("story_load_world", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        nlohmann::json def = cmd.params.value("definition", cmd.params);
+        std::string err;
+        if (Story::StoryWorldLoader::loadFromJson(def, *storyEngine, &err))
+            r = {{"success", true}, {"message", "World definition loaded"}};
+        else
+            r = {{"error", err}};
+    });
+
+    reg.on("story_add_character", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::CharacterProfile profile;
+        profile.id = cmd.params.at("id").get<std::string>();
+        profile.name = cmd.params.at("name").get<std::string>();
+        if (cmd.params.contains("faction"))
+            profile.factionId = cmd.params["faction"].get<std::string>();
+        if (cmd.params.contains("agencyLevel"))
+            profile.agencyLevel = static_cast<Story::AgencyLevel>(cmd.params["agencyLevel"].get<int>());
+        if (cmd.params.contains("traits")) {
+            const auto& t = cmd.params["traits"];
+            profile.traits.openness = t.value("openness", 0.5f);
+            profile.traits.conscientiousness = t.value("conscientiousness", 0.5f);
+            profile.traits.extraversion = t.value("extraversion", 0.5f);
+            profile.traits.agreeableness = t.value("agreeableness", 0.5f);
+            profile.traits.neuroticism = t.value("neuroticism", 0.5f);
+        }
+        if (cmd.params.contains("goals")) {
+            for (const auto& gj : cmd.params["goals"]) {
+                Story::CharacterGoal goal;
+                goal.id = gj.at("id").get<std::string>();
+                goal.description = gj.value("description", "");
+                goal.priority = gj.value("priority", 0.5f);
+                profile.goals.push_back(std::move(goal));
+            }
+        }
+        storyEngine->addCharacter(std::move(profile));
+        r = {{"success", true}, {"id", cmd.params["id"]}};
+    });
+
+    reg.on("story_remove_character", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string id = cmd.params.at("id").get<std::string>();
+        bool removed = storyEngine->removeCharacter(id);
+        r = {{"success", removed}, {"id", id}};
+    });
+
+    reg.on("story_trigger_event", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::WorldEvent event;
+        event.type = cmd.params.at("type").get<std::string>();
+        if (cmd.params.contains("data"))
+            event.details = cmd.params["data"];
+        if (cmd.params.contains("location")) {
+            auto loc = cmd.params["location"];
+            if (loc.is_object())
+                event.location = glm::vec3(loc.value("x", 0.0f), loc.value("y", 0.0f), loc.value("z", 0.0f));
+        }
+        if (cmd.params.contains("participants")) {
+            for (const auto& p : cmd.params["participants"])
+                event.participants.push_back(p.get<std::string>());
+        }
+        storyEngine->triggerEvent(std::move(event));
+        r = {{"success", true}};
+    });
+
+    reg.on("story_add_arc", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::StoryArc arc;
+        arc.id = cmd.params.at("id").get<std::string>();
+        arc.name = cmd.params.value("name", arc.id);
+        if (cmd.params.contains("constraintMode"))
+            arc.constraintMode = Story::arcConstraintModeFromString(cmd.params["constraintMode"].get<std::string>());
+        if (cmd.params.contains("beats")) {
+            for (const auto& bj : cmd.params["beats"]) {
+                Story::StoryBeat beat;
+                beat.id = bj.at("id").get<std::string>();
+                beat.description = bj.value("description", "");
+                if (bj.contains("type"))
+                    beat.type = Story::beatTypeFromString(bj["type"].get<std::string>());
+                if (bj.contains("triggerCondition"))
+                    beat.triggerCondition = bj["triggerCondition"].get<std::string>();
+                arc.beats.push_back(std::move(beat));
+            }
+        }
+        if (cmd.params.contains("tensionCurve")) {
+            for (const auto& v : cmd.params["tensionCurve"])
+                arc.tensionCurve.push_back(v.get<float>());
+        }
+        storyEngine->addStoryArc(std::move(arc));
+        r = {{"success", true}, {"id", cmd.params["id"]}};
+    });
+
+    reg.on("story_set_variable", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string name = cmd.params.at("name").get<std::string>();
+        const auto& val = cmd.params.at("value");
+        if (val.is_boolean())
+            storyEngine->getWorldState().setVariable(name, val.get<bool>());
+        else if (val.is_number_integer())
+            storyEngine->getWorldState().setVariable(name, val.get<int>());
+        else if (val.is_number_float())
+            storyEngine->getWorldState().setVariable(name, val.get<float>());
+        else if (val.is_string())
+            storyEngine->getWorldState().setVariable(name, val.get<std::string>());
+        r = {{"success", true}, {"name", name}};
+    });
+
+    reg.on("story_set_agency", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string id = cmd.params.at("id").get<std::string>();
+        int level = cmd.params.at("level").get<int>();
+        bool ok = storyEngine->setAgencyLevel(id, static_cast<Story::AgencyLevel>(level));
+        r = {{"success", ok}, {"id", id}};
+    });
+
+    reg.on("story_add_knowledge", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string charId = cmd.params.at("characterId").get<std::string>();
+        std::string fact = cmd.params.at("fact").get<std::string>();
+        std::string category = cmd.params.value("category", "general");
+        std::string factId = charId + "_api_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        storyEngine->addStartingKnowledge(charId, factId, fact);
+        r = {{"success", true}, {"characterId", charId}, {"factId", factId}};
+    });
+}
+
+// Camera control + named camera-slot commands, migrated from the processAPICommands if-chain.
+// (capture_screenshot stays inline -- it is frame-capture/file I/O, not camera control.)
+void Application::registerCameraCommands() {
+    auto& reg = m_commandRegistry;
+
+    reg.on("set_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("position") && inputManager) {
+            float x = cmd.params["position"].value("x", 0.0f);
+            float y = cmd.params["position"].value("y", 0.0f);
+            float z = cmd.params["position"].value("z", 0.0f);
+            inputManager->setCameraPosition(glm::vec3(x, y, z));
+        }
+        if (cmd.params.contains("yaw") && inputManager) {
+            float yaw = cmd.params.value("yaw", 0.0f);
+            float pitch = cmd.params.value("pitch", 0.0f);
+            inputManager->setYawPitch(yaw, pitch);
+        }
+        bool modeError = false;
+        if (cmd.params.contains("mode") && camera) {
+            const std::string mode = cmd.params.value("mode", "");
+            if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::FirstPerson);
+            } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            } else if (mode == "free" || mode == "Free") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::Free);
+            } else if (Graphics::makeCameraRig(mode)) {
+                gameplayRigOverride_ = mode;
+                if (camera->getMode() == Graphics::CameraMode::Free)
+                    camera->setMode(Graphics::CameraMode::ThirdPerson);
+            } else {
+                r = {{"error", "Unknown camera mode '" + mode +
+                     "' (expected first_person/third_person/free/overhead/isometric)"}};
+                modeError = true;
+            }
+        }
+        if (!modeError && cmd.params.contains("control_scheme")) {
+            const std::string scheme = cmd.params.value("control_scheme", "");
+            if (!cameraCtl_.setSchemeByName(scheme)) {
+                r = {{"error", "Unknown control scheme '" + scheme + "' (expected fps/tank)"}};
+                modeError = true;
+            }
+        }
+        if (!modeError) r = {{"success", true}, {"rig", gameplayRigOverride_}, {"control_scheme", cameraCtl_.schemeName()}};
+    });
+
+    reg.on("create_camera_slot", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("name")) { r = {{"error", "Missing name or CameraManager not available"}}; return; }
+        Graphics::CameraSlot slot;
+        slot.name = cmd.params.value("name", "");
+        if (cmd.params.contains("position")) {
+            slot.position.x = cmd.params["position"].value("x", 0.0f);
+            slot.position.y = cmd.params["position"].value("y", 0.0f);
+            slot.position.z = cmd.params["position"].value("z", 0.0f);
+        }
+        slot.yaw = cmd.params.value("yaw", -90.0f);
+        slot.pitch = cmd.params.value("pitch", 0.0f);
+        int idx = cameraManager->createSlot(slot);
+        r = {{"success", idx >= 0}, {"index", idx}};
+    });
+
+    reg.on("set_active_camera_slot", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("name")) { r = {{"error", "Missing name or CameraManager not available"}}; return; }
+        std::string name = cmd.params.value("name", "");
+        float duration = cmd.params.value("transition_duration", 0.0f);
+        bool ok = (duration > 0.0f) ? cameraManager->transitionToSlot(name, duration) : cameraManager->setActiveSlot(name);
+        r = {{"success", ok}};
+    });
+
+    reg.on("follow_entity_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("slot") || !cmd.params.contains("entity_id")) {
+            r = {{"error", "Missing slot/entity_id or CameraManager not available"}};
+            return;
+        }
+        std::string slotName = cmd.params.value("slot", "");
+        std::string entityId = cmd.params.value("entity_id", "");
+        float distance = cmd.params.value("distance", 5.0f);
+        float height = cmd.params.value("height", 1.5f);
+        bool ok = cameraManager->followEntity(slotName, entityId, distance, height);
+        r = {{"success", ok}};
+    });
+}
+
+// Day/night cycle, ambient light, and audio commands, migrated from the processAPICommands if-chain.
+void Application::registerEnvAudioCommands() {
+    auto& reg = m_commandRegistry;
+    auto noRC = [](nlohmann::json& r) { r = {{"error", "RenderCoordinator not available"}}; };
+    auto noAudio = [](nlohmann::json& r) { r = {{"error", "AudioSystem not available"}}; };
+    auto channelFrom = [](const std::string& s, Core::AudioChannel deflt) {
+        if (s == "Master") return Core::AudioChannel::Master;
+        if (s == "SFX") return Core::AudioChannel::SFX;
+        if (s == "Music") return Core::AudioChannel::Music;
+        if (s == "Voice") return Core::AudioChannel::Voice;
+        return deflt;
+    };
+
+    reg.on("daynight_set", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& cycle = renderCoordinator->getDayNightCycle();
+        if (cmd.params.contains("timeOfDay")) cycle.setTimeOfDay(cmd.params["timeOfDay"].get<float>());
+        if (cmd.params.contains("dayLengthSeconds")) cycle.setDayLengthSeconds(cmd.params["dayLengthSeconds"].get<float>());
+        if (cmd.params.contains("timeScale")) cycle.setTimeScale(cmd.params["timeScale"].get<float>());
+        if (cmd.params.contains("dayNumber")) cycle.setDayNumber(cmd.params["dayNumber"].get<int>());
+        if (cmd.params.contains("enabled")) cycle.setEnabled(cmd.params["enabled"].get<bool>());
+        if (cmd.params.contains("paused")) cycle.setPaused(cmd.params["paused"].get<bool>());
+        r = {{"success", true}, {"daynight", cycle.toJson()}};
+    });
+
+    reg.on("set_ambient", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        float strength = cmd.params.value("strength", 1.0f);
+        renderCoordinator->setAmbientLightStrength(strength);
+        r = {{"success", true}, {"ambient_strength", renderCoordinator->getAmbientLightStrength()}};
+    });
+
+    reg.on("play_sound", [this, noAudio, channelFrom](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!audioSystem) return noAudio(r);
+        std::string file = cmd.params.value("file", "");
+        if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
+        std::string path = "resources/sounds/" + file;
+        float volume = cmd.params.value("volume", 1.0f);
+        Core::AudioChannel channel = channelFrom(cmd.params.value("channel", std::string("SFX")), Core::AudioChannel::SFX);
+        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
+            glm::vec3 pos(cmd.params["x"].get<float>(), cmd.params["y"].get<float>(), cmd.params["z"].get<float>());
+            audioSystem->playSound3D(path, pos, channel, volume);
+            r = {{"success", true}, {"file", file}, {"mode", "3D"},
+                 {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+        } else {
+            audioSystem->playSound(path, channel, volume);
+            r = {{"success", true}, {"file", file}, {"mode", "2D"}};
+        }
+    });
+
+    reg.on("set_volume", [this, noAudio, channelFrom](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!audioSystem) return noAudio(r);
+        std::string channelStr = cmd.params.value("channel", std::string("Master"));
+        float volume = cmd.params.value("volume", 1.0f);
+        audioSystem->setChannelVolume(channelFrom(channelStr, Core::AudioChannel::Master), volume);
+        r = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
+    });
+}
+
+// Read-only profiling commands, migrated from the processAPICommands if-chain.
+void Application::registerProfilingCommands() {
+    auto& reg = m_commandRegistry;
+    reg.on("get_frame_profile", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json prof;
+        if (performanceProfiler) {
+            std::string s = performanceProfiler->dumpFrameToJSON();
+            prof = nlohmann::json::parse(s, nullptr, false);
+            if (prof.is_discarded()) prof = s; // fall back to raw string
+        }
+        r = {{"profile", prof}};
+    });
+    reg.on("get_gpu_scopes", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json arr = nlohmann::json::array();
+        if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
+            for (const auto& s : renderCoordinator->getGpuProfiler()->getResults())
+                arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
+        }
+        r = {{"scopes", arr}};
+    });
+}
+
 void Application::processAPICommands() {
 
     std::vector<Core::APICommand> commands;
@@ -10438,85 +11018,7 @@ void Application::processAPICommands() {
             // clear_ocean/place_spring/clear_springs/water_gpu/set_channel_region/water_save/
             // water_stats) moved to registerWaterCommands() via the CommandRegistry.
 
-            // Per-phase CPU frame profile tree (input/update/render + children) — for perf profiling
-            if (cmd.action == "get_frame_profile") {
-                nlohmann::json prof;
-                if (performanceProfiler) {
-                    std::string s = performanceProfiler->dumpFrameToJSON();
-                    prof = nlohmann::json::parse(s, nullptr, false);
-                    if (prof.is_discarded()) prof = s; // fall back to raw string
-                }
-                response = {{"profile", prof}};
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Per-pass GPU timings (timestamp scopes) — for perf profiling
-            if (cmd.action == "get_gpu_scopes") {
-                nlohmann::json arr = nlohmann::json::array();
-                if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
-                    for (const auto& s : renderCoordinator->getGpuProfiler()->getResults()) {
-                        arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
-                    }
-                }
-                response = {{"scopes", arr}};
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-
-            // Handle VFX commands early (avoids nesting depth limit)
-            if (cmd.action == "spawn_vfx") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("spark"));
-                    glm::vec3 pos(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    int spawned = renderCoordinator->getVfxSystem()->spawnEffect(effect, pos);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"spawned", spawned},
-                        {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-
-            // Apply area destruction damage at a point (P1 destruction core)
-            if (cmd.action == "apply_damage") {
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else {
-                    glm::vec3 center(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    float radius = cmd.params.value("radius", 4.0f);
-                    float energy = cmd.params.value("energy", 400.0f);
-                    std::string type = cmd.params.value("type", std::string("force"));
-                    glm::vec3 dir(0.0f);
-                    if (cmd.params.contains("direction")) {
-                        auto d = cmd.params["direction"];
-                        dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
-                    }
-                    float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
-                    bool collapse = cmd.params.value("collapse", true);
-                    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-                    auto r = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
-                    response = {
-                        {"success", true},
-                        {"broken", r.voxelsBroken},
-                        {"grazed", r.voxelsGrazed},
-                        {"debris", r.debrisSpawned}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
             // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params).
             // When a caster character is available, the cast first plays the spell's
@@ -10683,74 +11185,9 @@ void Application::processAPICommands() {
                 continue;
             }
 
-            // Cast a travelling projectile VFX (Phase 2): from -> to
-            if (cmd.action == "cast_vfx_projectile") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("fireball"));
-                    auto from = cmd.params.value("from", nlohmann::json::object());
-                    auto to   = cmd.params.value("to",   nlohmann::json::object());
-                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
-                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castProjectile(effect, origin, target);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"projectiles", n},
-                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
-                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Fire a sustained beam VFX (Phase 2): from -> to
-            if (cmd.action == "cast_vfx_beam") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("eldritch_blast"));
-                    auto from = cmd.params.value("from", nlohmann::json::object());
-                    auto to   = cmd.params.value("to",   nlohmann::json::object());
-                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
-                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castBeam(effect, origin, target);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"beams", n},
-                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
-                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Raise a sustained field/shell VFX (Phase 2) at a center position
-            if (cmd.action == "cast_vfx_field") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("shield"));
-                    std::string shape  = cmd.params.value("shape", std::string(""));
-                    glm::vec3 center(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"fields", n},
-                        {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
+
 
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
@@ -10995,11 +11432,11 @@ void Application::processAPICommands() {
                 int sz = cmd.params.value("sz", 0);
                 if (chunkManager) {
                     std::string material = cmd.params.value("material", "Default");
-                    LOG_DEBUG("API", "place_subcube: world(%d,%d,%d) sub(%d,%d,%d) mat=%s",
-                              x, y, z, sx, sy, sz, material.c_str());
+                    LOG_DEBUG("API", "place_subcube: world({},{},{}) sub({},{},{}) mat={}",
+                              x, y, z, sx, sy, sz, material);
                     bool ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
                         glm::ivec3(x, y, z), glm::ivec3(sx, sy, sz), material);
-                    LOG_DEBUG("API", "place_subcube result: %s", ok ? "true" : "false");
+                    LOG_DEBUG("API", "place_subcube result: {}", ok ? "true" : "false");
                     response = {{"success", ok},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}},
                                 {"subcube", {{"sx", sx}, {"sy", sy}, {"sz", sz}}}};
@@ -12440,9 +12877,6 @@ void Application::processAPICommands() {
             } else if (cmd.action == "list_structure_types") {
                 response = {{"types", Core::StructureGenerator::getStructureTypes()}};
 
-            } else if (handleDoorCommand(cmd, response, doorManager.get(), placedObjectManager.get())) {
-                // Handled by door helper
-
             } else if (cmd.action == "query_interaction") {
                 // Debug: return current InteractionManager state
                 std::string doorObjId, doorPtId, promptText;
@@ -12479,99 +12913,6 @@ void Application::processAPICommands() {
                 // Debug: trigger interactWithNPC() from API (bypasses keyboard)
                 interactWithNPC();
                 response = {{"success", true}, {"triggered", true}};
-
-            } else if (cmd.action == "set_camera") {
-                if (cmd.params.contains("position") && inputManager) {
-                    float x = cmd.params["position"].value("x", 0.0f);
-                    float y = cmd.params["position"].value("y", 0.0f);
-                    float z = cmd.params["position"].value("z", 0.0f);
-                    inputManager->setCameraPosition(glm::vec3(x, y, z));
-                }
-                if (cmd.params.contains("yaw") && inputManager) {
-                    float yaw = cmd.params.value("yaw", 0.0f);
-                    float pitch = cmd.params.value("pitch", 0.0f);
-                    inputManager->setYawPitch(yaw, pitch);
-                }
-                // Optional camera mode: first_person / third_person / free /
-                // overhead / isometric. The ortho modes set a gameplay-rig
-                // override (the rig owns positioning + projection) and force a
-                // non-Free CameraMode so the gameplay-controller branch runs;
-                // first/third clear the override so V-toggle behavior returns.
-                bool modeError = false;
-                if (cmd.params.contains("mode") && camera) {
-                    const std::string mode = cmd.params.value("mode", "");
-                    if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::FirstPerson);
-                    } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    } else if (mode == "free" || mode == "Free") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::Free);
-                    } else if (Graphics::makeCameraRig(mode)) {
-                        gameplayRigOverride_ = mode;
-                        if (camera->getMode() == Graphics::CameraMode::Free)
-                            camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    } else {
-                        response = {{"error", "Unknown camera mode '" + mode +
-                                     "' (expected first_person/third_person/free/overhead/isometric)"}};
-                        modeError = true;
-                    }
-                }
-                // Optional gameplay control scheme: fps / tank
-                if (!modeError && cmd.params.contains("control_scheme")) {
-                    const std::string scheme = cmd.params.value("control_scheme", "");
-                    if (!cameraCtl_.setSchemeByName(scheme)) {
-                        response = {{"error", "Unknown control scheme '" + scheme +
-                                     "' (expected fps/tank)"}};
-                        modeError = true;
-                    }
-                }
-                if (!modeError) response = {{"success", true},
-                                            {"rig", gameplayRigOverride_},
-                                            {"control_scheme", cameraCtl_.schemeName()}};
-
-            } else if (cmd.action == "create_camera_slot") {
-                if (!cameraManager || !cmd.params.contains("name")) {
-                    response = {{"error", "Missing name or CameraManager not available"}};
-                } else {
-                    Graphics::CameraSlot slot;
-                    slot.name = cmd.params.value("name", "");
-                    if (cmd.params.contains("position")) {
-                        slot.position.x = cmd.params["position"].value("x", 0.0f);
-                        slot.position.y = cmd.params["position"].value("y", 0.0f);
-                        slot.position.z = cmd.params["position"].value("z", 0.0f);
-                    }
-                    slot.yaw = cmd.params.value("yaw", -90.0f);
-                    slot.pitch = cmd.params.value("pitch", 0.0f);
-                    int idx = cameraManager->createSlot(slot);
-                    response = {{"success", idx >= 0}, {"index", idx}};
-                }
-
-            } else if (cmd.action == "set_active_camera_slot") {
-                if (!cameraManager || !cmd.params.contains("name")) {
-                    response = {{"error", "Missing name or CameraManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    float duration = cmd.params.value("transition_duration", 0.0f);
-                    bool ok = (duration > 0.0f)
-                        ? cameraManager->transitionToSlot(name, duration)
-                        : cameraManager->setActiveSlot(name);
-                    response = {{"success", ok}};
-                }
-
-            } else if (cmd.action == "follow_entity_camera") {
-                if (!cameraManager || !cmd.params.contains("slot") || !cmd.params.contains("entity_id")) {
-                    response = {{"error", "Missing slot/entity_id or CameraManager not available"}};
-                } else {
-                    std::string slotName = cmd.params.value("slot", "");
-                    std::string entityId = cmd.params.value("entity_id", "");
-                    float distance = cmd.params.value("distance", 5.0f);
-                    float height = cmd.params.value("height", 1.5f);
-                    bool ok = cameraManager->followEntity(slotName, entityId, distance, height);
-                    response = {{"success", ok}};
-                }
 
             } else if (cmd.action == "capture_screenshot") {
                 // Capture the current frame via RenderCoordinator
@@ -12639,244 +12980,6 @@ void Application::processAPICommands() {
                 } else {
                     scriptingSystem->runCommand(code);
                     response = {{"success", true}, {"executed", code}};
-                }
-
-            // ================================================================
-            // SNAPSHOT COMMANDS
-            // ================================================================
-            } else if (cmd.action == "create_snapshot") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
-                        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
-                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
-                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
-                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
-                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-                        if (volume > Core::SnapshotManager::MAX_VOLUME) {
-                            response = {{"error", "Region too large"}, {"volume", volume},
-                                        {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
-                        } else {
-                            Core::RegionSnapshot snap;
-                            snap.name = name;
-                            snap.min = glm::ivec3(minX, minY, minZ);
-                            snap.max = glm::ivec3(maxX, maxY, maxZ);
-                            snap.size = snap.max - snap.min + glm::ivec3(1);
-                            snap.totalVolume = volume;
-                            snap.createdAt = std::chrono::system_clock::now();
-                            snap.voxels = captureRegionAllLevels(chunkManager, snap.min, snap.max);
-                            bool ok = snapshotManager->addSnapshot(snap);
-                            if (ok) {
-                                response = {{"success", true}, {"name", name},
-                                            {"voxel_count", snap.voxels.size()}, {"volume", volume},
-                                            {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                            {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
-                                if (gameEventLog) {
-                                    gameEventLog->emit("snapshot_created", {
-                                        {"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume}});
-                                }
-                            } else {
-                                response = {{"error", "Snapshot name already exists or invalid"}, {"name", name}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "restore_snapshot") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        const auto* snap = snapshotManager->getSnapshot(name);
-                        if (!snap) {
-                            response = {{"error", "Snapshot not found"}, {"name", name}};
-                        } else {
-                            // Clear the original region first (cubes + subcubes/microcubes)
-                            int cleared = 0;
-                            {
-                                std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                                for (int ix = snap->min.x; ix <= snap->max.x; ++ix)
-                                    for (int iy = snap->min.y; iy <= snap->max.y; ++iy)
-                                        for (int iz = snap->min.z; iz <= snap->max.z; ++iz) {
-                                            glm::ivec3 wp(ix, iy, iz);
-                                            chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                                .push_back(ChunkManager::worldToLocalCoord(wp));
-                                        }
-                                for (auto& [cc, positions] : chunkBatches) {
-                                    Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                                    if (!chunk) continue;
-                                    cleared += chunk->removeCubesBatch(positions);
-                                    for (const auto& p : positions)
-                                        if (chunk->clearSubdivisionAt(p)) ++cleared;
-                                }
-                            }
-                            // Restore voxels from snapshot
-                            auto [placed, failed] = placeVoxelEntries(chunkManager, snap->voxels, snap->min);
-                            response = {{"success", true}, {"name", name},
-                                        {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
-                            if (gameEventLog) {
-                                gameEventLog->emit("snapshot_restored", {
-                                    {"name", name}, {"cleared", cleared}, {"placed", placed}});
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "delete_snapshot") {
-                if (!snapshotManager) {
-                    response = {{"error", "SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        bool ok = snapshotManager->deleteSnapshot(name);
-                        response = {{"success", ok}, {"name", name}};
-                    }
-                }
-
-            // ================================================================
-            // UNDO / REDO
-            // ================================================================
-            } else if (cmd.action == "undo") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else if (!snapshotManager->canUndo()) {
-                    response = {{"error", "Nothing to undo"}, {"undo_depth", 0}};
-                } else {
-                    // 1. Pop the "before" snapshot from the undo stack
-                    Core::RegionSnapshot before = snapshotManager->popUndo();
-
-                    // 2. Capture current state of that region for redo
-                    Core::RegionSnapshot current;
-                    current.name = before.name;
-                    current.min = before.min;
-                    current.max = before.max;
-                    current.size = before.size;
-                    current.totalVolume = before.totalVolume;
-                    current.createdAt = std::chrono::system_clock::now();
-                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
-
-                    // 3. Clear the region
-                    {
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = before.min.x; ix <= before.max.x; ++ix)
-                            for (int iy = before.min.y; iy <= before.max.y; ++iy)
-                                for (int iz = before.min.z; iz <= before.max.z; ++iz) {
-                                    glm::ivec3 wp(ix, iy, iz);
-                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                        .push_back(ChunkManager::worldToLocalCoord(wp));
-                                }
-                        for (auto& [cc, positions] : chunkBatches) {
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) continue;
-                            chunk->removeCubesBatch(positions);
-                            for (const auto& p : positions)
-                                chunk->clearSubdivisionAt(p);
-                        }
-                    }
-
-                    // 4. Restore the "before" state
-                    auto [placed, failed] = placeVoxelEntries(chunkManager, before.voxels, before.min);
-
-                    // 5. Push current state to redo (manual push since popUndo already locked/unlocked)
-                    snapshotManager->pushRedo(std::move(current));
-
-                    response = {{"success", true}, {"operation", before.name},
-                                {"restored_voxels", placed}, {"failed", failed},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()}};
-                    if (gameEventLog) {
-                        gameEventLog->emit("undo", {{"operation", before.name}, {"restored", placed}});
-                    }
-                }
-
-            } else if (cmd.action == "redo") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else if (!snapshotManager->canRedo()) {
-                    response = {{"error", "Nothing to redo"}, {"redo_depth", 0}};
-                } else {
-                    Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
-
-                    // Capture current state for undo
-                    Core::RegionSnapshot current;
-                    current.name = redoSnap.name;
-                    current.min = redoSnap.min;
-                    current.max = redoSnap.max;
-                    current.size = redoSnap.size;
-                    current.totalVolume = redoSnap.totalVolume;
-                    current.createdAt = std::chrono::system_clock::now();
-                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
-
-                    // Clear the region
-                    {
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = redoSnap.min.x; ix <= redoSnap.max.x; ++ix)
-                            for (int iy = redoSnap.min.y; iy <= redoSnap.max.y; ++iy)
-                                for (int iz = redoSnap.min.z; iz <= redoSnap.max.z; ++iz) {
-                                    glm::ivec3 wp(ix, iy, iz);
-                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                        .push_back(ChunkManager::worldToLocalCoord(wp));
-                                }
-                        for (auto& [cc, positions] : chunkBatches) {
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) continue;
-                            chunk->removeCubesBatch(positions);
-                            for (const auto& p : positions)
-                                chunk->clearSubdivisionAt(p);
-                        }
-                    }
-
-                    // Restore the redo state
-                    auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
-
-                    // Push current to undo (without clearing redo  --  special push)
-                    snapshotManager->pushUndoOnly(std::move(current));
-
-                    response = {{"success", true}, {"operation", redoSnap.name},
-                                {"restored_voxels", placed}, {"failed", failed},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()}};
-                    if (gameEventLog) {
-                        gameEventLog->emit("redo", {{"operation", redoSnap.name}, {"restored", placed}});
-                    }
-                }
-
-            } else if (cmd.action == "get_undo_status") {
-                if (!snapshotManager) {
-                    response = {{"error", "SnapshotManager not available"}};
-                } else {
-                    auto undoEntries = snapshotManager->listUndoStack();
-                    auto redoEntries = snapshotManager->listRedoStack();
-                    nlohmann::json undoArr = nlohmann::json::array();
-                    for (const auto& e : undoEntries) {
-                        undoArr.push_back({{"label", e.label},
-                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
-                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
-                                           {"voxel_count", e.voxelCount}});
-                    }
-                    nlohmann::json redoArr = nlohmann::json::array();
-                    for (const auto& e : redoEntries) {
-                        redoArr.push_back({{"label", e.label},
-                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
-                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
-                                           {"voxel_count", e.voxelCount}});
-                    }
-                    response = {{"can_undo", snapshotManager->canUndo()},
-                                {"can_redo", snapshotManager->canRedo()},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()},
-                                {"undo_stack", undoArr},
-                                {"redo_stack", redoArr}};
                 }
 
             // ================================================================
@@ -13662,154 +13765,6 @@ void Application::processAPICommands() {
                 response = {{"files", files}};
 
             // ================================================================
-            // Story System Commands
-            // ================================================================
-            } else if (cmd.action == "story_load_world") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    nlohmann::json def = cmd.params.value("definition", cmd.params);
-                    std::string err;
-                    if (Story::StoryWorldLoader::loadFromJson(def, *storyEngine, &err)) {
-                        response = {{"success", true}, {"message", "World definition loaded"}};
-                    } else {
-                        response = {{"error", err}};
-                    }
-                }
-
-            } else if (cmd.action == "story_add_character") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::CharacterProfile profile;
-                    profile.id = cmd.params.at("id").get<std::string>();
-                    profile.name = cmd.params.at("name").get<std::string>();
-                    if (cmd.params.contains("faction"))
-                        profile.factionId = cmd.params["faction"].get<std::string>();
-                    if (cmd.params.contains("agencyLevel"))
-                        profile.agencyLevel = static_cast<Story::AgencyLevel>(cmd.params["agencyLevel"].get<int>());
-                    if (cmd.params.contains("traits")) {
-                        const auto& t = cmd.params["traits"];
-                        profile.traits.openness = t.value("openness", 0.5f);
-                        profile.traits.conscientiousness = t.value("conscientiousness", 0.5f);
-                        profile.traits.extraversion = t.value("extraversion", 0.5f);
-                        profile.traits.agreeableness = t.value("agreeableness", 0.5f);
-                        profile.traits.neuroticism = t.value("neuroticism", 0.5f);
-                    }
-                    if (cmd.params.contains("goals")) {
-                        for (const auto& gj : cmd.params["goals"]) {
-                            Story::CharacterGoal goal;
-                            goal.id = gj.at("id").get<std::string>();
-                            goal.description = gj.value("description", "");
-                            goal.priority = gj.value("priority", 0.5f);
-                            profile.goals.push_back(std::move(goal));
-                        }
-                    }
-                    storyEngine->addCharacter(std::move(profile));
-                    response = {{"success", true}, {"id", cmd.params["id"]}};
-                }
-
-            } else if (cmd.action == "story_remove_character") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string id = cmd.params.at("id").get<std::string>();
-                    bool removed = storyEngine->removeCharacter(id);
-                    response = {{"success", removed}, {"id", id}};
-                }
-
-            } else if (cmd.action == "story_trigger_event") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::WorldEvent event;
-                    event.type = cmd.params.at("type").get<std::string>();
-                    if (cmd.params.contains("data"))
-                        event.details = cmd.params["data"];
-                    if (cmd.params.contains("location")) {
-                        auto loc = cmd.params["location"];
-                        if (loc.is_object())
-                            event.location = glm::vec3(loc.value("x", 0.0f), loc.value("y", 0.0f), loc.value("z", 0.0f));
-                    }
-                    if (cmd.params.contains("participants")) {
-                        for (const auto& p : cmd.params["participants"])
-                            event.participants.push_back(p.get<std::string>());
-                    }
-                    storyEngine->triggerEvent(std::move(event));
-                    response = {{"success", true}};
-                }
-
-            } else if (cmd.action == "story_add_arc") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::StoryArc arc;
-                    arc.id = cmd.params.at("id").get<std::string>();
-                    arc.name = cmd.params.value("name", arc.id);
-                    if (cmd.params.contains("constraintMode")) {
-                        arc.constraintMode = Story::arcConstraintModeFromString(
-                            cmd.params["constraintMode"].get<std::string>());
-                    }
-                    if (cmd.params.contains("beats")) {
-                        for (const auto& bj : cmd.params["beats"]) {
-                            Story::StoryBeat beat;
-                            beat.id = bj.at("id").get<std::string>();
-                            beat.description = bj.value("description", "");
-                            if (bj.contains("type"))
-                                beat.type = Story::beatTypeFromString(bj["type"].get<std::string>());
-                            if (bj.contains("triggerCondition"))
-                                beat.triggerCondition = bj["triggerCondition"].get<std::string>();
-                            arc.beats.push_back(std::move(beat));
-                        }
-                    }
-                    if (cmd.params.contains("tensionCurve")) {
-                        for (const auto& v : cmd.params["tensionCurve"])
-                            arc.tensionCurve.push_back(v.get<float>());
-                    }
-                    storyEngine->addStoryArc(std::move(arc));
-                    response = {{"success", true}, {"id", cmd.params["id"]}};
-                }
-
-            } else if (cmd.action == "story_set_variable") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string name = cmd.params.at("name").get<std::string>();
-                    const auto& val = cmd.params.at("value");
-                    if (val.is_boolean())
-                        storyEngine->getWorldState().setVariable(name, val.get<bool>());
-                    else if (val.is_number_integer())
-                        storyEngine->getWorldState().setVariable(name, val.get<int>());
-                    else if (val.is_number_float())
-                        storyEngine->getWorldState().setVariable(name, val.get<float>());
-                    else if (val.is_string())
-                        storyEngine->getWorldState().setVariable(name, val.get<std::string>());
-                    response = {{"success", true}, {"name", name}};
-                }
-
-            } else if (cmd.action == "story_set_agency") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string id = cmd.params.at("id").get<std::string>();
-                    int level = cmd.params.at("level").get<int>();
-                    bool ok = storyEngine->setAgencyLevel(id, static_cast<Story::AgencyLevel>(level));
-                    response = {{"success", ok}, {"id", id}};
-                }
-
-            } else if (cmd.action == "story_add_knowledge") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string charId = cmd.params.at("characterId").get<std::string>();
-                    std::string fact = cmd.params.at("fact").get<std::string>();
-                    std::string category = cmd.params.value("category", "general");
-                    std::string factId = charId + "_api_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-                    storyEngine->addStartingKnowledge(charId, factId, fact);
-                    response = {{"success", true}, {"characterId", charId}, {"factId", factId}};
-                }
-
-            // ================================================================
             // GAME DEFINITION (AI Game Development)
             // ================================================================
 
@@ -14152,224 +14107,6 @@ void Application::processAPICommands() {
                     bool creative = cmd.params.value("enabled", true);
                     inventory->setCreativeMode(creative);
                     response = {{"success", true}, {"creative", creative}};
-                }
-
-            // ================================================================
-            // DAY/NIGHT CYCLE COMMANDS
-            // ================================================================
-            } else if (cmd.action == "daynight_set") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& cycle = renderCoordinator->getDayNightCycle();
-                    if (cmd.params.contains("timeOfDay")) {
-                        cycle.setTimeOfDay(cmd.params["timeOfDay"].get<float>());
-                    }
-                    if (cmd.params.contains("dayLengthSeconds")) {
-                        cycle.setDayLengthSeconds(cmd.params["dayLengthSeconds"].get<float>());
-                    }
-                    if (cmd.params.contains("timeScale")) {
-                        cycle.setTimeScale(cmd.params["timeScale"].get<float>());
-                    }
-                    if (cmd.params.contains("dayNumber")) {
-                        cycle.setDayNumber(cmd.params["dayNumber"].get<int>());
-                    }
-                    if (cmd.params.contains("enabled")) {
-                        cycle.setEnabled(cmd.params["enabled"].get<bool>());
-                    }
-                    if (cmd.params.contains("paused")) {
-                        cycle.setPaused(cmd.params["paused"].get<bool>());
-                    }
-                    response = {{"success", true}, {"daynight", cycle.toJson()}};
-                }
-
-            // ================================================================
-            // LIGHTING COMMANDS
-            // ================================================================
-            } else if (cmd.action == "add_point_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    Graphics::PointLight pl;
-                    pl.position = glm::vec3(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    if (cmd.params.contains("color")) {
-                        pl.color = glm::vec3(
-                            cmd.params["color"].value("r", 1.0f),
-                            cmd.params["color"].value("g", 1.0f),
-                            cmd.params["color"].value("b", 1.0f));
-                    }
-                    pl.intensity = cmd.params.value("intensity", 1.0f);
-                    pl.radius = cmd.params.value("radius", 10.0f);
-                    pl.enabled = cmd.params.value("enabled", true);
-                    int id = lm.addPointLight(pl);
-                    if (id >= 0) {
-                        response = {{"success", true}, {"id", id}, {"type", "point"}};
-                    } else {
-                        response = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
-                    }
-                }
-
-            } else if (cmd.action == "add_spot_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    Graphics::SpotLight sl;
-                    sl.position = glm::vec3(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    sl.direction = glm::vec3(
-                        cmd.params.value("dx", 0.0f),
-                        cmd.params.value("dy", -1.0f),
-                        cmd.params.value("dz", 0.0f));
-                    if (cmd.params.contains("color")) {
-                        sl.color = glm::vec3(
-                            cmd.params["color"].value("r", 1.0f),
-                            cmd.params["color"].value("g", 1.0f),
-                            cmd.params["color"].value("b", 1.0f));
-                    }
-                    sl.intensity = cmd.params.value("intensity", 1.0f);
-                    sl.radius = cmd.params.value("radius", 20.0f);
-                    sl.innerCone = cmd.params.value("inner_cone", 0.9f);
-                    sl.outerCone = cmd.params.value("outer_cone", 0.8f);
-                    sl.enabled = cmd.params.value("enabled", true);
-                    int id = lm.addSpotLight(sl);
-                    if (id >= 0) {
-                        response = {{"success", true}, {"id", id}, {"type", "spot"}};
-                    } else {
-                        response = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
-                    }
-                }
-
-            } else if (cmd.action == "remove_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    int lightId = cmd.params.value("id", -1);
-                    if (lightId < 0) {
-                        response = {{"error", "Missing 'id' field"}};
-                    } else {
-                        bool ok = renderCoordinator->getLightManager().removeLight(lightId);
-                        response = {{"success", ok}, {"id", lightId}};
-                    }
-                }
-
-            } else if (cmd.action == "update_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    int lightId = cmd.params.value("id", -1);
-                    if (lightId < 0) {
-                        response = {{"error", "Missing 'id' field"}};
-                    } else {
-                        // Try point light first
-                        const auto* pl = lm.getPointLight(lightId);
-                        if (pl) {
-                            Graphics::PointLight updated = *pl;
-                            if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
-                            if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
-                            if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
-                            if (cmd.params.contains("color")) {
-                                updated.color = glm::vec3(
-                                    cmd.params["color"].value("r", updated.color.r),
-                                    cmd.params["color"].value("g", updated.color.g),
-                                    cmd.params["color"].value("b", updated.color.b));
-                            }
-                            if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
-                            if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
-                            if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
-                            lm.updatePointLight(lightId, updated);
-                            response = {{"success", true}, {"id", lightId}, {"type", "point"}};
-                        } else {
-                            const auto* sl = lm.getSpotLight(lightId);
-                            if (sl) {
-                                Graphics::SpotLight updated = *sl;
-                                if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
-                                if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
-                                if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
-                                if (cmd.params.contains("dx")) updated.direction.x = cmd.params["dx"].get<float>();
-                                if (cmd.params.contains("dy")) updated.direction.y = cmd.params["dy"].get<float>();
-                                if (cmd.params.contains("dz")) updated.direction.z = cmd.params["dz"].get<float>();
-                                if (cmd.params.contains("color")) {
-                                    updated.color = glm::vec3(
-                                        cmd.params["color"].value("r", updated.color.r),
-                                        cmd.params["color"].value("g", updated.color.g),
-                                        cmd.params["color"].value("b", updated.color.b));
-                                }
-                                if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
-                                if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
-                                if (cmd.params.contains("inner_cone")) updated.innerCone = cmd.params["inner_cone"].get<float>();
-                                if (cmd.params.contains("outer_cone")) updated.outerCone = cmd.params["outer_cone"].get<float>();
-                                if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
-                                lm.updateSpotLight(lightId, updated);
-                                response = {{"success", true}, {"id", lightId}, {"type", "spot"}};
-                            } else {
-                                response = {{"error", "Light not found"}, {"id", lightId}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "set_ambient") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    float strength = cmd.params.value("strength", 1.0f);
-                    renderCoordinator->setAmbientLightStrength(strength);
-                    response = {{"success", true}, {"ambient_strength", renderCoordinator->getAmbientLightStrength()}};
-                }
-
-            // ================================================================
-            // AUDIO COMMANDS
-            // ================================================================
-            } else if (cmd.action == "play_sound") {
-                if (!audioSystem) {
-                    response = {{"error", "AudioSystem not available"}};
-                } else {
-                    std::string file = cmd.params.value("file", "");
-                    if (file.empty()) {
-                        response = {{"error", "Missing 'file' field"}};
-                    } else {
-                        std::string path = "resources/sounds/" + file;
-                        float volume = cmd.params.value("volume", 1.0f);
-                        std::string channelStr = cmd.params.value("channel", "SFX");
-                        Core::AudioChannel channel = Core::AudioChannel::SFX;
-                        if (channelStr == "Master") channel = Core::AudioChannel::Master;
-                        else if (channelStr == "Music") channel = Core::AudioChannel::Music;
-                        else if (channelStr == "Voice") channel = Core::AudioChannel::Voice;
-
-                        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
-                            glm::vec3 pos(cmd.params["x"].get<float>(),
-                                          cmd.params["y"].get<float>(),
-                                          cmd.params["z"].get<float>());
-                            audioSystem->playSound3D(path, pos, channel, volume);
-                            response = {{"success", true}, {"file", file}, {"mode", "3D"},
-                                        {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
-                        } else {
-                            audioSystem->playSound(path, channel, volume);
-                            response = {{"success", true}, {"file", file}, {"mode", "2D"}};
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "set_volume") {
-                if (!audioSystem) {
-                    response = {{"error", "AudioSystem not available"}};
-                } else {
-                    std::string channelStr = cmd.params.value("channel", "Master");
-                    float volume = cmd.params.value("volume", 1.0f);
-                    Core::AudioChannel channel = Core::AudioChannel::Master;
-                    if (channelStr == "SFX") channel = Core::AudioChannel::SFX;
-                    else if (channelStr == "Music") channel = Core::AudioChannel::Music;
-                    else if (channelStr == "Voice") channel = Core::AudioChannel::Voice;
-                    audioSystem->setChannelVolume(channel, volume);
-                    response = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
                 }
 
             } else if (cmd.action == "job_submit") {
@@ -16111,7 +15848,9 @@ void Application::renderAnimEditorUI() {
             //
             // The simplest correct approach: maintain our own copy of the original model.
             // We'll use a lazy-initialized "original model" cache.
-            static std::map<int, Phyxel::VoxelModel> s_originalModels;
+            // Key by the full pointer width — an int key truncates the 64-bit pointer and
+            // two characters can collide on the low 32 bits.
+            static std::map<intptr_t, Phyxel::VoxelModel> s_originalModels;
             auto charKey = (intptr_t)m_animEditorChar;
             if (s_originalModels.find(charKey) == s_originalModels.end()) {
                 s_originalModels[charKey] = m_animEditorChar->getVoxelModel();

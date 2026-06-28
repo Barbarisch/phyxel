@@ -11,9 +11,16 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm>
+#include <deque>
 
 namespace Phyxel {
 namespace Graphics {
+
+// Smooth-lighting globals (see header). Default: smooth ON, tolerance 0 (pure smooth — no snapping,
+// so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
+// as an opt-in perf lever; the default prioritizes look.
+bool ChunkRenderManager::s_smoothLighting = true;
+int  ChunkRenderManager::s_mergeTolerance = 0;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
@@ -68,28 +75,73 @@ void ChunkRenderManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     renderBuffer = ChunkRenderBuffer(device, physicalDevice);
 }
 
+uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
+    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
+        if (m_skyLight.empty()) return 15;
+        return m_skyLight[static_cast<size_t>(z + y * 32 + x * 1024)];
+    }
+    // Out-of-chunk: read the neighbour chunk's baked light if available, else assume open sky.
+    if (m_neighborLight) {
+        BakedLight nl;
+        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), nl)) return nl.sky;
+    }
+    return 15;
+}
+
+void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const {
+    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
+        if (m_blockR.empty()) { r = g = b = 0; return; }
+        size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
+        r = m_blockR[i]; g = m_blockG[i]; b = m_blockB[i];
+        return;
+    }
+    // Out-of-chunk: read the neighbour chunk's baked block colour if available, else none.
+    r = g = b = 0;
+    if (m_neighborLight) {
+        BakedLight nl;
+        if (m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), nl)) { r = nl.r; g = nl.g; b = nl.b; }
+    }
+}
+
+bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) const {
+    if (m_skyLight.empty() || m_blockR.empty()) return false;
+    if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
+    size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
+    out.sky = m_skyLight[i];
+    out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
+    return true;
+}
+
 void ChunkRenderManager::rebuildAllFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
     const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
-    const NeighborLookupFunc& getNeighborCube)
+    const NeighborLookupFunc& getNeighborCube,
+    const NeighborLightFunc& getNeighborLight,
+    const std::vector<uint8_t>* columnOpenMask)
 {
     faces.clear();
-    
+
+    // Make the cross-chunk light lookup available to skyLightAt/blockLightAt + the BFS seeding.
+    m_neighborLight = getNeighborLight;
+    m_lightWorldOrigin = worldOrigin;
+
     // Rebuild faces for each voxel type
-    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube);
+    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, columnOpenMask);
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
-    
+
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;
+    m_neighborLight = nullptr;  // don't hold the closure past the rebuild
 }
 
 void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
     const glm::ivec3& worldOrigin,
-    const NeighborLookupFunc& getNeighborCube)
+    const NeighborLookupFunc& getNeighborCube,
+    const std::vector<uint8_t>* columnOpenMask)
 {
     // Greedy meshing for cube faces: merge coplanar, same-material visible faces into
     // rectangles, emitting one sized instance per rectangle (packCubeFaceDataSized)
@@ -99,11 +151,19 @@ void ChunkRenderManager::rebuildCubeFaces(
     auto cellIdx = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
 
     // Per-material face textures + flags (computed once per distinct material in chunk).
-    struct MatFace { uint16_t tex[6]; uint16_t reserved; };
+    // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
+    // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
-    std::vector<uint8_t> solidVis(N * N * N, 0);  // 1 = a visible cube occupies the cell
-    std::vector<int>     cellMat(N * N * N, -1);  // index into matFaces
+    // Reused member scratch buffers (.assign re-zeros without reallocating once warm) — avoids
+    // a per-rebuild heap alloc/free of these three N^3 arrays. See header m_solidVis/m_cellMat/m_cellDamage.
+    m_solidVis.assign(N * N * N, 0);   // 1 = a visible cube occupies the cell
+    m_cellMat.assign(N * N * N, -1);   // index into matFaces
+    m_cellDamage.assign(N * N * N, 0); // quantized 0-15 voxel damage (roughness driver)
+    std::vector<uint8_t>& solidVis   = m_solidVis;
+    std::vector<int>&     cellMat    = m_cellMat;
+    std::vector<uint8_t>& cellDamage = m_cellDamage;
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     for (size_t ci = 0; ci < cubes.size(); ++ci) {
@@ -113,6 +173,15 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
+        // Per-voxel accumulated damage (DamageSystem) -> 0..15 for shader roughness modulation.
+        // kDamageRef = energy at which a voxel reads as fully worn (prototype constant; a proper
+        // version would normalise by the material's break toughness).
+        {
+            constexpr float kDamageRef = 30.0f;
+            float f = cube->getAccumulatedDamage() / kDamageRef;
+            f = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+            cellDamage[cell] = static_cast<uint8_t>(f * 15.0f + 0.5f);
+        }
         const std::string& mname = cube->getMaterialName();
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
@@ -125,6 +194,17 @@ void ChunkRenderManager::rebuildCubeFaces(
             uint16_t qa = tr ? static_cast<uint16_t>(md->alpha * 255.0f) : 255u;
             mf.reserved = static_cast<uint16_t>((em ? 1u : 0u) | (tr ? 2u : 0u) |
                                                 (qa << 2u) | (mi ? (1u << 10) : 0u));
+            // Emissive light colour from the material tint, normalised so the brightest channel
+            // emits at full range (15) and the hue is preserved.
+            mf.emR = mf.emG = mf.emB = 0;
+            if (em && md) {
+                glm::vec3 t = md->physics.colorTint;
+                float mx = std::max(t.x, std::max(t.y, std::max(t.z, 0.0001f)));
+                float s = 15.0f / mx;
+                mf.emR = static_cast<uint8_t>(glm::clamp(t.x * s, 0.0f, 15.0f) + 0.5f);
+                mf.emG = static_cast<uint8_t>(glm::clamp(t.y * s, 0.0f, 15.0f) + 0.5f);
+                mf.emB = static_cast<uint8_t>(glm::clamp(t.z * s, 0.0f, 15.0f) + 0.5f);
+            }
             int newId = static_cast<int>(matFaces.size());
             matFaces.push_back(mf);
             matIdByName[mname] = newId;
@@ -132,6 +212,169 @@ void ChunkRenderManager::rebuildCubeFaces(
         } else {
             cellMat[cell] = it->second;
         }
+    }
+
+    // --- Baked skylight (Phase 1, per-chunk) ---
+    // Air cells open to the top of the chunk receive full sky (15) straight down through air
+    // (lossless), then light spreads to neighbouring air cells at -1 per step via BFS. Air that
+    // can't reach a source (a sealed room) stays 0 -> genuinely dark interiors. Boundaries fall
+    // back to open sky in skyLightAt(); cross-chunk bleed is a later phase.
+    m_skyLight.assign(N * N * N, 0);
+    {
+        std::deque<int> q;
+        // Is the world directly above this column's chunk-top open to the sky? We can't assume
+        // the chunk top (y=31) is exposed — a structure's roof often lives in the chunk ABOVE
+        // (e.g. a room ceiling at world y=32). Walk upward through neighbouring chunks; if any
+        // opaque cube is found the column is roofed, so its top air must NOT be seeded as sky
+        // (BFS will instead light it through windows/holes). Without a neighbour lookup we fall
+        // back to assuming open (correct for single-chunk content like a freestanding box).
+        constexpr int kSkyProbeHeight = 96;  // ~3 chunks; enough for typical buildings
+        // Fast path: the caller precomputed which columns are open to the sky (from the chunks
+        // above) — an O(1) lookup instead of probing ~96 cells per column. Fallback (no mask):
+        // the original per-cell getNeighborCube probe.
+        auto columnOpenAbove = [&](int x, int z) -> bool {
+            if (columnOpenMask) return (*columnOpenMask)[x * 32 + z] != 0;
+            if (!getNeighborCube) return true;
+            for (int wy = N; wy < N + kSkyProbeHeight; ++wy) {
+                const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, wy, z));
+                if (nc && nc->isVisible()) return false;  // roofed somewhere above
+            }
+            return true;
+        };
+        // Column seed: from the top, full sky straight down through air until the first solid —
+        // but only for columns actually exposed to the sky above the chunk.
+        for (int x = 0; x < N; ++x) {
+            for (int z = 0; z < N; ++z) {
+                if (!columnOpenAbove(x, z)) continue;  // roofed: no direct sky into this column
+                for (int y = N - 1; y >= 0; --y) {
+                    int cell = cellIdx(x, y, z);
+                    if (solidVis[cell]) break;  // blocked: cells below are not direct sky
+                    m_skyLight[cell] = 15;
+                    q.push_back(cell);
+                }
+            }
+        }
+        // Cross-chunk seed: pull skylight in from neighbouring chunks across the 6 boundary planes
+        // so light bleeds across chunk seams (e.g. an opening/window in the adjacent chunk).
+        if (m_neighborLight) {
+            auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
+                int cell = cellIdx(x, y, z);
+                if (solidVis[cell]) return;
+                BakedLight nl;
+                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl) && nl.sky > 1) {
+                    uint8_t v = static_cast<uint8_t>(nl.sky - 1);
+                    if (m_skyLight[cell] < v) { m_skyLight[cell] = v; q.push_back(cell); }
+                }
+            };
+            for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
+                seed(0, a, b, -1, 0, 0); seed(N - 1, a, b, 1, 0, 0);
+                seed(a, 0, b, 0, -1, 0); seed(a, N - 1, b, 0, 1, 0);
+                seed(a, b, 0, 0, 0, -1); seed(a, b, N - 1, 0, 0, 1);
+            }
+        }
+        // BFS relaxation: spread to air neighbours at -1 per step.
+        const int ndx[6] = {1, -1, 0, 0, 0, 0};
+        const int ndy[6] = {0, 0, 1, -1, 0, 0};
+        const int ndz[6] = {0, 0, 0, 0, 1, -1};
+        while (!q.empty()) {
+            int cell = q.front(); q.pop_front();
+            int level = m_skyLight[cell];
+            if (level <= 1) continue;
+            int cz = cell % 32;
+            int cy = (cell / 32) % 32;
+            int cx = cell / 1024;
+            for (int d = 0; d < 6; ++d) {
+                int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
+                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
+                int ncell = cellIdx(nx, ny, nz);
+                if (solidVis[ncell]) continue;  // opaque blocks light
+                uint8_t nl = static_cast<uint8_t>(level - 1);
+                if (m_skyLight[ncell] < nl) {
+                    m_skyLight[ncell] = nl;
+                    q.push_back(ncell);
+                }
+            }
+        }
+    }
+
+    // --- Baked coloured block light (Phase 2 + colour + cross-chunk bleed) ---
+    // Emissive voxels flood-fill light into surrounding air at -1 per step (per RGB channel),
+    // blocked by opaque voxels, tinted by each material's colour, AND bleeding in from emissive
+    // sources in neighbouring chunks via the boundary seed. So a glow block lights its room warm,
+    // a blue crystal lights it blue, even across a chunk seam.
+    m_blockR.assign(N * N * N, 0);
+    m_blockG.assign(N * N * N, 0);
+    m_blockB.assign(N * N * N, 0);
+    {
+        std::deque<int> q;
+        auto bump = [&](int cell, uint8_t r, uint8_t g, uint8_t b) {
+            bool up = false;
+            if (m_blockR[cell] < r) { m_blockR[cell] = r; up = true; }
+            if (m_blockG[cell] < g) { m_blockG[cell] = g; up = true; }
+            if (m_blockB[cell] < b) { m_blockB[cell] = b; up = true; }
+            if (up) q.push_back(cell);
+        };
+        for (int cell = 0; cell < N * N * N; ++cell) {
+            int m = cellMat[cell];
+            if (m >= 0 && (matFaces[m].reserved & 1u)) {  // emissive flag (reserved bit 0)
+                bump(cell, matFaces[m].emR, matFaces[m].emG, matFaces[m].emB);
+            }
+        }
+        // Cross-chunk seed from neighbouring chunks' baked block colour across the 6 boundary planes.
+        if (m_neighborLight) {
+            auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
+                int cell = cellIdx(x, y, z);
+                if (solidVis[cell]) return;
+                BakedLight nl;
+                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl)) {
+                    bump(cell, nl.r > 0 ? nl.r - 1 : 0, nl.g > 0 ? nl.g - 1 : 0, nl.b > 0 ? nl.b - 1 : 0);
+                }
+            };
+            for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
+                seed(0, a, b, -1, 0, 0); seed(N - 1, a, b, 1, 0, 0);
+                seed(a, 0, b, 0, -1, 0); seed(a, N - 1, b, 0, 1, 0);
+                seed(a, b, 0, 0, 0, -1); seed(a, b, N - 1, 0, 0, 1);
+            }
+        }
+        const int ndx[6] = {1, -1, 0, 0, 0, 0};
+        const int ndy[6] = {0, 0, 1, -1, 0, 0};
+        const int ndz[6] = {0, 0, 0, 0, 1, -1};
+        while (!q.empty()) {
+            int cell = q.front(); q.pop_front();
+            uint8_t r = m_blockR[cell], g = m_blockG[cell], b = m_blockB[cell];
+            if (r <= 1 && g <= 1 && b <= 1) continue;
+            int cz = cell % 32;
+            int cy = (cell / 32) % 32;
+            int cx = cell / 1024;
+            uint8_t pr = r > 0 ? r - 1 : 0, pg = g > 0 ? g - 1 : 0, pb = b > 0 ? b - 1 : 0;
+            for (int d = 0; d < 6; ++d) {
+                int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
+                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
+                int ncell = cellIdx(nx, ny, nz);
+                if (solidVis[ncell]) continue;  // light fills air, blocked by opaque
+                bump(ncell, pr, pg, pb);
+            }
+        }
+    }
+
+    // Snapshot this chunk's boundary light (the 6 faces neighbours sample) and flag if it changed
+    // since last rebuild. ChunkManager re-meshes neighbours when it did, so cross-chunk bleed
+    // ripples outward and converges (light is monotonic, capped at 15).
+    {
+        std::vector<uint8_t> border;
+        border.reserve(6 * N * N * 2);
+        auto pk = [&](int x, int y, int z) {
+            int c = cellIdx(x, y, z);
+            border.push_back(static_cast<uint8_t>((m_skyLight[c] & 0xF) | ((m_blockR[c] & 0xF) << 4)));
+            border.push_back(static_cast<uint8_t>((m_blockG[c] & 0xF) | ((m_blockB[c] & 0xF) << 4)));
+        };
+        for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
+            pk(0, a, b);     pk(N - 1, a, b);
+            pk(a, 0, b);     pk(a, N - 1, b);
+            pk(a, b, 0);     pk(a, b, N - 1);
+        }
+        m_lightBordersChanged = (border != m_prevBorderLight);
+        m_prevBorderLight = std::move(border);
     }
 
     // Neighbor solidity (handles cross-chunk via getNeighborCube). A face is visible when
@@ -154,7 +397,21 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<uint8_t> hasFace(N * N);
     std::vector<int>     faceKey(N * N);
     std::vector<int>     faceMat(N * N);
-    std::vector<uint8_t> used(N * N);
+    std::vector<uint8_t> faceDmg(N * N);
+    // Packed baked light, NEW layout for smooth (per-corner) skylight:
+    //   bits 0-15  = 4 per-vertex skylight nibbles (corner v at bits v*4..v*4+3), AO-averaged
+    //   bits 16-27 = block light R(16-19) G(20-23) B(24-27), per-face (flat)
+    std::vector<uint32_t> faceLight(N * N);   // 4 corner skies (bits 0-15)
+    std::vector<uint32_t> faceLight2(N * N);  // per-corner block: corner0 RGB | corner1 RGB
+    std::vector<uint32_t> faceLight3(N * N);  // per-corner block: corner2 RGB | corner3 RGB
+    std::vector<uint8_t>  faceUniform(N * N); // 1 = all 4 corners equal (sky+block) → safe to greedy-merge
+    std::vector<uint8_t>  used(N * N);
+
+    // In-plane axes per face for smooth corner lighting — MUST match static_voxel.vert's
+    // vertexID bit0 (u) / bit1 (v) face-offset directions. A = the air cell the face looks into.
+    const glm::ivec3 faceA[6] = {{0,0,1},{0,0,-1},{1,0,0},{-1,0,0},{0,1,0},{0,-1,0}};
+    const glm::ivec3 faceU[6] = {{1,0,0},{-1,0,0},{0,0,-1},{0,0,1},{1,0,0},{1,0,0}};
+    const glm::ivec3 faceV[6] = {{0,1,0},{0,1,0},{0,1,0},{0,1,0},{0,0,-1},{0,0,1}};
 
     // Per face direction, greedy-merge each slice in the (u,v) plane. Axis roles
     // (u = sizeU / vertexID bit0 axis, v = sizeV / bit1 axis):
@@ -176,8 +433,71 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int m = cellMat[cell];
                     int mi = u * N + v;
                     hasFace[mi] = 1;
-                    faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) | matFaces[m].reserved;
+                    // Fold damage into the merge key so damaged voxels don't merge with pristine.
+                    uint16_t dmgBits = static_cast<uint16_t>(cellDamage[cell]) << 11;
+                    faceKey[mi] = (static_cast<int>(matFaces[m].tex[faceID]) << 16) |
+                                  (matFaces[m].reserved | dmgBits);
                     faceMat[mi] = m;
+                    faceDmg[mi] = cellDamage[cell];
+                    // Smooth per-corner skylight + block light + ambient occlusion. For each of the
+                    // 4 quad corners (indexed by vertexID), average the light of the 4 cells touching
+                    // that corner in the air cell's plane; solid cells read 0 (m_skyLight/m_blockR..
+                    // are 0 for solids), so concave corners darken (AO). The GPU interpolates the
+                    // 4 corners across the face → smooth gradients instead of per-voxel steps.
+                    {
+                        const glm::ivec3 A = glm::ivec3(x, y, z) + faceA[faceID];
+                        const glm::ivec3& uD = faceU[faceID];
+                        const glm::ivec3& vD = faceV[faceID];
+                        // Compute the 4 per-corner light values (sky + block RGB). When smooth
+                        // lighting is OFF, collapse to a single per-face sample so every face is
+                        // uniform and greedy-merges freely (fast/blocky).
+                        int skyC[4], rC[4], gC[4], bC[4];
+                        const bool smooth = s_smoothLighting;
+                        for (int vid = 0; vid < 4; ++vid) {
+                            if (smooth) {
+                                glm::ivec3 us = (vid & 1) ? uD : -uD;
+                                glm::ivec3 vs = (vid & 2) ? vD : -vD;
+                                const glm::ivec3 c[4] = { A, A + us, A + vs, A + us + vs };
+                                int sSum = 0, rSum = 0, gSum = 0, bSum = 0;
+                                for (int j = 0; j < 4; ++j) {
+                                    sSum += skyLightAt(c[j].x, c[j].y, c[j].z) & 0xF;
+                                    uint8_t r = 0, gg = 0, bb = 0;
+                                    blockLightAt(c[j].x, c[j].y, c[j].z, r, gg, bb);
+                                    rSum += r; gSum += gg; bSum += bb;
+                                }
+                                skyC[vid] = sSum / 4; rC[vid] = rSum / 4; gC[vid] = gSum / 4; bC[vid] = bSum / 4;
+                            } else {
+                                skyC[vid] = skyLightAt(A.x, A.y, A.z) & 0xF;
+                                uint8_t r = 0, gg = 0, bb = 0;
+                                blockLightAt(A.x, A.y, A.z, r, gg, bb);
+                                rC[vid] = r; gC[vid] = gg; bC[vid] = bb;
+                            }
+                        }
+                        // Merge tolerance: if every channel's corner spread is within tolerance, snap
+                        // each channel to its average and mark uniform so the face can greedy-merge.
+                        auto spread = [](const int* a) { int mn = a[0], mx = a[0]; for (int i=1;i<4;++i){ mn=a[i]<mn?a[i]:mn; mx=a[i]>mx?a[i]:mx;} return mx-mn; };
+                        const int tol = smooth ? s_mergeTolerance : 99;
+                        bool uniform = false;
+                        if (spread(skyC) <= tol && spread(rC) <= tol && spread(gC) <= tol && spread(bC) <= tol) {
+                            int sa=(skyC[0]+skyC[1]+skyC[2]+skyC[3])/4, ra=(rC[0]+rC[1]+rC[2]+rC[3])/4;
+                            int ga=(gC[0]+gC[1]+gC[2]+gC[3])/4, ba=(bC[0]+bC[1]+bC[2]+bC[3])/4;
+                            for (int i=0;i<4;++i){ skyC[i]=sa; rC[i]=ra; gC[i]=ga; bC[i]=ba; }
+                            uniform = true;
+                        }
+                        uint32_t skyPack = 0, blkLo = 0, blkHi = 0;
+                        for (int vid = 0; vid < 4; ++vid) {
+                            skyPack |= static_cast<uint32_t>(skyC[vid] & 0xF) << (vid * 4);
+                            uint32_t rgb12 = (static_cast<uint32_t>(rC[vid] & 0xF))
+                                           | (static_cast<uint32_t>(gC[vid] & 0xF) << 4)
+                                           | (static_cast<uint32_t>(bC[vid] & 0xF) << 8);
+                            if (vid < 2) blkLo |= rgb12 << (vid * 12);
+                            else         blkHi |= rgb12 << ((vid - 2) * 12);
+                        }
+                        faceLight[mi]  = skyPack;  // 4 corner skies (bits 0-15)
+                        faceLight2[mi] = blkLo;    // corner0 RGB | corner1 RGB
+                        faceLight3[mi] = blkHi;    // corner2 RGB | corner3 RGB
+                        faceUniform[mi] = uniform ? 1u : 0u;
+                    }
                 }
             }
             // Greedy rectangle merge: width along v, then height along u (same key).
@@ -186,17 +506,25 @@ void ChunkRenderManager::rebuildCubeFaces(
                     int mi = u * N + v;
                     if (!hasFace[mi] || used[mi]) continue;
                     int k = faceKey[mi];
+                    uint32_t lite = faceLight[mi], lite2 = faceLight2[mi], lite3 = faceLight3[mi];
+                    // Only greedy-merge faces with identical packed light (sky + block) AND uniform
+                    // corners (a non-uniform/AO/gradient face would render wrong if stretched across
+                    // a rectangle, so it stays a 1x1 quad and the GPU interpolates its 4 corners).
+                    auto sameLight = [&](int t) {
+                        return faceLight[t] == lite && faceLight2[t] == lite2 && faceLight3[t] == lite3 && faceUniform[t];
+                    };
+                    bool canMerge = faceUniform[mi] != 0;
                     int w = 1;
-                    while (v + w < N) {
+                    while (canMerge && v + w < N) {
                         int t = u * N + (v + w);
-                        if (!hasFace[t] || used[t] || faceKey[t] != k) break;
+                        if (!hasFace[t] || used[t] || faceKey[t] != k || !sameLight(t)) break;
                         ++w;
                     }
-                    int h = 1; bool ok = true;
-                    while (u + h < N && ok) {
+                    int h = 1; bool ok = canMerge;
+                    while (canMerge && u + h < N && ok) {
                         for (int vv = v; vv < v + w; ++vv) {
                             int t = (u + h) * N + vv;
-                            if (!hasFace[t] || used[t] || faceKey[t] != k) { ok = false; break; }
+                            if (!hasFace[t] || used[t] || faceKey[t] != k || !sameLight(t)) { ok = false; break; }
                         }
                         if (ok) ++h;
                     }
@@ -213,7 +541,10 @@ void ChunkRenderManager::rebuildCubeFaces(
                     inst.packedData = Phyxel::InstanceDataUtils::packCubeFaceDataSized(
                         ox, oy, oz, faceID, static_cast<uint32_t>(h), static_cast<uint32_t>(w));
                     inst.textureIndex = mf.tex[faceID];
-                    inst.reserved = mf.reserved;
+                    inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
+                    inst.light  = lite;   // 4 corner skies (bits0-15)
+                    inst.light2 = lite2;  // per-corner block RGB (corners 0,1)
+                    inst.light3 = lite3;  // per-corner block RGB (corners 2,3)
                     faces.push_back(inst);
                 }
             }
@@ -272,6 +603,30 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
                     faceInstance.reserved = static_cast<uint16_t>(
                         (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
+                }
+                // Baked light: sample the air cell the parent cube's face looks into (sky low
+                // nibble, block light high nibble).
+                static const int FDX[6] = {0, 0, 1, -1, 0, 0};
+                static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+                static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+                {
+                    int nbx = parentChunkPos.x + FDX[faceID];
+                    int nby = parentChunkPos.y + FDY[faceID];
+                    int nbz = parentChunkPos.z + FDZ[faceID];
+                    uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(nbx, nby, nbz, br, bg, bb);
+                    // New light layout (matches static_voxel.vert): replicate the single value to all
+                    // 4 corners (subcubes/microcubes don't get smooth lighting). Sky → light nibbles,
+                    // block RGB → light2/light3 (12 bits per corner: R|G<<4|B<<8).
+                    {
+                        uint32_t rgb12 = (static_cast<uint32_t>(br & 0xF))
+                                       | (static_cast<uint32_t>(bg & 0xF) << 4)
+                                       | (static_cast<uint32_t>(bb & 0xF) << 8);
+                        faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
+                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
+                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
+                    }
                 }
                 faces.push_back(faceInstance);
             }
@@ -346,6 +701,30 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     uint16_t quantAlpha = isTransparent ? static_cast<uint16_t>(matDef->alpha * 255.0f) : 255u;
                     faceInstance.reserved = static_cast<uint16_t>(
                         (isEmissive ? 1u : 0u) | (isTransparent ? 2u : 0u) | (quantAlpha << 2u) | (isMirror ? (1u << 10) : 0u));
+                }
+                // Baked light: sample the air cell the parent cube's face looks into (sky low
+                // nibble, block light high nibble).
+                static const int FDX[6] = {0, 0, 1, -1, 0, 0};
+                static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+                static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+                {
+                    int nbx = parentChunkPos.x + FDX[faceID];
+                    int nby = parentChunkPos.y + FDY[faceID];
+                    int nbz = parentChunkPos.z + FDZ[faceID];
+                    uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(nbx, nby, nbz, br, bg, bb);
+                    // New light layout (matches static_voxel.vert): replicate the single value to all
+                    // 4 corners (subcubes/microcubes don't get smooth lighting). Sky → light nibbles,
+                    // block RGB → light2/light3 (12 bits per corner: R|G<<4|B<<8).
+                    {
+                        uint32_t rgb12 = (static_cast<uint32_t>(br & 0xF))
+                                       | (static_cast<uint32_t>(bg & 0xF) << 4)
+                                       | (static_cast<uint32_t>(bb & 0xF) << 8);
+                        faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
+                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
+                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
+                    }
                 }
                 faces.push_back(faceInstance);
             }

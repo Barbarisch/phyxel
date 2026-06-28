@@ -12,6 +12,8 @@
 #include <chrono>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
 #include <glm/glm.hpp>
 
 // Forward declarations
@@ -234,7 +236,8 @@ private:
     // they upload byte-identical data, so the redundant upload is harmless.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
                                    VkPipeline pipeline);
-    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix);
+    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
+                          const glm::vec3& cullCenter, float cullRadius);
     
     // Dependencies (non-owning pointers)
     Vulkan::VulkanDevice* vulkanDevice;
@@ -264,7 +267,7 @@ private:
     uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
     bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
     float ambientLightStrength = 1.0f; // Default brightness multiplier
-    glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f));
+    glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.6f, -0.7f, -0.45f)); // ~43 deg elevation — angled so structures cast clear shadows (used when day/night is off)
     glm::vec3 sunColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float emissiveMultiplier = 2.0f;
     
@@ -295,6 +298,11 @@ private:
     bool m_occlusionCullingEnabled = false;  // default OFF; PHYXEL_OCCLUSION=1 env var enables (debug)
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
     void applyOcclusionCulling(const glm::vec3& cameraPos);
+    // Scratch containers reused across applyOcclusionCulling() calls (cleared, not
+    // reallocated, each frame — .clear() retains bucket/capacity). Avoids per-frame heap churn.
+    std::unordered_map<int64_t, size_t> m_occCoordToIdx;
+    std::unordered_set<int64_t> m_occReached;
+    std::vector<size_t> m_occKept;
 
     // Mirror reflection state (updated per-frame when mirror voxels are visible)
     bool hasMirrorVoxels = false;

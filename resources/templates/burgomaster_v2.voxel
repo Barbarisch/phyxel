@@ -1,0 +1,6844 @@
+# burgomaster_v2 - detailed building shell (multi-resolution)
+# Format: C cx cy cz Mat | S .. sx sy sz Mat | M .. mx my mz Mat
+
+C 0 0 0 Wood
+C 0 0 1 Wood
+C 0 0 2 Wood
+C 0 0 3 Wood
+C 0 0 4 Wood
+C 0 0 5 Wood
+C 0 0 6 Wood
+C 0 0 7 Wood
+C 0 0 8 Wood
+C 0 0 9 Wood
+C 0 0 10 Wood
+C 0 0 11 Wood
+C 0 0 12 Wood
+C 0 0 13 Wood
+C 0 0 14 Wood
+C 0 0 15 Wood
+S 0 1 0 0 0 0 StoneBricks
+S 0 1 0 0 0 1 StoneBricks
+S 0 1 0 0 0 2 StoneBricks
+S 0 1 0 0 1 0 StoneBricks
+S 0 1 0 0 1 1 StoneBricks
+S 0 1 0 0 1 2 StoneBricks
+S 0 1 0 0 2 0 StoneBricks
+S 0 1 0 0 2 1 StoneBricks
+S 0 1 0 0 2 2 StoneBricks
+S 0 1 0 1 0 0 StoneBricks
+S 0 1 0 1 0 1 StoneBricks
+S 0 1 0 1 0 2 StoneBricks
+S 0 1 0 1 1 0 StoneBricks
+S 0 1 0 1 1 1 StoneBricks
+S 0 1 0 1 1 2 StoneBricks
+S 0 1 0 1 2 0 StoneBricks
+S 0 1 0 1 2 1 StoneBricks
+S 0 1 0 1 2 2 StoneBricks
+S 0 1 0 2 0 0 StoneBricks
+S 0 1 0 2 0 1 StoneBricks
+S 0 1 0 2 0 2 StoneBricks
+S 0 1 0 2 1 0 StoneBricks
+S 0 1 0 2 1 1 StoneBricks
+S 0 1 0 2 1 2 StoneBricks
+S 0 1 0 2 2 0 Cobblestone
+S 0 1 0 2 2 1 StoneBricks
+S 0 1 0 2 2 2 StoneBricks
+C 0 1 1 StoneBricks
+C 0 1 2 StoneBricks
+C 0 1 3 StoneBricks
+C 0 1 4 StoneBricks
+C 0 1 5 StoneBricks
+C 0 1 6 StoneBricks
+C 0 1 7 StoneBricks
+S 0 1 8 0 0 0 StoneBricks
+S 0 1 8 0 0 1 StoneBricks
+S 0 1 8 0 0 2 StoneBricks
+S 0 1 8 0 1 0 StoneBricks
+S 0 1 8 0 1 1 StoneBricks
+S 0 1 8 0 1 2 StoneBricks
+S 0 1 8 0 2 0 StoneBricks
+S 0 1 8 0 2 1 StoneBricks
+S 0 1 8 0 2 2 Cobblestone
+S 0 1 8 1 0 0 StoneBricks
+S 0 1 8 1 0 1 StoneBricks
+S 0 1 8 1 0 2 StoneBricks
+S 0 1 8 1 1 0 StoneBricks
+S 0 1 8 1 1 1 StoneBricks
+S 0 1 8 1 1 2 StoneBricks
+S 0 1 8 1 2 0 StoneBricks
+S 0 1 8 1 2 1 StoneBricks
+S 0 1 8 1 2 2 StoneBricks
+S 0 1 8 2 0 0 StoneBricks
+S 0 1 8 2 0 1 StoneBricks
+S 0 1 8 2 0 2 StoneBricks
+S 0 1 8 2 1 0 StoneBricks
+S 0 1 8 2 1 1 StoneBricks
+S 0 1 8 2 1 2 StoneBricks
+S 0 1 8 2 2 0 StoneBricks
+S 0 1 8 2 2 1 StoneBricks
+S 0 1 8 2 2 2 StoneBricks
+S 0 1 9 0 0 0 StoneBricks
+S 0 1 9 0 0 1 StoneBricks
+S 0 1 9 0 0 2 StoneBricks
+S 0 1 9 0 1 0 StoneBricks
+S 0 1 9 0 1 1 StoneBricks
+S 0 1 9 0 1 2 StoneBricks
+S 0 1 9 0 2 0 Cobblestone
+S 0 1 9 0 2 1 Cobblestone
+S 0 1 9 0 2 2 Cobblestone
+S 0 1 9 1 0 0 StoneBricks
+S 0 1 9 1 0 1 StoneBricks
+S 0 1 9 1 0 2 StoneBricks
+S 0 1 9 1 1 0 StoneBricks
+S 0 1 9 1 1 1 StoneBricks
+S 0 1 9 1 1 2 StoneBricks
+S 0 1 9 1 2 0 StoneBricks
+S 0 1 9 1 2 1 StoneBricks
+S 0 1 9 1 2 2 StoneBricks
+S 0 1 9 2 0 0 StoneBricks
+S 0 1 9 2 0 1 StoneBricks
+S 0 1 9 2 0 2 StoneBricks
+S 0 1 9 2 1 0 StoneBricks
+S 0 1 9 2 1 1 StoneBricks
+S 0 1 9 2 1 2 StoneBricks
+S 0 1 9 2 2 0 StoneBricks
+S 0 1 9 2 2 1 StoneBricks
+S 0 1 9 2 2 2 StoneBricks
+S 0 1 10 0 0 0 StoneBricks
+S 0 1 10 0 0 1 StoneBricks
+S 0 1 10 0 0 2 Cobblestone
+S 0 1 10 0 1 0 StoneBricks
+S 0 1 10 0 1 1 StoneBricks
+S 0 1 10 0 1 2 Cobblestone
+S 0 1 10 0 2 0 Cobblestone
+S 0 1 10 0 2 1 StoneBricks
+S 0 1 10 0 2 2 Cobblestone
+S 0 1 10 1 0 0 StoneBricks
+S 0 1 10 1 0 1 StoneBricks
+S 0 1 10 1 0 2 StoneBricks
+S 0 1 10 1 1 0 StoneBricks
+S 0 1 10 1 1 1 StoneBricks
+S 0 1 10 1 1 2 StoneBricks
+S 0 1 10 1 2 0 StoneBricks
+S 0 1 10 1 2 1 StoneBricks
+S 0 1 10 1 2 2 StoneBricks
+S 0 1 10 2 0 0 StoneBricks
+S 0 1 10 2 0 1 StoneBricks
+S 0 1 10 2 0 2 StoneBricks
+S 0 1 10 2 1 0 StoneBricks
+S 0 1 10 2 1 1 StoneBricks
+S 0 1 10 2 1 2 StoneBricks
+S 0 1 10 2 2 0 StoneBricks
+S 0 1 10 2 2 1 StoneBricks
+S 0 1 10 2 2 2 StoneBricks
+S 0 1 12 0 0 0 Cobblestone
+S 0 1 12 0 0 1 StoneBricks
+S 0 1 12 0 0 2 StoneBricks
+S 0 1 12 0 1 0 Cobblestone
+S 0 1 12 0 1 1 StoneBricks
+S 0 1 12 0 1 2 StoneBricks
+S 0 1 12 0 2 0 Cobblestone
+S 0 1 12 0 2 1 StoneBricks
+S 0 1 12 0 2 2 StoneBricks
+S 0 1 12 1 0 0 StoneBricks
+S 0 1 12 1 0 1 StoneBricks
+S 0 1 12 1 0 2 StoneBricks
+S 0 1 12 1 1 0 StoneBricks
+S 0 1 12 1 1 1 StoneBricks
+S 0 1 12 1 1 2 StoneBricks
+S 0 1 12 1 2 0 StoneBricks
+S 0 1 12 1 2 1 StoneBricks
+S 0 1 12 1 2 2 StoneBricks
+S 0 1 12 2 0 0 StoneBricks
+S 0 1 12 2 0 1 StoneBricks
+S 0 1 12 2 0 2 StoneBricks
+S 0 1 12 2 1 0 StoneBricks
+S 0 1 12 2 1 1 StoneBricks
+S 0 1 12 2 1 2 StoneBricks
+S 0 1 12 2 2 0 StoneBricks
+S 0 1 12 2 2 1 StoneBricks
+S 0 1 12 2 2 2 StoneBricks
+C 0 1 13 StoneBricks
+C 0 1 14 StoneBricks
+C 0 1 15 StoneBricks
+S 0 2 0 0 0 0 StoneBricks
+S 0 2 0 0 0 1 StoneBricks
+S 0 2 0 0 0 2 StoneBricks
+S 0 2 0 0 1 0 StoneBricks
+S 0 2 0 0 1 1 StoneBricks
+S 0 2 0 0 1 2 StoneBricks
+S 0 2 0 0 2 0 StoneBricks
+S 0 2 0 0 2 1 StoneBricks
+S 0 2 0 0 2 2 StoneBricks
+S 0 2 0 1 0 0 StoneBricks
+S 0 2 0 1 0 1 StoneBricks
+S 0 2 0 1 0 2 StoneBricks
+S 0 2 0 1 1 0 StoneBricks
+S 0 2 0 1 1 1 StoneBricks
+S 0 2 0 1 1 2 StoneBricks
+S 0 2 0 1 2 0 StoneBricks
+S 0 2 0 1 2 1 StoneBricks
+S 0 2 0 1 2 2 StoneBricks
+S 0 2 0 2 0 0 Cobblestone
+S 0 2 0 2 0 1 StoneBricks
+S 0 2 0 2 0 2 StoneBricks
+S 0 2 0 2 1 0 Cobblestone
+S 0 2 0 2 1 1 StoneBricks
+S 0 2 0 2 1 2 StoneBricks
+S 0 2 0 2 2 0 Cobblestone
+S 0 2 0 2 2 1 StoneBricks
+S 0 2 0 2 2 2 StoneBricks
+C 0 2 1 StoneBricks
+C 0 2 2 StoneBricks
+C 0 2 3 StoneBricks
+C 0 2 4 StoneBricks
+C 0 2 5 StoneBricks
+C 0 2 6 StoneBricks
+C 0 2 7 StoneBricks
+S 0 2 8 0 0 0 StoneBricks
+S 0 2 8 0 0 1 StoneBricks
+S 0 2 8 0 0 2 Cobblestone
+S 0 2 8 0 1 0 StoneBricks
+S 0 2 8 0 1 1 StoneBricks
+S 0 2 8 0 1 2 Cobblestone
+S 0 2 8 0 2 0 StoneBricks
+S 0 2 8 0 2 1 StoneBricks
+S 0 2 8 0 2 2 Cobblestone
+S 0 2 8 1 0 0 StoneBricks
+S 0 2 8 1 0 1 StoneBricks
+S 0 2 8 1 0 2 StoneBricks
+S 0 2 8 1 1 0 StoneBricks
+S 0 2 8 1 1 1 StoneBricks
+S 0 2 8 1 1 2 StoneBricks
+S 0 2 8 1 2 0 StoneBricks
+S 0 2 8 1 2 1 StoneBricks
+S 0 2 8 1 2 2 StoneBricks
+S 0 2 8 2 0 0 StoneBricks
+S 0 2 8 2 0 1 StoneBricks
+S 0 2 8 2 0 2 StoneBricks
+S 0 2 8 2 1 0 StoneBricks
+S 0 2 8 2 1 1 StoneBricks
+S 0 2 8 2 1 2 StoneBricks
+S 0 2 8 2 2 0 StoneBricks
+S 0 2 8 2 2 1 StoneBricks
+S 0 2 8 2 2 2 StoneBricks
+S 0 2 10 0 0 0 Cobblestone
+S 0 2 10 0 0 1 StoneBricks
+S 0 2 10 0 0 2 Cobblestone
+S 0 2 10 0 1 0 Cobblestone
+S 0 2 10 0 1 1 StoneBricks
+S 0 2 10 0 1 2 Cobblestone
+S 0 2 10 0 2 0 Cobblestone
+S 0 2 10 0 2 1 StoneBricks
+S 0 2 10 0 2 2 Cobblestone
+S 0 2 10 1 0 0 StoneBricks
+S 0 2 10 1 0 1 StoneBricks
+S 0 2 10 1 0 2 StoneBricks
+S 0 2 10 1 1 0 StoneBricks
+S 0 2 10 1 1 1 StoneBricks
+S 0 2 10 1 1 2 StoneBricks
+S 0 2 10 1 2 0 StoneBricks
+S 0 2 10 1 2 1 StoneBricks
+S 0 2 10 1 2 2 StoneBricks
+S 0 2 10 2 0 0 StoneBricks
+S 0 2 10 2 0 1 StoneBricks
+S 0 2 10 2 0 2 StoneBricks
+S 0 2 10 2 1 0 StoneBricks
+S 0 2 10 2 1 1 StoneBricks
+S 0 2 10 2 1 2 StoneBricks
+S 0 2 10 2 2 0 StoneBricks
+S 0 2 10 2 2 1 StoneBricks
+S 0 2 10 2 2 2 StoneBricks
+S 0 2 12 0 0 0 Cobblestone
+S 0 2 12 0 0 1 StoneBricks
+S 0 2 12 0 0 2 StoneBricks
+S 0 2 12 0 1 0 Cobblestone
+S 0 2 12 0 1 1 StoneBricks
+S 0 2 12 0 1 2 StoneBricks
+S 0 2 12 0 2 0 Cobblestone
+S 0 2 12 0 2 1 StoneBricks
+S 0 2 12 0 2 2 StoneBricks
+S 0 2 12 1 0 0 StoneBricks
+S 0 2 12 1 0 1 StoneBricks
+S 0 2 12 1 0 2 StoneBricks
+S 0 2 12 1 1 0 StoneBricks
+S 0 2 12 1 1 1 StoneBricks
+S 0 2 12 1 1 2 StoneBricks
+S 0 2 12 1 2 0 StoneBricks
+S 0 2 12 1 2 1 StoneBricks
+S 0 2 12 1 2 2 StoneBricks
+S 0 2 12 2 0 0 StoneBricks
+S 0 2 12 2 0 1 StoneBricks
+S 0 2 12 2 0 2 StoneBricks
+S 0 2 12 2 1 0 StoneBricks
+S 0 2 12 2 1 1 StoneBricks
+S 0 2 12 2 1 2 StoneBricks
+S 0 2 12 2 2 0 StoneBricks
+S 0 2 12 2 2 1 StoneBricks
+S 0 2 12 2 2 2 StoneBricks
+C 0 2 13 StoneBricks
+C 0 2 14 StoneBricks
+C 0 2 15 StoneBricks
+S 0 3 0 0 0 0 StoneBricks
+S 0 3 0 0 0 1 StoneBricks
+S 0 3 0 0 0 2 StoneBricks
+S 0 3 0 0 1 0 StoneBricks
+S 0 3 0 0 1 1 StoneBricks
+S 0 3 0 0 1 2 StoneBricks
+S 0 3 0 0 2 0 StoneBricks
+S 0 3 0 0 2 1 StoneBricks
+S 0 3 0 0 2 2 StoneBricks
+S 0 3 0 1 0 0 StoneBricks
+S 0 3 0 1 0 1 StoneBricks
+S 0 3 0 1 0 2 StoneBricks
+S 0 3 0 1 1 0 StoneBricks
+S 0 3 0 1 1 1 StoneBricks
+S 0 3 0 1 1 2 StoneBricks
+S 0 3 0 1 2 0 StoneBricks
+S 0 3 0 1 2 1 StoneBricks
+S 0 3 0 1 2 2 StoneBricks
+S 0 3 0 2 0 0 Cobblestone
+S 0 3 0 2 0 1 StoneBricks
+S 0 3 0 2 0 2 StoneBricks
+S 0 3 0 2 1 0 Cobblestone
+S 0 3 0 2 1 1 StoneBricks
+S 0 3 0 2 1 2 StoneBricks
+S 0 3 0 2 2 0 Cobblestone
+S 0 3 0 2 2 1 StoneBricks
+S 0 3 0 2 2 2 StoneBricks
+C 0 3 1 StoneBricks
+C 0 3 2 StoneBricks
+C 0 3 3 StoneBricks
+C 0 3 4 StoneBricks
+C 0 3 5 StoneBricks
+C 0 3 6 StoneBricks
+C 0 3 7 StoneBricks
+S 0 3 8 0 0 0 StoneBricks
+S 0 3 8 0 0 1 StoneBricks
+S 0 3 8 0 0 2 Cobblestone
+S 0 3 8 0 1 0 StoneBricks
+S 0 3 8 0 1 1 StoneBricks
+S 0 3 8 0 1 2 Cobblestone
+S 0 3 8 0 2 0 StoneBricks
+S 0 3 8 0 2 1 StoneBricks
+S 0 3 8 0 2 2 Cobblestone
+S 0 3 8 1 0 0 StoneBricks
+S 0 3 8 1 0 1 StoneBricks
+S 0 3 8 1 0 2 StoneBricks
+S 0 3 8 1 1 0 StoneBricks
+S 0 3 8 1 1 1 StoneBricks
+S 0 3 8 1 1 2 StoneBricks
+S 0 3 8 1 2 0 StoneBricks
+S 0 3 8 1 2 1 StoneBricks
+S 0 3 8 1 2 2 StoneBricks
+S 0 3 8 2 0 0 StoneBricks
+S 0 3 8 2 0 1 StoneBricks
+S 0 3 8 2 0 2 StoneBricks
+S 0 3 8 2 1 0 StoneBricks
+S 0 3 8 2 1 1 StoneBricks
+S 0 3 8 2 1 2 StoneBricks
+S 0 3 8 2 2 0 StoneBricks
+S 0 3 8 2 2 1 StoneBricks
+S 0 3 8 2 2 2 StoneBricks
+S 0 3 10 0 0 0 Cobblestone
+S 0 3 10 0 0 1 StoneBricks
+S 0 3 10 0 0 2 Cobblestone
+S 0 3 10 0 1 0 Cobblestone
+S 0 3 10 0 1 1 StoneBricks
+S 0 3 10 0 1 2 StoneBricks
+S 0 3 10 0 2 0 Cobblestone
+S 0 3 10 0 2 1 StoneBricks
+S 0 3 10 0 2 2 StoneBricks
+S 0 3 10 1 0 0 StoneBricks
+S 0 3 10 1 0 1 StoneBricks
+S 0 3 10 1 0 2 StoneBricks
+S 0 3 10 1 1 0 StoneBricks
+S 0 3 10 1 1 1 StoneBricks
+S 0 3 10 1 1 2 StoneBricks
+S 0 3 10 1 2 0 StoneBricks
+S 0 3 10 1 2 1 StoneBricks
+S 0 3 10 1 2 2 StoneBricks
+S 0 3 10 2 0 0 StoneBricks
+S 0 3 10 2 0 1 StoneBricks
+S 0 3 10 2 0 2 StoneBricks
+S 0 3 10 2 1 0 StoneBricks
+S 0 3 10 2 1 1 StoneBricks
+S 0 3 10 2 1 2 StoneBricks
+S 0 3 10 2 2 0 StoneBricks
+S 0 3 10 2 2 1 StoneBricks
+S 0 3 10 2 2 2 StoneBricks
+S 0 3 11 0 0 0 Cobblestone
+S 0 3 11 0 0 1 Cobblestone
+S 0 3 11 0 0 2 Cobblestone
+S 0 3 11 0 1 0 StoneBricks
+S 0 3 11 0 1 1 StoneBricks
+S 0 3 11 0 1 2 StoneBricks
+S 0 3 11 0 2 0 StoneBricks
+S 0 3 11 0 2 1 StoneBricks
+S 0 3 11 0 2 2 StoneBricks
+S 0 3 11 1 0 0 StoneBricks
+S 0 3 11 1 0 1 StoneBricks
+S 0 3 11 1 0 2 StoneBricks
+S 0 3 11 1 1 0 StoneBricks
+S 0 3 11 1 1 1 StoneBricks
+S 0 3 11 1 1 2 StoneBricks
+S 0 3 11 1 2 0 StoneBricks
+S 0 3 11 1 2 1 StoneBricks
+S 0 3 11 1 2 2 StoneBricks
+S 0 3 11 2 0 0 StoneBricks
+S 0 3 11 2 0 1 StoneBricks
+S 0 3 11 2 0 2 StoneBricks
+S 0 3 11 2 1 0 StoneBricks
+S 0 3 11 2 1 1 StoneBricks
+S 0 3 11 2 1 2 StoneBricks
+S 0 3 11 2 2 0 StoneBricks
+S 0 3 11 2 2 1 StoneBricks
+S 0 3 11 2 2 2 StoneBricks
+S 0 3 12 0 0 0 Cobblestone
+S 0 3 12 0 0 1 StoneBricks
+S 0 3 12 0 0 2 StoneBricks
+S 0 3 12 0 1 0 StoneBricks
+S 0 3 12 0 1 1 StoneBricks
+S 0 3 12 0 1 2 StoneBricks
+S 0 3 12 0 2 0 StoneBricks
+S 0 3 12 0 2 1 StoneBricks
+S 0 3 12 0 2 2 StoneBricks
+S 0 3 12 1 0 0 StoneBricks
+S 0 3 12 1 0 1 StoneBricks
+S 0 3 12 1 0 2 StoneBricks
+S 0 3 12 1 1 0 StoneBricks
+S 0 3 12 1 1 1 StoneBricks
+S 0 3 12 1 1 2 StoneBricks
+S 0 3 12 1 2 0 StoneBricks
+S 0 3 12 1 2 1 StoneBricks
+S 0 3 12 1 2 2 StoneBricks
+S 0 3 12 2 0 0 StoneBricks
+S 0 3 12 2 0 1 StoneBricks
+S 0 3 12 2 0 2 StoneBricks
+S 0 3 12 2 1 0 StoneBricks
+S 0 3 12 2 1 1 StoneBricks
+S 0 3 12 2 1 2 StoneBricks
+S 0 3 12 2 2 0 StoneBricks
+S 0 3 12 2 2 1 StoneBricks
+S 0 3 12 2 2 2 StoneBricks
+C 0 3 13 StoneBricks
+C 0 3 14 StoneBricks
+C 0 3 15 StoneBricks
+C 0 4 0 Wood
+C 0 4 1 Wood
+C 0 4 2 Wood
+C 0 4 3 Wood
+C 0 4 4 Wood
+C 0 4 5 Wood
+C 0 4 6 Wood
+C 0 4 7 Wood
+C 0 4 8 Wood
+C 0 4 9 Wood
+C 0 4 10 Wood
+C 0 4 11 Wood
+C 0 4 12 Wood
+C 0 4 13 Wood
+C 0 4 14 Wood
+C 0 4 15 Wood
+S 0 5 0 0 0 0 StoneBricks
+S 0 5 0 0 0 1 StoneBricks
+S 0 5 0 0 0 2 StoneBricks
+S 0 5 0 0 1 0 StoneBricks
+S 0 5 0 0 1 1 StoneBricks
+S 0 5 0 0 1 2 StoneBricks
+S 0 5 0 0 2 0 StoneBricks
+S 0 5 0 0 2 1 StoneBricks
+S 0 5 0 0 2 2 StoneBricks
+S 0 5 0 1 0 0 StoneBricks
+S 0 5 0 1 0 1 StoneBricks
+S 0 5 0 1 0 2 StoneBricks
+S 0 5 0 1 1 0 StoneBricks
+S 0 5 0 1 1 1 StoneBricks
+S 0 5 0 1 1 2 StoneBricks
+S 0 5 0 1 2 0 StoneBricks
+S 0 5 0 1 2 1 StoneBricks
+S 0 5 0 1 2 2 StoneBricks
+S 0 5 0 2 0 0 StoneBricks
+S 0 5 0 2 0 1 StoneBricks
+S 0 5 0 2 0 2 StoneBricks
+S 0 5 0 2 1 0 StoneBricks
+S 0 5 0 2 1 1 StoneBricks
+S 0 5 0 2 1 2 StoneBricks
+S 0 5 0 2 2 0 Cobblestone
+S 0 5 0 2 2 1 StoneBricks
+S 0 5 0 2 2 2 StoneBricks
+C 0 5 1 StoneBricks
+C 0 5 2 StoneBricks
+C 0 5 3 StoneBricks
+C 0 5 4 StoneBricks
+C 0 5 5 StoneBricks
+C 0 5 6 StoneBricks
+C 0 5 7 StoneBricks
+C 0 5 8 StoneBricks
+S 0 5 9 0 0 0 StoneBricks
+S 0 5 9 0 0 1 StoneBricks
+S 0 5 9 0 0 2 StoneBricks
+S 0 5 9 0 1 0 StoneBricks
+S 0 5 9 0 1 1 StoneBricks
+S 0 5 9 0 1 2 StoneBricks
+S 0 5 9 0 2 0 StoneBricks
+S 0 5 9 0 2 1 StoneBricks
+S 0 5 9 0 2 2 Cobblestone
+S 0 5 9 1 0 0 StoneBricks
+S 0 5 9 1 0 1 StoneBricks
+S 0 5 9 1 0 2 StoneBricks
+S 0 5 9 1 1 0 StoneBricks
+S 0 5 9 1 1 1 StoneBricks
+S 0 5 9 1 1 2 StoneBricks
+S 0 5 9 1 2 0 StoneBricks
+S 0 5 9 1 2 1 StoneBricks
+S 0 5 9 1 2 2 StoneBricks
+S 0 5 9 2 0 0 StoneBricks
+S 0 5 9 2 0 1 StoneBricks
+S 0 5 9 2 0 2 StoneBricks
+S 0 5 9 2 1 0 StoneBricks
+S 0 5 9 2 1 1 StoneBricks
+S 0 5 9 2 1 2 StoneBricks
+S 0 5 9 2 2 0 StoneBricks
+S 0 5 9 2 2 1 StoneBricks
+S 0 5 9 2 2 2 StoneBricks
+S 0 5 10 0 0 0 StoneBricks
+S 0 5 10 0 0 1 StoneBricks
+S 0 5 10 0 0 2 StoneBricks
+S 0 5 10 0 1 0 StoneBricks
+S 0 5 10 0 1 1 StoneBricks
+S 0 5 10 0 1 2 StoneBricks
+S 0 5 10 0 2 0 Cobblestone
+S 0 5 10 0 2 1 Cobblestone
+S 0 5 10 0 2 2 Cobblestone
+S 0 5 10 1 0 0 StoneBricks
+S 0 5 10 1 0 1 StoneBricks
+S 0 5 10 1 0 2 StoneBricks
+S 0 5 10 1 1 0 StoneBricks
+S 0 5 10 1 1 1 StoneBricks
+S 0 5 10 1 1 2 StoneBricks
+S 0 5 10 1 2 0 StoneBricks
+S 0 5 10 1 2 1 StoneBricks
+S 0 5 10 1 2 2 StoneBricks
+S 0 5 10 2 0 0 StoneBricks
+S 0 5 10 2 0 1 StoneBricks
+S 0 5 10 2 0 2 StoneBricks
+S 0 5 10 2 1 0 StoneBricks
+S 0 5 10 2 1 1 StoneBricks
+S 0 5 10 2 1 2 StoneBricks
+S 0 5 10 2 2 0 StoneBricks
+S 0 5 10 2 2 1 StoneBricks
+S 0 5 10 2 2 2 StoneBricks
+S 0 5 11 0 0 0 StoneBricks
+S 0 5 11 0 0 1 StoneBricks
+S 0 5 11 0 0 2 StoneBricks
+S 0 5 11 0 1 0 StoneBricks
+S 0 5 11 0 1 1 StoneBricks
+S 0 5 11 0 1 2 StoneBricks
+S 0 5 11 0 2 0 Cobblestone
+S 0 5 11 0 2 1 StoneBricks
+S 0 5 11 0 2 2 StoneBricks
+S 0 5 11 1 0 0 StoneBricks
+S 0 5 11 1 0 1 StoneBricks
+S 0 5 11 1 0 2 StoneBricks
+S 0 5 11 1 1 0 StoneBricks
+S 0 5 11 1 1 1 StoneBricks
+S 0 5 11 1 1 2 StoneBricks
+S 0 5 11 1 2 0 StoneBricks
+S 0 5 11 1 2 1 StoneBricks
+S 0 5 11 1 2 2 StoneBricks
+S 0 5 11 2 0 0 StoneBricks
+S 0 5 11 2 0 1 StoneBricks
+S 0 5 11 2 0 2 StoneBricks
+S 0 5 11 2 1 0 StoneBricks
+S 0 5 11 2 1 1 StoneBricks
+S 0 5 11 2 1 2 StoneBricks
+S 0 5 11 2 2 0 StoneBricks
+S 0 5 11 2 2 1 StoneBricks
+S 0 5 11 2 2 2 StoneBricks
+C 0 5 12 StoneBricks
+C 0 5 13 StoneBricks
+C 0 5 14 StoneBricks
+C 0 5 15 StoneBricks
+S 0 6 0 0 0 0 StoneBricks
+S 0 6 0 0 0 1 StoneBricks
+S 0 6 0 0 0 2 StoneBricks
+S 0 6 0 0 1 0 StoneBricks
+S 0 6 0 0 1 1 StoneBricks
+S 0 6 0 0 1 2 StoneBricks
+S 0 6 0 0 2 0 StoneBricks
+S 0 6 0 0 2 1 StoneBricks
+S 0 6 0 0 2 2 StoneBricks
+S 0 6 0 1 0 0 StoneBricks
+S 0 6 0 1 0 1 StoneBricks
+S 0 6 0 1 0 2 StoneBricks
+S 0 6 0 1 1 0 StoneBricks
+S 0 6 0 1 1 1 StoneBricks
+S 0 6 0 1 1 2 StoneBricks
+S 0 6 0 1 2 0 StoneBricks
+S 0 6 0 1 2 1 StoneBricks
+S 0 6 0 1 2 2 StoneBricks
+S 0 6 0 2 0 0 Cobblestone
+S 0 6 0 2 0 1 StoneBricks
+S 0 6 0 2 0 2 StoneBricks
+S 0 6 0 2 1 0 Cobblestone
+S 0 6 0 2 1 1 StoneBricks
+S 0 6 0 2 1 2 StoneBricks
+S 0 6 0 2 2 0 Cobblestone
+S 0 6 0 2 2 1 StoneBricks
+S 0 6 0 2 2 2 StoneBricks
+C 0 6 1 StoneBricks
+C 0 6 2 StoneBricks
+C 0 6 3 StoneBricks
+C 0 6 4 StoneBricks
+C 0 6 5 StoneBricks
+C 0 6 6 StoneBricks
+C 0 6 7 StoneBricks
+C 0 6 8 StoneBricks
+S 0 6 9 0 0 0 StoneBricks
+S 0 6 9 0 0 1 StoneBricks
+S 0 6 9 0 0 2 Cobblestone
+S 0 6 9 0 1 0 StoneBricks
+S 0 6 9 0 1 1 StoneBricks
+S 0 6 9 0 1 2 Cobblestone
+S 0 6 9 0 2 0 StoneBricks
+S 0 6 9 0 2 1 StoneBricks
+S 0 6 9 0 2 2 Cobblestone
+S 0 6 9 1 0 0 StoneBricks
+S 0 6 9 1 0 1 StoneBricks
+S 0 6 9 1 0 2 StoneBricks
+S 0 6 9 1 1 0 StoneBricks
+S 0 6 9 1 1 1 StoneBricks
+S 0 6 9 1 1 2 StoneBricks
+S 0 6 9 1 2 0 StoneBricks
+S 0 6 9 1 2 1 StoneBricks
+S 0 6 9 1 2 2 StoneBricks
+S 0 6 9 2 0 0 StoneBricks
+S 0 6 9 2 0 1 StoneBricks
+S 0 6 9 2 0 2 StoneBricks
+S 0 6 9 2 1 0 StoneBricks
+S 0 6 9 2 1 1 StoneBricks
+S 0 6 9 2 1 2 StoneBricks
+S 0 6 9 2 2 0 StoneBricks
+S 0 6 9 2 2 1 StoneBricks
+S 0 6 9 2 2 2 StoneBricks
+S 0 6 11 0 0 0 Cobblestone
+S 0 6 11 0 0 1 StoneBricks
+S 0 6 11 0 0 2 StoneBricks
+S 0 6 11 0 1 0 Cobblestone
+S 0 6 11 0 1 1 StoneBricks
+S 0 6 11 0 1 2 StoneBricks
+S 0 6 11 0 2 0 Cobblestone
+S 0 6 11 0 2 1 StoneBricks
+S 0 6 11 0 2 2 StoneBricks
+S 0 6 11 1 0 0 StoneBricks
+S 0 6 11 1 0 1 StoneBricks
+S 0 6 11 1 0 2 StoneBricks
+S 0 6 11 1 1 0 StoneBricks
+S 0 6 11 1 1 1 StoneBricks
+S 0 6 11 1 1 2 StoneBricks
+S 0 6 11 1 2 0 StoneBricks
+S 0 6 11 1 2 1 StoneBricks
+S 0 6 11 1 2 2 StoneBricks
+S 0 6 11 2 0 0 StoneBricks
+S 0 6 11 2 0 1 StoneBricks
+S 0 6 11 2 0 2 StoneBricks
+S 0 6 11 2 1 0 StoneBricks
+S 0 6 11 2 1 1 StoneBricks
+S 0 6 11 2 1 2 StoneBricks
+S 0 6 11 2 2 0 StoneBricks
+S 0 6 11 2 2 1 StoneBricks
+S 0 6 11 2 2 2 StoneBricks
+C 0 6 12 StoneBricks
+C 0 6 13 StoneBricks
+C 0 6 14 StoneBricks
+C 0 6 15 StoneBricks
+S 0 7 0 0 0 0 StoneBricks
+S 0 7 0 0 0 1 StoneBricks
+S 0 7 0 0 0 2 StoneBricks
+S 0 7 0 0 1 0 StoneBricks
+S 0 7 0 0 1 1 StoneBricks
+S 0 7 0 0 1 2 StoneBricks
+S 0 7 0 0 2 0 StoneBricks
+S 0 7 0 0 2 1 StoneBricks
+S 0 7 0 0 2 2 StoneBricks
+S 0 7 0 1 0 0 StoneBricks
+S 0 7 0 1 0 1 StoneBricks
+S 0 7 0 1 0 2 StoneBricks
+S 0 7 0 1 1 0 StoneBricks
+S 0 7 0 1 1 1 StoneBricks
+S 0 7 0 1 1 2 StoneBricks
+S 0 7 0 1 2 0 StoneBricks
+S 0 7 0 1 2 1 StoneBricks
+S 0 7 0 1 2 2 StoneBricks
+S 0 7 0 2 0 0 Cobblestone
+S 0 7 0 2 0 1 StoneBricks
+S 0 7 0 2 0 2 StoneBricks
+S 0 7 0 2 1 0 Cobblestone
+S 0 7 0 2 1 1 StoneBricks
+S 0 7 0 2 1 2 StoneBricks
+S 0 7 0 2 2 0 Cobblestone
+S 0 7 0 2 2 1 StoneBricks
+S 0 7 0 2 2 2 StoneBricks
+C 0 7 1 StoneBricks
+C 0 7 2 StoneBricks
+C 0 7 3 StoneBricks
+C 0 7 4 StoneBricks
+C 0 7 5 StoneBricks
+C 0 7 6 StoneBricks
+C 0 7 7 StoneBricks
+C 0 7 8 StoneBricks
+S 0 7 9 0 0 0 StoneBricks
+S 0 7 9 0 0 1 StoneBricks
+S 0 7 9 0 0 2 Cobblestone
+S 0 7 9 0 1 0 StoneBricks
+S 0 7 9 0 1 1 StoneBricks
+S 0 7 9 0 1 2 Cobblestone
+S 0 7 9 0 2 0 StoneBricks
+S 0 7 9 0 2 1 StoneBricks
+S 0 7 9 0 2 2 Cobblestone
+S 0 7 9 1 0 0 StoneBricks
+S 0 7 9 1 0 1 StoneBricks
+S 0 7 9 1 0 2 StoneBricks
+S 0 7 9 1 1 0 StoneBricks
+S 0 7 9 1 1 1 StoneBricks
+S 0 7 9 1 1 2 StoneBricks
+S 0 7 9 1 2 0 StoneBricks
+S 0 7 9 1 2 1 StoneBricks
+S 0 7 9 1 2 2 StoneBricks
+S 0 7 9 2 0 0 StoneBricks
+S 0 7 9 2 0 1 StoneBricks
+S 0 7 9 2 0 2 StoneBricks
+S 0 7 9 2 1 0 StoneBricks
+S 0 7 9 2 1 1 StoneBricks
+S 0 7 9 2 1 2 StoneBricks
+S 0 7 9 2 2 0 StoneBricks
+S 0 7 9 2 2 1 StoneBricks
+S 0 7 9 2 2 2 StoneBricks
+S 0 7 11 0 0 0 Cobblestone
+S 0 7 11 0 0 1 StoneBricks
+S 0 7 11 0 0 2 StoneBricks
+S 0 7 11 0 1 0 Cobblestone
+S 0 7 11 0 1 1 StoneBricks
+S 0 7 11 0 1 2 StoneBricks
+S 0 7 11 0 2 0 Cobblestone
+S 0 7 11 0 2 1 StoneBricks
+S 0 7 11 0 2 2 StoneBricks
+S 0 7 11 1 0 0 StoneBricks
+S 0 7 11 1 0 1 StoneBricks
+S 0 7 11 1 0 2 StoneBricks
+S 0 7 11 1 1 0 StoneBricks
+S 0 7 11 1 1 1 StoneBricks
+S 0 7 11 1 1 2 StoneBricks
+S 0 7 11 1 2 0 StoneBricks
+S 0 7 11 1 2 1 StoneBricks
+S 0 7 11 1 2 2 StoneBricks
+S 0 7 11 2 0 0 StoneBricks
+S 0 7 11 2 0 1 StoneBricks
+S 0 7 11 2 0 2 StoneBricks
+S 0 7 11 2 1 0 StoneBricks
+S 0 7 11 2 1 1 StoneBricks
+S 0 7 11 2 1 2 StoneBricks
+S 0 7 11 2 2 0 StoneBricks
+S 0 7 11 2 2 1 StoneBricks
+S 0 7 11 2 2 2 StoneBricks
+C 0 7 12 StoneBricks
+C 0 7 13 StoneBricks
+C 0 7 14 StoneBricks
+C 0 7 15 StoneBricks
+S 0 8 0 0 0 0 Stone
+S 0 8 0 0 0 1 Stone
+S 0 8 0 0 0 2 Stone
+S 0 8 0 0 1 0 Stone
+S 0 8 0 0 1 1 Stone
+S 0 8 0 0 1 2 Stone
+M 0 8 0 0 2 0 1 0 1 Stone
+M 0 8 0 0 2 0 1 0 2 Stone
+M 0 8 0 0 2 0 2 0 1 Stone
+M 0 8 0 0 2 0 2 0 2 Stone
+M 0 8 0 0 2 0 2 1 2 Stone
+M 0 8 0 0 2 1 1 0 0 Stone
+M 0 8 0 0 2 1 1 0 1 Stone
+M 0 8 0 0 2 1 1 0 2 Stone
+M 0 8 0 0 2 1 2 0 0 Stone
+M 0 8 0 0 2 1 2 0 1 Stone
+M 0 8 0 0 2 1 2 0 2 Stone
+M 0 8 0 0 2 1 2 1 0 Stone
+M 0 8 0 0 2 1 2 1 1 Stone
+M 0 8 0 0 2 1 2 1 2 Stone
+M 0 8 0 0 2 2 1 0 0 Stone
+M 0 8 0 0 2 2 1 0 1 Stone
+M 0 8 0 0 2 2 1 0 2 Stone
+M 0 8 0 0 2 2 2 0 0 Stone
+M 0 8 0 0 2 2 2 0 1 Stone
+M 0 8 0 0 2 2 2 0 2 Stone
+M 0 8 0 0 2 2 2 1 0 Stone
+M 0 8 0 0 2 2 2 1 1 Stone
+M 0 8 0 0 2 2 2 1 2 Stone
+S 0 8 0 1 0 0 Stone
+S 0 8 0 1 0 1 Stone
+S 0 8 0 1 0 2 Stone
+S 0 8 0 1 1 0 Stone
+S 0 8 0 1 1 1 Stone
+S 0 8 0 1 1 2 Stone
+M 0 8 0 1 2 0 0 0 1 Stone
+M 0 8 0 1 2 0 0 0 2 Stone
+M 0 8 0 1 2 0 0 1 2 Stone
+M 0 8 0 1 2 0 1 0 1 Stone
+M 0 8 0 1 2 0 1 0 2 Stone
+M 0 8 0 1 2 0 1 1 2 Stone
+M 0 8 0 1 2 0 2 0 1 Stone
+M 0 8 0 1 2 0 2 0 2 Stone
+M 0 8 0 1 2 0 2 1 2 Stone
+S 0 8 0 1 2 1 Stone
+S 0 8 0 1 2 2 Stone
+S 0 8 0 2 0 0 Stone
+S 0 8 0 2 0 1 Stone
+S 0 8 0 2 0 2 Stone
+S 0 8 0 2 1 0 Stone
+S 0 8 0 2 1 1 Stone
+S 0 8 0 2 1 2 Stone
+M 0 8 0 2 2 0 0 0 1 Stone
+M 0 8 0 2 2 0 0 0 2 Stone
+M 0 8 0 2 2 0 0 1 2 Stone
+M 0 8 0 2 2 0 1 0 1 Stone
+M 0 8 0 2 2 0 1 0 2 Stone
+M 0 8 0 2 2 0 1 1 2 Stone
+M 0 8 0 2 2 0 2 0 1 Stone
+M 0 8 0 2 2 0 2 0 2 Stone
+M 0 8 0 2 2 0 2 1 2 Stone
+S 0 8 0 2 2 1 Stone
+S 0 8 0 2 2 2 Stone
+S 0 8 1 0 0 0 Stone
+S 0 8 1 0 0 1 Stone
+S 0 8 1 0 0 2 Stone
+S 0 8 1 0 1 0 Stone
+S 0 8 1 0 1 1 Stone
+S 0 8 1 0 1 2 Stone
+M 0 8 1 0 2 0 1 0 0 Stone
+M 0 8 1 0 2 0 1 0 1 Stone
+M 0 8 1 0 2 0 1 0 2 Stone
+M 0 8 1 0 2 0 2 0 0 Stone
+M 0 8 1 0 2 0 2 0 1 Stone
+M 0 8 1 0 2 0 2 0 2 Stone
+M 0 8 1 0 2 0 2 1 0 Stone
+M 0 8 1 0 2 0 2 1 1 Stone
+M 0 8 1 0 2 0 2 1 2 Stone
+M 0 8 1 0 2 1 1 0 0 Stone
+M 0 8 1 0 2 1 1 0 1 Stone
+M 0 8 1 0 2 1 1 0 2 Stone
+M 0 8 1 0 2 1 2 0 0 Stone
+M 0 8 1 0 2 1 2 0 1 Stone
+M 0 8 1 0 2 1 2 0 2 Stone
+M 0 8 1 0 2 1 2 1 0 Stone
+M 0 8 1 0 2 1 2 1 1 Stone
+M 0 8 1 0 2 1 2 1 2 Stone
+M 0 8 1 0 2 2 1 0 0 Stone
+M 0 8 1 0 2 2 1 0 1 Stone
+M 0 8 1 0 2 2 1 0 2 Stone
+M 0 8 1 0 2 2 2 0 0 Stone
+M 0 8 1 0 2 2 2 0 1 Stone
+M 0 8 1 0 2 2 2 0 2 Stone
+M 0 8 1 0 2 2 2 1 0 Stone
+M 0 8 1 0 2 2 2 1 1 Stone
+M 0 8 1 0 2 2 2 1 2 Stone
+S 0 8 1 1 0 0 Stone
+S 0 8 1 1 0 1 Stone
+S 0 8 1 1 0 2 Stone
+S 0 8 1 1 1 0 Stone
+S 0 8 1 1 1 1 Stone
+S 0 8 1 1 1 2 Stone
+S 0 8 1 1 2 0 Stone
+S 0 8 1 1 2 1 Stone
+S 0 8 1 1 2 2 Stone
+S 0 8 1 2 0 0 Stone
+S 0 8 1 2 0 1 Stone
+S 0 8 1 2 0 2 Stone
+S 0 8 1 2 1 0 Stone
+S 0 8 1 2 1 1 Stone
+S 0 8 1 2 1 2 Stone
+S 0 8 1 2 2 0 Stone
+S 0 8 1 2 2 1 Stone
+S 0 8 1 2 2 2 Stone
+S 0 8 2 0 0 0 Stone
+S 0 8 2 0 0 1 Stone
+S 0 8 2 0 0 2 Stone
+S 0 8 2 0 1 0 Stone
+S 0 8 2 0 1 1 Stone
+S 0 8 2 0 1 2 Stone
+M 0 8 2 0 2 0 1 0 0 Stone
+M 0 8 2 0 2 0 1 0 1 Stone
+M 0 8 2 0 2 0 1 0 2 Stone
+M 0 8 2 0 2 0 2 0 0 Stone
+M 0 8 2 0 2 0 2 0 1 Stone
+M 0 8 2 0 2 0 2 0 2 Stone
+M 0 8 2 0 2 0 2 1 0 Stone
+M 0 8 2 0 2 0 2 1 1 Stone
+M 0 8 2 0 2 0 2 1 2 Stone
+M 0 8 2 0 2 1 1 0 0 Stone
+M 0 8 2 0 2 1 1 0 1 Stone
+M 0 8 2 0 2 1 1 0 2 Stone
+M 0 8 2 0 2 1 2 0 0 Stone
+M 0 8 2 0 2 1 2 0 1 Stone
+M 0 8 2 0 2 1 2 0 2 Stone
+M 0 8 2 0 2 1 2 1 0 Stone
+M 0 8 2 0 2 1 2 1 1 Stone
+M 0 8 2 0 2 1 2 1 2 Stone
+M 0 8 2 0 2 2 1 0 0 Stone
+M 0 8 2 0 2 2 1 0 1 Stone
+M 0 8 2 0 2 2 1 0 2 Stone
+M 0 8 2 0 2 2 2 0 0 Stone
+M 0 8 2 0 2 2 2 0 1 Stone
+M 0 8 2 0 2 2 2 0 2 Stone
+M 0 8 2 0 2 2 2 1 0 Stone
+M 0 8 2 0 2 2 2 1 1 Stone
+M 0 8 2 0 2 2 2 1 2 Stone
+S 0 8 2 1 0 0 Stone
+S 0 8 2 1 0 1 Stone
+S 0 8 2 1 0 2 Stone
+S 0 8 2 1 1 0 Stone
+S 0 8 2 1 1 1 Stone
+S 0 8 2 1 1 2 Stone
+S 0 8 2 1 2 0 Stone
+S 0 8 2 1 2 1 Stone
+S 0 8 2 1 2 2 Stone
+S 0 8 2 2 0 0 Stone
+S 0 8 2 2 0 1 Stone
+S 0 8 2 2 0 2 Stone
+S 0 8 2 2 1 0 Stone
+S 0 8 2 2 1 1 Stone
+S 0 8 2 2 1 2 Stone
+S 0 8 2 2 2 0 Stone
+S 0 8 2 2 2 1 Stone
+S 0 8 2 2 2 2 Stone
+S 0 8 3 0 0 0 Stone
+S 0 8 3 0 0 1 Stone
+S 0 8 3 0 0 2 Stone
+S 0 8 3 0 1 0 Stone
+S 0 8 3 0 1 1 Stone
+S 0 8 3 0 1 2 Stone
+M 0 8 3 0 2 0 1 0 0 Stone
+M 0 8 3 0 2 0 1 0 1 Stone
+M 0 8 3 0 2 0 1 0 2 Stone
+M 0 8 3 0 2 0 2 0 0 Stone
+M 0 8 3 0 2 0 2 0 1 Stone
+M 0 8 3 0 2 0 2 0 2 Stone
+M 0 8 3 0 2 0 2 1 0 Stone
+M 0 8 3 0 2 0 2 1 1 Stone
+M 0 8 3 0 2 0 2 1 2 Stone
+M 0 8 3 0 2 1 1 0 0 Stone
+M 0 8 3 0 2 1 1 0 1 Stone
+M 0 8 3 0 2 1 1 0 2 Stone
+M 0 8 3 0 2 1 2 0 0 Stone
+M 0 8 3 0 2 1 2 0 1 Stone
+M 0 8 3 0 2 1 2 0 2 Stone
+M 0 8 3 0 2 1 2 1 0 Stone
+M 0 8 3 0 2 1 2 1 1 Stone
+M 0 8 3 0 2 1 2 1 2 Stone
+M 0 8 3 0 2 2 1 0 0 Stone
+M 0 8 3 0 2 2 1 0 1 Stone
+M 0 8 3 0 2 2 1 0 2 Stone
+M 0 8 3 0 2 2 2 0 0 Stone
+M 0 8 3 0 2 2 2 0 1 Stone
+M 0 8 3 0 2 2 2 0 2 Stone
+M 0 8 3 0 2 2 2 1 0 Stone
+M 0 8 3 0 2 2 2 1 1 Stone
+M 0 8 3 0 2 2 2 1 2 Stone
+S 0 8 3 1 0 0 Stone
+S 0 8 3 1 0 1 Stone
+S 0 8 3 1 0 2 Stone
+S 0 8 3 1 1 0 Stone
+S 0 8 3 1 1 1 Stone
+S 0 8 3 1 1 2 Stone
+S 0 8 3 1 2 0 Stone
+S 0 8 3 1 2 1 Stone
+S 0 8 3 1 2 2 Stone
+S 0 8 3 2 0 0 Stone
+S 0 8 3 2 0 1 Stone
+S 0 8 3 2 0 2 Stone
+S 0 8 3 2 1 0 Stone
+S 0 8 3 2 1 1 Stone
+S 0 8 3 2 1 2 Stone
+S 0 8 3 2 2 0 Stone
+S 0 8 3 2 2 1 Stone
+S 0 8 3 2 2 2 Stone
+S 0 8 4 0 0 0 Stone
+S 0 8 4 0 0 1 Stone
+S 0 8 4 0 0 2 Stone
+S 0 8 4 0 1 0 Stone
+S 0 8 4 0 1 1 Stone
+S 0 8 4 0 1 2 Stone
+M 0 8 4 0 2 0 1 0 0 Stone
+M 0 8 4 0 2 0 1 0 1 Stone
+M 0 8 4 0 2 0 1 0 2 Stone
+M 0 8 4 0 2 0 2 0 0 Stone
+M 0 8 4 0 2 0 2 0 1 Stone
+M 0 8 4 0 2 0 2 0 2 Stone
+M 0 8 4 0 2 0 2 1 0 Stone
+M 0 8 4 0 2 0 2 1 1 Stone
+M 0 8 4 0 2 0 2 1 2 Stone
+M 0 8 4 0 2 1 1 0 0 Stone
+M 0 8 4 0 2 1 1 0 1 Stone
+M 0 8 4 0 2 1 1 0 2 Stone
+M 0 8 4 0 2 1 2 0 0 Stone
+M 0 8 4 0 2 1 2 0 1 Stone
+M 0 8 4 0 2 1 2 0 2 Stone
+M 0 8 4 0 2 1 2 1 0 Stone
+M 0 8 4 0 2 1 2 1 1 Stone
+M 0 8 4 0 2 1 2 1 2 Stone
+M 0 8 4 0 2 2 1 0 0 Stone
+M 0 8 4 0 2 2 1 0 1 Stone
+M 0 8 4 0 2 2 1 0 2 Stone
+M 0 8 4 0 2 2 2 0 0 Stone
+M 0 8 4 0 2 2 2 0 1 Stone
+M 0 8 4 0 2 2 2 0 2 Stone
+M 0 8 4 0 2 2 2 1 0 Stone
+M 0 8 4 0 2 2 2 1 1 Stone
+M 0 8 4 0 2 2 2 1 2 Stone
+S 0 8 4 1 0 0 Stone
+S 0 8 4 1 0 1 Stone
+S 0 8 4 1 0 2 Stone
+S 0 8 4 1 1 0 Stone
+S 0 8 4 1 1 1 Stone
+S 0 8 4 1 1 2 Stone
+S 0 8 4 1 2 0 Stone
+S 0 8 4 1 2 1 Stone
+S 0 8 4 1 2 2 Stone
+S 0 8 4 2 0 0 Stone
+S 0 8 4 2 0 1 Stone
+S 0 8 4 2 0 2 Stone
+S 0 8 4 2 1 0 Stone
+S 0 8 4 2 1 1 Stone
+S 0 8 4 2 1 2 Stone
+S 0 8 4 2 2 0 Stone
+S 0 8 4 2 2 1 Stone
+S 0 8 4 2 2 2 Stone
+S 0 8 5 0 0 0 Stone
+S 0 8 5 0 0 1 Stone
+S 0 8 5 0 0 2 Stone
+S 0 8 5 0 1 0 Stone
+S 0 8 5 0 1 1 Stone
+S 0 8 5 0 1 2 Stone
+M 0 8 5 0 2 0 1 0 0 Stone
+M 0 8 5 0 2 0 1 0 1 Stone
+M 0 8 5 0 2 0 1 0 2 Stone
+M 0 8 5 0 2 0 2 0 0 Stone
+M 0 8 5 0 2 0 2 0 1 Stone
+M 0 8 5 0 2 0 2 0 2 Stone
+M 0 8 5 0 2 0 2 1 0 Stone
+M 0 8 5 0 2 0 2 1 1 Stone
+M 0 8 5 0 2 0 2 1 2 Stone
+M 0 8 5 0 2 1 1 0 0 Stone
+M 0 8 5 0 2 1 1 0 1 Stone
+M 0 8 5 0 2 1 1 0 2 Stone
+M 0 8 5 0 2 1 2 0 0 Stone
+M 0 8 5 0 2 1 2 0 1 Stone
+M 0 8 5 0 2 1 2 0 2 Stone
+M 0 8 5 0 2 1 2 1 0 Stone
+M 0 8 5 0 2 1 2 1 1 Stone
+M 0 8 5 0 2 1 2 1 2 Stone
+M 0 8 5 0 2 2 1 0 0 Stone
+M 0 8 5 0 2 2 1 0 1 Stone
+M 0 8 5 0 2 2 1 0 2 Stone
+M 0 8 5 0 2 2 2 0 0 Stone
+M 0 8 5 0 2 2 2 0 1 Stone
+M 0 8 5 0 2 2 2 0 2 Stone
+M 0 8 5 0 2 2 2 1 0 Stone
+M 0 8 5 0 2 2 2 1 1 Stone
+M 0 8 5 0 2 2 2 1 2 Stone
+S 0 8 5 1 0 0 Stone
+S 0 8 5 1 0 1 Stone
+S 0 8 5 1 0 2 Stone
+S 0 8 5 1 1 0 Stone
+S 0 8 5 1 1 1 Stone
+S 0 8 5 1 1 2 Stone
+S 0 8 5 1 2 0 Stone
+S 0 8 5 1 2 1 Stone
+S 0 8 5 1 2 2 Stone
+S 0 8 5 2 0 0 Stone
+S 0 8 5 2 0 1 Stone
+S 0 8 5 2 0 2 Stone
+S 0 8 5 2 1 0 Stone
+S 0 8 5 2 1 1 Stone
+S 0 8 5 2 1 2 Stone
+S 0 8 5 2 2 0 Stone
+S 0 8 5 2 2 1 Stone
+S 0 8 5 2 2 2 Stone
+S 0 8 6 0 0 0 Stone
+S 0 8 6 0 0 1 Stone
+S 0 8 6 0 0 2 Stone
+S 0 8 6 0 1 0 Stone
+S 0 8 6 0 1 1 Stone
+S 0 8 6 0 1 2 Stone
+M 0 8 6 0 2 0 1 0 0 Stone
+M 0 8 6 0 2 0 1 0 1 Stone
+M 0 8 6 0 2 0 1 0 2 Stone
+M 0 8 6 0 2 0 2 0 0 Stone
+M 0 8 6 0 2 0 2 0 1 Stone
+M 0 8 6 0 2 0 2 0 2 Stone
+M 0 8 6 0 2 0 2 1 0 Stone
+M 0 8 6 0 2 0 2 1 1 Stone
+M 0 8 6 0 2 0 2 1 2 Stone
+M 0 8 6 0 2 1 1 0 0 Stone
+M 0 8 6 0 2 1 1 0 1 Stone
+M 0 8 6 0 2 1 1 0 2 Stone
+M 0 8 6 0 2 1 2 0 0 Stone
+M 0 8 6 0 2 1 2 0 1 Stone
+M 0 8 6 0 2 1 2 0 2 Stone
+M 0 8 6 0 2 1 2 1 0 Stone
+M 0 8 6 0 2 1 2 1 1 Stone
+M 0 8 6 0 2 1 2 1 2 Stone
+M 0 8 6 0 2 2 1 0 0 Stone
+M 0 8 6 0 2 2 1 0 1 Stone
+M 0 8 6 0 2 2 1 0 2 Stone
+M 0 8 6 0 2 2 2 0 0 Stone
+M 0 8 6 0 2 2 2 0 1 Stone
+M 0 8 6 0 2 2 2 0 2 Stone
+M 0 8 6 0 2 2 2 1 0 Stone
+M 0 8 6 0 2 2 2 1 1 Stone
+M 0 8 6 0 2 2 2 1 2 Stone
+S 0 8 6 1 0 0 Stone
+S 0 8 6 1 0 1 Stone
+S 0 8 6 1 0 2 Stone
+S 0 8 6 1 1 0 Stone
+S 0 8 6 1 1 1 Stone
+S 0 8 6 1 1 2 Stone
+S 0 8 6 1 2 0 Stone
+S 0 8 6 1 2 1 Stone
+S 0 8 6 1 2 2 Stone
+S 0 8 6 2 0 0 Stone
+S 0 8 6 2 0 1 Stone
+S 0 8 6 2 0 2 Stone
+S 0 8 6 2 1 0 Stone
+S 0 8 6 2 1 1 Stone
+S 0 8 6 2 1 2 Stone
+S 0 8 6 2 2 0 Stone
+S 0 8 6 2 2 1 Stone
+S 0 8 6 2 2 2 Stone
+S 0 8 7 0 0 0 Stone
+S 0 8 7 0 0 1 Stone
+S 0 8 7 0 0 2 Stone
+S 0 8 7 0 1 0 Stone
+S 0 8 7 0 1 1 Stone
+S 0 8 7 0 1 2 Stone
+M 0 8 7 0 2 0 1 0 0 Stone
+M 0 8 7 0 2 0 1 0 1 Stone
+M 0 8 7 0 2 0 1 0 2 Stone
+M 0 8 7 0 2 0 2 0 0 Stone
+M 0 8 7 0 2 0 2 0 1 Stone
+M 0 8 7 0 2 0 2 0 2 Stone
+M 0 8 7 0 2 0 2 1 0 Stone
+M 0 8 7 0 2 0 2 1 1 Stone
+M 0 8 7 0 2 0 2 1 2 Stone
+M 0 8 7 0 2 1 1 0 0 Stone
+M 0 8 7 0 2 1 1 0 1 Stone
+M 0 8 7 0 2 1 1 0 2 Stone
+M 0 8 7 0 2 1 2 0 0 Stone
+M 0 8 7 0 2 1 2 0 1 Stone
+M 0 8 7 0 2 1 2 0 2 Stone
+M 0 8 7 0 2 1 2 1 0 Stone
+M 0 8 7 0 2 1 2 1 1 Stone
+M 0 8 7 0 2 1 2 1 2 Stone
+M 0 8 7 0 2 2 1 0 0 Stone
+M 0 8 7 0 2 2 1 0 1 Stone
+M 0 8 7 0 2 2 1 0 2 Stone
+M 0 8 7 0 2 2 2 0 0 Stone
+M 0 8 7 0 2 2 2 0 1 Stone
+M 0 8 7 0 2 2 2 0 2 Stone
+M 0 8 7 0 2 2 2 1 0 Stone
+M 0 8 7 0 2 2 2 1 1 Stone
+M 0 8 7 0 2 2 2 1 2 Stone
+S 0 8 7 1 0 0 Stone
+S 0 8 7 1 0 1 Stone
+S 0 8 7 1 0 2 Stone
+S 0 8 7 1 1 0 Stone
+S 0 8 7 1 1 1 Stone
+S 0 8 7 1 1 2 Stone
+S 0 8 7 1 2 0 Stone
+S 0 8 7 1 2 1 Stone
+S 0 8 7 1 2 2 Stone
+S 0 8 7 2 0 0 Stone
+S 0 8 7 2 0 1 Stone
+S 0 8 7 2 0 2 Stone
+S 0 8 7 2 1 0 Stone
+S 0 8 7 2 1 1 Stone
+S 0 8 7 2 1 2 Stone
+S 0 8 7 2 2 0 Stone
+S 0 8 7 2 2 1 Stone
+S 0 8 7 2 2 2 Stone
+S 0 8 8 0 0 0 Stone
+S 0 8 8 0 0 1 Stone
+S 0 8 8 0 0 2 Stone
+S 0 8 8 0 1 0 Stone
+S 0 8 8 0 1 1 Stone
+S 0 8 8 0 1 2 Stone
+M 0 8 8 0 2 0 1 0 0 Stone
+M 0 8 8 0 2 0 1 0 1 Stone
+M 0 8 8 0 2 0 1 0 2 Stone
+M 0 8 8 0 2 0 2 0 0 Stone
+M 0 8 8 0 2 0 2 0 1 Stone
+M 0 8 8 0 2 0 2 0 2 Stone
+M 0 8 8 0 2 0 2 1 0 Stone
+M 0 8 8 0 2 0 2 1 1 Stone
+M 0 8 8 0 2 0 2 1 2 Stone
+M 0 8 8 0 2 1 1 0 0 Stone
+M 0 8 8 0 2 1 1 0 1 Stone
+M 0 8 8 0 2 1 1 0 2 Stone
+M 0 8 8 0 2 1 2 0 0 Stone
+M 0 8 8 0 2 1 2 0 1 Stone
+M 0 8 8 0 2 1 2 0 2 Stone
+M 0 8 8 0 2 1 2 1 0 Stone
+M 0 8 8 0 2 1 2 1 1 Stone
+M 0 8 8 0 2 1 2 1 2 Stone
+M 0 8 8 0 2 2 1 0 0 Stone
+M 0 8 8 0 2 2 1 0 1 Stone
+M 0 8 8 0 2 2 1 0 2 Stone
+M 0 8 8 0 2 2 2 0 0 Stone
+M 0 8 8 0 2 2 2 0 1 Stone
+M 0 8 8 0 2 2 2 0 2 Stone
+M 0 8 8 0 2 2 2 1 0 Stone
+M 0 8 8 0 2 2 2 1 1 Stone
+M 0 8 8 0 2 2 2 1 2 Stone
+S 0 8 8 1 0 0 Stone
+S 0 8 8 1 0 1 Stone
+S 0 8 8 1 0 2 Stone
+S 0 8 8 1 1 0 Stone
+S 0 8 8 1 1 1 Stone
+S 0 8 8 1 1 2 Stone
+S 0 8 8 1 2 0 Stone
+S 0 8 8 1 2 1 Stone
+S 0 8 8 1 2 2 Stone
+S 0 8 8 2 0 0 Stone
+S 0 8 8 2 0 1 Stone
+S 0 8 8 2 0 2 Stone
+S 0 8 8 2 1 0 Stone
+S 0 8 8 2 1 1 Stone
+S 0 8 8 2 1 2 Stone
+S 0 8 8 2 2 0 Stone
+S 0 8 8 2 2 1 Stone
+S 0 8 8 2 2 2 Stone
+S 0 8 9 0 0 0 Stone
+S 0 8 9 0 0 1 Stone
+S 0 8 9 0 0 2 Stone
+S 0 8 9 0 1 0 Stone
+S 0 8 9 0 1 1 Stone
+S 0 8 9 0 1 2 Stone
+M 0 8 9 0 2 0 1 0 0 Stone
+M 0 8 9 0 2 0 1 0 1 Stone
+M 0 8 9 0 2 0 1 0 2 Stone
+M 0 8 9 0 2 0 2 0 0 Stone
+M 0 8 9 0 2 0 2 0 1 Stone
+M 0 8 9 0 2 0 2 0 2 Stone
+M 0 8 9 0 2 0 2 1 0 Stone
+M 0 8 9 0 2 0 2 1 1 Stone
+M 0 8 9 0 2 0 2 1 2 Stone
+M 0 8 9 0 2 1 1 0 0 Stone
+M 0 8 9 0 2 1 1 0 1 Stone
+M 0 8 9 0 2 1 1 0 2 Stone
+M 0 8 9 0 2 1 2 0 0 Stone
+M 0 8 9 0 2 1 2 0 1 Stone
+M 0 8 9 0 2 1 2 0 2 Stone
+M 0 8 9 0 2 1 2 1 0 Stone
+M 0 8 9 0 2 1 2 1 1 Stone
+M 0 8 9 0 2 1 2 1 2 Stone
+M 0 8 9 0 2 2 1 0 0 Stone
+M 0 8 9 0 2 2 1 0 1 Stone
+M 0 8 9 0 2 2 1 0 2 Stone
+M 0 8 9 0 2 2 2 0 0 Stone
+M 0 8 9 0 2 2 2 0 1 Stone
+M 0 8 9 0 2 2 2 0 2 Stone
+M 0 8 9 0 2 2 2 1 0 Stone
+M 0 8 9 0 2 2 2 1 1 Stone
+M 0 8 9 0 2 2 2 1 2 Stone
+S 0 8 9 1 0 0 Stone
+S 0 8 9 1 0 1 Stone
+S 0 8 9 1 0 2 Stone
+S 0 8 9 1 1 0 Stone
+S 0 8 9 1 1 1 Stone
+S 0 8 9 1 1 2 Stone
+S 0 8 9 1 2 0 Stone
+S 0 8 9 1 2 1 Stone
+S 0 8 9 1 2 2 Stone
+S 0 8 9 2 0 0 Stone
+S 0 8 9 2 0 1 Stone
+S 0 8 9 2 0 2 Stone
+S 0 8 9 2 1 0 Stone
+S 0 8 9 2 1 1 Stone
+S 0 8 9 2 1 2 Stone
+S 0 8 9 2 2 0 Stone
+S 0 8 9 2 2 1 Stone
+S 0 8 9 2 2 2 Stone
+S 0 8 10 0 0 0 Stone
+S 0 8 10 0 0 1 Stone
+S 0 8 10 0 0 2 Stone
+S 0 8 10 0 1 0 Stone
+S 0 8 10 0 1 1 Stone
+S 0 8 10 0 1 2 Stone
+M 0 8 10 0 2 0 1 0 0 Stone
+M 0 8 10 0 2 0 1 0 1 Stone
+M 0 8 10 0 2 0 1 0 2 Stone
+M 0 8 10 0 2 0 2 0 0 Stone
+M 0 8 10 0 2 0 2 0 1 Stone
+M 0 8 10 0 2 0 2 0 2 Stone
+M 0 8 10 0 2 0 2 1 0 Stone
+M 0 8 10 0 2 0 2 1 1 Stone
+M 0 8 10 0 2 0 2 1 2 Stone
+M 0 8 10 0 2 1 1 0 0 Stone
+M 0 8 10 0 2 1 1 0 1 Stone
+M 0 8 10 0 2 1 1 0 2 Stone
+M 0 8 10 0 2 1 2 0 0 Stone
+M 0 8 10 0 2 1 2 0 1 Stone
+M 0 8 10 0 2 1 2 0 2 Stone
+M 0 8 10 0 2 1 2 1 0 Stone
+M 0 8 10 0 2 1 2 1 1 Stone
+M 0 8 10 0 2 1 2 1 2 Stone
+M 0 8 10 0 2 2 1 0 0 Stone
+M 0 8 10 0 2 2 1 0 1 Stone
+M 0 8 10 0 2 2 1 0 2 Stone
+M 0 8 10 0 2 2 2 0 0 Stone
+M 0 8 10 0 2 2 2 0 1 Stone
+M 0 8 10 0 2 2 2 0 2 Stone
+M 0 8 10 0 2 2 2 1 0 Stone
+M 0 8 10 0 2 2 2 1 1 Stone
+M 0 8 10 0 2 2 2 1 2 Stone
+S 0 8 10 1 0 0 Stone
+S 0 8 10 1 0 1 Stone
+S 0 8 10 1 0 2 Stone
+S 0 8 10 1 1 0 Stone
+S 0 8 10 1 1 1 Stone
+S 0 8 10 1 1 2 Stone
+S 0 8 10 1 2 0 Stone
+S 0 8 10 1 2 1 Stone
+S 0 8 10 1 2 2 Stone
+S 0 8 10 2 0 0 Stone
+S 0 8 10 2 0 1 Stone
+S 0 8 10 2 0 2 Stone
+S 0 8 10 2 1 0 Stone
+S 0 8 10 2 1 1 Stone
+S 0 8 10 2 1 2 Stone
+S 0 8 10 2 2 0 Stone
+S 0 8 10 2 2 1 Stone
+S 0 8 10 2 2 2 Stone
+S 0 8 11 0 0 0 Stone
+S 0 8 11 0 0 1 Stone
+S 0 8 11 0 0 2 Stone
+S 0 8 11 0 1 0 Stone
+S 0 8 11 0 1 1 Stone
+S 0 8 11 0 1 2 Stone
+M 0 8 11 0 2 0 1 0 0 Stone
+M 0 8 11 0 2 0 1 0 1 Stone
+M 0 8 11 0 2 0 1 0 2 Stone
+M 0 8 11 0 2 0 2 0 0 Stone
+M 0 8 11 0 2 0 2 0 1 Stone
+M 0 8 11 0 2 0 2 0 2 Stone
+M 0 8 11 0 2 0 2 1 0 Stone
+M 0 8 11 0 2 0 2 1 1 Stone
+M 0 8 11 0 2 0 2 1 2 Stone
+M 0 8 11 0 2 1 1 0 0 Stone
+M 0 8 11 0 2 1 1 0 1 Stone
+M 0 8 11 0 2 1 1 0 2 Stone
+M 0 8 11 0 2 1 2 0 0 Stone
+M 0 8 11 0 2 1 2 0 1 Stone
+M 0 8 11 0 2 1 2 0 2 Stone
+M 0 8 11 0 2 1 2 1 0 Stone
+M 0 8 11 0 2 1 2 1 1 Stone
+M 0 8 11 0 2 1 2 1 2 Stone
+M 0 8 11 0 2 2 1 0 0 Stone
+M 0 8 11 0 2 2 1 0 1 Stone
+M 0 8 11 0 2 2 1 0 2 Stone
+M 0 8 11 0 2 2 2 0 0 Stone
+M 0 8 11 0 2 2 2 0 1 Stone
+M 0 8 11 0 2 2 2 0 2 Stone
+M 0 8 11 0 2 2 2 1 0 Stone
+M 0 8 11 0 2 2 2 1 1 Stone
+M 0 8 11 0 2 2 2 1 2 Stone
+S 0 8 11 1 0 0 Stone
+S 0 8 11 1 0 1 Stone
+S 0 8 11 1 0 2 Stone
+S 0 8 11 1 1 0 Stone
+S 0 8 11 1 1 1 Stone
+S 0 8 11 1 1 2 Stone
+S 0 8 11 1 2 0 Stone
+S 0 8 11 1 2 1 Stone
+S 0 8 11 1 2 2 Stone
+S 0 8 11 2 0 0 Stone
+S 0 8 11 2 0 1 Stone
+S 0 8 11 2 0 2 Stone
+S 0 8 11 2 1 0 Stone
+S 0 8 11 2 1 1 Stone
+S 0 8 11 2 1 2 Stone
+S 0 8 11 2 2 0 Stone
+S 0 8 11 2 2 1 Stone
+S 0 8 11 2 2 2 Stone
+S 0 8 12 0 0 0 Stone
+S 0 8 12 0 0 1 Stone
+S 0 8 12 0 0 2 Stone
+S 0 8 12 0 1 0 Stone
+S 0 8 12 0 1 1 Stone
+S 0 8 12 0 1 2 Stone
+M 0 8 12 0 2 0 1 0 0 Stone
+M 0 8 12 0 2 0 1 0 1 Stone
+M 0 8 12 0 2 0 1 0 2 Stone
+M 0 8 12 0 2 0 2 0 0 Stone
+M 0 8 12 0 2 0 2 0 1 Stone
+M 0 8 12 0 2 0 2 0 2 Stone
+M 0 8 12 0 2 0 2 1 0 Stone
+M 0 8 12 0 2 0 2 1 1 Stone
+M 0 8 12 0 2 0 2 1 2 Stone
+M 0 8 12 0 2 1 1 0 0 Stone
+M 0 8 12 0 2 1 1 0 1 Stone
+M 0 8 12 0 2 1 1 0 2 Stone
+M 0 8 12 0 2 1 2 0 0 Stone
+M 0 8 12 0 2 1 2 0 1 Stone
+M 0 8 12 0 2 1 2 0 2 Stone
+M 0 8 12 0 2 1 2 1 0 Stone
+M 0 8 12 0 2 1 2 1 1 Stone
+M 0 8 12 0 2 1 2 1 2 Stone
+M 0 8 12 0 2 2 1 0 0 Stone
+M 0 8 12 0 2 2 1 0 1 Stone
+M 0 8 12 0 2 2 1 0 2 Stone
+M 0 8 12 0 2 2 2 0 0 Stone
+M 0 8 12 0 2 2 2 0 1 Stone
+M 0 8 12 0 2 2 2 0 2 Stone
+M 0 8 12 0 2 2 2 1 0 Stone
+M 0 8 12 0 2 2 2 1 1 Stone
+M 0 8 12 0 2 2 2 1 2 Stone
+S 0 8 12 1 0 0 Stone
+S 0 8 12 1 0 1 Stone
+S 0 8 12 1 0 2 Stone
+S 0 8 12 1 1 0 Stone
+S 0 8 12 1 1 1 Stone
+S 0 8 12 1 1 2 Stone
+S 0 8 12 1 2 0 Stone
+S 0 8 12 1 2 1 Stone
+S 0 8 12 1 2 2 Stone
+S 0 8 12 2 0 0 Stone
+S 0 8 12 2 0 1 Stone
+S 0 8 12 2 0 2 Stone
+S 0 8 12 2 1 0 Stone
+S 0 8 12 2 1 1 Stone
+S 0 8 12 2 1 2 Stone
+S 0 8 12 2 2 0 Stone
+S 0 8 12 2 2 1 Stone
+S 0 8 12 2 2 2 Stone
+S 0 8 13 0 0 0 Stone
+S 0 8 13 0 0 1 Stone
+S 0 8 13 0 0 2 Stone
+S 0 8 13 0 1 0 Stone
+S 0 8 13 0 1 1 Stone
+S 0 8 13 0 1 2 Stone
+M 0 8 13 0 2 0 1 0 0 Stone
+M 0 8 13 0 2 0 1 0 1 Stone
+M 0 8 13 0 2 0 1 0 2 Stone
+M 0 8 13 0 2 0 2 0 0 Stone
+M 0 8 13 0 2 0 2 0 1 Stone
+M 0 8 13 0 2 0 2 0 2 Stone
+M 0 8 13 0 2 0 2 1 0 Stone
+M 0 8 13 0 2 0 2 1 1 Stone
+M 0 8 13 0 2 0 2 1 2 Stone
+M 0 8 13 0 2 1 1 0 0 Stone
+M 0 8 13 0 2 1 1 0 1 Stone
+M 0 8 13 0 2 1 1 0 2 Stone
+M 0 8 13 0 2 1 2 0 0 Stone
+M 0 8 13 0 2 1 2 0 1 Stone
+M 0 8 13 0 2 1 2 0 2 Stone
+M 0 8 13 0 2 1 2 1 0 Stone
+M 0 8 13 0 2 1 2 1 1 Stone
+M 0 8 13 0 2 1 2 1 2 Stone
+M 0 8 13 0 2 2 1 0 0 Stone
+M 0 8 13 0 2 2 1 0 1 Stone
+M 0 8 13 0 2 2 1 0 2 Stone
+M 0 8 13 0 2 2 2 0 0 Stone
+M 0 8 13 0 2 2 2 0 1 Stone
+M 0 8 13 0 2 2 2 0 2 Stone
+M 0 8 13 0 2 2 2 1 0 Stone
+M 0 8 13 0 2 2 2 1 1 Stone
+M 0 8 13 0 2 2 2 1 2 Stone
+S 0 8 13 1 0 0 Stone
+S 0 8 13 1 0 1 Stone
+S 0 8 13 1 0 2 Stone
+S 0 8 13 1 1 0 Stone
+S 0 8 13 1 1 1 Stone
+S 0 8 13 1 1 2 Stone
+S 0 8 13 1 2 0 Stone
+S 0 8 13 1 2 1 Stone
+S 0 8 13 1 2 2 Stone
+S 0 8 13 2 0 0 Stone
+S 0 8 13 2 0 1 Stone
+S 0 8 13 2 0 2 Stone
+S 0 8 13 2 1 0 Stone
+S 0 8 13 2 1 1 Stone
+S 0 8 13 2 1 2 Stone
+S 0 8 13 2 2 0 Stone
+S 0 8 13 2 2 1 Stone
+S 0 8 13 2 2 2 Stone
+S 0 8 14 0 0 0 Stone
+S 0 8 14 0 0 1 Stone
+S 0 8 14 0 0 2 Stone
+S 0 8 14 0 1 0 Stone
+S 0 8 14 0 1 1 Stone
+S 0 8 14 0 1 2 Stone
+M 0 8 14 0 2 0 1 0 0 Stone
+M 0 8 14 0 2 0 1 0 1 Stone
+M 0 8 14 0 2 0 1 0 2 Stone
+M 0 8 14 0 2 0 2 0 0 Stone
+M 0 8 14 0 2 0 2 0 1 Stone
+M 0 8 14 0 2 0 2 0 2 Stone
+M 0 8 14 0 2 0 2 1 0 Stone
+M 0 8 14 0 2 0 2 1 1 Stone
+M 0 8 14 0 2 0 2 1 2 Stone
+M 0 8 14 0 2 1 1 0 0 Stone
+M 0 8 14 0 2 1 1 0 1 Stone
+M 0 8 14 0 2 1 1 0 2 Stone
+M 0 8 14 0 2 1 2 0 0 Stone
+M 0 8 14 0 2 1 2 0 1 Stone
+M 0 8 14 0 2 1 2 0 2 Stone
+M 0 8 14 0 2 1 2 1 0 Stone
+M 0 8 14 0 2 1 2 1 1 Stone
+M 0 8 14 0 2 1 2 1 2 Stone
+M 0 8 14 0 2 2 1 0 0 Stone
+M 0 8 14 0 2 2 1 0 1 Stone
+M 0 8 14 0 2 2 1 0 2 Stone
+M 0 8 14 0 2 2 2 0 0 Stone
+M 0 8 14 0 2 2 2 0 1 Stone
+M 0 8 14 0 2 2 2 0 2 Stone
+M 0 8 14 0 2 2 2 1 0 Stone
+M 0 8 14 0 2 2 2 1 1 Stone
+M 0 8 14 0 2 2 2 1 2 Stone
+S 0 8 14 1 0 0 Stone
+S 0 8 14 1 0 1 Stone
+S 0 8 14 1 0 2 Stone
+S 0 8 14 1 1 0 Stone
+S 0 8 14 1 1 1 Stone
+S 0 8 14 1 1 2 Stone
+S 0 8 14 1 2 0 Stone
+S 0 8 14 1 2 1 Stone
+S 0 8 14 1 2 2 Stone
+S 0 8 14 2 0 0 Stone
+S 0 8 14 2 0 1 Stone
+S 0 8 14 2 0 2 Stone
+S 0 8 14 2 1 0 Stone
+S 0 8 14 2 1 1 Stone
+S 0 8 14 2 1 2 Stone
+S 0 8 14 2 2 0 Stone
+S 0 8 14 2 2 1 Stone
+S 0 8 14 2 2 2 Stone
+S 0 8 15 0 0 0 Stone
+S 0 8 15 0 0 1 Stone
+S 0 8 15 0 0 2 Stone
+S 0 8 15 0 1 0 Stone
+S 0 8 15 0 1 1 Stone
+S 0 8 15 0 1 2 Stone
+M 0 8 15 0 2 0 1 0 0 Stone
+M 0 8 15 0 2 0 1 0 1 Stone
+M 0 8 15 0 2 0 1 0 2 Stone
+M 0 8 15 0 2 0 2 0 0 Stone
+M 0 8 15 0 2 0 2 0 1 Stone
+M 0 8 15 0 2 0 2 0 2 Stone
+M 0 8 15 0 2 0 2 1 0 Stone
+M 0 8 15 0 2 0 2 1 1 Stone
+M 0 8 15 0 2 0 2 1 2 Stone
+M 0 8 15 0 2 1 1 0 0 Stone
+M 0 8 15 0 2 1 1 0 1 Stone
+M 0 8 15 0 2 1 1 0 2 Stone
+M 0 8 15 0 2 1 2 0 0 Stone
+M 0 8 15 0 2 1 2 0 1 Stone
+M 0 8 15 0 2 1 2 0 2 Stone
+M 0 8 15 0 2 1 2 1 0 Stone
+M 0 8 15 0 2 1 2 1 1 Stone
+M 0 8 15 0 2 1 2 1 2 Stone
+M 0 8 15 0 2 2 1 0 0 Stone
+M 0 8 15 0 2 2 1 0 1 Stone
+M 0 8 15 0 2 2 2 0 0 Stone
+M 0 8 15 0 2 2 2 0 1 Stone
+M 0 8 15 0 2 2 2 1 0 Stone
+S 0 8 15 1 0 0 Stone
+S 0 8 15 1 0 1 Stone
+S 0 8 15 1 0 2 Stone
+S 0 8 15 1 1 0 Stone
+S 0 8 15 1 1 1 Stone
+S 0 8 15 1 1 2 Stone
+S 0 8 15 1 2 0 Stone
+S 0 8 15 1 2 1 Stone
+M 0 8 15 1 2 2 0 0 0 Stone
+M 0 8 15 1 2 2 0 0 1 Stone
+M 0 8 15 1 2 2 0 1 0 Stone
+M 0 8 15 1 2 2 1 0 0 Stone
+M 0 8 15 1 2 2 1 0 1 Stone
+M 0 8 15 1 2 2 1 1 0 Stone
+M 0 8 15 1 2 2 2 0 0 Stone
+M 0 8 15 1 2 2 2 0 1 Stone
+M 0 8 15 1 2 2 2 1 0 Stone
+S 0 8 15 2 0 0 Stone
+S 0 8 15 2 0 1 Stone
+S 0 8 15 2 0 2 Stone
+S 0 8 15 2 1 0 Stone
+S 0 8 15 2 1 1 Stone
+S 0 8 15 2 1 2 Stone
+S 0 8 15 2 2 0 Stone
+S 0 8 15 2 2 1 Stone
+M 0 8 15 2 2 2 0 0 0 Stone
+M 0 8 15 2 2 2 0 0 1 Stone
+M 0 8 15 2 2 2 0 1 0 Stone
+M 0 8 15 2 2 2 1 0 0 Stone
+M 0 8 15 2 2 2 1 0 1 Stone
+M 0 8 15 2 2 2 1 1 0 Stone
+M 0 8 15 2 2 2 2 0 0 Stone
+M 0 8 15 2 2 2 2 0 1 Stone
+M 0 8 15 2 2 2 2 1 0 Stone
+C 1 0 0 Wood
+C 1 0 1 Wood
+C 1 0 2 Wood
+C 1 0 3 Wood
+C 1 0 4 Wood
+C 1 0 5 Wood
+C 1 0 6 Wood
+C 1 0 7 Wood
+C 1 0 8 Wood
+C 1 0 9 Wood
+C 1 0 10 Wood
+C 1 0 11 Wood
+C 1 0 12 Wood
+C 1 0 13 Wood
+C 1 0 14 Wood
+C 1 0 15 Wood
+S 1 1 0 0 0 0 StoneBricks
+S 1 1 0 0 0 1 StoneBricks
+S 1 1 0 0 0 2 StoneBricks
+S 1 1 0 0 1 0 StoneBricks
+S 1 1 0 0 1 1 StoneBricks
+S 1 1 0 0 1 2 StoneBricks
+S 1 1 0 0 2 0 Cobblestone
+S 1 1 0 0 2 1 StoneBricks
+S 1 1 0 0 2 2 StoneBricks
+S 1 1 0 1 0 0 StoneBricks
+S 1 1 0 1 0 1 StoneBricks
+S 1 1 0 1 0 2 StoneBricks
+S 1 1 0 1 1 0 StoneBricks
+S 1 1 0 1 1 1 StoneBricks
+S 1 1 0 1 1 2 StoneBricks
+S 1 1 0 1 2 0 Cobblestone
+S 1 1 0 1 2 1 StoneBricks
+S 1 1 0 1 2 2 StoneBricks
+S 1 1 0 2 0 0 StoneBricks
+S 1 1 0 2 0 1 StoneBricks
+S 1 1 0 2 0 2 StoneBricks
+S 1 1 0 2 1 0 StoneBricks
+S 1 1 0 2 1 1 StoneBricks
+S 1 1 0 2 1 2 StoneBricks
+S 1 1 0 2 2 0 Cobblestone
+S 1 1 0 2 2 1 StoneBricks
+S 1 1 0 2 2 2 StoneBricks
+C 1 1 7 StoneBricks
+C 1 1 15 StoneBricks
+C 1 2 7 StoneBricks
+C 1 2 15 StoneBricks
+C 1 3 7 StoneBricks
+C 1 3 15 StoneBricks
+C 1 4 0 Wood
+C 1 4 1 Wood
+C 1 4 2 Wood
+C 1 4 3 Wood
+C 1 4 4 Wood
+C 1 4 5 Wood
+C 1 4 6 Wood
+C 1 4 7 Wood
+C 1 4 8 Wood
+C 1 4 9 Wood
+C 1 4 10 Wood
+C 1 4 11 Wood
+C 1 4 12 Wood
+C 1 4 13 Wood
+C 1 4 14 Wood
+C 1 4 15 Wood
+S 1 5 0 0 0 0 StoneBricks
+S 1 5 0 0 0 1 StoneBricks
+S 1 5 0 0 0 2 StoneBricks
+S 1 5 0 0 1 0 StoneBricks
+S 1 5 0 0 1 1 StoneBricks
+S 1 5 0 0 1 2 StoneBricks
+S 1 5 0 0 2 0 Cobblestone
+S 1 5 0 0 2 1 StoneBricks
+S 1 5 0 0 2 2 StoneBricks
+S 1 5 0 1 0 0 StoneBricks
+S 1 5 0 1 0 1 StoneBricks
+S 1 5 0 1 0 2 StoneBricks
+S 1 5 0 1 1 0 StoneBricks
+S 1 5 0 1 1 1 StoneBricks
+S 1 5 0 1 1 2 StoneBricks
+S 1 5 0 1 2 0 Cobblestone
+S 1 5 0 1 2 1 StoneBricks
+S 1 5 0 1 2 2 StoneBricks
+S 1 5 0 2 0 0 StoneBricks
+S 1 5 0 2 0 1 StoneBricks
+S 1 5 0 2 0 2 StoneBricks
+S 1 5 0 2 1 0 StoneBricks
+S 1 5 0 2 1 1 StoneBricks
+S 1 5 0 2 1 2 StoneBricks
+S 1 5 0 2 2 0 Cobblestone
+S 1 5 0 2 2 1 StoneBricks
+S 1 5 0 2 2 2 StoneBricks
+C 1 5 7 StoneBricks
+C 1 5 15 StoneBricks
+C 1 6 7 StoneBricks
+C 1 6 15 StoneBricks
+C 1 7 7 StoneBricks
+C 1 7 15 StoneBricks
+S 1 8 0 0 0 0 Stone
+S 1 8 0 0 0 1 Stone
+S 1 8 0 0 0 2 Stone
+S 1 8 0 0 1 0 Stone
+S 1 8 0 0 1 1 Stone
+S 1 8 0 0 1 2 Stone
+M 1 8 0 0 2 0 0 0 1 Stone
+M 1 8 0 0 2 0 0 0 2 Stone
+M 1 8 0 0 2 0 0 1 2 Stone
+M 1 8 0 0 2 0 1 0 1 Stone
+M 1 8 0 0 2 0 1 0 2 Stone
+M 1 8 0 0 2 0 1 1 2 Stone
+M 1 8 0 0 2 0 2 0 1 Stone
+M 1 8 0 0 2 0 2 0 2 Stone
+M 1 8 0 0 2 0 2 1 2 Stone
+S 1 8 0 0 2 1 Stone
+S 1 8 0 0 2 2 Stone
+S 1 8 0 1 0 0 Stone
+S 1 8 0 1 0 1 Stone
+S 1 8 0 1 0 2 Stone
+S 1 8 0 1 1 0 Stone
+S 1 8 0 1 1 1 Stone
+S 1 8 0 1 1 2 Stone
+M 1 8 0 1 2 0 0 0 1 Stone
+M 1 8 0 1 2 0 0 0 2 Stone
+M 1 8 0 1 2 0 0 1 2 Stone
+M 1 8 0 1 2 0 1 0 1 Stone
+M 1 8 0 1 2 0 1 0 2 Stone
+M 1 8 0 1 2 0 1 1 2 Stone
+M 1 8 0 1 2 0 2 0 1 Stone
+M 1 8 0 1 2 0 2 0 2 Stone
+M 1 8 0 1 2 0 2 1 2 Stone
+S 1 8 0 1 2 1 Stone
+S 1 8 0 1 2 2 Stone
+S 1 8 0 2 0 0 Stone
+S 1 8 0 2 0 1 Stone
+S 1 8 0 2 0 2 Stone
+S 1 8 0 2 1 0 Stone
+S 1 8 0 2 1 1 Stone
+S 1 8 0 2 1 2 Stone
+M 1 8 0 2 2 0 0 0 1 Stone
+M 1 8 0 2 2 0 0 0 2 Stone
+M 1 8 0 2 2 0 0 1 2 Stone
+M 1 8 0 2 2 0 1 0 1 Stone
+M 1 8 0 2 2 0 1 0 2 Stone
+M 1 8 0 2 2 0 1 1 2 Stone
+M 1 8 0 2 2 0 2 0 1 Stone
+M 1 8 0 2 2 0 2 0 2 Stone
+M 1 8 0 2 2 0 2 1 2 Stone
+S 1 8 0 2 2 1 Stone
+S 1 8 0 2 2 2 Stone
+C 1 8 1 Stone
+C 1 8 2 Stone
+C 1 8 3 Stone
+C 1 8 4 Stone
+C 1 8 5 Stone
+C 1 8 6 Stone
+C 1 8 7 Stone
+C 1 8 8 Stone
+C 1 8 9 Stone
+C 1 8 10 Stone
+C 1 8 11 Stone
+C 1 8 12 Stone
+C 1 8 13 Stone
+C 1 8 14 Stone
+S 1 8 15 0 0 0 Stone
+S 1 8 15 0 0 1 Stone
+S 1 8 15 0 0 2 Stone
+S 1 8 15 0 1 0 Stone
+S 1 8 15 0 1 1 Stone
+S 1 8 15 0 1 2 Stone
+S 1 8 15 0 2 0 Stone
+S 1 8 15 0 2 1 Stone
+M 1 8 15 0 2 2 0 0 0 Stone
+M 1 8 15 0 2 2 0 0 1 Stone
+M 1 8 15 0 2 2 0 1 0 Stone
+M 1 8 15 0 2 2 1 0 0 Stone
+M 1 8 15 0 2 2 1 0 1 Stone
+M 1 8 15 0 2 2 1 1 0 Stone
+M 1 8 15 0 2 2 2 0 0 Stone
+M 1 8 15 0 2 2 2 0 1 Stone
+M 1 8 15 0 2 2 2 1 0 Stone
+S 1 8 15 1 0 0 Stone
+S 1 8 15 1 0 1 Stone
+S 1 8 15 1 0 2 Stone
+S 1 8 15 1 1 0 Stone
+S 1 8 15 1 1 1 Stone
+S 1 8 15 1 1 2 Stone
+S 1 8 15 1 2 0 Stone
+S 1 8 15 1 2 1 Stone
+M 1 8 15 1 2 2 0 0 0 Stone
+M 1 8 15 1 2 2 0 0 1 Stone
+M 1 8 15 1 2 2 0 1 0 Stone
+M 1 8 15 1 2 2 1 0 0 Stone
+M 1 8 15 1 2 2 1 0 1 Stone
+M 1 8 15 1 2 2 1 1 0 Stone
+M 1 8 15 1 2 2 2 0 0 Stone
+M 1 8 15 1 2 2 2 0 1 Stone
+M 1 8 15 1 2 2 2 1 0 Stone
+S 1 8 15 2 0 0 Stone
+S 1 8 15 2 0 1 Stone
+S 1 8 15 2 0 2 Stone
+S 1 8 15 2 1 0 Stone
+S 1 8 15 2 1 1 Stone
+S 1 8 15 2 1 2 Stone
+S 1 8 15 2 2 0 Stone
+S 1 8 15 2 2 1 Stone
+M 1 8 15 2 2 2 0 0 0 Stone
+M 1 8 15 2 2 2 0 0 1 Stone
+M 1 8 15 2 2 2 0 1 0 Stone
+M 1 8 15 2 2 2 1 0 0 Stone
+M 1 8 15 2 2 2 1 0 1 Stone
+M 1 8 15 2 2 2 1 1 0 Stone
+M 1 8 15 2 2 2 2 0 0 Stone
+M 1 8 15 2 2 2 2 0 1 Stone
+M 1 8 15 2 2 2 2 1 0 Stone
+C 2 0 0 Wood
+C 2 0 1 Wood
+C 2 0 2 Wood
+C 2 0 3 Wood
+C 2 0 4 Wood
+C 2 0 5 Wood
+C 2 0 6 Wood
+C 2 0 7 Wood
+C 2 0 8 Wood
+C 2 0 9 Wood
+C 2 0 10 Wood
+C 2 0 11 Wood
+C 2 0 12 Wood
+C 2 0 13 Wood
+C 2 0 14 Wood
+C 2 0 15 Wood
+S 2 1 0 0 0 0 StoneBricks
+S 2 1 0 0 0 1 StoneBricks
+S 2 1 0 0 0 2 StoneBricks
+S 2 1 0 0 1 0 StoneBricks
+S 2 1 0 0 1 1 StoneBricks
+S 2 1 0 0 1 2 StoneBricks
+S 2 1 0 0 2 0 Cobblestone
+S 2 1 0 0 2 1 StoneBricks
+S 2 1 0 0 2 2 StoneBricks
+S 2 1 0 1 0 0 StoneBricks
+S 2 1 0 1 0 1 StoneBricks
+S 2 1 0 1 0 2 StoneBricks
+S 2 1 0 1 1 0 StoneBricks
+S 2 1 0 1 1 1 StoneBricks
+S 2 1 0 1 1 2 StoneBricks
+S 2 1 0 1 2 0 Cobblestone
+S 2 1 0 1 2 1 StoneBricks
+S 2 1 0 1 2 2 StoneBricks
+S 2 1 0 2 0 0 StoneBricks
+S 2 1 0 2 0 1 StoneBricks
+S 2 1 0 2 0 2 StoneBricks
+S 2 1 0 2 1 0 StoneBricks
+S 2 1 0 2 1 1 StoneBricks
+S 2 1 0 2 1 2 StoneBricks
+S 2 1 0 2 2 0 Cobblestone
+S 2 1 0 2 2 1 StoneBricks
+S 2 1 0 2 2 2 StoneBricks
+C 2 1 15 StoneBricks
+C 2 2 15 StoneBricks
+C 2 3 7 StoneBricks
+C 2 3 15 StoneBricks
+C 2 4 0 Wood
+C 2 4 1 Wood
+C 2 4 2 Wood
+C 2 4 3 Wood
+C 2 4 4 Wood
+C 2 4 5 Wood
+C 2 4 6 Wood
+C 2 4 7 Wood
+C 2 4 8 Wood
+C 2 4 9 Wood
+C 2 4 10 Wood
+C 2 4 11 Wood
+C 2 4 12 Wood
+C 2 4 13 Wood
+C 2 4 14 Wood
+C 2 4 15 Wood
+S 2 5 0 0 0 0 StoneBricks
+S 2 5 0 0 0 1 StoneBricks
+S 2 5 0 0 0 2 StoneBricks
+S 2 5 0 0 1 0 StoneBricks
+S 2 5 0 0 1 1 StoneBricks
+S 2 5 0 0 1 2 StoneBricks
+S 2 5 0 0 2 0 Cobblestone
+S 2 5 0 0 2 1 StoneBricks
+S 2 5 0 0 2 2 StoneBricks
+S 2 5 0 1 0 0 StoneBricks
+S 2 5 0 1 0 1 StoneBricks
+S 2 5 0 1 0 2 StoneBricks
+S 2 5 0 1 1 0 StoneBricks
+S 2 5 0 1 1 1 StoneBricks
+S 2 5 0 1 1 2 StoneBricks
+S 2 5 0 1 2 0 Cobblestone
+S 2 5 0 1 2 1 StoneBricks
+S 2 5 0 1 2 2 StoneBricks
+S 2 5 0 2 0 0 StoneBricks
+S 2 5 0 2 0 1 StoneBricks
+S 2 5 0 2 0 2 StoneBricks
+S 2 5 0 2 1 0 StoneBricks
+S 2 5 0 2 1 1 StoneBricks
+S 2 5 0 2 1 2 StoneBricks
+S 2 5 0 2 2 0 Cobblestone
+S 2 5 0 2 2 1 StoneBricks
+S 2 5 0 2 2 2 StoneBricks
+C 2 5 7 StoneBricks
+C 2 5 15 StoneBricks
+C 2 6 7 StoneBricks
+C 2 6 15 StoneBricks
+C 2 7 7 StoneBricks
+C 2 7 15 StoneBricks
+S 2 8 0 0 0 0 Stone
+S 2 8 0 0 0 1 Stone
+S 2 8 0 0 0 2 Stone
+S 2 8 0 0 1 0 Stone
+S 2 8 0 0 1 1 Stone
+S 2 8 0 0 1 2 Stone
+M 2 8 0 0 2 0 0 0 1 Stone
+M 2 8 0 0 2 0 0 0 2 Stone
+M 2 8 0 0 2 0 0 1 2 Stone
+M 2 8 0 0 2 0 1 0 1 Stone
+M 2 8 0 0 2 0 1 0 2 Stone
+M 2 8 0 0 2 0 1 1 2 Stone
+M 2 8 0 0 2 0 2 0 1 Stone
+M 2 8 0 0 2 0 2 0 2 Stone
+M 2 8 0 0 2 0 2 1 2 Stone
+S 2 8 0 0 2 1 Stone
+S 2 8 0 0 2 2 Stone
+S 2 8 0 1 0 0 Stone
+S 2 8 0 1 0 1 Stone
+S 2 8 0 1 0 2 Stone
+S 2 8 0 1 1 0 Stone
+S 2 8 0 1 1 1 Stone
+S 2 8 0 1 1 2 Stone
+M 2 8 0 1 2 0 0 0 1 Stone
+M 2 8 0 1 2 0 0 0 2 Stone
+M 2 8 0 1 2 0 0 1 2 Stone
+M 2 8 0 1 2 0 1 0 1 Stone
+M 2 8 0 1 2 0 1 0 2 Stone
+M 2 8 0 1 2 0 1 1 2 Stone
+M 2 8 0 1 2 0 2 0 1 Stone
+M 2 8 0 1 2 0 2 0 2 Stone
+M 2 8 0 1 2 0 2 1 2 Stone
+S 2 8 0 1 2 1 Stone
+S 2 8 0 1 2 2 Stone
+S 2 8 0 2 0 0 Stone
+S 2 8 0 2 0 1 Stone
+S 2 8 0 2 0 2 Stone
+S 2 8 0 2 1 0 Stone
+S 2 8 0 2 1 1 Stone
+S 2 8 0 2 1 2 Stone
+M 2 8 0 2 2 0 0 0 1 Stone
+M 2 8 0 2 2 0 0 0 2 Stone
+M 2 8 0 2 2 0 0 1 2 Stone
+M 2 8 0 2 2 0 1 0 1 Stone
+M 2 8 0 2 2 0 1 0 2 Stone
+M 2 8 0 2 2 0 1 1 2 Stone
+M 2 8 0 2 2 0 2 0 1 Stone
+M 2 8 0 2 2 0 2 0 2 Stone
+M 2 8 0 2 2 0 2 1 2 Stone
+S 2 8 0 2 2 1 Stone
+S 2 8 0 2 2 2 Stone
+C 2 8 1 Stone
+C 2 8 2 Stone
+C 2 8 3 Stone
+C 2 8 4 Stone
+C 2 8 5 Stone
+C 2 8 6 Stone
+C 2 8 7 Stone
+C 2 8 8 Stone
+C 2 8 9 Stone
+C 2 8 10 Stone
+C 2 8 11 Stone
+C 2 8 12 Stone
+C 2 8 13 Stone
+C 2 8 14 Stone
+S 2 8 15 0 0 0 Stone
+S 2 8 15 0 0 1 Stone
+S 2 8 15 0 0 2 Stone
+S 2 8 15 0 1 0 Stone
+S 2 8 15 0 1 1 Stone
+S 2 8 15 0 1 2 Stone
+S 2 8 15 0 2 0 Stone
+S 2 8 15 0 2 1 Stone
+M 2 8 15 0 2 2 0 0 0 Stone
+M 2 8 15 0 2 2 0 0 1 Stone
+M 2 8 15 0 2 2 0 1 0 Stone
+M 2 8 15 0 2 2 1 0 0 Stone
+M 2 8 15 0 2 2 1 0 1 Stone
+M 2 8 15 0 2 2 1 1 0 Stone
+M 2 8 15 0 2 2 2 0 0 Stone
+M 2 8 15 0 2 2 2 0 1 Stone
+M 2 8 15 0 2 2 2 1 0 Stone
+S 2 8 15 1 0 0 Stone
+S 2 8 15 1 0 1 Stone
+S 2 8 15 1 0 2 Stone
+S 2 8 15 1 1 0 Stone
+S 2 8 15 1 1 1 Stone
+S 2 8 15 1 1 2 Stone
+S 2 8 15 1 2 0 Stone
+S 2 8 15 1 2 1 Stone
+M 2 8 15 1 2 2 0 0 0 Stone
+M 2 8 15 1 2 2 0 0 1 Stone
+M 2 8 15 1 2 2 0 1 0 Stone
+M 2 8 15 1 2 2 1 0 0 Stone
+M 2 8 15 1 2 2 1 0 1 Stone
+M 2 8 15 1 2 2 1 1 0 Stone
+M 2 8 15 1 2 2 2 0 0 Stone
+M 2 8 15 1 2 2 2 0 1 Stone
+M 2 8 15 1 2 2 2 1 0 Stone
+S 2 8 15 2 0 0 Stone
+S 2 8 15 2 0 1 Stone
+S 2 8 15 2 0 2 Stone
+S 2 8 15 2 1 0 Stone
+S 2 8 15 2 1 1 Stone
+S 2 8 15 2 1 2 Stone
+S 2 8 15 2 2 0 Stone
+S 2 8 15 2 2 1 Stone
+M 2 8 15 2 2 2 0 0 0 Stone
+M 2 8 15 2 2 2 0 0 1 Stone
+M 2 8 15 2 2 2 0 1 0 Stone
+M 2 8 15 2 2 2 1 0 0 Stone
+M 2 8 15 2 2 2 1 0 1 Stone
+M 2 8 15 2 2 2 1 1 0 Stone
+M 2 8 15 2 2 2 2 0 0 Stone
+M 2 8 15 2 2 2 2 0 1 Stone
+M 2 8 15 2 2 2 2 1 0 Stone
+C 3 0 0 Wood
+C 3 0 1 Wood
+C 3 0 2 Wood
+C 3 0 3 Wood
+C 3 0 4 Wood
+C 3 0 5 Wood
+C 3 0 6 Wood
+C 3 0 7 Wood
+C 3 0 8 Wood
+C 3 0 9 Wood
+C 3 0 10 Wood
+C 3 0 11 Wood
+C 3 0 12 Wood
+C 3 0 13 Wood
+C 3 0 14 Wood
+C 3 0 15 Wood
+S 3 1 0 0 0 0 StoneBricks
+S 3 1 0 0 0 1 StoneBricks
+S 3 1 0 0 0 2 StoneBricks
+S 3 1 0 0 1 0 StoneBricks
+S 3 1 0 0 1 1 StoneBricks
+S 3 1 0 0 1 2 StoneBricks
+S 3 1 0 0 2 0 Cobblestone
+S 3 1 0 0 2 1 StoneBricks
+S 3 1 0 0 2 2 StoneBricks
+S 3 1 0 1 0 0 StoneBricks
+S 3 1 0 1 0 1 StoneBricks
+S 3 1 0 1 0 2 StoneBricks
+S 3 1 0 1 1 0 StoneBricks
+S 3 1 0 1 1 1 StoneBricks
+S 3 1 0 1 1 2 StoneBricks
+S 3 1 0 1 2 0 StoneBricks
+S 3 1 0 1 2 1 StoneBricks
+S 3 1 0 1 2 2 StoneBricks
+S 3 1 0 2 0 0 StoneBricks
+S 3 1 0 2 0 1 StoneBricks
+S 3 1 0 2 0 2 StoneBricks
+S 3 1 0 2 1 0 StoneBricks
+S 3 1 0 2 1 1 StoneBricks
+S 3 1 0 2 1 2 StoneBricks
+S 3 1 0 2 2 0 StoneBricks
+S 3 1 0 2 2 1 StoneBricks
+S 3 1 0 2 2 2 StoneBricks
+C 3 1 7 StoneBricks
+C 3 1 15 StoneBricks
+S 3 2 0 0 0 0 Cobblestone
+S 3 2 0 0 0 1 StoneBricks
+S 3 2 0 0 0 2 StoneBricks
+S 3 2 0 0 1 0 Cobblestone
+S 3 2 0 0 1 1 StoneBricks
+S 3 2 0 0 1 2 StoneBricks
+S 3 2 0 0 2 0 Cobblestone
+S 3 2 0 0 2 1 StoneBricks
+S 3 2 0 0 2 2 StoneBricks
+S 3 2 0 1 0 0 StoneBricks
+S 3 2 0 1 0 1 StoneBricks
+S 3 2 0 1 0 2 StoneBricks
+S 3 2 0 1 1 0 StoneBricks
+S 3 2 0 1 1 1 StoneBricks
+S 3 2 0 1 1 2 StoneBricks
+S 3 2 0 1 2 0 StoneBricks
+S 3 2 0 1 2 1 StoneBricks
+S 3 2 0 1 2 2 StoneBricks
+S 3 2 0 2 0 0 StoneBricks
+S 3 2 0 2 0 1 StoneBricks
+S 3 2 0 2 0 2 StoneBricks
+S 3 2 0 2 1 0 StoneBricks
+S 3 2 0 2 1 1 StoneBricks
+S 3 2 0 2 1 2 StoneBricks
+S 3 2 0 2 2 0 StoneBricks
+S 3 2 0 2 2 1 StoneBricks
+S 3 2 0 2 2 2 StoneBricks
+C 3 2 7 StoneBricks
+C 3 2 15 StoneBricks
+S 3 3 0 0 0 0 Cobblestone
+S 3 3 0 0 0 1 StoneBricks
+S 3 3 0 0 0 2 StoneBricks
+S 3 3 0 0 1 0 Cobblestone
+S 3 3 0 0 1 1 StoneBricks
+S 3 3 0 0 1 2 StoneBricks
+S 3 3 0 0 2 0 Cobblestone
+S 3 3 0 0 2 1 StoneBricks
+S 3 3 0 0 2 2 StoneBricks
+S 3 3 0 1 0 0 StoneBricks
+S 3 3 0 1 0 1 StoneBricks
+S 3 3 0 1 0 2 StoneBricks
+S 3 3 0 1 1 0 StoneBricks
+S 3 3 0 1 1 1 StoneBricks
+S 3 3 0 1 1 2 StoneBricks
+S 3 3 0 1 2 0 StoneBricks
+S 3 3 0 1 2 1 StoneBricks
+S 3 3 0 1 2 2 StoneBricks
+S 3 3 0 2 0 0 StoneBricks
+S 3 3 0 2 0 1 StoneBricks
+S 3 3 0 2 0 2 StoneBricks
+S 3 3 0 2 1 0 StoneBricks
+S 3 3 0 2 1 1 StoneBricks
+S 3 3 0 2 1 2 StoneBricks
+S 3 3 0 2 2 0 StoneBricks
+S 3 3 0 2 2 1 StoneBricks
+S 3 3 0 2 2 2 StoneBricks
+C 3 3 7 StoneBricks
+C 3 3 15 StoneBricks
+C 3 4 0 Wood
+C 3 4 1 Wood
+C 3 4 2 Wood
+C 3 4 3 Wood
+C 3 4 4 Wood
+C 3 4 5 Wood
+C 3 4 6 Wood
+C 3 4 7 Wood
+C 3 4 8 Wood
+C 3 4 9 Wood
+C 3 4 10 Wood
+C 3 4 11 Wood
+C 3 4 12 Wood
+C 3 4 13 Wood
+C 3 4 14 Wood
+C 3 4 15 Wood
+S 3 5 0 0 0 0 StoneBricks
+S 3 5 0 0 0 1 StoneBricks
+S 3 5 0 0 0 2 StoneBricks
+S 3 5 0 0 1 0 StoneBricks
+S 3 5 0 0 1 1 StoneBricks
+S 3 5 0 0 1 2 StoneBricks
+S 3 5 0 0 2 0 Cobblestone
+S 3 5 0 0 2 1 StoneBricks
+S 3 5 0 0 2 2 StoneBricks
+S 3 5 0 1 0 0 StoneBricks
+S 3 5 0 1 0 1 StoneBricks
+S 3 5 0 1 0 2 StoneBricks
+S 3 5 0 1 1 0 StoneBricks
+S 3 5 0 1 1 1 StoneBricks
+S 3 5 0 1 1 2 StoneBricks
+S 3 5 0 1 2 0 StoneBricks
+S 3 5 0 1 2 1 StoneBricks
+S 3 5 0 1 2 2 StoneBricks
+S 3 5 0 2 0 0 StoneBricks
+S 3 5 0 2 0 1 StoneBricks
+S 3 5 0 2 0 2 StoneBricks
+S 3 5 0 2 1 0 StoneBricks
+S 3 5 0 2 1 1 StoneBricks
+S 3 5 0 2 1 2 StoneBricks
+S 3 5 0 2 2 0 StoneBricks
+S 3 5 0 2 2 1 StoneBricks
+S 3 5 0 2 2 2 StoneBricks
+C 3 5 7 StoneBricks
+C 3 5 15 StoneBricks
+S 3 6 0 0 0 0 Cobblestone
+S 3 6 0 0 0 1 StoneBricks
+S 3 6 0 0 0 2 StoneBricks
+S 3 6 0 0 1 0 Cobblestone
+S 3 6 0 0 1 1 StoneBricks
+S 3 6 0 0 1 2 StoneBricks
+S 3 6 0 0 2 0 Cobblestone
+S 3 6 0 0 2 1 StoneBricks
+S 3 6 0 0 2 2 StoneBricks
+S 3 6 0 1 0 0 StoneBricks
+S 3 6 0 1 0 1 StoneBricks
+S 3 6 0 1 0 2 StoneBricks
+S 3 6 0 1 1 0 StoneBricks
+S 3 6 0 1 1 1 StoneBricks
+S 3 6 0 1 1 2 StoneBricks
+S 3 6 0 1 2 0 StoneBricks
+S 3 6 0 1 2 1 StoneBricks
+S 3 6 0 1 2 2 StoneBricks
+S 3 6 0 2 0 0 StoneBricks
+S 3 6 0 2 0 1 StoneBricks
+S 3 6 0 2 0 2 StoneBricks
+S 3 6 0 2 1 0 StoneBricks
+S 3 6 0 2 1 1 StoneBricks
+S 3 6 0 2 1 2 StoneBricks
+S 3 6 0 2 2 0 StoneBricks
+S 3 6 0 2 2 1 StoneBricks
+S 3 6 0 2 2 2 StoneBricks
+C 3 6 7 StoneBricks
+C 3 6 15 StoneBricks
+S 3 7 0 0 0 0 Cobblestone
+S 3 7 0 0 0 1 StoneBricks
+S 3 7 0 0 0 2 StoneBricks
+S 3 7 0 0 1 0 Cobblestone
+S 3 7 0 0 1 1 StoneBricks
+S 3 7 0 0 1 2 StoneBricks
+S 3 7 0 0 2 0 Cobblestone
+S 3 7 0 0 2 1 StoneBricks
+S 3 7 0 0 2 2 StoneBricks
+S 3 7 0 1 0 0 StoneBricks
+S 3 7 0 1 0 1 StoneBricks
+S 3 7 0 1 0 2 StoneBricks
+S 3 7 0 1 1 0 StoneBricks
+S 3 7 0 1 1 1 StoneBricks
+S 3 7 0 1 1 2 StoneBricks
+S 3 7 0 1 2 0 StoneBricks
+S 3 7 0 1 2 1 StoneBricks
+S 3 7 0 1 2 2 StoneBricks
+S 3 7 0 2 0 0 StoneBricks
+S 3 7 0 2 0 1 StoneBricks
+S 3 7 0 2 0 2 StoneBricks
+S 3 7 0 2 1 0 StoneBricks
+S 3 7 0 2 1 1 StoneBricks
+S 3 7 0 2 1 2 StoneBricks
+S 3 7 0 2 2 0 StoneBricks
+S 3 7 0 2 2 1 StoneBricks
+S 3 7 0 2 2 2 StoneBricks
+C 3 7 7 StoneBricks
+C 3 7 15 StoneBricks
+S 3 8 0 0 0 0 Stone
+S 3 8 0 0 0 1 Stone
+S 3 8 0 0 0 2 Stone
+S 3 8 0 0 1 0 Stone
+S 3 8 0 0 1 1 Stone
+S 3 8 0 0 1 2 Stone
+M 3 8 0 0 2 0 0 0 1 Stone
+M 3 8 0 0 2 0 0 0 2 Stone
+M 3 8 0 0 2 0 0 1 2 Stone
+M 3 8 0 0 2 0 1 0 1 Stone
+M 3 8 0 0 2 0 1 0 2 Stone
+M 3 8 0 0 2 0 1 1 2 Stone
+M 3 8 0 0 2 0 2 0 1 Stone
+M 3 8 0 0 2 0 2 0 2 Stone
+M 3 8 0 0 2 0 2 1 2 Stone
+S 3 8 0 0 2 1 Stone
+S 3 8 0 0 2 2 Stone
+S 3 8 0 1 0 0 Stone
+S 3 8 0 1 0 1 Stone
+S 3 8 0 1 0 2 Stone
+S 3 8 0 1 1 0 Stone
+S 3 8 0 1 1 1 Stone
+S 3 8 0 1 1 2 Stone
+M 3 8 0 1 2 0 0 0 1 Stone
+M 3 8 0 1 2 0 0 0 2 Stone
+M 3 8 0 1 2 0 0 1 2 Stone
+M 3 8 0 1 2 0 1 0 1 Stone
+M 3 8 0 1 2 0 1 0 2 Stone
+M 3 8 0 1 2 0 1 1 2 Stone
+M 3 8 0 1 2 0 2 0 1 Stone
+M 3 8 0 1 2 0 2 0 2 Stone
+M 3 8 0 1 2 0 2 1 2 Stone
+S 3 8 0 1 2 1 Stone
+S 3 8 0 1 2 2 Stone
+S 3 8 0 2 0 0 Stone
+S 3 8 0 2 0 1 Stone
+S 3 8 0 2 0 2 Stone
+S 3 8 0 2 1 0 Stone
+S 3 8 0 2 1 1 Stone
+S 3 8 0 2 1 2 Stone
+M 3 8 0 2 2 0 0 0 1 Stone
+M 3 8 0 2 2 0 0 0 2 Stone
+M 3 8 0 2 2 0 0 1 2 Stone
+M 3 8 0 2 2 0 1 0 1 Stone
+M 3 8 0 2 2 0 1 0 2 Stone
+M 3 8 0 2 2 0 1 1 2 Stone
+M 3 8 0 2 2 0 2 0 1 Stone
+M 3 8 0 2 2 0 2 0 2 Stone
+M 3 8 0 2 2 0 2 1 2 Stone
+S 3 8 0 2 2 1 Stone
+S 3 8 0 2 2 2 Stone
+C 3 8 1 Stone
+C 3 8 2 Stone
+C 3 8 3 Stone
+C 3 8 4 Stone
+C 3 8 5 Stone
+C 3 8 6 Stone
+C 3 8 7 Stone
+C 3 8 8 Stone
+C 3 8 9 Stone
+C 3 8 10 Stone
+C 3 8 11 Stone
+C 3 8 12 Stone
+C 3 8 13 Stone
+C 3 8 14 Stone
+S 3 8 15 0 0 0 Stone
+S 3 8 15 0 0 1 Stone
+S 3 8 15 0 0 2 Stone
+S 3 8 15 0 1 0 Stone
+S 3 8 15 0 1 1 Stone
+S 3 8 15 0 1 2 Stone
+S 3 8 15 0 2 0 Stone
+S 3 8 15 0 2 1 Stone
+M 3 8 15 0 2 2 0 0 0 Stone
+M 3 8 15 0 2 2 0 0 1 Stone
+M 3 8 15 0 2 2 0 1 0 Stone
+M 3 8 15 0 2 2 1 0 0 Stone
+M 3 8 15 0 2 2 1 0 1 Stone
+M 3 8 15 0 2 2 1 1 0 Stone
+M 3 8 15 0 2 2 2 0 0 Stone
+M 3 8 15 0 2 2 2 0 1 Stone
+M 3 8 15 0 2 2 2 1 0 Stone
+S 3 8 15 1 0 0 Stone
+S 3 8 15 1 0 1 Stone
+S 3 8 15 1 0 2 Stone
+S 3 8 15 1 1 0 Stone
+S 3 8 15 1 1 1 Stone
+S 3 8 15 1 1 2 Stone
+S 3 8 15 1 2 0 Stone
+S 3 8 15 1 2 1 Stone
+M 3 8 15 1 2 2 0 0 0 Stone
+M 3 8 15 1 2 2 0 0 1 Stone
+M 3 8 15 1 2 2 0 1 0 Stone
+M 3 8 15 1 2 2 1 0 0 Stone
+M 3 8 15 1 2 2 1 0 1 Stone
+M 3 8 15 1 2 2 1 1 0 Stone
+M 3 8 15 1 2 2 2 0 0 Stone
+M 3 8 15 1 2 2 2 0 1 Stone
+M 3 8 15 1 2 2 2 1 0 Stone
+S 3 8 15 2 0 0 Stone
+S 3 8 15 2 0 1 Stone
+S 3 8 15 2 0 2 Stone
+S 3 8 15 2 1 0 Stone
+S 3 8 15 2 1 1 Stone
+S 3 8 15 2 1 2 Stone
+S 3 8 15 2 2 0 Stone
+S 3 8 15 2 2 1 Stone
+M 3 8 15 2 2 2 0 0 0 Stone
+M 3 8 15 2 2 2 0 0 1 Stone
+M 3 8 15 2 2 2 0 1 0 Stone
+M 3 8 15 2 2 2 1 0 0 Stone
+M 3 8 15 2 2 2 1 0 1 Stone
+M 3 8 15 2 2 2 1 1 0 Stone
+M 3 8 15 2 2 2 2 0 0 Stone
+M 3 8 15 2 2 2 2 0 1 Stone
+M 3 8 15 2 2 2 2 1 0 Stone
+C 4 0 0 Wood
+C 4 0 1 Wood
+C 4 0 2 Wood
+C 4 0 3 Wood
+C 4 0 4 Wood
+C 4 0 5 Wood
+C 4 0 6 Wood
+C 4 0 7 Wood
+C 4 0 8 Wood
+C 4 0 9 Wood
+C 4 0 10 Wood
+C 4 0 11 Wood
+C 4 0 12 Wood
+C 4 0 13 Wood
+C 4 0 14 Wood
+C 4 0 15 Wood
+C 4 1 0 StoneBricks
+C 4 1 7 StoneBricks
+C 4 1 15 StoneBricks
+C 4 2 0 StoneBricks
+C 4 2 7 StoneBricks
+C 4 2 15 StoneBricks
+C 4 3 0 StoneBricks
+C 4 3 7 StoneBricks
+C 4 3 15 StoneBricks
+C 4 4 0 Wood
+C 4 4 1 Wood
+C 4 4 2 Wood
+C 4 4 3 Wood
+C 4 4 4 Wood
+C 4 4 5 Wood
+C 4 4 6 Wood
+C 4 4 7 Wood
+C 4 4 8 Wood
+C 4 4 9 Wood
+C 4 4 10 Wood
+C 4 4 11 Wood
+C 4 4 12 Wood
+C 4 4 13 Wood
+C 4 4 14 Wood
+C 4 4 15 Wood
+C 4 5 0 StoneBricks
+C 4 5 7 StoneBricks
+C 4 5 15 StoneBricks
+C 4 6 0 StoneBricks
+C 4 6 7 StoneBricks
+C 4 6 15 StoneBricks
+C 4 7 0 StoneBricks
+C 4 7 7 StoneBricks
+C 4 7 15 StoneBricks
+S 4 8 0 0 0 0 Stone
+S 4 8 0 0 0 1 Stone
+S 4 8 0 0 0 2 Stone
+S 4 8 0 0 1 0 Stone
+S 4 8 0 0 1 1 Stone
+S 4 8 0 0 1 2 Stone
+M 4 8 0 0 2 0 0 0 1 Stone
+M 4 8 0 0 2 0 0 0 2 Stone
+M 4 8 0 0 2 0 0 1 2 Stone
+M 4 8 0 0 2 0 1 0 1 Stone
+M 4 8 0 0 2 0 1 0 2 Stone
+M 4 8 0 0 2 0 1 1 2 Stone
+M 4 8 0 0 2 0 2 0 1 Stone
+M 4 8 0 0 2 0 2 0 2 Stone
+M 4 8 0 0 2 0 2 1 2 Stone
+S 4 8 0 0 2 1 Stone
+S 4 8 0 0 2 2 Stone
+S 4 8 0 1 0 0 Stone
+S 4 8 0 1 0 1 Stone
+S 4 8 0 1 0 2 Stone
+S 4 8 0 1 1 0 Stone
+S 4 8 0 1 1 1 Stone
+S 4 8 0 1 1 2 Stone
+M 4 8 0 1 2 0 0 0 1 Stone
+M 4 8 0 1 2 0 0 0 2 Stone
+M 4 8 0 1 2 0 0 1 2 Stone
+M 4 8 0 1 2 0 1 0 1 Stone
+M 4 8 0 1 2 0 1 0 2 Stone
+M 4 8 0 1 2 0 1 1 2 Stone
+M 4 8 0 1 2 0 2 0 1 Stone
+M 4 8 0 1 2 0 2 0 2 Stone
+M 4 8 0 1 2 0 2 1 2 Stone
+S 4 8 0 1 2 1 Stone
+S 4 8 0 1 2 2 Stone
+S 4 8 0 2 0 0 Stone
+S 4 8 0 2 0 1 Stone
+S 4 8 0 2 0 2 Stone
+S 4 8 0 2 1 0 Stone
+S 4 8 0 2 1 1 Stone
+S 4 8 0 2 1 2 Stone
+M 4 8 0 2 2 0 0 0 1 Stone
+M 4 8 0 2 2 0 0 0 2 Stone
+M 4 8 0 2 2 0 0 1 2 Stone
+M 4 8 0 2 2 0 1 0 1 Stone
+M 4 8 0 2 2 0 1 0 2 Stone
+M 4 8 0 2 2 0 1 1 2 Stone
+M 4 8 0 2 2 0 2 0 1 Stone
+M 4 8 0 2 2 0 2 0 2 Stone
+M 4 8 0 2 2 0 2 1 2 Stone
+S 4 8 0 2 2 1 Stone
+S 4 8 0 2 2 2 Stone
+C 4 8 1 Stone
+C 4 8 2 Stone
+C 4 8 3 Stone
+C 4 8 4 Stone
+C 4 8 5 Stone
+C 4 8 6 Stone
+C 4 8 7 Stone
+C 4 8 8 Stone
+C 4 8 9 Stone
+C 4 8 10 Stone
+C 4 8 11 Stone
+C 4 8 12 Stone
+C 4 8 13 Stone
+C 4 8 14 Stone
+S 4 8 15 0 0 0 Stone
+S 4 8 15 0 0 1 Stone
+S 4 8 15 0 0 2 Stone
+S 4 8 15 0 1 0 Stone
+S 4 8 15 0 1 1 Stone
+S 4 8 15 0 1 2 Stone
+S 4 8 15 0 2 0 Stone
+S 4 8 15 0 2 1 Stone
+M 4 8 15 0 2 2 0 0 0 Stone
+M 4 8 15 0 2 2 0 0 1 Stone
+M 4 8 15 0 2 2 0 1 0 Stone
+M 4 8 15 0 2 2 1 0 0 Stone
+M 4 8 15 0 2 2 1 0 1 Stone
+M 4 8 15 0 2 2 1 1 0 Stone
+M 4 8 15 0 2 2 2 0 0 Stone
+M 4 8 15 0 2 2 2 0 1 Stone
+M 4 8 15 0 2 2 2 1 0 Stone
+S 4 8 15 1 0 0 Stone
+S 4 8 15 1 0 1 Stone
+S 4 8 15 1 0 2 Stone
+S 4 8 15 1 1 0 Stone
+S 4 8 15 1 1 1 Stone
+S 4 8 15 1 1 2 Stone
+S 4 8 15 1 2 0 Stone
+S 4 8 15 1 2 1 Stone
+M 4 8 15 1 2 2 0 0 0 Stone
+M 4 8 15 1 2 2 0 0 1 Stone
+M 4 8 15 1 2 2 0 1 0 Stone
+M 4 8 15 1 2 2 1 0 0 Stone
+M 4 8 15 1 2 2 1 0 1 Stone
+M 4 8 15 1 2 2 1 1 0 Stone
+M 4 8 15 1 2 2 2 0 0 Stone
+M 4 8 15 1 2 2 2 0 1 Stone
+M 4 8 15 1 2 2 2 1 0 Stone
+S 4 8 15 2 0 0 Stone
+S 4 8 15 2 0 1 Stone
+S 4 8 15 2 0 2 Stone
+S 4 8 15 2 1 0 Stone
+S 4 8 15 2 1 1 Stone
+S 4 8 15 2 1 2 Stone
+S 4 8 15 2 2 0 Stone
+S 4 8 15 2 2 1 Stone
+M 4 8 15 2 2 2 0 0 0 Stone
+M 4 8 15 2 2 2 0 0 1 Stone
+M 4 8 15 2 2 2 0 1 0 Stone
+M 4 8 15 2 2 2 1 0 0 Stone
+M 4 8 15 2 2 2 1 0 1 Stone
+M 4 8 15 2 2 2 1 1 0 Stone
+M 4 8 15 2 2 2 2 0 0 Stone
+M 4 8 15 2 2 2 2 0 1 Stone
+M 4 8 15 2 2 2 2 1 0 Stone
+C 5 0 0 Wood
+C 5 0 1 Wood
+C 5 0 2 Wood
+C 5 0 3 Wood
+C 5 0 4 Wood
+C 5 0 5 Wood
+C 5 0 6 Wood
+C 5 0 7 Wood
+C 5 0 8 Wood
+C 5 0 9 Wood
+C 5 0 10 Wood
+C 5 0 11 Wood
+C 5 0 12 Wood
+C 5 0 13 Wood
+C 5 0 14 Wood
+C 5 0 15 Wood
+C 5 1 0 StoneBricks
+C 5 1 7 StoneBricks
+C 5 1 8 StoneBricks
+C 5 1 9 StoneBricks
+C 5 1 10 StoneBricks
+C 5 1 11 StoneBricks
+C 5 1 12 StoneBricks
+C 5 1 13 StoneBricks
+C 5 1 14 StoneBricks
+C 5 1 15 StoneBricks
+C 5 2 0 StoneBricks
+C 5 2 7 StoneBricks
+C 5 2 8 StoneBricks
+C 5 2 9 StoneBricks
+C 5 2 10 StoneBricks
+C 5 2 11 StoneBricks
+C 5 2 12 StoneBricks
+C 5 2 13 StoneBricks
+C 5 2 14 StoneBricks
+C 5 2 15 StoneBricks
+C 5 3 0 StoneBricks
+C 5 3 7 StoneBricks
+C 5 3 8 StoneBricks
+C 5 3 9 StoneBricks
+C 5 3 10 StoneBricks
+C 5 3 11 StoneBricks
+C 5 3 12 StoneBricks
+C 5 3 13 StoneBricks
+C 5 3 14 StoneBricks
+C 5 3 15 StoneBricks
+C 5 4 0 Wood
+C 5 4 1 Wood
+C 5 4 2 Wood
+C 5 4 3 Wood
+C 5 4 4 Wood
+C 5 4 5 Wood
+C 5 4 6 Wood
+C 5 4 7 Wood
+C 5 4 8 Wood
+C 5 4 9 Wood
+C 5 4 10 Wood
+C 5 4 11 Wood
+C 5 4 12 Wood
+C 5 4 13 Wood
+C 5 4 14 Wood
+C 5 4 15 Wood
+C 5 5 0 StoneBricks
+C 5 5 7 StoneBricks
+C 5 5 9 StoneBricks
+C 5 5 10 StoneBricks
+C 5 5 11 StoneBricks
+C 5 5 12 StoneBricks
+C 5 5 13 StoneBricks
+C 5 5 14 StoneBricks
+C 5 5 15 StoneBricks
+C 5 6 0 StoneBricks
+C 5 6 7 StoneBricks
+C 5 6 9 StoneBricks
+C 5 6 10 StoneBricks
+C 5 6 11 StoneBricks
+C 5 6 12 StoneBricks
+C 5 6 13 StoneBricks
+C 5 6 14 StoneBricks
+C 5 6 15 StoneBricks
+C 5 7 0 StoneBricks
+C 5 7 7 StoneBricks
+C 5 7 9 StoneBricks
+C 5 7 10 StoneBricks
+C 5 7 11 StoneBricks
+C 5 7 12 StoneBricks
+C 5 7 13 StoneBricks
+C 5 7 14 StoneBricks
+C 5 7 15 StoneBricks
+S 5 8 0 0 0 0 Stone
+S 5 8 0 0 0 1 Stone
+S 5 8 0 0 0 2 Stone
+S 5 8 0 0 1 0 Stone
+S 5 8 0 0 1 1 Stone
+S 5 8 0 0 1 2 Stone
+M 5 8 0 0 2 0 0 0 1 Stone
+M 5 8 0 0 2 0 0 0 2 Stone
+M 5 8 0 0 2 0 0 1 2 Stone
+M 5 8 0 0 2 0 1 0 1 Stone
+M 5 8 0 0 2 0 1 0 2 Stone
+M 5 8 0 0 2 0 1 1 2 Stone
+M 5 8 0 0 2 0 2 0 1 Stone
+M 5 8 0 0 2 0 2 0 2 Stone
+M 5 8 0 0 2 0 2 1 2 Stone
+S 5 8 0 0 2 1 Stone
+S 5 8 0 0 2 2 Stone
+S 5 8 0 1 0 0 Stone
+S 5 8 0 1 0 1 Stone
+S 5 8 0 1 0 2 Stone
+S 5 8 0 1 1 0 Stone
+S 5 8 0 1 1 1 Stone
+S 5 8 0 1 1 2 Stone
+M 5 8 0 1 2 0 0 0 1 Stone
+M 5 8 0 1 2 0 0 0 2 Stone
+M 5 8 0 1 2 0 0 1 2 Stone
+M 5 8 0 1 2 0 1 0 1 Stone
+M 5 8 0 1 2 0 1 0 2 Stone
+M 5 8 0 1 2 0 1 1 2 Stone
+M 5 8 0 1 2 0 2 0 1 Stone
+M 5 8 0 1 2 0 2 0 2 Stone
+M 5 8 0 1 2 0 2 1 2 Stone
+S 5 8 0 1 2 1 Stone
+S 5 8 0 1 2 2 Stone
+S 5 8 0 2 0 0 Stone
+S 5 8 0 2 0 1 Stone
+S 5 8 0 2 0 2 Stone
+S 5 8 0 2 1 0 Stone
+S 5 8 0 2 1 1 Stone
+S 5 8 0 2 1 2 Stone
+M 5 8 0 2 2 0 0 0 1 Stone
+M 5 8 0 2 2 0 0 0 2 Stone
+M 5 8 0 2 2 0 0 1 2 Stone
+M 5 8 0 2 2 0 1 0 1 Stone
+M 5 8 0 2 2 0 1 0 2 Stone
+M 5 8 0 2 2 0 1 1 2 Stone
+M 5 8 0 2 2 0 2 0 1 Stone
+M 5 8 0 2 2 0 2 0 2 Stone
+M 5 8 0 2 2 0 2 1 2 Stone
+S 5 8 0 2 2 1 Stone
+S 5 8 0 2 2 2 Stone
+C 5 8 1 Stone
+C 5 8 2 Stone
+C 5 8 3 Stone
+C 5 8 4 Stone
+C 5 8 5 Stone
+C 5 8 6 Stone
+C 5 8 7 Stone
+C 5 8 8 Stone
+S 5 8 9 0 0 0 Stone
+S 5 8 9 0 0 1 Stone
+S 5 8 9 0 0 2 Stone
+S 5 8 9 0 1 0 Stone
+S 5 8 9 0 1 1 Stone
+S 5 8 9 0 1 2 Stone
+S 5 8 9 0 2 0 Stone
+S 5 8 9 0 2 1 Stone
+S 5 8 9 0 2 2 Stone
+S 5 8 9 1 0 0 Stone
+S 5 8 9 1 0 1 Stone
+S 5 8 9 1 0 2 Stone
+S 5 8 9 1 1 0 Stone
+S 5 8 9 1 1 1 Stone
+S 5 8 9 1 1 2 Stone
+S 5 8 9 1 2 0 Stone
+S 5 8 9 1 2 1 Stone
+S 5 8 9 1 2 2 Stone
+S 5 8 9 2 0 0 Stone
+S 5 8 9 2 0 1 Stone
+S 5 8 9 2 0 2 Stone
+S 5 8 9 2 1 0 Stone
+S 5 8 9 2 1 1 Stone
+S 5 8 9 2 1 2 Stone
+M 5 8 9 2 2 0 0 0 0 Stone
+M 5 8 9 2 2 0 0 0 1 Stone
+M 5 8 9 2 2 0 0 0 2 Stone
+M 5 8 9 2 2 0 0 1 0 Stone
+M 5 8 9 2 2 0 0 1 1 Stone
+M 5 8 9 2 2 0 0 1 2 Stone
+M 5 8 9 2 2 0 1 0 0 Stone
+M 5 8 9 2 2 0 1 0 1 Stone
+M 5 8 9 2 2 0 1 0 2 Stone
+M 5 8 9 2 2 1 0 0 0 Stone
+M 5 8 9 2 2 1 0 0 1 Stone
+M 5 8 9 2 2 1 0 0 2 Stone
+M 5 8 9 2 2 1 0 1 0 Stone
+M 5 8 9 2 2 1 0 1 1 Stone
+M 5 8 9 2 2 1 0 1 2 Stone
+M 5 8 9 2 2 1 1 0 0 Stone
+M 5 8 9 2 2 1 1 0 1 Stone
+M 5 8 9 2 2 1 1 0 2 Stone
+M 5 8 9 2 2 2 0 0 0 Stone
+M 5 8 9 2 2 2 0 0 1 Stone
+M 5 8 9 2 2 2 0 0 2 Stone
+M 5 8 9 2 2 2 0 1 0 Stone
+M 5 8 9 2 2 2 0 1 1 Stone
+M 5 8 9 2 2 2 0 1 2 Stone
+M 5 8 9 2 2 2 1 0 0 Stone
+M 5 8 9 2 2 2 1 0 1 Stone
+M 5 8 9 2 2 2 1 0 2 Stone
+S 5 8 10 0 0 0 Stone
+S 5 8 10 0 0 1 Stone
+S 5 8 10 0 0 2 Stone
+S 5 8 10 0 1 0 Stone
+S 5 8 10 0 1 1 Stone
+S 5 8 10 0 1 2 Stone
+S 5 8 10 0 2 0 Stone
+S 5 8 10 0 2 1 Stone
+S 5 8 10 0 2 2 Stone
+S 5 8 10 1 0 0 Stone
+S 5 8 10 1 0 1 Stone
+S 5 8 10 1 0 2 Stone
+S 5 8 10 1 1 0 Stone
+S 5 8 10 1 1 1 Stone
+S 5 8 10 1 1 2 Stone
+S 5 8 10 1 2 0 Stone
+S 5 8 10 1 2 1 Stone
+S 5 8 10 1 2 2 Stone
+S 5 8 10 2 0 0 Stone
+S 5 8 10 2 0 1 Stone
+S 5 8 10 2 0 2 Stone
+S 5 8 10 2 1 0 Stone
+S 5 8 10 2 1 1 Stone
+S 5 8 10 2 1 2 Stone
+M 5 8 10 2 2 0 0 0 0 Stone
+M 5 8 10 2 2 0 0 0 1 Stone
+M 5 8 10 2 2 0 0 0 2 Stone
+M 5 8 10 2 2 0 0 1 0 Stone
+M 5 8 10 2 2 0 0 1 1 Stone
+M 5 8 10 2 2 0 0 1 2 Stone
+M 5 8 10 2 2 0 1 0 0 Stone
+M 5 8 10 2 2 0 1 0 1 Stone
+M 5 8 10 2 2 0 1 0 2 Stone
+M 5 8 10 2 2 1 0 0 0 Stone
+M 5 8 10 2 2 1 0 0 1 Stone
+M 5 8 10 2 2 1 0 0 2 Stone
+M 5 8 10 2 2 1 0 1 0 Stone
+M 5 8 10 2 2 1 0 1 1 Stone
+M 5 8 10 2 2 1 0 1 2 Stone
+M 5 8 10 2 2 1 1 0 0 Stone
+M 5 8 10 2 2 1 1 0 1 Stone
+M 5 8 10 2 2 1 1 0 2 Stone
+M 5 8 10 2 2 2 0 0 0 Stone
+M 5 8 10 2 2 2 0 0 1 Stone
+M 5 8 10 2 2 2 0 0 2 Stone
+M 5 8 10 2 2 2 0 1 0 Stone
+M 5 8 10 2 2 2 0 1 1 Stone
+M 5 8 10 2 2 2 0 1 2 Stone
+M 5 8 10 2 2 2 1 0 0 Stone
+M 5 8 10 2 2 2 1 0 1 Stone
+M 5 8 10 2 2 2 1 0 2 Stone
+S 5 8 11 0 0 0 Stone
+S 5 8 11 0 0 1 Stone
+S 5 8 11 0 0 2 Stone
+S 5 8 11 0 1 0 Stone
+S 5 8 11 0 1 1 Stone
+S 5 8 11 0 1 2 Stone
+S 5 8 11 0 2 0 Stone
+S 5 8 11 0 2 1 Stone
+S 5 8 11 0 2 2 Stone
+S 5 8 11 1 0 0 Stone
+S 5 8 11 1 0 1 Stone
+S 5 8 11 1 0 2 Stone
+S 5 8 11 1 1 0 Stone
+S 5 8 11 1 1 1 Stone
+S 5 8 11 1 1 2 Stone
+S 5 8 11 1 2 0 Stone
+S 5 8 11 1 2 1 Stone
+S 5 8 11 1 2 2 Stone
+S 5 8 11 2 0 0 Stone
+S 5 8 11 2 0 1 Stone
+S 5 8 11 2 0 2 Stone
+S 5 8 11 2 1 0 Stone
+S 5 8 11 2 1 1 Stone
+S 5 8 11 2 1 2 Stone
+M 5 8 11 2 2 0 0 0 0 Stone
+M 5 8 11 2 2 0 0 0 1 Stone
+M 5 8 11 2 2 0 0 0 2 Stone
+M 5 8 11 2 2 0 0 1 0 Stone
+M 5 8 11 2 2 0 0 1 1 Stone
+M 5 8 11 2 2 0 0 1 2 Stone
+M 5 8 11 2 2 0 1 0 0 Stone
+M 5 8 11 2 2 0 1 0 1 Stone
+M 5 8 11 2 2 0 1 0 2 Stone
+M 5 8 11 2 2 1 0 0 0 Stone
+M 5 8 11 2 2 1 0 0 1 Stone
+M 5 8 11 2 2 1 0 0 2 Stone
+M 5 8 11 2 2 1 0 1 0 Stone
+M 5 8 11 2 2 1 0 1 1 Stone
+M 5 8 11 2 2 1 0 1 2 Stone
+M 5 8 11 2 2 1 1 0 0 Stone
+M 5 8 11 2 2 1 1 0 1 Stone
+M 5 8 11 2 2 1 1 0 2 Stone
+M 5 8 11 2 2 2 0 0 0 Stone
+M 5 8 11 2 2 2 0 0 1 Stone
+M 5 8 11 2 2 2 0 0 2 Stone
+M 5 8 11 2 2 2 0 1 0 Stone
+M 5 8 11 2 2 2 0 1 1 Stone
+M 5 8 11 2 2 2 0 1 2 Stone
+M 5 8 11 2 2 2 1 0 0 Stone
+M 5 8 11 2 2 2 1 0 1 Stone
+M 5 8 11 2 2 2 1 0 2 Stone
+S 5 8 12 0 0 0 Stone
+S 5 8 12 0 0 1 Stone
+S 5 8 12 0 0 2 Stone
+S 5 8 12 0 1 0 Stone
+S 5 8 12 0 1 1 Stone
+S 5 8 12 0 1 2 Stone
+S 5 8 12 0 2 0 Stone
+S 5 8 12 0 2 1 Stone
+S 5 8 12 0 2 2 Stone
+S 5 8 12 1 0 0 Stone
+S 5 8 12 1 0 1 Stone
+S 5 8 12 1 0 2 Stone
+S 5 8 12 1 1 0 Stone
+S 5 8 12 1 1 1 Stone
+S 5 8 12 1 1 2 Stone
+S 5 8 12 1 2 0 Stone
+S 5 8 12 1 2 1 Stone
+S 5 8 12 1 2 2 Stone
+S 5 8 12 2 0 0 Stone
+S 5 8 12 2 0 1 Stone
+S 5 8 12 2 0 2 Stone
+S 5 8 12 2 1 0 Stone
+S 5 8 12 2 1 1 Stone
+S 5 8 12 2 1 2 Stone
+M 5 8 12 2 2 0 0 0 0 Stone
+M 5 8 12 2 2 0 0 0 1 Stone
+M 5 8 12 2 2 0 0 0 2 Stone
+M 5 8 12 2 2 0 0 1 0 Stone
+M 5 8 12 2 2 0 0 1 1 Stone
+M 5 8 12 2 2 0 0 1 2 Stone
+M 5 8 12 2 2 0 1 0 0 Stone
+M 5 8 12 2 2 0 1 0 1 Stone
+M 5 8 12 2 2 0 1 0 2 Stone
+M 5 8 12 2 2 1 0 0 0 Stone
+M 5 8 12 2 2 1 0 0 1 Stone
+M 5 8 12 2 2 1 0 0 2 Stone
+M 5 8 12 2 2 1 0 1 0 Stone
+M 5 8 12 2 2 1 0 1 1 Stone
+M 5 8 12 2 2 1 0 1 2 Stone
+M 5 8 12 2 2 1 1 0 0 Stone
+M 5 8 12 2 2 1 1 0 1 Stone
+M 5 8 12 2 2 1 1 0 2 Stone
+M 5 8 12 2 2 2 0 0 0 Stone
+M 5 8 12 2 2 2 0 0 1 Stone
+M 5 8 12 2 2 2 0 0 2 Stone
+M 5 8 12 2 2 2 0 1 0 Stone
+M 5 8 12 2 2 2 0 1 1 Stone
+M 5 8 12 2 2 2 0 1 2 Stone
+M 5 8 12 2 2 2 1 0 0 Stone
+M 5 8 12 2 2 2 1 0 1 Stone
+M 5 8 12 2 2 2 1 0 2 Stone
+S 5 8 13 0 0 0 Stone
+S 5 8 13 0 0 1 Stone
+S 5 8 13 0 0 2 Stone
+S 5 8 13 0 1 0 Stone
+S 5 8 13 0 1 1 Stone
+S 5 8 13 0 1 2 Stone
+S 5 8 13 0 2 0 Stone
+S 5 8 13 0 2 1 Stone
+S 5 8 13 0 2 2 Stone
+S 5 8 13 1 0 0 Stone
+S 5 8 13 1 0 1 Stone
+S 5 8 13 1 0 2 Stone
+S 5 8 13 1 1 0 Stone
+S 5 8 13 1 1 1 Stone
+S 5 8 13 1 1 2 Stone
+S 5 8 13 1 2 0 Stone
+S 5 8 13 1 2 1 Stone
+S 5 8 13 1 2 2 Stone
+S 5 8 13 2 0 0 Stone
+S 5 8 13 2 0 1 Stone
+S 5 8 13 2 0 2 Stone
+S 5 8 13 2 1 0 Stone
+S 5 8 13 2 1 1 Stone
+S 5 8 13 2 1 2 Stone
+M 5 8 13 2 2 0 0 0 0 Stone
+M 5 8 13 2 2 0 0 0 1 Stone
+M 5 8 13 2 2 0 0 0 2 Stone
+M 5 8 13 2 2 0 0 1 0 Stone
+M 5 8 13 2 2 0 0 1 1 Stone
+M 5 8 13 2 2 0 0 1 2 Stone
+M 5 8 13 2 2 0 1 0 0 Stone
+M 5 8 13 2 2 0 1 0 1 Stone
+M 5 8 13 2 2 0 1 0 2 Stone
+M 5 8 13 2 2 1 0 0 0 Stone
+M 5 8 13 2 2 1 0 0 1 Stone
+M 5 8 13 2 2 1 0 0 2 Stone
+M 5 8 13 2 2 1 0 1 0 Stone
+M 5 8 13 2 2 1 0 1 1 Stone
+M 5 8 13 2 2 1 0 1 2 Stone
+M 5 8 13 2 2 1 1 0 0 Stone
+M 5 8 13 2 2 1 1 0 1 Stone
+M 5 8 13 2 2 1 1 0 2 Stone
+M 5 8 13 2 2 2 0 0 0 Stone
+M 5 8 13 2 2 2 0 0 1 Stone
+M 5 8 13 2 2 2 0 0 2 Stone
+M 5 8 13 2 2 2 0 1 0 Stone
+M 5 8 13 2 2 2 0 1 1 Stone
+M 5 8 13 2 2 2 0 1 2 Stone
+M 5 8 13 2 2 2 1 0 0 Stone
+M 5 8 13 2 2 2 1 0 1 Stone
+M 5 8 13 2 2 2 1 0 2 Stone
+S 5 8 14 0 0 0 Stone
+S 5 8 14 0 0 1 Stone
+S 5 8 14 0 0 2 Stone
+S 5 8 14 0 1 0 Stone
+S 5 8 14 0 1 1 Stone
+S 5 8 14 0 1 2 Stone
+S 5 8 14 0 2 0 Stone
+S 5 8 14 0 2 1 Stone
+S 5 8 14 0 2 2 Stone
+S 5 8 14 1 0 0 Stone
+S 5 8 14 1 0 1 Stone
+S 5 8 14 1 0 2 Stone
+S 5 8 14 1 1 0 Stone
+S 5 8 14 1 1 1 Stone
+S 5 8 14 1 1 2 Stone
+S 5 8 14 1 2 0 Stone
+S 5 8 14 1 2 1 Stone
+S 5 8 14 1 2 2 Stone
+S 5 8 14 2 0 0 Stone
+S 5 8 14 2 0 1 Stone
+S 5 8 14 2 0 2 Stone
+S 5 8 14 2 1 0 Stone
+S 5 8 14 2 1 1 Stone
+S 5 8 14 2 1 2 Stone
+M 5 8 14 2 2 0 0 0 0 Stone
+M 5 8 14 2 2 0 0 0 1 Stone
+M 5 8 14 2 2 0 0 0 2 Stone
+M 5 8 14 2 2 0 0 1 0 Stone
+M 5 8 14 2 2 0 0 1 1 Stone
+M 5 8 14 2 2 0 0 1 2 Stone
+M 5 8 14 2 2 0 1 0 0 Stone
+M 5 8 14 2 2 0 1 0 1 Stone
+M 5 8 14 2 2 0 1 0 2 Stone
+M 5 8 14 2 2 1 0 0 0 Stone
+M 5 8 14 2 2 1 0 0 1 Stone
+M 5 8 14 2 2 1 0 0 2 Stone
+M 5 8 14 2 2 1 0 1 0 Stone
+M 5 8 14 2 2 1 0 1 1 Stone
+M 5 8 14 2 2 1 0 1 2 Stone
+M 5 8 14 2 2 1 1 0 0 Stone
+M 5 8 14 2 2 1 1 0 1 Stone
+M 5 8 14 2 2 1 1 0 2 Stone
+M 5 8 14 2 2 2 0 0 0 Stone
+M 5 8 14 2 2 2 0 0 1 Stone
+M 5 8 14 2 2 2 0 0 2 Stone
+M 5 8 14 2 2 2 0 1 0 Stone
+M 5 8 14 2 2 2 0 1 1 Stone
+M 5 8 14 2 2 2 0 1 2 Stone
+M 5 8 14 2 2 2 1 0 0 Stone
+M 5 8 14 2 2 2 1 0 1 Stone
+M 5 8 14 2 2 2 1 0 2 Stone
+S 5 8 15 0 0 0 Stone
+S 5 8 15 0 0 1 Stone
+S 5 8 15 0 0 2 Stone
+S 5 8 15 0 1 0 Stone
+S 5 8 15 0 1 1 Stone
+S 5 8 15 0 1 2 Stone
+S 5 8 15 0 2 0 Stone
+S 5 8 15 0 2 1 Stone
+M 5 8 15 0 2 2 0 0 0 Stone
+M 5 8 15 0 2 2 0 0 1 Stone
+M 5 8 15 0 2 2 0 1 0 Stone
+M 5 8 15 0 2 2 1 0 0 Stone
+M 5 8 15 0 2 2 1 0 1 Stone
+M 5 8 15 0 2 2 1 1 0 Stone
+M 5 8 15 0 2 2 2 0 0 Stone
+M 5 8 15 0 2 2 2 0 1 Stone
+M 5 8 15 0 2 2 2 1 0 Stone
+S 5 8 15 1 0 0 Stone
+S 5 8 15 1 0 1 Stone
+S 5 8 15 1 0 2 Stone
+S 5 8 15 1 1 0 Stone
+S 5 8 15 1 1 1 Stone
+S 5 8 15 1 1 2 Stone
+S 5 8 15 1 2 0 Stone
+S 5 8 15 1 2 1 Stone
+M 5 8 15 1 2 2 0 0 0 Stone
+M 5 8 15 1 2 2 0 0 1 Stone
+M 5 8 15 1 2 2 0 1 0 Stone
+M 5 8 15 1 2 2 1 0 0 Stone
+M 5 8 15 1 2 2 1 0 1 Stone
+M 5 8 15 1 2 2 1 1 0 Stone
+M 5 8 15 1 2 2 2 0 0 Stone
+M 5 8 15 1 2 2 2 0 1 Stone
+M 5 8 15 1 2 2 2 1 0 Stone
+S 5 8 15 2 0 0 Stone
+S 5 8 15 2 0 1 Stone
+S 5 8 15 2 0 2 Stone
+S 5 8 15 2 1 0 Stone
+S 5 8 15 2 1 1 Stone
+S 5 8 15 2 1 2 Stone
+M 5 8 15 2 2 0 0 0 0 Stone
+M 5 8 15 2 2 0 0 0 1 Stone
+M 5 8 15 2 2 0 0 0 2 Stone
+M 5 8 15 2 2 0 0 1 0 Stone
+M 5 8 15 2 2 0 0 1 1 Stone
+M 5 8 15 2 2 0 0 1 2 Stone
+M 5 8 15 2 2 0 1 0 0 Stone
+M 5 8 15 2 2 0 1 0 1 Stone
+M 5 8 15 2 2 0 1 0 2 Stone
+M 5 8 15 2 2 1 0 0 0 Stone
+M 5 8 15 2 2 1 0 0 1 Stone
+M 5 8 15 2 2 1 0 0 2 Stone
+M 5 8 15 2 2 1 0 1 0 Stone
+M 5 8 15 2 2 1 0 1 1 Stone
+M 5 8 15 2 2 1 0 1 2 Stone
+M 5 8 15 2 2 1 1 0 0 Stone
+M 5 8 15 2 2 1 1 0 1 Stone
+M 5 8 15 2 2 1 1 0 2 Stone
+M 5 8 15 2 2 2 0 0 0 Stone
+M 5 8 15 2 2 2 0 0 1 Stone
+M 5 8 15 2 2 2 0 1 0 Stone
+M 5 8 15 2 2 2 1 0 0 Stone
+M 5 8 15 2 2 2 1 0 1 Stone
+C 6 0 0 Wood
+C 6 0 1 Wood
+C 6 0 2 Wood
+C 6 0 3 Wood
+C 6 0 4 Wood
+C 6 0 5 Wood
+C 6 0 6 Wood
+C 6 1 0 StoneBricks
+C 6 1 1 StoneBricks
+C 6 1 2 StoneBricks
+C 6 1 4 StoneBricks
+C 6 1 5 StoneBricks
+C 6 1 6 StoneBricks
+C 6 2 0 StoneBricks
+C 6 2 1 StoneBricks
+C 6 2 2 StoneBricks
+C 6 2 4 StoneBricks
+C 6 2 5 StoneBricks
+C 6 2 6 StoneBricks
+C 6 3 0 StoneBricks
+C 6 3 1 StoneBricks
+C 6 3 2 StoneBricks
+C 6 3 3 StoneBricks
+C 6 3 4 StoneBricks
+C 6 3 5 StoneBricks
+C 6 3 6 StoneBricks
+C 6 4 0 Wood
+C 6 4 1 Wood
+C 6 4 2 Wood
+C 6 4 3 Wood
+C 6 4 4 Wood
+C 6 4 5 Wood
+C 6 4 6 Wood
+C 6 4 7 Wood
+C 6 4 8 Wood
+C 6 5 0 StoneBricks
+C 6 5 1 StoneBricks
+C 6 5 2 StoneBricks
+C 6 5 4 StoneBricks
+C 6 5 5 StoneBricks
+C 6 5 6 StoneBricks
+C 6 5 7 StoneBricks
+C 6 6 0 StoneBricks
+C 6 6 1 StoneBricks
+C 6 6 2 StoneBricks
+C 6 6 4 StoneBricks
+C 6 6 5 StoneBricks
+C 6 6 6 StoneBricks
+C 6 6 7 StoneBricks
+C 6 7 0 StoneBricks
+C 6 7 1 StoneBricks
+C 6 7 2 StoneBricks
+C 6 7 3 StoneBricks
+C 6 7 4 StoneBricks
+C 6 7 5 StoneBricks
+C 6 7 6 StoneBricks
+C 6 7 7 StoneBricks
+C 6 7 8 StoneBricks
+S 6 8 0 0 0 0 Stone
+S 6 8 0 0 0 1 Stone
+S 6 8 0 0 0 2 Stone
+S 6 8 0 0 1 0 Stone
+S 6 8 0 0 1 1 Stone
+S 6 8 0 0 1 2 Stone
+M 6 8 0 0 2 0 0 0 1 Stone
+M 6 8 0 0 2 0 0 0 2 Stone
+M 6 8 0 0 2 0 0 1 2 Stone
+M 6 8 0 0 2 0 1 0 1 Stone
+M 6 8 0 0 2 0 1 0 2 Stone
+M 6 8 0 0 2 0 1 1 2 Stone
+M 6 8 0 0 2 0 2 0 1 Stone
+M 6 8 0 0 2 0 2 0 2 Stone
+M 6 8 0 0 2 0 2 1 2 Stone
+S 6 8 0 0 2 1 Stone
+S 6 8 0 0 2 2 Stone
+S 6 8 0 1 0 0 Stone
+S 6 8 0 1 0 1 Stone
+S 6 8 0 1 0 2 Stone
+S 6 8 0 1 1 0 Stone
+S 6 8 0 1 1 1 Stone
+S 6 8 0 1 1 2 Stone
+M 6 8 0 1 2 0 0 0 1 Stone
+M 6 8 0 1 2 0 0 0 2 Stone
+M 6 8 0 1 2 0 0 1 2 Stone
+M 6 8 0 1 2 0 1 0 1 Stone
+M 6 8 0 1 2 0 1 0 2 Stone
+M 6 8 0 1 2 0 1 1 2 Stone
+M 6 8 0 1 2 0 2 0 1 Stone
+M 6 8 0 1 2 0 2 0 2 Stone
+M 6 8 0 1 2 0 2 1 2 Stone
+S 6 8 0 1 2 1 Stone
+S 6 8 0 1 2 2 Stone
+S 6 8 0 2 0 0 Stone
+S 6 8 0 2 0 1 Stone
+S 6 8 0 2 0 2 Stone
+S 6 8 0 2 1 0 Stone
+S 6 8 0 2 1 1 Stone
+S 6 8 0 2 1 2 Stone
+M 6 8 0 2 2 0 0 0 1 Stone
+M 6 8 0 2 2 0 0 0 2 Stone
+M 6 8 0 2 2 0 0 1 2 Stone
+M 6 8 0 2 2 0 1 0 1 Stone
+M 6 8 0 2 2 0 1 0 2 Stone
+M 6 8 0 2 2 0 1 1 2 Stone
+M 6 8 0 2 2 0 2 0 1 Stone
+M 6 8 0 2 2 0 2 0 2 Stone
+M 6 8 0 2 2 0 2 1 2 Stone
+S 6 8 0 2 2 1 Stone
+S 6 8 0 2 2 2 Stone
+C 6 8 1 Stone
+C 6 8 2 Stone
+C 6 8 3 Stone
+C 6 8 4 Stone
+C 6 8 5 Stone
+C 6 8 6 Stone
+C 6 8 7 Stone
+S 6 8 8 0 0 0 Stone
+S 6 8 8 0 0 1 Stone
+S 6 8 8 0 0 2 Stone
+S 6 8 8 0 1 0 Stone
+S 6 8 8 0 1 1 Stone
+S 6 8 8 0 1 2 Stone
+S 6 8 8 0 2 0 Stone
+S 6 8 8 0 2 1 Stone
+M 6 8 8 0 2 2 0 0 0 Stone
+M 6 8 8 0 2 2 0 0 1 Stone
+M 6 8 8 0 2 2 0 1 0 Stone
+M 6 8 8 0 2 2 1 0 0 Stone
+M 6 8 8 0 2 2 1 0 1 Stone
+M 6 8 8 0 2 2 1 1 0 Stone
+M 6 8 8 0 2 2 2 0 0 Stone
+M 6 8 8 0 2 2 2 0 1 Stone
+M 6 8 8 0 2 2 2 1 0 Stone
+S 6 8 8 1 0 0 Stone
+S 6 8 8 1 0 1 Stone
+S 6 8 8 1 0 2 Stone
+S 6 8 8 1 1 0 Stone
+S 6 8 8 1 1 1 Stone
+S 6 8 8 1 1 2 Stone
+S 6 8 8 1 2 0 Stone
+S 6 8 8 1 2 1 Stone
+M 6 8 8 1 2 2 0 0 0 Stone
+M 6 8 8 1 2 2 0 0 1 Stone
+M 6 8 8 1 2 2 0 1 0 Stone
+M 6 8 8 1 2 2 1 0 0 Stone
+M 6 8 8 1 2 2 1 0 1 Stone
+M 6 8 8 1 2 2 1 1 0 Stone
+M 6 8 8 1 2 2 2 0 0 Stone
+M 6 8 8 1 2 2 2 0 1 Stone
+M 6 8 8 1 2 2 2 1 0 Stone
+S 6 8 8 2 0 0 Stone
+S 6 8 8 2 0 1 Stone
+S 6 8 8 2 0 2 Stone
+S 6 8 8 2 1 0 Stone
+S 6 8 8 2 1 1 Stone
+S 6 8 8 2 1 2 Stone
+S 6 8 8 2 2 0 Stone
+S 6 8 8 2 2 1 Stone
+M 6 8 8 2 2 2 0 0 0 Stone
+M 6 8 8 2 2 2 0 0 1 Stone
+M 6 8 8 2 2 2 0 1 0 Stone
+M 6 8 8 2 2 2 1 0 0 Stone
+M 6 8 8 2 2 2 1 0 1 Stone
+M 6 8 8 2 2 2 1 1 0 Stone
+M 6 8 8 2 2 2 2 0 0 Stone
+M 6 8 8 2 2 2 2 0 1 Stone
+M 6 8 8 2 2 2 2 1 0 Stone
+C 7 0 0 Wood
+C 7 0 1 Wood
+C 7 0 2 Wood
+C 7 0 3 Wood
+C 7 0 4 Wood
+C 7 0 5 Wood
+C 7 0 6 Wood
+C 7 1 0 StoneBricks
+S 7 1 2 0 0 0 Wood
+S 7 1 2 0 0 1 Wood
+S 7 1 2 0 0 2 Wood
+S 7 1 2 0 1 1 Wood
+S 7 1 2 0 1 2 Wood
+S 7 1 2 0 2 2 Wood
+S 7 1 2 1 0 0 Wood
+S 7 1 2 1 0 1 Wood
+S 7 1 2 1 0 2 Wood
+S 7 1 2 1 1 1 Wood
+S 7 1 2 1 1 2 Wood
+S 7 1 2 1 2 2 Wood
+S 7 1 2 2 0 0 Wood
+S 7 1 2 2 0 1 Wood
+S 7 1 2 2 0 2 Wood
+S 7 1 2 2 1 1 Wood
+S 7 1 2 2 1 2 Wood
+S 7 1 2 2 2 2 Wood
+C 7 1 3 Wood
+C 7 1 4 Wood
+C 7 1 5 Wood
+C 7 1 6 StoneBricks
+C 7 2 0 StoneBricks
+S 7 2 3 0 0 0 Wood
+S 7 2 3 0 0 1 Wood
+S 7 2 3 0 0 2 Wood
+S 7 2 3 0 1 1 Wood
+S 7 2 3 0 1 2 Wood
+S 7 2 3 0 2 2 Wood
+S 7 2 3 1 0 0 Wood
+S 7 2 3 1 0 1 Wood
+S 7 2 3 1 0 2 Wood
+S 7 2 3 1 1 1 Wood
+S 7 2 3 1 1 2 Wood
+S 7 2 3 1 2 2 Wood
+S 7 2 3 2 0 0 Wood
+S 7 2 3 2 0 1 Wood
+S 7 2 3 2 0 2 Wood
+S 7 2 3 2 1 1 Wood
+S 7 2 3 2 1 2 Wood
+S 7 2 3 2 2 2 Wood
+C 7 2 4 Wood
+C 7 2 5 Wood
+C 7 2 6 StoneBricks
+C 7 3 0 StoneBricks
+S 7 3 4 0 0 0 Wood
+S 7 3 4 0 0 1 Wood
+S 7 3 4 0 0 2 Wood
+S 7 3 4 0 1 1 Wood
+S 7 3 4 0 1 2 Wood
+S 7 3 4 0 2 2 Wood
+S 7 3 4 1 0 0 Wood
+S 7 3 4 1 0 1 Wood
+S 7 3 4 1 0 2 Wood
+S 7 3 4 1 1 1 Wood
+S 7 3 4 1 1 2 Wood
+S 7 3 4 1 2 2 Wood
+S 7 3 4 2 0 0 Wood
+S 7 3 4 2 0 1 Wood
+S 7 3 4 2 0 2 Wood
+S 7 3 4 2 1 1 Wood
+S 7 3 4 2 1 2 Wood
+S 7 3 4 2 2 2 Wood
+C 7 3 5 Wood
+C 7 3 6 StoneBricks
+C 7 4 0 Wood
+C 7 4 1 Wood
+C 7 4 2 Wood
+C 7 4 3 Wood
+C 7 4 4 Wood
+C 7 4 5 Wood
+C 7 4 6 Wood
+C 7 4 7 Wood
+C 7 4 8 Wood
+C 7 5 0 StoneBricks
+C 7 5 8 StoneBricks
+C 7 6 0 StoneBricks
+C 7 6 8 StoneBricks
+C 7 7 0 StoneBricks
+C 7 7 8 StoneBricks
+S 7 8 0 0 0 0 Stone
+S 7 8 0 0 0 1 Stone
+S 7 8 0 0 0 2 Stone
+S 7 8 0 0 1 0 Stone
+S 7 8 0 0 1 1 Stone
+S 7 8 0 0 1 2 Stone
+M 7 8 0 0 2 0 0 0 1 Stone
+M 7 8 0 0 2 0 0 0 2 Stone
+M 7 8 0 0 2 0 0 1 2 Stone
+M 7 8 0 0 2 0 1 0 1 Stone
+M 7 8 0 0 2 0 1 0 2 Stone
+M 7 8 0 0 2 0 1 1 2 Stone
+M 7 8 0 0 2 0 2 0 1 Stone
+M 7 8 0 0 2 0 2 0 2 Stone
+M 7 8 0 0 2 0 2 1 2 Stone
+S 7 8 0 0 2 1 Stone
+S 7 8 0 0 2 2 Stone
+S 7 8 0 1 0 0 Stone
+S 7 8 0 1 0 1 Stone
+S 7 8 0 1 0 2 Stone
+S 7 8 0 1 1 0 Stone
+S 7 8 0 1 1 1 Stone
+S 7 8 0 1 1 2 Stone
+M 7 8 0 1 2 0 0 0 1 Stone
+M 7 8 0 1 2 0 0 0 2 Stone
+M 7 8 0 1 2 0 0 1 2 Stone
+M 7 8 0 1 2 0 1 0 1 Stone
+M 7 8 0 1 2 0 1 0 2 Stone
+M 7 8 0 1 2 0 1 1 2 Stone
+M 7 8 0 1 2 0 2 0 1 Stone
+M 7 8 0 1 2 0 2 0 2 Stone
+M 7 8 0 1 2 0 2 1 2 Stone
+S 7 8 0 1 2 1 Stone
+S 7 8 0 1 2 2 Stone
+S 7 8 0 2 0 0 Stone
+S 7 8 0 2 0 1 Stone
+S 7 8 0 2 0 2 Stone
+S 7 8 0 2 1 0 Stone
+S 7 8 0 2 1 1 Stone
+S 7 8 0 2 1 2 Stone
+M 7 8 0 2 2 0 0 0 1 Stone
+M 7 8 0 2 2 0 0 0 2 Stone
+M 7 8 0 2 2 0 0 1 2 Stone
+M 7 8 0 2 2 0 1 0 1 Stone
+M 7 8 0 2 2 0 1 0 2 Stone
+M 7 8 0 2 2 0 1 1 2 Stone
+M 7 8 0 2 2 0 2 0 1 Stone
+M 7 8 0 2 2 0 2 0 2 Stone
+M 7 8 0 2 2 0 2 1 2 Stone
+S 7 8 0 2 2 1 Stone
+S 7 8 0 2 2 2 Stone
+C 7 8 1 Stone
+C 7 8 2 Stone
+C 7 8 3 Stone
+C 7 8 4 Stone
+C 7 8 5 Stone
+C 7 8 6 Stone
+C 7 8 7 Stone
+S 7 8 8 0 0 0 Stone
+S 7 8 8 0 0 1 Stone
+S 7 8 8 0 0 2 Stone
+S 7 8 8 0 1 0 Stone
+S 7 8 8 0 1 1 Stone
+S 7 8 8 0 1 2 Stone
+S 7 8 8 0 2 0 Stone
+S 7 8 8 0 2 1 Stone
+M 7 8 8 0 2 2 0 0 0 Stone
+M 7 8 8 0 2 2 0 0 1 Stone
+M 7 8 8 0 2 2 0 1 0 Stone
+M 7 8 8 0 2 2 1 0 0 Stone
+M 7 8 8 0 2 2 1 0 1 Stone
+M 7 8 8 0 2 2 1 1 0 Stone
+M 7 8 8 0 2 2 2 0 0 Stone
+M 7 8 8 0 2 2 2 0 1 Stone
+M 7 8 8 0 2 2 2 1 0 Stone
+S 7 8 8 1 0 0 Stone
+S 7 8 8 1 0 1 Stone
+S 7 8 8 1 0 2 Stone
+S 7 8 8 1 1 0 Stone
+S 7 8 8 1 1 1 Stone
+S 7 8 8 1 1 2 Stone
+S 7 8 8 1 2 0 Stone
+S 7 8 8 1 2 1 Stone
+M 7 8 8 1 2 2 0 0 0 Stone
+M 7 8 8 1 2 2 0 0 1 Stone
+M 7 8 8 1 2 2 0 1 0 Stone
+M 7 8 8 1 2 2 1 0 0 Stone
+M 7 8 8 1 2 2 1 0 1 Stone
+M 7 8 8 1 2 2 1 1 0 Stone
+M 7 8 8 1 2 2 2 0 0 Stone
+M 7 8 8 1 2 2 2 0 1 Stone
+M 7 8 8 1 2 2 2 1 0 Stone
+S 7 8 8 2 0 0 Stone
+S 7 8 8 2 0 1 Stone
+S 7 8 8 2 0 2 Stone
+S 7 8 8 2 1 0 Stone
+S 7 8 8 2 1 1 Stone
+S 7 8 8 2 1 2 Stone
+S 7 8 8 2 2 0 Stone
+S 7 8 8 2 2 1 Stone
+M 7 8 8 2 2 2 0 0 0 Stone
+M 7 8 8 2 2 2 0 0 1 Stone
+M 7 8 8 2 2 2 0 1 0 Stone
+M 7 8 8 2 2 2 1 0 0 Stone
+M 7 8 8 2 2 2 1 0 1 Stone
+M 7 8 8 2 2 2 1 1 0 Stone
+M 7 8 8 2 2 2 2 0 0 Stone
+M 7 8 8 2 2 2 2 0 1 Stone
+M 7 8 8 2 2 2 2 1 0 Stone
+C 8 0 0 Wood
+C 8 0 1 Wood
+C 8 0 2 Wood
+C 8 0 3 Wood
+C 8 0 4 Wood
+C 8 0 5 Wood
+C 8 0 6 Wood
+S 8 1 0 0 0 0 StoneBricks
+S 8 1 0 0 0 1 StoneBricks
+S 8 1 0 0 0 2 StoneBricks
+S 8 1 0 0 1 0 StoneBricks
+S 8 1 0 0 1 1 StoneBricks
+S 8 1 0 0 1 2 StoneBricks
+S 8 1 0 0 2 0 StoneBricks
+S 8 1 0 0 2 1 StoneBricks
+S 8 1 0 0 2 2 StoneBricks
+S 8 1 0 1 0 0 StoneBricks
+S 8 1 0 1 0 1 StoneBricks
+S 8 1 0 1 0 2 StoneBricks
+S 8 1 0 1 1 0 StoneBricks
+S 8 1 0 1 1 1 StoneBricks
+S 8 1 0 1 1 2 StoneBricks
+S 8 1 0 1 2 0 StoneBricks
+S 8 1 0 1 2 1 StoneBricks
+S 8 1 0 1 2 2 StoneBricks
+S 8 1 0 2 0 0 Cobblestone
+S 8 1 0 2 0 1 StoneBricks
+S 8 1 0 2 0 2 StoneBricks
+S 8 1 0 2 1 0 Cobblestone
+S 8 1 0 2 1 1 StoneBricks
+S 8 1 0 2 1 2 StoneBricks
+S 8 1 0 2 2 0 Cobblestone
+S 8 1 0 2 2 1 StoneBricks
+S 8 1 0 2 2 2 StoneBricks
+S 8 1 2 0 0 0 Wood
+S 8 1 2 0 0 1 Wood
+S 8 1 2 0 0 2 Wood
+S 8 1 2 0 1 1 Wood
+S 8 1 2 0 1 2 Wood
+S 8 1 2 0 2 2 Wood
+S 8 1 2 1 0 0 Wood
+S 8 1 2 1 0 1 Wood
+S 8 1 2 1 0 2 Wood
+S 8 1 2 1 1 1 Wood
+S 8 1 2 1 1 2 Wood
+S 8 1 2 1 2 2 Wood
+S 8 1 2 2 0 0 Wood
+S 8 1 2 2 0 1 Wood
+S 8 1 2 2 0 2 Wood
+S 8 1 2 2 1 1 Wood
+S 8 1 2 2 1 2 Wood
+S 8 1 2 2 2 2 Wood
+C 8 1 3 Wood
+C 8 1 4 Wood
+C 8 1 5 Wood
+C 8 1 6 StoneBricks
+S 8 2 0 0 0 0 StoneBricks
+S 8 2 0 0 0 1 StoneBricks
+S 8 2 0 0 0 2 StoneBricks
+S 8 2 0 0 1 0 StoneBricks
+S 8 2 0 0 1 1 StoneBricks
+S 8 2 0 0 1 2 StoneBricks
+S 8 2 0 0 2 0 StoneBricks
+S 8 2 0 0 2 1 StoneBricks
+S 8 2 0 0 2 2 StoneBricks
+S 8 2 0 1 0 0 StoneBricks
+S 8 2 0 1 0 1 StoneBricks
+S 8 2 0 1 0 2 StoneBricks
+S 8 2 0 1 1 0 StoneBricks
+S 8 2 0 1 1 1 StoneBricks
+S 8 2 0 1 1 2 StoneBricks
+S 8 2 0 1 2 0 StoneBricks
+S 8 2 0 1 2 1 StoneBricks
+S 8 2 0 1 2 2 StoneBricks
+S 8 2 0 2 0 0 Cobblestone
+S 8 2 0 2 0 1 StoneBricks
+S 8 2 0 2 0 2 StoneBricks
+S 8 2 0 2 1 0 Cobblestone
+S 8 2 0 2 1 1 StoneBricks
+S 8 2 0 2 1 2 StoneBricks
+S 8 2 0 2 2 0 Cobblestone
+S 8 2 0 2 2 1 StoneBricks
+S 8 2 0 2 2 2 StoneBricks
+S 8 2 3 0 0 0 Wood
+S 8 2 3 0 0 1 Wood
+S 8 2 3 0 0 2 Wood
+S 8 2 3 0 1 1 Wood
+S 8 2 3 0 1 2 Wood
+S 8 2 3 0 2 2 Wood
+S 8 2 3 1 0 0 Wood
+S 8 2 3 1 0 1 Wood
+S 8 2 3 1 0 2 Wood
+S 8 2 3 1 1 1 Wood
+S 8 2 3 1 1 2 Wood
+S 8 2 3 1 2 2 Wood
+S 8 2 3 2 0 0 Wood
+S 8 2 3 2 0 1 Wood
+S 8 2 3 2 0 2 Wood
+S 8 2 3 2 1 1 Wood
+S 8 2 3 2 1 2 Wood
+S 8 2 3 2 2 2 Wood
+C 8 2 4 Wood
+C 8 2 5 Wood
+C 8 2 6 StoneBricks
+S 8 3 0 0 0 0 StoneBricks
+S 8 3 0 0 0 1 StoneBricks
+S 8 3 0 0 0 2 StoneBricks
+S 8 3 0 0 1 0 StoneBricks
+S 8 3 0 0 1 1 StoneBricks
+S 8 3 0 0 1 2 StoneBricks
+S 8 3 0 0 2 0 StoneBricks
+S 8 3 0 0 2 1 StoneBricks
+S 8 3 0 0 2 2 StoneBricks
+S 8 3 0 1 0 0 StoneBricks
+S 8 3 0 1 0 1 StoneBricks
+S 8 3 0 1 0 2 StoneBricks
+S 8 3 0 1 1 0 StoneBricks
+S 8 3 0 1 1 1 StoneBricks
+S 8 3 0 1 1 2 StoneBricks
+S 8 3 0 1 2 0 StoneBricks
+S 8 3 0 1 2 1 StoneBricks
+S 8 3 0 1 2 2 StoneBricks
+S 8 3 0 2 0 0 Cobblestone
+S 8 3 0 2 0 1 StoneBricks
+S 8 3 0 2 0 2 StoneBricks
+S 8 3 0 2 1 0 StoneBricks
+S 8 3 0 2 1 1 StoneBricks
+S 8 3 0 2 1 2 StoneBricks
+S 8 3 0 2 2 0 StoneBricks
+S 8 3 0 2 2 1 StoneBricks
+S 8 3 0 2 2 2 StoneBricks
+S 8 3 4 0 0 0 Wood
+S 8 3 4 0 0 1 Wood
+S 8 3 4 0 0 2 Wood
+S 8 3 4 0 1 1 Wood
+S 8 3 4 0 1 2 Wood
+S 8 3 4 0 2 2 Wood
+S 8 3 4 1 0 0 Wood
+S 8 3 4 1 0 1 Wood
+S 8 3 4 1 0 2 Wood
+S 8 3 4 1 1 1 Wood
+S 8 3 4 1 1 2 Wood
+S 8 3 4 1 2 2 Wood
+S 8 3 4 2 0 0 Wood
+S 8 3 4 2 0 1 Wood
+S 8 3 4 2 0 2 Wood
+S 8 3 4 2 1 1 Wood
+S 8 3 4 2 1 2 Wood
+S 8 3 4 2 2 2 Wood
+C 8 3 5 Wood
+C 8 3 6 StoneBricks
+C 8 4 0 Wood
+C 8 4 1 Wood
+C 8 4 2 Wood
+C 8 4 3 Wood
+C 8 4 4 Wood
+C 8 4 5 Wood
+C 8 4 6 Wood
+C 8 4 7 Wood
+C 8 4 8 Wood
+C 8 5 0 StoneBricks
+C 8 5 8 StoneBricks
+C 8 6 0 StoneBricks
+C 8 6 8 StoneBricks
+C 8 7 0 StoneBricks
+C 8 7 8 StoneBricks
+S 8 8 0 0 0 0 Stone
+S 8 8 0 0 0 1 Stone
+S 8 8 0 0 0 2 Stone
+S 8 8 0 0 1 0 Stone
+S 8 8 0 0 1 1 Stone
+S 8 8 0 0 1 2 Stone
+M 8 8 0 0 2 0 0 0 1 Stone
+M 8 8 0 0 2 0 0 0 2 Stone
+M 8 8 0 0 2 0 0 1 2 Stone
+M 8 8 0 0 2 0 1 0 1 Stone
+M 8 8 0 0 2 0 1 0 2 Stone
+M 8 8 0 0 2 0 1 1 2 Stone
+M 8 8 0 0 2 0 2 0 1 Stone
+M 8 8 0 0 2 0 2 0 2 Stone
+M 8 8 0 0 2 0 2 1 2 Stone
+S 8 8 0 0 2 1 Stone
+S 8 8 0 0 2 2 Stone
+S 8 8 0 1 0 0 Stone
+S 8 8 0 1 0 1 Stone
+S 8 8 0 1 0 2 Stone
+S 8 8 0 1 1 0 Stone
+S 8 8 0 1 1 1 Stone
+S 8 8 0 1 1 2 Stone
+M 8 8 0 1 2 0 0 0 1 Stone
+M 8 8 0 1 2 0 0 0 2 Stone
+M 8 8 0 1 2 0 0 1 2 Stone
+M 8 8 0 1 2 0 1 0 1 Stone
+M 8 8 0 1 2 0 1 0 2 Stone
+M 8 8 0 1 2 0 1 1 2 Stone
+M 8 8 0 1 2 0 2 0 1 Stone
+M 8 8 0 1 2 0 2 0 2 Stone
+M 8 8 0 1 2 0 2 1 2 Stone
+S 8 8 0 1 2 1 Stone
+S 8 8 0 1 2 2 Stone
+S 8 8 0 2 0 0 Stone
+S 8 8 0 2 0 1 Stone
+S 8 8 0 2 0 2 Stone
+S 8 8 0 2 1 0 Stone
+S 8 8 0 2 1 1 Stone
+S 8 8 0 2 1 2 Stone
+M 8 8 0 2 2 0 0 0 1 Stone
+M 8 8 0 2 2 0 0 0 2 Stone
+M 8 8 0 2 2 0 0 1 2 Stone
+M 8 8 0 2 2 0 1 0 1 Stone
+M 8 8 0 2 2 0 1 0 2 Stone
+M 8 8 0 2 2 0 1 1 2 Stone
+M 8 8 0 2 2 0 2 0 1 Stone
+M 8 8 0 2 2 0 2 0 2 Stone
+M 8 8 0 2 2 0 2 1 2 Stone
+S 8 8 0 2 2 1 Stone
+S 8 8 0 2 2 2 Stone
+C 8 8 1 Stone
+C 8 8 2 Stone
+C 8 8 3 Stone
+C 8 8 4 Stone
+C 8 8 5 Stone
+C 8 8 6 Stone
+C 8 8 7 Stone
+S 8 8 8 0 0 0 Stone
+S 8 8 8 0 0 1 Stone
+S 8 8 8 0 0 2 Stone
+S 8 8 8 0 1 0 Stone
+S 8 8 8 0 1 1 Stone
+S 8 8 8 0 1 2 Stone
+S 8 8 8 0 2 0 Stone
+S 8 8 8 0 2 1 Stone
+M 8 8 8 0 2 2 0 0 0 Stone
+M 8 8 8 0 2 2 0 0 1 Stone
+M 8 8 8 0 2 2 0 1 0 Stone
+M 8 8 8 0 2 2 1 0 0 Stone
+M 8 8 8 0 2 2 1 0 1 Stone
+M 8 8 8 0 2 2 1 1 0 Stone
+M 8 8 8 0 2 2 2 0 0 Stone
+M 8 8 8 0 2 2 2 0 1 Stone
+M 8 8 8 0 2 2 2 1 0 Stone
+S 8 8 8 1 0 0 Stone
+S 8 8 8 1 0 1 Stone
+S 8 8 8 1 0 2 Stone
+S 8 8 8 1 1 0 Stone
+S 8 8 8 1 1 1 Stone
+S 8 8 8 1 1 2 Stone
+S 8 8 8 1 2 0 Stone
+S 8 8 8 1 2 1 Stone
+M 8 8 8 1 2 2 0 0 0 Stone
+M 8 8 8 1 2 2 0 0 1 Stone
+M 8 8 8 1 2 2 0 1 0 Stone
+M 8 8 8 1 2 2 1 0 0 Stone
+M 8 8 8 1 2 2 1 0 1 Stone
+M 8 8 8 1 2 2 1 1 0 Stone
+M 8 8 8 1 2 2 2 0 0 Stone
+M 8 8 8 1 2 2 2 0 1 Stone
+M 8 8 8 1 2 2 2 1 0 Stone
+S 8 8 8 2 0 0 Stone
+S 8 8 8 2 0 1 Stone
+S 8 8 8 2 0 2 Stone
+S 8 8 8 2 1 0 Stone
+S 8 8 8 2 1 1 Stone
+S 8 8 8 2 1 2 Stone
+S 8 8 8 2 2 0 Stone
+S 8 8 8 2 2 1 Stone
+M 8 8 8 2 2 2 0 0 0 Stone
+M 8 8 8 2 2 2 0 0 1 Stone
+M 8 8 8 2 2 2 0 1 0 Stone
+M 8 8 8 2 2 2 1 0 0 Stone
+M 8 8 8 2 2 2 1 0 1 Stone
+M 8 8 8 2 2 2 1 1 0 Stone
+M 8 8 8 2 2 2 2 0 0 Stone
+M 8 8 8 2 2 2 2 0 1 Stone
+M 8 8 8 2 2 2 2 1 0 Stone
+C 9 0 0 Wood
+C 9 0 1 Wood
+C 9 0 2 Wood
+C 9 0 3 Wood
+C 9 0 4 Wood
+C 9 0 5 Wood
+C 9 0 6 Wood
+S 9 1 2 0 0 0 Wood
+S 9 1 2 0 0 1 Wood
+S 9 1 2 0 0 2 Wood
+S 9 1 2 0 1 1 Wood
+S 9 1 2 0 1 2 Wood
+S 9 1 2 0 2 2 Wood
+S 9 1 2 1 0 0 Wood
+S 9 1 2 1 0 1 Wood
+S 9 1 2 1 0 2 Wood
+S 9 1 2 1 1 1 Wood
+S 9 1 2 1 1 2 Wood
+S 9 1 2 1 2 2 Wood
+S 9 1 2 2 0 0 Wood
+S 9 1 2 2 0 1 Wood
+S 9 1 2 2 0 2 Wood
+S 9 1 2 2 1 1 Wood
+S 9 1 2 2 1 2 Wood
+S 9 1 2 2 2 2 Wood
+C 9 1 3 Wood
+C 9 1 4 Wood
+C 9 1 5 Wood
+C 9 1 6 StoneBricks
+S 9 2 3 0 0 0 Wood
+S 9 2 3 0 0 1 Wood
+S 9 2 3 0 0 2 Wood
+S 9 2 3 0 1 1 Wood
+S 9 2 3 0 1 2 Wood
+S 9 2 3 0 2 2 Wood
+S 9 2 3 1 0 0 Wood
+S 9 2 3 1 0 1 Wood
+S 9 2 3 1 0 2 Wood
+S 9 2 3 1 1 1 Wood
+S 9 2 3 1 1 2 Wood
+S 9 2 3 1 2 2 Wood
+S 9 2 3 2 0 0 Wood
+S 9 2 3 2 0 1 Wood
+S 9 2 3 2 0 2 Wood
+S 9 2 3 2 1 1 Wood
+S 9 2 3 2 1 2 Wood
+S 9 2 3 2 2 2 Wood
+C 9 2 4 Wood
+C 9 2 5 Wood
+C 9 2 6 StoneBricks
+S 9 3 0 0 0 0 Cobblestone
+S 9 3 0 0 0 1 StoneBricks
+S 9 3 0 0 0 2 StoneBricks
+S 9 3 0 0 1 0 StoneBricks
+S 9 3 0 0 1 1 StoneBricks
+S 9 3 0 0 1 2 StoneBricks
+S 9 3 0 0 2 0 StoneBricks
+S 9 3 0 0 2 1 StoneBricks
+S 9 3 0 0 2 2 StoneBricks
+S 9 3 0 1 0 0 Cobblestone
+S 9 3 0 1 0 1 StoneBricks
+S 9 3 0 1 0 2 StoneBricks
+S 9 3 0 1 1 0 StoneBricks
+S 9 3 0 1 1 1 StoneBricks
+S 9 3 0 1 1 2 StoneBricks
+S 9 3 0 1 2 0 StoneBricks
+S 9 3 0 1 2 1 StoneBricks
+S 9 3 0 1 2 2 StoneBricks
+S 9 3 0 2 0 0 Cobblestone
+S 9 3 0 2 0 1 StoneBricks
+S 9 3 0 2 0 2 StoneBricks
+S 9 3 0 2 1 0 StoneBricks
+S 9 3 0 2 1 1 StoneBricks
+S 9 3 0 2 1 2 StoneBricks
+S 9 3 0 2 2 0 StoneBricks
+S 9 3 0 2 2 1 StoneBricks
+S 9 3 0 2 2 2 StoneBricks
+S 9 3 4 0 0 0 Wood
+S 9 3 4 0 0 1 Wood
+S 9 3 4 0 0 2 Wood
+S 9 3 4 0 1 1 Wood
+S 9 3 4 0 1 2 Wood
+S 9 3 4 0 2 2 Wood
+S 9 3 4 1 0 0 Wood
+S 9 3 4 1 0 1 Wood
+S 9 3 4 1 0 2 Wood
+S 9 3 4 1 1 1 Wood
+S 9 3 4 1 1 2 Wood
+S 9 3 4 1 2 2 Wood
+S 9 3 4 2 0 0 Wood
+S 9 3 4 2 0 1 Wood
+S 9 3 4 2 0 2 Wood
+S 9 3 4 2 1 1 Wood
+S 9 3 4 2 1 2 Wood
+S 9 3 4 2 2 2 Wood
+C 9 3 5 Wood
+C 9 3 6 StoneBricks
+C 9 4 0 Wood
+C 9 4 1 Wood
+C 9 4 2 Wood
+C 9 4 3 Wood
+C 9 4 4 Wood
+C 9 4 5 Wood
+C 9 4 6 Wood
+C 9 4 7 Wood
+C 9 4 8 Wood
+C 9 5 0 StoneBricks
+C 9 5 8 StoneBricks
+C 9 6 0 StoneBricks
+C 9 6 8 StoneBricks
+C 9 7 0 StoneBricks
+C 9 7 8 StoneBricks
+S 9 8 0 0 0 0 Stone
+S 9 8 0 0 0 1 Stone
+S 9 8 0 0 0 2 Stone
+S 9 8 0 0 1 0 Stone
+S 9 8 0 0 1 1 Stone
+S 9 8 0 0 1 2 Stone
+M 9 8 0 0 2 0 0 0 1 Stone
+M 9 8 0 0 2 0 0 0 2 Stone
+M 9 8 0 0 2 0 0 1 2 Stone
+M 9 8 0 0 2 0 1 0 1 Stone
+M 9 8 0 0 2 0 1 0 2 Stone
+M 9 8 0 0 2 0 1 1 2 Stone
+M 9 8 0 0 2 0 2 0 1 Stone
+M 9 8 0 0 2 0 2 0 2 Stone
+M 9 8 0 0 2 0 2 1 2 Stone
+S 9 8 0 0 2 1 Stone
+S 9 8 0 0 2 2 Stone
+S 9 8 0 1 0 0 Stone
+S 9 8 0 1 0 1 Stone
+S 9 8 0 1 0 2 Stone
+S 9 8 0 1 1 0 Stone
+S 9 8 0 1 1 1 Stone
+S 9 8 0 1 1 2 Stone
+M 9 8 0 1 2 0 0 0 1 Stone
+M 9 8 0 1 2 0 0 0 2 Stone
+M 9 8 0 1 2 0 0 1 2 Stone
+M 9 8 0 1 2 0 1 0 1 Stone
+M 9 8 0 1 2 0 1 0 2 Stone
+M 9 8 0 1 2 0 1 1 2 Stone
+M 9 8 0 1 2 0 2 0 1 Stone
+M 9 8 0 1 2 0 2 0 2 Stone
+M 9 8 0 1 2 0 2 1 2 Stone
+S 9 8 0 1 2 1 Stone
+S 9 8 0 1 2 2 Stone
+S 9 8 0 2 0 0 Stone
+S 9 8 0 2 0 1 Stone
+S 9 8 0 2 0 2 Stone
+S 9 8 0 2 1 0 Stone
+S 9 8 0 2 1 1 Stone
+S 9 8 0 2 1 2 Stone
+M 9 8 0 2 2 0 0 0 1 Stone
+M 9 8 0 2 2 0 0 0 2 Stone
+M 9 8 0 2 2 0 0 1 2 Stone
+M 9 8 0 2 2 0 1 0 1 Stone
+M 9 8 0 2 2 0 1 0 2 Stone
+M 9 8 0 2 2 0 1 1 2 Stone
+M 9 8 0 2 2 0 2 0 1 Stone
+M 9 8 0 2 2 0 2 0 2 Stone
+M 9 8 0 2 2 0 2 1 2 Stone
+S 9 8 0 2 2 1 Stone
+S 9 8 0 2 2 2 Stone
+C 9 8 1 Stone
+C 9 8 2 Stone
+C 9 8 3 Stone
+C 9 8 4 Stone
+C 9 8 5 Stone
+C 9 8 6 Stone
+C 9 8 7 Stone
+S 9 8 8 0 0 0 Stone
+S 9 8 8 0 0 1 Stone
+S 9 8 8 0 0 2 Stone
+S 9 8 8 0 1 0 Stone
+S 9 8 8 0 1 1 Stone
+S 9 8 8 0 1 2 Stone
+S 9 8 8 0 2 0 Stone
+S 9 8 8 0 2 1 Stone
+M 9 8 8 0 2 2 0 0 0 Stone
+M 9 8 8 0 2 2 0 0 1 Stone
+M 9 8 8 0 2 2 0 1 0 Stone
+M 9 8 8 0 2 2 1 0 0 Stone
+M 9 8 8 0 2 2 1 0 1 Stone
+M 9 8 8 0 2 2 1 1 0 Stone
+M 9 8 8 0 2 2 2 0 0 Stone
+M 9 8 8 0 2 2 2 0 1 Stone
+M 9 8 8 0 2 2 2 1 0 Stone
+S 9 8 8 1 0 0 Stone
+S 9 8 8 1 0 1 Stone
+S 9 8 8 1 0 2 Stone
+S 9 8 8 1 1 0 Stone
+S 9 8 8 1 1 1 Stone
+S 9 8 8 1 1 2 Stone
+S 9 8 8 1 2 0 Stone
+S 9 8 8 1 2 1 Stone
+M 9 8 8 1 2 2 0 0 0 Stone
+M 9 8 8 1 2 2 0 0 1 Stone
+M 9 8 8 1 2 2 0 1 0 Stone
+M 9 8 8 1 2 2 1 0 0 Stone
+M 9 8 8 1 2 2 1 0 1 Stone
+M 9 8 8 1 2 2 1 1 0 Stone
+M 9 8 8 1 2 2 2 0 0 Stone
+M 9 8 8 1 2 2 2 0 1 Stone
+M 9 8 8 1 2 2 2 1 0 Stone
+S 9 8 8 2 0 0 Stone
+S 9 8 8 2 0 1 Stone
+S 9 8 8 2 0 2 Stone
+S 9 8 8 2 1 0 Stone
+S 9 8 8 2 1 1 Stone
+S 9 8 8 2 1 2 Stone
+S 9 8 8 2 2 0 Stone
+S 9 8 8 2 2 1 Stone
+M 9 8 8 2 2 2 0 0 0 Stone
+M 9 8 8 2 2 2 0 0 1 Stone
+M 9 8 8 2 2 2 0 1 0 Stone
+M 9 8 8 2 2 2 1 0 0 Stone
+M 9 8 8 2 2 2 1 0 1 Stone
+M 9 8 8 2 2 2 1 1 0 Stone
+M 9 8 8 2 2 2 2 0 0 Stone
+M 9 8 8 2 2 2 2 0 1 Stone
+M 9 8 8 2 2 2 2 1 0 Stone
+C 10 0 0 Wood
+C 10 0 1 Wood
+C 10 0 2 Wood
+C 10 0 3 Wood
+C 10 0 4 Wood
+C 10 0 5 Wood
+C 10 0 6 Wood
+C 10 1 6 StoneBricks
+C 10 2 6 StoneBricks
+S 10 3 0 0 0 0 Cobblestone
+S 10 3 0 0 0 1 StoneBricks
+S 10 3 0 0 0 2 StoneBricks
+S 10 3 0 0 1 0 StoneBricks
+S 10 3 0 0 1 1 StoneBricks
+S 10 3 0 0 1 2 StoneBricks
+S 10 3 0 0 2 0 StoneBricks
+S 10 3 0 0 2 1 StoneBricks
+S 10 3 0 0 2 2 StoneBricks
+S 10 3 0 1 0 0 Cobblestone
+S 10 3 0 1 0 1 StoneBricks
+S 10 3 0 1 0 2 StoneBricks
+S 10 3 0 1 1 0 StoneBricks
+S 10 3 0 1 1 1 StoneBricks
+S 10 3 0 1 1 2 StoneBricks
+S 10 3 0 1 2 0 StoneBricks
+S 10 3 0 1 2 1 StoneBricks
+S 10 3 0 1 2 2 StoneBricks
+S 10 3 0 2 0 0 Cobblestone
+S 10 3 0 2 0 1 StoneBricks
+S 10 3 0 2 0 2 StoneBricks
+S 10 3 0 2 1 0 StoneBricks
+S 10 3 0 2 1 1 StoneBricks
+S 10 3 0 2 1 2 StoneBricks
+S 10 3 0 2 2 0 StoneBricks
+S 10 3 0 2 2 1 StoneBricks
+S 10 3 0 2 2 2 StoneBricks
+C 10 3 6 StoneBricks
+C 10 4 0 Wood
+C 10 4 1 Wood
+C 10 4 2 Wood
+C 10 4 3 Wood
+C 10 4 4 Wood
+C 10 4 5 Wood
+C 10 4 6 Wood
+C 10 4 7 Wood
+C 10 4 8 Wood
+C 10 5 0 StoneBricks
+C 10 5 8 StoneBricks
+C 10 6 0 StoneBricks
+C 10 6 8 StoneBricks
+C 10 7 0 StoneBricks
+C 10 7 8 StoneBricks
+S 10 8 0 0 0 0 Stone
+S 10 8 0 0 0 1 Stone
+S 10 8 0 0 0 2 Stone
+S 10 8 0 0 1 0 Stone
+S 10 8 0 0 1 1 Stone
+S 10 8 0 0 1 2 Stone
+M 10 8 0 0 2 0 0 0 1 Stone
+M 10 8 0 0 2 0 0 0 2 Stone
+M 10 8 0 0 2 0 0 1 2 Stone
+M 10 8 0 0 2 0 1 0 1 Stone
+M 10 8 0 0 2 0 1 0 2 Stone
+M 10 8 0 0 2 0 1 1 2 Stone
+M 10 8 0 0 2 0 2 0 1 Stone
+M 10 8 0 0 2 0 2 0 2 Stone
+M 10 8 0 0 2 0 2 1 2 Stone
+S 10 8 0 0 2 1 Stone
+S 10 8 0 0 2 2 Stone
+S 10 8 0 1 0 0 Stone
+S 10 8 0 1 0 1 Stone
+S 10 8 0 1 0 2 Stone
+S 10 8 0 1 1 0 Stone
+S 10 8 0 1 1 1 Stone
+S 10 8 0 1 1 2 Stone
+M 10 8 0 1 2 0 0 0 1 Stone
+M 10 8 0 1 2 0 0 0 2 Stone
+M 10 8 0 1 2 0 0 1 2 Stone
+M 10 8 0 1 2 0 1 0 1 Stone
+M 10 8 0 1 2 0 1 0 2 Stone
+M 10 8 0 1 2 0 1 1 2 Stone
+M 10 8 0 1 2 0 2 0 1 Stone
+M 10 8 0 1 2 0 2 0 2 Stone
+M 10 8 0 1 2 0 2 1 2 Stone
+S 10 8 0 1 2 1 Stone
+S 10 8 0 1 2 2 Stone
+S 10 8 0 2 0 0 Stone
+S 10 8 0 2 0 1 Stone
+S 10 8 0 2 0 2 Stone
+S 10 8 0 2 1 0 Stone
+S 10 8 0 2 1 1 Stone
+S 10 8 0 2 1 2 Stone
+M 10 8 0 2 2 0 0 0 1 Stone
+M 10 8 0 2 2 0 0 0 2 Stone
+M 10 8 0 2 2 0 0 1 2 Stone
+M 10 8 0 2 2 0 1 0 1 Stone
+M 10 8 0 2 2 0 1 0 2 Stone
+M 10 8 0 2 2 0 1 1 2 Stone
+M 10 8 0 2 2 0 2 0 1 Stone
+M 10 8 0 2 2 0 2 0 2 Stone
+M 10 8 0 2 2 0 2 1 2 Stone
+S 10 8 0 2 2 1 Stone
+S 10 8 0 2 2 2 Stone
+C 10 8 1 Stone
+C 10 8 2 Stone
+C 10 8 3 Stone
+C 10 8 4 Stone
+C 10 8 5 Stone
+C 10 8 6 Stone
+C 10 8 7 Stone
+S 10 8 8 0 0 0 Stone
+S 10 8 8 0 0 1 Stone
+S 10 8 8 0 0 2 Stone
+S 10 8 8 0 1 0 Stone
+S 10 8 8 0 1 1 Stone
+S 10 8 8 0 1 2 Stone
+S 10 8 8 0 2 0 Stone
+S 10 8 8 0 2 1 Stone
+M 10 8 8 0 2 2 0 0 0 Stone
+M 10 8 8 0 2 2 0 0 1 Stone
+M 10 8 8 0 2 2 0 1 0 Stone
+M 10 8 8 0 2 2 1 0 0 Stone
+M 10 8 8 0 2 2 1 0 1 Stone
+M 10 8 8 0 2 2 1 1 0 Stone
+M 10 8 8 0 2 2 2 0 0 Stone
+M 10 8 8 0 2 2 2 0 1 Stone
+M 10 8 8 0 2 2 2 1 0 Stone
+S 10 8 8 1 0 0 Stone
+S 10 8 8 1 0 1 Stone
+S 10 8 8 1 0 2 Stone
+S 10 8 8 1 1 0 Stone
+S 10 8 8 1 1 1 Stone
+S 10 8 8 1 1 2 Stone
+S 10 8 8 1 2 0 Stone
+S 10 8 8 1 2 1 Stone
+M 10 8 8 1 2 2 0 0 0 Stone
+M 10 8 8 1 2 2 0 0 1 Stone
+M 10 8 8 1 2 2 0 1 0 Stone
+M 10 8 8 1 2 2 1 0 0 Stone
+M 10 8 8 1 2 2 1 0 1 Stone
+M 10 8 8 1 2 2 1 1 0 Stone
+M 10 8 8 1 2 2 2 0 0 Stone
+M 10 8 8 1 2 2 2 0 1 Stone
+M 10 8 8 1 2 2 2 1 0 Stone
+S 10 8 8 2 0 0 Stone
+S 10 8 8 2 0 1 Stone
+S 10 8 8 2 0 2 Stone
+S 10 8 8 2 1 0 Stone
+S 10 8 8 2 1 1 Stone
+S 10 8 8 2 1 2 Stone
+S 10 8 8 2 2 0 Stone
+S 10 8 8 2 2 1 Stone
+M 10 8 8 2 2 2 0 0 0 Stone
+M 10 8 8 2 2 2 0 0 1 Stone
+M 10 8 8 2 2 2 0 1 0 Stone
+M 10 8 8 2 2 2 1 0 0 Stone
+M 10 8 8 2 2 2 1 0 1 Stone
+M 10 8 8 2 2 2 1 1 0 Stone
+M 10 8 8 2 2 2 2 0 0 Stone
+M 10 8 8 2 2 2 2 0 1 Stone
+M 10 8 8 2 2 2 2 1 0 Stone
+C 11 0 0 Wood
+C 11 0 1 Wood
+C 11 0 2 Wood
+C 11 0 3 Wood
+C 11 0 4 Wood
+C 11 0 5 Wood
+C 11 0 6 Wood
+S 11 1 0 0 0 0 Cobblestone
+S 11 1 0 0 0 1 StoneBricks
+S 11 1 0 0 0 2 StoneBricks
+S 11 1 0 0 1 0 Cobblestone
+S 11 1 0 0 1 1 StoneBricks
+S 11 1 0 0 1 2 StoneBricks
+S 11 1 0 0 2 0 Cobblestone
+S 11 1 0 0 2 1 StoneBricks
+S 11 1 0 0 2 2 StoneBricks
+S 11 1 0 1 0 0 StoneBricks
+S 11 1 0 1 0 1 StoneBricks
+S 11 1 0 1 0 2 StoneBricks
+S 11 1 0 1 1 0 StoneBricks
+S 11 1 0 1 1 1 StoneBricks
+S 11 1 0 1 1 2 StoneBricks
+S 11 1 0 1 2 0 StoneBricks
+S 11 1 0 1 2 1 StoneBricks
+S 11 1 0 1 2 2 StoneBricks
+S 11 1 0 2 0 0 StoneBricks
+S 11 1 0 2 0 1 StoneBricks
+S 11 1 0 2 0 2 StoneBricks
+S 11 1 0 2 1 0 StoneBricks
+S 11 1 0 2 1 1 StoneBricks
+S 11 1 0 2 1 2 StoneBricks
+S 11 1 0 2 2 0 StoneBricks
+S 11 1 0 2 2 1 StoneBricks
+S 11 1 0 2 2 2 StoneBricks
+C 11 1 6 StoneBricks
+S 11 2 0 0 0 0 Cobblestone
+S 11 2 0 0 0 1 StoneBricks
+S 11 2 0 0 0 2 StoneBricks
+S 11 2 0 0 1 0 Cobblestone
+S 11 2 0 0 1 1 StoneBricks
+S 11 2 0 0 1 2 StoneBricks
+S 11 2 0 0 2 0 Cobblestone
+S 11 2 0 0 2 1 StoneBricks
+S 11 2 0 0 2 2 StoneBricks
+S 11 2 0 1 0 0 StoneBricks
+S 11 2 0 1 0 1 StoneBricks
+S 11 2 0 1 0 2 StoneBricks
+S 11 2 0 1 1 0 StoneBricks
+S 11 2 0 1 1 1 StoneBricks
+S 11 2 0 1 1 2 StoneBricks
+S 11 2 0 1 2 0 StoneBricks
+S 11 2 0 1 2 1 StoneBricks
+S 11 2 0 1 2 2 StoneBricks
+S 11 2 0 2 0 0 StoneBricks
+S 11 2 0 2 0 1 StoneBricks
+S 11 2 0 2 0 2 StoneBricks
+S 11 2 0 2 1 0 StoneBricks
+S 11 2 0 2 1 1 StoneBricks
+S 11 2 0 2 1 2 StoneBricks
+S 11 2 0 2 2 0 StoneBricks
+S 11 2 0 2 2 1 StoneBricks
+S 11 2 0 2 2 2 StoneBricks
+C 11 2 6 StoneBricks
+S 11 3 0 0 0 0 Cobblestone
+S 11 3 0 0 0 1 StoneBricks
+S 11 3 0 0 0 2 StoneBricks
+S 11 3 0 0 1 0 StoneBricks
+S 11 3 0 0 1 1 StoneBricks
+S 11 3 0 0 1 2 StoneBricks
+S 11 3 0 0 2 0 StoneBricks
+S 11 3 0 0 2 1 StoneBricks
+S 11 3 0 0 2 2 StoneBricks
+S 11 3 0 1 0 0 StoneBricks
+S 11 3 0 1 0 1 StoneBricks
+S 11 3 0 1 0 2 StoneBricks
+S 11 3 0 1 1 0 StoneBricks
+S 11 3 0 1 1 1 StoneBricks
+S 11 3 0 1 1 2 StoneBricks
+S 11 3 0 1 2 0 StoneBricks
+S 11 3 0 1 2 1 StoneBricks
+S 11 3 0 1 2 2 StoneBricks
+S 11 3 0 2 0 0 StoneBricks
+S 11 3 0 2 0 1 StoneBricks
+S 11 3 0 2 0 2 StoneBricks
+S 11 3 0 2 1 0 StoneBricks
+S 11 3 0 2 1 1 StoneBricks
+S 11 3 0 2 1 2 StoneBricks
+S 11 3 0 2 2 0 StoneBricks
+S 11 3 0 2 2 1 StoneBricks
+S 11 3 0 2 2 2 StoneBricks
+C 11 3 6 StoneBricks
+C 11 4 0 Wood
+C 11 4 1 Wood
+C 11 4 2 Wood
+C 11 4 3 Wood
+C 11 4 4 Wood
+C 11 4 5 Wood
+C 11 4 6 Wood
+C 11 4 7 Wood
+C 11 4 8 Wood
+C 11 5 0 StoneBricks
+C 11 5 8 StoneBricks
+C 11 6 0 StoneBricks
+C 11 6 8 StoneBricks
+C 11 7 0 StoneBricks
+C 11 7 8 StoneBricks
+S 11 8 0 0 0 0 Stone
+S 11 8 0 0 0 1 Stone
+S 11 8 0 0 0 2 Stone
+S 11 8 0 0 1 0 Stone
+S 11 8 0 0 1 1 Stone
+S 11 8 0 0 1 2 Stone
+M 11 8 0 0 2 0 0 0 1 Stone
+M 11 8 0 0 2 0 0 0 2 Stone
+M 11 8 0 0 2 0 0 1 2 Stone
+M 11 8 0 0 2 0 1 0 1 Stone
+M 11 8 0 0 2 0 1 0 2 Stone
+M 11 8 0 0 2 0 1 1 2 Stone
+M 11 8 0 0 2 0 2 0 1 Stone
+M 11 8 0 0 2 0 2 0 2 Stone
+M 11 8 0 0 2 0 2 1 2 Stone
+S 11 8 0 0 2 1 Stone
+S 11 8 0 0 2 2 Stone
+S 11 8 0 1 0 0 Stone
+S 11 8 0 1 0 1 Stone
+S 11 8 0 1 0 2 Stone
+S 11 8 0 1 1 0 Stone
+S 11 8 0 1 1 1 Stone
+S 11 8 0 1 1 2 Stone
+M 11 8 0 1 2 0 0 0 1 Stone
+M 11 8 0 1 2 0 0 0 2 Stone
+M 11 8 0 1 2 0 0 1 2 Stone
+M 11 8 0 1 2 0 1 0 1 Stone
+M 11 8 0 1 2 0 1 0 2 Stone
+M 11 8 0 1 2 0 1 1 2 Stone
+M 11 8 0 1 2 0 2 0 1 Stone
+M 11 8 0 1 2 0 2 0 2 Stone
+M 11 8 0 1 2 0 2 1 2 Stone
+S 11 8 0 1 2 1 Stone
+S 11 8 0 1 2 2 Stone
+S 11 8 0 2 0 0 Stone
+S 11 8 0 2 0 1 Stone
+S 11 8 0 2 0 2 Stone
+S 11 8 0 2 1 0 Stone
+S 11 8 0 2 1 1 Stone
+S 11 8 0 2 1 2 Stone
+M 11 8 0 2 2 0 0 0 1 Stone
+M 11 8 0 2 2 0 0 0 2 Stone
+M 11 8 0 2 2 0 0 1 2 Stone
+M 11 8 0 2 2 0 1 0 1 Stone
+M 11 8 0 2 2 0 1 0 2 Stone
+M 11 8 0 2 2 0 1 1 2 Stone
+M 11 8 0 2 2 0 2 0 1 Stone
+M 11 8 0 2 2 0 2 0 2 Stone
+M 11 8 0 2 2 0 2 1 2 Stone
+S 11 8 0 2 2 1 Stone
+S 11 8 0 2 2 2 Stone
+C 11 8 1 Stone
+C 11 8 2 Stone
+C 11 8 3 Stone
+C 11 8 4 Stone
+C 11 8 5 Stone
+C 11 8 6 Stone
+C 11 8 7 Stone
+S 11 8 8 0 0 0 Stone
+S 11 8 8 0 0 1 Stone
+S 11 8 8 0 0 2 Stone
+S 11 8 8 0 1 0 Stone
+S 11 8 8 0 1 1 Stone
+S 11 8 8 0 1 2 Stone
+S 11 8 8 0 2 0 Stone
+S 11 8 8 0 2 1 Stone
+M 11 8 8 0 2 2 0 0 0 Stone
+M 11 8 8 0 2 2 0 0 1 Stone
+M 11 8 8 0 2 2 0 1 0 Stone
+M 11 8 8 0 2 2 1 0 0 Stone
+M 11 8 8 0 2 2 1 0 1 Stone
+M 11 8 8 0 2 2 1 1 0 Stone
+M 11 8 8 0 2 2 2 0 0 Stone
+M 11 8 8 0 2 2 2 0 1 Stone
+M 11 8 8 0 2 2 2 1 0 Stone
+S 11 8 8 1 0 0 Stone
+S 11 8 8 1 0 1 Stone
+S 11 8 8 1 0 2 Stone
+S 11 8 8 1 1 0 Stone
+S 11 8 8 1 1 1 Stone
+S 11 8 8 1 1 2 Stone
+S 11 8 8 1 2 0 Stone
+S 11 8 8 1 2 1 Stone
+M 11 8 8 1 2 2 0 0 0 Stone
+M 11 8 8 1 2 2 0 0 1 Stone
+M 11 8 8 1 2 2 0 1 0 Stone
+M 11 8 8 1 2 2 1 0 0 Stone
+M 11 8 8 1 2 2 1 0 1 Stone
+M 11 8 8 1 2 2 1 1 0 Stone
+M 11 8 8 1 2 2 2 0 0 Stone
+M 11 8 8 1 2 2 2 0 1 Stone
+M 11 8 8 1 2 2 2 1 0 Stone
+S 11 8 8 2 0 0 Stone
+S 11 8 8 2 0 1 Stone
+S 11 8 8 2 0 2 Stone
+S 11 8 8 2 1 0 Stone
+S 11 8 8 2 1 1 Stone
+S 11 8 8 2 1 2 Stone
+S 11 8 8 2 2 0 Stone
+S 11 8 8 2 2 1 Stone
+M 11 8 8 2 2 2 0 0 0 Stone
+M 11 8 8 2 2 2 0 0 1 Stone
+M 11 8 8 2 2 2 0 1 0 Stone
+M 11 8 8 2 2 2 1 0 0 Stone
+M 11 8 8 2 2 2 1 0 1 Stone
+M 11 8 8 2 2 2 1 1 0 Stone
+M 11 8 8 2 2 2 2 0 0 Stone
+M 11 8 8 2 2 2 2 0 1 Stone
+M 11 8 8 2 2 2 2 1 0 Stone
+C 12 0 0 Wood
+C 12 0 1 Wood
+C 12 0 2 Wood
+C 12 0 3 Wood
+C 12 0 4 Wood
+C 12 0 5 Wood
+C 12 0 6 Wood
+C 12 0 7 Wood
+C 12 0 8 Wood
+C 12 0 9 Wood
+C 12 0 10 Wood
+C 12 0 11 Wood
+C 12 0 12 Wood
+C 12 0 13 Wood
+C 12 0 14 Wood
+C 12 0 15 Wood
+C 12 1 0 StoneBricks
+C 12 1 1 StoneBricks
+C 12 1 2 StoneBricks
+C 12 1 4 StoneBricks
+C 12 1 5 StoneBricks
+C 12 1 6 StoneBricks
+C 12 1 7 StoneBricks
+C 12 1 8 StoneBricks
+C 12 1 9 StoneBricks
+C 12 1 10 StoneBricks
+C 12 1 11 StoneBricks
+C 12 1 12 StoneBricks
+C 12 1 13 StoneBricks
+C 12 1 14 StoneBricks
+C 12 1 15 StoneBricks
+C 12 2 0 StoneBricks
+C 12 2 1 StoneBricks
+C 12 2 2 StoneBricks
+C 12 2 4 StoneBricks
+C 12 2 5 StoneBricks
+C 12 2 6 StoneBricks
+C 12 2 7 StoneBricks
+C 12 2 8 StoneBricks
+C 12 2 9 StoneBricks
+C 12 2 10 StoneBricks
+C 12 2 11 StoneBricks
+C 12 2 12 StoneBricks
+C 12 2 13 StoneBricks
+C 12 2 14 StoneBricks
+C 12 2 15 StoneBricks
+C 12 3 0 StoneBricks
+C 12 3 1 StoneBricks
+C 12 3 2 StoneBricks
+C 12 3 3 StoneBricks
+C 12 3 4 StoneBricks
+C 12 3 5 StoneBricks
+C 12 3 6 StoneBricks
+C 12 3 7 StoneBricks
+C 12 3 8 StoneBricks
+C 12 3 9 StoneBricks
+C 12 3 10 StoneBricks
+C 12 3 11 StoneBricks
+C 12 3 12 StoneBricks
+C 12 3 13 StoneBricks
+C 12 3 14 StoneBricks
+C 12 3 15 StoneBricks
+C 12 4 0 Wood
+C 12 4 1 Wood
+C 12 4 2 Wood
+C 12 4 3 Wood
+C 12 4 4 Wood
+C 12 4 5 Wood
+C 12 4 6 Wood
+C 12 4 7 Wood
+C 12 4 8 Wood
+C 12 4 9 Wood
+C 12 4 10 Wood
+C 12 4 11 Wood
+C 12 4 12 Wood
+C 12 4 13 Wood
+C 12 4 14 Wood
+C 12 4 15 Wood
+C 12 5 0 StoneBricks
+C 12 5 1 StoneBricks
+C 12 5 2 StoneBricks
+C 12 5 4 StoneBricks
+C 12 5 5 StoneBricks
+C 12 5 6 StoneBricks
+C 12 5 7 StoneBricks
+C 12 5 9 StoneBricks
+C 12 5 10 StoneBricks
+C 12 5 11 StoneBricks
+C 12 5 12 StoneBricks
+C 12 5 13 StoneBricks
+C 12 5 14 StoneBricks
+C 12 5 15 StoneBricks
+C 12 6 0 StoneBricks
+C 12 6 1 StoneBricks
+C 12 6 2 StoneBricks
+C 12 6 4 StoneBricks
+C 12 6 5 StoneBricks
+C 12 6 6 StoneBricks
+C 12 6 7 StoneBricks
+C 12 6 9 StoneBricks
+C 12 6 10 StoneBricks
+C 12 6 11 StoneBricks
+C 12 6 12 StoneBricks
+C 12 6 13 StoneBricks
+C 12 6 14 StoneBricks
+C 12 6 15 StoneBricks
+C 12 7 0 StoneBricks
+C 12 7 1 StoneBricks
+C 12 7 2 StoneBricks
+C 12 7 3 StoneBricks
+C 12 7 4 StoneBricks
+C 12 7 5 StoneBricks
+C 12 7 6 StoneBricks
+C 12 7 7 StoneBricks
+C 12 7 8 StoneBricks
+C 12 7 9 StoneBricks
+C 12 7 10 StoneBricks
+C 12 7 11 StoneBricks
+C 12 7 12 StoneBricks
+C 12 7 13 StoneBricks
+C 12 7 14 StoneBricks
+C 12 7 15 StoneBricks
+S 12 8 0 0 0 0 Stone
+S 12 8 0 0 0 1 Stone
+S 12 8 0 0 0 2 Stone
+S 12 8 0 0 1 0 Stone
+S 12 8 0 0 1 1 Stone
+S 12 8 0 0 1 2 Stone
+M 12 8 0 0 2 0 0 0 1 Stone
+M 12 8 0 0 2 0 0 0 2 Stone
+M 12 8 0 0 2 0 0 1 2 Stone
+M 12 8 0 0 2 0 1 0 1 Stone
+M 12 8 0 0 2 0 1 0 2 Stone
+M 12 8 0 0 2 0 1 1 2 Stone
+M 12 8 0 0 2 0 2 0 1 Stone
+M 12 8 0 0 2 0 2 0 2 Stone
+M 12 8 0 0 2 0 2 1 2 Stone
+S 12 8 0 0 2 1 Stone
+S 12 8 0 0 2 2 Stone
+S 12 8 0 1 0 0 Stone
+S 12 8 0 1 0 1 Stone
+S 12 8 0 1 0 2 Stone
+S 12 8 0 1 1 0 Stone
+S 12 8 0 1 1 1 Stone
+S 12 8 0 1 1 2 Stone
+M 12 8 0 1 2 0 0 0 1 Stone
+M 12 8 0 1 2 0 0 0 2 Stone
+M 12 8 0 1 2 0 0 1 2 Stone
+M 12 8 0 1 2 0 1 0 1 Stone
+M 12 8 0 1 2 0 1 0 2 Stone
+M 12 8 0 1 2 0 1 1 2 Stone
+M 12 8 0 1 2 0 2 0 1 Stone
+M 12 8 0 1 2 0 2 0 2 Stone
+M 12 8 0 1 2 0 2 1 2 Stone
+S 12 8 0 1 2 1 Stone
+S 12 8 0 1 2 2 Stone
+S 12 8 0 2 0 0 Stone
+S 12 8 0 2 0 1 Stone
+S 12 8 0 2 0 2 Stone
+S 12 8 0 2 1 0 Stone
+S 12 8 0 2 1 1 Stone
+S 12 8 0 2 1 2 Stone
+M 12 8 0 2 2 0 0 0 1 Stone
+M 12 8 0 2 2 0 0 0 2 Stone
+M 12 8 0 2 2 0 0 1 2 Stone
+M 12 8 0 2 2 0 1 0 1 Stone
+M 12 8 0 2 2 0 1 0 2 Stone
+M 12 8 0 2 2 0 1 1 2 Stone
+M 12 8 0 2 2 0 2 0 1 Stone
+M 12 8 0 2 2 0 2 0 2 Stone
+M 12 8 0 2 2 0 2 1 2 Stone
+S 12 8 0 2 2 1 Stone
+S 12 8 0 2 2 2 Stone
+C 12 8 1 Stone
+C 12 8 2 Stone
+C 12 8 3 Stone
+C 12 8 4 Stone
+C 12 8 5 Stone
+C 12 8 6 Stone
+C 12 8 7 Stone
+C 12 8 8 Stone
+S 12 8 9 0 0 0 Stone
+S 12 8 9 0 0 1 Stone
+S 12 8 9 0 0 2 Stone
+S 12 8 9 0 1 0 Stone
+S 12 8 9 0 1 1 Stone
+S 12 8 9 0 1 2 Stone
+M 12 8 9 0 2 0 1 0 0 Stone
+M 12 8 9 0 2 0 1 0 1 Stone
+M 12 8 9 0 2 0 1 0 2 Stone
+M 12 8 9 0 2 0 2 0 0 Stone
+M 12 8 9 0 2 0 2 0 1 Stone
+M 12 8 9 0 2 0 2 0 2 Stone
+M 12 8 9 0 2 0 2 1 0 Stone
+M 12 8 9 0 2 0 2 1 1 Stone
+M 12 8 9 0 2 0 2 1 2 Stone
+M 12 8 9 0 2 1 1 0 0 Stone
+M 12 8 9 0 2 1 1 0 1 Stone
+M 12 8 9 0 2 1 1 0 2 Stone
+M 12 8 9 0 2 1 2 0 0 Stone
+M 12 8 9 0 2 1 2 0 1 Stone
+M 12 8 9 0 2 1 2 0 2 Stone
+M 12 8 9 0 2 1 2 1 0 Stone
+M 12 8 9 0 2 1 2 1 1 Stone
+M 12 8 9 0 2 1 2 1 2 Stone
+M 12 8 9 0 2 2 1 0 0 Stone
+M 12 8 9 0 2 2 1 0 1 Stone
+M 12 8 9 0 2 2 1 0 2 Stone
+M 12 8 9 0 2 2 2 0 0 Stone
+M 12 8 9 0 2 2 2 0 1 Stone
+M 12 8 9 0 2 2 2 0 2 Stone
+M 12 8 9 0 2 2 2 1 0 Stone
+M 12 8 9 0 2 2 2 1 1 Stone
+M 12 8 9 0 2 2 2 1 2 Stone
+S 12 8 9 1 0 0 Stone
+S 12 8 9 1 0 1 Stone
+S 12 8 9 1 0 2 Stone
+S 12 8 9 1 1 0 Stone
+S 12 8 9 1 1 1 Stone
+S 12 8 9 1 1 2 Stone
+S 12 8 9 1 2 0 Stone
+S 12 8 9 1 2 1 Stone
+S 12 8 9 1 2 2 Stone
+S 12 8 9 2 0 0 Stone
+S 12 8 9 2 0 1 Stone
+S 12 8 9 2 0 2 Stone
+S 12 8 9 2 1 0 Stone
+S 12 8 9 2 1 1 Stone
+S 12 8 9 2 1 2 Stone
+S 12 8 9 2 2 0 Stone
+S 12 8 9 2 2 1 Stone
+S 12 8 9 2 2 2 Stone
+S 12 8 10 0 0 0 Stone
+S 12 8 10 0 0 1 Stone
+S 12 8 10 0 0 2 Stone
+S 12 8 10 0 1 0 Stone
+S 12 8 10 0 1 1 Stone
+S 12 8 10 0 1 2 Stone
+M 12 8 10 0 2 0 1 0 0 Stone
+M 12 8 10 0 2 0 1 0 1 Stone
+M 12 8 10 0 2 0 1 0 2 Stone
+M 12 8 10 0 2 0 2 0 0 Stone
+M 12 8 10 0 2 0 2 0 1 Stone
+M 12 8 10 0 2 0 2 0 2 Stone
+M 12 8 10 0 2 0 2 1 0 Stone
+M 12 8 10 0 2 0 2 1 1 Stone
+M 12 8 10 0 2 0 2 1 2 Stone
+M 12 8 10 0 2 1 1 0 0 Stone
+M 12 8 10 0 2 1 1 0 1 Stone
+M 12 8 10 0 2 1 1 0 2 Stone
+M 12 8 10 0 2 1 2 0 0 Stone
+M 12 8 10 0 2 1 2 0 1 Stone
+M 12 8 10 0 2 1 2 0 2 Stone
+M 12 8 10 0 2 1 2 1 0 Stone
+M 12 8 10 0 2 1 2 1 1 Stone
+M 12 8 10 0 2 1 2 1 2 Stone
+M 12 8 10 0 2 2 1 0 0 Stone
+M 12 8 10 0 2 2 1 0 1 Stone
+M 12 8 10 0 2 2 1 0 2 Stone
+M 12 8 10 0 2 2 2 0 0 Stone
+M 12 8 10 0 2 2 2 0 1 Stone
+M 12 8 10 0 2 2 2 0 2 Stone
+M 12 8 10 0 2 2 2 1 0 Stone
+M 12 8 10 0 2 2 2 1 1 Stone
+M 12 8 10 0 2 2 2 1 2 Stone
+S 12 8 10 1 0 0 Stone
+S 12 8 10 1 0 1 Stone
+S 12 8 10 1 0 2 Stone
+S 12 8 10 1 1 0 Stone
+S 12 8 10 1 1 1 Stone
+S 12 8 10 1 1 2 Stone
+S 12 8 10 1 2 0 Stone
+S 12 8 10 1 2 1 Stone
+S 12 8 10 1 2 2 Stone
+S 12 8 10 2 0 0 Stone
+S 12 8 10 2 0 1 Stone
+S 12 8 10 2 0 2 Stone
+S 12 8 10 2 1 0 Stone
+S 12 8 10 2 1 1 Stone
+S 12 8 10 2 1 2 Stone
+S 12 8 10 2 2 0 Stone
+S 12 8 10 2 2 1 Stone
+S 12 8 10 2 2 2 Stone
+S 12 8 11 0 0 0 Stone
+S 12 8 11 0 0 1 Stone
+S 12 8 11 0 0 2 Stone
+S 12 8 11 0 1 0 Stone
+S 12 8 11 0 1 1 Stone
+S 12 8 11 0 1 2 Stone
+M 12 8 11 0 2 0 1 0 0 Stone
+M 12 8 11 0 2 0 1 0 1 Stone
+M 12 8 11 0 2 0 1 0 2 Stone
+M 12 8 11 0 2 0 2 0 0 Stone
+M 12 8 11 0 2 0 2 0 1 Stone
+M 12 8 11 0 2 0 2 0 2 Stone
+M 12 8 11 0 2 0 2 1 0 Stone
+M 12 8 11 0 2 0 2 1 1 Stone
+M 12 8 11 0 2 0 2 1 2 Stone
+M 12 8 11 0 2 1 1 0 0 Stone
+M 12 8 11 0 2 1 1 0 1 Stone
+M 12 8 11 0 2 1 1 0 2 Stone
+M 12 8 11 0 2 1 2 0 0 Stone
+M 12 8 11 0 2 1 2 0 1 Stone
+M 12 8 11 0 2 1 2 0 2 Stone
+M 12 8 11 0 2 1 2 1 0 Stone
+M 12 8 11 0 2 1 2 1 1 Stone
+M 12 8 11 0 2 1 2 1 2 Stone
+M 12 8 11 0 2 2 1 0 0 Stone
+M 12 8 11 0 2 2 1 0 1 Stone
+M 12 8 11 0 2 2 1 0 2 Stone
+M 12 8 11 0 2 2 2 0 0 Stone
+M 12 8 11 0 2 2 2 0 1 Stone
+M 12 8 11 0 2 2 2 0 2 Stone
+M 12 8 11 0 2 2 2 1 0 Stone
+M 12 8 11 0 2 2 2 1 1 Stone
+M 12 8 11 0 2 2 2 1 2 Stone
+S 12 8 11 1 0 0 Stone
+S 12 8 11 1 0 1 Stone
+S 12 8 11 1 0 2 Stone
+S 12 8 11 1 1 0 Stone
+S 12 8 11 1 1 1 Stone
+S 12 8 11 1 1 2 Stone
+S 12 8 11 1 2 0 Stone
+S 12 8 11 1 2 1 Stone
+S 12 8 11 1 2 2 Stone
+S 12 8 11 2 0 0 Stone
+S 12 8 11 2 0 1 Stone
+S 12 8 11 2 0 2 Stone
+S 12 8 11 2 1 0 Stone
+S 12 8 11 2 1 1 Stone
+S 12 8 11 2 1 2 Stone
+S 12 8 11 2 2 0 Stone
+S 12 8 11 2 2 1 Stone
+S 12 8 11 2 2 2 Stone
+S 12 8 12 0 0 0 Stone
+S 12 8 12 0 0 1 Stone
+S 12 8 12 0 0 2 Stone
+S 12 8 12 0 1 0 Stone
+S 12 8 12 0 1 1 Stone
+S 12 8 12 0 1 2 Stone
+M 12 8 12 0 2 0 1 0 0 Stone
+M 12 8 12 0 2 0 1 0 1 Stone
+M 12 8 12 0 2 0 1 0 2 Stone
+M 12 8 12 0 2 0 2 0 0 Stone
+M 12 8 12 0 2 0 2 0 1 Stone
+M 12 8 12 0 2 0 2 0 2 Stone
+M 12 8 12 0 2 0 2 1 0 Stone
+M 12 8 12 0 2 0 2 1 1 Stone
+M 12 8 12 0 2 0 2 1 2 Stone
+M 12 8 12 0 2 1 1 0 0 Stone
+M 12 8 12 0 2 1 1 0 1 Stone
+M 12 8 12 0 2 1 1 0 2 Stone
+M 12 8 12 0 2 1 2 0 0 Stone
+M 12 8 12 0 2 1 2 0 1 Stone
+M 12 8 12 0 2 1 2 0 2 Stone
+M 12 8 12 0 2 1 2 1 0 Stone
+M 12 8 12 0 2 1 2 1 1 Stone
+M 12 8 12 0 2 1 2 1 2 Stone
+M 12 8 12 0 2 2 1 0 0 Stone
+M 12 8 12 0 2 2 1 0 1 Stone
+M 12 8 12 0 2 2 1 0 2 Stone
+M 12 8 12 0 2 2 2 0 0 Stone
+M 12 8 12 0 2 2 2 0 1 Stone
+M 12 8 12 0 2 2 2 0 2 Stone
+M 12 8 12 0 2 2 2 1 0 Stone
+M 12 8 12 0 2 2 2 1 1 Stone
+M 12 8 12 0 2 2 2 1 2 Stone
+S 12 8 12 1 0 0 Stone
+S 12 8 12 1 0 1 Stone
+S 12 8 12 1 0 2 Stone
+S 12 8 12 1 1 0 Stone
+S 12 8 12 1 1 1 Stone
+S 12 8 12 1 1 2 Stone
+S 12 8 12 1 2 0 Stone
+S 12 8 12 1 2 1 Stone
+S 12 8 12 1 2 2 Stone
+S 12 8 12 2 0 0 Stone
+S 12 8 12 2 0 1 Stone
+S 12 8 12 2 0 2 Stone
+S 12 8 12 2 1 0 Stone
+S 12 8 12 2 1 1 Stone
+S 12 8 12 2 1 2 Stone
+S 12 8 12 2 2 0 Stone
+S 12 8 12 2 2 1 Stone
+S 12 8 12 2 2 2 Stone
+S 12 8 13 0 0 0 Stone
+S 12 8 13 0 0 1 Stone
+S 12 8 13 0 0 2 Stone
+S 12 8 13 0 1 0 Stone
+S 12 8 13 0 1 1 Stone
+S 12 8 13 0 1 2 Stone
+M 12 8 13 0 2 0 1 0 0 Stone
+M 12 8 13 0 2 0 1 0 1 Stone
+M 12 8 13 0 2 0 1 0 2 Stone
+M 12 8 13 0 2 0 2 0 0 Stone
+M 12 8 13 0 2 0 2 0 1 Stone
+M 12 8 13 0 2 0 2 0 2 Stone
+M 12 8 13 0 2 0 2 1 0 Stone
+M 12 8 13 0 2 0 2 1 1 Stone
+M 12 8 13 0 2 0 2 1 2 Stone
+M 12 8 13 0 2 1 1 0 0 Stone
+M 12 8 13 0 2 1 1 0 1 Stone
+M 12 8 13 0 2 1 1 0 2 Stone
+M 12 8 13 0 2 1 2 0 0 Stone
+M 12 8 13 0 2 1 2 0 1 Stone
+M 12 8 13 0 2 1 2 0 2 Stone
+M 12 8 13 0 2 1 2 1 0 Stone
+M 12 8 13 0 2 1 2 1 1 Stone
+M 12 8 13 0 2 1 2 1 2 Stone
+M 12 8 13 0 2 2 1 0 0 Stone
+M 12 8 13 0 2 2 1 0 1 Stone
+M 12 8 13 0 2 2 1 0 2 Stone
+M 12 8 13 0 2 2 2 0 0 Stone
+M 12 8 13 0 2 2 2 0 1 Stone
+M 12 8 13 0 2 2 2 0 2 Stone
+M 12 8 13 0 2 2 2 1 0 Stone
+M 12 8 13 0 2 2 2 1 1 Stone
+M 12 8 13 0 2 2 2 1 2 Stone
+S 12 8 13 1 0 0 Stone
+S 12 8 13 1 0 1 Stone
+S 12 8 13 1 0 2 Stone
+S 12 8 13 1 1 0 Stone
+S 12 8 13 1 1 1 Stone
+S 12 8 13 1 1 2 Stone
+S 12 8 13 1 2 0 Stone
+S 12 8 13 1 2 1 Stone
+S 12 8 13 1 2 2 Stone
+S 12 8 13 2 0 0 Stone
+S 12 8 13 2 0 1 Stone
+S 12 8 13 2 0 2 Stone
+S 12 8 13 2 1 0 Stone
+S 12 8 13 2 1 1 Stone
+S 12 8 13 2 1 2 Stone
+S 12 8 13 2 2 0 Stone
+S 12 8 13 2 2 1 Stone
+S 12 8 13 2 2 2 Stone
+S 12 8 14 0 0 0 Stone
+S 12 8 14 0 0 1 Stone
+S 12 8 14 0 0 2 Stone
+S 12 8 14 0 1 0 Stone
+S 12 8 14 0 1 1 Stone
+S 12 8 14 0 1 2 Stone
+M 12 8 14 0 2 0 1 0 0 Stone
+M 12 8 14 0 2 0 1 0 1 Stone
+M 12 8 14 0 2 0 1 0 2 Stone
+M 12 8 14 0 2 0 2 0 0 Stone
+M 12 8 14 0 2 0 2 0 1 Stone
+M 12 8 14 0 2 0 2 0 2 Stone
+M 12 8 14 0 2 0 2 1 0 Stone
+M 12 8 14 0 2 0 2 1 1 Stone
+M 12 8 14 0 2 0 2 1 2 Stone
+M 12 8 14 0 2 1 1 0 0 Stone
+M 12 8 14 0 2 1 1 0 1 Stone
+M 12 8 14 0 2 1 1 0 2 Stone
+M 12 8 14 0 2 1 2 0 0 Stone
+M 12 8 14 0 2 1 2 0 1 Stone
+M 12 8 14 0 2 1 2 0 2 Stone
+M 12 8 14 0 2 1 2 1 0 Stone
+M 12 8 14 0 2 1 2 1 1 Stone
+M 12 8 14 0 2 1 2 1 2 Stone
+M 12 8 14 0 2 2 1 0 0 Stone
+M 12 8 14 0 2 2 1 0 1 Stone
+M 12 8 14 0 2 2 1 0 2 Stone
+M 12 8 14 0 2 2 2 0 0 Stone
+M 12 8 14 0 2 2 2 0 1 Stone
+M 12 8 14 0 2 2 2 0 2 Stone
+M 12 8 14 0 2 2 2 1 0 Stone
+M 12 8 14 0 2 2 2 1 1 Stone
+M 12 8 14 0 2 2 2 1 2 Stone
+S 12 8 14 1 0 0 Stone
+S 12 8 14 1 0 1 Stone
+S 12 8 14 1 0 2 Stone
+S 12 8 14 1 1 0 Stone
+S 12 8 14 1 1 1 Stone
+S 12 8 14 1 1 2 Stone
+S 12 8 14 1 2 0 Stone
+S 12 8 14 1 2 1 Stone
+S 12 8 14 1 2 2 Stone
+S 12 8 14 2 0 0 Stone
+S 12 8 14 2 0 1 Stone
+S 12 8 14 2 0 2 Stone
+S 12 8 14 2 1 0 Stone
+S 12 8 14 2 1 1 Stone
+S 12 8 14 2 1 2 Stone
+S 12 8 14 2 2 0 Stone
+S 12 8 14 2 2 1 Stone
+S 12 8 14 2 2 2 Stone
+S 12 8 15 0 0 0 Stone
+S 12 8 15 0 0 1 Stone
+S 12 8 15 0 0 2 Stone
+S 12 8 15 0 1 0 Stone
+S 12 8 15 0 1 1 Stone
+S 12 8 15 0 1 2 Stone
+M 12 8 15 0 2 0 1 0 0 Stone
+M 12 8 15 0 2 0 1 0 1 Stone
+M 12 8 15 0 2 0 1 0 2 Stone
+M 12 8 15 0 2 0 2 0 0 Stone
+M 12 8 15 0 2 0 2 0 1 Stone
+M 12 8 15 0 2 0 2 0 2 Stone
+M 12 8 15 0 2 0 2 1 0 Stone
+M 12 8 15 0 2 0 2 1 1 Stone
+M 12 8 15 0 2 0 2 1 2 Stone
+M 12 8 15 0 2 1 1 0 0 Stone
+M 12 8 15 0 2 1 1 0 1 Stone
+M 12 8 15 0 2 1 1 0 2 Stone
+M 12 8 15 0 2 1 2 0 0 Stone
+M 12 8 15 0 2 1 2 0 1 Stone
+M 12 8 15 0 2 1 2 0 2 Stone
+M 12 8 15 0 2 1 2 1 0 Stone
+M 12 8 15 0 2 1 2 1 1 Stone
+M 12 8 15 0 2 1 2 1 2 Stone
+M 12 8 15 0 2 2 1 0 0 Stone
+M 12 8 15 0 2 2 1 0 1 Stone
+M 12 8 15 0 2 2 2 0 0 Stone
+M 12 8 15 0 2 2 2 0 1 Stone
+M 12 8 15 0 2 2 2 1 0 Stone
+S 12 8 15 1 0 0 Stone
+S 12 8 15 1 0 1 Stone
+S 12 8 15 1 0 2 Stone
+S 12 8 15 1 1 0 Stone
+S 12 8 15 1 1 1 Stone
+S 12 8 15 1 1 2 Stone
+S 12 8 15 1 2 0 Stone
+S 12 8 15 1 2 1 Stone
+M 12 8 15 1 2 2 0 0 0 Stone
+M 12 8 15 1 2 2 0 0 1 Stone
+M 12 8 15 1 2 2 0 1 0 Stone
+M 12 8 15 1 2 2 1 0 0 Stone
+M 12 8 15 1 2 2 1 0 1 Stone
+M 12 8 15 1 2 2 1 1 0 Stone
+M 12 8 15 1 2 2 2 0 0 Stone
+M 12 8 15 1 2 2 2 0 1 Stone
+M 12 8 15 1 2 2 2 1 0 Stone
+S 12 8 15 2 0 0 Stone
+S 12 8 15 2 0 1 Stone
+S 12 8 15 2 0 2 Stone
+S 12 8 15 2 1 0 Stone
+S 12 8 15 2 1 1 Stone
+S 12 8 15 2 1 2 Stone
+S 12 8 15 2 2 0 Stone
+S 12 8 15 2 2 1 Stone
+M 12 8 15 2 2 2 0 0 0 Stone
+M 12 8 15 2 2 2 0 0 1 Stone
+M 12 8 15 2 2 2 0 1 0 Stone
+M 12 8 15 2 2 2 1 0 0 Stone
+M 12 8 15 2 2 2 1 0 1 Stone
+M 12 8 15 2 2 2 1 1 0 Stone
+M 12 8 15 2 2 2 2 0 0 Stone
+M 12 8 15 2 2 2 2 0 1 Stone
+M 12 8 15 2 2 2 2 1 0 Stone
+C 13 0 0 Wood
+C 13 0 1 Wood
+C 13 0 2 Wood
+C 13 0 3 Wood
+C 13 0 4 Wood
+C 13 0 5 Wood
+C 13 0 6 Wood
+C 13 0 7 Wood
+C 13 0 8 Wood
+C 13 0 9 Wood
+C 13 0 10 Wood
+C 13 0 11 Wood
+C 13 0 12 Wood
+C 13 0 13 Wood
+C 13 0 14 Wood
+C 13 0 15 Wood
+S 13 1 0 0 0 0 StoneBricks
+S 13 1 0 0 0 1 StoneBricks
+S 13 1 0 0 0 2 StoneBricks
+S 13 1 0 0 1 0 StoneBricks
+S 13 1 0 0 1 1 StoneBricks
+S 13 1 0 0 1 2 StoneBricks
+S 13 1 0 0 2 0 StoneBricks
+S 13 1 0 0 2 1 StoneBricks
+S 13 1 0 0 2 2 StoneBricks
+S 13 1 0 1 0 0 StoneBricks
+S 13 1 0 1 0 1 StoneBricks
+S 13 1 0 1 0 2 StoneBricks
+S 13 1 0 1 1 0 StoneBricks
+S 13 1 0 1 1 1 StoneBricks
+S 13 1 0 1 1 2 StoneBricks
+S 13 1 0 1 2 0 StoneBricks
+S 13 1 0 1 2 1 StoneBricks
+S 13 1 0 1 2 2 StoneBricks
+S 13 1 0 2 0 0 StoneBricks
+S 13 1 0 2 0 1 StoneBricks
+S 13 1 0 2 0 2 StoneBricks
+S 13 1 0 2 1 0 StoneBricks
+S 13 1 0 2 1 1 StoneBricks
+S 13 1 0 2 1 2 StoneBricks
+S 13 1 0 2 2 0 Cobblestone
+S 13 1 0 2 2 1 StoneBricks
+S 13 1 0 2 2 2 StoneBricks
+C 13 1 7 StoneBricks
+C 13 1 15 StoneBricks
+S 13 2 0 0 0 0 StoneBricks
+S 13 2 0 0 0 1 StoneBricks
+S 13 2 0 0 0 2 StoneBricks
+S 13 2 0 0 1 0 StoneBricks
+S 13 2 0 0 1 1 StoneBricks
+S 13 2 0 0 1 2 StoneBricks
+S 13 2 0 0 2 0 StoneBricks
+S 13 2 0 0 2 1 StoneBricks
+S 13 2 0 0 2 2 StoneBricks
+S 13 2 0 1 0 0 StoneBricks
+S 13 2 0 1 0 1 StoneBricks
+S 13 2 0 1 0 2 StoneBricks
+S 13 2 0 1 1 0 StoneBricks
+S 13 2 0 1 1 1 StoneBricks
+S 13 2 0 1 1 2 StoneBricks
+S 13 2 0 1 2 0 StoneBricks
+S 13 2 0 1 2 1 StoneBricks
+S 13 2 0 1 2 2 StoneBricks
+S 13 2 0 2 0 0 Cobblestone
+S 13 2 0 2 0 1 StoneBricks
+S 13 2 0 2 0 2 StoneBricks
+S 13 2 0 2 1 0 Cobblestone
+S 13 2 0 2 1 1 StoneBricks
+S 13 2 0 2 1 2 StoneBricks
+S 13 2 0 2 2 0 Cobblestone
+S 13 2 0 2 2 1 StoneBricks
+S 13 2 0 2 2 2 StoneBricks
+C 13 2 7 StoneBricks
+C 13 2 15 StoneBricks
+S 13 3 0 0 0 0 StoneBricks
+S 13 3 0 0 0 1 StoneBricks
+S 13 3 0 0 0 2 StoneBricks
+S 13 3 0 0 1 0 StoneBricks
+S 13 3 0 0 1 1 StoneBricks
+S 13 3 0 0 1 2 StoneBricks
+S 13 3 0 0 2 0 StoneBricks
+S 13 3 0 0 2 1 StoneBricks
+S 13 3 0 0 2 2 StoneBricks
+S 13 3 0 1 0 0 StoneBricks
+S 13 3 0 1 0 1 StoneBricks
+S 13 3 0 1 0 2 StoneBricks
+S 13 3 0 1 1 0 StoneBricks
+S 13 3 0 1 1 1 StoneBricks
+S 13 3 0 1 1 2 StoneBricks
+S 13 3 0 1 2 0 StoneBricks
+S 13 3 0 1 2 1 StoneBricks
+S 13 3 0 1 2 2 StoneBricks
+S 13 3 0 2 0 0 Cobblestone
+S 13 3 0 2 0 1 StoneBricks
+S 13 3 0 2 0 2 StoneBricks
+S 13 3 0 2 1 0 Cobblestone
+S 13 3 0 2 1 1 StoneBricks
+S 13 3 0 2 1 2 StoneBricks
+S 13 3 0 2 2 0 Cobblestone
+S 13 3 0 2 2 1 StoneBricks
+S 13 3 0 2 2 2 StoneBricks
+C 13 3 7 StoneBricks
+C 13 3 15 StoneBricks
+C 13 4 0 Wood
+C 13 4 1 Wood
+C 13 4 2 Wood
+C 13 4 3 Wood
+C 13 4 4 Wood
+C 13 4 5 Wood
+C 13 4 6 Wood
+C 13 4 7 Wood
+C 13 4 8 Wood
+C 13 4 9 Wood
+C 13 4 10 Wood
+C 13 4 11 Wood
+C 13 4 12 Wood
+C 13 4 13 Wood
+C 13 4 14 Wood
+C 13 4 15 Wood
+S 13 5 0 0 0 0 StoneBricks
+S 13 5 0 0 0 1 StoneBricks
+S 13 5 0 0 0 2 StoneBricks
+S 13 5 0 0 1 0 StoneBricks
+S 13 5 0 0 1 1 StoneBricks
+S 13 5 0 0 1 2 StoneBricks
+S 13 5 0 0 2 0 StoneBricks
+S 13 5 0 0 2 1 StoneBricks
+S 13 5 0 0 2 2 StoneBricks
+S 13 5 0 1 0 0 StoneBricks
+S 13 5 0 1 0 1 StoneBricks
+S 13 5 0 1 0 2 StoneBricks
+S 13 5 0 1 1 0 StoneBricks
+S 13 5 0 1 1 1 StoneBricks
+S 13 5 0 1 1 2 StoneBricks
+S 13 5 0 1 2 0 StoneBricks
+S 13 5 0 1 2 1 StoneBricks
+S 13 5 0 1 2 2 StoneBricks
+S 13 5 0 2 0 0 StoneBricks
+S 13 5 0 2 0 1 StoneBricks
+S 13 5 0 2 0 2 StoneBricks
+S 13 5 0 2 1 0 StoneBricks
+S 13 5 0 2 1 1 StoneBricks
+S 13 5 0 2 1 2 StoneBricks
+S 13 5 0 2 2 0 Cobblestone
+S 13 5 0 2 2 1 StoneBricks
+S 13 5 0 2 2 2 StoneBricks
+C 13 5 7 StoneBricks
+C 13 5 15 StoneBricks
+S 13 6 0 0 0 0 StoneBricks
+S 13 6 0 0 0 1 StoneBricks
+S 13 6 0 0 0 2 StoneBricks
+S 13 6 0 0 1 0 StoneBricks
+S 13 6 0 0 1 1 StoneBricks
+S 13 6 0 0 1 2 StoneBricks
+S 13 6 0 0 2 0 StoneBricks
+S 13 6 0 0 2 1 StoneBricks
+S 13 6 0 0 2 2 StoneBricks
+S 13 6 0 1 0 0 StoneBricks
+S 13 6 0 1 0 1 StoneBricks
+S 13 6 0 1 0 2 StoneBricks
+S 13 6 0 1 1 0 StoneBricks
+S 13 6 0 1 1 1 StoneBricks
+S 13 6 0 1 1 2 StoneBricks
+S 13 6 0 1 2 0 StoneBricks
+S 13 6 0 1 2 1 StoneBricks
+S 13 6 0 1 2 2 StoneBricks
+S 13 6 0 2 0 0 Cobblestone
+S 13 6 0 2 0 1 StoneBricks
+S 13 6 0 2 0 2 StoneBricks
+S 13 6 0 2 1 0 Cobblestone
+S 13 6 0 2 1 1 StoneBricks
+S 13 6 0 2 1 2 StoneBricks
+S 13 6 0 2 2 0 Cobblestone
+S 13 6 0 2 2 1 StoneBricks
+S 13 6 0 2 2 2 StoneBricks
+C 13 6 7 StoneBricks
+C 13 6 15 StoneBricks
+S 13 7 0 0 0 0 StoneBricks
+S 13 7 0 0 0 1 StoneBricks
+S 13 7 0 0 0 2 StoneBricks
+S 13 7 0 0 1 0 StoneBricks
+S 13 7 0 0 1 1 StoneBricks
+S 13 7 0 0 1 2 StoneBricks
+S 13 7 0 0 2 0 StoneBricks
+S 13 7 0 0 2 1 StoneBricks
+S 13 7 0 0 2 2 StoneBricks
+S 13 7 0 1 0 0 StoneBricks
+S 13 7 0 1 0 1 StoneBricks
+S 13 7 0 1 0 2 StoneBricks
+S 13 7 0 1 1 0 StoneBricks
+S 13 7 0 1 1 1 StoneBricks
+S 13 7 0 1 1 2 StoneBricks
+S 13 7 0 1 2 0 StoneBricks
+S 13 7 0 1 2 1 StoneBricks
+S 13 7 0 1 2 2 StoneBricks
+S 13 7 0 2 0 0 Cobblestone
+S 13 7 0 2 0 1 StoneBricks
+S 13 7 0 2 0 2 StoneBricks
+S 13 7 0 2 1 0 Cobblestone
+S 13 7 0 2 1 1 StoneBricks
+S 13 7 0 2 1 2 StoneBricks
+S 13 7 0 2 2 0 Cobblestone
+S 13 7 0 2 2 1 StoneBricks
+S 13 7 0 2 2 2 StoneBricks
+C 13 7 7 StoneBricks
+C 13 7 15 StoneBricks
+S 13 8 0 0 0 0 Stone
+S 13 8 0 0 0 1 Stone
+S 13 8 0 0 0 2 Stone
+S 13 8 0 0 1 0 Stone
+S 13 8 0 0 1 1 Stone
+S 13 8 0 0 1 2 Stone
+M 13 8 0 0 2 0 0 0 1 Stone
+M 13 8 0 0 2 0 0 0 2 Stone
+M 13 8 0 0 2 0 0 1 2 Stone
+M 13 8 0 0 2 0 1 0 1 Stone
+M 13 8 0 0 2 0 1 0 2 Stone
+M 13 8 0 0 2 0 1 1 2 Stone
+M 13 8 0 0 2 0 2 0 1 Stone
+M 13 8 0 0 2 0 2 0 2 Stone
+M 13 8 0 0 2 0 2 1 2 Stone
+S 13 8 0 0 2 1 Stone
+S 13 8 0 0 2 2 Stone
+S 13 8 0 1 0 0 Stone
+S 13 8 0 1 0 1 Stone
+S 13 8 0 1 0 2 Stone
+S 13 8 0 1 1 0 Stone
+S 13 8 0 1 1 1 Stone
+S 13 8 0 1 1 2 Stone
+M 13 8 0 1 2 0 0 0 1 Stone
+M 13 8 0 1 2 0 0 0 2 Stone
+M 13 8 0 1 2 0 0 1 2 Stone
+M 13 8 0 1 2 0 1 0 1 Stone
+M 13 8 0 1 2 0 1 0 2 Stone
+M 13 8 0 1 2 0 1 1 2 Stone
+M 13 8 0 1 2 0 2 0 1 Stone
+M 13 8 0 1 2 0 2 0 2 Stone
+M 13 8 0 1 2 0 2 1 2 Stone
+S 13 8 0 1 2 1 Stone
+S 13 8 0 1 2 2 Stone
+S 13 8 0 2 0 0 Stone
+S 13 8 0 2 0 1 Stone
+S 13 8 0 2 0 2 Stone
+S 13 8 0 2 1 0 Stone
+S 13 8 0 2 1 1 Stone
+S 13 8 0 2 1 2 Stone
+M 13 8 0 2 2 0 0 0 1 Stone
+M 13 8 0 2 2 0 0 0 2 Stone
+M 13 8 0 2 2 0 0 1 2 Stone
+M 13 8 0 2 2 0 1 0 1 Stone
+M 13 8 0 2 2 0 1 0 2 Stone
+M 13 8 0 2 2 0 1 1 2 Stone
+M 13 8 0 2 2 0 2 0 1 Stone
+M 13 8 0 2 2 0 2 0 2 Stone
+M 13 8 0 2 2 0 2 1 2 Stone
+S 13 8 0 2 2 1 Stone
+S 13 8 0 2 2 2 Stone
+C 13 8 1 Stone
+C 13 8 2 Stone
+C 13 8 3 Stone
+C 13 8 4 Stone
+C 13 8 5 Stone
+C 13 8 6 Stone
+C 13 8 7 Stone
+C 13 8 8 Stone
+C 13 8 9 Stone
+C 13 8 10 Stone
+C 13 8 11 Stone
+C 13 8 12 Stone
+C 13 8 13 Stone
+C 13 8 14 Stone
+S 13 8 15 0 0 0 Stone
+S 13 8 15 0 0 1 Stone
+S 13 8 15 0 0 2 Stone
+S 13 8 15 0 1 0 Stone
+S 13 8 15 0 1 1 Stone
+S 13 8 15 0 1 2 Stone
+S 13 8 15 0 2 0 Stone
+S 13 8 15 0 2 1 Stone
+M 13 8 15 0 2 2 0 0 0 Stone
+M 13 8 15 0 2 2 0 0 1 Stone
+M 13 8 15 0 2 2 0 1 0 Stone
+M 13 8 15 0 2 2 1 0 0 Stone
+M 13 8 15 0 2 2 1 0 1 Stone
+M 13 8 15 0 2 2 1 1 0 Stone
+M 13 8 15 0 2 2 2 0 0 Stone
+M 13 8 15 0 2 2 2 0 1 Stone
+M 13 8 15 0 2 2 2 1 0 Stone
+S 13 8 15 1 0 0 Stone
+S 13 8 15 1 0 1 Stone
+S 13 8 15 1 0 2 Stone
+S 13 8 15 1 1 0 Stone
+S 13 8 15 1 1 1 Stone
+S 13 8 15 1 1 2 Stone
+S 13 8 15 1 2 0 Stone
+S 13 8 15 1 2 1 Stone
+M 13 8 15 1 2 2 0 0 0 Stone
+M 13 8 15 1 2 2 0 0 1 Stone
+M 13 8 15 1 2 2 0 1 0 Stone
+M 13 8 15 1 2 2 1 0 0 Stone
+M 13 8 15 1 2 2 1 0 1 Stone
+M 13 8 15 1 2 2 1 1 0 Stone
+M 13 8 15 1 2 2 2 0 0 Stone
+M 13 8 15 1 2 2 2 0 1 Stone
+M 13 8 15 1 2 2 2 1 0 Stone
+S 13 8 15 2 0 0 Stone
+S 13 8 15 2 0 1 Stone
+S 13 8 15 2 0 2 Stone
+S 13 8 15 2 1 0 Stone
+S 13 8 15 2 1 1 Stone
+S 13 8 15 2 1 2 Stone
+S 13 8 15 2 2 0 Stone
+S 13 8 15 2 2 1 Stone
+M 13 8 15 2 2 2 0 0 0 Stone
+M 13 8 15 2 2 2 0 0 1 Stone
+M 13 8 15 2 2 2 0 1 0 Stone
+M 13 8 15 2 2 2 1 0 0 Stone
+M 13 8 15 2 2 2 1 0 1 Stone
+M 13 8 15 2 2 2 1 1 0 Stone
+M 13 8 15 2 2 2 2 0 0 Stone
+M 13 8 15 2 2 2 2 0 1 Stone
+M 13 8 15 2 2 2 2 1 0 Stone
+C 14 0 0 Wood
+C 14 0 1 Wood
+C 14 0 2 Wood
+C 14 0 3 Wood
+C 14 0 4 Wood
+C 14 0 5 Wood
+C 14 0 6 Wood
+C 14 0 7 Wood
+C 14 0 8 Wood
+C 14 0 9 Wood
+C 14 0 10 Wood
+C 14 0 11 Wood
+C 14 0 12 Wood
+C 14 0 13 Wood
+C 14 0 14 Wood
+C 14 0 15 Wood
+S 14 1 0 0 0 0 StoneBricks
+S 14 1 0 0 0 1 StoneBricks
+S 14 1 0 0 0 2 StoneBricks
+S 14 1 0 0 1 0 StoneBricks
+S 14 1 0 0 1 1 StoneBricks
+S 14 1 0 0 1 2 StoneBricks
+S 14 1 0 0 2 0 Cobblestone
+S 14 1 0 0 2 1 StoneBricks
+S 14 1 0 0 2 2 StoneBricks
+S 14 1 0 1 0 0 StoneBricks
+S 14 1 0 1 0 1 StoneBricks
+S 14 1 0 1 0 2 StoneBricks
+S 14 1 0 1 1 0 StoneBricks
+S 14 1 0 1 1 1 StoneBricks
+S 14 1 0 1 1 2 StoneBricks
+S 14 1 0 1 2 0 Cobblestone
+S 14 1 0 1 2 1 StoneBricks
+S 14 1 0 1 2 2 StoneBricks
+S 14 1 0 2 0 0 StoneBricks
+S 14 1 0 2 0 1 StoneBricks
+S 14 1 0 2 0 2 StoneBricks
+S 14 1 0 2 1 0 StoneBricks
+S 14 1 0 2 1 1 StoneBricks
+S 14 1 0 2 1 2 StoneBricks
+S 14 1 0 2 2 0 Cobblestone
+S 14 1 0 2 2 1 StoneBricks
+S 14 1 0 2 2 2 StoneBricks
+C 14 1 15 StoneBricks
+C 14 2 15 StoneBricks
+C 14 3 7 StoneBricks
+C 14 3 15 StoneBricks
+C 14 4 0 Wood
+C 14 4 1 Wood
+C 14 4 2 Wood
+C 14 4 3 Wood
+C 14 4 4 Wood
+C 14 4 5 Wood
+C 14 4 6 Wood
+C 14 4 7 Wood
+C 14 4 8 Wood
+C 14 4 9 Wood
+C 14 4 10 Wood
+C 14 4 11 Wood
+C 14 4 12 Wood
+C 14 4 13 Wood
+C 14 4 14 Wood
+C 14 4 15 Wood
+S 14 5 0 0 0 0 StoneBricks
+S 14 5 0 0 0 1 StoneBricks
+S 14 5 0 0 0 2 StoneBricks
+S 14 5 0 0 1 0 StoneBricks
+S 14 5 0 0 1 1 StoneBricks
+S 14 5 0 0 1 2 StoneBricks
+S 14 5 0 0 2 0 Cobblestone
+S 14 5 0 0 2 1 StoneBricks
+S 14 5 0 0 2 2 StoneBricks
+S 14 5 0 1 0 0 StoneBricks
+S 14 5 0 1 0 1 StoneBricks
+S 14 5 0 1 0 2 StoneBricks
+S 14 5 0 1 1 0 StoneBricks
+S 14 5 0 1 1 1 StoneBricks
+S 14 5 0 1 1 2 StoneBricks
+S 14 5 0 1 2 0 Cobblestone
+S 14 5 0 1 2 1 StoneBricks
+S 14 5 0 1 2 2 StoneBricks
+S 14 5 0 2 0 0 StoneBricks
+S 14 5 0 2 0 1 StoneBricks
+S 14 5 0 2 0 2 StoneBricks
+S 14 5 0 2 1 0 StoneBricks
+S 14 5 0 2 1 1 StoneBricks
+S 14 5 0 2 1 2 StoneBricks
+S 14 5 0 2 2 0 Cobblestone
+S 14 5 0 2 2 1 StoneBricks
+S 14 5 0 2 2 2 StoneBricks
+C 14 5 7 StoneBricks
+C 14 5 15 StoneBricks
+C 14 6 7 StoneBricks
+C 14 6 15 StoneBricks
+C 14 7 7 StoneBricks
+C 14 7 15 StoneBricks
+S 14 8 0 0 0 0 Stone
+S 14 8 0 0 0 1 Stone
+S 14 8 0 0 0 2 Stone
+S 14 8 0 0 1 0 Stone
+S 14 8 0 0 1 1 Stone
+S 14 8 0 0 1 2 Stone
+M 14 8 0 0 2 0 0 0 1 Stone
+M 14 8 0 0 2 0 0 0 2 Stone
+M 14 8 0 0 2 0 0 1 2 Stone
+M 14 8 0 0 2 0 1 0 1 Stone
+M 14 8 0 0 2 0 1 0 2 Stone
+M 14 8 0 0 2 0 1 1 2 Stone
+M 14 8 0 0 2 0 2 0 1 Stone
+M 14 8 0 0 2 0 2 0 2 Stone
+M 14 8 0 0 2 0 2 1 2 Stone
+S 14 8 0 0 2 1 Stone
+S 14 8 0 0 2 2 Stone
+S 14 8 0 1 0 0 Stone
+S 14 8 0 1 0 1 Stone
+S 14 8 0 1 0 2 Stone
+S 14 8 0 1 1 0 Stone
+S 14 8 0 1 1 1 Stone
+S 14 8 0 1 1 2 Stone
+M 14 8 0 1 2 0 0 0 1 Stone
+M 14 8 0 1 2 0 0 0 2 Stone
+M 14 8 0 1 2 0 0 1 2 Stone
+M 14 8 0 1 2 0 1 0 1 Stone
+M 14 8 0 1 2 0 1 0 2 Stone
+M 14 8 0 1 2 0 1 1 2 Stone
+M 14 8 0 1 2 0 2 0 1 Stone
+M 14 8 0 1 2 0 2 0 2 Stone
+M 14 8 0 1 2 0 2 1 2 Stone
+S 14 8 0 1 2 1 Stone
+S 14 8 0 1 2 2 Stone
+S 14 8 0 2 0 0 Stone
+S 14 8 0 2 0 1 Stone
+S 14 8 0 2 0 2 Stone
+S 14 8 0 2 1 0 Stone
+S 14 8 0 2 1 1 Stone
+S 14 8 0 2 1 2 Stone
+M 14 8 0 2 2 0 0 0 1 Stone
+M 14 8 0 2 2 0 0 0 2 Stone
+M 14 8 0 2 2 0 0 1 2 Stone
+M 14 8 0 2 2 0 1 0 1 Stone
+M 14 8 0 2 2 0 1 0 2 Stone
+M 14 8 0 2 2 0 1 1 2 Stone
+M 14 8 0 2 2 0 2 0 1 Stone
+M 14 8 0 2 2 0 2 0 2 Stone
+M 14 8 0 2 2 0 2 1 2 Stone
+S 14 8 0 2 2 1 Stone
+S 14 8 0 2 2 2 Stone
+C 14 8 1 Stone
+C 14 8 2 Stone
+C 14 8 3 Stone
+C 14 8 4 Stone
+C 14 8 5 Stone
+C 14 8 6 Stone
+C 14 8 7 Stone
+C 14 8 8 Stone
+C 14 8 9 Stone
+C 14 8 10 Stone
+C 14 8 11 Stone
+C 14 8 12 Stone
+C 14 8 13 Stone
+C 14 8 14 Stone
+S 14 8 15 0 0 0 Stone
+S 14 8 15 0 0 1 Stone
+S 14 8 15 0 0 2 Stone
+S 14 8 15 0 1 0 Stone
+S 14 8 15 0 1 1 Stone
+S 14 8 15 0 1 2 Stone
+S 14 8 15 0 2 0 Stone
+S 14 8 15 0 2 1 Stone
+M 14 8 15 0 2 2 0 0 0 Stone
+M 14 8 15 0 2 2 0 0 1 Stone
+M 14 8 15 0 2 2 0 1 0 Stone
+M 14 8 15 0 2 2 1 0 0 Stone
+M 14 8 15 0 2 2 1 0 1 Stone
+M 14 8 15 0 2 2 1 1 0 Stone
+M 14 8 15 0 2 2 2 0 0 Stone
+M 14 8 15 0 2 2 2 0 1 Stone
+M 14 8 15 0 2 2 2 1 0 Stone
+S 14 8 15 1 0 0 Stone
+S 14 8 15 1 0 1 Stone
+S 14 8 15 1 0 2 Stone
+S 14 8 15 1 1 0 Stone
+S 14 8 15 1 1 1 Stone
+S 14 8 15 1 1 2 Stone
+S 14 8 15 1 2 0 Stone
+S 14 8 15 1 2 1 Stone
+M 14 8 15 1 2 2 0 0 0 Stone
+M 14 8 15 1 2 2 0 0 1 Stone
+M 14 8 15 1 2 2 0 1 0 Stone
+M 14 8 15 1 2 2 1 0 0 Stone
+M 14 8 15 1 2 2 1 0 1 Stone
+M 14 8 15 1 2 2 1 1 0 Stone
+M 14 8 15 1 2 2 2 0 0 Stone
+M 14 8 15 1 2 2 2 0 1 Stone
+M 14 8 15 1 2 2 2 1 0 Stone
+S 14 8 15 2 0 0 Stone
+S 14 8 15 2 0 1 Stone
+S 14 8 15 2 0 2 Stone
+S 14 8 15 2 1 0 Stone
+S 14 8 15 2 1 1 Stone
+S 14 8 15 2 1 2 Stone
+S 14 8 15 2 2 0 Stone
+S 14 8 15 2 2 1 Stone
+M 14 8 15 2 2 2 0 0 0 Stone
+M 14 8 15 2 2 2 0 0 1 Stone
+M 14 8 15 2 2 2 0 1 0 Stone
+M 14 8 15 2 2 2 1 0 0 Stone
+M 14 8 15 2 2 2 1 0 1 Stone
+M 14 8 15 2 2 2 1 1 0 Stone
+M 14 8 15 2 2 2 2 0 0 Stone
+M 14 8 15 2 2 2 2 0 1 Stone
+M 14 8 15 2 2 2 2 1 0 Stone
+C 15 0 0 Wood
+C 15 0 1 Wood
+C 15 0 2 Wood
+C 15 0 3 Wood
+C 15 0 4 Wood
+C 15 0 5 Wood
+C 15 0 6 Wood
+C 15 0 7 Wood
+C 15 0 8 Wood
+C 15 0 9 Wood
+C 15 0 10 Wood
+C 15 0 11 Wood
+C 15 0 12 Wood
+C 15 0 13 Wood
+C 15 0 14 Wood
+C 15 0 15 Wood
+S 15 1 0 0 0 0 StoneBricks
+S 15 1 0 0 0 1 StoneBricks
+S 15 1 0 0 0 2 StoneBricks
+S 15 1 0 0 1 0 StoneBricks
+S 15 1 0 0 1 1 StoneBricks
+S 15 1 0 0 1 2 StoneBricks
+S 15 1 0 0 2 0 Cobblestone
+S 15 1 0 0 2 1 StoneBricks
+S 15 1 0 0 2 2 StoneBricks
+S 15 1 0 1 0 0 StoneBricks
+S 15 1 0 1 0 1 StoneBricks
+S 15 1 0 1 0 2 StoneBricks
+S 15 1 0 1 1 0 StoneBricks
+S 15 1 0 1 1 1 StoneBricks
+S 15 1 0 1 1 2 StoneBricks
+S 15 1 0 1 2 0 Cobblestone
+S 15 1 0 1 2 1 StoneBricks
+S 15 1 0 1 2 2 StoneBricks
+S 15 1 0 2 0 0 StoneBricks
+S 15 1 0 2 0 1 StoneBricks
+S 15 1 0 2 0 2 StoneBricks
+S 15 1 0 2 1 0 StoneBricks
+S 15 1 0 2 1 1 StoneBricks
+S 15 1 0 2 1 2 StoneBricks
+S 15 1 0 2 2 0 Cobblestone
+S 15 1 0 2 2 1 StoneBricks
+S 15 1 0 2 2 2 StoneBricks
+C 15 1 7 StoneBricks
+C 15 1 15 StoneBricks
+C 15 2 7 StoneBricks
+C 15 2 15 StoneBricks
+C 15 3 7 StoneBricks
+C 15 3 15 StoneBricks
+C 15 4 0 Wood
+C 15 4 1 Wood
+C 15 4 2 Wood
+C 15 4 3 Wood
+C 15 4 4 Wood
+C 15 4 5 Wood
+C 15 4 6 Wood
+C 15 4 7 Wood
+C 15 4 8 Wood
+C 15 4 9 Wood
+C 15 4 10 Wood
+C 15 4 11 Wood
+C 15 4 12 Wood
+C 15 4 13 Wood
+C 15 4 14 Wood
+C 15 4 15 Wood
+S 15 5 0 0 0 0 StoneBricks
+S 15 5 0 0 0 1 StoneBricks
+S 15 5 0 0 0 2 StoneBricks
+S 15 5 0 0 1 0 StoneBricks
+S 15 5 0 0 1 1 StoneBricks
+S 15 5 0 0 1 2 StoneBricks
+S 15 5 0 0 2 0 Cobblestone
+S 15 5 0 0 2 1 StoneBricks
+S 15 5 0 0 2 2 StoneBricks
+S 15 5 0 1 0 0 StoneBricks
+S 15 5 0 1 0 1 StoneBricks
+S 15 5 0 1 0 2 StoneBricks
+S 15 5 0 1 1 0 StoneBricks
+S 15 5 0 1 1 1 StoneBricks
+S 15 5 0 1 1 2 StoneBricks
+S 15 5 0 1 2 0 Cobblestone
+S 15 5 0 1 2 1 StoneBricks
+S 15 5 0 1 2 2 StoneBricks
+S 15 5 0 2 0 0 StoneBricks
+S 15 5 0 2 0 1 StoneBricks
+S 15 5 0 2 0 2 StoneBricks
+S 15 5 0 2 1 0 StoneBricks
+S 15 5 0 2 1 1 StoneBricks
+S 15 5 0 2 1 2 StoneBricks
+S 15 5 0 2 2 0 Cobblestone
+S 15 5 0 2 2 1 StoneBricks
+S 15 5 0 2 2 2 StoneBricks
+C 15 5 7 StoneBricks
+C 15 5 15 StoneBricks
+C 15 6 7 StoneBricks
+C 15 6 15 StoneBricks
+C 15 7 7 StoneBricks
+C 15 7 15 StoneBricks
+S 15 8 0 0 0 0 Stone
+S 15 8 0 0 0 1 Stone
+S 15 8 0 0 0 2 Stone
+S 15 8 0 0 1 0 Stone
+S 15 8 0 0 1 1 Stone
+S 15 8 0 0 1 2 Stone
+M 15 8 0 0 2 0 0 0 1 Stone
+M 15 8 0 0 2 0 0 0 2 Stone
+M 15 8 0 0 2 0 0 1 2 Stone
+M 15 8 0 0 2 0 1 0 1 Stone
+M 15 8 0 0 2 0 1 0 2 Stone
+M 15 8 0 0 2 0 1 1 2 Stone
+M 15 8 0 0 2 0 2 0 1 Stone
+M 15 8 0 0 2 0 2 0 2 Stone
+M 15 8 0 0 2 0 2 1 2 Stone
+S 15 8 0 0 2 1 Stone
+S 15 8 0 0 2 2 Stone
+S 15 8 0 1 0 0 Stone
+S 15 8 0 1 0 1 Stone
+S 15 8 0 1 0 2 Stone
+S 15 8 0 1 1 0 Stone
+S 15 8 0 1 1 1 Stone
+S 15 8 0 1 1 2 Stone
+M 15 8 0 1 2 0 0 0 1 Stone
+M 15 8 0 1 2 0 0 0 2 Stone
+M 15 8 0 1 2 0 0 1 2 Stone
+M 15 8 0 1 2 0 1 0 1 Stone
+M 15 8 0 1 2 0 1 0 2 Stone
+M 15 8 0 1 2 0 1 1 2 Stone
+M 15 8 0 1 2 0 2 0 1 Stone
+M 15 8 0 1 2 0 2 0 2 Stone
+M 15 8 0 1 2 0 2 1 2 Stone
+S 15 8 0 1 2 1 Stone
+S 15 8 0 1 2 2 Stone
+S 15 8 0 2 0 0 Stone
+S 15 8 0 2 0 1 Stone
+S 15 8 0 2 0 2 Stone
+S 15 8 0 2 1 0 Stone
+S 15 8 0 2 1 1 Stone
+S 15 8 0 2 1 2 Stone
+M 15 8 0 2 2 0 0 0 1 Stone
+M 15 8 0 2 2 0 0 0 2 Stone
+M 15 8 0 2 2 0 0 1 2 Stone
+M 15 8 0 2 2 0 1 0 1 Stone
+M 15 8 0 2 2 0 1 0 2 Stone
+M 15 8 0 2 2 0 1 1 2 Stone
+M 15 8 0 2 2 0 2 0 1 Stone
+M 15 8 0 2 2 0 2 0 2 Stone
+M 15 8 0 2 2 0 2 1 2 Stone
+S 15 8 0 2 2 1 Stone
+S 15 8 0 2 2 2 Stone
+C 15 8 1 Stone
+C 15 8 2 Stone
+C 15 8 3 Stone
+C 15 8 4 Stone
+C 15 8 5 Stone
+C 15 8 6 Stone
+C 15 8 7 Stone
+C 15 8 8 Stone
+C 15 8 9 Stone
+C 15 8 10 Stone
+C 15 8 11 Stone
+C 15 8 12 Stone
+C 15 8 13 Stone
+C 15 8 14 Stone
+S 15 8 15 0 0 0 Stone
+S 15 8 15 0 0 1 Stone
+S 15 8 15 0 0 2 Stone
+S 15 8 15 0 1 0 Stone
+S 15 8 15 0 1 1 Stone
+S 15 8 15 0 1 2 Stone
+S 15 8 15 0 2 0 Stone
+S 15 8 15 0 2 1 Stone
+M 15 8 15 0 2 2 0 0 0 Stone
+M 15 8 15 0 2 2 0 0 1 Stone
+M 15 8 15 0 2 2 0 1 0 Stone
+M 15 8 15 0 2 2 1 0 0 Stone
+M 15 8 15 0 2 2 1 0 1 Stone
+M 15 8 15 0 2 2 1 1 0 Stone
+M 15 8 15 0 2 2 2 0 0 Stone
+M 15 8 15 0 2 2 2 0 1 Stone
+M 15 8 15 0 2 2 2 1 0 Stone
+S 15 8 15 1 0 0 Stone
+S 15 8 15 1 0 1 Stone
+S 15 8 15 1 0 2 Stone
+S 15 8 15 1 1 0 Stone
+S 15 8 15 1 1 1 Stone
+S 15 8 15 1 1 2 Stone
+S 15 8 15 1 2 0 Stone
+S 15 8 15 1 2 1 Stone
+M 15 8 15 1 2 2 0 0 0 Stone
+M 15 8 15 1 2 2 0 0 1 Stone
+M 15 8 15 1 2 2 0 1 0 Stone
+M 15 8 15 1 2 2 1 0 0 Stone
+M 15 8 15 1 2 2 1 0 1 Stone
+M 15 8 15 1 2 2 1 1 0 Stone
+M 15 8 15 1 2 2 2 0 0 Stone
+M 15 8 15 1 2 2 2 0 1 Stone
+M 15 8 15 1 2 2 2 1 0 Stone
+S 15 8 15 2 0 0 Stone
+S 15 8 15 2 0 1 Stone
+S 15 8 15 2 0 2 Stone
+S 15 8 15 2 1 0 Stone
+S 15 8 15 2 1 1 Stone
+S 15 8 15 2 1 2 Stone
+S 15 8 15 2 2 0 Stone
+S 15 8 15 2 2 1 Stone
+M 15 8 15 2 2 2 0 0 0 Stone
+M 15 8 15 2 2 2 0 0 1 Stone
+M 15 8 15 2 2 2 0 1 0 Stone
+M 15 8 15 2 2 2 1 0 0 Stone
+M 15 8 15 2 2 2 1 0 1 Stone
+M 15 8 15 2 2 2 1 1 0 Stone
+M 15 8 15 2 2 2 2 0 0 Stone
+M 15 8 15 2 2 2 2 0 1 Stone
+M 15 8 15 2 2 2 2 1 0 Stone
+C 16 0 0 Wood
+C 16 0 1 Wood
+C 16 0 2 Wood
+C 16 0 3 Wood
+C 16 0 4 Wood
+C 16 0 5 Wood
+C 16 0 6 Wood
+C 16 0 7 Wood
+C 16 0 8 Wood
+C 16 0 9 Wood
+C 16 0 10 Wood
+C 16 0 11 Wood
+C 16 0 12 Wood
+C 16 0 13 Wood
+C 16 0 14 Wood
+C 16 0 15 Wood
+S 16 1 0 0 0 0 StoneBricks
+S 16 1 0 0 0 1 StoneBricks
+S 16 1 0 0 0 2 StoneBricks
+S 16 1 0 0 1 0 StoneBricks
+S 16 1 0 0 1 1 StoneBricks
+S 16 1 0 0 1 2 StoneBricks
+S 16 1 0 0 2 0 Cobblestone
+S 16 1 0 0 2 1 StoneBricks
+S 16 1 0 0 2 2 StoneBricks
+S 16 1 0 1 0 0 StoneBricks
+S 16 1 0 1 0 1 StoneBricks
+S 16 1 0 1 0 2 StoneBricks
+S 16 1 0 1 1 0 StoneBricks
+S 16 1 0 1 1 1 StoneBricks
+S 16 1 0 1 1 2 StoneBricks
+S 16 1 0 1 2 0 StoneBricks
+S 16 1 0 1 2 1 StoneBricks
+S 16 1 0 1 2 2 StoneBricks
+S 16 1 0 2 0 0 StoneBricks
+S 16 1 0 2 0 1 StoneBricks
+S 16 1 0 2 0 2 StoneBricks
+S 16 1 0 2 1 0 StoneBricks
+S 16 1 0 2 1 1 StoneBricks
+S 16 1 0 2 1 2 StoneBricks
+S 16 1 0 2 2 0 StoneBricks
+S 16 1 0 2 2 1 StoneBricks
+S 16 1 0 2 2 2 StoneBricks
+C 16 1 7 StoneBricks
+C 16 1 15 StoneBricks
+S 16 2 0 0 0 0 Cobblestone
+S 16 2 0 0 0 1 StoneBricks
+S 16 2 0 0 0 2 StoneBricks
+S 16 2 0 0 1 0 Cobblestone
+S 16 2 0 0 1 1 StoneBricks
+S 16 2 0 0 1 2 StoneBricks
+S 16 2 0 0 2 0 Cobblestone
+S 16 2 0 0 2 1 StoneBricks
+S 16 2 0 0 2 2 StoneBricks
+S 16 2 0 1 0 0 StoneBricks
+S 16 2 0 1 0 1 StoneBricks
+S 16 2 0 1 0 2 StoneBricks
+S 16 2 0 1 1 0 StoneBricks
+S 16 2 0 1 1 1 StoneBricks
+S 16 2 0 1 1 2 StoneBricks
+S 16 2 0 1 2 0 StoneBricks
+S 16 2 0 1 2 1 StoneBricks
+S 16 2 0 1 2 2 StoneBricks
+S 16 2 0 2 0 0 StoneBricks
+S 16 2 0 2 0 1 StoneBricks
+S 16 2 0 2 0 2 StoneBricks
+S 16 2 0 2 1 0 StoneBricks
+S 16 2 0 2 1 1 StoneBricks
+S 16 2 0 2 1 2 StoneBricks
+S 16 2 0 2 2 0 StoneBricks
+S 16 2 0 2 2 1 StoneBricks
+S 16 2 0 2 2 2 StoneBricks
+C 16 2 7 StoneBricks
+C 16 2 15 StoneBricks
+S 16 3 0 0 0 0 Cobblestone
+S 16 3 0 0 0 1 StoneBricks
+S 16 3 0 0 0 2 StoneBricks
+S 16 3 0 0 1 0 Cobblestone
+S 16 3 0 0 1 1 StoneBricks
+S 16 3 0 0 1 2 StoneBricks
+S 16 3 0 0 2 0 Cobblestone
+S 16 3 0 0 2 1 StoneBricks
+S 16 3 0 0 2 2 StoneBricks
+S 16 3 0 1 0 0 StoneBricks
+S 16 3 0 1 0 1 StoneBricks
+S 16 3 0 1 0 2 StoneBricks
+S 16 3 0 1 1 0 StoneBricks
+S 16 3 0 1 1 1 StoneBricks
+S 16 3 0 1 1 2 StoneBricks
+S 16 3 0 1 2 0 StoneBricks
+S 16 3 0 1 2 1 StoneBricks
+S 16 3 0 1 2 2 StoneBricks
+S 16 3 0 2 0 0 StoneBricks
+S 16 3 0 2 0 1 StoneBricks
+S 16 3 0 2 0 2 StoneBricks
+S 16 3 0 2 1 0 StoneBricks
+S 16 3 0 2 1 1 StoneBricks
+S 16 3 0 2 1 2 StoneBricks
+S 16 3 0 2 2 0 StoneBricks
+S 16 3 0 2 2 1 StoneBricks
+S 16 3 0 2 2 2 StoneBricks
+C 16 3 7 StoneBricks
+C 16 3 15 StoneBricks
+C 16 4 0 Wood
+C 16 4 1 Wood
+C 16 4 2 Wood
+C 16 4 3 Wood
+C 16 4 4 Wood
+C 16 4 5 Wood
+C 16 4 6 Wood
+C 16 4 7 Wood
+C 16 4 8 Wood
+C 16 4 9 Wood
+C 16 4 10 Wood
+C 16 4 11 Wood
+C 16 4 12 Wood
+C 16 4 13 Wood
+C 16 4 14 Wood
+C 16 4 15 Wood
+S 16 5 0 0 0 0 StoneBricks
+S 16 5 0 0 0 1 StoneBricks
+S 16 5 0 0 0 2 StoneBricks
+S 16 5 0 0 1 0 StoneBricks
+S 16 5 0 0 1 1 StoneBricks
+S 16 5 0 0 1 2 StoneBricks
+S 16 5 0 0 2 0 Cobblestone
+S 16 5 0 0 2 1 StoneBricks
+S 16 5 0 0 2 2 StoneBricks
+S 16 5 0 1 0 0 StoneBricks
+S 16 5 0 1 0 1 StoneBricks
+S 16 5 0 1 0 2 StoneBricks
+S 16 5 0 1 1 0 StoneBricks
+S 16 5 0 1 1 1 StoneBricks
+S 16 5 0 1 1 2 StoneBricks
+S 16 5 0 1 2 0 StoneBricks
+S 16 5 0 1 2 1 StoneBricks
+S 16 5 0 1 2 2 StoneBricks
+S 16 5 0 2 0 0 StoneBricks
+S 16 5 0 2 0 1 StoneBricks
+S 16 5 0 2 0 2 StoneBricks
+S 16 5 0 2 1 0 StoneBricks
+S 16 5 0 2 1 1 StoneBricks
+S 16 5 0 2 1 2 StoneBricks
+S 16 5 0 2 2 0 StoneBricks
+S 16 5 0 2 2 1 StoneBricks
+S 16 5 0 2 2 2 StoneBricks
+C 16 5 7 StoneBricks
+C 16 5 15 StoneBricks
+S 16 6 0 0 0 0 Cobblestone
+S 16 6 0 0 0 1 StoneBricks
+S 16 6 0 0 0 2 StoneBricks
+S 16 6 0 0 1 0 Cobblestone
+S 16 6 0 0 1 1 StoneBricks
+S 16 6 0 0 1 2 StoneBricks
+S 16 6 0 0 2 0 Cobblestone
+S 16 6 0 0 2 1 StoneBricks
+S 16 6 0 0 2 2 StoneBricks
+S 16 6 0 1 0 0 StoneBricks
+S 16 6 0 1 0 1 StoneBricks
+S 16 6 0 1 0 2 StoneBricks
+S 16 6 0 1 1 0 StoneBricks
+S 16 6 0 1 1 1 StoneBricks
+S 16 6 0 1 1 2 StoneBricks
+S 16 6 0 1 2 0 StoneBricks
+S 16 6 0 1 2 1 StoneBricks
+S 16 6 0 1 2 2 StoneBricks
+S 16 6 0 2 0 0 StoneBricks
+S 16 6 0 2 0 1 StoneBricks
+S 16 6 0 2 0 2 StoneBricks
+S 16 6 0 2 1 0 StoneBricks
+S 16 6 0 2 1 1 StoneBricks
+S 16 6 0 2 1 2 StoneBricks
+S 16 6 0 2 2 0 StoneBricks
+S 16 6 0 2 2 1 StoneBricks
+S 16 6 0 2 2 2 StoneBricks
+C 16 6 7 StoneBricks
+C 16 6 15 StoneBricks
+S 16 7 0 0 0 0 Cobblestone
+S 16 7 0 0 0 1 StoneBricks
+S 16 7 0 0 0 2 StoneBricks
+S 16 7 0 0 1 0 Cobblestone
+S 16 7 0 0 1 1 StoneBricks
+S 16 7 0 0 1 2 StoneBricks
+S 16 7 0 0 2 0 Cobblestone
+S 16 7 0 0 2 1 StoneBricks
+S 16 7 0 0 2 2 StoneBricks
+S 16 7 0 1 0 0 StoneBricks
+S 16 7 0 1 0 1 StoneBricks
+S 16 7 0 1 0 2 StoneBricks
+S 16 7 0 1 1 0 StoneBricks
+S 16 7 0 1 1 1 StoneBricks
+S 16 7 0 1 1 2 StoneBricks
+S 16 7 0 1 2 0 StoneBricks
+S 16 7 0 1 2 1 StoneBricks
+S 16 7 0 1 2 2 StoneBricks
+S 16 7 0 2 0 0 StoneBricks
+S 16 7 0 2 0 1 StoneBricks
+S 16 7 0 2 0 2 StoneBricks
+S 16 7 0 2 1 0 StoneBricks
+S 16 7 0 2 1 1 StoneBricks
+S 16 7 0 2 1 2 StoneBricks
+S 16 7 0 2 2 0 StoneBricks
+S 16 7 0 2 2 1 StoneBricks
+S 16 7 0 2 2 2 StoneBricks
+C 16 7 7 StoneBricks
+C 16 7 15 StoneBricks
+S 16 8 0 0 0 0 Stone
+S 16 8 0 0 0 1 Stone
+S 16 8 0 0 0 2 Stone
+S 16 8 0 0 1 0 Stone
+S 16 8 0 0 1 1 Stone
+S 16 8 0 0 1 2 Stone
+M 16 8 0 0 2 0 0 0 1 Stone
+M 16 8 0 0 2 0 0 0 2 Stone
+M 16 8 0 0 2 0 0 1 2 Stone
+M 16 8 0 0 2 0 1 0 1 Stone
+M 16 8 0 0 2 0 1 0 2 Stone
+M 16 8 0 0 2 0 1 1 2 Stone
+M 16 8 0 0 2 0 2 0 1 Stone
+M 16 8 0 0 2 0 2 0 2 Stone
+M 16 8 0 0 2 0 2 1 2 Stone
+S 16 8 0 0 2 1 Stone
+S 16 8 0 0 2 2 Stone
+S 16 8 0 1 0 0 Stone
+S 16 8 0 1 0 1 Stone
+S 16 8 0 1 0 2 Stone
+S 16 8 0 1 1 0 Stone
+S 16 8 0 1 1 1 Stone
+S 16 8 0 1 1 2 Stone
+M 16 8 0 1 2 0 0 0 1 Stone
+M 16 8 0 1 2 0 0 0 2 Stone
+M 16 8 0 1 2 0 0 1 2 Stone
+M 16 8 0 1 2 0 1 0 1 Stone
+M 16 8 0 1 2 0 1 0 2 Stone
+M 16 8 0 1 2 0 1 1 2 Stone
+M 16 8 0 1 2 0 2 0 1 Stone
+M 16 8 0 1 2 0 2 0 2 Stone
+M 16 8 0 1 2 0 2 1 2 Stone
+S 16 8 0 1 2 1 Stone
+S 16 8 0 1 2 2 Stone
+S 16 8 0 2 0 0 Stone
+S 16 8 0 2 0 1 Stone
+S 16 8 0 2 0 2 Stone
+S 16 8 0 2 1 0 Stone
+S 16 8 0 2 1 1 Stone
+S 16 8 0 2 1 2 Stone
+M 16 8 0 2 2 0 0 0 1 Stone
+M 16 8 0 2 2 0 0 0 2 Stone
+M 16 8 0 2 2 0 0 1 2 Stone
+M 16 8 0 2 2 0 1 0 1 Stone
+M 16 8 0 2 2 0 1 0 2 Stone
+M 16 8 0 2 2 0 1 1 2 Stone
+M 16 8 0 2 2 0 2 0 1 Stone
+M 16 8 0 2 2 0 2 0 2 Stone
+M 16 8 0 2 2 0 2 1 2 Stone
+S 16 8 0 2 2 1 Stone
+S 16 8 0 2 2 2 Stone
+C 16 8 1 Stone
+C 16 8 2 Stone
+C 16 8 3 Stone
+C 16 8 4 Stone
+C 16 8 5 Stone
+C 16 8 6 Stone
+C 16 8 7 Stone
+C 16 8 8 Stone
+C 16 8 9 Stone
+C 16 8 10 Stone
+C 16 8 11 Stone
+C 16 8 12 Stone
+C 16 8 13 Stone
+C 16 8 14 Stone
+S 16 8 15 0 0 0 Stone
+S 16 8 15 0 0 1 Stone
+S 16 8 15 0 0 2 Stone
+S 16 8 15 0 1 0 Stone
+S 16 8 15 0 1 1 Stone
+S 16 8 15 0 1 2 Stone
+S 16 8 15 0 2 0 Stone
+S 16 8 15 0 2 1 Stone
+M 16 8 15 0 2 2 0 0 0 Stone
+M 16 8 15 0 2 2 0 0 1 Stone
+M 16 8 15 0 2 2 0 1 0 Stone
+M 16 8 15 0 2 2 1 0 0 Stone
+M 16 8 15 0 2 2 1 0 1 Stone
+M 16 8 15 0 2 2 1 1 0 Stone
+M 16 8 15 0 2 2 2 0 0 Stone
+M 16 8 15 0 2 2 2 0 1 Stone
+M 16 8 15 0 2 2 2 1 0 Stone
+S 16 8 15 1 0 0 Stone
+S 16 8 15 1 0 1 Stone
+S 16 8 15 1 0 2 Stone
+S 16 8 15 1 1 0 Stone
+S 16 8 15 1 1 1 Stone
+S 16 8 15 1 1 2 Stone
+S 16 8 15 1 2 0 Stone
+S 16 8 15 1 2 1 Stone
+M 16 8 15 1 2 2 0 0 0 Stone
+M 16 8 15 1 2 2 0 0 1 Stone
+M 16 8 15 1 2 2 0 1 0 Stone
+M 16 8 15 1 2 2 1 0 0 Stone
+M 16 8 15 1 2 2 1 0 1 Stone
+M 16 8 15 1 2 2 1 1 0 Stone
+M 16 8 15 1 2 2 2 0 0 Stone
+M 16 8 15 1 2 2 2 0 1 Stone
+M 16 8 15 1 2 2 2 1 0 Stone
+S 16 8 15 2 0 0 Stone
+S 16 8 15 2 0 1 Stone
+S 16 8 15 2 0 2 Stone
+S 16 8 15 2 1 0 Stone
+S 16 8 15 2 1 1 Stone
+S 16 8 15 2 1 2 Stone
+S 16 8 15 2 2 0 Stone
+S 16 8 15 2 2 1 Stone
+M 16 8 15 2 2 2 0 0 0 Stone
+M 16 8 15 2 2 2 0 0 1 Stone
+M 16 8 15 2 2 2 0 1 0 Stone
+M 16 8 15 2 2 2 1 0 0 Stone
+M 16 8 15 2 2 2 1 0 1 Stone
+M 16 8 15 2 2 2 1 1 0 Stone
+M 16 8 15 2 2 2 2 0 0 Stone
+M 16 8 15 2 2 2 2 0 1 Stone
+M 16 8 15 2 2 2 2 1 0 Stone
+C 17 0 0 Wood
+C 17 0 1 Wood
+C 17 0 2 Wood
+C 17 0 3 Wood
+C 17 0 4 Wood
+C 17 0 5 Wood
+C 17 0 6 Wood
+C 17 0 7 Wood
+C 17 0 8 Wood
+C 17 0 9 Wood
+C 17 0 10 Wood
+C 17 0 11 Wood
+C 17 0 12 Wood
+C 17 0 13 Wood
+C 17 0 14 Wood
+C 17 0 15 Wood
+C 17 1 0 StoneBricks
+C 17 1 1 StoneBricks
+C 17 1 2 StoneBricks
+C 17 1 3 StoneBricks
+C 17 1 4 StoneBricks
+C 17 1 5 StoneBricks
+C 17 1 6 StoneBricks
+C 17 1 7 StoneBricks
+C 17 1 8 StoneBricks
+C 17 1 9 StoneBricks
+C 17 1 10 StoneBricks
+C 17 1 11 StoneBricks
+C 17 1 12 StoneBricks
+C 17 1 13 StoneBricks
+C 17 1 14 StoneBricks
+C 17 1 15 StoneBricks
+C 17 2 0 StoneBricks
+C 17 2 1 StoneBricks
+C 17 2 2 StoneBricks
+C 17 2 3 StoneBricks
+C 17 2 4 StoneBricks
+C 17 2 5 StoneBricks
+C 17 2 6 StoneBricks
+C 17 2 7 StoneBricks
+C 17 2 8 StoneBricks
+C 17 2 9 StoneBricks
+C 17 2 10 StoneBricks
+C 17 2 11 StoneBricks
+C 17 2 12 StoneBricks
+C 17 2 13 StoneBricks
+C 17 2 14 StoneBricks
+C 17 2 15 StoneBricks
+C 17 3 0 StoneBricks
+C 17 3 1 StoneBricks
+C 17 3 2 StoneBricks
+C 17 3 3 StoneBricks
+C 17 3 4 StoneBricks
+C 17 3 5 StoneBricks
+C 17 3 6 StoneBricks
+C 17 3 7 StoneBricks
+C 17 3 8 StoneBricks
+C 17 3 9 StoneBricks
+C 17 3 10 StoneBricks
+C 17 3 11 StoneBricks
+C 17 3 12 StoneBricks
+C 17 3 13 StoneBricks
+C 17 3 14 StoneBricks
+C 17 3 15 StoneBricks
+C 17 4 0 Wood
+C 17 4 1 Wood
+C 17 4 2 Wood
+C 17 4 3 Wood
+C 17 4 4 Wood
+C 17 4 5 Wood
+C 17 4 6 Wood
+C 17 4 7 Wood
+C 17 4 8 Wood
+C 17 4 9 Wood
+C 17 4 10 Wood
+C 17 4 11 Wood
+C 17 4 12 Wood
+C 17 4 13 Wood
+C 17 4 14 Wood
+C 17 4 15 Wood
+C 17 5 0 StoneBricks
+C 17 5 1 StoneBricks
+C 17 5 2 StoneBricks
+C 17 5 3 StoneBricks
+C 17 5 4 StoneBricks
+C 17 5 5 StoneBricks
+C 17 5 6 StoneBricks
+C 17 5 7 StoneBricks
+C 17 5 8 StoneBricks
+C 17 5 9 StoneBricks
+C 17 5 10 StoneBricks
+C 17 5 11 StoneBricks
+C 17 5 12 StoneBricks
+C 17 5 13 StoneBricks
+C 17 5 14 StoneBricks
+C 17 5 15 StoneBricks
+C 17 6 0 StoneBricks
+C 17 6 1 StoneBricks
+C 17 6 2 StoneBricks
+C 17 6 3 StoneBricks
+C 17 6 4 StoneBricks
+C 17 6 5 StoneBricks
+C 17 6 6 StoneBricks
+C 17 6 7 StoneBricks
+C 17 6 8 StoneBricks
+C 17 6 9 StoneBricks
+C 17 6 10 StoneBricks
+C 17 6 11 StoneBricks
+C 17 6 12 StoneBricks
+C 17 6 13 StoneBricks
+C 17 6 14 StoneBricks
+C 17 6 15 StoneBricks
+C 17 7 0 StoneBricks
+C 17 7 1 StoneBricks
+C 17 7 2 StoneBricks
+C 17 7 3 StoneBricks
+C 17 7 4 StoneBricks
+C 17 7 5 StoneBricks
+C 17 7 6 StoneBricks
+C 17 7 7 StoneBricks
+C 17 7 8 StoneBricks
+C 17 7 9 StoneBricks
+C 17 7 10 StoneBricks
+C 17 7 11 StoneBricks
+C 17 7 12 StoneBricks
+C 17 7 13 StoneBricks
+C 17 7 14 StoneBricks
+C 17 7 15 StoneBricks
+S 17 8 0 0 0 0 Stone
+S 17 8 0 0 0 1 Stone
+S 17 8 0 0 0 2 Stone
+S 17 8 0 0 1 0 Stone
+S 17 8 0 0 1 1 Stone
+S 17 8 0 0 1 2 Stone
+M 17 8 0 0 2 0 0 0 1 Stone
+M 17 8 0 0 2 0 0 0 2 Stone
+M 17 8 0 0 2 0 0 1 2 Stone
+M 17 8 0 0 2 0 1 0 1 Stone
+M 17 8 0 0 2 0 1 0 2 Stone
+M 17 8 0 0 2 0 1 1 2 Stone
+M 17 8 0 0 2 0 2 0 1 Stone
+M 17 8 0 0 2 0 2 0 2 Stone
+M 17 8 0 0 2 0 2 1 2 Stone
+S 17 8 0 0 2 1 Stone
+S 17 8 0 0 2 2 Stone
+S 17 8 0 1 0 0 Stone
+S 17 8 0 1 0 1 Stone
+S 17 8 0 1 0 2 Stone
+S 17 8 0 1 1 0 Stone
+S 17 8 0 1 1 1 Stone
+S 17 8 0 1 1 2 Stone
+M 17 8 0 1 2 0 0 0 1 Stone
+M 17 8 0 1 2 0 0 0 2 Stone
+M 17 8 0 1 2 0 0 1 2 Stone
+M 17 8 0 1 2 0 1 0 1 Stone
+M 17 8 0 1 2 0 1 0 2 Stone
+M 17 8 0 1 2 0 1 1 2 Stone
+M 17 8 0 1 2 0 2 0 1 Stone
+M 17 8 0 1 2 0 2 0 2 Stone
+M 17 8 0 1 2 0 2 1 2 Stone
+S 17 8 0 1 2 1 Stone
+S 17 8 0 1 2 2 Stone
+S 17 8 0 2 0 0 Stone
+S 17 8 0 2 0 1 Stone
+S 17 8 0 2 0 2 Stone
+S 17 8 0 2 1 0 Stone
+S 17 8 0 2 1 1 Stone
+S 17 8 0 2 1 2 Stone
+M 17 8 0 2 2 0 0 0 1 Stone
+M 17 8 0 2 2 0 0 0 2 Stone
+M 17 8 0 2 2 0 0 1 2 Stone
+M 17 8 0 2 2 0 1 0 1 Stone
+M 17 8 0 2 2 0 1 0 2 Stone
+M 17 8 0 2 2 1 0 0 0 Stone
+M 17 8 0 2 2 1 0 0 1 Stone
+M 17 8 0 2 2 1 0 0 2 Stone
+M 17 8 0 2 2 1 0 1 0 Stone
+M 17 8 0 2 2 1 0 1 1 Stone
+M 17 8 0 2 2 1 0 1 2 Stone
+M 17 8 0 2 2 1 1 0 0 Stone
+M 17 8 0 2 2 1 1 0 1 Stone
+M 17 8 0 2 2 1 1 0 2 Stone
+M 17 8 0 2 2 2 0 0 0 Stone
+M 17 8 0 2 2 2 0 0 1 Stone
+M 17 8 0 2 2 2 0 0 2 Stone
+M 17 8 0 2 2 2 0 1 0 Stone
+M 17 8 0 2 2 2 0 1 1 Stone
+M 17 8 0 2 2 2 0 1 2 Stone
+M 17 8 0 2 2 2 1 0 0 Stone
+M 17 8 0 2 2 2 1 0 1 Stone
+M 17 8 0 2 2 2 1 0 2 Stone
+S 17 8 1 0 0 0 Stone
+S 17 8 1 0 0 1 Stone
+S 17 8 1 0 0 2 Stone
+S 17 8 1 0 1 0 Stone
+S 17 8 1 0 1 1 Stone
+S 17 8 1 0 1 2 Stone
+S 17 8 1 0 2 0 Stone
+S 17 8 1 0 2 1 Stone
+S 17 8 1 0 2 2 Stone
+S 17 8 1 1 0 0 Stone
+S 17 8 1 1 0 1 Stone
+S 17 8 1 1 0 2 Stone
+S 17 8 1 1 1 0 Stone
+S 17 8 1 1 1 1 Stone
+S 17 8 1 1 1 2 Stone
+S 17 8 1 1 2 0 Stone
+S 17 8 1 1 2 1 Stone
+S 17 8 1 1 2 2 Stone
+S 17 8 1 2 0 0 Stone
+S 17 8 1 2 0 1 Stone
+S 17 8 1 2 0 2 Stone
+S 17 8 1 2 1 0 Stone
+S 17 8 1 2 1 1 Stone
+S 17 8 1 2 1 2 Stone
+M 17 8 1 2 2 0 0 0 0 Stone
+M 17 8 1 2 2 0 0 0 1 Stone
+M 17 8 1 2 2 0 0 0 2 Stone
+M 17 8 1 2 2 0 0 1 0 Stone
+M 17 8 1 2 2 0 0 1 1 Stone
+M 17 8 1 2 2 0 0 1 2 Stone
+M 17 8 1 2 2 0 1 0 0 Stone
+M 17 8 1 2 2 0 1 0 1 Stone
+M 17 8 1 2 2 0 1 0 2 Stone
+M 17 8 1 2 2 1 0 0 0 Stone
+M 17 8 1 2 2 1 0 0 1 Stone
+M 17 8 1 2 2 1 0 0 2 Stone
+M 17 8 1 2 2 1 0 1 0 Stone
+M 17 8 1 2 2 1 0 1 1 Stone
+M 17 8 1 2 2 1 0 1 2 Stone
+M 17 8 1 2 2 1 1 0 0 Stone
+M 17 8 1 2 2 1 1 0 1 Stone
+M 17 8 1 2 2 1 1 0 2 Stone
+M 17 8 1 2 2 2 0 0 0 Stone
+M 17 8 1 2 2 2 0 0 1 Stone
+M 17 8 1 2 2 2 0 0 2 Stone
+M 17 8 1 2 2 2 0 1 0 Stone
+M 17 8 1 2 2 2 0 1 1 Stone
+M 17 8 1 2 2 2 0 1 2 Stone
+M 17 8 1 2 2 2 1 0 0 Stone
+M 17 8 1 2 2 2 1 0 1 Stone
+M 17 8 1 2 2 2 1 0 2 Stone
+S 17 8 2 0 0 0 Stone
+S 17 8 2 0 0 1 Stone
+S 17 8 2 0 0 2 Stone
+S 17 8 2 0 1 0 Stone
+S 17 8 2 0 1 1 Stone
+S 17 8 2 0 1 2 Stone
+S 17 8 2 0 2 0 Stone
+S 17 8 2 0 2 1 Stone
+S 17 8 2 0 2 2 Stone
+S 17 8 2 1 0 0 Stone
+S 17 8 2 1 0 1 Stone
+S 17 8 2 1 0 2 Stone
+S 17 8 2 1 1 0 Stone
+S 17 8 2 1 1 1 Stone
+S 17 8 2 1 1 2 Stone
+S 17 8 2 1 2 0 Stone
+S 17 8 2 1 2 1 Stone
+S 17 8 2 1 2 2 Stone
+S 17 8 2 2 0 0 Stone
+S 17 8 2 2 0 1 Stone
+S 17 8 2 2 0 2 Stone
+S 17 8 2 2 1 0 Stone
+S 17 8 2 2 1 1 Stone
+S 17 8 2 2 1 2 Stone
+M 17 8 2 2 2 0 0 0 0 Stone
+M 17 8 2 2 2 0 0 0 1 Stone
+M 17 8 2 2 2 0 0 0 2 Stone
+M 17 8 2 2 2 0 0 1 0 Stone
+M 17 8 2 2 2 0 0 1 1 Stone
+M 17 8 2 2 2 0 0 1 2 Stone
+M 17 8 2 2 2 0 1 0 0 Stone
+M 17 8 2 2 2 0 1 0 1 Stone
+M 17 8 2 2 2 0 1 0 2 Stone
+M 17 8 2 2 2 1 0 0 0 Stone
+M 17 8 2 2 2 1 0 0 1 Stone
+M 17 8 2 2 2 1 0 0 2 Stone
+M 17 8 2 2 2 1 0 1 0 Stone
+M 17 8 2 2 2 1 0 1 1 Stone
+M 17 8 2 2 2 1 0 1 2 Stone
+M 17 8 2 2 2 1 1 0 0 Stone
+M 17 8 2 2 2 1 1 0 1 Stone
+M 17 8 2 2 2 1 1 0 2 Stone
+M 17 8 2 2 2 2 0 0 0 Stone
+M 17 8 2 2 2 2 0 0 1 Stone
+M 17 8 2 2 2 2 0 0 2 Stone
+M 17 8 2 2 2 2 0 1 0 Stone
+M 17 8 2 2 2 2 0 1 1 Stone
+M 17 8 2 2 2 2 0 1 2 Stone
+M 17 8 2 2 2 2 1 0 0 Stone
+M 17 8 2 2 2 2 1 0 1 Stone
+M 17 8 2 2 2 2 1 0 2 Stone
+S 17 8 3 0 0 0 Stone
+S 17 8 3 0 0 1 Stone
+S 17 8 3 0 0 2 Stone
+S 17 8 3 0 1 0 Stone
+S 17 8 3 0 1 1 Stone
+S 17 8 3 0 1 2 Stone
+S 17 8 3 0 2 0 Stone
+S 17 8 3 0 2 1 Stone
+S 17 8 3 0 2 2 Stone
+S 17 8 3 1 0 0 Stone
+S 17 8 3 1 0 1 Stone
+S 17 8 3 1 0 2 Stone
+S 17 8 3 1 1 0 Stone
+S 17 8 3 1 1 1 Stone
+S 17 8 3 1 1 2 Stone
+S 17 8 3 1 2 0 Stone
+S 17 8 3 1 2 1 Stone
+S 17 8 3 1 2 2 Stone
+S 17 8 3 2 0 0 Stone
+S 17 8 3 2 0 1 Stone
+S 17 8 3 2 0 2 Stone
+S 17 8 3 2 1 0 Stone
+S 17 8 3 2 1 1 Stone
+S 17 8 3 2 1 2 Stone
+M 17 8 3 2 2 0 0 0 0 Stone
+M 17 8 3 2 2 0 0 0 1 Stone
+M 17 8 3 2 2 0 0 0 2 Stone
+M 17 8 3 2 2 0 0 1 0 Stone
+M 17 8 3 2 2 0 0 1 1 Stone
+M 17 8 3 2 2 0 0 1 2 Stone
+M 17 8 3 2 2 0 1 0 0 Stone
+M 17 8 3 2 2 0 1 0 1 Stone
+M 17 8 3 2 2 0 1 0 2 Stone
+M 17 8 3 2 2 1 0 0 0 Stone
+M 17 8 3 2 2 1 0 0 1 Stone
+M 17 8 3 2 2 1 0 0 2 Stone
+M 17 8 3 2 2 1 0 1 0 Stone
+M 17 8 3 2 2 1 0 1 1 Stone
+M 17 8 3 2 2 1 0 1 2 Stone
+M 17 8 3 2 2 1 1 0 0 Stone
+M 17 8 3 2 2 1 1 0 1 Stone
+M 17 8 3 2 2 1 1 0 2 Stone
+M 17 8 3 2 2 2 0 0 0 Stone
+M 17 8 3 2 2 2 0 0 1 Stone
+M 17 8 3 2 2 2 0 0 2 Stone
+M 17 8 3 2 2 2 0 1 0 Stone
+M 17 8 3 2 2 2 0 1 1 Stone
+M 17 8 3 2 2 2 0 1 2 Stone
+M 17 8 3 2 2 2 1 0 0 Stone
+M 17 8 3 2 2 2 1 0 1 Stone
+M 17 8 3 2 2 2 1 0 2 Stone
+S 17 8 4 0 0 0 Stone
+S 17 8 4 0 0 1 Stone
+S 17 8 4 0 0 2 Stone
+S 17 8 4 0 1 0 Stone
+S 17 8 4 0 1 1 Stone
+S 17 8 4 0 1 2 Stone
+S 17 8 4 0 2 0 Stone
+S 17 8 4 0 2 1 Stone
+S 17 8 4 0 2 2 Stone
+S 17 8 4 1 0 0 Stone
+S 17 8 4 1 0 1 Stone
+S 17 8 4 1 0 2 Stone
+S 17 8 4 1 1 0 Stone
+S 17 8 4 1 1 1 Stone
+S 17 8 4 1 1 2 Stone
+S 17 8 4 1 2 0 Stone
+S 17 8 4 1 2 1 Stone
+S 17 8 4 1 2 2 Stone
+S 17 8 4 2 0 0 Stone
+S 17 8 4 2 0 1 Stone
+S 17 8 4 2 0 2 Stone
+S 17 8 4 2 1 0 Stone
+S 17 8 4 2 1 1 Stone
+S 17 8 4 2 1 2 Stone
+M 17 8 4 2 2 0 0 0 0 Stone
+M 17 8 4 2 2 0 0 0 1 Stone
+M 17 8 4 2 2 0 0 0 2 Stone
+M 17 8 4 2 2 0 0 1 0 Stone
+M 17 8 4 2 2 0 0 1 1 Stone
+M 17 8 4 2 2 0 0 1 2 Stone
+M 17 8 4 2 2 0 1 0 0 Stone
+M 17 8 4 2 2 0 1 0 1 Stone
+M 17 8 4 2 2 0 1 0 2 Stone
+M 17 8 4 2 2 1 0 0 0 Stone
+M 17 8 4 2 2 1 0 0 1 Stone
+M 17 8 4 2 2 1 0 0 2 Stone
+M 17 8 4 2 2 1 0 1 0 Stone
+M 17 8 4 2 2 1 0 1 1 Stone
+M 17 8 4 2 2 1 0 1 2 Stone
+M 17 8 4 2 2 1 1 0 0 Stone
+M 17 8 4 2 2 1 1 0 1 Stone
+M 17 8 4 2 2 1 1 0 2 Stone
+M 17 8 4 2 2 2 0 0 0 Stone
+M 17 8 4 2 2 2 0 0 1 Stone
+M 17 8 4 2 2 2 0 0 2 Stone
+M 17 8 4 2 2 2 0 1 0 Stone
+M 17 8 4 2 2 2 0 1 1 Stone
+M 17 8 4 2 2 2 0 1 2 Stone
+M 17 8 4 2 2 2 1 0 0 Stone
+M 17 8 4 2 2 2 1 0 1 Stone
+M 17 8 4 2 2 2 1 0 2 Stone
+S 17 8 5 0 0 0 Stone
+S 17 8 5 0 0 1 Stone
+S 17 8 5 0 0 2 Stone
+S 17 8 5 0 1 0 Stone
+S 17 8 5 0 1 1 Stone
+S 17 8 5 0 1 2 Stone
+S 17 8 5 0 2 0 Stone
+S 17 8 5 0 2 1 Stone
+S 17 8 5 0 2 2 Stone
+S 17 8 5 1 0 0 Stone
+S 17 8 5 1 0 1 Stone
+S 17 8 5 1 0 2 Stone
+S 17 8 5 1 1 0 Stone
+S 17 8 5 1 1 1 Stone
+S 17 8 5 1 1 2 Stone
+S 17 8 5 1 2 0 Stone
+S 17 8 5 1 2 1 Stone
+S 17 8 5 1 2 2 Stone
+S 17 8 5 2 0 0 Stone
+S 17 8 5 2 0 1 Stone
+S 17 8 5 2 0 2 Stone
+S 17 8 5 2 1 0 Stone
+S 17 8 5 2 1 1 Stone
+S 17 8 5 2 1 2 Stone
+M 17 8 5 2 2 0 0 0 0 Stone
+M 17 8 5 2 2 0 0 0 1 Stone
+M 17 8 5 2 2 0 0 0 2 Stone
+M 17 8 5 2 2 0 0 1 0 Stone
+M 17 8 5 2 2 0 0 1 1 Stone
+M 17 8 5 2 2 0 0 1 2 Stone
+M 17 8 5 2 2 0 1 0 0 Stone
+M 17 8 5 2 2 0 1 0 1 Stone
+M 17 8 5 2 2 0 1 0 2 Stone
+M 17 8 5 2 2 1 0 0 0 Stone
+M 17 8 5 2 2 1 0 0 1 Stone
+M 17 8 5 2 2 1 0 0 2 Stone
+M 17 8 5 2 2 1 0 1 0 Stone
+M 17 8 5 2 2 1 0 1 1 Stone
+M 17 8 5 2 2 1 0 1 2 Stone
+M 17 8 5 2 2 1 1 0 0 Stone
+M 17 8 5 2 2 1 1 0 1 Stone
+M 17 8 5 2 2 1 1 0 2 Stone
+M 17 8 5 2 2 2 0 0 0 Stone
+M 17 8 5 2 2 2 0 0 1 Stone
+M 17 8 5 2 2 2 0 0 2 Stone
+M 17 8 5 2 2 2 0 1 0 Stone
+M 17 8 5 2 2 2 0 1 1 Stone
+M 17 8 5 2 2 2 0 1 2 Stone
+M 17 8 5 2 2 2 1 0 0 Stone
+M 17 8 5 2 2 2 1 0 1 Stone
+M 17 8 5 2 2 2 1 0 2 Stone
+S 17 8 6 0 0 0 Stone
+S 17 8 6 0 0 1 Stone
+S 17 8 6 0 0 2 Stone
+S 17 8 6 0 1 0 Stone
+S 17 8 6 0 1 1 Stone
+S 17 8 6 0 1 2 Stone
+S 17 8 6 0 2 0 Stone
+S 17 8 6 0 2 1 Stone
+S 17 8 6 0 2 2 Stone
+S 17 8 6 1 0 0 Stone
+S 17 8 6 1 0 1 Stone
+S 17 8 6 1 0 2 Stone
+S 17 8 6 1 1 0 Stone
+S 17 8 6 1 1 1 Stone
+S 17 8 6 1 1 2 Stone
+S 17 8 6 1 2 0 Stone
+S 17 8 6 1 2 1 Stone
+S 17 8 6 1 2 2 Stone
+S 17 8 6 2 0 0 Stone
+S 17 8 6 2 0 1 Stone
+S 17 8 6 2 0 2 Stone
+S 17 8 6 2 1 0 Stone
+S 17 8 6 2 1 1 Stone
+S 17 8 6 2 1 2 Stone
+M 17 8 6 2 2 0 0 0 0 Stone
+M 17 8 6 2 2 0 0 0 1 Stone
+M 17 8 6 2 2 0 0 0 2 Stone
+M 17 8 6 2 2 0 0 1 0 Stone
+M 17 8 6 2 2 0 0 1 1 Stone
+M 17 8 6 2 2 0 0 1 2 Stone
+M 17 8 6 2 2 0 1 0 0 Stone
+M 17 8 6 2 2 0 1 0 1 Stone
+M 17 8 6 2 2 0 1 0 2 Stone
+M 17 8 6 2 2 1 0 0 0 Stone
+M 17 8 6 2 2 1 0 0 1 Stone
+M 17 8 6 2 2 1 0 0 2 Stone
+M 17 8 6 2 2 1 0 1 0 Stone
+M 17 8 6 2 2 1 0 1 1 Stone
+M 17 8 6 2 2 1 0 1 2 Stone
+M 17 8 6 2 2 1 1 0 0 Stone
+M 17 8 6 2 2 1 1 0 1 Stone
+M 17 8 6 2 2 1 1 0 2 Stone
+M 17 8 6 2 2 2 0 0 0 Stone
+M 17 8 6 2 2 2 0 0 1 Stone
+M 17 8 6 2 2 2 0 0 2 Stone
+M 17 8 6 2 2 2 0 1 0 Stone
+M 17 8 6 2 2 2 0 1 1 Stone
+M 17 8 6 2 2 2 0 1 2 Stone
+M 17 8 6 2 2 2 1 0 0 Stone
+M 17 8 6 2 2 2 1 0 1 Stone
+M 17 8 6 2 2 2 1 0 2 Stone
+S 17 8 7 0 0 0 Stone
+S 17 8 7 0 0 1 Stone
+S 17 8 7 0 0 2 Stone
+S 17 8 7 0 1 0 Stone
+S 17 8 7 0 1 1 Stone
+S 17 8 7 0 1 2 Stone
+S 17 8 7 0 2 0 Stone
+S 17 8 7 0 2 1 Stone
+S 17 8 7 0 2 2 Stone
+S 17 8 7 1 0 0 Stone
+S 17 8 7 1 0 1 Stone
+S 17 8 7 1 0 2 Stone
+S 17 8 7 1 1 0 Stone
+S 17 8 7 1 1 1 Stone
+S 17 8 7 1 1 2 Stone
+S 17 8 7 1 2 0 Stone
+S 17 8 7 1 2 1 Stone
+S 17 8 7 1 2 2 Stone
+S 17 8 7 2 0 0 Stone
+S 17 8 7 2 0 1 Stone
+S 17 8 7 2 0 2 Stone
+S 17 8 7 2 1 0 Stone
+S 17 8 7 2 1 1 Stone
+S 17 8 7 2 1 2 Stone
+M 17 8 7 2 2 0 0 0 0 Stone
+M 17 8 7 2 2 0 0 0 1 Stone
+M 17 8 7 2 2 0 0 0 2 Stone
+M 17 8 7 2 2 0 0 1 0 Stone
+M 17 8 7 2 2 0 0 1 1 Stone
+M 17 8 7 2 2 0 0 1 2 Stone
+M 17 8 7 2 2 0 1 0 0 Stone
+M 17 8 7 2 2 0 1 0 1 Stone
+M 17 8 7 2 2 0 1 0 2 Stone
+M 17 8 7 2 2 1 0 0 0 Stone
+M 17 8 7 2 2 1 0 0 1 Stone
+M 17 8 7 2 2 1 0 0 2 Stone
+M 17 8 7 2 2 1 0 1 0 Stone
+M 17 8 7 2 2 1 0 1 1 Stone
+M 17 8 7 2 2 1 0 1 2 Stone
+M 17 8 7 2 2 1 1 0 0 Stone
+M 17 8 7 2 2 1 1 0 1 Stone
+M 17 8 7 2 2 1 1 0 2 Stone
+M 17 8 7 2 2 2 0 0 0 Stone
+M 17 8 7 2 2 2 0 0 1 Stone
+M 17 8 7 2 2 2 0 0 2 Stone
+M 17 8 7 2 2 2 0 1 0 Stone
+M 17 8 7 2 2 2 0 1 1 Stone
+M 17 8 7 2 2 2 0 1 2 Stone
+M 17 8 7 2 2 2 1 0 0 Stone
+M 17 8 7 2 2 2 1 0 1 Stone
+M 17 8 7 2 2 2 1 0 2 Stone
+S 17 8 8 0 0 0 Stone
+S 17 8 8 0 0 1 Stone
+S 17 8 8 0 0 2 Stone
+S 17 8 8 0 1 0 Stone
+S 17 8 8 0 1 1 Stone
+S 17 8 8 0 1 2 Stone
+S 17 8 8 0 2 0 Stone
+S 17 8 8 0 2 1 Stone
+S 17 8 8 0 2 2 Stone
+S 17 8 8 1 0 0 Stone
+S 17 8 8 1 0 1 Stone
+S 17 8 8 1 0 2 Stone
+S 17 8 8 1 1 0 Stone
+S 17 8 8 1 1 1 Stone
+S 17 8 8 1 1 2 Stone
+S 17 8 8 1 2 0 Stone
+S 17 8 8 1 2 1 Stone
+S 17 8 8 1 2 2 Stone
+S 17 8 8 2 0 0 Stone
+S 17 8 8 2 0 1 Stone
+S 17 8 8 2 0 2 Stone
+S 17 8 8 2 1 0 Stone
+S 17 8 8 2 1 1 Stone
+S 17 8 8 2 1 2 Stone
+M 17 8 8 2 2 0 0 0 0 Stone
+M 17 8 8 2 2 0 0 0 1 Stone
+M 17 8 8 2 2 0 0 0 2 Stone
+M 17 8 8 2 2 0 0 1 0 Stone
+M 17 8 8 2 2 0 0 1 1 Stone
+M 17 8 8 2 2 0 0 1 2 Stone
+M 17 8 8 2 2 0 1 0 0 Stone
+M 17 8 8 2 2 0 1 0 1 Stone
+M 17 8 8 2 2 0 1 0 2 Stone
+M 17 8 8 2 2 1 0 0 0 Stone
+M 17 8 8 2 2 1 0 0 1 Stone
+M 17 8 8 2 2 1 0 0 2 Stone
+M 17 8 8 2 2 1 0 1 0 Stone
+M 17 8 8 2 2 1 0 1 1 Stone
+M 17 8 8 2 2 1 0 1 2 Stone
+M 17 8 8 2 2 1 1 0 0 Stone
+M 17 8 8 2 2 1 1 0 1 Stone
+M 17 8 8 2 2 1 1 0 2 Stone
+M 17 8 8 2 2 2 0 0 0 Stone
+M 17 8 8 2 2 2 0 0 1 Stone
+M 17 8 8 2 2 2 0 0 2 Stone
+M 17 8 8 2 2 2 0 1 0 Stone
+M 17 8 8 2 2 2 0 1 1 Stone
+M 17 8 8 2 2 2 0 1 2 Stone
+M 17 8 8 2 2 2 1 0 0 Stone
+M 17 8 8 2 2 2 1 0 1 Stone
+M 17 8 8 2 2 2 1 0 2 Stone
+S 17 8 9 0 0 0 Stone
+S 17 8 9 0 0 1 Stone
+S 17 8 9 0 0 2 Stone
+S 17 8 9 0 1 0 Stone
+S 17 8 9 0 1 1 Stone
+S 17 8 9 0 1 2 Stone
+S 17 8 9 0 2 0 Stone
+S 17 8 9 0 2 1 Stone
+S 17 8 9 0 2 2 Stone
+S 17 8 9 1 0 0 Stone
+S 17 8 9 1 0 1 Stone
+S 17 8 9 1 0 2 Stone
+S 17 8 9 1 1 0 Stone
+S 17 8 9 1 1 1 Stone
+S 17 8 9 1 1 2 Stone
+S 17 8 9 1 2 0 Stone
+S 17 8 9 1 2 1 Stone
+S 17 8 9 1 2 2 Stone
+S 17 8 9 2 0 0 Stone
+S 17 8 9 2 0 1 Stone
+S 17 8 9 2 0 2 Stone
+S 17 8 9 2 1 0 Stone
+S 17 8 9 2 1 1 Stone
+S 17 8 9 2 1 2 Stone
+M 17 8 9 2 2 0 0 0 0 Stone
+M 17 8 9 2 2 0 0 0 1 Stone
+M 17 8 9 2 2 0 0 0 2 Stone
+M 17 8 9 2 2 0 0 1 0 Stone
+M 17 8 9 2 2 0 0 1 1 Stone
+M 17 8 9 2 2 0 0 1 2 Stone
+M 17 8 9 2 2 0 1 0 0 Stone
+M 17 8 9 2 2 0 1 0 1 Stone
+M 17 8 9 2 2 0 1 0 2 Stone
+M 17 8 9 2 2 1 0 0 0 Stone
+M 17 8 9 2 2 1 0 0 1 Stone
+M 17 8 9 2 2 1 0 0 2 Stone
+M 17 8 9 2 2 1 0 1 0 Stone
+M 17 8 9 2 2 1 0 1 1 Stone
+M 17 8 9 2 2 1 0 1 2 Stone
+M 17 8 9 2 2 1 1 0 0 Stone
+M 17 8 9 2 2 1 1 0 1 Stone
+M 17 8 9 2 2 1 1 0 2 Stone
+M 17 8 9 2 2 2 0 0 0 Stone
+M 17 8 9 2 2 2 0 0 1 Stone
+M 17 8 9 2 2 2 0 0 2 Stone
+M 17 8 9 2 2 2 0 1 0 Stone
+M 17 8 9 2 2 2 0 1 1 Stone
+M 17 8 9 2 2 2 0 1 2 Stone
+M 17 8 9 2 2 2 1 0 0 Stone
+M 17 8 9 2 2 2 1 0 1 Stone
+M 17 8 9 2 2 2 1 0 2 Stone
+S 17 8 10 0 0 0 Stone
+S 17 8 10 0 0 1 Stone
+S 17 8 10 0 0 2 Stone
+S 17 8 10 0 1 0 Stone
+S 17 8 10 0 1 1 Stone
+S 17 8 10 0 1 2 Stone
+S 17 8 10 0 2 0 Stone
+S 17 8 10 0 2 1 Stone
+S 17 8 10 0 2 2 Stone
+S 17 8 10 1 0 0 Stone
+S 17 8 10 1 0 1 Stone
+S 17 8 10 1 0 2 Stone
+S 17 8 10 1 1 0 Stone
+S 17 8 10 1 1 1 Stone
+S 17 8 10 1 1 2 Stone
+S 17 8 10 1 2 0 Stone
+S 17 8 10 1 2 1 Stone
+S 17 8 10 1 2 2 Stone
+S 17 8 10 2 0 0 Stone
+S 17 8 10 2 0 1 Stone
+S 17 8 10 2 0 2 Stone
+S 17 8 10 2 1 0 Stone
+S 17 8 10 2 1 1 Stone
+S 17 8 10 2 1 2 Stone
+M 17 8 10 2 2 0 0 0 0 Stone
+M 17 8 10 2 2 0 0 0 1 Stone
+M 17 8 10 2 2 0 0 0 2 Stone
+M 17 8 10 2 2 0 0 1 0 Stone
+M 17 8 10 2 2 0 0 1 1 Stone
+M 17 8 10 2 2 0 0 1 2 Stone
+M 17 8 10 2 2 0 1 0 0 Stone
+M 17 8 10 2 2 0 1 0 1 Stone
+M 17 8 10 2 2 0 1 0 2 Stone
+M 17 8 10 2 2 1 0 0 0 Stone
+M 17 8 10 2 2 1 0 0 1 Stone
+M 17 8 10 2 2 1 0 0 2 Stone
+M 17 8 10 2 2 1 0 1 0 Stone
+M 17 8 10 2 2 1 0 1 1 Stone
+M 17 8 10 2 2 1 0 1 2 Stone
+M 17 8 10 2 2 1 1 0 0 Stone
+M 17 8 10 2 2 1 1 0 1 Stone
+M 17 8 10 2 2 1 1 0 2 Stone
+M 17 8 10 2 2 2 0 0 0 Stone
+M 17 8 10 2 2 2 0 0 1 Stone
+M 17 8 10 2 2 2 0 0 2 Stone
+M 17 8 10 2 2 2 0 1 0 Stone
+M 17 8 10 2 2 2 0 1 1 Stone
+M 17 8 10 2 2 2 0 1 2 Stone
+M 17 8 10 2 2 2 1 0 0 Stone
+M 17 8 10 2 2 2 1 0 1 Stone
+M 17 8 10 2 2 2 1 0 2 Stone
+S 17 8 11 0 0 0 Stone
+S 17 8 11 0 0 1 Stone
+S 17 8 11 0 0 2 Stone
+S 17 8 11 0 1 0 Stone
+S 17 8 11 0 1 1 Stone
+S 17 8 11 0 1 2 Stone
+S 17 8 11 0 2 0 Stone
+S 17 8 11 0 2 1 Stone
+S 17 8 11 0 2 2 Stone
+S 17 8 11 1 0 0 Stone
+S 17 8 11 1 0 1 Stone
+S 17 8 11 1 0 2 Stone
+S 17 8 11 1 1 0 Stone
+S 17 8 11 1 1 1 Stone
+S 17 8 11 1 1 2 Stone
+S 17 8 11 1 2 0 Stone
+S 17 8 11 1 2 1 Stone
+S 17 8 11 1 2 2 Stone
+S 17 8 11 2 0 0 Stone
+S 17 8 11 2 0 1 Stone
+S 17 8 11 2 0 2 Stone
+S 17 8 11 2 1 0 Stone
+S 17 8 11 2 1 1 Stone
+S 17 8 11 2 1 2 Stone
+M 17 8 11 2 2 0 0 0 0 Stone
+M 17 8 11 2 2 0 0 0 1 Stone
+M 17 8 11 2 2 0 0 0 2 Stone
+M 17 8 11 2 2 0 0 1 0 Stone
+M 17 8 11 2 2 0 0 1 1 Stone
+M 17 8 11 2 2 0 0 1 2 Stone
+M 17 8 11 2 2 0 1 0 0 Stone
+M 17 8 11 2 2 0 1 0 1 Stone
+M 17 8 11 2 2 0 1 0 2 Stone
+M 17 8 11 2 2 1 0 0 0 Stone
+M 17 8 11 2 2 1 0 0 1 Stone
+M 17 8 11 2 2 1 0 0 2 Stone
+M 17 8 11 2 2 1 0 1 0 Stone
+M 17 8 11 2 2 1 0 1 1 Stone
+M 17 8 11 2 2 1 0 1 2 Stone
+M 17 8 11 2 2 1 1 0 0 Stone
+M 17 8 11 2 2 1 1 0 1 Stone
+M 17 8 11 2 2 1 1 0 2 Stone
+M 17 8 11 2 2 2 0 0 0 Stone
+M 17 8 11 2 2 2 0 0 1 Stone
+M 17 8 11 2 2 2 0 0 2 Stone
+M 17 8 11 2 2 2 0 1 0 Stone
+M 17 8 11 2 2 2 0 1 1 Stone
+M 17 8 11 2 2 2 0 1 2 Stone
+M 17 8 11 2 2 2 1 0 0 Stone
+M 17 8 11 2 2 2 1 0 1 Stone
+M 17 8 11 2 2 2 1 0 2 Stone
+S 17 8 12 0 0 0 Stone
+S 17 8 12 0 0 1 Stone
+S 17 8 12 0 0 2 Stone
+S 17 8 12 0 1 0 Stone
+S 17 8 12 0 1 1 Stone
+S 17 8 12 0 1 2 Stone
+S 17 8 12 0 2 0 Stone
+S 17 8 12 0 2 1 Stone
+S 17 8 12 0 2 2 Stone
+S 17 8 12 1 0 0 Stone
+S 17 8 12 1 0 1 Stone
+S 17 8 12 1 0 2 Stone
+S 17 8 12 1 1 0 Stone
+S 17 8 12 1 1 1 Stone
+S 17 8 12 1 1 2 Stone
+S 17 8 12 1 2 0 Stone
+S 17 8 12 1 2 1 Stone
+S 17 8 12 1 2 2 Stone
+S 17 8 12 2 0 0 Stone
+S 17 8 12 2 0 1 Stone
+S 17 8 12 2 0 2 Stone
+S 17 8 12 2 1 0 Stone
+S 17 8 12 2 1 1 Stone
+S 17 8 12 2 1 2 Stone
+M 17 8 12 2 2 0 0 0 0 Stone
+M 17 8 12 2 2 0 0 0 1 Stone
+M 17 8 12 2 2 0 0 0 2 Stone
+M 17 8 12 2 2 0 0 1 0 Stone
+M 17 8 12 2 2 0 0 1 1 Stone
+M 17 8 12 2 2 0 0 1 2 Stone
+M 17 8 12 2 2 0 1 0 0 Stone
+M 17 8 12 2 2 0 1 0 1 Stone
+M 17 8 12 2 2 0 1 0 2 Stone
+M 17 8 12 2 2 1 0 0 0 Stone
+M 17 8 12 2 2 1 0 0 1 Stone
+M 17 8 12 2 2 1 0 0 2 Stone
+M 17 8 12 2 2 1 0 1 0 Stone
+M 17 8 12 2 2 1 0 1 1 Stone
+M 17 8 12 2 2 1 0 1 2 Stone
+M 17 8 12 2 2 1 1 0 0 Stone
+M 17 8 12 2 2 1 1 0 1 Stone
+M 17 8 12 2 2 1 1 0 2 Stone
+M 17 8 12 2 2 2 0 0 0 Stone
+M 17 8 12 2 2 2 0 0 1 Stone
+M 17 8 12 2 2 2 0 0 2 Stone
+M 17 8 12 2 2 2 0 1 0 Stone
+M 17 8 12 2 2 2 0 1 1 Stone
+M 17 8 12 2 2 2 0 1 2 Stone
+M 17 8 12 2 2 2 1 0 0 Stone
+M 17 8 12 2 2 2 1 0 1 Stone
+M 17 8 12 2 2 2 1 0 2 Stone
+S 17 8 13 0 0 0 Stone
+S 17 8 13 0 0 1 Stone
+S 17 8 13 0 0 2 Stone
+S 17 8 13 0 1 0 Stone
+S 17 8 13 0 1 1 Stone
+S 17 8 13 0 1 2 Stone
+S 17 8 13 0 2 0 Stone
+S 17 8 13 0 2 1 Stone
+S 17 8 13 0 2 2 Stone
+S 17 8 13 1 0 0 Stone
+S 17 8 13 1 0 1 Stone
+S 17 8 13 1 0 2 Stone
+S 17 8 13 1 1 0 Stone
+S 17 8 13 1 1 1 Stone
+S 17 8 13 1 1 2 Stone
+S 17 8 13 1 2 0 Stone
+S 17 8 13 1 2 1 Stone
+S 17 8 13 1 2 2 Stone
+S 17 8 13 2 0 0 Stone
+S 17 8 13 2 0 1 Stone
+S 17 8 13 2 0 2 Stone
+S 17 8 13 2 1 0 Stone
+S 17 8 13 2 1 1 Stone
+S 17 8 13 2 1 2 Stone
+M 17 8 13 2 2 0 0 0 0 Stone
+M 17 8 13 2 2 0 0 0 1 Stone
+M 17 8 13 2 2 0 0 0 2 Stone
+M 17 8 13 2 2 0 0 1 0 Stone
+M 17 8 13 2 2 0 0 1 1 Stone
+M 17 8 13 2 2 0 0 1 2 Stone
+M 17 8 13 2 2 0 1 0 0 Stone
+M 17 8 13 2 2 0 1 0 1 Stone
+M 17 8 13 2 2 0 1 0 2 Stone
+M 17 8 13 2 2 1 0 0 0 Stone
+M 17 8 13 2 2 1 0 0 1 Stone
+M 17 8 13 2 2 1 0 0 2 Stone
+M 17 8 13 2 2 1 0 1 0 Stone
+M 17 8 13 2 2 1 0 1 1 Stone
+M 17 8 13 2 2 1 0 1 2 Stone
+M 17 8 13 2 2 1 1 0 0 Stone
+M 17 8 13 2 2 1 1 0 1 Stone
+M 17 8 13 2 2 1 1 0 2 Stone
+M 17 8 13 2 2 2 0 0 0 Stone
+M 17 8 13 2 2 2 0 0 1 Stone
+M 17 8 13 2 2 2 0 0 2 Stone
+M 17 8 13 2 2 2 0 1 0 Stone
+M 17 8 13 2 2 2 0 1 1 Stone
+M 17 8 13 2 2 2 0 1 2 Stone
+M 17 8 13 2 2 2 1 0 0 Stone
+M 17 8 13 2 2 2 1 0 1 Stone
+M 17 8 13 2 2 2 1 0 2 Stone
+S 17 8 14 0 0 0 Stone
+S 17 8 14 0 0 1 Stone
+S 17 8 14 0 0 2 Stone
+S 17 8 14 0 1 0 Stone
+S 17 8 14 0 1 1 Stone
+S 17 8 14 0 1 2 Stone
+S 17 8 14 0 2 0 Stone
+S 17 8 14 0 2 1 Stone
+S 17 8 14 0 2 2 Stone
+S 17 8 14 1 0 0 Stone
+S 17 8 14 1 0 1 Stone
+S 17 8 14 1 0 2 Stone
+S 17 8 14 1 1 0 Stone
+S 17 8 14 1 1 1 Stone
+S 17 8 14 1 1 2 Stone
+S 17 8 14 1 2 0 Stone
+S 17 8 14 1 2 1 Stone
+S 17 8 14 1 2 2 Stone
+S 17 8 14 2 0 0 Stone
+S 17 8 14 2 0 1 Stone
+S 17 8 14 2 0 2 Stone
+S 17 8 14 2 1 0 Stone
+S 17 8 14 2 1 1 Stone
+S 17 8 14 2 1 2 Stone
+M 17 8 14 2 2 0 0 0 0 Stone
+M 17 8 14 2 2 0 0 0 1 Stone
+M 17 8 14 2 2 0 0 0 2 Stone
+M 17 8 14 2 2 0 0 1 0 Stone
+M 17 8 14 2 2 0 0 1 1 Stone
+M 17 8 14 2 2 0 0 1 2 Stone
+M 17 8 14 2 2 0 1 0 0 Stone
+M 17 8 14 2 2 0 1 0 1 Stone
+M 17 8 14 2 2 0 1 0 2 Stone
+M 17 8 14 2 2 1 0 0 0 Stone
+M 17 8 14 2 2 1 0 0 1 Stone
+M 17 8 14 2 2 1 0 0 2 Stone
+M 17 8 14 2 2 1 0 1 0 Stone
+M 17 8 14 2 2 1 0 1 1 Stone
+M 17 8 14 2 2 1 0 1 2 Stone
+M 17 8 14 2 2 1 1 0 0 Stone
+M 17 8 14 2 2 1 1 0 1 Stone
+M 17 8 14 2 2 1 1 0 2 Stone
+M 17 8 14 2 2 2 0 0 0 Stone
+M 17 8 14 2 2 2 0 0 1 Stone
+M 17 8 14 2 2 2 0 0 2 Stone
+M 17 8 14 2 2 2 0 1 0 Stone
+M 17 8 14 2 2 2 0 1 1 Stone
+M 17 8 14 2 2 2 0 1 2 Stone
+M 17 8 14 2 2 2 1 0 0 Stone
+M 17 8 14 2 2 2 1 0 1 Stone
+M 17 8 14 2 2 2 1 0 2 Stone
+S 17 8 15 0 0 0 Stone
+S 17 8 15 0 0 1 Stone
+S 17 8 15 0 0 2 Stone
+S 17 8 15 0 1 0 Stone
+S 17 8 15 0 1 1 Stone
+S 17 8 15 0 1 2 Stone
+S 17 8 15 0 2 0 Stone
+S 17 8 15 0 2 1 Stone
+M 17 8 15 0 2 2 0 0 0 Stone
+M 17 8 15 0 2 2 0 0 1 Stone
+M 17 8 15 0 2 2 0 1 0 Stone
+M 17 8 15 0 2 2 1 0 0 Stone
+M 17 8 15 0 2 2 1 0 1 Stone
+M 17 8 15 0 2 2 1 1 0 Stone
+M 17 8 15 0 2 2 2 0 0 Stone
+M 17 8 15 0 2 2 2 0 1 Stone
+M 17 8 15 0 2 2 2 1 0 Stone
+S 17 8 15 1 0 0 Stone
+S 17 8 15 1 0 1 Stone
+S 17 8 15 1 0 2 Stone
+S 17 8 15 1 1 0 Stone
+S 17 8 15 1 1 1 Stone
+S 17 8 15 1 1 2 Stone
+S 17 8 15 1 2 0 Stone
+S 17 8 15 1 2 1 Stone
+M 17 8 15 1 2 2 0 0 0 Stone
+M 17 8 15 1 2 2 0 0 1 Stone
+M 17 8 15 1 2 2 0 1 0 Stone
+M 17 8 15 1 2 2 1 0 0 Stone
+M 17 8 15 1 2 2 1 0 1 Stone
+M 17 8 15 1 2 2 1 1 0 Stone
+M 17 8 15 1 2 2 2 0 0 Stone
+M 17 8 15 1 2 2 2 0 1 Stone
+M 17 8 15 1 2 2 2 1 0 Stone
+S 17 8 15 2 0 0 Stone
+S 17 8 15 2 0 1 Stone
+S 17 8 15 2 0 2 Stone
+S 17 8 15 2 1 0 Stone
+S 17 8 15 2 1 1 Stone
+S 17 8 15 2 1 2 Stone
+M 17 8 15 2 2 0 0 0 0 Stone
+M 17 8 15 2 2 0 0 0 1 Stone
+M 17 8 15 2 2 0 0 0 2 Stone
+M 17 8 15 2 2 0 0 1 0 Stone
+M 17 8 15 2 2 0 0 1 1 Stone
+M 17 8 15 2 2 0 0 1 2 Stone
+M 17 8 15 2 2 0 1 0 0 Stone
+M 17 8 15 2 2 0 1 0 1 Stone
+M 17 8 15 2 2 0 1 0 2 Stone
+M 17 8 15 2 2 1 0 0 0 Stone
+M 17 8 15 2 2 1 0 0 1 Stone
+M 17 8 15 2 2 1 0 0 2 Stone
+M 17 8 15 2 2 1 0 1 0 Stone
+M 17 8 15 2 2 1 0 1 1 Stone
+M 17 8 15 2 2 1 0 1 2 Stone
+M 17 8 15 2 2 1 1 0 0 Stone
+M 17 8 15 2 2 1 1 0 1 Stone
+M 17 8 15 2 2 1 1 0 2 Stone
+M 17 8 15 2 2 2 0 0 0 Stone
+M 17 8 15 2 2 2 0 0 1 Stone
+M 17 8 15 2 2 2 0 1 0 Stone
+M 17 8 15 2 2 2 1 0 0 Stone
+M 17 8 15 2 2 2 1 0 1 Stone

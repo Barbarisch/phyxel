@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
+
+# CMP0092: don't put a default /W3 in CMAKE_CXX_FLAGS, so first-party targets can
+# set /W4 cleanly without MSVC D9025 "overriding /W3 with /W4" warnings.
+if(POLICY CMP0092)
+    cmake_policy(SET CMP0092 NEW)
+endif()
+
 project(phyxel VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -24,6 +31,13 @@ if(ENABLE_ASAN)
         endif()
     endif()
     message(STATUS "Address Sanitizer ENABLED for Debug builds")
+endif()
+
+# Silence MSVC "unsafe CRT" deprecations (C4996) for fopen/getenv/strncpy etc. — these are
+# used intentionally and the _s variants are non-portable. Removes ~93 warnings so the
+# bug-candidate warnings under /W4 stay visible.
+if(MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
 # Prevent pybind11 from auto-linking python library via pragma
@@ -98,8 +112,9 @@ elseif(PLATFORM_LINUX)
     endif()
 endif()
 
-# Bullet Physics submodule kept as reference but NOT built or linked.
-# Bullet-dependent character classes have been moved to engine/deprecated/bullet/.
+# Bullet Physics has been fully removed (submodule dropped). Physics is the in-house stack:
+# GpuParticlePhysics (Vulkan compute) + VoxelDynamicsWorld (CPU). stb_image is vendored at
+# external/stb (formerly sourced from the bullet3 submodule). Old Bullet code is in git history.
 
 # ==========================================================================
 # FetchContent Dependencies
@@ -172,8 +187,12 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
-set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/bullet3/examples/ThirdPartyLibs/stb_image)
+set(STB_IMAGE_DIR ${PHYXEL_ROOT_DIR}/external/stb)
 set(STB_IMAGE_SOURCES ${STB_IMAGE_DIR}/stb_image.cpp)
+
+# bc7enc — public-domain/MIT single-file BC7 (DXGI BC7) block encoder for GPU texture compression
+set(BC7ENC_DIR ${PHYXEL_ROOT_DIR}/external/bc7enc)
+set(BC7ENC_SOURCES ${BC7ENC_DIR}/bc7enc.c)
 
 # ==========================================================================
 # Build Targets

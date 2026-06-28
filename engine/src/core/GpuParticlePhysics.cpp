@@ -1081,7 +1081,11 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     gp.flags        = 1u | p.typeFlags; // PARTICLE_ACTIVE
     gp.scale        = p.scale;
     gp.materialIndex= materialNameToIndex(p.materialName);
-    gp.color        = p.color;
+    // color is unused by debris rendering (debris is textured), so repurpose it to carry the baked
+    // light sampled at the spawn position (sky, blockR, blockG, blockB, each 0..15). The expand
+    // compute shader packs it into the instance's reserved2; dynamic_voxel.vert reads it. Default
+    // = full sky (15,0,0,0) so debris without a sampler / outside loaded chunks looks as before.
+    gp.color = m_lightSampler ? m_lightSampler(p.position) : glm::vec4(15.0f, 0.0f, 0.0f, 0.0f);
 
     m_pendingSpawns.push_back({ slot, gp });
 }
@@ -1587,7 +1591,7 @@ bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
     if (m_positionLogging) stopPositionLog();
     m_posLogFile.open(filePath, std::ios::out | std::ios::trunc);
     if (!m_posLogFile.is_open()) {
-        LOG_ERROR("GpuParticlePhysics", "Failed to open position log: %s", filePath.c_str());
+        LOG_ERROR("GpuParticlePhysics", "Failed to open position log: {}", filePath);
         return false;
     }
     // Write CSV header comment
@@ -1598,7 +1602,7 @@ bool GpuParticlePhysics::startPositionLog(const std::string& filePath) {
     m_posLogFrameCounter = 0;
     m_readbackPending = false;
     m_positionLogging = true;
-    LOG_INFO("GpuParticlePhysics", "Position logging started: %s", filePath.c_str());
+    LOG_INFO("GpuParticlePhysics", "Position logging started: {}", filePath);
     return true;
 }
 
@@ -1609,7 +1613,7 @@ void GpuParticlePhysics::stopPositionLog() {
     if (m_posLogFile.is_open()) {
         m_posLogFile.close();
     }
-    LOG_INFO("GpuParticlePhysics", "Position logging stopped (%u frames captured)", m_posLogFrameCounter);
+    LOG_INFO("GpuParticlePhysics", "Position logging stopped ({} frames captured)", m_posLogFrameCounter);
 }
 
 // ============================================================

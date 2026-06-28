@@ -479,41 +479,15 @@ bool WorldInitializer::initializeTextureAtlas() {
         return false;
     }
 
-    // Populate atlas UV SSBO
-    {
-        const auto& info = atlas.getAtlasInfo();
-        if (!info.uvBounds.empty()) {
-            auto& registry = Core::MaterialRegistry::instance();
-            vulkanDevice->updateAtlasUVBuffer(info.uvBounds, registry.getPlaceholderIndex());
-            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries", info.textureCount);
-        } else {
-            // Fallback: compute UVs manually (same as before)
-            auto& registry = Core::MaterialRegistry::instance();
-            int textureCount = registry.getTextureCount();
-            int texturesPerRow = Core::AtlasManager::TEXTURES_PER_ROW;
-            int textureSize = Core::AtlasManager::TEXTURE_SIZE;
-            int padding = Core::AtlasManager::PADDING;
-            int cellSize = Core::AtlasManager::CELL_SIZE;
-            int rows = (textureCount + texturesPerRow - 1) / texturesPerRow;
-            int rawDim = std::max(texturesPerRow * cellSize, rows * cellSize);
-            int atlasDim = 1;
-            while (atlasDim < rawDim) atlasDim <<= 1;
-            atlasDim = std::min(atlasDim, Core::AtlasManager::MAX_ATLAS_SIZE);
-            float atlasSize = static_cast<float>(atlasDim);
-
-            std::vector<glm::vec4> uvs(textureCount);
-            for (int i = 0; i < textureCount; i++) {
-                int col = i % texturesPerRow;
-                int row = i / texturesPerRow;
-                float pixelX = static_cast<float>(col * cellSize + padding);
-                float pixelY = static_cast<float>(row * cellSize + padding);
-                uvs[i] = glm::vec4(pixelX / atlasSize, pixelY / atlasSize,
-                                   (pixelX + textureSize) / atlasSize, (pixelY + textureSize) / atlasSize);
-            }
-            vulkanDevice->updateAtlasUVBuffer(uvs, registry.getPlaceholderIndex());
-            LOG_INFO("WorldInitializer", "Populated atlas UV SSBO with {} texture entries (fallback)", textureCount);
-        }
-    }
+    // Populate the atlas SSBO with per-material PBR props (metallic/roughness) AND the per-class
+    // layer-count header. Must use AtlasManager::updateUVSSBO — NOT updateAtlasUVBuffer(uvBounds),
+    // which clobbers textureUVs[] with UV coords, leaving metallic/roughness at ~0 so every
+    // surface renders mirror-smooth (sun glints, no real metals). voxel.frag reads textureUVs[gi]
+    // as (metallic, roughness).
+    atlas.updateUVSSBO(vulkanDevice);
+    LOG_INFO("WorldInitializer", "Populated atlas SSBO with material PBR props (512 class={}, 1024 class={})",
+             Core::MaterialRegistry::instance().getTextureCount(0),
+             Core::MaterialRegistry::instance().getTextureCount(1));
 
     // Update descriptor sets with texture binding
     vulkanDevice->updateDescriptorSetsWithTexture();

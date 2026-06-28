@@ -245,6 +245,19 @@ void ChunkManager::rebuildAllChunkFaces() {
     m_chunkInitializer.rebuildAllChunkFaces();
 }
 
+void ChunkManager::rebuildAllChunkLighting() {
+    // Force every chunk through the proper cross-chunk bake (rebuildChunkFacesWithCrosschunkCulling
+    // + GPU upload), e.g. after toggling smooth lighting. Mark all dirty, then drain a few times so
+    // cross-chunk light bleed converges.
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        chunks[i]->setNeedsUpdate(true);
+        m_dirtyChunkTracker.markChunkDirty(i);
+    }
+    for (int pass = 0; pass < 4 && m_dirtyChunkTracker.hasDirty(); ++pass) {
+        m_dirtyChunkTracker.updateDirtyChunks();  // unlimited budget: drain the whole list
+    }
+}
+
 void ChunkManager::buildAllChunkPhysics() {
     m_chunkInitializer.buildAllChunkPhysics();
 }
@@ -267,10 +280,9 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     Chunk* chunk = chunks[chunkIndex].get();
     if (chunk->getNeedsUpdate()) {
         LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
-        
+
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
         rebuildChunkFacesWithCrosschunkCulling(*chunk);
-        
         // Update GPU buffer with new face data
         chunk->updateVulkanBuffer();
         chunk->setNeedsUpdate(false);
@@ -309,21 +321,105 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
 }
 
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
-    // Provide a neighbor lookup function that can check cubes in adjacent chunks
-    auto getNeighborCube = [this, &chunk](const glm::ivec3& worldPos) -> const Cube* {
+    // Provide a neighbor lookup function that can check cubes in adjacent chunks.
+    // PERF: caches the last-resolved chunk. The skylight bake's columnOpenAbove probe walks
+    // ~96 cells straight up per column (×1024 columns = ~98k calls), all hitting the same few
+    // vertical chunks consecutively — without this memo each call did a chunk-map hash lookup,
+    // which dominated rebuild time (~43ms of a ~50ms chunk rebuild). The memo collapses it to
+    // one lookup per chunk transition (getCubeAt itself is an O(1) array index).
+    bool ncValid = false;
+    glm::ivec3 ncCoord(0);
+    Chunk* ncChunk = nullptr;
+    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> const Cube* {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
-        Chunk* neighborChunk = getChunkAtCoord(chunkCoord);
-        
-        if (neighborChunk) {
-            glm::ivec3 localPos = worldToLocalCoord(worldPos);
-            return neighborChunk->getCubeAt(localPos);
+        if (!ncValid || chunkCoord != ncCoord) {
+            ncValid = true;
+            ncCoord = chunkCoord;
+            ncChunk = getChunkAtCoord(chunkCoord);
         }
-        
+        if (ncChunk) return ncChunk->getCubeAt(worldToLocalCoord(worldPos));
         return nullptr;
     };
-    
-    // Call rebuildFaces with cross-chunk neighbor lookup enabled
-    chunk.rebuildFaces(getNeighborCube);
+
+    // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
+    // sky/block light so light bleeds across chunk boundaries (no seams).
+    auto getNeighborLight = [this, &chunk](const glm::ivec3& worldPos, Chunk::BakedLight& out) -> bool {
+        Chunk* neighborChunk = getChunkAtCoord(worldToChunkCoord(worldPos));
+        if (!neighborChunk || neighborChunk == &chunk) return false;
+        return neighborChunk->bakedLightAt(worldToLocalCoord(worldPos), out);
+    };
+
+    // Precompute the skylight roof mask: for each of the 32x32 columns, is it open to the sky
+    // above this chunk? The skylight bake needs this to seed sky columns. Doing it here (where we
+    // can resolve whole neighbour chunks directly) replaces the bake's ~98k per-cell roof probe:
+    // we resolve the up-to-3 chunks ABOVE once and scan only the ones that exist & are non-empty,
+    // marking roofed columns. Absent/empty chunks above (the common surface case) cost nothing.
+    std::vector<uint8_t> columnOpen(32 * 32, 1);  // 1 = open to sky (index x*32+z)
+    {
+        const glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+        constexpr int kProbeChunks = 3;  // 3*32 = 96 cells, matches the old kSkyProbeHeight
+        // Resolve the up-to-3 chunks above ONCE (no per-cell hash lookups). Open terrain has none
+        // → mask stays all-open at ~zero cost. Then probe each column directly with an early break
+        // on the first solid (cheap array indexing, no coord conversion / lambda like the old probe).
+        Chunk* above[kProbeChunks] = {nullptr, nullptr, nullptr};
+        bool anyAbove = false;
+        for (int i = 0; i < kProbeChunks; ++i) {
+            Chunk* a = getChunkAtCoord(cc + glm::ivec3(0, i + 1, 0));
+            if (a && a->getCubeCount() > 0) { above[i] = a; anyAbove = true; }
+        }
+        if (anyAbove) {
+            for (int x = 0; x < 32; ++x) {
+                for (int z = 0; z < 32; ++z) {
+                    bool roofed = false;
+                    for (int ci = 0; ci < kProbeChunks && !roofed; ++ci) {
+                        Chunk* a = above[ci];
+                        if (!a) continue;
+                        for (int y = 0; y < 32; ++y) {
+                            const Cube* c = a->getCubeAtIndex(static_cast<size_t>(z + y * 32 + x * 1024));
+                            if (c && c->isVisible()) { roofed = true; break; }
+                        }
+                    }
+                    if (roofed) columnOpen[x * 32 + z] = 0;
+                }
+            }
+        }
+    }
+
+    // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen);
+
+    // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
+    // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges
+    // (light is monotonic and capped) rather than looping forever.
+    if (chunk.lightBordersChanged()) {
+        glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+        const glm::ivec3 dirs[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+        for (const auto& d : dirs) {
+            Chunk* nb = getChunkAtCoord(cc + d);
+            if (nb && nb != &chunk) markChunkDirty(nb);
+        }
+    }
+}
+
+void ChunkManager::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
+    m_gpuParticles = gpp;
+    // Wire the debris light sampler so GPU particle debris is lit by the baked light field
+    // (sampled per particle at spawn). Returns sky/blockRGB each 0..15 (matches the nibble packing).
+    if (gpp) {
+        gpp->setLightSampler([this](const glm::vec3& wp) -> glm::vec4 {
+            auto bl = sampleBakedLight(glm::ivec3(glm::floor(wp)));
+            return glm::vec4(bl.sky, bl.r, bl.g, bl.b);
+        });
+    }
+}
+
+Graphics::ChunkRenderManager::BakedLight ChunkManager::sampleBakedLight(const glm::ivec3& worldPos) const {
+    Chunk::BakedLight out;
+    const Chunk* c = getChunkAtCoord(worldToChunkCoord(worldPos));
+    if (c && c->bakedLightAt(worldToLocalCoord(worldPos), out)) return out;
+    // No loaded chunk here → treat as open sky (outdoor), no block light.
+    out.sky = 15; out.r = out.g = out.b = 0;
+    return out;
 }
 
 // ===============================================================

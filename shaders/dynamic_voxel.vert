@@ -24,6 +24,7 @@ layout(location = 3) in uint inFaceID;          // per-instance: face ID (0-5)
 layout(location = 4) in vec3 inScale;           // per-instance: scale factor (vec3 for non-uniform scaling)
 layout(location = 5) in vec4 inRotation;        // per-instance: rotation quaternion (x, y, z, w)
 layout(location = 6) in ivec3 inLocalPosition;  // per-instance: original local position in 3x3x3 grid
+layout(location = 7) in uint inDebrisLight;     // per-instance baked light: sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -41,6 +42,8 @@ layout(location = 2) out vec4 shadowCoord;        // pass shadow coordinates to 
 layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
+layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
+layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -255,7 +258,12 @@ void main() {
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
-    
+    // Baked light sampled at spawn (Phase 4c): debris darkens in unlit interiors + picks up glow.
+    vSkyLight   = float(inDebrisLight & 0xFu) / 15.0;
+    vBlockColor = vec3(float((inDebrisLight >> 4u)  & 0xFu),
+                       float((inDebrisLight >> 8u)  & 0xFu),
+                       float((inDebrisLight >> 12u) & 0xFu)) / 15.0;
+
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;
     texCoord = uv;

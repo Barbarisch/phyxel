@@ -160,6 +160,7 @@
       "name": "StoneBricks",
       "category": "material",
       "description": "Cut stone blocks with mortar joints",
+      "resolution": 1024,
       "physics": {
         "mass": 6.0,
         "friction": 0.8,
@@ -250,6 +251,7 @@
       "name": "Wood",
       "category": "material",
       "description": "Finished oak plank material with natural grain",
+      "resolution": 1024,
       "physics": {
         "mass": 0.7,
         "friction": 0.6,
@@ -310,6 +312,7 @@
       "name": "Bricks",
       "category": "material",
       "description": "Red clay bricks with mortar joints",
+      "resolution": 1024,
       "physics": {
         "mass": 4.0,
         "friction": 0.8,
@@ -546,6 +549,42 @@
         "side_w": "glow_side_w.png",
         "top": "glow_top.png",
         "bottom": "glow_bottom.png"
+      }
+    },
+    {
+      "name": "glow_blue",
+      "category": "material",
+      "description": "Emissive blue glow",
+      "emissive": true,
+      "physics": {
+        "mass": 1.0, "friction": 0.5, "restitution": 0.5,
+        "linearDamping": 0.1, "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0, "bondStrength": 0.5, "angularVelocityScale": 1.0,
+        "colorTint": [ 0.25, 0.45, 1.0 ],
+        "metallic": 0.0, "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "glow_side_n.png", "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png", "side_w": "glow_side_w.png",
+        "top": "glow_top.png", "bottom": "glow_bottom.png"
+      }
+    },
+    {
+      "name": "glow_green",
+      "category": "material",
+      "description": "Emissive green glow",
+      "emissive": true,
+      "physics": {
+        "mass": 1.0, "friction": 0.5, "restitution": 0.5,
+        "linearDamping": 0.1, "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0, "bondStrength": 0.5, "angularVelocityScale": 1.0,
+        "colorTint": [ 0.3, 1.0, 0.4 ],
+        "metallic": 0.0, "roughness": 0.5
+      },
+      "textures": {
+        "side_n": "glow_side_n.png", "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png", "side_w": "glow_side_w.png",
+        "top": "glow_top.png", "bottom": "glow_bottom.png"
       }
     },
     {

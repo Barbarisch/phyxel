@@ -15,7 +15,8 @@ DayNightCycle::DayNightCycle()
     , m_paused(false)
     , m_sunDirection(glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f)))
     , m_sunColor(1.0f, 1.0f, 1.0f)
-    , m_ambientStrength(1.0f) {
+    , m_ambientStrength(1.0f)
+    , m_skyColor(0.45f, 0.65f, 0.95f) {
     recalculate();
 }
 
@@ -70,21 +71,34 @@ void DayNightCycle::recalculate() {
     m_ambientStrength = glm::mix(0.06f, 1.0f, twilightFactor * std::sqrt(std::max(0.0f, twilightFactor)));
 
     // Sun color: white at noon, warm orange at dawn/dusk, off at night
+    const glm::vec3 horizonColor(1.0f, 0.42f, 0.14f); // warm sunrise/sunset
+    const glm::vec3 noonColor(1.0f, 0.97f, 0.90f);    // near-white midday
     if (sunY <= -0.15f) {
         // Night — no sun
         m_sunColor = glm::vec3(0.0f);
     } else if (sunY < 0.2f) {
-        // Dawn/dusk transition: warm orange
+        // Dawn/dusk transition: fade in the warm horizon colour as the sun rises past the horizon
         float t = std::clamp((sunY + 0.15f) / 0.35f, 0.0f, 1.0f);
-        glm::vec3 horizonColor(1.0f, 0.45f, 0.15f);
-        glm::vec3 dayColor(1.0f, 0.98f, 0.92f);
         m_sunColor = glm::mix(glm::vec3(0.0f), horizonColor, t);
     } else {
-        // Daytime: transition from warm to white
+        // Daytime: transition from warm horizon to near-white noon
         float t = std::clamp((sunY - 0.2f) / 0.5f, 0.0f, 1.0f);
-        glm::vec3 horizonColor(1.0f, 0.45f, 0.15f);
-        glm::vec3 noonColor(1.0f, 0.98f, 0.92f);
         m_sunColor = glm::mix(horizonColor, noonColor, t);
+    }
+
+    // Sky/background colour by sun elevation: deep night blue → warm horizon at dawn/dusk →
+    // clear day blue. Dawn and dusk share the same elevation so they look alike (fine).
+    const glm::vec3 nightSky(0.015f, 0.025f, 0.06f); // deep blue, not pure black
+    const glm::vec3 horizonSky(0.80f, 0.50f, 0.38f); // warm dawn/dusk glow
+    const glm::vec3 daySky(0.45f, 0.65f, 0.95f);     // clear midday blue
+    if (sunY <= -0.18f) {
+        m_skyColor = nightSky;
+    } else if (sunY < 0.12f) {
+        float t = std::clamp((sunY + 0.18f) / 0.30f, 0.0f, 1.0f); // night → horizon
+        m_skyColor = glm::mix(nightSky, horizonSky, t);
+    } else {
+        float t = std::clamp((sunY - 0.12f) / 0.40f, 0.0f, 1.0f); // horizon → day
+        m_skyColor = glm::mix(horizonSky, daySky, t);
     }
 }
 
@@ -101,6 +115,7 @@ nlohmann::json DayNightCycle::toJson() const {
         {"paused", m_paused},
         {"sunDirection", {{"x", m_sunDirection.x}, {"y", m_sunDirection.y}, {"z", m_sunDirection.z}}},
         {"sunColor", {{"r", m_sunColor.r}, {"g", m_sunColor.g}, {"b", m_sunColor.b}}},
+        {"skyColor", {{"r", m_skyColor.r}, {"g", m_skyColor.g}, {"b", m_skyColor.b}}},
         {"ambientStrength", m_ambientStrength}
     };
 }

@@ -11,9 +11,6 @@
 #include <chrono>
 #include "core/Cube.h"
 
-// Forward declarations
-class btRigidBody;
-
 namespace Phyxel {
 
 // Forward declarations within namespace
@@ -85,11 +82,14 @@ struct Vertex {
 struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
-    uint16_t reserved;        // Reserved for future use (ensures 8-byte alignment)
-    // Total: 8 bytes (50% reduction from previous 16 bytes!)
-    
+    uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
+    uint32_t light = 0;       // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
+    uint32_t light2 = 0;      // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
+    uint32_t light3 = 0;      // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    // Total: 20 bytes
+
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();  // packedData + textureIndex + flags
+    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions();  // packedData + textureIndex + flags + light + light2 + light3
 };
 
 struct CharacterInstanceData {
@@ -139,12 +139,12 @@ struct DynamicSubcubeInstanceData {
     glm::vec3 scale;          // Scale factor (vec3 for non-uniform scaling)
     glm::vec4 rotation;       // Quaternion rotation (x, y, z, w) for tumbling effect
     glm::ivec3 localPosition; // Original local position in 3x3x3 grid (0-2 for each axis)
-    uint32_t reserved2;       // Alignment padding
-    // Total: 44 bytes
-    
+    uint32_t reserved2;       // Baked light (Phase 4c): sky(0-3)|blockR(4-7)|blockG(8-11)|blockB(12-15)
+    // Total: 64 bytes (matches particle_expand.comp stride)
+
     // Vulkan vertex input description for dynamic subcubes
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions();  // Now 6 attributes
+    static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions();  // + reserved2/light
 };
 
 // Face visibility structure

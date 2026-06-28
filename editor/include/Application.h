@@ -470,6 +470,14 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
+    void registerDoorCommands();
+    void registerLightCommands();
+    void registerSnapshotCommands();
+    void registerProfilingCommands();
+    void registerEffectsCommands();
+    void registerEnvAudioCommands();
+    void registerCameraCommands();
+    void registerStoryCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);

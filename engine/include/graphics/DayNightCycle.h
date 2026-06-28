@@ -39,6 +39,7 @@ public:
     glm::vec3 getSunDirection() const { return m_sunDirection; }
     glm::vec3 getSunColor() const { return m_sunColor; }
     float getAmbientStrength() const { return m_ambientStrength; }
+    glm::vec3 getSkyColor() const { return m_skyColor; }  // background sky tint by time of day
 
     // Serialization
     nlohmann::json toJson() const;
@@ -58,6 +59,7 @@ private:
     glm::vec3 m_sunDirection;
     glm::vec3 m_sunColor;
     float m_ambientStrength;
+    glm::vec3 m_skyColor;
 };
 
 } // namespace Graphics

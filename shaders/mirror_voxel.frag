@@ -22,7 +22,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 reflectedViewProj; // Reflected camera VP matrix for projective sampling
 } ubo;
 
-layout(set = 0, binding = 1) uniform sampler2D textureAtlas;
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 
 struct PointLightGPU {
