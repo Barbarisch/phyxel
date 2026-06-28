@@ -543,11 +543,11 @@ bool ChunkVoxelManager::addCube(
     // Mark chunk as dirty for smart saving
     m_setDirty(true);
     
-    // Add collision shape with reference counting
-    m_addCollision(localPos);
-    
-    // Only update neighbors during individual operations, not bulk loading
+    // Add collision shape with reference counting (skipped in bulk loading; endBulkOperation
+    // rebuilds all collision once — mirrors addSubcube/addMicrocube, fixes the cube-path perf gap).
     if (!m_isInBulkOperation()) {
+        m_addCollision(localPos);
+        // Only update neighbors during individual operations, not bulk loading
         m_updateNeighborCollisions(localPos);
     }
     
