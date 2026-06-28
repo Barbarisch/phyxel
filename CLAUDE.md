@@ -11,14 +11,18 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 ## Project Overview
 
-Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan XPBD/AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, character grounding, and left-click break debris). **Bullet Physics has been removed** from active builds (the `external/bullet3` submodule is kept for reference only). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
+Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan XPBD/AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, character grounding, and left-click break debris). **Bullet Physics has been removed** entirely (the `external/bullet3` submodule was dropped; the `stb_image`/`stb_truetype` headers it used to provide are now vendored at `external/stb`). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
 
 ## Build & Test Pipeline (REQUIRED)
 
 **Always use MCP tools for the build/test/debug cycle. Never run cmake or PowerShell build commands directly.**
 
 ### Build
-Use `build_project` MCP tool (not cmake in PowerShell). It streams output and handles the CMake path correctly.
+Use `build_project` MCP tool (not cmake in PowerShell). It runs the build off the MCP event loop
+and handles the CMake path correctly. **For long/full builds (especially `reconfigure: true`),
+call `build_project` with `background: true`, then poll `build_status`** before `launch_engine` —
+this returns immediately instead of tying up one tool call for many minutes. The foreground form
+(default) still works for quick incremental builds.
 
 ### Engine Lifecycle
 Use `launch_engine` / `stop_engine` / `restart_engine` / `engine_running`. The linker cannot overwrite `phyxel.exe` while it is running — always `stop_engine` before rebuilding.
@@ -74,33 +78,47 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
 
 ## Materials
 
-Data-driven from `resources/materials.json` (19 materials). Names are **case-sensitive**;
+Data-driven from `resources/materials.json` (29 materials). Names are **case-sensitive**;
 an unknown name renders as a magenta missing-texture checkerboard. Confirm live with the
 `list_materials` MCP tool. (Cork and Rubber no longer exist.)
 
-| Name        | Mass | Friction | Restitution | Notes |
-|-------------|------|----------|-------------|-------|
-| Default     | 1.0  | 0.5      | 0.3         | Error/fallback indicator |
-| Dirt        | 2.0  | 0.7      | 0.1         | Terrain sub-surface |
-| Grass       | 1.8  | 0.7      | 0.1         | Grass-topped dirt (terrain surface) |
-| Stone       | 6.0  | 0.8      | 0.05        | Dense smooth stone |
-| Cobblestone | 5.0  | 0.9      | 0.05        | Rough quarried stone |
-| StoneBricks | 6.0  | 0.8      | 0.05        | Cut stone blocks with mortar |
-| Sand        | 1.5  | 0.5      | 0.1         | Light granular |
-| Gravel      | 2.5  | 0.7      | 0.1         | Loose gravel |
-| Wood        | 0.7  | 0.6      | 0.2         | Oak planks |
-| Log         | 0.7  | 0.6      | 0.2         | Oak log, bark sides + ring caps |
-| Bricks      | 4.0  | 0.8      | 0.05        | Red clay bricks |
-| Sandstone   | 3.0  | 0.7      | 0.1         | Layered sandstone |
-| Glass       | 1.5  | 0.2      | 0.6         | Brittle, transparent |
-| Metal       | 4.0  | 0.7      | 0.1         | Heavy iron |
-| Gold        | 8.0  | 0.4      | 0.2         | Densest, lustrous |
-| Ice         | 0.9  | 0.1      | 0.4         | Very slippery |
-| Leaf        | 0.1  | 0.3      | 0.1         | Light foliage |
-| glow        | 1.0  | 0.5      | 0.5         | Emissive |
-| Mirror      | 2.5  | 0.4      | 0.1         | Reflective (mirror pass) |
+| Name         | Mass | Friction | Restitution | Notes |
+|--------------|------|----------|-------------|-------|
+| Default      | 1.0  | 0.5      | 0.3         | Error/fallback indicator |
+| Dirt         | 2.0  | 0.7      | 0.1         | Terrain sub-surface |
+| Grass        | 1.8  | 0.7      | 0.1         | Grass-topped dirt (terrain surface) |
+| GrassForest  | 1.8  | 0.7      | 0.1         | Deep forest grass (biome variant) |
+| GrassSavanna | 1.8  | 0.7      | 0.1         | Dry golden savanna grass (biome variant) |
+| Stone        | 6.0  | 0.8      | 0.05        | Dense smooth stone |
+| Cobblestone  | 5.0  | 0.9      | 0.05        | Rough quarried stone |
+| StoneBricks  | 6.0  | 0.8      | 0.05        | Cut stone blocks with mortar (1024px) |
+| Sand         | 1.5  | 0.5      | 0.1         | Light granular |
+| Gravel       | 2.5  | 0.7      | 0.1         | Loose gravel |
+| Wood         | 0.7  | 0.6      | 0.2         | Oak planks (1024px) |
+| Log          | 0.7  | 0.6      | 0.2         | Oak log, bark sides + ring caps |
+| LogBirch     | 0.7  | 0.6      | 0.2         | Pale birch log (biome variant) |
+| LogSpruce    | 0.7  | 0.6      | 0.2         | Dark spruce log (biome variant) |
+| Bricks       | 4.0  | 0.8      | 0.05        | Red clay bricks (1024px) |
+| Sandstone    | 3.0  | 0.7      | 0.1         | Layered sandstone |
+| Glass        | 1.5  | 0.2      | 0.6         | Brittle, transparent |
+| Metal        | 4.0  | 0.7      | 0.1         | Heavy iron (metallic) |
+| Gold         | 8.0  | 0.4      | 0.2         | Densest, lustrous (metallic) |
+| Ice          | 0.9  | 0.1      | 0.4         | Very slippery |
+| Leaf         | 0.1  | 0.3      | 0.1         | Light oak foliage |
+| LeafBirch    | 0.1  | 0.3      | 0.1         | Birch foliage (biome variant) |
+| LeafSpruce   | 0.1  | 0.3      | 0.1         | Spruce needles (biome variant) |
+| LeafJungle   | 0.1  | 0.3      | 0.1         | Jungle canopy (biome variant) |
+| LeafAutumn   | 0.1  | 0.3      | 0.1         | Orange autumn foliage (biome variant) |
+| glow         | 1.0  | 0.5      | 0.5         | Emissive (warm white) |
+| glow_blue    | 1.0  | 0.5      | 0.5         | Emissive blue |
+| glow_green   | 1.0  | 0.5      | 0.5         | Emissive green |
+| Mirror       | 2.5  | 0.4      | 0.1         | Reflective (mirror pass) |
 
-Atlas: 84 textures total, 512×512. Source PNGs in `resources/textures/source/`. Rebuild after atlas changes: `.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps)
+Textures are authored per-face per-material (source PNGs in `resources/textures/source/`) and packed
+into a **mixed-resolution `sampler2DArray`** (512px terrain / 1024px detail objects, BC7-compressed) —
+not a single fixed atlas. Materials with `"resolution": 1024` (e.g. StoneBricks, Wood, Bricks) use the
+high-res array. Full design: `docs/TextureSystemOverhaul.md`. Rebuild after texture changes:
+`.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps).
 Lookup: `MaterialRegistry::instance().getTextureIndex(materialID, faceID)` — data-driven via `resources/materials.json`
 
 ## Voxel Rendering Pipelines
@@ -109,7 +127,7 @@ Three separate vertex shaders handle voxels in different states. All share `voxe
 
 | Shader | Purpose | Instance Data | Sub-tile UV Method |
 |--------|---------|---------------|--------------------|
-| `static_voxel.vert` | Chunk voxels (baked into 32³ grid) | `InstanceData` (8B) — packed position, face, scaleLevel, subcube/microcube grid positions in bits 20-31 | GPU decodes grid positions per face |
+| `static_voxel.vert` | Chunk voxels (baked into 32³ grid) | `InstanceData` (20B) — packed position/face/scale + texture/flags + 3 per-corner lighting words (skylight + block light) | GPU decodes grid positions per face |
 | `dynamic_voxel.vert` | GPU particle debris (compute-expanded) | `DynamicSubcubeInstanceData` (64B) — world pos, scale, rotation, localPosition for grid | GPU decodes localPosition per face |
 | `kinematic_voxel.vert` | Moving rigid groups (doors, furniture, fragments) | `KinematicFaceData` (40B) — local pos, scale, pre-computed uvOffset | CPU pre-computes uvOffset in `buildFaces()` |
 
@@ -123,8 +141,8 @@ Spawnable via MCP `spawn_entity` or keybindings. Control mode toggled with **K**
 
 | Type       | Class                    | Notes |
 |------------|--------------------------|-------|
-| `physics`  | _(deprecated)_           | Bullet ragdoll `PhysicsCharacter` was moved to `engine/deprecated/bullet/` — not in active builds. The primary character is `animated`. |
-| `spider`   | _(deprecated?)_          | `SpiderCharacter` was archived with Bullet (`engine/deprecated/bullet/`) — likely non-functional; verify before relying on it. |
+| `physics`  | _(removed)_              | Bullet ragdoll `PhysicsCharacter` was deleted with the Bullet removal (recoverable from git history). The primary character is `animated`. |
+| `spider`   | _(removed)_              | `SpiderCharacter` was deleted with the Bullet removal — non-functional. Use `animated`. |
 | `animated` | `AnimatedVoxelCharacter` | .anim-based FSM: Idle/Walk/Run/Jump/Fall/Attack/Crouch/etc. Kinematic capsule; grounds against `VoxelDynamicsWorld` occupancy grids. |
 
 Animated: Jump (Space), Attack (Left Click), Crouch (Ctrl), Sprint (Shift), Derez (X).
@@ -245,6 +263,8 @@ In `resources/animated_characters/`:
 | X | Derez character |
 | N/B | Next/Prev Animation (Preview Mode) |
 
+> Full, authoritative keybinding list (incl. F2/Shift+F5/O/G, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
+
 ## MCP Server (AI Agent Bridge)
 
 Server: `scripts/mcp/phyxel_mcp_server.py` — HTTP API at `localhost:8090` (default; the server
@@ -312,7 +332,7 @@ tools/           # create_project.py, package_game.py, anim_editor.py, etc.
 scripts/mcp/     # MCP server for AI agents
 resources/       # Templates, animations, textures, sounds, recipes, rpg/
 shaders/         # GLSL shaders + compiled SPIR-V
-external/        # Third-party: bullet3 (reference only — NOT built/linked), glfw, glm, imgui, goose, miniaudio, sqlite3
+external/        # Third-party: stb (vendored image/font headers), glfw, glm, imgui, goose, blocksmith, miniaudio, sqlite3
 docs/            # Documentation
 ```
 
@@ -338,10 +358,10 @@ docs/            # Documentation
 ## Testing
 
 ```powershell
-# Unit tests (1614)
+# Unit tests (~2,300)
 .\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
 
-# Integration tests (36)
+# Integration tests (47)
 .\build\tests\integration\Debug\phyxel_integration_tests.exe --gtest_brief=1
 
 # Or use the build script

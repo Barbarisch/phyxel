@@ -11,9 +11,6 @@
 #include <chrono>
 #include "core/Cube.h"
 
-// Forward declarations
-class btRigidBody;
-
 namespace Phyxel {
 
 // Forward declarations within namespace

@@ -68,7 +68,7 @@ Two halves already exist and have never been connected:
 | `Core::CombatAISystem` | Drives enemy turns (pick target → move → attack → `endTurn`), but **execution is placeholder** (`setMoveVelocity` + instant attack, no animation). |
 | `Core::EncounterBuilder` | Encounter assembly. |
 | HTTP/MCP | `combat/state|start|next_turn|end|set_initiative`, plus `attack`, `cast_spell`. |
-| `ImGuiRenderer::renderCombatHUD` | COMBAT banner + initiative-order panel (basic). |
+| Combat HUD (`UISystem`) | COMBAT banner + initiative-order panel, rendered by the data-driven custom-Vulkan `UISystem` (the old ImGui `renderCombatHUD` stopgap was deleted — see S8). |
 
 **Real-time combat (the souls slice — the execution layer BG3 needs):**
 
@@ -126,7 +126,8 @@ weakest/most-dangerous target, multi-attack, AoE when clustered, death/flee hand
 `PlayerTurnController` binds a `TurnActor` to the player on their turn and executes
 move/attack/end-turn intents (movement debits the budget; attacks spend the action and
 resolve d20-vs-AC through the S2 funnel). Action bar (Action / Bonus / Movement / **End
-Turn**) in `renderCombatHUD`; real-time WASD/LMB suppressed during the player's turn. Intents
+Turn**) on the data-driven `UISystem` combat HUD (the old ImGui `renderCombatHUD` path was
+deleted — see S8); real-time WASD/LMB suppressed during the player's turn. Intents
 are HTTP/test-driven (`combat/player_move|player_attack|end_turn`). **Remaining for S6:**
 click-to-move + click-target picking (raycast), ability/spell selection.
 

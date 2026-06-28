@@ -90,7 +90,7 @@ Use this checklist after every change to `create_project.py`, `EngineRuntime`,
 |---|------|-----------------|-------|
 | 4.1 | Terrain shape | Gentle rolling hills, ~4 block height variation | |
 | 4.2 | Walkable | Player can walk across terrain without getting stuck | |
-| 4.3 | Materials | Surface=Default, sub-surface=Cork (brown), deep=Stone | |
+| 4.3 | Materials | Surface=Default, sub-surface=Dirt (brown), deep=Stone | |
 | 4.4 | Multi-chunk | Terrain spans multiple chunks seamlessly | |
 
 ---

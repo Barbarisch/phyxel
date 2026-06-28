@@ -1,7 +1,12 @@
 # Water System — Design
 
-> Status: **design / not yet implemented.** This document is the architecture and
-> phased roadmap for adding water to Phyxel. Branch: `feature/water-system`.
+> Status: **Phase 0+ implemented on main.** `Core::WaterManager` +
+> `Core::WaterSimulation` (`engine/include/core/`) provide the static water surface plus
+> a CPU cellular-automaton flow sim over a fixed world region (sloped per-corner surface
+> cells for rendering). The later phases below — implicit sea-level ocean, sparse active
+> regions, GPU compute port, planar reflection/refraction, buoyancy/swimming — remain
+> **TODO**. Branch: `feature/water-system`. The sections below remain the authoritative
+> design rationale.
 
 ## Goals (agreed scope)
 

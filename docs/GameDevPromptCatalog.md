@@ -49,7 +49,7 @@ A curated list of prompts for building voxel games with the Phyxel engine using 
 **Features tested:** `generate_world` (City), `add_point_light`, `set_day_night`, `screenshot`
 
 ### 6. Island with Beach
-> Generate a Perlin terrain (3x3 chunks, heightScale=6). Clear all voxels below Y=14 to create water level. Then fill the layer at Y=13 with Glass material to simulate water. Place Cork material along the shoreline (Y=14-15) to create a sandy beach effect.
+> Generate a Perlin terrain (3x3 chunks, heightScale=6). Clear all voxels below Y=14 to create water level. Then fill the layer at Y=13 with Glass material to simulate water. Place Sand material along the shoreline (Y=14-15) to create a sandy beach effect.
 
 **Features tested:** `generate_world` (Perlin), `clear_region`, `fill_region`, material variety
 
@@ -195,7 +195,7 @@ These prompts create full playable games that exercise many engine features simu
 **Features tested:** Underground building, lighting, combat NPCs, equipment, objectives, item rewards, dark atmosphere
 
 ### 30. Survival Island
-> Create a survival island game. Use Perlin terrain (5x5 chunks, low heightScale for gentle hills). Clear voxels below Y=13 for ocean (fill with Glass at Y=12 for water). Place Cork material at shore level for beaches. Build a small shelter using Wood. Add a Campfire spot with glow blocks. Create an NPC named "Castaway" with dialogue about survival tips. Add objectives: "Build a shelter", "Find fresh water", "Signal for rescue". Place crafting recipe for "wooden_planks". Set spawn on the beach. Add ambient music. Set day length to 300 seconds.
+> Create a survival island game. Use Perlin terrain (5x5 chunks, low heightScale for gentle hills). Clear voxels below Y=13 for ocean (fill with Glass at Y=12 for water). Place Sand material at shore level for beaches. Build a small shelter using Wood. Add a Campfire spot with glow blocks. Create an NPC named "Castaway" with dialogue about survival tips. Add objectives: "Build a shelter", "Find fresh water", "Signal for rescue". Place crafting recipe for "wooden_planks". Set spawn on the beach. Add ambient music. Set day length to 300 seconds.
 
 **Features tested:** Terrain editing, water simulation, materials variety, shelter building, NPC dialogue, objectives, crafting, music, day/night cycle
 
@@ -210,7 +210,7 @@ These prompts create full playable games that exercise many engine features simu
 **Features tested:** Multi-story building, dialogue choices, item quests, objectives, colored lights, snapshots
 
 ### 33. Racing Circuit
-> Create a racing track. Use Flat terrain (3x3 chunks). Build a 2-block-wide track using Metal material, elevated 1 block above the ground (at Y=17). Make it a circuit. Place Cork material as guardrails on both sides. Put glow blocks at checkpoints. Spawn the player at the starting line. Add objectives: "Complete Lap 1", "Complete Lap 2", "Complete Lap 3". Place point lights at each checkpoint. Add spectator NPCs along the track with idle behavior and speech bubbles ("Go! Go! Go!"). Set time to noon for good visibility.
+> Create a racing track. Use Flat terrain (3x3 chunks). Build a 2-block-wide track using Metal material, elevated 1 block above the ground (at Y=17). Make it a circuit. Place Wood material as guardrails on both sides. Put glow blocks at checkpoints. Spawn the player at the starting line. Add objectives: "Complete Lap 1", "Complete Lap 2", "Complete Lap 3". Place point lights at each checkpoint. Add spectator NPCs along the track with idle behavior and speech bubbles ("Go! Go! Go!"). Set time to noon for good visibility.
 
 **Features tested:** Track building, checkpoint lighting, objectives, spectator NPCs, speech bubbles
 

@@ -75,8 +75,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Engine ground truth (supersedes older docs/comments)
 
-- **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule is reference
-  only; `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
+- **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule was dropped
+  entirely; `stb_image`/`stb_truetype` are now vendored at `external/stb`;
+  `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
   - **`GpuParticlePhysics`** (Vulkan compute, warm-started) — the stable,
     count-scalable path; **destruction (`DamageSystem`) always routes here** via
     `queueSpawn`. Any doc/comment calling GPU/AVBD "broken/experimental" is STALE.
@@ -604,7 +605,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     Render-only; collision/physics untouched. The variable-size face format is the foundation
     Phase C reuses.
   - **Phase C — distance voxel LOD: ATTEMPTED, BROKEN, REVERTED (2026-06-15, reverts
-    `917dd09`/`acea8ef` of `1966a2e`/`6c9d74a`). Full writeup + retry plan: `docs/VoxelLOD_TODO.md`.**
+    `917dd09`/`acea8ef` of `1966a2e`/`6c9d74a`). Full writeup + retry plan was in `docs/VoxelLOD_TODO.md` (removed in the 2026-06-27 docs cleanup; recover from git history if revisiting).**
     Downsampled distant chunks to 16³/8³ + skirts.
     Earlier "verified" claims were INVALID — two compounding traps:
     1. **⚠️ RENDER-DISTANCE GOTCHA (remember this):** `Application::maxChunkRenderDistance` is
@@ -1009,7 +1010,7 @@ per frame. **Solved the editor-preview gap:** `UISystem` now renders LAST IN THE
 offscreen image (was post-process/swapchain), so the HUD shows in the editor Viewport panel AND ships
 via post-process — one pipeline, no ImGui. Verified in DebrisPushTest: bar reads "HP 100/100",
 `damage_player 62` → "HP 38/100". **The whole HUD-system work (19 commits) is now MERGED to `main`
-+ pushed** (was `feature/hud-system`); remaining work catalogued in `docs/HudSystem_TODO.md`.
++ pushed** (was `feature/hud-system`); remaining work catalogued in `docs/HudSystem.md` ("Open Items / Remaining Work" section).
 **Then re-homed the combat HUD onto `UISystem`**: round banner + turn label + action bar + hit-chance
 (`combat.*` providers, `visibleWhen`-gated) + **Initiative turn-order list** via a new `UIRepeater`
 widget + list binding + **End Turn** `UIButton`→`endTurn()` — all verified live in turn-based combat.

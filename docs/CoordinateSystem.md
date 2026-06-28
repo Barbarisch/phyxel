@@ -281,6 +281,131 @@ The coordinate system is optimized for the DDA (Digital Differential Analyzer) r
 
 ---
 
+## Detailed: Relative-Coordinate Strategy & InstanceData Bit-Packing
+
+> Merged from the former `CoordinateSystemDetailed.md`. Covers how positions are *stored*
+> on the GPU (as opposed to the index math above, which is about CPU array layout).
+
+### Relative-position strategy (memory optimization)
+
+Instead of storing absolute world positions per face, the static pipeline stores
+**chunk-relative coordinates** with only 5 bits per axis. There are three nested coordinate
+spaces, each expressed relative to its parent:
+
+| Space | Transform to parent | Storage |
+|-------|---------------------|---------|
+| **Chunk → World** | `worldPos = chunkOrigin + chunkRelativePos` | push constant (`chunkBaseOffset`, 12 B/chunk, shared by every face) |
+| **Cube → Chunk** | `chunkRelativePos = vec3(x,y,z)`, x,y,z ∈ [0,31] | 15 bits (5+5+5) in `packedData` |
+| **Sub/Microcube → Cube** | `cubeOffset = subcubePos*(1/3) + microcubePos*(1/9)` | bits in `packedData` |
+
+Net effect: **15 bits of position per face instead of 96 bits** (3× float32), an ~87%
+reduction, because the chunk origin is factored out into a single shared push constant.
+
+### InstanceData layout (current — 20 bytes)
+
+> ⚠️ Correction: earlier drafts of this material described `InstanceData` as 8 (or 16) bytes.
+> The live struct is **20 bytes** — the light fields were added for the baked-lighting system:
+
+```cpp
+struct InstanceData {
+    uint32_t packedData;      // 4 bytes — packed cube pos + face + scale/subcube grid
+    uint16_t textureIndex;    // 2 bytes
+    uint16_t reserved;        // 2 bytes
+    uint32_t light;           // 4 bytes — baked light field
+    uint32_t light2;          // 4 bytes
+    uint32_t light3;          // 4 bytes
+}  // Total: 20 bytes
+```
+
+### `packedData` bit field (decoded in `static_voxel.vert`)
+
+```
+Bits [0-14]:  Cube position (5+5+5 = 15 bits for a 32³ chunk)
+Bits [15-17]: Face ID (3 bits for 6 faces)
+Bits [18-19]: Scale level (0 = cube, 1 = subcube, 2 = microcube)
+Bits [20-25]: Parent subcube grid position (6 bits = 2+2+2 for a 3³ grid)
+Bits [26-31]: Microcube grid position (6 bits = 2+2+2 for a 3³ grid)
+```
+
+Shader reconstruction (sketch):
+
+```glsl
+uint chunkX = packedData & 0x1F;          // 0-31
+uint chunkY = (packedData >> 5) & 0x1F;
+uint chunkZ = (packedData >> 10) & 0x1F;
+vec3 basePos = pushConstants.chunkBaseOffset + vec3(chunkX, chunkY, chunkZ);
+
+uint scaleLevel = (packedData >> 18) & 0x3u;
+float scale = 1.0 / pow(3.0, float(scaleLevel));   // 1.0, 0.333, 0.111
+```
+
+### Microcube two-level hierarchy (why subcube grid is relative to the cube, micro to the subcube)
+
+Microcubes are 1/9 scale = a 9×9×9 grid within a parent cube, which would need 4 bits/axis
+(12 bits) if stored as one flat grid — more than the bit budget allows. Instead the scheme
+stores a microcube **relative to its parent subcube**:
+
+- Parent subcube grid position → which of 27 subcubes (0-2 per axis, 6 bits).
+- Microcube grid position → which of 27 microcubes *within that subcube* (0-2 per axis, 6 bits).
+
+```glsl
+if (scaleLevel == 2) {  // Microcube
+    vec3 subcubeOffset  = vec3(parentSubX, parentSubY, parentSubZ) * (1.0/3.0);
+    vec3 microcubeOffset = vec3(microX, microY, microZ) * (1.0/9.0);
+    worldPos = basePos + subcubeOffset + microcubeOffset;
+}
+```
+
+This keeps the cube/subcube/microcube hierarchy within `packedData` (no per-face size
+increase from subdivision) while still giving 27 subcubes × 27 microcubes = **729 microcubes
+per cube** — ample for sub-voxel detail.
+
+## Indexing reference
+
+> Merged from the former `IndexingReference.md`. The loop-order/stride material above is the
+> canonical statement; this section adds the general derivation, a worked numeric example, and
+> the bit-shift optimization not covered above.
+
+### General 3D→1D derivation
+
+For a 3D array with dimensions `(width=X, height=Y, depth=Z)` stored row-major with Z
+innermost (Phyxel's X-major populate order):
+
+```
+General form: index = x*(height*depth) + y*depth + z
+For 32³:      index = x*32*32 + y*32 + z = x*1024 + y*32 + z
+```
+
+i.e. the innermost loop variable (Z) gets coefficient 1; this is the Z-minor formula stated
+above (`z + y*32 + x*1024`).
+
+### Worked example (forward + reverse round-trip)
+
+```cpp
+glm::ivec3 pos(5, 10, 15);
+size_t index = pos.z + pos.y*32 + pos.x*1024;   // 15 + 320 + 5120 = 5455
+
+// Reverse:
+int z = 5455 % 32;          // 15
+int y = (5455 / 32) % 32;   // 170 % 32 = 10
+int x = 5455 / 1024;        // 5
+// → (5, 10, 15) ✓
+```
+
+### Bit-shift optimization
+
+Because 32 = 2⁵ and 1024 = 2¹⁰, the multiplies can be replaced by shifts:
+
+```cpp
+size_t index = z + (y << 5) + (x << 10);   // equivalent to z + y*32 + x*1024
+```
+
+### Related files
+
+- [`ChunkManager.h`](../include/core/ChunkManager.h) / [`ChunkManager.cpp`](../src/core/ChunkManager.cpp) — index calculation + populate loops
+- [`Math.cpp`](../src/utils/Math.cpp) — alternative indexing helpers
+- [`Application.cpp`](../src/Application.cpp) — coordinate debugging code
+
 ## See Also
 
 - [MultiChunkSystem.md](MultiChunkSystem.md) - Multi-chunk rendering architecture

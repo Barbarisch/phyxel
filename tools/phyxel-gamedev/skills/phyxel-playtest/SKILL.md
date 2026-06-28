@@ -19,7 +19,8 @@ world, not the game.
    have launched it; otherwise `launch_engine`. (Or `phyxel up` from a shell.)
 2. Poll `engine_running` until `api_responsive: true` before issuing commands.
 3. **`stop_engine` before any rebuild** — the linker cannot overwrite a running `phyxel.exe`.
-4. `build_project` → `launch_engine` again after a rebuild.
+4. `build_project` → `launch_engine` again after a rebuild. For a long/full build, use
+   `build_project` with `background: true` and poll `build_status` until it reports done, then launch.
 5. `restart_engine` for a clean reload.
 
 ## Verify by RUNNING, never just "it loaded"

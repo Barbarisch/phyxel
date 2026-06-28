@@ -1,9 +1,14 @@
 # Navigation Architecture (Design)
 
-> Status: **proposed** (design doc, not yet implemented). Supersedes the flat 2.5D
-> `NavGrid` used by `PatrolBehavior`. Goal: world-aware NPCs that choose routes
-> between locations across a destructible, potentially streamed, **multi-level**
-> voxel world.
+> Status: **Layer-1 foundation implemented on main.** `Core::NavGraph`
+> (`engine/include/core/NavGraph.h`) — the voxel-native TRUE-3D walkable-surface graph
+> (every standable level per XZ column, built alongside the legacy `NavGrid`) — and
+> `Core::PathService` (`engine/include/core/PathService.h`) — async worker-thread A*
+> query owner — are on main. The legacy flat 2.5D `Core::NavGrid` + `Core::AStarPathfinder`
+> still drive `PatrolBehavior` during migration. Deferred / **TODO**: Layer-2 HPA*
+> hierarchical routing, path caching + voxel-change dirtying, smoothing, ORCA/RVO local
+> avoidance, and full NPC-behavior integration. The sections below remain the
+> authoritative design rationale.
 
 ## Goals
 - **True 3D navigation** — multi-floor building interiors, bridges over paths,

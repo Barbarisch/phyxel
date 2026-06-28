@@ -1,8 +1,14 @@
 # Terrain Generation & Biomes — Design
 
-> Status: **design / not yet implemented.** This document is the architecture and
-> phased roadmap for streaming procedural terrain, infinite-Y generation, caves, and
-> biomes in Phyxel. No branch yet.
+> Status: **largely implemented on main.** Chunk streaming, column-first generation with
+> depth profiles, data-driven biomes (`resources/biomes.json`: temperature / moisture /
+> continentalness climate with Gaussian-blended per-biome height), and the flora
+> decoration pass (branch-driven trees via `Core::ProceduralTree` / `gen_tree.py`
+> templates) all landed. Per-world generation tuning is persisted via `Core::WorldRecipe`
+> (`world.db` `world_meta`). See **`docs/WorldRecipeAndFlora.md`** for the flora + world-recipe
+> design and remaining work. Deferred / **TODO**: caves/ore carving, water integration,
+> and the streaming worker thread (Phase 1c). The sections below remain the authoritative
+> design rationale.
 
 ## Goals (agreed scope)
 
