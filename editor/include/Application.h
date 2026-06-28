@@ -471,6 +471,8 @@ private:
     void registerWaterCommands();
     void registerDoorCommands();
     void registerLightCommands();
+    void registerSnapshotCommands();
+    void registerProfilingCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);

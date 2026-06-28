@@ -428,6 +428,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     registerWaterCommands();
     registerDoorCommands();
     registerLightCommands();
+    registerSnapshotCommands();
+    registerProfilingCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10193,6 +10195,162 @@ void Application::registerLightCommands() {
     });
 }
 
+// Region snapshot + undo/redo commands, migrated from the processAPICommands if-chain.
+// Use the free captureRegionAllLevels/placeVoxelEntries helpers and SnapshotManager.
+void Application::registerSnapshotCommands() {
+    auto& reg = m_commandRegistry;
+    auto needName = [](nlohmann::json& r) { r = {{"error", "Snapshot name required"}}; };
+    auto noSnap = [](nlohmann::json& r) { r = {{"error", "SnapshotManager not available"}}; };
+    auto noCMSnap = [](nlohmann::json& r) { r = {{"error", "ChunkManager or SnapshotManager not available"}}; };
+
+    // Clear a world-space region's cubes + subdivisions in chunk-batched form (shared by
+    // restore_snapshot/undo/redo). Returns cubes+subdivisions cleared.
+    auto clearRegion = [this](const glm::ivec3& mn, const glm::ivec3& mx) -> int {
+        int cleared = 0;
+        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
+        for (int ix = mn.x; ix <= mx.x; ++ix)
+            for (int iy = mn.y; iy <= mx.y; ++iy)
+                for (int iz = mn.z; iz <= mx.z; ++iz) {
+                    glm::ivec3 wp(ix, iy, iz);
+                    chunkBatches[ChunkManager::worldToChunkCoord(wp)].push_back(ChunkManager::worldToLocalCoord(wp));
+                }
+        for (auto& [cc, positions] : chunkBatches) {
+            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
+            if (!chunk) continue;
+            cleared += chunk->removeCubesBatch(positions);
+            for (const auto& p : positions)
+                if (chunk->clearSubdivisionAt(p)) ++cleared;
+        }
+        return cleared;
+    };
+
+    reg.on("create_snapshot", [this, needName, noCMSnap](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
+        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
+        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
+        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (volume > Core::SnapshotManager::MAX_VOLUME) {
+            r = {{"error", "Region too large"}, {"volume", volume}, {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
+            return;
+        }
+        Core::RegionSnapshot snap;
+        snap.name = name;
+        snap.min = glm::ivec3(minX, minY, minZ);
+        snap.max = glm::ivec3(maxX, maxY, maxZ);
+        snap.size = snap.max - snap.min + glm::ivec3(1);
+        snap.totalVolume = volume;
+        snap.createdAt = std::chrono::system_clock::now();
+        snap.voxels = captureRegionAllLevels(chunkManager, snap.min, snap.max);
+        bool ok = snapshotManager->addSnapshot(snap);
+        if (ok) {
+            r = {{"success", true}, {"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume},
+                 {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}}, {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
+            if (gameEventLog) gameEventLog->emit("snapshot_created", {{"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume}});
+        } else {
+            r = {{"error", "Snapshot name already exists or invalid"}, {"name", name}};
+        }
+    });
+
+    reg.on("restore_snapshot", [this, needName, noCMSnap, clearRegion](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        const auto* snap = snapshotManager->getSnapshot(name);
+        if (!snap) { r = {{"error", "Snapshot not found"}, {"name", name}}; return; }
+        int cleared = clearRegion(snap->min, snap->max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, snap->voxels, snap->min);
+        r = {{"success", true}, {"name", name}, {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
+        if (gameEventLog) gameEventLog->emit("snapshot_restored", {{"name", name}, {"cleared", cleared}, {"placed", placed}});
+    });
+
+    reg.on("delete_snapshot", [this, needName, noSnap](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!snapshotManager) return noSnap(r);
+        std::string name = cmd.params.value("name", "");
+        if (name.empty()) return needName(r);
+        bool ok = snapshotManager->deleteSnapshot(name);
+        r = {{"success", ok}, {"name", name}};
+    });
+
+    reg.on("undo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        if (!snapshotManager->canUndo()) { r = {{"error", "Nothing to undo"}, {"undo_depth", 0}}; return; }
+        Core::RegionSnapshot before = snapshotManager->popUndo();
+        Core::RegionSnapshot current;
+        current.name = before.name; current.min = before.min; current.max = before.max;
+        current.size = before.size; current.totalVolume = before.totalVolume;
+        current.createdAt = std::chrono::system_clock::now();
+        current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+        clearRegion(before.min, before.max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, before.voxels, before.min);
+        snapshotManager->pushRedo(std::move(current));
+        r = {{"success", true}, {"operation", before.name}, {"restored_voxels", placed}, {"failed", failed},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()}};
+        if (gameEventLog) gameEventLog->emit("undo", {{"operation", before.name}, {"restored", placed}});
+    });
+
+    reg.on("redo", [this, noCMSnap, clearRegion](const Core::APICommand&, nlohmann::json& r) {
+        if (!chunkManager || !snapshotManager) return noCMSnap(r);
+        if (!snapshotManager->canRedo()) { r = {{"error", "Nothing to redo"}, {"redo_depth", 0}}; return; }
+        Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
+        Core::RegionSnapshot current;
+        current.name = redoSnap.name; current.min = redoSnap.min; current.max = redoSnap.max;
+        current.size = redoSnap.size; current.totalVolume = redoSnap.totalVolume;
+        current.createdAt = std::chrono::system_clock::now();
+        current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
+        clearRegion(redoSnap.min, redoSnap.max);
+        auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
+        snapshotManager->pushUndoOnly(std::move(current));
+        r = {{"success", true}, {"operation", redoSnap.name}, {"restored_voxels", placed}, {"failed", failed},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()}};
+        if (gameEventLog) gameEventLog->emit("redo", {{"operation", redoSnap.name}, {"restored", placed}});
+    });
+
+    reg.on("get_undo_status", [this, noSnap](const Core::APICommand&, nlohmann::json& r) {
+        if (!snapshotManager) return noSnap(r);
+        auto undoEntries = snapshotManager->listUndoStack();
+        auto redoEntries = snapshotManager->listRedoStack();
+        auto toArr = [](const auto& entries) {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto& e : entries)
+                arr.push_back({{"label", e.label},
+                               {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
+                               {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
+                               {"voxel_count", e.voxelCount}});
+            return arr;
+        };
+        r = {{"can_undo", snapshotManager->canUndo()}, {"can_redo", snapshotManager->canRedo()},
+             {"undo_depth", snapshotManager->undoDepth()}, {"redo_depth", snapshotManager->redoDepth()},
+             {"undo_stack", toArr(undoEntries)}, {"redo_stack", toArr(redoEntries)}};
+    });
+}
+
+// Read-only profiling commands, migrated from the processAPICommands if-chain.
+void Application::registerProfilingCommands() {
+    auto& reg = m_commandRegistry;
+    reg.on("get_frame_profile", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json prof;
+        if (performanceProfiler) {
+            std::string s = performanceProfiler->dumpFrameToJSON();
+            prof = nlohmann::json::parse(s, nullptr, false);
+            if (prof.is_discarded()) prof = s; // fall back to raw string
+        }
+        r = {{"profile", prof}};
+    });
+    reg.on("get_gpu_scopes", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json arr = nlohmann::json::array();
+        if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
+            for (const auto& s : renderCoordinator->getGpuProfiler()->getResults())
+                arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
+        }
+        r = {{"scopes", arr}};
+    });
+}
+
 void Application::processAPICommands() {
 
     std::vector<Core::APICommand> commands;
@@ -10219,32 +10377,6 @@ void Application::processAPICommands() {
             // Water-sim commands (place_water/water_sync/set_sea_level/add_ocean_seed/
             // clear_ocean/place_spring/clear_springs/water_gpu/set_channel_region/water_save/
             // water_stats) moved to registerWaterCommands() via the CommandRegistry.
-
-            // Per-phase CPU frame profile tree (input/update/render + children) — for perf profiling
-            if (cmd.action == "get_frame_profile") {
-                nlohmann::json prof;
-                if (performanceProfiler) {
-                    std::string s = performanceProfiler->dumpFrameToJSON();
-                    prof = nlohmann::json::parse(s, nullptr, false);
-                    if (prof.is_discarded()) prof = s; // fall back to raw string
-                }
-                response = {{"profile", prof}};
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
-
-            // Per-pass GPU timings (timestamp scopes) — for perf profiling
-            if (cmd.action == "get_gpu_scopes") {
-                nlohmann::json arr = nlohmann::json::array();
-                if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
-                    for (const auto& s : renderCoordinator->getGpuProfiler()->getResults()) {
-                        arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
-                    }
-                }
-                response = {{"scopes", arr}};
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
             // Handle VFX commands early (avoids nesting depth limit)
             if (cmd.action == "spawn_vfx") {
@@ -12103,244 +12235,6 @@ void Application::processAPICommands() {
                 } else {
                     scriptingSystem->runCommand(code);
                     response = {{"success", true}, {"executed", code}};
-                }
-
-            // ================================================================
-            // SNAPSHOT COMMANDS
-            // ================================================================
-            } else if (cmd.action == "create_snapshot") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
-                        int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
-                        int minX = std::min(x1, x2), maxX = std::max(x1, x2);
-                        int minY = std::min(y1, y2), maxY = std::max(y1, y2);
-                        int minZ = std::min(z1, z2), maxZ = std::max(z1, z2);
-                        int64_t volume = (int64_t)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-                        if (volume > Core::SnapshotManager::MAX_VOLUME) {
-                            response = {{"error", "Region too large"}, {"volume", volume},
-                                        {"max_volume", Core::SnapshotManager::MAX_VOLUME}};
-                        } else {
-                            Core::RegionSnapshot snap;
-                            snap.name = name;
-                            snap.min = glm::ivec3(minX, minY, minZ);
-                            snap.max = glm::ivec3(maxX, maxY, maxZ);
-                            snap.size = snap.max - snap.min + glm::ivec3(1);
-                            snap.totalVolume = volume;
-                            snap.createdAt = std::chrono::system_clock::now();
-                            snap.voxels = captureRegionAllLevels(chunkManager, snap.min, snap.max);
-                            bool ok = snapshotManager->addSnapshot(snap);
-                            if (ok) {
-                                response = {{"success", true}, {"name", name},
-                                            {"voxel_count", snap.voxels.size()}, {"volume", volume},
-                                            {"min", {{"x", minX}, {"y", minY}, {"z", minZ}}},
-                                            {"max", {{"x", maxX}, {"y", maxY}, {"z", maxZ}}}};
-                                if (gameEventLog) {
-                                    gameEventLog->emit("snapshot_created", {
-                                        {"name", name}, {"voxel_count", snap.voxels.size()}, {"volume", volume}});
-                                }
-                            } else {
-                                response = {{"error", "Snapshot name already exists or invalid"}, {"name", name}};
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "restore_snapshot") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        const auto* snap = snapshotManager->getSnapshot(name);
-                        if (!snap) {
-                            response = {{"error", "Snapshot not found"}, {"name", name}};
-                        } else {
-                            // Clear the original region first (cubes + subcubes/microcubes)
-                            int cleared = 0;
-                            {
-                                std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                                for (int ix = snap->min.x; ix <= snap->max.x; ++ix)
-                                    for (int iy = snap->min.y; iy <= snap->max.y; ++iy)
-                                        for (int iz = snap->min.z; iz <= snap->max.z; ++iz) {
-                                            glm::ivec3 wp(ix, iy, iz);
-                                            chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                                .push_back(ChunkManager::worldToLocalCoord(wp));
-                                        }
-                                for (auto& [cc, positions] : chunkBatches) {
-                                    Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                                    if (!chunk) continue;
-                                    cleared += chunk->removeCubesBatch(positions);
-                                    for (const auto& p : positions)
-                                        if (chunk->clearSubdivisionAt(p)) ++cleared;
-                                }
-                            }
-                            // Restore voxels from snapshot
-                            auto [placed, failed] = placeVoxelEntries(chunkManager, snap->voxels, snap->min);
-                            response = {{"success", true}, {"name", name},
-                                        {"cleared", cleared}, {"placed", placed}, {"failed", failed}};
-                            if (gameEventLog) {
-                                gameEventLog->emit("snapshot_restored", {
-                                    {"name", name}, {"cleared", cleared}, {"placed", placed}});
-                            }
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "delete_snapshot") {
-                if (!snapshotManager) {
-                    response = {{"error", "SnapshotManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    if (name.empty()) {
-                        response = {{"error", "Snapshot name required"}};
-                    } else {
-                        bool ok = snapshotManager->deleteSnapshot(name);
-                        response = {{"success", ok}, {"name", name}};
-                    }
-                }
-
-            // ================================================================
-            // UNDO / REDO
-            // ================================================================
-            } else if (cmd.action == "undo") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else if (!snapshotManager->canUndo()) {
-                    response = {{"error", "Nothing to undo"}, {"undo_depth", 0}};
-                } else {
-                    // 1. Pop the "before" snapshot from the undo stack
-                    Core::RegionSnapshot before = snapshotManager->popUndo();
-
-                    // 2. Capture current state of that region for redo
-                    Core::RegionSnapshot current;
-                    current.name = before.name;
-                    current.min = before.min;
-                    current.max = before.max;
-                    current.size = before.size;
-                    current.totalVolume = before.totalVolume;
-                    current.createdAt = std::chrono::system_clock::now();
-                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
-
-                    // 3. Clear the region
-                    {
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = before.min.x; ix <= before.max.x; ++ix)
-                            for (int iy = before.min.y; iy <= before.max.y; ++iy)
-                                for (int iz = before.min.z; iz <= before.max.z; ++iz) {
-                                    glm::ivec3 wp(ix, iy, iz);
-                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                        .push_back(ChunkManager::worldToLocalCoord(wp));
-                                }
-                        for (auto& [cc, positions] : chunkBatches) {
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) continue;
-                            chunk->removeCubesBatch(positions);
-                            for (const auto& p : positions)
-                                chunk->clearSubdivisionAt(p);
-                        }
-                    }
-
-                    // 4. Restore the "before" state
-                    auto [placed, failed] = placeVoxelEntries(chunkManager, before.voxels, before.min);
-
-                    // 5. Push current state to redo (manual push since popUndo already locked/unlocked)
-                    snapshotManager->pushRedo(std::move(current));
-
-                    response = {{"success", true}, {"operation", before.name},
-                                {"restored_voxels", placed}, {"failed", failed},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()}};
-                    if (gameEventLog) {
-                        gameEventLog->emit("undo", {{"operation", before.name}, {"restored", placed}});
-                    }
-                }
-
-            } else if (cmd.action == "redo") {
-                if (!chunkManager || !snapshotManager) {
-                    response = {{"error", "ChunkManager or SnapshotManager not available"}};
-                } else if (!snapshotManager->canRedo()) {
-                    response = {{"error", "Nothing to redo"}, {"redo_depth", 0}};
-                } else {
-                    Core::RegionSnapshot redoSnap = snapshotManager->popRedo();
-
-                    // Capture current state for undo
-                    Core::RegionSnapshot current;
-                    current.name = redoSnap.name;
-                    current.min = redoSnap.min;
-                    current.max = redoSnap.max;
-                    current.size = redoSnap.size;
-                    current.totalVolume = redoSnap.totalVolume;
-                    current.createdAt = std::chrono::system_clock::now();
-                    current.voxels = captureRegionAllLevels(chunkManager, current.min, current.max);
-
-                    // Clear the region
-                    {
-                        std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, ChunkCoordHash> chunkBatches;
-                        for (int ix = redoSnap.min.x; ix <= redoSnap.max.x; ++ix)
-                            for (int iy = redoSnap.min.y; iy <= redoSnap.max.y; ++iy)
-                                for (int iz = redoSnap.min.z; iz <= redoSnap.max.z; ++iz) {
-                                    glm::ivec3 wp(ix, iy, iz);
-                                    chunkBatches[ChunkManager::worldToChunkCoord(wp)]
-                                        .push_back(ChunkManager::worldToLocalCoord(wp));
-                                }
-                        for (auto& [cc, positions] : chunkBatches) {
-                            Chunk* chunk = chunkManager->getChunkAtCoord(cc);
-                            if (!chunk) continue;
-                            chunk->removeCubesBatch(positions);
-                            for (const auto& p : positions)
-                                chunk->clearSubdivisionAt(p);
-                        }
-                    }
-
-                    // Restore the redo state
-                    auto [placed, failed] = placeVoxelEntries(chunkManager, redoSnap.voxels, redoSnap.min);
-
-                    // Push current to undo (without clearing redo  --  special push)
-                    snapshotManager->pushUndoOnly(std::move(current));
-
-                    response = {{"success", true}, {"operation", redoSnap.name},
-                                {"restored_voxels", placed}, {"failed", failed},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()}};
-                    if (gameEventLog) {
-                        gameEventLog->emit("redo", {{"operation", redoSnap.name}, {"restored", placed}});
-                    }
-                }
-
-            } else if (cmd.action == "get_undo_status") {
-                if (!snapshotManager) {
-                    response = {{"error", "SnapshotManager not available"}};
-                } else {
-                    auto undoEntries = snapshotManager->listUndoStack();
-                    auto redoEntries = snapshotManager->listRedoStack();
-                    nlohmann::json undoArr = nlohmann::json::array();
-                    for (const auto& e : undoEntries) {
-                        undoArr.push_back({{"label", e.label},
-                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
-                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
-                                           {"voxel_count", e.voxelCount}});
-                    }
-                    nlohmann::json redoArr = nlohmann::json::array();
-                    for (const auto& e : redoEntries) {
-                        redoArr.push_back({{"label", e.label},
-                                           {"min", {{"x", e.min.x}, {"y", e.min.y}, {"z", e.min.z}}},
-                                           {"max", {{"x", e.max.x}, {"y", e.max.y}, {"z", e.max.z}}},
-                                           {"voxel_count", e.voxelCount}});
-                    }
-                    response = {{"can_undo", snapshotManager->canUndo()},
-                                {"can_redo", snapshotManager->canRedo()},
-                                {"undo_depth", snapshotManager->undoDepth()},
-                                {"redo_depth", snapshotManager->redoDepth()},
-                                {"undo_stack", undoArr},
-                                {"redo_stack", redoArr}};
                 }
 
             // ================================================================
