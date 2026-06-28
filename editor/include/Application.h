@@ -469,6 +469,7 @@ private:
     // Domain command registrations (CommandRegistry-based, replacing if-chain branches one
     // domain at a time). Called once during init.
     void registerWaterCommands();
+    void registerDoorCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);

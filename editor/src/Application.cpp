@@ -426,6 +426,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Register CommandRegistry-based API handlers (incrementally replacing the processAPICommands
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
+    registerDoorCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -6930,147 +6931,6 @@ static bool handleDynamicFurnitureCommand(
     return false; // not a furniture command
 }
 
-// Helper: handle door management API commands (extracted to avoid nesting depth limit)
-static bool handleDoorCommand(
-    const Core::APICommand& cmd,
-    nlohmann::json& response,
-    Core::DoorManager* doorManager,
-    Core::PlacedObjectManager* placedObjectManager)
-{
-    if (cmd.action == "register_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
-            response = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            std::string tmplName = cmd.params.value("template_name", "");
-            int baseRot = cmd.params.value("base_rotation", 0);
-            float openAngle = cmd.params.value("open_angle", 90.0f);
-            float swingSpeed = cmd.params.value("swing_speed", 120.0f);
-            int   thickness  = cmd.params.value("thickness", 2);
-
-            glm::vec3 hingePos(0.0f);
-            if (cmd.params.contains("hinge")) {
-                hingePos.x = cmd.params["hinge"].value("x", 0.0f);
-                hingePos.y = cmd.params["hinge"].value("y", 0.0f);
-                hingePos.z = cmd.params["hinge"].value("z", 0.0f);
-            } else if (placedObjectManager) {
-                const auto* obj = placedObjectManager->get(poId);
-                if (obj) {
-                    hingePos = glm::vec3(obj->position);
-                }
-            }
-
-            bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
-            response = {{"success", ok}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "toggle_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->toggle(poId);
-            const auto& doors = doorManager->getDoors();
-            auto it = doors.find(poId);
-            if (it != doors.end()) {
-                response = {{"success", true}, {"placed_object_id", poId},
-                            {"is_open", it->second.isOpen},
-                            {"current_angle", it->second.currentAngle},
-                            {"target_angle", it->second.targetAngle}};
-            } else {
-                response = {{"error", "Door not found: " + poId}};
-            }
-        }
-        return true;
-    }
-
-    if (cmd.action == "open_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->open(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "close_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->close(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "list_doors") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else {
-            const auto& doors = doorManager->getDoors();
-            nlohmann::json doorList = nlohmann::json::array();
-            for (const auto& [id, state] : doors) {
-                doorList.push_back({
-                    {"placed_object_id", id},
-                    {"is_open", state.isOpen},
-                    {"locked", state.locked},
-                    {"current_angle", state.currentAngle},
-                    {"open_angle", state.openAngle},
-                    {"base_rotation", state.baseRotation},
-                    {"swing_speed", state.swingSpeed},
-                    {"settled", state.settled},
-                    {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
-                });
-            }
-            response = {{"doors", doorList}, {"count", doors.size()}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "set_door_lock") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            bool locked = cmd.params.value("locked", true);
-            std::string keyItemId = cmd.params.value("key_item_id", "");
-            doorManager->setLocked(poId, locked, keyItemId);
-            response = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
-        }
-        return true;
-    }
-
-    if (cmd.action == "unregister_door") {
-        if (!doorManager) {
-            response = {{"error", "DoorManager not available"}};
-        } else if (!cmd.params.contains("placed_object_id")) {
-            response = {{"error", "Missing 'placed_object_id'"}};
-        } else {
-            std::string poId = cmd.params.value("placed_object_id", "");
-            doorManager->unregisterDoor(poId);
-            response = {{"success", true}, {"placed_object_id", poId}};
-        }
-        return true;
-    }
-
-    return false; // not a door command
-}
-
 // Debug/Diagnostic API Command Dispatcher (extracted to reduce nesting depth in processAPICommands)
 // ============================================================================
 bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
@@ -10133,6 +9993,110 @@ void Application::registerWaterCommands() {
     });
 }
 
+// Door management commands, migrated from the static handleDoorCommand() helper onto the
+// CommandRegistry. Handlers read doorManager/placedObjectManager lazily at dispatch.
+void Application::registerDoorCommands() {
+    auto& reg = m_commandRegistry;
+    auto noDoor = [](nlohmann::json& r) { r = {{"error", "DoorManager not available"}}; };
+    auto needId = [](nlohmann::json& r) { r = {{"error", "Missing 'placed_object_id'"}}; };
+
+    reg.on("register_door", [this, noDoor](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id") || !cmd.params.contains("template_name")) {
+            r = {{"error", "Missing 'placed_object_id' or 'template_name'"}};
+            return;
+        }
+        std::string poId = cmd.params.value("placed_object_id", "");
+        std::string tmplName = cmd.params.value("template_name", "");
+        int baseRot = cmd.params.value("base_rotation", 0);
+        float openAngle = cmd.params.value("open_angle", 90.0f);
+        float swingSpeed = cmd.params.value("swing_speed", 120.0f);
+        int   thickness  = cmd.params.value("thickness", 2);
+        glm::vec3 hingePos(0.0f);
+        if (cmd.params.contains("hinge")) {
+            hingePos.x = cmd.params["hinge"].value("x", 0.0f);
+            hingePos.y = cmd.params["hinge"].value("y", 0.0f);
+            hingePos.z = cmd.params["hinge"].value("z", 0.0f);
+        } else if (placedObjectManager) {
+            const auto* obj = placedObjectManager->get(poId);
+            if (obj) hingePos = glm::vec3(obj->position);
+        }
+        bool ok = doorManager->registerDoor(poId, tmplName, hingePos, baseRot, openAngle, swingSpeed, thickness);
+        r = {{"success", ok}, {"placed_object_id", poId}};
+    });
+
+    reg.on("toggle_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->toggle(poId);
+        const auto& doors = doorManager->getDoors();
+        auto it = doors.find(poId);
+        if (it != doors.end()) {
+            r = {{"success", true}, {"placed_object_id", poId},
+                 {"is_open", it->second.isOpen},
+                 {"current_angle", it->second.currentAngle},
+                 {"target_angle", it->second.targetAngle}};
+        } else {
+            r = {{"error", "Door not found: " + poId}};
+        }
+    });
+
+    reg.on("open_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->open(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+
+    reg.on("close_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->close(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+
+    reg.on("list_doors", [this, noDoor](const Core::APICommand&, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        const auto& doors = doorManager->getDoors();
+        nlohmann::json doorList = nlohmann::json::array();
+        for (const auto& [id, state] : doors) {
+            doorList.push_back({
+                {"placed_object_id", id},
+                {"is_open", state.isOpen},
+                {"locked", state.locked},
+                {"current_angle", state.currentAngle},
+                {"open_angle", state.openAngle},
+                {"base_rotation", state.baseRotation},
+                {"swing_speed", state.swingSpeed},
+                {"settled", state.settled},
+                {"hinge", {{"x", state.worldHingePos.x}, {"y", state.worldHingePos.y}, {"z", state.worldHingePos.z}}}
+            });
+        }
+        r = {{"doors", doorList}, {"count", doors.size()}};
+    });
+
+    reg.on("set_door_lock", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        bool locked = cmd.params.value("locked", true);
+        std::string keyItemId = cmd.params.value("key_item_id", "");
+        doorManager->setLocked(poId, locked, keyItemId);
+        r = {{"success", true}, {"placed_object_id", poId}, {"locked", locked}};
+    });
+
+    reg.on("unregister_door", [this, noDoor, needId](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!doorManager) return noDoor(r);
+        if (!cmd.params.contains("placed_object_id")) return needId(r);
+        std::string poId = cmd.params.value("placed_object_id", "");
+        doorManager->unregisterDoor(poId);
+        r = {{"success", true}, {"placed_object_id", poId}};
+    });
+}
+
 void Application::processAPICommands() {
 
     std::vector<Core::APICommand> commands;
@@ -11846,9 +11810,6 @@ void Application::processAPICommands() {
 
             } else if (cmd.action == "list_structure_types") {
                 response = {{"types", Core::StructureGenerator::getStructureTypes()}};
-
-            } else if (handleDoorCommand(cmd, response, doorManager.get(), placedObjectManager.get())) {
-                // Handled by door helper
 
             } else if (cmd.action == "query_interaction") {
                 // Debug: return current InteractionManager state
