@@ -266,6 +266,7 @@ public:
     size_t getSubcubeEntityCount() const;                             // Get subcube collision entity count
     void debugPrintSpatialGridStats() const;                          // Print comprehensive spatial grid performance statistics
     void updateNeighborCollisionShapes(const glm::ivec3& localPos);   // Update collision shapes of neighboring cubes
+    void beginBulkOperation();                                         // Begin bulk loading: skip per-voxel collision adds (rebuilt once by endBulkOperation)
     void endBulkOperation();                                           // End bulk loading and update all neighbor collision shapes
     
     // Bounding box access for culling

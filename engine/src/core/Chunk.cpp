@@ -776,6 +776,13 @@ void Chunk::updateNeighborCollisionShapes(const glm::ivec3& localPos) {
     );
 }
 
+void Chunk::beginBulkOperation() {
+    // Skip per-voxel collision-shape creation during a bulk load (structure place / template spawn);
+    // endBulkOperation() rebuilds all collision once. Without this, placing tens of thousands of
+    // subcubes pays a per-voxel collision add — the build-freeze hot spot.
+    physicsManager.setInBulkOperation(true);
+}
+
 void Chunk::endBulkOperation() {
     physicsManager.endBulkOperation(
         [this]() -> const std::vector<std::unique_ptr<Cube>>& { return cubes; },

@@ -1,8 +1,11 @@
 #include "core/StructureGenerator.h"
 #include "core/ChunkManager.h"
+#include "core/Chunk.h"
+#include "utils/CoordinateUtils.h"
 #include "utils/Logger.h"
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <set>
 
 namespace Phyxel {
@@ -1713,34 +1716,38 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
                  std::to_string((total + kPlacementStep - 1) / kPlacementStep) + " steps");
     }
 
+    // BATCH placement: write each voxel STRAIGHT to its chunk, bypassing the per-voxel mod-system
+    // wrappers. Those wrappers run, per call, a discarded LOG_DEBUG_FMT (builds an ostringstream) +
+    // FaceUpdateCoordinator::updateAfterCubePlace (allocates a vector + a std::set + neighbour
+    // lookups). At tens of thousands of voxels that per-voxel STL churn dominated — ~14 s for a 65k-
+    // voxel tavern in a Debug build. Here we mark each TOUCHED chunk dirty exactly ONCE at the end
+    // (same dirty/neighbour semantics, O(chunks) not O(voxels)); the mesh rebuilds once per chunk at
+    // render, so the visual result is identical.
+    std::map<Chunk*, glm::ivec3> touched;   // chunk -> a representative world pos (for the single update)
     for (size_t i = 0; i < total; ++i) {
         const auto& voxel = structure.voxels[i];
-        // A tall structure spans multiple vertical chunks; the material/subcube/microcube
-        // placement paths (unlike addCube) don't auto-create their chunk, so a voxel above
-        // the generated chunk-Y band would silently fail. Materialize the owning chunk first
-        // so the structure crosses every vertical seam (KI-3). Existing chunks are a cheap
-        // lookup; a new chunk is created at most once.
+        // A tall structure spans multiple vertical chunks; materialize the owning chunk first so the
+        // structure crosses every vertical seam (KI-3). Existing chunks are a cheap lookup.
         chunkManager->ensureChunkAt(voxel.position);
+        Chunk* chunk = chunkManager->getChunkAtFast(voxel.position);
+        if (!chunk) { result.failed++; continue; }
+        auto ins = touched.emplace(chunk, voxel.position);
+        if (ins.second) chunk->beginBulkOperation();   // first touch: defer per-voxel collision
+        const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(voxel.position);
         bool ok = false;
         switch (voxel.level) {
         case VoxelLevel::Subcube:
-            ok = chunkManager->m_voxelModificationSystem.addSubcubeWithMaterial(
-                voxel.position, voxel.subcubePos, voxel.material.empty() ? "Default" : voxel.material);
+            ok = chunk->addSubcube(lp, voxel.subcubePos, voxel.material.empty() ? "Default" : voxel.material);
             break;
         case VoxelLevel::Microcube:
-            ok = chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                voxel.position, voxel.subcubePos, voxel.microcubePos,
-                voxel.material.empty() ? "Default" : voxel.material);
+            ok = chunk->addMicrocube(lp, voxel.subcubePos, voxel.microcubePos,
+                                     voxel.material.empty() ? "Default" : voxel.material);
             break;
         default: // Cube
-            if (!voxel.material.empty()) {
-                ok = chunkManager->m_voxelModificationSystem.addCubeWithMaterial(voxel.position, voxel.material);
-            } else {
-                ok = chunkManager->addCube(voxel.position);
-            }
+            ok = voxel.material.empty() ? chunk->addCube(lp) : chunk->addCube(lp, voxel.material);
             break;
         }
-        if (ok) result.placed++;
+        if (ok) { result.placed++; touched[chunk] = voxel.position; }
         else result.failed++;
 
         if (total > kPlacementStep && (i + 1) % kPlacementStep == 0) {
@@ -1749,6 +1756,13 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
                      std::to_string(result.placed) + " placed, " +
                      std::to_string(result.failed) + " failed)");
         }
+    }
+
+    // Per touched chunk, ONCE: rebuild all collision shapes (endBulkOperation) + mark faces dirty.
+    // Replaces the per-voxel collision add + face update that made a 65k-voxel build freeze ~14 s.
+    for (const auto& entry : touched) {
+        entry.first->endBulkOperation();
+        chunkManager->updateAfterCubePlace(entry.second);
     }
 
     return result;
