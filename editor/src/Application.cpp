@@ -432,6 +432,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     registerProfilingCommands();
     registerEffectsCommands();
     registerEnvAudioCommands();
+    registerCameraCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10412,6 +10413,92 @@ void Application::registerEffectsCommands() {
     });
 }
 
+// Camera control + named camera-slot commands, migrated from the processAPICommands if-chain.
+// (capture_screenshot stays inline -- it is frame-capture/file I/O, not camera control.)
+void Application::registerCameraCommands() {
+    auto& reg = m_commandRegistry;
+
+    reg.on("set_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("position") && inputManager) {
+            float x = cmd.params["position"].value("x", 0.0f);
+            float y = cmd.params["position"].value("y", 0.0f);
+            float z = cmd.params["position"].value("z", 0.0f);
+            inputManager->setCameraPosition(glm::vec3(x, y, z));
+        }
+        if (cmd.params.contains("yaw") && inputManager) {
+            float yaw = cmd.params.value("yaw", 0.0f);
+            float pitch = cmd.params.value("pitch", 0.0f);
+            inputManager->setYawPitch(yaw, pitch);
+        }
+        bool modeError = false;
+        if (cmd.params.contains("mode") && camera) {
+            const std::string mode = cmd.params.value("mode", "");
+            if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::FirstPerson);
+            } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::ThirdPerson);
+            } else if (mode == "free" || mode == "Free") {
+                gameplayRigOverride_.clear();
+                camera->setMode(Graphics::CameraMode::Free);
+            } else if (Graphics::makeCameraRig(mode)) {
+                gameplayRigOverride_ = mode;
+                if (camera->getMode() == Graphics::CameraMode::Free)
+                    camera->setMode(Graphics::CameraMode::ThirdPerson);
+            } else {
+                r = {{"error", "Unknown camera mode '" + mode +
+                     "' (expected first_person/third_person/free/overhead/isometric)"}};
+                modeError = true;
+            }
+        }
+        if (!modeError && cmd.params.contains("control_scheme")) {
+            const std::string scheme = cmd.params.value("control_scheme", "");
+            if (!cameraCtl_.setSchemeByName(scheme)) {
+                r = {{"error", "Unknown control scheme '" + scheme + "' (expected fps/tank)"}};
+                modeError = true;
+            }
+        }
+        if (!modeError) r = {{"success", true}, {"rig", gameplayRigOverride_}, {"control_scheme", cameraCtl_.schemeName()}};
+    });
+
+    reg.on("create_camera_slot", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("name")) { r = {{"error", "Missing name or CameraManager not available"}}; return; }
+        Graphics::CameraSlot slot;
+        slot.name = cmd.params.value("name", "");
+        if (cmd.params.contains("position")) {
+            slot.position.x = cmd.params["position"].value("x", 0.0f);
+            slot.position.y = cmd.params["position"].value("y", 0.0f);
+            slot.position.z = cmd.params["position"].value("z", 0.0f);
+        }
+        slot.yaw = cmd.params.value("yaw", -90.0f);
+        slot.pitch = cmd.params.value("pitch", 0.0f);
+        int idx = cameraManager->createSlot(slot);
+        r = {{"success", idx >= 0}, {"index", idx}};
+    });
+
+    reg.on("set_active_camera_slot", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("name")) { r = {{"error", "Missing name or CameraManager not available"}}; return; }
+        std::string name = cmd.params.value("name", "");
+        float duration = cmd.params.value("transition_duration", 0.0f);
+        bool ok = (duration > 0.0f) ? cameraManager->transitionToSlot(name, duration) : cameraManager->setActiveSlot(name);
+        r = {{"success", ok}};
+    });
+
+    reg.on("follow_entity_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!cameraManager || !cmd.params.contains("slot") || !cmd.params.contains("entity_id")) {
+            r = {{"error", "Missing slot/entity_id or CameraManager not available"}};
+            return;
+        }
+        std::string slotName = cmd.params.value("slot", "");
+        std::string entityId = cmd.params.value("entity_id", "");
+        float distance = cmd.params.value("distance", 5.0f);
+        float height = cmd.params.value("height", 1.5f);
+        bool ok = cameraManager->followEntity(slotName, entityId, distance, height);
+        r = {{"success", ok}};
+    });
+}
+
 // Day/night cycle, ambient light, and audio commands, migrated from the processAPICommands if-chain.
 void Application::registerEnvAudioCommands() {
     auto& reg = m_commandRegistry;
@@ -12085,99 +12172,6 @@ void Application::processAPICommands() {
                 // Debug: trigger interactWithNPC() from API (bypasses keyboard)
                 interactWithNPC();
                 response = {{"success", true}, {"triggered", true}};
-
-            } else if (cmd.action == "set_camera") {
-                if (cmd.params.contains("position") && inputManager) {
-                    float x = cmd.params["position"].value("x", 0.0f);
-                    float y = cmd.params["position"].value("y", 0.0f);
-                    float z = cmd.params["position"].value("z", 0.0f);
-                    inputManager->setCameraPosition(glm::vec3(x, y, z));
-                }
-                if (cmd.params.contains("yaw") && inputManager) {
-                    float yaw = cmd.params.value("yaw", 0.0f);
-                    float pitch = cmd.params.value("pitch", 0.0f);
-                    inputManager->setYawPitch(yaw, pitch);
-                }
-                // Optional camera mode: first_person / third_person / free /
-                // overhead / isometric. The ortho modes set a gameplay-rig
-                // override (the rig owns positioning + projection) and force a
-                // non-Free CameraMode so the gameplay-controller branch runs;
-                // first/third clear the override so V-toggle behavior returns.
-                bool modeError = false;
-                if (cmd.params.contains("mode") && camera) {
-                    const std::string mode = cmd.params.value("mode", "");
-                    if (mode == "first_person" || mode == "FirstPerson" || mode == "first") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::FirstPerson);
-                    } else if (mode == "third_person" || mode == "ThirdPerson" || mode == "third") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    } else if (mode == "free" || mode == "Free") {
-                        gameplayRigOverride_.clear();
-                        camera->setMode(Graphics::CameraMode::Free);
-                    } else if (Graphics::makeCameraRig(mode)) {
-                        gameplayRigOverride_ = mode;
-                        if (camera->getMode() == Graphics::CameraMode::Free)
-                            camera->setMode(Graphics::CameraMode::ThirdPerson);
-                    } else {
-                        response = {{"error", "Unknown camera mode '" + mode +
-                                     "' (expected first_person/third_person/free/overhead/isometric)"}};
-                        modeError = true;
-                    }
-                }
-                // Optional gameplay control scheme: fps / tank
-                if (!modeError && cmd.params.contains("control_scheme")) {
-                    const std::string scheme = cmd.params.value("control_scheme", "");
-                    if (!cameraCtl_.setSchemeByName(scheme)) {
-                        response = {{"error", "Unknown control scheme '" + scheme +
-                                     "' (expected fps/tank)"}};
-                        modeError = true;
-                    }
-                }
-                if (!modeError) response = {{"success", true},
-                                            {"rig", gameplayRigOverride_},
-                                            {"control_scheme", cameraCtl_.schemeName()}};
-
-            } else if (cmd.action == "create_camera_slot") {
-                if (!cameraManager || !cmd.params.contains("name")) {
-                    response = {{"error", "Missing name or CameraManager not available"}};
-                } else {
-                    Graphics::CameraSlot slot;
-                    slot.name = cmd.params.value("name", "");
-                    if (cmd.params.contains("position")) {
-                        slot.position.x = cmd.params["position"].value("x", 0.0f);
-                        slot.position.y = cmd.params["position"].value("y", 0.0f);
-                        slot.position.z = cmd.params["position"].value("z", 0.0f);
-                    }
-                    slot.yaw = cmd.params.value("yaw", -90.0f);
-                    slot.pitch = cmd.params.value("pitch", 0.0f);
-                    int idx = cameraManager->createSlot(slot);
-                    response = {{"success", idx >= 0}, {"index", idx}};
-                }
-
-            } else if (cmd.action == "set_active_camera_slot") {
-                if (!cameraManager || !cmd.params.contains("name")) {
-                    response = {{"error", "Missing name or CameraManager not available"}};
-                } else {
-                    std::string name = cmd.params.value("name", "");
-                    float duration = cmd.params.value("transition_duration", 0.0f);
-                    bool ok = (duration > 0.0f)
-                        ? cameraManager->transitionToSlot(name, duration)
-                        : cameraManager->setActiveSlot(name);
-                    response = {{"success", ok}};
-                }
-
-            } else if (cmd.action == "follow_entity_camera") {
-                if (!cameraManager || !cmd.params.contains("slot") || !cmd.params.contains("entity_id")) {
-                    response = {{"error", "Missing slot/entity_id or CameraManager not available"}};
-                } else {
-                    std::string slotName = cmd.params.value("slot", "");
-                    std::string entityId = cmd.params.value("entity_id", "");
-                    float distance = cmd.params.value("distance", 5.0f);
-                    float height = cmd.params.value("height", 1.5f);
-                    bool ok = cameraManager->followEntity(slotName, entityId, distance, height);
-                    response = {{"success", ok}};
-                }
 
             } else if (cmd.action == "capture_screenshot") {
                 // Capture the current frame via RenderCoordinator
