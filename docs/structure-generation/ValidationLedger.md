@@ -135,6 +135,13 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
   stories=2 from the New Inn, Gloucester). solution-auditor PASS.
+  - **Silent furniture drop — ✅ FIXED (found by the runtime pass):** the placer capped at ONE piece per
+    wall and dropped the overflow with no record ("0 skipped" lied) — the taproom shipped missing its
+    bar_stool/bench/candle_stand/fireplace. Now `furnish()` PACKS along walls (multiple per wall) + takes
+    an `unplaced` out-param (honest: any no-fit is reported, never dropped); handler returns
+    `fixtures_unplaced` + WARN-logs. `PlacementReportTest` ×4 (full-furnish, packs>5, nothing-vanishes
+    teeth, back-compat); RUNTIME-confirmed taproom 3→7 fixtures (engine "placed 19", was 15), back_bar now
+    adjacent to the bar. solution-auditor PASS.
   - **Furniture conformance — ✅ ALL 16 grounded (0 non-conforming):** regenerated the 5 that drifted —
     `table_wood`/`tavern_table` (were oversized/no-canon), `counter` (had no metrics), `barrel` (no canon
     → grounded 53-gal cask, modern-standard disclosed), `bench_wood` (no checkable dims → added bounding
