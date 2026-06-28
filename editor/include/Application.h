@@ -474,6 +474,7 @@ private:
     void registerSnapshotCommands();
     void registerProfilingCommands();
     void registerEffectsCommands();
+    void registerEnvAudioCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);

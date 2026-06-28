@@ -431,6 +431,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     registerSnapshotCommands();
     registerProfilingCommands();
     registerEffectsCommands();
+    registerEnvAudioCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10411,6 +10412,65 @@ void Application::registerEffectsCommands() {
     });
 }
 
+// Day/night cycle, ambient light, and audio commands, migrated from the processAPICommands if-chain.
+void Application::registerEnvAudioCommands() {
+    auto& reg = m_commandRegistry;
+    auto noRC = [](nlohmann::json& r) { r = {{"error", "RenderCoordinator not available"}}; };
+    auto noAudio = [](nlohmann::json& r) { r = {{"error", "AudioSystem not available"}}; };
+    auto channelFrom = [](const std::string& s, Core::AudioChannel deflt) {
+        if (s == "Master") return Core::AudioChannel::Master;
+        if (s == "SFX") return Core::AudioChannel::SFX;
+        if (s == "Music") return Core::AudioChannel::Music;
+        if (s == "Voice") return Core::AudioChannel::Voice;
+        return deflt;
+    };
+
+    reg.on("daynight_set", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& cycle = renderCoordinator->getDayNightCycle();
+        if (cmd.params.contains("timeOfDay")) cycle.setTimeOfDay(cmd.params["timeOfDay"].get<float>());
+        if (cmd.params.contains("dayLengthSeconds")) cycle.setDayLengthSeconds(cmd.params["dayLengthSeconds"].get<float>());
+        if (cmd.params.contains("timeScale")) cycle.setTimeScale(cmd.params["timeScale"].get<float>());
+        if (cmd.params.contains("dayNumber")) cycle.setDayNumber(cmd.params["dayNumber"].get<int>());
+        if (cmd.params.contains("enabled")) cycle.setEnabled(cmd.params["enabled"].get<bool>());
+        if (cmd.params.contains("paused")) cycle.setPaused(cmd.params["paused"].get<bool>());
+        r = {{"success", true}, {"daynight", cycle.toJson()}};
+    });
+
+    reg.on("set_ambient", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        float strength = cmd.params.value("strength", 1.0f);
+        renderCoordinator->setAmbientLightStrength(strength);
+        r = {{"success", true}, {"ambient_strength", renderCoordinator->getAmbientLightStrength()}};
+    });
+
+    reg.on("play_sound", [this, noAudio, channelFrom](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!audioSystem) return noAudio(r);
+        std::string file = cmd.params.value("file", "");
+        if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
+        std::string path = "resources/sounds/" + file;
+        float volume = cmd.params.value("volume", 1.0f);
+        Core::AudioChannel channel = channelFrom(cmd.params.value("channel", std::string("SFX")), Core::AudioChannel::SFX);
+        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
+            glm::vec3 pos(cmd.params["x"].get<float>(), cmd.params["y"].get<float>(), cmd.params["z"].get<float>());
+            audioSystem->playSound3D(path, pos, channel, volume);
+            r = {{"success", true}, {"file", file}, {"mode", "3D"},
+                 {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+        } else {
+            audioSystem->playSound(path, channel, volume);
+            r = {{"success", true}, {"file", file}, {"mode", "2D"}};
+        }
+    });
+
+    reg.on("set_volume", [this, noAudio, channelFrom](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!audioSystem) return noAudio(r);
+        std::string channelStr = cmd.params.value("channel", std::string("Master"));
+        float volume = cmd.params.value("volume", 1.0f);
+        audioSystem->setChannelVolume(channelFrom(channelStr, Core::AudioChannel::Master), volume);
+        r = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
+    });
+}
+
 // Read-only profiling commands, migrated from the processAPICommands if-chain.
 void Application::registerProfilingCommands() {
     auto& reg = m_commandRegistry;
@@ -13460,94 +13520,6 @@ void Application::processAPICommands() {
                     bool creative = cmd.params.value("enabled", true);
                     inventory->setCreativeMode(creative);
                     response = {{"success", true}, {"creative", creative}};
-                }
-
-            // ================================================================
-            // DAY/NIGHT CYCLE COMMANDS
-            // ================================================================
-            } else if (cmd.action == "daynight_set") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& cycle = renderCoordinator->getDayNightCycle();
-                    if (cmd.params.contains("timeOfDay")) {
-                        cycle.setTimeOfDay(cmd.params["timeOfDay"].get<float>());
-                    }
-                    if (cmd.params.contains("dayLengthSeconds")) {
-                        cycle.setDayLengthSeconds(cmd.params["dayLengthSeconds"].get<float>());
-                    }
-                    if (cmd.params.contains("timeScale")) {
-                        cycle.setTimeScale(cmd.params["timeScale"].get<float>());
-                    }
-                    if (cmd.params.contains("dayNumber")) {
-                        cycle.setDayNumber(cmd.params["dayNumber"].get<int>());
-                    }
-                    if (cmd.params.contains("enabled")) {
-                        cycle.setEnabled(cmd.params["enabled"].get<bool>());
-                    }
-                    if (cmd.params.contains("paused")) {
-                        cycle.setPaused(cmd.params["paused"].get<bool>());
-                    }
-                    response = {{"success", true}, {"daynight", cycle.toJson()}};
-                }
-
-            // ================================================================
-            // LIGHTING COMMANDS
-            // ================================================================
-            } else if (cmd.action == "set_ambient") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    float strength = cmd.params.value("strength", 1.0f);
-                    renderCoordinator->setAmbientLightStrength(strength);
-                    response = {{"success", true}, {"ambient_strength", renderCoordinator->getAmbientLightStrength()}};
-                }
-
-            // ================================================================
-            // AUDIO COMMANDS
-            // ================================================================
-            } else if (cmd.action == "play_sound") {
-                if (!audioSystem) {
-                    response = {{"error", "AudioSystem not available"}};
-                } else {
-                    std::string file = cmd.params.value("file", "");
-                    if (file.empty()) {
-                        response = {{"error", "Missing 'file' field"}};
-                    } else {
-                        std::string path = "resources/sounds/" + file;
-                        float volume = cmd.params.value("volume", 1.0f);
-                        std::string channelStr = cmd.params.value("channel", "SFX");
-                        Core::AudioChannel channel = Core::AudioChannel::SFX;
-                        if (channelStr == "Master") channel = Core::AudioChannel::Master;
-                        else if (channelStr == "Music") channel = Core::AudioChannel::Music;
-                        else if (channelStr == "Voice") channel = Core::AudioChannel::Voice;
-
-                        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
-                            glm::vec3 pos(cmd.params["x"].get<float>(),
-                                          cmd.params["y"].get<float>(),
-                                          cmd.params["z"].get<float>());
-                            audioSystem->playSound3D(path, pos, channel, volume);
-                            response = {{"success", true}, {"file", file}, {"mode", "3D"},
-                                        {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
-                        } else {
-                            audioSystem->playSound(path, channel, volume);
-                            response = {{"success", true}, {"file", file}, {"mode", "2D"}};
-                        }
-                    }
-                }
-
-            } else if (cmd.action == "set_volume") {
-                if (!audioSystem) {
-                    response = {{"error", "AudioSystem not available"}};
-                } else {
-                    std::string channelStr = cmd.params.value("channel", "Master");
-                    float volume = cmd.params.value("volume", 1.0f);
-                    Core::AudioChannel channel = Core::AudioChannel::Master;
-                    if (channelStr == "SFX") channel = Core::AudioChannel::SFX;
-                    else if (channelStr == "Music") channel = Core::AudioChannel::Music;
-                    else if (channelStr == "Voice") channel = Core::AudioChannel::Voice;
-                    audioSystem->setChannelVolume(channel, volume);
-                    response = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
                 }
 
             } else if (cmd.action == "job_submit") {
