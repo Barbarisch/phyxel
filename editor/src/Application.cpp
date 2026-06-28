@@ -12311,6 +12311,7 @@ void Application::processAPICommands() {
                                 }
 
                                 int fxSpawned = 0, fxSkipped = 0;
+                                std::vector<Core::UnplacedFixture> v2Unplaced;  // honest: pieces that didn't fit
                                 nlohmann::json fixturesJson = nlohmann::json::array();
                                 for (size_t si = 0; si < v2Program.stories.size(); ++si) {
                                     const auto& story = v2Program.stories[si];
@@ -12320,7 +12321,8 @@ void Application::processAPICommands() {
                                     int storyFloorY = (si < v2FloorYByStory.size())
                                         ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
-                                        story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints);
+                                        story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
+                                        &v2Unplaced);
                                     // Semantic identity per fixture (room/purpose/ordinal/type), 1:1
                                     // with placements — so a session can address "the 2nd bedroom's bed".
                                     auto labels = Core::FurniturePlacer::labelFixtures(story, placements);
@@ -12371,6 +12373,17 @@ void Application::processAPICommands() {
                                 }
                                 response["fixtures_spawned"] = fxSpawned;
                                 response["fixtures"] = fixturesJson;   // labeled, addressable
+                                // Honest reporting: pieces the placer could NOT fit (no longer a silent
+                                // drop). Surfaced in the response + a WARN so an under-furnished room is visible.
+                                if (!v2Unplaced.empty()) {
+                                    nlohmann::json unfit = nlohmann::json::array();
+                                    for (const auto& u : v2Unplaced) {
+                                        unfit.push_back({{"room", u.room}, {"type", u.type}});
+                                        LOG_WARN_FMT("StructureV2", "furniture did NOT fit: " << u.type
+                                                     << " in room '" << u.room << "'");
+                                    }
+                                    response["fixtures_unplaced"] = unfit;
+                                }
                                 // Persist the metadata tags (same path as move/rotate).
                                 if (chunkManager) {
                                     auto* ws = chunkManager->m_streamingManager.getWorldStorage();

@@ -52,17 +52,26 @@ struct FixtureLabel {
     std::string type;            ///< fixture type (e.g. "bed")
 };
 
+/// A recipe piece the placer could NOT fit in its room — surfaced (not silently dropped) so the
+/// caller can report it ("taproom: no room for bar_stool") instead of a building quietly missing
+/// half its furniture.
+struct UnplacedFixture {
+    std::string room;
+    std::string type;
+};
+
 class FurniturePlacer {
 public:
     /// Furnish every room in `story`. `origin` = structure world origin (room rects
     /// are local to it); `floorY` = world Y of the walkable floor (pieces sit here).
     /// `footprints` (type -> real cube footprint, from the asset library) makes placement
-    /// FOOTPRINT-AWARE: a piece reserves all the cells it covers; one that won't fit the room or
-    /// would overlap another piece / a doorway is relocated to another wall or skipped. Omitted or
-    /// missing types default to 1×1 (legacy single-cell behavior).
+    /// FOOTPRINT-AWARE: a piece reserves all the cells it covers; pieces PACK along walls (multiple
+    /// per wall) at the first free slot. A piece that fits NOWHERE is recorded in `*unplaced` (if
+    /// given) — never silently dropped. Omitted/missing footprints default to 1×1.
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
                                                    const glm::ivec3& origin, int floorY,
-                                                   const std::map<std::string, Footprint>& footprints = {});
+                                                   const std::map<std::string, Footprint>& footprints = {},
+                                                   std::vector<UnplacedFixture>* unplaced = nullptr);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

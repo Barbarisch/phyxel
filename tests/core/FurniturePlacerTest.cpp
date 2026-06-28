@@ -104,8 +104,17 @@ TEST(FurniturePlacerTest, PieceForcedOntoDoorWallSkipsNotBlocks) {
     })json");
     const std::map<std::string, Footprint> fp = {{"barrel", {1, 1}}, {"chest", {1, 1}}};
     const auto aware = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp);
-    EXPECT_TRUE(aware.empty())
-        << "a piece was placed on a doorway threshold — the blocked-cell guard didn't fire";
+    // The invariant is NOT "place nothing" — packing now relocates pieces to the free CORNERS. The
+    // invariant is that NO piece sits on a doorway threshold (door cell or the cell just inside it).
+    const std::pair<int, int> doorThresholds[] = {
+        {2, 0}, {1, 0}, {2, 3}, {1, 3}, {0, 2}, {0, 1}, {3, 2}, {3, 1}};
+    for (const auto& p : aware) {
+        const std::pair<int, int> cell{p.worldPos.x, p.worldPos.z};
+        bool onThreshold = false;
+        for (const auto& d : doorThresholds) if (d == cell) onThreshold = true;
+        EXPECT_FALSE(onThreshold) << "furniture on a doorway threshold at ("
+                                  << cell.first << "," << cell.second << ") — blocks the door";
+    }
 }
 
 // The convention I kept getting wrong by hand: a piece against the MIN-X wall faces
