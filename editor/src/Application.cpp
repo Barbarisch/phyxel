@@ -427,6 +427,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
     registerDoorCommands();
+    registerLightCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10097,6 +10098,101 @@ void Application::registerDoorCommands() {
     });
 }
 
+// Dynamic point/spot light commands, migrated from the processAPICommands if-chain onto the
+// CommandRegistry. Read renderCoordinator->getLightManager() lazily at dispatch.
+void Application::registerLightCommands() {
+    auto& reg = m_commandRegistry;
+    auto noRC = [](nlohmann::json& r) { r = {{"error", "RenderCoordinator not available"}}; };
+
+    reg.on("add_point_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        Graphics::PointLight pl;
+        pl.position = glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        if (cmd.params.contains("color")) {
+            pl.color = glm::vec3(cmd.params["color"].value("r", 1.0f), cmd.params["color"].value("g", 1.0f), cmd.params["color"].value("b", 1.0f));
+        }
+        pl.intensity = cmd.params.value("intensity", 1.0f);
+        pl.radius = cmd.params.value("radius", 10.0f);
+        pl.enabled = cmd.params.value("enabled", true);
+        int id = lm.addPointLight(pl);
+        if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "point"}};
+        else r = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
+    });
+
+    reg.on("add_spot_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        Graphics::SpotLight sl;
+        sl.position = glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        sl.direction = glm::vec3(cmd.params.value("dx", 0.0f), cmd.params.value("dy", -1.0f), cmd.params.value("dz", 0.0f));
+        if (cmd.params.contains("color")) {
+            sl.color = glm::vec3(cmd.params["color"].value("r", 1.0f), cmd.params["color"].value("g", 1.0f), cmd.params["color"].value("b", 1.0f));
+        }
+        sl.intensity = cmd.params.value("intensity", 1.0f);
+        sl.radius = cmd.params.value("radius", 20.0f);
+        sl.innerCone = cmd.params.value("inner_cone", 0.9f);
+        sl.outerCone = cmd.params.value("outer_cone", 0.8f);
+        sl.enabled = cmd.params.value("enabled", true);
+        int id = lm.addSpotLight(sl);
+        if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "spot"}};
+        else r = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
+    });
+
+    reg.on("remove_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        int lightId = cmd.params.value("id", -1);
+        if (lightId < 0) { r = {{"error", "Missing 'id' field"}}; return; }
+        bool ok = renderCoordinator->getLightManager().removeLight(lightId);
+        r = {{"success", ok}, {"id", lightId}};
+    });
+
+    reg.on("update_light", [this, noRC](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) return noRC(r);
+        auto& lm = renderCoordinator->getLightManager();
+        int lightId = cmd.params.value("id", -1);
+        if (lightId < 0) { r = {{"error", "Missing 'id' field"}}; return; }
+        const auto* pl = lm.getPointLight(lightId);
+        if (pl) {
+            Graphics::PointLight updated = *pl;
+            if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
+            if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
+            if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
+            if (cmd.params.contains("color")) {
+                updated.color = glm::vec3(cmd.params["color"].value("r", updated.color.r), cmd.params["color"].value("g", updated.color.g), cmd.params["color"].value("b", updated.color.b));
+            }
+            if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
+            if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
+            if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
+            lm.updatePointLight(lightId, updated);
+            r = {{"success", true}, {"id", lightId}, {"type", "point"}};
+        } else {
+            const auto* sl = lm.getSpotLight(lightId);
+            if (sl) {
+                Graphics::SpotLight updated = *sl;
+                if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
+                if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
+                if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
+                if (cmd.params.contains("dx")) updated.direction.x = cmd.params["dx"].get<float>();
+                if (cmd.params.contains("dy")) updated.direction.y = cmd.params["dy"].get<float>();
+                if (cmd.params.contains("dz")) updated.direction.z = cmd.params["dz"].get<float>();
+                if (cmd.params.contains("color")) {
+                    updated.color = glm::vec3(cmd.params["color"].value("r", updated.color.r), cmd.params["color"].value("g", updated.color.g), cmd.params["color"].value("b", updated.color.b));
+                }
+                if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
+                if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
+                if (cmd.params.contains("inner_cone")) updated.innerCone = cmd.params["inner_cone"].get<float>();
+                if (cmd.params.contains("outer_cone")) updated.outerCone = cmd.params["outer_cone"].get<float>();
+                if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
+                lm.updateSpotLight(lightId, updated);
+                r = {{"success", true}, {"id", lightId}, {"type", "spot"}};
+            } else {
+                r = {{"error", "Light not found"}, {"id", lightId}};
+            }
+        }
+    });
+}
+
 void Application::processAPICommands() {
 
     std::vector<Core::APICommand> commands;
@@ -13554,136 +13650,6 @@ void Application::processAPICommands() {
             // ================================================================
             // LIGHTING COMMANDS
             // ================================================================
-            } else if (cmd.action == "add_point_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    Graphics::PointLight pl;
-                    pl.position = glm::vec3(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    if (cmd.params.contains("color")) {
-                        pl.color = glm::vec3(
-                            cmd.params["color"].value("r", 1.0f),
-                            cmd.params["color"].value("g", 1.0f),
-                            cmd.params["color"].value("b", 1.0f));
-                    }
-                    pl.intensity = cmd.params.value("intensity", 1.0f);
-                    pl.radius = cmd.params.value("radius", 10.0f);
-                    pl.enabled = cmd.params.value("enabled", true);
-                    int id = lm.addPointLight(pl);
-                    if (id >= 0) {
-                        response = {{"success", true}, {"id", id}, {"type", "point"}};
-                    } else {
-                        response = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
-                    }
-                }
-
-            } else if (cmd.action == "add_spot_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    Graphics::SpotLight sl;
-                    sl.position = glm::vec3(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    sl.direction = glm::vec3(
-                        cmd.params.value("dx", 0.0f),
-                        cmd.params.value("dy", -1.0f),
-                        cmd.params.value("dz", 0.0f));
-                    if (cmd.params.contains("color")) {
-                        sl.color = glm::vec3(
-                            cmd.params["color"].value("r", 1.0f),
-                            cmd.params["color"].value("g", 1.0f),
-                            cmd.params["color"].value("b", 1.0f));
-                    }
-                    sl.intensity = cmd.params.value("intensity", 1.0f);
-                    sl.radius = cmd.params.value("radius", 20.0f);
-                    sl.innerCone = cmd.params.value("inner_cone", 0.9f);
-                    sl.outerCone = cmd.params.value("outer_cone", 0.8f);
-                    sl.enabled = cmd.params.value("enabled", true);
-                    int id = lm.addSpotLight(sl);
-                    if (id >= 0) {
-                        response = {{"success", true}, {"id", id}, {"type", "spot"}};
-                    } else {
-                        response = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
-                    }
-                }
-
-            } else if (cmd.action == "remove_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    int lightId = cmd.params.value("id", -1);
-                    if (lightId < 0) {
-                        response = {{"error", "Missing 'id' field"}};
-                    } else {
-                        bool ok = renderCoordinator->getLightManager().removeLight(lightId);
-                        response = {{"success", ok}, {"id", lightId}};
-                    }
-                }
-
-            } else if (cmd.action == "update_light") {
-                if (!renderCoordinator) {
-                    response = {{"error", "RenderCoordinator not available"}};
-                } else {
-                    auto& lm = renderCoordinator->getLightManager();
-                    int lightId = cmd.params.value("id", -1);
-                    if (lightId < 0) {
-                        response = {{"error", "Missing 'id' field"}};
-                    } else {
-                        // Try point light first
-                        const auto* pl = lm.getPointLight(lightId);
-                        if (pl) {
-                            Graphics::PointLight updated = *pl;
-                            if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
-                            if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
-                            if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
-                            if (cmd.params.contains("color")) {
-                                updated.color = glm::vec3(
-                                    cmd.params["color"].value("r", updated.color.r),
-                                    cmd.params["color"].value("g", updated.color.g),
-                                    cmd.params["color"].value("b", updated.color.b));
-                            }
-                            if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
-                            if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
-                            if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
-                            lm.updatePointLight(lightId, updated);
-                            response = {{"success", true}, {"id", lightId}, {"type", "point"}};
-                        } else {
-                            const auto* sl = lm.getSpotLight(lightId);
-                            if (sl) {
-                                Graphics::SpotLight updated = *sl;
-                                if (cmd.params.contains("x")) updated.position.x = cmd.params["x"].get<float>();
-                                if (cmd.params.contains("y")) updated.position.y = cmd.params["y"].get<float>();
-                                if (cmd.params.contains("z")) updated.position.z = cmd.params["z"].get<float>();
-                                if (cmd.params.contains("dx")) updated.direction.x = cmd.params["dx"].get<float>();
-                                if (cmd.params.contains("dy")) updated.direction.y = cmd.params["dy"].get<float>();
-                                if (cmd.params.contains("dz")) updated.direction.z = cmd.params["dz"].get<float>();
-                                if (cmd.params.contains("color")) {
-                                    updated.color = glm::vec3(
-                                        cmd.params["color"].value("r", updated.color.r),
-                                        cmd.params["color"].value("g", updated.color.g),
-                                        cmd.params["color"].value("b", updated.color.b));
-                                }
-                                if (cmd.params.contains("intensity")) updated.intensity = cmd.params["intensity"].get<float>();
-                                if (cmd.params.contains("radius")) updated.radius = cmd.params["radius"].get<float>();
-                                if (cmd.params.contains("inner_cone")) updated.innerCone = cmd.params["inner_cone"].get<float>();
-                                if (cmd.params.contains("outer_cone")) updated.outerCone = cmd.params["outer_cone"].get<float>();
-                                if (cmd.params.contains("enabled")) updated.enabled = cmd.params["enabled"].get<bool>();
-                                lm.updateSpotLight(lightId, updated);
-                                response = {{"success", true}, {"id", lightId}, {"type", "spot"}};
-                            } else {
-                                response = {{"error", "Light not found"}, {"id", lightId}};
-                            }
-                        }
-                    }
-                }
-
             } else if (cmd.action == "set_ambient") {
                 if (!renderCoordinator) {
                     response = {{"error", "RenderCoordinator not available"}};

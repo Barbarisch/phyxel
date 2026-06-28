@@ -470,6 +470,7 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerDoorCommands();
+    void registerLightCommands();
     bool dispatchAnimationAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchDebugAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
