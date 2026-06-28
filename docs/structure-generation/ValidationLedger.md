@@ -135,6 +135,14 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
   stories=2 from the New Inn, Gloucester). solution-auditor PASS.
+  - **Build-freeze perf — ✅ FIXED (found by the runtime pass):** building one tavern froze the game
+    loop ~17 s. Phase timers localized it to `StructureGenerator::place()` (13.8 s for 65k voxels);
+    root cause = a per-voxel collision-shape build (`m_addCollision`) at every subcube/microcube/cube,
+    pathological in Debug. Fix: `place()` writes straight to chunks bracketed by
+    `Chunk::beginBulkOperation()`/`endBulkOperation()` so collision is rebuilt ONCE per chunk; also
+    guarded the cube path in `ChunkVoxelManager::addCube` (auditor caught it). **place 13878 ms → 889 ms
+    (15.6×)**; collision + render verified intact at runtime; `ChunkVoxelManagerBulkTest` red-before-green;
+    both auditors PASS. Follow-up: `addCubesBatch` still unguarded (unused by place()).
   - **Silent furniture drop — ✅ FIXED (found by the runtime pass):** the placer capped at ONE piece per
     wall and dropped the overflow with no record ("0 skipped" lied) — the taproom shipped missing its
     bar_stool/bench/candle_stand/fireplace. Now `furnish()` PACKS along walls (multiple per wall) + takes
