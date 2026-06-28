@@ -430,6 +430,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     registerLightCommands();
     registerSnapshotCommands();
     registerProfilingCommands();
+    registerEffectsCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10329,6 +10330,87 @@ void Application::registerSnapshotCommands() {
     });
 }
 
+// VFX, area-damage, and smooth-lighting toggle commands, migrated from the processAPICommands
+// early-continue region. (cast_spell/cast_test_spell stay inline -- complex anim logic.)
+void Application::registerEffectsCommands() {
+    auto& reg = m_commandRegistry;
+    auto noVfx = [](nlohmann::json& r) { r = {{"error", "VfxSystem not available"}}; };
+
+    reg.on("spawn_vfx", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("spark"));
+        glm::vec3 pos(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        int spawned = renderCoordinator->getVfxSystem()->spawnEffect(effect, pos);
+        r = {{"success", true}, {"effect", effect}, {"spawned", spawned},
+             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}};
+    });
+
+    reg.on("apply_damage", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
+        glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        float radius = cmd.params.value("radius", 4.0f);
+        float energy = cmd.params.value("energy", 400.0f);
+        std::string type = cmd.params.value("type", std::string("force"));
+        glm::vec3 dir(0.0f);
+        if (cmd.params.contains("direction")) {
+            auto d = cmd.params["direction"];
+            dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
+        }
+        float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
+        bool collapse = cmd.params.value("collapse", true);
+        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
+        r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
+             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned}};
+    });
+
+    reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("fireball"));
+        auto from = cmd.params.value("from", nlohmann::json::object());
+        auto to = cmd.params.value("to", nlohmann::json::object());
+        glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+        glm::vec3 target(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castProjectile(effect, origin, target);
+        r = {{"success", true}, {"effect", effect}, {"projectiles", n},
+             {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+             {"to", {{"x", target.x}, {"y", target.y}, {"z", target.z}}}};
+    });
+
+    reg.on("cast_vfx_beam", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("eldritch_blast"));
+        auto from = cmd.params.value("from", nlohmann::json::object());
+        auto to = cmd.params.value("to", nlohmann::json::object());
+        glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
+        glm::vec3 target(to.value("x", 0.0f), to.value("y", 0.0f), to.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castBeam(effect, origin, target);
+        r = {{"success", true}, {"effect", effect}, {"beams", n},
+             {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
+             {"to", {{"x", target.x}, {"y", target.y}, {"z", target.z}}}};
+    });
+
+    reg.on("cast_vfx_field", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string effect = cmd.params.value("effect", std::string("shield"));
+        std::string shape = cmd.params.value("shape", std::string(""));
+        glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
+        r = {{"success", true}, {"effect", effect}, {"fields", n},
+             {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}};
+    });
+
+    reg.on("set_smooth_lighting", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
+        if (cmd.params.contains("tolerance"))
+            Graphics::ChunkRenderManager::setMergeTolerance(cmd.params["tolerance"].get<int>());
+        if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        r = {{"success", true}, {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
+             {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
+    });
+}
+
 // Read-only profiling commands, migrated from the processAPICommands if-chain.
 void Application::registerProfilingCommands() {
     auto& reg = m_commandRegistry;
@@ -10378,59 +10460,7 @@ void Application::processAPICommands() {
             // clear_ocean/place_spring/clear_springs/water_gpu/set_channel_region/water_save/
             // water_stats) moved to registerWaterCommands() via the CommandRegistry.
 
-            // Handle VFX commands early (avoids nesting depth limit)
-            if (cmd.action == "spawn_vfx") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("spark"));
-                    glm::vec3 pos(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    int spawned = renderCoordinator->getVfxSystem()->spawnEffect(effect, pos);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"spawned", spawned},
-                        {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Apply area destruction damage at a point (P1 destruction core)
-            if (cmd.action == "apply_damage") {
-                if (!chunkManager) {
-                    response = {{"error", "ChunkManager not available"}};
-                } else {
-                    glm::vec3 center(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    float radius = cmd.params.value("radius", 4.0f);
-                    float energy = cmd.params.value("energy", 400.0f);
-                    std::string type = cmd.params.value("type", std::string("force"));
-                    glm::vec3 dir(0.0f);
-                    if (cmd.params.contains("direction")) {
-                        auto d = cmd.params["direction"];
-                        dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
-                    }
-                    float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
-                    bool collapse = cmd.params.value("collapse", true);
-                    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-                    auto r = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
-                    response = {
-                        {"success", true},
-                        {"broken", r.voxelsBroken},
-                        {"grazed", r.voxelsGrazed},
-                        {"debris", r.debrisSpawned}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
             // Cast a real spell's VFX through the Layer-3 mapper (gameplay modifiers -> params).
             // When a caster character is available, the cast first plays the spell's
@@ -10597,89 +10627,9 @@ void Application::processAPICommands() {
                 continue;
             }
 
-            // Cast a travelling projectile VFX (Phase 2): from -> to
-            if (cmd.action == "cast_vfx_projectile") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("fireball"));
-                    auto from = cmd.params.value("from", nlohmann::json::object());
-                    auto to   = cmd.params.value("to",   nlohmann::json::object());
-                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
-                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castProjectile(effect, origin, target);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"projectiles", n},
-                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
-                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Fire a sustained beam VFX (Phase 2): from -> to
-            if (cmd.action == "cast_vfx_beam") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("eldritch_blast"));
-                    auto from = cmd.params.value("from", nlohmann::json::object());
-                    auto to   = cmd.params.value("to",   nlohmann::json::object());
-                    glm::vec3 origin(from.value("x", 0.0f), from.value("y", 0.0f), from.value("z", 0.0f));
-                    glm::vec3 target(to.value("x", 0.0f),   to.value("y", 0.0f),   to.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castBeam(effect, origin, target);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"beams", n},
-                        {"from", {{"x", origin.x}, {"y", origin.y}, {"z", origin.z}}},
-                        {"to",   {{"x", target.x}, {"y", target.y}, {"z", target.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Toggle smooth per-corner lighting + merge tolerance, then re-bake all chunks.
-            // (Handled here in the early-continue region to avoid the deep if-chain nesting limit.)
-            if (cmd.action == "set_smooth_lighting") {
-                if (cmd.params.contains("enabled"))
-                    Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
-                if (cmd.params.contains("tolerance"))
-                    Graphics::ChunkRenderManager::setMergeTolerance(cmd.params["tolerance"].get<int>());
-                if (chunkManager) chunkManager->rebuildAllChunkLighting();
-                response = {{"success", true},
-                            {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
-                            {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
-            // Raise a sustained field/shell VFX (Phase 2) at a center position
-            if (cmd.action == "cast_vfx_field") {
-                if (!renderCoordinator || !renderCoordinator->getVfxSystem()) {
-                    response = {{"error", "VfxSystem not available"}};
-                } else {
-                    std::string effect = cmd.params.value("effect", std::string("shield"));
-                    std::string shape  = cmd.params.value("shape", std::string(""));
-                    glm::vec3 center(
-                        cmd.params.value("x", 0.0f),
-                        cmd.params.value("y", 0.0f),
-                        cmd.params.value("z", 0.0f));
-                    int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
-                    response = {
-                        {"success", true},
-                        {"effect", effect},
-                        {"fields", n},
-                        {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}
-                    };
-                }
-                if (cmd.onComplete) cmd.onComplete(response);
-                continue;
-            }
 
             // Handle subcube/microcube commands via helper (avoids nesting depth limit)
             if (handleSubcubeMicrocubeCommand(cmd, response, chunkManager, npcManager.get())) {
