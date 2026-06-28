@@ -33,6 +33,32 @@ faces are NOT greedy-merged). Confirms this is NOT a lighting-merge or build-per
 world is 357 FPS) — it is purely the un-merged sub/micro face count. **This caps build density until #40
 (greedy-mesh sub/micro) lands.**
 
+## ✅ Phase 1 shipped (2026-06-28) — sub/microcube hidden-face culling
+
+Before greedy-merge, a more basic gap: subcubes & microcubes had **no face culling at all**
+(`rebuildSubcubeFaces`/`rebuildMicrocubeFaces` hardcoded `faceVisible[6] = {true,…}`), so every
+sub/microcube emitted all 6 faces even when fully buried (412k baseline = ~65k voxels × 6.3 faces).
+
+**Fix** (`ChunkRenderManager`, uncommitted): a transient leaf-occupancy lookup (`m_subOcc`/`m_microOcc`
+`unordered_set`s) built once per `rebuildAllFaces` straight from the voxel hierarchy, reusing the
+already-built `m_solidVis` as the cube oracle. The sub/micro builders cull a face when the neighbour
+cell at its own resolution (96³ subcube / 288³ microcube) is provably fully solid (coarser fills roll
+up). Chunk-boundary neighbours treated as exposed (conservative). No shader/format/UV/winding change —
+only buried faces omitted, so zero winding risk.
+
+**Measured (DEBUG, fresh `RenderCullTest` world, remove-and-remeasure) — same v2 `tavern` (16×7,
+2-story, furnished, 19 fixtures):** isolated face contribution **412,298 → 55,068 (7.5× fewer)**;
+solid walls verified inside + out, textures intact. NOTE: verify on a FRESH world — a test DB with
+repeated tavern rebuilds at the same spot produced misleading holey walls (stale/overlapping chunk
+state), not a culling bug.
+
+**Phase 2 (greedy-merge) — attempted, reverted, PARKED.** Wider `InstanceData.mergeData` +
+`static_voxel.vert` scaleLevel==3 branch + `rebuildFineFacesMerged` greedy mesher. Merged quads
+rendered the magenta fallback texture (per-face path was correct; index delivery & geometry verified
+fine; forcing a valid index in C++ AND in-shader still magenta → frag-side, scaleLevel==3-specific,
+likely the world-space UV × texture-array sample). Backed out to keep the tree green; redo from the
+design below in a focused session.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

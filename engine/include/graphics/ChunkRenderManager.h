@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <unordered_set>
 #include <vulkan/vulkan.h>
 
 namespace Phyxel {
@@ -192,6 +193,24 @@ private:
     std::vector<uint8_t> m_solidVis;    // 1 = a visible cube occupies the cell
     std::vector<int>     m_cellMat;     // index into the per-rebuild matFaces table (-1 = none)
     std::vector<uint8_t> m_cellDamage;  // quantized 0-15 voxel damage (roughness driver)
+
+    // --- Sub/microcube hidden-face culling (Phase 1) ---
+    // Occupancy of the chunk's leaf subcubes/microcubes, rebuilt once per rebuildAllFaces straight
+    // from the voxel hierarchy (the source of truth) and consumed by the sub/micro face builders to
+    // skip faces whose neighbour cell is fully solid. Cube-level occupancy reuses m_solidVis (built
+    // first in rebuildCubeFaces). Keys: subKey = cubeIdx*27 + subLocalIdx (cubeIdx = z+y*32+x*1024,
+    // local index = z+y*3+x*9); microKey = subKey*27 + microLocalIdx.
+    std::unordered_set<uint32_t> m_subOcc;
+    std::unordered_set<uint32_t> m_microOcc;
+    void buildSubMicroOccupancy(
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,
+        const glm::ivec3& worldOrigin);
+    // Is the cell at the given resolution fully solid (so a face against it is hidden)? Coarser
+    // fills roll up: a micro/sub cell is solid if its parent sub/cube is solid. Out-of-chunk → false.
+    bool cubeCellSolid(int lx, int ly, int lz) const;
+    bool subCellSolid(int lx, int ly, int lz, int sx, int sy, int sz) const;
+    bool microCellSolid(int lx, int ly, int lz, int sx, int sy, int sz, int mx, int my, int mz) const;
 
     // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
     // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.

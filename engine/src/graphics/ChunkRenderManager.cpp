@@ -127,8 +127,11 @@ void ChunkRenderManager::rebuildAllFaces(
     m_neighborLight = getNeighborLight;
     m_lightWorldOrigin = worldOrigin;
 
-    // Rebuild faces for each voxel type
+    // Rebuild faces for each voxel type. Cubes first: rebuildCubeFaces fills m_solidVis (cube-level
+    // occupancy) which the sub/micro occlusion reuses. Then build the leaf sub/micro occupancy so
+    // rebuildSubcube/MicrocubeFaces can cull hidden faces.
     rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, columnOpenMask);
+    buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
 
@@ -552,6 +555,66 @@ void ChunkRenderManager::rebuildCubeFaces(
     }
 }
 
+// Populate m_subOcc / m_microOcc from the chunk's leaf subcubes/microcubes. Cube occupancy is
+// already in m_solidVis (rebuildCubeFaces ran first). Built once per rebuild and queried by the
+// sub/micro face culling below.
+void ChunkRenderManager::buildSubMicroOccupancy(
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
+    const std::vector<std::unique_ptr<Microcube>>& microcubes,
+    const glm::ivec3& worldOrigin)
+{
+    m_subOcc.clear();
+    m_microOcc.clear();
+
+    for (const auto& sc : subcubes) {
+        if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+        glm::ivec3 lp = sc->getPosition() - worldOrigin;
+        if (lp.x < 0 || lp.x >= 32 || lp.y < 0 || lp.y >= 32 || lp.z < 0 || lp.z >= 32) continue;
+        glm::ivec3 sp = sc->getLocalPosition();
+        if (sp.x < 0 || sp.x >= 3 || sp.y < 0 || sp.y >= 3 || sp.z < 0 || sp.z >= 3) continue;
+        uint32_t cubeIdx = static_cast<uint32_t>(lp.z + lp.y * 32 + lp.x * 1024);
+        uint32_t subKey  = cubeIdx * 27u + static_cast<uint32_t>(sp.z + sp.y * 3 + sp.x * 9);
+        m_subOcc.insert(subKey);
+    }
+
+    for (const auto& mc : microcubes) {
+        if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+        glm::ivec3 lp = mc->getParentCubePosition() - worldOrigin;
+        if (lp.x < 0 || lp.x >= 32 || lp.y < 0 || lp.y >= 32 || lp.z < 0 || lp.z >= 32) continue;
+        glm::ivec3 sp = mc->getSubcubeLocalPosition();
+        glm::ivec3 mp = mc->getMicrocubeLocalPosition();
+        if (sp.x < 0 || sp.x >= 3 || sp.y < 0 || sp.y >= 3 || sp.z < 0 || sp.z >= 3) continue;
+        if (mp.x < 0 || mp.x >= 3 || mp.y < 0 || mp.y >= 3 || mp.z < 0 || mp.z >= 3) continue;
+        uint32_t cubeIdx  = static_cast<uint32_t>(lp.z + lp.y * 32 + lp.x * 1024);
+        uint32_t subKey   = cubeIdx * 27u + static_cast<uint32_t>(sp.z + sp.y * 3 + sp.x * 9);
+        uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mp.z + mp.y * 3 + mp.x * 9);
+        m_microOcc.insert(microKey);
+    }
+}
+
+bool ChunkRenderManager::cubeCellSolid(int lx, int ly, int lz) const {
+    if (lx < 0 || lx >= 32 || ly < 0 || ly >= 32 || lz < 0 || lz >= 32) return false;
+    if (m_solidVis.empty()) return false;
+    return m_solidVis[static_cast<size_t>(lz + ly * 32 + lx * 1024)] != 0;
+}
+
+bool ChunkRenderManager::subCellSolid(int lx, int ly, int lz, int sx, int sy, int sz) const {
+    if (cubeCellSolid(lx, ly, lz)) return true;  // parent cube is a full solid cube
+    uint32_t cubeIdx = static_cast<uint32_t>(lz + ly * 32 + lx * 1024);
+    uint32_t subKey  = cubeIdx * 27u + static_cast<uint32_t>(sz + sy * 3 + sx * 9);
+    return m_subOcc.find(subKey) != m_subOcc.end();
+}
+
+bool ChunkRenderManager::microCellSolid(int lx, int ly, int lz, int sx, int sy, int sz,
+                                        int mx, int my, int mz) const {
+    if (cubeCellSolid(lx, ly, lz)) return true;  // parent cube fully solid
+    uint32_t cubeIdx = static_cast<uint32_t>(lz + ly * 32 + lx * 1024);
+    uint32_t subKey  = cubeIdx * 27u + static_cast<uint32_t>(sz + sy * 3 + sx * 9);
+    if (m_subOcc.find(subKey) != m_subOcc.end()) return true;  // parent subcube fully solid
+    uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mz + my * 3 + mx * 9);
+    return m_microOcc.find(microKey) != m_microOcc.end();
+}
+
 void ChunkRenderManager::rebuildSubcubeFaces(
     const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const glm::ivec3& worldOrigin)
@@ -577,9 +640,27 @@ void ChunkRenderManager::rebuildSubcubeFaces(
             continue; // Skip subcubes with invalid parent positions
         }
         
-        // For now, assume all subcube faces are visible (can optimize with culling later)
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
+        // Cull subcube faces whose neighbour sub-cell is fully solid (in-chunk occlusion; faces
+        // at the chunk boundary are treated as exposed — cross-chunk sub/micro occlusion is a
+        // later phase). The subcube grid is 96^3 cells across the chunk (32 cubes * 3).
+        bool faceVisible[6];
+        {
+            const int gsx = parentChunkPos.x * 3 + localPos.x;
+            const int gsy = parentChunkPos.y * 3 + localPos.y;
+            const int gsz = parentChunkPos.z * 3 + localPos.z;
+            static const int OFX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
+            static const int OFY[6] = {0, 0, 0, 0, 1, -1};
+            static const int OFZ[6] = {1, -1, 0, 0, 0, 0};
+            for (int f = 0; f < 6; ++f) {
+                int nx = gsx + OFX[f], ny = gsy + OFY[f], nz = gsz + OFZ[f];
+                if (nx < 0 || nx >= 96 || ny < 0 || ny >= 96 || nz < 0 || nz >= 96) {
+                    faceVisible[f] = true;  // out of chunk: assume exposed
+                } else {
+                    faceVisible[f] = !subCellSolid(nx / 3, ny / 3, nz / 3, nx % 3, ny % 3, nz % 3);
+                }
+            }
+        }
+
         // Generate instance data for each visible face of the subcube
         for (int faceID = 0; faceID < 6; ++faceID) {
             if (faceVisible[faceID]) {
@@ -674,9 +755,30 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
             continue;
         }
         
-        // For now, assume all microcube faces are visible (can optimize with culling later)
-        bool faceVisible[6] = {true, true, true, true, true, true};
-        
+        // Cull microcube faces whose neighbour micro-cell is fully solid (in-chunk occlusion; faces
+        // at the chunk boundary are treated as exposed). The microcube grid is 288^3 cells across
+        // the chunk (32 cubes * 3 subcubes * 3 microcubes).
+        bool faceVisible[6];
+        {
+            const int gmx = parentChunkPos.x * 9 + subcubePos.x * 3 + microcubePos.x;
+            const int gmy = parentChunkPos.y * 9 + subcubePos.y * 3 + microcubePos.y;
+            const int gmz = parentChunkPos.z * 9 + subcubePos.z * 3 + microcubePos.z;
+            static const int OFX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
+            static const int OFY[6] = {0, 0, 0, 0, 1, -1};
+            static const int OFZ[6] = {1, -1, 0, 0, 0, 0};
+            for (int f = 0; f < 6; ++f) {
+                int nx = gmx + OFX[f], ny = gmy + OFY[f], nz = gmz + OFZ[f];
+                if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) {
+                    faceVisible[f] = true;  // out of chunk: assume exposed
+                } else {
+                    int nlx = nx / 9, nrx = nx % 9, nsx = nrx / 3, nmx = nrx % 3;
+                    int nly = ny / 9, nry = ny % 9, nsy = nry / 3, nmy = nry % 3;
+                    int nlz = nz / 9, nrz = nz % 9, nsz = nrz / 3, nmz = nrz % 3;
+                    faceVisible[f] = !microCellSolid(nlx, nly, nlz, nsx, nsy, nsz, nmx, nmy, nmz);
+                }
+            }
+        }
+
         // Generate instance data for each visible face of the microcube
         for (int faceID = 0; faceID < 6; ++faceID) {
             if (faceVisible[faceID]) {
