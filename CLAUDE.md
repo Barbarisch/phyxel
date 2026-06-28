@@ -5,6 +5,29 @@
 > workstreams + roadmap, user preferences) — the substitute for per-machine agent memory
 > when picking up on a different computer.
 
+## 🎯 Current focus — Structure Generation v2 (as of 2026-06-28)
+
+**What we're doing:** building the **structure generator** — the engine procedurally generates
+*grounded, validated* buildings & settlements (the engine builds them, not Claude hand-placing voxels).
+All on `main` now. Pipeline: `StructureBrief → BuildingProgram → autofillRoomLayout → StructureRealizer
+→ place`. Build at runtime via `POST /api/structure/build {"schema":"v2",...}`.
+
+**Recently shipped (grounded + red-before-green + auditor-verified):** first functional typology — the
+`tavern` (taproom/kitchen/service, L3-navigable); **generative multi-story** (inn upstairs guest
+chambers + auto-generated stair); **inn asset depth** (grounded bar/stools/back-bar/lighting/mugs/
+bottles via `tools/regen_furniture.py`); silent-furniture-drop fix; all 16 furniture conformant;
+build-freeze perf fix (place 13.8s→0.9s).
+
+**#1 known issue:** render density — one furnished subcube/microcube tavern = **~412k faces → ~49 FPS**
+(empty world is 357). Sub/micro faces aren't greedy-merged; fix deferred (`docs/RenderOptimization.md`
+#40). Caps build density for now. Not a regression.
+
+**Full state + next steps:** [`docs/AgentContext.md`](docs/AgentContext.md) (top workstream) →
+[`docs/structure-generation/README.md`](docs/structure-generation/README.md) (canonical entry) →
+`ValidationLedger.md` + generated `DimensionReference.md`. **Discipline (enforced):** ground every
+dimension (grounding-auditor); red-before-green + solution-auditor on every "works/fixed" claim
+(Stop-hook gate); "reachable" must mean physically walkable.
+
 ## Auto-Context on Startup
 
 When starting a new conversation in the engine terminal, **proactively check engine state** before the user asks. Call `engine_status` — if the engine is running, gather world context by running `/context` (or manually calling the same MCP tools). This saves the user from having to explain what's loaded. If the engine is not running, skip and wait for instructions.
