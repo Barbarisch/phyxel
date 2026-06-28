@@ -433,6 +433,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     registerEffectsCommands();
     registerEnvAudioCommands();
     registerCameraCommands();
+    registerStoryCommands();
     gameEventLog = std::make_unique<Core::GameEventLog>(1000);
 
     // Declarative when/then gameplay triggers (data-driven win conditions).
@@ -10413,6 +10414,138 @@ void Application::registerEffectsCommands() {
     });
 }
 
+// Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.
+void Application::registerStoryCommands() {
+    auto& reg = m_commandRegistry;
+    auto noStory = [](nlohmann::json& r) { r = {{"error", "Story engine not initialized"}}; };
+
+    reg.on("story_load_world", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        nlohmann::json def = cmd.params.value("definition", cmd.params);
+        std::string err;
+        if (Story::StoryWorldLoader::loadFromJson(def, *storyEngine, &err))
+            r = {{"success", true}, {"message", "World definition loaded"}};
+        else
+            r = {{"error", err}};
+    });
+
+    reg.on("story_add_character", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::CharacterProfile profile;
+        profile.id = cmd.params.at("id").get<std::string>();
+        profile.name = cmd.params.at("name").get<std::string>();
+        if (cmd.params.contains("faction"))
+            profile.factionId = cmd.params["faction"].get<std::string>();
+        if (cmd.params.contains("agencyLevel"))
+            profile.agencyLevel = static_cast<Story::AgencyLevel>(cmd.params["agencyLevel"].get<int>());
+        if (cmd.params.contains("traits")) {
+            const auto& t = cmd.params["traits"];
+            profile.traits.openness = t.value("openness", 0.5f);
+            profile.traits.conscientiousness = t.value("conscientiousness", 0.5f);
+            profile.traits.extraversion = t.value("extraversion", 0.5f);
+            profile.traits.agreeableness = t.value("agreeableness", 0.5f);
+            profile.traits.neuroticism = t.value("neuroticism", 0.5f);
+        }
+        if (cmd.params.contains("goals")) {
+            for (const auto& gj : cmd.params["goals"]) {
+                Story::CharacterGoal goal;
+                goal.id = gj.at("id").get<std::string>();
+                goal.description = gj.value("description", "");
+                goal.priority = gj.value("priority", 0.5f);
+                profile.goals.push_back(std::move(goal));
+            }
+        }
+        storyEngine->addCharacter(std::move(profile));
+        r = {{"success", true}, {"id", cmd.params["id"]}};
+    });
+
+    reg.on("story_remove_character", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string id = cmd.params.at("id").get<std::string>();
+        bool removed = storyEngine->removeCharacter(id);
+        r = {{"success", removed}, {"id", id}};
+    });
+
+    reg.on("story_trigger_event", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::WorldEvent event;
+        event.type = cmd.params.at("type").get<std::string>();
+        if (cmd.params.contains("data"))
+            event.details = cmd.params["data"];
+        if (cmd.params.contains("location")) {
+            auto loc = cmd.params["location"];
+            if (loc.is_object())
+                event.location = glm::vec3(loc.value("x", 0.0f), loc.value("y", 0.0f), loc.value("z", 0.0f));
+        }
+        if (cmd.params.contains("participants")) {
+            for (const auto& p : cmd.params["participants"])
+                event.participants.push_back(p.get<std::string>());
+        }
+        storyEngine->triggerEvent(std::move(event));
+        r = {{"success", true}};
+    });
+
+    reg.on("story_add_arc", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        Story::StoryArc arc;
+        arc.id = cmd.params.at("id").get<std::string>();
+        arc.name = cmd.params.value("name", arc.id);
+        if (cmd.params.contains("constraintMode"))
+            arc.constraintMode = Story::arcConstraintModeFromString(cmd.params["constraintMode"].get<std::string>());
+        if (cmd.params.contains("beats")) {
+            for (const auto& bj : cmd.params["beats"]) {
+                Story::StoryBeat beat;
+                beat.id = bj.at("id").get<std::string>();
+                beat.description = bj.value("description", "");
+                if (bj.contains("type"))
+                    beat.type = Story::beatTypeFromString(bj["type"].get<std::string>());
+                if (bj.contains("triggerCondition"))
+                    beat.triggerCondition = bj["triggerCondition"].get<std::string>();
+                arc.beats.push_back(std::move(beat));
+            }
+        }
+        if (cmd.params.contains("tensionCurve")) {
+            for (const auto& v : cmd.params["tensionCurve"])
+                arc.tensionCurve.push_back(v.get<float>());
+        }
+        storyEngine->addStoryArc(std::move(arc));
+        r = {{"success", true}, {"id", cmd.params["id"]}};
+    });
+
+    reg.on("story_set_variable", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string name = cmd.params.at("name").get<std::string>();
+        const auto& val = cmd.params.at("value");
+        if (val.is_boolean())
+            storyEngine->getWorldState().setVariable(name, val.get<bool>());
+        else if (val.is_number_integer())
+            storyEngine->getWorldState().setVariable(name, val.get<int>());
+        else if (val.is_number_float())
+            storyEngine->getWorldState().setVariable(name, val.get<float>());
+        else if (val.is_string())
+            storyEngine->getWorldState().setVariable(name, val.get<std::string>());
+        r = {{"success", true}, {"name", name}};
+    });
+
+    reg.on("story_set_agency", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string id = cmd.params.at("id").get<std::string>();
+        int level = cmd.params.at("level").get<int>();
+        bool ok = storyEngine->setAgencyLevel(id, static_cast<Story::AgencyLevel>(level));
+        r = {{"success", ok}, {"id", id}};
+    });
+
+    reg.on("story_add_knowledge", [this, noStory](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!storyEngine) return noStory(r);
+        std::string charId = cmd.params.at("characterId").get<std::string>();
+        std::string fact = cmd.params.at("fact").get<std::string>();
+        std::string category = cmd.params.value("category", "general");
+        std::string factId = charId + "_api_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        storyEngine->addStartingKnowledge(charId, factId, fact);
+        r = {{"success", true}, {"characterId", charId}, {"factId", factId}};
+    });
+}
+
 // Camera control + named camera-slot commands, migrated from the processAPICommands if-chain.
 // (capture_screenshot stays inline -- it is frame-capture/file I/O, not camera control.)
 void Application::registerCameraCommands() {
@@ -13022,154 +13155,6 @@ void Application::processAPICommands() {
             } else if (cmd.action == "list_dialogue_files") {
                 auto files = UI::listDialogueFiles(Core::AssetManager::instance().dialoguesDir());
                 response = {{"files", files}};
-
-            // ================================================================
-            // Story System Commands
-            // ================================================================
-            } else if (cmd.action == "story_load_world") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    nlohmann::json def = cmd.params.value("definition", cmd.params);
-                    std::string err;
-                    if (Story::StoryWorldLoader::loadFromJson(def, *storyEngine, &err)) {
-                        response = {{"success", true}, {"message", "World definition loaded"}};
-                    } else {
-                        response = {{"error", err}};
-                    }
-                }
-
-            } else if (cmd.action == "story_add_character") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::CharacterProfile profile;
-                    profile.id = cmd.params.at("id").get<std::string>();
-                    profile.name = cmd.params.at("name").get<std::string>();
-                    if (cmd.params.contains("faction"))
-                        profile.factionId = cmd.params["faction"].get<std::string>();
-                    if (cmd.params.contains("agencyLevel"))
-                        profile.agencyLevel = static_cast<Story::AgencyLevel>(cmd.params["agencyLevel"].get<int>());
-                    if (cmd.params.contains("traits")) {
-                        const auto& t = cmd.params["traits"];
-                        profile.traits.openness = t.value("openness", 0.5f);
-                        profile.traits.conscientiousness = t.value("conscientiousness", 0.5f);
-                        profile.traits.extraversion = t.value("extraversion", 0.5f);
-                        profile.traits.agreeableness = t.value("agreeableness", 0.5f);
-                        profile.traits.neuroticism = t.value("neuroticism", 0.5f);
-                    }
-                    if (cmd.params.contains("goals")) {
-                        for (const auto& gj : cmd.params["goals"]) {
-                            Story::CharacterGoal goal;
-                            goal.id = gj.at("id").get<std::string>();
-                            goal.description = gj.value("description", "");
-                            goal.priority = gj.value("priority", 0.5f);
-                            profile.goals.push_back(std::move(goal));
-                        }
-                    }
-                    storyEngine->addCharacter(std::move(profile));
-                    response = {{"success", true}, {"id", cmd.params["id"]}};
-                }
-
-            } else if (cmd.action == "story_remove_character") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string id = cmd.params.at("id").get<std::string>();
-                    bool removed = storyEngine->removeCharacter(id);
-                    response = {{"success", removed}, {"id", id}};
-                }
-
-            } else if (cmd.action == "story_trigger_event") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::WorldEvent event;
-                    event.type = cmd.params.at("type").get<std::string>();
-                    if (cmd.params.contains("data"))
-                        event.details = cmd.params["data"];
-                    if (cmd.params.contains("location")) {
-                        auto loc = cmd.params["location"];
-                        if (loc.is_object())
-                            event.location = glm::vec3(loc.value("x", 0.0f), loc.value("y", 0.0f), loc.value("z", 0.0f));
-                    }
-                    if (cmd.params.contains("participants")) {
-                        for (const auto& p : cmd.params["participants"])
-                            event.participants.push_back(p.get<std::string>());
-                    }
-                    storyEngine->triggerEvent(std::move(event));
-                    response = {{"success", true}};
-                }
-
-            } else if (cmd.action == "story_add_arc") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    Story::StoryArc arc;
-                    arc.id = cmd.params.at("id").get<std::string>();
-                    arc.name = cmd.params.value("name", arc.id);
-                    if (cmd.params.contains("constraintMode")) {
-                        arc.constraintMode = Story::arcConstraintModeFromString(
-                            cmd.params["constraintMode"].get<std::string>());
-                    }
-                    if (cmd.params.contains("beats")) {
-                        for (const auto& bj : cmd.params["beats"]) {
-                            Story::StoryBeat beat;
-                            beat.id = bj.at("id").get<std::string>();
-                            beat.description = bj.value("description", "");
-                            if (bj.contains("type"))
-                                beat.type = Story::beatTypeFromString(bj["type"].get<std::string>());
-                            if (bj.contains("triggerCondition"))
-                                beat.triggerCondition = bj["triggerCondition"].get<std::string>();
-                            arc.beats.push_back(std::move(beat));
-                        }
-                    }
-                    if (cmd.params.contains("tensionCurve")) {
-                        for (const auto& v : cmd.params["tensionCurve"])
-                            arc.tensionCurve.push_back(v.get<float>());
-                    }
-                    storyEngine->addStoryArc(std::move(arc));
-                    response = {{"success", true}, {"id", cmd.params["id"]}};
-                }
-
-            } else if (cmd.action == "story_set_variable") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string name = cmd.params.at("name").get<std::string>();
-                    const auto& val = cmd.params.at("value");
-                    if (val.is_boolean())
-                        storyEngine->getWorldState().setVariable(name, val.get<bool>());
-                    else if (val.is_number_integer())
-                        storyEngine->getWorldState().setVariable(name, val.get<int>());
-                    else if (val.is_number_float())
-                        storyEngine->getWorldState().setVariable(name, val.get<float>());
-                    else if (val.is_string())
-                        storyEngine->getWorldState().setVariable(name, val.get<std::string>());
-                    response = {{"success", true}, {"name", name}};
-                }
-
-            } else if (cmd.action == "story_set_agency") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string id = cmd.params.at("id").get<std::string>();
-                    int level = cmd.params.at("level").get<int>();
-                    bool ok = storyEngine->setAgencyLevel(id, static_cast<Story::AgencyLevel>(level));
-                    response = {{"success", ok}, {"id", id}};
-                }
-
-            } else if (cmd.action == "story_add_knowledge") {
-                if (!storyEngine) {
-                    response = {{"error", "Story engine not initialized"}};
-                } else {
-                    std::string charId = cmd.params.at("characterId").get<std::string>();
-                    std::string fact = cmd.params.at("fact").get<std::string>();
-                    std::string category = cmd.params.value("category", "general");
-                    std::string factId = charId + "_api_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-                    storyEngine->addStartingKnowledge(charId, factId, fact);
-                    response = {{"success", true}, {"characterId", charId}, {"factId", factId}};
-                }
 
             // ================================================================
             // GAME DEFINITION (AI Game Development)
