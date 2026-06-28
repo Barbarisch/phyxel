@@ -135,6 +135,11 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
   teeth. Dimensions grounding-auditor PASS (room program from the medieval-inn record; 4-bay frame an
   honest DESIGN DECISION by analogy to the grounded hall_house; width_max=7 from Rufford Old Hall;
   stories=2 from the New Inn, Gloucester). solution-auditor PASS.
+  - **Furniture conformance — ✅ ALL 16 grounded (0 non-conforming):** regenerated the 5 that drifted —
+    `table_wood`/`tavern_table` (were oversized/no-canon), `counter` (had no metrics), `barrel` (no canon
+    → grounded 53-gal cask, modern-standard disclosed), `bench_wood` (no checkable dims → added bounding
+    canon). `FurnitureConformanceTest` audit went 5→0 non-conforming; both auditors PASS. The taproom's
+    tables + kitchen counter are no longer placeholders.
   - **Asset depth (the "necessary extras") — IN PROGRESS:** mugs + bottles ✅ — `mug` (treen tankard,
     period-appropriate) + `bottle` (750 ml, glass flagged mild-anachronism) micro-floor props, grounded
     + conformance **ok**, both auditors PASS. **NEW surface-placement path** `FurniturePlacer::placeSurfaceClutter`
