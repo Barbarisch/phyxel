@@ -126,6 +126,43 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **STRUCTURE GENERATION v2 — the ACTIVE focus (branch `feature/structure-generation-v2`).**
+  **Read [`docs/structure-generation/README.md`](structure-generation/README.md) first** — canonical entry
+  for all structure-gen work. Companion docs: [`ValidationLedger.md`](structure-generation/ValidationLedger.md)
+  (per-placer required-vs-current proof depth) + [`DimensionReference.md`](structure-generation/DimensionReference.md)
+  (generated grounded dimension canon, every value cited — regenerate via `tools/gen_dimension_doc.py`).
+  Pipeline: StructureBrief → BuildingProgram → `autofillRoomLayout` → `StructureRealizer::realizeShell` →
+  `StructureGenerator::place`. Build at runtime: `POST /api/structure/build {"schema":"v2",...}` (the MCP
+  `build_structure` tool is the OLD v1 path).
+  - **The branch is AHEAD of main by the whole structure-gen line AND has `main` merged in** (incl. main's
+    lighting rework). If shipping: it builds (core+editor+tests), suite green except 8 pre-existing failures
+    (AStar/ChunkData/Inventory/MaterialRegistry-stale-count/NavGrid/CharacterSkeleton).
+  - **Shipped this arc (all grounded + red-before-green + both auditors PASS):** terrain-aware
+    `build_settlement` (seats buildings on local ground) + walkable terrain-following paths; non-rect L-plan
+    footprints; grounded thin fences + parcels; **first FUNCTIONAL typology — the `tavern`** (taproom+kitchen+
+    service, L3-navigable); **generative MULTI-STORY** (inn upstairs guest chambers + auto-generated switchback
+    stair, L3 climb proven); **inn ASSET DEPTH** — grounded+conformant `tavern_bar`/`back_bar`/`bar_stool`/
+    `candle_stand`/`wall_lantern`/`chandelier`/`mug`/`bottle` (deterministic micro builder
+    `tools/regen_furniture.py`); surface-clutter placement (mugs on tables); **silent-furniture-drop FIX**
+    (placer packs walls + reports unplaced); **all 16 furniture types conformant** (0 drift); **build-freeze
+    perf FIX** (place 13.8s→0.9s via bulk-collision deferral).
+  - **#1 KNOWN ISSUE — RENDER DENSITY (measured, NOT fixed):** a single subcube/microcube tavern = **412k
+    visible faces → ~49 FPS** (empty flat world = 80 faces / 357 FPS). Cause: the static renderer greedy-merges
+    only full-CUBE faces, not subcube/microcube — so subcube-thin walls explode the face count. Fix paths in
+    [`docs/RenderOptimization.md`](RenderOptimization.md) #40 (greedy-mesh sub/micro), or coarser cube walls,
+    or distance LOD. NOT a merge/perf regression (empty world is fine). **This caps how dense we can build until
+    it's addressed.**
+  - **Other open threads:** DATA-INTEGRITY "removing parent subcube" warning spam during furniture placement;
+    furniture chunkiness at microcube scale; `tavern` not yet in the `build_settlement` typology palette (so
+    settlements don't spawn inns yet); more functional typologies owed (smithy/market/temple/well/barn/town
+    hall); gallery/corridor upstairs (today a linear plan); gameplay wiring (NPC-navigable interiors, openable
+    doors, locations/spawn points); `addCubesBatch` collision unguarded (perf follow-up).
+  - **Standing discipline (enforced, non-negotiable):** ground every dimension (grounding-auditor, "source or
+    stop"); red-before-green + solution-auditor on every "works/fixed" claim (Stop-hook gate in `.claude/`);
+    agent-designed stress test pushing the scaling axis; "reachable" must mean physically walkable (L3
+    TraversalProbe). See the [[ground-all-dimensions]], [[stress-test-phase]], [[solution-auditor-gate]],
+    [[physical-usability-invariants]] memories.
+
 - **Rebindable keybindings — DONE (all 3 steps), compile-verified end to end; live click-through
   unverified.** The LAST piece of the NO-ImGui-in-gameplay umbrella shipped. **(1) InputManager is now
   the single source of truth for action→key:** a `std::unordered_map<string,KeyboardKey> actionBindings_`

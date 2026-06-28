@@ -18,6 +18,21 @@ The settlement adds **~3.4 MILLION face instances** over bare terrain's 7.9k. Pl
 `RenderCoordinator::RenderStats.totalVisibleFaces` → `GET /api/render/stats` `total_visible_faces`
 (from `ChunkManager::ChunkStats.totalVisibleFaces`).
 
+### Single-building datapoint (2026-06-28, DEBUG, post main-merge)
+
+Even ONE furnished subcube/microcube building tanks FPS — measured on the flat StructGenTest world,
+same camera:
+
+| scene | visible faces | FPS |
+|-------|:--:|:--:|
+| empty flat world (1 chunk) | **80** | **357** |
+| + one v2 `tavern` (16×7, 2-story, furnished) | **412,298** | **49** |
+
+The tavern's ~65k subcube/microcube voxels become **412k visible faces** in a single chunk (sub/micro
+faces are NOT greedy-merged). Confirms this is NOT a lighting-merge or build-perf-fix regression (empty
+world is 357 FPS) — it is purely the un-merged sub/micro face count. **This caps build density until #40
+(greedy-mesh sub/micro) lands.**
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,
