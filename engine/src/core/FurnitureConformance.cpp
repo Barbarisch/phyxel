@@ -21,6 +21,8 @@ const std::map<std::string, std::string>& typeArchetype() {
         {"tavern_bar", "tavern_bar"}, {"back_bar", "back_bar"}, {"bar_stool", "bar_stool"},
         {"candle_stand", "candle_stand"}, {"wall_lantern", "wall_lantern"}, {"chandelier", "chandelier"},
         {"mug", "mug"}, {"bottle", "bottle"}, {"barrel", "barrel"}, {"tavern_table", "tavern_table"},
+        {"forge_hearth", "forge_hearth"}, {"anvil", "anvil"}, {"bellows", "bellows"},
+        {"tool_rack", "tool_rack"},
     };
     return m;
 }

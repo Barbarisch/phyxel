@@ -284,7 +284,12 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     const int W_c = bx1 - bx0, D_c = bz1 - bz0;
     const bool rectangular = (int)footprint.size() == W_c * D_c;
     const std::string roofStyle = !program.roofStyle.empty() ? program.roofStyle : style.roofStyle;
-    int eaveSub = (ceilTopMicro + 2) / 3;                 // subcube row at/above the ceiling top
+    // Subcube row the roof's lowest course sits on. FLOOR-divide (not ceil): the eave rests ON the
+    // wall/ceiling top with NO air row. wallTopMicro is always a multiple of 3 (crawl*9 + floorT(3) +
+    // height*9), and ceilT < 3, so floor(ceilTop/3)*3 == wallTopMicro — the eave lands exactly on the
+    // wall top. The old ceil() pushed it one subcube higher, leaving the visible 1-micro hover
+    // (V1 RealizedStructureValidator::checkRoofEaveFlush).
+    int eaveSub = ceilTopMicro / 3;
     if (rectangular && roofStyle == "gable" && W_c >= 2 && D_c >= 2) {
         // Honor the GROUNDED roof pitch from the style (degrees). The gable rises `pitch`
         // subcubes per cube of run toward the ridge, so roof angle = atan(pitch/3): the

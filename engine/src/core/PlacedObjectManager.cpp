@@ -622,6 +622,42 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
     return id;
 }
 
+std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateName,
+                                                    const glm::ivec3& worldMicro, int rotation,
+                                                    const std::string& parentId) {
+    if (!m_templateManager) return "";
+    if (!parentId.empty()) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_objects.find(parentId) == m_objects.end()) return "";
+    }
+
+    // Cube-granular bbox from the rounded cube position (fine for overlap/removal; the micro shift is
+    // at most a fraction of a cube). FLOOR-divide so negative world coords map correctly.
+    auto fdiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
+    const glm::ivec3 cubePos(fdiv(worldMicro.x, 9), fdiv(worldMicro.y, 9), fdiv(worldMicro.z, 9));
+    auto [bmin, bmax] = computeTemplateBounds(templateName, cubePos, rotation);
+
+    if (!m_templateManager->spawnTemplateMicro(templateName, worldMicro, rotation)) return "";
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string id = generateId(templateName);
+    PlacedObject obj;
+    obj.id = id;
+    obj.templateName = templateName;
+    obj.category = "template";
+    obj.parentId = parentId;
+    obj.position = cubePos;
+    obj.rotation = rotation;
+    obj.boundingMin = bmin;
+    obj.boundingMax = bmax;
+    obj.createdAt = std::chrono::system_clock::now();
+    m_objects[id] = std::move(obj);
+    LOG_INFO_FMT("PlacedObjectManager", "Placed template (micro) '" << templateName << "' as '" << id
+                 << "' at micro (" << worldMicro.x << "," << worldMicro.y << "," << worldMicro.z
+                 << ") rot=" << rotation << (parentId.empty() ? "" : " parent=" + parentId));
+    return id;
+}
+
 std::string PlacedObjectManager::registerStructure(const std::string& typeName,
                                                     const glm::ivec3& position, int rotation,
                                                     const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,

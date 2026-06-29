@@ -73,6 +73,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/RoomProgram.h"               // v2 grounded room-program typology gate
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
 #include "core/FurnitureCatalog.h"          // type->template single source + asset-coverage gate
+#include "core/RealizedStructureValidator.h" // V6 hanging-sign clearance/projection gate
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -10094,27 +10095,48 @@ void Application::registerSettlementCommands() {
             return;
         }
 
+        // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
+        // hall), then centred in its plot — NOT stretched to fill the plot (that made 18-wide crofts /
+        // 169k-voxel mega-boxes that failed the typology width gate).
+        Core::RoomProgramRegistry roomReg;
+        roomReg.loadFromFile("resources/room_program.json");
+
         nlohmann::json queued = nlohmann::json::array();
         std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
         for (size_t i = 0; i < buildings.size(); ++i) {
             const auto& b = buildings[i];
-            const int bx = ox + b.footprint.x, bz = oz + b.footprint.z;
+            const int plotX = ox + b.footprint.x, plotZ = oz + b.footprint.z;
+            const int plotW = b.footprint.w, plotD = b.footprint.d;
             // terrain mode: seat each house on its LOCAL ground (top voxel at the footprint centre) so
             // it adapts to the hill, not the flat base Y. (Flush cut/fill is a Phase 2 follow-up.)
             // `seat_flat` (debug/test, default off): force base-Y seating even in terrain mode, so the
             // terrain-BLIND red baseline for the seating invariant is REPRODUCIBLE (verify_terrain_seating.py
             // --seat-flat). This isolates the seating variable: same buildable plots, only `by` changes.
-            const int by = (terrain && !seatFlat)
-                ? groundTopAt(bx + b.footprint.w / 2, bz + b.footprint.d / 2)
-                : oy;
             // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
             const Core::BuildingVariant var =
                 Core::pickBuildingVariant(static_cast<int>(i), mix, styles, varietySeed);
+            // Natural footprint from the typology canon: long axis = bays * bay_length, short axis =
+            // width_max; oriented along the plot's longer side, clamped to the plot, then CENTRED.
+            int bw = plotW, bd = plotD;
+            if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
+                const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                   : rp->widthMin));
+                if (plotW >= plotD) { bw = natLong; bd = natShort; }
+                else                { bw = natShort; bd = natLong; }
+                bw = std::min(std::max(1, bw), plotW);
+                bd = std::min(std::max(1, bd), plotD);
+            }
+            const int bx = plotX + (plotW - bw) / 2;   // centre the building in its plot
+            const int bz = plotZ + (plotD - bd) / 2;
+            const int by = (terrain && !seatFlat)
+                ? groundTopAt(bx + bw / 2, bz + bd / 2)
+                : oy;
             nlohmann::json bp = {
                 {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
                 {"footprint_shape", var.footprintShape},
                 {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
-                {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
+                {"footprint", nlohmann::json::array({bw, bd})},
                 {"substructure", "slab"},
                 {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})}
             };
@@ -10123,9 +10145,9 @@ void Application::registerSettlementCommands() {
             sub.params = bp;
             apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
-                              {"footprint", nlohmann::json::array({b.footprint.w, b.footprint.d})},
+                              {"footprint", nlohmann::json::array({bw, bd})},
                               {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
-            doorCenters.push_back(glm::ivec3(bx + b.footprint.w / 2, by, bz + b.footprint.d / 2));  // path anchor
+            doorCenters.push_back(glm::ivec3(bx + bw / 2, by, bz + bd / 2));  // path anchor
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
@@ -12438,6 +12460,12 @@ void Application::processAPICommands() {
                     bool v2HasFixtures = false;
                     int  v2FloorY = 0;                 // world Y of the walkable floor (fixtures sit here)
                     std::vector<int> v2FloorYByStory;  // per-story walkable Y (KI-2: furniture per floor)
+                    // MICRO-PRECISE furniture placement: the absolute walkable-surface micro-Y per story
+                    // + the exterior-wall thickness in micro, so fixtures sit flush on the surface and
+                    // inset off thin walls (no clipping/sinking). See FurniturePlacer::microWorldPos.
+                    std::vector<int> v2SurfaceMicroYByStory;
+                    int  v2ExtTMicro = 3;              // exterior-wall thickness (micro); set from style
+                    int  v2RoofApexWorldMicro = 0;    // top of the roof (world micro) — chimneys clear it
                     if (v2Mode) {
                         Core::BuildingProgram program = Core::BuildingProgram::fromJson(cmd.params);
 
@@ -12603,7 +12631,24 @@ void Application::processAPICommands() {
                         // micro-Y — so the post-registration furniture pass places each story's
                         // furniture on ITS floor, not all on the ground floor.
                         v2FloorYByStory.clear();
-                        for (int ft : shell.floorTopByStory) v2FloorYByStory.push_back(oy + ft / 9);
+                        v2SurfaceMicroYByStory.clear();
+                        for (int ft : shell.floorTopByStory) {
+                            v2FloorYByStory.push_back(oy + ft / 9);          // legacy cube Y (back-compat)
+                            v2SurfaceMicroYByStory.push_back(oy * 9 + ft);   // EXACT walkable surface micro-Y
+                        }
+                        // exterior-wall thickness in micro (1 cube = 9 micro) — the inset the furniture
+                        // pass applies so pieces clear the thin perimeter wall band.
+                        v2ExtTMicro = std::max(1, (int)std::lround(
+                            style.thicknessOf("exterior_wall", 0.333) * 9.0));
+                        // Roof apex (world micro) for place_chimney (#14): the stack must clear it.
+                        {
+                            glm::ivec3 cLo, cHi;
+                            if (shell.canvas.microBounds(cLo, cHi))
+                                v2RoofApexWorldMicro = oy * 9 + cHi.y;
+                            else
+                                LOG_WARN("StructureV2", "place_chimney: canvas microBounds failed -> "
+                                         "roof apex unknown; chimneys will be SKIPPED for this build");
+                        }
                         v2HasFixtures = true;
                     } else {
                         structure = specMode
@@ -12769,8 +12814,15 @@ void Application::processAPICommands() {
                                         // private map that drifts from the placer's vocabulary.
                                         std::string tmpl = Core::FurnitureCatalog::templateFor(pl.type);
                                         if (tmpl.empty()) { ++fxSkipped; continue; }
-                                        std::string fid = placedObjectManager->placeTemplate(
-                                            tmpl, pl.worldPos, pl.rotation, objectId, /*snap=*/false);
+                                        // MICRO-PRECISE: inset off the wall + sit on the exact walkable
+                                        // surface, so the piece is flush against the wall and on the
+                                        // floor (not inside them). Falls back to the legacy cube Y.
+                                        const int surfMicroY = (si < v2SurfaceMicroYByStory.size())
+                                            ? v2SurfaceMicroYByStory[si] : storyFloorY * 9;
+                                        const glm::ivec3 microPos =
+                                            Core::FurniturePlacer::microWorldPos(pl, v2ExtTMicro, surfMicroY);
+                                        std::string fid = placedObjectManager->placeTemplateMicro(
+                                            tmpl, microPos, pl.rotation, objectId);
                                         if (fid.empty()) { ++fxSkipped; continue; }
                                         ++fxSpawned;
                                         const auto& L = labels[k];
@@ -12785,6 +12837,42 @@ void Application::processAPICommands() {
                                                           {"z", pl.worldPos.z}};
                                         fx["rotation"] = pl.rotation;
                                         fixturesJson.push_back(fx);
+
+                                        // place_chimney (#14): run a masonry stack from this VENTED
+                                        // hearth (fireplace/forge) up through the roof, clearing the
+                                        // ridge for draught (3-2-10: >=2 ft / 0.667 m / 6 micro above the apex).
+                                        if ((pl.type == "fireplace" || pl.type == "forge_hearth" ||
+                                             pl.type == "oven_bread") &&
+                                            v2RoofApexWorldMicro > 0) {
+                                            Core::Footprint cfp;
+                                            auto fpIt = fixtureFootprints.find(pl.type);
+                                            if (fpIt != fixtureFootprints.end()) cfp = fpIt->second;
+                                            const int ccx = microPos.x + std::max(1, cfp.width) * 9 / 2;
+                                            const int ccz = microPos.z + std::max(1, cfp.depth) * 9 / 2;
+                                            // The stack RESTS ON the hearth top (mantel), not from the
+                                            // floor — else it punches up through the firebox and reads as
+                                            // a separate column overlapping the hearth (V2
+                                            // checkChimneyOnHearth). Hearth height from its .metrics.json.
+                                            int hearthH = 9;
+                                            {
+                                                nlohmann::json hm = loadAssetMetricsSidecar(
+                                                    Core::FurnitureCatalog::templateFor(pl.type));
+                                                if (hm.is_object() && hm.contains("overall_max") &&
+                                                    hm["overall_max"].is_array() && hm["overall_max"].size() >= 2)
+                                                    hearthH = std::max(1, (int)std::lround(
+                                                        hm["overall_max"][1].get<double>() * 9.0));
+                                            }
+                                            const int baseY = microPos.y + hearthH;   // sit on the hearth top
+                                            // ridge clearance >= 2 ft (0.610 m), IRC R1003.9 / 3-2-10
+                                            // (shared constant so it can't regress below 2 ft).
+                                            const int topY = v2RoofApexWorldMicro +
+                                                Core::StructureGenerator::kChimneyRidgeClearanceMicro;
+                                            if (topY > baseY) {
+                                                auto chimney = Core::StructureGenerator::planChimneyStack(
+                                                    ccx, ccz, baseY, topY, "Stone");
+                                                Core::StructureGenerator::place(chunkManager, chimney);
+                                            }
+                                        }
                                     }
                                     // Surface clutter: scatter mugs/bottles ON table tops (the
                                     // surface-placement path furnish() lacks). Deterministic per table
@@ -12805,6 +12893,136 @@ void Application::processAPICommands() {
                                             if (!placedObjectManager->placeTemplate(
                                                     ct, c.worldPos, 0, objectId, /*snap=*/false).empty())
                                                 ++fxSpawned;
+                                        }
+                                    }
+                                }
+
+                                // place_signage (#47): hang a projecting trade sign over a BUSINESS's
+                                // entrance. A framed board on a wrought-iron bracket projects from the
+                                // exterior wall, centered over the ground-floor entry door, with its
+                                // bottom clearing >= 2.44 m / 8 ft above grade (historic projecting-sign
+                                // code) AND above the door head, kept under the roof apex. The board
+                                // IMAGE is the decal system (backlog) — this is board + bracket only.
+                                auto isBusiness = [](const std::string& typ, const std::string& fn) {
+                                    return typ == "tavern" || typ == "blacksmith" || typ == "smithy" ||
+                                           typ == "inn" || typ == "general_store" || typ == "market" ||
+                                           typ == "apothecary" || typ == "butcher" || typ == "bakery" ||
+                                           fn == "shop" || fn == "tavern" || fn == "inn" || fn == "market" ||
+                                           fn == "bakery" || fn == "store" || fn == "smithy" ||
+                                           fn == "apothecary" || fn == "herbalist" || fn == "butcher";
+                                };
+                                const bool haveSign = objectTemplateManager &&
+                                    objectTemplateManager->getTemplate("hanging_sign") != nullptr;
+                                if (haveSign && !v2Program.stories.empty() &&
+                                    isBusiness(v2Program.typology, v2Program.function)) {
+                                    const int W = std::max(v2Program.footprintW, 1);
+                                    const int D = std::max(v2Program.footprintD, 1);
+                                    const int floorMicroY = !v2SurfaceMicroYByStory.empty()
+                                        ? v2SurfaceMicroYByStory[0] : v2FloorY * 9;
+                                    // ground-floor exterior entry door (first = main entrance); px/pz are
+                                    // local cube coords on a wall line (0|W in x, 0|D in z).
+                                    const Core::ProgStory& g = v2Program.stories[0];
+                                    const Core::ProgPortal* door = nullptr;
+                                    for (const auto& p : g.portals) {
+                                        if (p.kind != "door") continue;
+                                        if (p.a != "exterior" && p.b != "exterior") continue;
+                                        door = &p; break;
+                                    }
+                                    // wall side -> rotation (asset front=+Z; rot maps front to the
+                                    // outward normal: +Z=0, -X=90, -Z=180, +X=270), the wall's OUTER face
+                                    // micro-coord, the along-wall door center, and the door head height.
+                                    int rotation = 180;                       // default: -Z front wall
+                                    int wallOuterMicro = posZ * 9;            // -Z outer face
+                                    int alongCenterMicro = (posX * 9) + (W * 9) / 2;  // footprint center in x
+                                    int doorHeadMicroY = floorMicroY + 3 * 9; // default door height 3 cubes
+                                    bool alongX = true;                        // along-wall axis is X (z-wall)
+                                    if (door) {
+                                        doorHeadMicroY = floorMicroY + std::max(1, door->height) * 9;
+                                        const int dw = std::max(1, door->width);
+                                        if (door->px == 0) {              // -X wall
+                                            rotation = 90; alongX = false;
+                                            wallOuterMicro = posX * 9;
+                                            alongCenterMicro = (posZ + door->pz) * 9 + dw * 9 / 2;
+                                        } else if (door->px == W) {       // +X wall
+                                            rotation = 270; alongX = false;
+                                            wallOuterMicro = (posX + W) * 9;
+                                            alongCenterMicro = (posZ + door->pz) * 9 + dw * 9 / 2;
+                                        } else if (door->pz == D) {       // +Z wall
+                                            rotation = 0; alongX = true;
+                                            wallOuterMicro = (posZ + D) * 9;
+                                            alongCenterMicro = (posX + door->px) * 9 + dw * 9 / 2;
+                                        } else {                          // -Z wall (pz==0 or interior fallback)
+                                            rotation = 180; alongX = true;
+                                            wallOuterMicro = posZ * 9;
+                                            alongCenterMicro = (posX + door->px) * 9 + dw * 9 / 2;
+                                        }
+                                    }
+                                    const int SIGN_H = 7, PROJ = 7;   // asset y-extent + board far-edge proj (micro)
+                                    // hang the board just above the door head, never below the 8 ft floor;
+                                    // clamp the top under the roof apex (don't poke through the roof).
+                                    // clear BOTH the 8 ft grade floor AND the door head (crown the
+                                    // entrance, never obscure it). The door head, for a normal door, is
+                                    // already above 8 ft, so this is the binding minimum.
+                                    const int minBottom = std::max(floorMicroY + 22, doorHeadMicroY + 1);
+                                    int boardBottom = minBottom;
+                                    std::string skipReason;
+                                    if (v2RoofApexWorldMicro > 0 && boardBottom + SIGN_H > v2RoofApexWorldMicro) {
+                                        boardBottom = v2RoofApexWorldMicro - SIGN_H;   // tuck under the eave
+                                        if (boardBottom < minBottom)
+                                            skipReason = "no room above the door head under the eave "
+                                                         "(roof apex too low for a clearing sign)";
+                                    }
+                                    // VALIDATOR AS A GATE (not a log-only rubber stamp): the sign is
+                                    // placed ONLY if it actually clears head height, stays within the
+                                    // projection cap, AND hangs above the lintel. A failing check SKIPS
+                                    // the sign and is reported — it never silently places a bad one.
+                                    // (PROJ=7 by construction; the gate guards against future regressions
+                                    // in PROJ, the cap, or the door-head math.)
+                                    Core::ValidationReport sc;
+                                    if (skipReason.empty()) {
+                                        sc = Core::RealizedStructureValidator::checkSignClearance(
+                                            boardBottom, floorMicroY, PROJ, /*minClear*/22,
+                                            /*maxProj*/11, /*doorHead*/doorHeadMicroY);
+                                        if (!sc.ok()) skipReason = sc.summary();
+                                    }
+                                    if (!skipReason.empty()) {
+                                        LOG_WARN("StructureV2", "place_signage: SKIPPED — " + skipReason);
+                                        response["signage_skipped"] = skipReason;
+                                    } else {
+                                        // min-corner of the rotated AABB so the bracket foot is flush on
+                                        // the wall outer face and the board projects OUTWARD (see the
+                                        // rotation map above). The projection axis is 7 micro (0..6).
+                                        glm::ivec3 sm(0, boardBottom, 0);
+                                        switch (rotation) {
+                                            case 0:   sm.x = alongCenterMicro; sm.z = wallOuterMicro;     break; // +Z
+                                            case 180: sm.x = alongCenterMicro; sm.z = wallOuterMicro - 6; break; // -Z
+                                            case 270: sm.x = wallOuterMicro;   sm.z = alongCenterMicro;   break; // +X
+                                            case 90:  sm.x = wallOuterMicro - 6; sm.z = alongCenterMicro; break; // -X
+                                            default: break;
+                                        }
+                                        (void)alongX;
+                                        std::string sid = placedObjectManager->placeTemplateMicro(
+                                            "hanging_sign", sm, rotation, objectId);
+                                        if (!sid.empty()) {
+                                            ++fxSpawned;
+                                            nlohmann::json sj = {
+                                                {"id", sid}, {"structure", objectId},
+                                                {"rotation", rotation},
+                                                {"board_bottom_micro_y", boardBottom},
+                                                {"clearance_micro", boardBottom - floorMicroY},
+                                                {"above_lintel_micro", boardBottom - doorHeadMicroY},
+                                                {"projection_micro", PROJ},
+                                                {"over_door", door != nullptr},
+                                                {"clearance_ok", true}};   // gated: only reached when ok
+                                            placedObjectManager->setMetadata(sid, "signage", sj);
+                                            response["signage"] = sj;
+                                            LOG_INFO_FMT("StructureV2", "place_signage: hung sign over "
+                                                         << (door ? "entry door" : "front wall")
+                                                         << " (clearance " << (boardBottom - floorMicroY)
+                                                         << " micro, above lintel " << (boardBottom - doorHeadMicroY)
+                                                         << " micro, rot " << rotation << ")");
+                                        } else {
+                                            LOG_WARN("StructureV2", "place_signage: placeTemplateMicro failed");
                                         }
                                     }
                                 }

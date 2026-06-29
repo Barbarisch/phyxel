@@ -1,0 +1,84 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bellows
+# display_name: Bellows
+# description:  A great double-lung blacksmith's bellows -- wide chamber tapering to an iron nozzle.
+# category:     furniture
+# subcategory:  fixture
+# tags:         bellows, smithy, blacksmith, forge, air
+# materials:    Wood, Metal
+# facing:       +Z (nozzle to the front / the forge)
+# bounds:       0.33W x 0.33H x 1.56D m (grounded object_dimensions 'bellows' length 1.5 / width 0.3 / height 0.35)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 2 0 0 2 Wood
+M 0 0 1 0 0 0 0 0 0 Wood
+M 0 0 1 0 0 0 0 0 1 Wood
+M 0 0 1 0 0 0 0 0 2 Wood
+M 0 0 1 0 0 1 0 0 0 Wood
+M 0 0 1 0 0 1 0 0 1 Wood
+M 0 0 0 0 0 2 0 1 2 Wood
+M 0 0 1 0 0 0 0 1 0 Wood
+M 0 0 1 0 0 0 0 1 1 Wood
+M 0 0 1 0 0 0 0 1 2 Wood
+M 0 0 1 0 0 1 0 1 0 Wood
+M 0 0 1 0 0 1 0 1 1 Wood
+M 0 0 0 0 0 2 0 2 2 Wood
+M 0 0 1 0 0 0 0 2 0 Wood
+M 0 0 1 0 0 0 0 2 1 Wood
+M 0 0 1 0 0 0 0 2 2 Wood
+M 0 0 1 0 0 1 0 2 0 Wood
+M 0 0 1 0 0 1 0 2 1 Wood
+M 0 0 0 0 0 1 1 0 1 Wood
+M 0 0 0 0 0 1 1 0 2 Wood
+M 0 0 0 0 0 2 1 0 0 Wood
+M 0 0 0 0 0 2 1 0 1 Wood
+M 0 0 0 0 0 2 1 0 2 Wood
+M 0 0 1 0 0 0 1 0 0 Wood
+M 0 0 1 0 0 0 1 0 1 Wood
+M 0 0 1 0 0 0 1 0 2 Wood
+M 0 0 1 0 0 1 1 0 0 Wood
+M 0 0 1 0 0 1 1 0 1 Wood
+M 0 0 0 0 0 0 1 1 0 Metal
+M 0 0 0 0 0 0 1 1 1 Metal
+M 0 0 0 0 0 0 1 1 2 Metal
+M 0 0 0 0 0 1 1 1 0 Metal
+M 0 0 0 0 0 1 1 1 1 Wood
+M 0 0 0 0 0 1 1 1 2 Wood
+M 0 0 0 0 0 2 1 1 0 Wood
+M 0 0 0 0 0 2 1 1 1 Wood
+M 0 0 0 0 0 2 1 1 2 Wood
+M 0 0 1 0 0 0 1 1 0 Wood
+M 0 0 1 0 0 0 1 1 1 Wood
+M 0 0 1 0 0 0 1 1 2 Wood
+M 0 0 1 0 0 1 1 1 0 Wood
+M 0 0 1 0 0 1 1 1 1 Wood
+M 0 0 0 0 0 1 1 2 1 Wood
+M 0 0 0 0 0 1 1 2 2 Wood
+M 0 0 0 0 0 2 1 2 0 Wood
+M 0 0 0 0 0 2 1 2 1 Wood
+M 0 0 0 0 0 2 1 2 2 Wood
+M 0 0 1 0 0 0 1 2 0 Wood
+M 0 0 1 0 0 0 1 2 1 Wood
+M 0 0 1 0 0 0 1 2 2 Wood
+M 0 0 1 0 0 1 1 2 0 Wood
+M 0 0 1 0 0 1 1 2 1 Wood
+M 0 0 0 0 0 2 2 0 2 Wood
+M 0 0 1 0 0 0 2 0 0 Wood
+M 0 0 1 0 0 0 2 0 1 Wood
+M 0 0 1 0 0 0 2 0 2 Wood
+M 0 0 1 0 0 1 2 0 0 Wood
+M 0 0 1 0 0 1 2 0 1 Wood
+M 0 0 0 0 0 2 2 1 2 Wood
+M 0 0 1 0 0 0 2 1 0 Wood
+M 0 0 1 0 0 0 2 1 1 Wood
+M 0 0 1 0 0 0 2 1 2 Wood
+M 0 0 1 0 0 1 2 1 0 Wood
+M 0 0 1 0 0 1 2 1 1 Wood
+M 0 0 0 0 0 2 2 2 2 Wood
+M 0 0 1 0 0 0 2 2 0 Wood
+M 0 0 1 0 0 0 2 2 1 Wood
+M 0 0 1 0 0 0 2 2 2 Wood
+M 0 0 1 0 0 1 2 2 0 Wood
+M 0 0 1 0 0 1 2 2 1 Wood

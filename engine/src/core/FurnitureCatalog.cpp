@@ -39,6 +39,13 @@ const std::map<std::string, std::string>& table() {
         {"chandelier",   "chandelier"},    // hanging candle ring (awaiting ceiling placement)
         {"mug",          "mug"},           // tankard — table clutter (surface placement)
         {"bottle",       "bottle"},        // bottle — table/back-bar clutter
+        {"forge_hearth", "forge_hearth"},  // smithy: the forge (firepot + chimney) — back wall
+        {"anvil",        "anvil"},         // smithy: anvil on a stump (work-triangle centre)
+        {"bellows",      "bellows"},       // smithy: great double-lung bellows (beside the forge)
+        {"tool_rack",    "tool_rack"},     // smithy: wall rack of hammers/tongs
+        {"oven_bread",   "oven_bread"},    // bakery: masonry dome bread oven (vented) — back wall
+        {"chopping_block", "chopping_block"}, // butcher: the chopping block (defining work fixture)
+        {"meat_rail",      "meat_rail"},      // butcher: freestanding rail of iron hooks (hanging meat)
     };
     return t;
 }

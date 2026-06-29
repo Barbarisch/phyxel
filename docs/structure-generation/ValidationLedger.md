@@ -24,6 +24,33 @@ the real output (no overlap, continuous, fits, clearance — `BuildingProgramVal
 
 ### Build status (from the placer specs): **D** done · **P** partial · **M** not-built.
 
+## Realized-defect detectors (the "no shitty building passes validation" layer, 2026-06-28)
+
+Validation-FIRST response to a batch of crude visible defects: build the DETECTOR (proven red on real
+output, with teeth) before touching any generator. `RealizedStructureValidator` (+ `MicroCanvas::materialAt`),
+`RealizedStructureValidatorTest` (14 tests):
+- **V1 roof-eave-flush** — ✅ REAL (auditor-confirmed): fires on a realized cottage — the realizer's
+  `eaveSub = ceil(ceilTop/3)` rounding leaves a **1-micro air row** between the wall/ceiling top and the
+  roof (the visible hover). `maxGapMicro=0` (a roof must touch its support).
+- **V3 material-monotony** — ✅ REAL: fires on the all-Wood shell (one material >70%).
+- **V4 material-plausibility** — ✅ REAL: fires on `bed_single` (21 Sand + 170 Sandstone bedding voxels).
+- **V5 footprint-diversity** — detector valid + teeth, but the "all-rectangles" *defect was a STRAWMAN*
+  (solution-auditor): `pickBuildingVariant` ALREADY assigns ~1/3 "L" plans, so the settlement generator
+  varies (detector passes on it). The all-rect town the user saw came from hand-placed INDIVIDUAL builds
+  (footprint_shape unset → rect) — the narrow real finding the detector flags.
+- **V2 chimney-hearth contiguity** — ✅ REAL (teeth): chimney from the hearth FLOOR (old) flagged for
+  diving through the firebox; resting on the hearth TOP (fixed) passes; floating above flagged.
+- **V6 sign clearance / projection / door-head** — ✅ REAL (teeth): `checkSignClearance` fires on a sign
+  hung below 8 ft grade clearance, on one projecting past the 48 in cap, on a below-grade sign, AND
+  (door-head param) on a board whose bottom is below the lintel (distinct from the grade rule — a 24-micro
+  board clears 8 ft but fails a 27-micro lintel). `RealHangingSignProjectionWithinCap` parses the real
+  `hanging_sign.voxel` (projection 7 ≤ 11). **Wired as a GATE** in the v2 handler `place_signage` (#47):
+  a failing check SKIPS the sign and reports `signage_skipped` — never silently places a bad one
+  (solution-auditor caught the original log-only rubber-stamp + the latent below-lintel-on-roof-cap case;
+  both fixed, runtime-confirmed "above lintel 4 micro").
+> These are RED gates today (the generators genuinely produce the defects V1/V3/V4 catch); the fixes
+> (eave-flush realizer, material palettes, cloth bedding) are the green phase, tracked per defect.
+
 ## The validation harness (the sign-off instrument)
 
 `tests/core/BuildingHarnessTest.cpp` runs the pipeline across a **corpus** (1/2/3/5/10 stories,
@@ -61,9 +88,9 @@ floor scan, paths…).
 | 11 | place_ceiling / intermediate_floor | P | L2 | L1/L2 (`CeilingAndRoofExist…`) | 2/2/2 = **6** | inter-story floor continuous + holed at the stair, **per story** |
 | 12 | place_stairs | D | **L3** | **L3** ✅ (`AgentCanClimbSwitchbackToTopFloor` + gate + clearance) | 2/2/2 = **6** | ✅ **EXEMPLAR — fully met** (geometry + gate + traversal, auditor PASS) |
 | 13 | place_roof | P | L2 | L1 (`HonorsRoofPitchDegree`; KI-1 hover ungated) | 0/0/1 = **1** | L1→L2: eave rests flush on the wall top (KI-1) |
-| 14 | place_chimney | M | L1 | L0 | 0/0/0 = **0** | L0→L1 |
+| 14 | place_chimney | P | L2 | **L2** ✅ (`ChimneyPlannerTest`: `planChimneyStack` — masonry stack from each vented hearth UP THROUGH the roof, continuous (no flue gap), clears the REAL realized-shell apex by the GROUNDED ≥2 ft (6-micro, IRC R1003.9) clearance (shared `kChimneyRidgeClearanceMicro` constant, pinned ≥ the 0.610 m floor), inner flue void + solid cap. Wired into the v2 handler per fireplace/forge_hearth; runtime-confirmed stacks rise above both a house + smithy roof. both auditors FAIL→fixed: clearance 5→6 micro (was below 2 ft), citation IRC R1003.15.1, de-tautologized teeth) | 0/0/1 = **1** | ✅ geometry grounded + tested + runtime. OWED: an L2 scan of the PLACED chunk voxels (place() drop-proofing) — current test is on the planner output + a real apex, not the stamped artifact; firebox-area + stack-wall-thickness grounding (`GroundingGaps.md` #6/#7); SMOKE VFX (the plume) not started |
 | 15 | place_trim | M | L1 | L0 | 0/0/0 = **0** | decorative — L1 |
-| 16 | place_furniture | D | L2 | **L2** ✅ (KI-2 + **footprint-aware**: pieces reserve real cube footprints from `.metrics.json`, fit + no overlap + no doorway-block; red-confirmed door-wall teeth; `footprintFromExtents` pinned; auditor PASS) | 1/2/2 = **5** | ✅ per-story floorY + footprint fit/overlap met. Remaining: scan zero overlap among SPAWNED objects in a real house (integration test); +z-facing assumption documented-not-verified; counter has no `.metrics` (→1×1, feeds 16c) |
+| 16 | place_furniture | D | L2 | **L2+** ✅ (KI-2 + footprint-aware + **MICRO-PRECISE no-clip**: pieces no longer snap to cubes — `spawnTemplateMicro`/`placeTemplateMicro` re-rasterize each piece to the micro grid at `microWorldPos` (inset off EVERY abutted wall via geometry-derived `backDir`, on the exact walkable surface). `MicroPlacementOverlapTest` scans real shell `occupiedMicro`: inset = 0 wall overlap, naive cube placement >0 (teeth); caught + fixed a corner perpendicular-wall clip (63→0). +z facing now VERIFIED: all directional assets z-high-front via `mirror_z` (fireplace/counter/bar/back_bar/forge), runtime-confirmed. both auditors PASS) | 1/2/2 = **5** | ✅ wall-clip + floor-sink + facing FIXED (micro placement, red-before-green on real voxels). Remaining: `chest` clasp still z-low (cosmetic, lid-hinge blocks a blind mirror); surface-clutter pass not yet micro-precise; spawned-object↔object overlap scan |
 | 17 | place_fixtures | P | L2 | L1 (via the furniture map) | 1/1/1 = **3** | L1→L2: function-defining fixtures present + non-overlapping |
 | 16a | furniture_asset_coverage | D | L2 | **L2** ✅ (`FurnitureCatalogTest`: every emittable type maps to a loadable template; teeth + on-disk L2 + red-first chest gap, auditor PASS) | 2/2/2 = **6** | ✅ **silent-drop killed** — `FurnitureCatalog` single source + `validateFurnitureCoverage` flags missing assets by room (`asset_gaps`), not a buried skip count |
 | 16c | furniture_dim_conformance | D | L2 | **L2** ✅ (`FurnitureConformanceTest`: per-asset dims vs `object_dimensions.json` canon ±tol; no vacuous "ok"; real audit pins all 7 statuses, auditor PASS) | 1/2/1 = **4** | ✅ **regenerate-list** — `checkFurnitureConformance` flags drift/no_metrics/no_canon/no_checkable_dims. Current: 6 of 7 non-conforming ([`AssetConformance.md`](AssetConformance.md)). Remaining: regenerate the assets; +z-axis caveat; runtime/MCP surface |
@@ -101,7 +128,16 @@ Validate when each lands; required layer noted so the plan is set up front.
   `lay_street_network` 39, `place_bridges` 44, `link_subterranean` 49. **Inter-building walkability — ✅ L3**
   (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
   composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
-  just non-overlapping. Dressing → **L1**: `place_signage` 47, `dress_street_life` 48. **`build_settlement`
+  just non-overlapping. Dressing → **`place_signage` 47 — ✅ L2+L4** (a `hanging_sign` projecting trade
+  sign — Wood/Log board + Metal wrought-iron bracket, deterministic `tools/regen_furniture.py`, grounded
+  `object_dimensions 'hanging_sign'`; hung over a BUSINESS typology's ground-floor entry door on the
+  correct wall/outward-normal rotation, GATED by V6 `checkSignClearance` (clearance/projection/door-head),
+  skips + reports if no room. **L2:** the V6 detector + teeth; **L4:** runtime-built tavern placed
+  `hanging_sign_2` one cube outside the −X wall over the door, "clearance 22 micro, above lintel 4 micro,
+  rot 90", screenshot shows bracket+board projecting; solution-auditor FAIL→fixed (log-only rubber-stamp
+  → real gate; latent below-lintel → door-head check). *OPEN: the board IMAGE = the decal system (backlog,
+  F4 — not faked); the placed micro-voxels aren't yet scanned (scan_region is cube-level only).*),
+  `dress_street_life` 48. **`build_settlement`
   — ✅ engine-side** (`POST /api/settlement/build`: one call drives subdivide+populate, queues a build per
   plot; runtime-built a 4-house hamlet, 0 overlapping bboxes; `RealizerStaysWithinPlotFootprint` encodes
   no-spill; auditor PASS). *OPEN: HTTP-route e2e test; MCP tool; the queued builds run as a synchronous
@@ -183,9 +219,53 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
     lights), varied tables/chairs, private party rooms; per-asset L2 placement test (bar against wall, stools
     fronting it, no nav block); add `tavern` to the `build_settlement` typology palette (#38);
     gallery/corridor upstairs (today the landing is room 0 of a linear plan).
-- **Owed typologies (the work ahead):** smithy/forge (anvil+furnace fixtures), market/shop, temple/
-  shrine, well/fountain, barn/stable, town hall, mill, gatehouse. Each: grounded canon + room-purpose
-  recipe + L3 interior nav, red-before-green, both auditors.
+- **`blacksmith` / smithy — ✅ L3 + work-triangle (F2/F3) red→green; grounding re-audit PASS** (2nd
+  non-residential typology). 2-bay single-story: **forge floor** (purpose `forge`) + **storefront**
+  (service). New grounded MICROCUBE fixtures via `tools/regen_furniture.py` — **forge_hearth** (firepot
+  + glow coals + back chimney/hood), **anvil** (on a stump, face ~0.80 m), **bellows** (great
+  double-lung), **tool_rack** (wall hammers/tongs); quench = reused `barrel`. `FurnitureConformanceTest`
+  pins all 4 **ok** (0 non-conforming of 20). `BlacksmithTypologyTest` (5 tests): canon-grounded;
+  forge recipe places forge+anvil, assets resolve; **L3 `CharacterWalksStorefrontToForgeFloor`** +
+  sealed-door teeth; **`ForgeAnvilQuenchWorkTriangleHolds`** — the NEW work-triangle placement
+  (`FurniturePlacer::placeNear`: anvil hugs the forge, quench hugs the anvil) is **genuine red→green**
+  (solution-auditor traced: anvil was cheb=3 from the forge → now 1; F2/F3 flipped). 71/71 across
+  furniture/typology/tavern/traversal suites — no regression.
+  - **Grounding (auditor history — the gate worked):** first grounding-auditor pass **FAILED** — the
+    footprint mis-cited the Anderson shop (Colonial Williamsburg); the "<30 ft / 16×20 ft kitchen" text
+    was NOT on the cited page (a WebSearch misattribution), anvil length cited the wrong product, bellows
+    was unsourced. **Corrected + re-audited PASS:** footprint now on the EXCAVATED **Jamestown smithy
+    16×20 ft = 4.9×6.1 m** (verified live); anvil 0.60 m (Emerson 100 lb / JHM 120 lb); bellows 1.5 m
+    relabeled **INFERRED** (open source = 4 ft) → `GroundingGaps.md` #5; `proportion_max` labeled DESIGN;
+    sheet status `PARTIALLY GROUNDED`.
+  - **Runtime visual build — ✅ DONE** (`POST /api/structure/build {"schema":"v2","typology":"blacksmith",
+    "footprint":[8,6]}` on the clean StructGenTest flat world): **19976 voxels, 0 failed, 7 fixtures**;
+    the work triangle clustered in-engine exactly as the unit test (forge 12,12 → anvil 12,13 → quench
+    barrel 13,14, each cheb-1). Renders correctly — exterior Wood walls + pitched thatch roof; interior
+    screenshot shows the Stone forge hearth + chimney with the anvil in front (forge-floor corner).
+    **Render density (clean): one furnished smithy = ~125k visible faces @ ~86 FPS** (empty-world
+    baseline 80 faces). Healthy for one building; the unmerged sub/micro faces (#40) still cap
+    *settlement* density. *(First reading was 537k/38 FPS — contaminated by leftover structures in an
+    un-reset default.db; pristine-reset per [[structgen-test-project]] gave the clean number.)*
+  - **Owed:** F1 (forge on an exterior wall) is a SANITY invariant, *not* red-tested — tautological for
+    the linear 2-bay layout (solution-auditor); a falsifiable F1 needs a courtyard/T-plan where the forge
+    room has an interior non-door wall. Period bellows dims (NEEDS-RESEARCH). F4 fire-safe envelope (no
+    combustible over the forge) not yet asserted — needs realizer chimney/venting.
+- **Commercial-shop batch — ✅ L3 (4 typologies, 2026-06-28):** `general_store` (salesroom + storeroom),
+  `bakery` (bakehouse + salesroom), `apothecary` (dispensary + storeroom), `butcher` (shambles shopfront +
+  back slaughter/storage). All 2-bay single-story on a **burgage frontage** (grounded: Tait, PSAS 138
+  (2009) four-burgh frontage 5–17 m, narrow shop ~5–6 m; front-business/rear-storage split). Recipes
+  (`FurniturePlacer::recipeFor`): salesroom→counter+back_bar+barrel+chest; bakehouse→oven_bread+counter+
+  barrel; dispensary→counter+back_bar+chest+candle_stand; shambles→counter+chopping_block+meat_rail+barrel.
+  **New grounded assets:** `oven_bread` (commercial dome ~0.9 m, vented + chimney-through-roof like the
+  forge — runtime-confirmed chimney above the roof), `chopping_block`, `meat_rail` (iron hooks; meat awaits
+  a material). 4 test suites (`GeneralStore`/`Bakery`/`Apothecary`/`ButcherTypologyTest`, 20 tests):
+  canon-grounded + recipe/assets-resolve + defining-fixture-in-room + **L3 traversal + sealed teeth** each.
+  Runtime: all 4 built on StructGenTest, furnished, each auto-signed (see place_signage #47). general_store
+  **grounding-auditor PASS** (after correcting a PSAS wrong-article cite + a 5.5 m→5 m one-perch misread).
+- **Owed typologies (the work ahead):** ~~smithy/forge~~ ✅ · ~~shop/store~~ ✅ · ~~bakery~~ ✅ ·
+  ~~apothecary~~ ✅ · ~~butcher~~ ✅ · market/stalls, temple/shrine, well/fountain, barn/stable, town
+  hall, mill, gatehouse. Each: grounded canon + room-purpose recipe + L3 interior nav, red-before-green,
+  both auditors.
 
 ---
 

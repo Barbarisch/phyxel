@@ -205,6 +205,14 @@ public:
                               int rotation = 0, const std::string& parentId = "",
                               bool snapToGround = true);
 
+    /// Place a STATIC template at a MICRO-precise world position (sub-cube), via
+    /// ObjectTemplateManager::spawnTemplateMicro, AND register a PlacedObject so the piece stays
+    /// addressable + removable (parent/metadata/bbox). `worldMicro` = cube*9 + micro per axis. Used
+    /// for furniture/fixtures so they sit flush against thin sub-cube walls and on the mid-cube
+    /// walkable surface (no clipping / sinking). No ground-snap (the caller supplies the exact Y).
+    std::string placeTemplateMicro(const std::string& templateName, const glm::ivec3& worldMicro,
+                                   int rotation = 0, const std::string& parentId = "");
+
     /// Outcome of deterministically seating a structure onto the terrain.
     /// All fields are MEASURED from the live world / template geometry — none assumed.
     struct SeatPlan {

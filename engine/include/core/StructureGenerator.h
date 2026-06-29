@@ -254,6 +254,22 @@ public:
     /// No silent size cap — large structures place fully; result carries true placed/failed.
     static PlacementResult place(ChunkManager* chunkManager, const StructureResult& structure);
 
+    /// place_chimney (#14): plan a masonry chimney STACK as MICROCUBE voxels, from a vented hearth up
+    /// THROUGH the roof, clearing the ridge for draught. `cx,cz` = the stack centre in WORLD MICRO
+    /// units; the stack rises from `baseMicroY` to `topMicroY` (use roof-apex + the grounded ~0.56 m /
+    /// 5-micro clearance per the 3-2-10 rule). A 5-micro (~0.56 m) square stack with an inner 3x3 FLUE
+    /// VOID, capped solid at the top `capRows` rows (the pot, hiding the flue). Returns Stone microcube
+    /// placements; deterministic + continuous (every micro-Y in [base,top] carries the stack ring).
+    /// Testable in isolation (no engine). See docs/structure-generation/placers/14_place_chimney.md.
+    static StructureResult planChimneyStack(int cx, int cz, int baseMicroY, int topMicroY,
+                                            const std::string& material = "Stone", int capRows = 2);
+
+    /// Ridge clearance for a chimney top, in MICRO cells: how far ABOVE the roof apex the stack must
+    /// rise. 6 micro = 0.667 m >= the 2 ft (0.610 m) minimum of the 3-2-10 rule (IRC R1003.9). Shared
+    /// by the build handler and the test so the grounded value can't silently regress below 2 ft.
+    /// (5 micro / 0.556 m FAILS the 2 ft floor — grounding-auditor 2026-06-28.)
+    static constexpr int kChimneyRidgeClearanceMicro = 6;
+
     /// Remove voxels at the given positions (for door/window openings).
     static int removeVoxels(ChunkManager* chunkManager, const std::vector<glm::ivec3>& positions);
 

@@ -1,0 +1,179 @@
+#include "core/RealizedStructureValidator.h"
+
+#include <algorithm>
+#include <climits>
+#include <cstdlib>
+#include <map>
+#include <utility>
+
+namespace Phyxel {
+namespace Core {
+
+bool RealizedStructureValidator::isStoneFamily(const std::string& m) {
+    return m == "Stone" || m == "Cobblestone" || m == "StoneBricks" || m == "Bricks" ||
+           m == "Sandstone" || m == "Gravel";
+}
+
+// V1 — no hovering roof. A WALL column is a contiguous solid run from the bottom that reaches into the
+// upper half of the structure; if there's then an AIR gap before the next solid (the roof) above it,
+// the roof floats over the wall instead of resting on it. (Interior columns — floor only, low run —
+// are skipped; the air above them is the room, not a hover.)
+// maxGapMicro = 0: a roof must rest with NO air gap on the wall/ceiling top (any empty micro row at
+// the perimeter eave is a hover). The realizer's eaveSub rounding leaves a 1-micro gap today.
+ValidationReport RealizedStructureValidator::checkRoofEaveFlush(const MicroCanvas& canvas, int maxGapMicro) {
+    ValidationReport rep;
+    glm::ivec3 lo, hi;
+    if (!canvas.microBounds(lo, hi)) return rep;
+    const int totalH = hi.y - lo.y;
+    if (totalH < 6) return rep;   // too short to carry a distinct roof
+
+    std::map<std::pair<int, int>, std::vector<int>> cols;
+    for (const auto& c : canvas.occupiedCells()) cols[{c.x, c.z}].push_back(c.y);
+
+    int hoverCols = 0, worstGap = 0;
+    std::pair<int, int> worstAt{0, 0};
+    for (auto& kv : cols) {
+        std::vector<int>& ys = kv.second;
+        std::sort(ys.begin(), ys.end());
+        // contiguous solid run upward from the lowest solid (the wall/floor mass)
+        int runTop = ys[0];
+        size_t i = 1;
+        for (; i < ys.size() && ys[i] == runTop + 1; ++i) runTop = ys[i];
+        if (runTop - lo.y < totalH / 2) continue;   // not a wall column (interior floor-only)
+        if (i >= ys.size()) continue;               // wall contiguous to the top -> flush, no hover
+        const int gap = ys[i] - runTop - 1;         // air cells between the wall top and the next solid
+        if (gap > maxGapMicro) {
+            ++hoverCols;
+            if (gap > worstGap) { worstGap = gap; worstAt = kv.first; }
+        }
+    }
+    if (hoverCols > 0) {
+        rep.addError("roof_hover",
+            "roof floats above the wall top at " + std::to_string(hoverCols) +
+            " perimeter column(s) — worst air gap " + std::to_string(worstGap) +
+            " micro at (" + std::to_string(worstAt.first) + "," + std::to_string(worstAt.second) +
+            "); the eave must rest ON the wall/ceiling top");
+    }
+    return rep;
+}
+
+// V3 — material variety. If one material covers more than `maxFraction` of the realized cells, the
+// structure reads as a single-material blob (walls + floor + roof all the same).
+ValidationReport RealizedStructureValidator::checkMaterialContrast(const MicroCanvas& canvas,
+                                                                   double maxFraction) {
+    ValidationReport rep;
+    std::map<std::string, int> counts;
+    int total = 0;
+    for (const auto& c : canvas.occupiedCells()) {
+        counts[canvas.materialAt(c.x, c.y, c.z)]++;
+        ++total;
+    }
+    if (total == 0) return rep;
+    std::string dominant;
+    int domCount = 0;
+    for (const auto& kv : counts)
+        if (kv.second > domCount) { domCount = kv.second; dominant = kv.first; }
+    const double frac = static_cast<double>(domCount) / total;
+    if (frac > maxFraction) {
+        const int pct = static_cast<int>(frac * 100.0 + 0.5);
+        rep.addError("material_monotony",
+            "'" + dominant + "' is " + std::to_string(pct) + "% of the structure (> " +
+            std::to_string(static_cast<int>(maxFraction * 100)) + "% threshold) — walls/floor/roof "
+            "need contrasting materials, not one blob");
+    }
+    return rep;
+}
+
+// V4 — per-type material plausibility. A bed's bedding can't be hard stone or granular Sand.
+ValidationReport RealizedStructureValidator::checkFurnitureMaterialPlausibility(
+    const std::string& type, const std::vector<std::string>& materials) {
+    ValidationReport rep;
+    std::string t = type;
+    std::transform(t.begin(), t.end(), t.begin(), [](unsigned char c) { return std::tolower(c); });
+    const bool isBed = t.find("bed") != std::string::npos;
+    if (isBed) {
+        for (const auto& m : materials) {
+            if (isStoneFamily(m) || m == "Sand") {
+                rep.addError("implausible_material",
+                    "bed is built with '" + m + "' — bedding (mattress/pillow/blanket) must be a SOFT "
+                    "material (linen/wool/cloth), never stone or granular sand", type);
+            }
+        }
+    }
+    return rep;
+}
+
+// V5 — footprint diversity across a generated set. Flag a corpus that is 100% rectangles.
+ValidationReport RealizedStructureValidator::checkFootprintDiversity(
+    const std::vector<std::string>& footprintShapes) {
+    ValidationReport rep;
+    if (footprintShapes.empty()) return rep;
+    int nonRect = 0;
+    for (const auto& s : footprintShapes) {
+        std::string t = s;
+        std::transform(t.begin(), t.end(), t.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (!t.empty() && t != "rect" && t != "rectangle") ++nonRect;
+    }
+    if (nonRect == 0) {
+        rep.addError("footprint_monotony",
+            "all " + std::to_string(footprintShapes.size()) + " buildings are perfect rectangles — "
+            "the generator produces no L/T/U/articulated footprint variety");
+    }
+    return rep;
+}
+
+// V2 — the chimney must rest ON the hearth top, integral to it: not a column diving through the hearth
+// body / firebox (overlap), nor floating above. The defect was a stack built from the FLOOR, centered,
+// punching up through the firebox.
+ValidationReport RealizedStructureValidator::checkChimneyOnHearth(int hearthBaseMicroY,
+                                                                 int hearthHeightMicro,
+                                                                 int chimneyBaseMicroY, int tolMicro) {
+    ValidationReport rep;
+    const int hearthTopY = hearthBaseMicroY + std::max(0, hearthHeightMicro);
+    if (chimneyBaseMicroY < hearthTopY - tolMicro) {
+        rep.addError("chimney_overlaps_hearth",
+            "chimney base at micro-Y " + std::to_string(chimneyBaseMicroY) + " dives " +
+            std::to_string(hearthTopY - chimneyBaseMicroY) + " micro INTO the hearth body (top at " +
+            std::to_string(hearthTopY) + ") — the stack overlaps the firebox instead of resting on the "
+            "hearth; start it at the hearth top");
+    } else if (chimneyBaseMicroY > hearthTopY + tolMicro) {
+        rep.addError("chimney_floats_above_hearth",
+            "chimney base at micro-Y " + std::to_string(chimneyBaseMicroY) + " floats " +
+            std::to_string(chimneyBaseMicroY - hearthTopY) + " micro above the hearth top (" +
+            std::to_string(hearthTopY) + ") — not contiguous with the hearth");
+    }
+    return rep;
+}
+
+// V6 — projecting shop sign clearance + projection. A hanging sign over an entrance must clear heads
+// (board bottom ≥ minClearance above grade) and not jut too far from the wall (≤ maxProjection). The
+// values default to the historic projecting-sign code (≥ 8 ft clearance, ≤ 48 in projection).
+ValidationReport RealizedStructureValidator::checkSignClearance(int boardBottomMicroY, int groundMicroY,
+                                                               int projectionMicro,
+                                                               int minClearanceMicro,
+                                                               int maxProjectionMicro,
+                                                               int doorHeadMicroY) {
+    ValidationReport rep;
+    const int clearance = boardBottomMicroY - groundMicroY;
+    if (clearance < minClearanceMicro) {
+        rep.addError("sign_too_low",
+            "hanging sign board bottom is only " + std::to_string(clearance) + " micro above grade (need "
+            + std::to_string(minClearanceMicro) + " ≈ 2.44 m / 8 ft) — a person or horse would hit it; "
+            "hang it higher over the entrance");
+    }
+    if (projectionMicro > maxProjectionMicro) {
+        rep.addError("sign_over_projects",
+            "hanging sign projects " + std::to_string(projectionMicro) + " micro from the wall (max "
+            + std::to_string(maxProjectionMicro) + " ≈ 1.22 m / 48 in) — shorten the bracket");
+    }
+    if (doorHeadMicroY != INT_MIN && boardBottomMicroY < doorHeadMicroY) {
+        rep.addError("sign_below_door_head",
+            "hanging sign board bottom (micro-Y " + std::to_string(boardBottomMicroY) + ") is below the "
+            "door head (" + std::to_string(doorHeadMicroY) + ") — it obscures the doorway instead of "
+            "crowning it; hang it above the lintel");
+    }
+    return rep;
+}
+
+} // namespace Core
+} // namespace Phyxel

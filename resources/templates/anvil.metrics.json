@@ -7,9 +7,23 @@
     0.0
   ],
   "overall_max": [
-    1.0,
-    1.0,
-    1.0
+    0.2222222222222222,
+    0.7777777777777778,
+    0.5555555555555556
   ],
-  "interaction_points": []
+  "interaction_points": [
+    {
+      "point_id": "work_0",
+      "kind": "work_surface",
+      "local_position": [
+        0.111,
+        0.778,
+        0.278
+      ],
+      "facing_yaw": 0.0,
+      "features": {
+        "work_top_y": 0.778
+      }
+    }
+  ]
 }

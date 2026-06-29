@@ -67,8 +67,9 @@ TEST(FurnitureConformanceTest, FlagsNoCanonArchetype) {
     auto present = [](const std::string&) -> AssetExtents { return {1.0, 1.0, 1.0, true}; };
     // (a) barrel maps to an archetype, but it's absent from THIS canon -> no_canon.
     EXPECT_EQ(statusOf(checkFurnitureConformance(canon, present), "barrel"), "no_canon");
-    // (b) a type with no archetype mapping at all -> "".
-    EXPECT_EQ(archetypeForType("anvil"), "");
+    // (b) a type with no archetype mapping at all -> "". (Use a sentinel that will never be a real
+    // fixture type, so adding new fixtures — e.g. anvil/forge_hearth — can't silently break this.)
+    EXPECT_EQ(archetypeForType("__no_such_fixture__"), "");
     EXPECT_EQ(archetypeForType("bed"), "bed_single");
 }
 
@@ -149,4 +150,9 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     // Tableware clutter (mugs + bottles): microcube-floor props grounded to object_dimensions.
     EXPECT_EQ(statusOf(rep, "mug"),    "ok");                    // 0.11 cube vs canon 0.13/0.095
     EXPECT_EQ(statusOf(rep, "bottle"), "ok");                    // 0.11x0.33 vs canon 0.08/0.30
+    // Smithy fixtures: deterministic microcube builds grounded to object_dimensions.
+    EXPECT_EQ(statusOf(rep, "forge_hearth"), "ok");             // 1.0w x 0.78d vs canon 1.0/0.8 (work_top 0.8)
+    EXPECT_EQ(statusOf(rep, "anvil"),        "ok");             // 0.22w x 0.56len vs canon 0.25/0.55
+    EXPECT_EQ(statusOf(rep, "bellows"),      "ok");             // 0.33w x 0.33h x 1.56len vs canon 0.3/0.35/1.5
+    EXPECT_EQ(statusOf(rep, "tool_rack"),    "ok");             // 1.0w x 0.22d vs canon 1.0/0.15
 }

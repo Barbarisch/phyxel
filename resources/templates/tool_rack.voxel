@@ -1,0 +1,89 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tool_rack
+# display_name: Tool Rack
+# description:  A wall-mounted smith's tool rack -- a board hung with hammers and tongs.
+# category:     furniture
+# subcategory:  fixture
+# tags:         tool, rack, smithy, blacksmith, wall, hammers, tongs
+# materials:    Wood, Metal
+# facing:       +Z (tools face the room; mounts on a wall ~1.5 m up)
+# bounds:       1.0W x ~0.67H x 0.22D m (grounded object_dimensions 'tool_rack' width 1.0 / depth 0.15 / mount 1.5)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Wood
+M 0 0 0 0 0 0 0 1 0 Wood
+M 0 0 0 0 0 0 0 2 0 Wood
+M 0 0 0 0 1 0 0 0 0 Wood
+M 0 0 0 0 1 0 0 1 0 Wood
+M 0 0 0 0 1 0 0 2 0 Wood
+M 0 0 0 0 1 0 0 2 1 Wood
+M 0 0 0 0 0 0 1 0 0 Wood
+M 0 0 0 0 0 0 1 1 0 Wood
+M 0 0 0 0 0 0 1 2 0 Wood
+M 0 0 0 0 0 0 1 2 1 Metal
+M 0 0 0 0 1 0 1 0 0 Wood
+M 0 0 0 0 1 0 1 0 1 Metal
+M 0 0 0 0 1 0 1 1 0 Wood
+M 0 0 0 0 1 0 1 1 1 Metal
+M 0 0 0 0 1 0 1 2 0 Wood
+M 0 0 0 0 1 0 1 2 1 Wood
+M 0 0 0 0 0 0 2 0 0 Wood
+M 0 0 0 0 0 0 2 1 0 Wood
+M 0 0 0 0 0 0 2 2 0 Wood
+M 0 0 0 0 1 0 2 0 0 Wood
+M 0 0 0 0 1 0 2 1 0 Wood
+M 0 0 0 0 1 0 2 2 0 Wood
+M 0 0 0 0 1 0 2 2 1 Wood
+M 0 0 0 1 0 0 0 0 0 Wood
+M 0 0 0 1 0 0 0 1 0 Wood
+M 0 0 0 1 0 0 0 2 0 Wood
+M 0 0 0 1 0 0 0 2 1 Metal
+M 0 0 0 1 1 0 0 0 0 Wood
+M 0 0 0 1 1 0 0 0 1 Metal
+M 0 0 0 1 1 0 0 1 0 Wood
+M 0 0 0 1 1 0 0 1 1 Metal
+M 0 0 0 1 1 0 0 2 0 Wood
+M 0 0 0 1 1 0 0 2 1 Wood
+M 0 0 0 1 0 0 1 0 0 Wood
+M 0 0 0 1 0 0 1 1 0 Wood
+M 0 0 0 1 0 0 1 2 0 Wood
+M 0 0 0 1 1 0 1 0 0 Wood
+M 0 0 0 1 1 0 1 1 0 Wood
+M 0 0 0 1 1 0 1 2 0 Wood
+M 0 0 0 1 1 0 1 2 1 Wood
+M 0 0 0 1 0 0 2 0 0 Wood
+M 0 0 0 1 0 0 2 1 0 Wood
+M 0 0 0 1 0 0 2 2 0 Wood
+M 0 0 0 1 0 0 2 2 1 Metal
+M 0 0 0 1 1 0 2 0 0 Wood
+M 0 0 0 1 1 0 2 0 1 Metal
+M 0 0 0 1 1 0 2 1 0 Wood
+M 0 0 0 1 1 0 2 1 1 Metal
+M 0 0 0 1 1 0 2 2 0 Wood
+M 0 0 0 1 1 0 2 2 1 Wood
+M 0 0 0 2 0 0 0 0 0 Wood
+M 0 0 0 2 0 0 0 1 0 Wood
+M 0 0 0 2 0 0 0 2 0 Wood
+M 0 0 0 2 1 0 0 0 0 Wood
+M 0 0 0 2 1 0 0 1 0 Wood
+M 0 0 0 2 1 0 0 2 0 Wood
+M 0 0 0 2 1 0 0 2 1 Wood
+M 0 0 0 2 0 0 1 0 0 Wood
+M 0 0 0 2 0 0 1 1 0 Wood
+M 0 0 0 2 0 0 1 2 0 Wood
+M 0 0 0 2 0 0 1 2 1 Metal
+M 0 0 0 2 1 0 1 0 0 Wood
+M 0 0 0 2 1 0 1 0 1 Metal
+M 0 0 0 2 1 0 1 1 0 Wood
+M 0 0 0 2 1 0 1 1 1 Metal
+M 0 0 0 2 1 0 1 2 0 Wood
+M 0 0 0 2 1 0 1 2 1 Wood
+M 0 0 0 2 0 0 2 0 0 Wood
+M 0 0 0 2 0 0 2 1 0 Wood
+M 0 0 0 2 0 0 2 2 0 Wood
+M 0 0 0 2 1 0 2 0 0 Wood
+M 0 0 0 2 1 0 2 1 0 Wood
+M 0 0 0 2 1 0 2 2 0 Wood
+M 0 0 0 2 1 0 2 2 1 Wood

@@ -796,6 +796,83 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     return true;
 }
 
+bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const glm::ivec3& worldMicro,
+                                               int rotation) {
+    const VoxelTemplate* tmpl = getTemplate(name);
+    if (!tmpl) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
+        return false;
+    }
+    if (!m_chunkManager) return false;
+
+    const int rotSteps = ((rotation % 360) + 360) % 360 / 90;
+
+    // 1) Expand EVERY voxel (cube/subcube/microcube) to template-local MICRO cells. The micro grid
+    //    is 1 cube = 9 micro per axis (3 subcubes x 3 microcubes). A cube -> 9^3 micros, a subcube
+    //    -> 3^3, a microcube -> 1:1. Furniture is microcube-authored so this is mostly 1:1.
+    struct MCell { glm::ivec3 m; std::string mat; };
+    std::vector<MCell> cells;
+    auto addBox = [&](const glm::ivec3& microOrigin, int span, const std::string& mat) {
+        for (int x = 0; x < span; ++x)
+            for (int y = 0; y < span; ++y)
+                for (int z = 0; z < span; ++z)
+                    cells.push_back({microOrigin + glm::ivec3(x, y, z), mat});
+    };
+    for (const auto& c : tmpl->cubes)      addBox(c.relativePos * 9, 9, c.material);
+    for (const auto& s : tmpl->subcubes)   addBox(s.parentRelativePos * 9 + s.subcubePos * 3, 3, s.material);
+    for (const auto& m : tmpl->microcubes) addBox(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1, m.material);
+    if (cells.empty()) return false;
+
+    // 2) 90-deg rotation in MICRO space about Y, pivoting on the micro AABB (keeps offsets >= 0).
+    glm::ivec3 mx(0);
+    for (const auto& c : cells) mx = glm::max(mx, c.m);
+    auto rotMicro = [&](glm::ivec3 p) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(mx.z - p.z, p.y, p.x);
+            case 2: return glm::ivec3(mx.x - p.x, p.y, mx.z - p.z);
+            case 3: return glm::ivec3(p.z, p.y, mx.x - p.x);
+            default: return p;
+        }
+    };
+
+    // 3) Shift to the micro-precise world position, decompose to (cube, subcube, microcube) with
+    //    FLOOR division (correct for negative world coords), and write a microcube per cell.
+    auto floorDiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
+    auto floorMod = [&](int a, int b) { return a - floorDiv(a, b) * b; };
+
+    std::unordered_set<Chunk*> modifiedChunks;
+    auto getOrCreateChunk = [&](const glm::ivec3& worldBlockPos) -> Chunk* {
+        glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(worldBlockPos);
+        auto it = m_chunkManager->chunkMap.find(chunkCoord);
+        if (it == m_chunkManager->chunkMap.end()) {
+            m_chunkManager->createChunk(chunkCoord * 32, false);
+            it = m_chunkManager->chunkMap.find(chunkCoord);
+        }
+        if (it == m_chunkManager->chunkMap.end()) return nullptr;
+        Chunk* chunk = it->second;
+        if (modifiedChunks.insert(chunk).second) chunk->setPhysicsBulkMode(true);
+        return chunk;
+    };
+
+    for (const auto& cell : cells) {
+        const glm::ivec3 gm = worldMicro + rotMicro(cell.m);   // global micro position
+        const glm::ivec3 cube(floorDiv(gm.x, 9), floorDiv(gm.y, 9), floorDiv(gm.z, 9));
+        const glm::ivec3 rem(floorMod(gm.x, 9), floorMod(gm.y, 9), floorMod(gm.z, 9));
+        const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3);
+        const glm::ivec3 mic(rem.x % 3, rem.y % 3, rem.z % 3);
+        if (Chunk* chunk = getOrCreateChunk(cube))
+            chunk->addMicrocube(Utils::CoordinateUtils::worldToLocalCoord(cube), sub, mic, cell.mat);
+    }
+
+    for (Chunk* chunk : modifiedChunks) {
+        chunk->batchUpdateCollisions();
+        chunk->setPhysicsBulkMode(false);
+        chunk->rebuildFaces();
+        chunk->updateVulkanBuffer();
+    }
+    return true;
+}
+
 void ObjectTemplateManager::spawnTemplateSequentially(const std::string& name, const glm::vec3& worldPos, bool isStatic) {
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {

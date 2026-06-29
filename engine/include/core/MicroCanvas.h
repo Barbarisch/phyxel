@@ -111,6 +111,13 @@ public:
     bool occupiedMicro(int gx, int gy, int gz) const {
         return m_cells.find(glm::ivec3(gx, gy, gz)) != m_cells.end();
     }
+    /// Material occupying a micro cell, or "" if empty. For the realized-structure validators
+    /// (material distribution / plausibility) that need to know WHAT is at each cell, not just that
+    /// something is.
+    std::string materialAt(int gx, int gy, int gz) const {
+        auto it = m_cells.find(glm::ivec3(gx, gy, gz));
+        return it == m_cells.end() ? std::string() : it->second;
+    }
     /// Micro-grid AABB of all occupied cells. Returns false if empty.
     bool microBounds(glm::ivec3& lo, glm::ivec3& hi) const;
     /// All occupied micro coordinates (small for assets; used for connectivity).

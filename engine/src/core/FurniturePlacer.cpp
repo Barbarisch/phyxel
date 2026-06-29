@@ -1,6 +1,8 @@
 #include "core/FurniturePlacer.h"
 
+#include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <map>
 #include <set>
 #include <string>
@@ -30,6 +32,19 @@ std::vector<Piece> recipeFor(const std::string& purpose) {
     if (has("kitchen"))                              return {{"counter", false}, {"fireplace", false}};
     if (has("bed") || has("chamber") || has("solar")) return {{"bed", false}, {"chest", false}};
     if (has("hall") || has("living") || has("great")) return {{"fireplace", false}, {"table", true}, {"bench", false}};
+    if (has("forge") || has("smith") || has("anvil"))    return {{"forge_hearth", false}, {"anvil", true}, {"bellows", false}, {"tool_rack", false}, {"barrel", false}};
+    // bakehouse (bakery): the vented masonry bread oven on the back wall + a kneading counter + flour
+    // barrels. The oven is fire-managed + gets a place_chimney stack (like the forge).
+    if (has("bakehouse") || has("oven") || has("bake")) return {{"oven_bread", false}, {"counter", false}, {"barrel", false}};
+    // butcher's shop (shambles): a stall-board counter (street display) + the chopping block (the
+    // defining work fixture) + a meat rail of iron hooks + a stock barrel. New grounded assets.
+    if (has("shambles") || has("butcher")) return {{"counter", false}, {"chopping_block", true}, {"meat_rail", false}, {"barrel", false}};
+    // apothecary dispensary: a dispensing counter + shelves of jars/bottles behind (back_bar carries
+    // bottles) + a coffer + a candelabra for the dim apothecary light. Reuses grounded assets.
+    if (has("dispensary") || has("apothecary")) return {{"counter", false}, {"back_bar", false}, {"chest", false}, {"candle_stand", false}};
+    // shopfront / salesroom (general store, merchant): a sales counter + shelved goods on the back
+    // wall + stock barrels + a coffer (the strongbox/till). All reuse existing grounded assets.
+    if (has("sales") || has("shopfront") || has("shopfloor")) return {{"counter", false}, {"back_bar", false}, {"barrel", false}, {"chest", false}};
     if (has("service") || has("pantry") || has("store")) return {{"barrel", false}, {"chest", false}};
     return {{"chest", false}};
 }
@@ -69,7 +84,8 @@ std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
 
 std::vector<std::string> FurniturePlacer::knownPurposes() {
     // One representative per recipe branch in recipeFor(); their union is the full vocabulary.
-    return {"taproom", "kitchen", "bedchamber", "hall", "store", "other"};
+    return {"taproom", "kitchen", "bedchamber", "hall", "store", "forge", "salesroom", "bakehouse",
+            "dispensary", "shambles", "other"};
 }
 
 std::vector<FixtureLabel> FurniturePlacer::labelFixtures(
@@ -157,6 +173,18 @@ int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
     return 180;                    // against max-z wall, front -z
 }
 
+glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTMicro,
+                                          int surfaceMicroY) {
+    // X/Z: the cube origin in MICRO units, inset by the exterior-wall thickness along -backDir (toward
+    // the room) so the piece clears the thin wall band occupying the outer extTMicro of the perimeter
+    // cube — flush against the wall's interior face, never inside it. (backDir 0 -> no inset.)
+    // Y: the absolute walkable-surface micro-Y, NOT the integer-truncated cube worldPos.y (which sank
+    // furniture by the floor thickness). Whole-micro shifts are exact (extTMicro is a micro count).
+    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * extTMicro,
+                      surfaceMicroY,
+                      p.worldPos.z * 9 - p.backDir.z * extTMicro);
+}
+
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
@@ -220,19 +248,74 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         };
         auto reserve = [&](const std::vector<std::pair<int, int>>& cells, const std::string& type,
                            int rot) {
-            int mx = cells[0].first, mz = cells[0].second;
-            for (const auto& c : cells) { occupied.insert(c); mx = std::min(mx, c.first); mz = std::min(mz, c.second); }
+            int mnx = cells[0].first, mnz = cells[0].second, mxx = mnx, mxz = mnz;
+            for (const auto& c : cells) {
+                occupied.insert(c);
+                mnx = std::min(mnx, c.first);  mnz = std::min(mnz, c.second);
+                mxx = std::max(mxx, c.first);  mxz = std::max(mxz, c.second);
+            }
+            // backDir = the OUTWARD normal of EVERY room-edge (wall) the footprint abuts — so the
+            // consumer insets off ALL of them, including the perpendicular wall at a corner and an
+            // interior partition (any room edge carries a wall). A piece in the interior -> (0,0,0).
+            glm::ivec3 bd(0);
+            if (mnx == rx)               bd.x = -1;            // at min-x edge: wall on -x
+            else if (mxx == rx + rw - 1) bd.x = +1;            // at max-x edge: wall on +x
+            if (mnz == rz)               bd.z = -1;
+            else if (mxz == rz + rd - 1) bd.z = +1;
             FurniturePlacement f;
-            f.type = type; f.room = room.id; f.rotation = rot;
-            f.worldPos = glm::ivec3(origin.x + mx, floorY, origin.z + mz);   // anchor = footprint corner
+            f.type = type; f.room = room.id; f.rotation = rot; f.backDir = bd;
+            f.worldPos = glm::ivec3(origin.x + mnx, floorY, origin.z + mnz);   // anchor = footprint corner
             out.push_back(f);
         };
+
+        // Place a piece at the nearest FREE footprint slot to an anchor cell, facing the room centre.
+        // This is the work-triangle clustering primitive (the anvil hugs the forge; the quench hugs
+        // the anvil) — a tight functional cluster, not a piece marooned at the room centre.
+        auto placeNear = [&](std::pair<int, int> anchor, Footprint fp, const std::string& type) -> bool {
+            const int width = std::max(1, fp.width), depth = std::max(1, fp.depth);
+            int bestX = 0, bestZ = 0, bestD = -1;
+            for (int x = rx; x + width <= rx + rw; ++x)
+                for (int z = rz; z + depth <= rz + rd; ++z) {
+                    std::vector<std::pair<int, int>> cells;
+                    for (int cx = x; cx < x + width; ++cx)
+                        for (int cz = z; cz < z + depth; ++cz) cells.push_back({cx, cz});
+                    if (!fits(cells)) continue;
+                    const int ccx = x + width / 2, ccz = z + depth / 2;
+                    const int d = std::max(std::abs(ccx - anchor.first), std::abs(ccz - anchor.second));
+                    if (bestD < 0 || d < bestD) { bestD = d; bestX = x; bestZ = z; }
+                }
+            if (bestD < 0) return false;                    // nothing free in the room
+            std::vector<std::pair<int, int>> cells;
+            for (int cx = bestX; cx < bestX + width; ++cx)
+                for (int cz = bestZ; cz < bestZ + depth; ++cz) cells.push_back({cx, cz});
+            const int dcx = (rx + rw / 2) - (bestX + width / 2);
+            const int dcz = (rz + rd / 2) - (bestZ + depth / 2);
+            const int rot = (std::abs(dcx) >= std::abs(dcz))
+                ? facingIntoRoom(dcx > 0 ? 1 : (dcx < 0 ? -1 : 0), 0)
+                : facingIntoRoom(0, dcz > 0 ? 1 : (dcz < 0 ? -1 : 0));
+            reserve(cells, type, rot);
+            return true;
+        };
+
+        // Forge floor: cluster the work triangle. Detected by room purpose so it only fires for a smithy.
+        const std::string roomPurpose = lower(room.purpose);
+        const bool forgeFloor = roomPurpose.find("forge") != std::string::npos
+                             || roomPurpose.find("smith") != std::string::npos
+                             || roomPurpose.find("anvil") != std::string::npos;
+        std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1};
 
         for (const auto& piece : recipeFor(room.purpose)) {
             const Footprint fp = footprintOf(piece.type);
             const int width = std::max(1, fp.width);
             bool placed = false;
-            if (piece.center) {
+
+            // Work-triangle clustering: the anvil hugs the forge; the quench (barrel) hugs the anvil.
+            if (forgeFloor && piece.type == "anvil" && forgeCell.first >= 0)
+                placed = placeNear(forgeCell, fp, piece.type);
+            else if (forgeFloor && piece.type == "barrel" && anvilCell.first >= 0)
+                placed = placeNear(anvilCell, fp, piece.type);
+
+            if (!placed && piece.center) {
                 auto cells = coverAt(0, fp, 0, /*center=*/true);
                 if (fits(cells)) { reserve(cells, piece.type, 0); placed = true; }
             }
@@ -248,11 +331,20 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     for (int along = 0; along + width <= runLen; ++along) {
                         auto cells = coverAt(w, fp, along, /*center=*/false);
                         if (!fits(cells)) continue;
+                        // reserve() derives backDir from which room edges the footprint abuts (insets
+                        // off every wall it touches — corners + partitions included).
                         reserve(cells, piece.type, facingIntoRoom(WALLS[w].inwardDx, WALLS[w].inwardDz));
                         placed = true;
                         break;
                     }
                 }
+            }
+            if (placed && forgeFloor) {   // remember anchors so the next triangle piece can hug them
+                const auto& last = out.back();
+                if (piece.type == "forge_hearth")
+                    forgeCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
+                else if (piece.type == "anvil")
+                    anvilCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
             }
             if (!placed && unplaced) unplaced->push_back({room.id, piece.type});  // honest: never silent
         }
