@@ -178,7 +178,8 @@ private:
     bool createSSAOBlurPipeline();
     bool createSSAOBlurDescriptors();
     void updateSSAODescriptors();
-    void cleanupSSAOResources();
+    void cleanupSSAOResources();      // full teardown (shutdown): size-independent + sized
+    void cleanupSSAOSizedResources(); // resize: only size-dependent images/views/framebuffers/samplers
 };
 
 } // namespace Graphics

@@ -202,8 +202,14 @@ void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
     createBloomResources(width, height);
     createSceneFramebuffer();
     createBlurFramebuffers(width, height);
-    // Recreate SSAO size-dependent resources
-    cleanupSSAOResources();
+    // Recreate ONLY the size-dependent SSAO resources. The render pass, descriptor set
+    // layouts, descriptor sets and pipelines are size-independent and survive the resize;
+    // createSSAOResources() re-points the surviving descriptor sets at the new image views
+    // via updateSSAODescriptors(). (Tearing the whole SSAO subsystem down on resize crashed
+    // the driver — null-render-pass framebuffer on the 1st resize, write-to-freed-layout on
+    // the 2nd.) Unlike SSAO, OIT keeps its render pass in PostProcessor, so it is recreated
+    // explicitly below.
+    cleanupSSAOSizedResources();
     createSSAOResources();
     cleanupOITResources();
     createOITRenderPass();   // cleanupOITResources destroys oitRenderPass; must recreate before createOITResources
@@ -1317,16 +1323,15 @@ void PostProcessor::updateSSAODescriptors() {
     }
 }
 
-void PostProcessor::cleanupSSAOResources() {
+// Size-DEPENDENT SSAO resources only (images, views, framebuffers, samplers). These are
+// the only things that must be recreated on a window resize. The SSAO render pass,
+// descriptor set layouts, descriptor sets and pipelines are size-INDEPENDENT and are
+// deliberately NOT touched here — destroying them on resize (then never recreating them)
+// is what crashed the engine on the second resize (updateSSAODescriptors() then wrote to
+// descriptor sets whose layout had been freed). They live until shutdown.
+void PostProcessor::cleanupSSAOSizedResources() {
     VkDevice vkDevice = device->getDevice();
     auto destroy = [&](auto& h, auto fn) { if (h != VK_NULL_HANDLE) { fn(vkDevice, h, nullptr); h = VK_NULL_HANDLE; } };
-    destroy(ssaoBlurPipeline,          vkDestroyPipeline);
-    destroy(ssaoBlurPipelineLayout,    vkDestroyPipelineLayout);
-    destroy(ssaoBlurDescriptorSetLayout, vkDestroyDescriptorSetLayout);
-    destroy(ssaoPipeline,              vkDestroyPipeline);
-    destroy(ssaoPipelineLayout,        vkDestroyPipelineLayout);
-    destroy(ssaoDescriptorSetLayout,   vkDestroyDescriptorSetLayout);
-    destroy(ssaoRenderPass,            vkDestroyRenderPass);
     destroy(ssaoBlurFramebuffer,       vkDestroyFramebuffer);
     destroy(ssaoFramebuffer,           vkDestroyFramebuffer);
     destroy(ssaoBlurImageView,         vkDestroyImageView);
@@ -1337,6 +1342,22 @@ void PostProcessor::cleanupSSAOResources() {
     if (ssaoImageMemory != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, ssaoImageMemory, nullptr); ssaoImageMemory = VK_NULL_HANDLE; }
     destroy(ssaoSampler,               vkDestroySampler);
     destroy(depthSampler,              vkDestroySampler);
+}
+
+// Full SSAO teardown — shutdown path only. Releases the size-independent objects (render
+// pass, descriptor set layouts, pipelines) and then the size-dependent ones. Never call
+// this on resize; use cleanupSSAOSizedResources() there.
+void PostProcessor::cleanupSSAOResources() {
+    VkDevice vkDevice = device->getDevice();
+    auto destroy = [&](auto& h, auto fn) { if (h != VK_NULL_HANDLE) { fn(vkDevice, h, nullptr); h = VK_NULL_HANDLE; } };
+    destroy(ssaoBlurPipeline,          vkDestroyPipeline);
+    destroy(ssaoBlurPipelineLayout,    vkDestroyPipelineLayout);
+    destroy(ssaoBlurDescriptorSetLayout, vkDestroyDescriptorSetLayout);
+    destroy(ssaoPipeline,              vkDestroyPipeline);
+    destroy(ssaoPipelineLayout,        vkDestroyPipelineLayout);
+    destroy(ssaoDescriptorSetLayout,   vkDestroyDescriptorSetLayout);
+    destroy(ssaoRenderPass,            vkDestroyRenderPass);
+    cleanupSSAOSizedResources();
 }
 
 void PostProcessor::renderSSAO(VkCommandBuffer commandBuffer, const glm::mat4& proj) {
