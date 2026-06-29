@@ -175,3 +175,45 @@ TEST(FurniturePlacerTest, KitchenAndTinyRooms) {
     EXPECT_TRUE(find(fx, "counter") != nullptr);          // kitchen gets a counter
     for (const auto& f : fx) EXPECT_NE(f.room, "closet");  // 1x1 room too small -> skipped
 }
+
+// ============================================================================
+// MICRO-PRECISE placement (the wall-clip / floor-sink fix). Furniture is positioned on the micro
+// grid (1 cube = 9 micro): inset off the thin perimeter wall band, sitting on the EXACT walkable
+// surface — never inside the wall or floor. These pin the geometry of FurniturePlacer::microWorldPos.
+// ============================================================================
+
+// A piece backing the MIN-X wall must inset +extT micro (clearing the wall band) and sit on the
+// exact surface micro-Y — NOT the old cube origin (inset 0 -> clipped) nor the truncated cube Y.
+TEST(FurniturePlacerTest, MicroPlacementInsetsOffMinXWall) {
+    FurniturePlacement p;
+    p.worldPos = glm::ivec3(12, 99, 12);   // cube cell; y here is the (stale) truncated cube Y
+    p.backDir  = glm::ivec3(-1, 0, 0);     // backs onto the -x (min-x) wall
+    const glm::ivec3 m = FurniturePlacer::microWorldPos(p, /*extTMicro=*/3, /*surfaceMicroY=*/150);
+    EXPECT_EQ(m.x, 12 * 9 + 3) << "must inset +3 micro off the -x wall band [108,111)";
+    EXPECT_EQ(m.z, 12 * 9)     << "no z wall -> no z inset";
+    EXPECT_EQ(m.y, 150)        << "must sit on the exact walkable-surface micro, not a cube-truncated Y";
+    // RED baseline the fix replaces: the old cube path placed at worldPos*9 (inset 0 -> INSIDE the
+    // wall band) and at floorY*9 (truncated -> sunk into the floor).
+    EXPECT_NE(m.x, p.worldPos.x * 9) << "no-inset placement clipped the wall (the original bug)";
+}
+
+// MAX-X wall: inset the OTHER way (-extT) so the piece's far face meets the wall's interior face.
+TEST(FurniturePlacerTest, MicroPlacementInsetsOffMaxXWall) {
+    FurniturePlacement p;
+    p.worldPos = glm::ivec3(19, 99, 12);
+    p.backDir  = glm::ivec3(1, 0, 0);      // backs onto the +x (max-x) wall
+    const glm::ivec3 m = FurniturePlacer::microWorldPos(p, 3, 150);
+    EXPECT_EQ(m.x, 19 * 9 - 3) << "must inset -3 micro so the +x face clears the +x wall band";
+    EXPECT_EQ(m.y, 150);
+}
+
+// A CENTRE/interior piece (backDir 0) gets no inset, but still sits on the exact surface (no sink).
+TEST(FurniturePlacerTest, MicroPlacementCentrePieceNoInsetButOnSurface) {
+    FurniturePlacement p;
+    p.worldPos = glm::ivec3(15, 99, 14);
+    p.backDir  = glm::ivec3(0, 0, 0);
+    const glm::ivec3 m = FurniturePlacer::microWorldPos(p, 3, 150);
+    EXPECT_EQ(m.x, 15 * 9) << "centre piece: no inset";
+    EXPECT_EQ(m.z, 14 * 9);
+    EXPECT_EQ(m.y, 150)    << "still on the exact surface (the floor-sink fix applies to all pieces)";
+}

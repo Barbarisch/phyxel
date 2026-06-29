@@ -59,6 +59,20 @@ public:
     // rotation: 0, 90, 180, or 270 degrees clockwise around Y axis
     bool spawnTemplate(const std::string& name, const glm::vec3& worldPos, bool isStatic = true, int rotation = 0);
 
+    /**
+     * @brief Bake a STATIC template at a MICRO-precise world position (sub-cube), re-rasterizing
+     *        every voxel to microcubes shifted by the sub-cube remainder.
+     *
+     * Furniture is positioned on the micro grid (1 cube = 9 micro), so a piece can sit FLUSH against
+     * a thin sub-cube wall (the outer ~3 micro of a perimeter cube) and exactly on the mid-cube
+     * walkable surface — instead of clipping the wall / sinking into the floor as whole-cube
+     * `spawnTemplate` does (it `round()`s to a cube). `worldMicro` = cube*9 + micro (per axis).
+     * Whole-microcube shifts are exact (no resampling). Rotation is in 90-deg steps, applied in micro
+     * space. STATIC bake only (no kinematic parts) — for furniture/fixtures. Trees/props keep
+     * `spawnTemplate` (cheaper, cube-aligned). Returns false if the template is missing.
+     */
+    bool spawnTemplateMicro(const std::string& name, const glm::ivec3& worldMicro, int rotation = 0);
+
     // Flora decoration: ask the generator to plan biome-appropriate vegetation across a world-
     // column rectangle, then stamp each plant (centering its footprint on the sampled column).
     // All region chunks must already exist so overhang routes into the correct neighbor (no

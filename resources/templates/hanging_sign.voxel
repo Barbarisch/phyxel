@@ -1,0 +1,54 @@
+# ==========================================================
+# ASSET METADATA
+# name:         hanging_sign
+# display_name: Hanging Sign (Trade Sign)
+# description:  A projecting pictorial trade sign -- a framed wooden board on a wrought-iron bracket, hung over a shop entrance. (Board image = the decal system, backlog; this is board + bracket only.)
+# category:     signage
+# subcategory:  sign
+# tags:         sign, signage, shop, trade, hanging, bracket, street
+# materials:    Wood, Log, Metal
+# facing:       +Z (board/approach face to +Z; the wall mount is at -Z / local z=0)
+# bounds:       0.11W x ~0.78H x 0.78D m (grounded object_dimensions 'hanging_sign' board 0.8x0.6 / projection 0.8)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 1 Log
+M 0 0 0 0 0 0 0 0 2 Log
+M 0 0 0 0 0 1 0 0 0 Log
+M 0 0 0 0 0 1 0 0 1 Log
+M 0 0 0 0 0 1 0 0 2 Log
+M 0 0 0 0 0 2 0 0 0 Log
+M 0 0 0 0 0 0 0 1 1 Wood
+M 0 0 0 0 0 0 0 1 2 Wood
+M 0 0 0 0 0 1 0 1 0 Wood
+M 0 0 0 0 0 1 0 1 1 Wood
+M 0 0 0 0 0 1 0 1 2 Wood
+M 0 0 0 0 0 2 0 1 0 Wood
+M 0 0 0 0 0 0 0 2 1 Wood
+M 0 0 0 0 0 0 0 2 2 Wood
+M 0 0 0 0 0 1 0 2 0 Wood
+M 0 0 0 0 0 1 0 2 1 Wood
+M 0 0 0 0 0 1 0 2 2 Wood
+M 0 0 0 0 0 2 0 2 0 Wood
+M 0 0 0 0 1 0 0 0 1 Wood
+M 0 0 0 0 1 0 0 0 2 Wood
+M 0 0 0 0 1 1 0 0 0 Wood
+M 0 0 0 0 1 1 0 0 1 Wood
+M 0 0 0 0 1 1 0 0 2 Wood
+M 0 0 0 0 1 2 0 0 0 Wood
+M 0 0 0 0 1 0 0 1 1 Log
+M 0 0 0 0 1 0 0 1 2 Log
+M 0 0 0 0 1 1 0 1 0 Log
+M 0 0 0 0 1 1 0 1 1 Log
+M 0 0 0 0 1 1 0 1 2 Log
+M 0 0 0 0 1 2 0 1 0 Log
+M 0 0 0 0 1 0 0 2 0 Metal
+M 0 0 0 0 1 0 0 2 1 Metal
+M 0 0 0 0 1 2 0 2 0 Metal
+M 0 0 0 0 2 0 0 0 0 Metal
+M 0 0 0 0 2 0 0 0 1 Metal
+M 0 0 0 0 2 0 0 0 2 Metal
+M 0 0 0 0 2 1 0 0 0 Metal
+M 0 0 0 0 2 1 0 0 1 Metal
+M 0 0 0 0 2 1 0 0 2 Metal
+M 0 0 0 0 2 2 0 0 0 Metal

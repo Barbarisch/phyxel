@@ -62,6 +62,16 @@ class Model:
         zs = [c[2] for c in self.cells]
         return (min(xs), min(ys), min(zs)), (max(xs), max(ys), max(zs))
 
+    def mirror_z(self):
+        """Flip the model along Z so its 'front' (feature) face lands on the HIGH-z side. The placer
+        convention is +Z front (FurniturePlacer: rot 0 -> front +z): a wall-backed piece at rot 0 on
+        a min-z wall has its local z=HIGH face pointing INTO the room. Assets authored feature-on-z=0
+        therefore face the WALL (the bug). mirror_z makes feature -> z-high so they face the room."""
+        if not self.cells:
+            return
+        maxz = max(c[2] for c in self.cells)
+        self.cells = {(x, y, maxz - z): mat for (x, y, z), mat in self.cells.items()}
+
     def emit_lines(self, order):
         """order: list of (predicate, comment) -> grouped output for parts."""
         out = []
@@ -175,18 +185,20 @@ def gen_fireplace():
     m = Model()
     # hearth base slab
     m.fill(0, W - 1, 0, 1, 0, D - 1, "Stone")
-    # back wall
-    m.fill(0, W - 1, 0, H - 1, D - 1, D - 1, "Stone")
+    # back wall / chimney breast at z=0 (the side that backs ONTO the room wall)
+    m.fill(0, W - 1, 0, H - 1, 0, 0, "Stone")
     # side pillars
     m.fill(0, 2, 2, H - 1, 0, D - 1, "Stone")
     m.fill(W - 3, W - 1, 2, H - 1, 0, D - 1, "Stone")
     # lintel / mantel across the top
     m.fill(0, W - 1, H - 3, H - 1, 0, D - 1, "Stone")
-    # carve the firebox opening (front + interior void)
-    m.clear(3, W - 4, 2, H - 4, 0, D - 2)
-    # fire: a log bed + glowing embers on the hearth floor inside the firebox
+    # carve the firebox opening toward +Z (the OPENING faces the room; chimney breast to the wall).
+    # Keep z=0 solid (the back); open z=1..D-1 so the firebox faces +Z (matches the header + the placer
+    # convention rot 0 -> front +z, so a wall-backed fireplace opens INTO the room, not at the wall).
+    m.clear(3, W - 4, 2, H - 4, 1, D - 1)
+    # fire: a log bed + glowing embers on the hearth floor inside the firebox (near the back, z=1)
     m.fill(4, W - 5, 2, 2, 1, D - 2, "Log")
-    m.fill(5, W - 6, 2, 2, 2, 2, "glow")
+    m.fill(5, W - 6, 2, 2, 1, 1, "glow")
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -231,6 +243,7 @@ def gen_bar():
         "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
         "# =========================================================="
     )
+    m.mirror_z()   # front (patron side) -> +Z so a wall-backed bar faces the room (placer +Z convention)
     write("tavern_bar", header, m.emit_lines([]), m)
 
 
@@ -266,6 +279,7 @@ def gen_back_bar():
         "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
         "# =========================================================="
     )
+    m.mirror_z()   # open shelf face -> +Z (back panel to the wall) so it faces the room
     write("back_bar", header, m.emit_lines([]), m)
 
 
@@ -499,6 +513,7 @@ def gen_counter():
         "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
         "# =========================================================="
     )
+    m.mirror_z()   # work-front (toe-kick + overhang) -> +Z so a wall-backed counter faces the room
     write("counter", header, m.emit_lines([]), m)
 
 
@@ -564,6 +579,278 @@ def gen_bench_wood():
     write("bench_wood", header, m.emit_lines([]), m, seat_anchor((L - 1) / 2.0, SEAT_Y + 1, (D - 1) / 2.0))
 
 
+def gen_forge_hearth():
+    # forge_hearth: a Stone hearth on the back wall, work_top ~0.8 m (anvil/working height), with a
+    # firepot recess of glowing coals + a tuyere and a chimney/hood rising up the back. facing +Z
+    # (the smith works the open front; the chimney breast is to the wall, +z). Canon 'forge_hearth'
+    # width 1.0 / depth 0.8 (work_top 0.8). The chimney rises in Y only (footprint unchanged).
+    W, D = 9, 7                       # 1.0 m wide x 0.78 m deep
+    TOP = 6                           # body y0..6 -> top face 7/9 = 0.778 m (~0.8)
+    m = Model()
+    m.fill(0, W - 1, 0, TOP, 0, D - 1, "Stone")          # solid hearth block
+    # firepot recess in the top, centred toward the front; coals + a back tuyere (air inlet)
+    m.clear(3, W - 4, TOP - 1, TOP, 2, 4)
+    m.fill(3, W - 4, TOP - 1, TOP - 1, 2, 4, "glow")     # glowing coals in the firepot
+    m.m(W // 2, TOP - 1, 4, "Metal")                      # tuyere (bellows air inlet, at the back)
+    # chimney: a hood lip then a flue rising up the BACK (z = D-1), kept within the WxD footprint
+    m.fill(1, W - 2, TOP + 1, TOP + 2, 4, D - 1, "Stone") # hood lip over the fire, to the back
+    m.fill(3, W - 4, TOP + 3, 17, D - 2, D - 1, "Stone")  # flue up the back wall (vent)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         forge_hearth\n"
+        "# display_name: Forge Hearth\n"
+        "# description:  A stone blacksmith's forge -- firepot of glowing coals, tuyere, and a back chimney/hood.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         forge, hearth, smithy, blacksmith, fire, vented\n"
+        "# materials:    Stone, Metal, glow\n"
+        "# facing:       +Z (open working front to the room; chimney breast + flue to the wall, +z)\n"
+        "# bounds:       1.0W x ~2.0H x 0.78D m (grounded object_dimensions 'forge_hearth' work_top 0.8 / width 1.0 / depth 0.8)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    m.mirror_z()   # open working front -> +Z (chimney/flue to the wall) so the forge faces the room
+    write("forge_hearth", header, m.emit_lines([]), m)
+
+
+def gen_anvil():
+    # anvil on a stump: face at work_top ~0.8 m, overall length ~0.55 m (horn-heel), base ~0.22 m.
+    # Long axis = Z (length); X = the narrow base width (canon width 0.25, tol 0.06). facing +Z.
+    LZ = 5                            # length 5 micro = 0.556 m (canon length 0.55)
+    BX = 2                            # base width 2 micro = 0.222 m (canon width 0.25 +/-0.06)
+    m = Model()
+    m.fill(0, BX - 1, 0, 4, 1, 3, "Log")                  # the stump (under the anvil waist)
+    m.fill(0, BX - 1, 5, 6, 0, LZ - 1, "Metal")           # the anvil body (face top y6 -> 0.778 m)
+    m.clear(0, BX - 1, 6, 6, 0, 0)                         # round off the horn tip (front, z0)
+    anchors = [{
+        "point_id": "work_0", "kind": "work_surface",
+        "local_position": [round((BX / 2.0) / 9, 3), round(7 / 9, 3), round((LZ / 2.0) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(7 / 9, 3)},
+    }]
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         anvil\n"
+        "# display_name: Anvil\n"
+        "# description:  A blacksmith's anvil on a wooden stump -- face at working (knuckle) height.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         anvil, smithy, blacksmith, forge, iron\n"
+        "# materials:    Metal, Log\n"
+        "# facing:       +Z (horn to the front)\n"
+        "# work_top:     0.778\n"
+        "# bounds:       0.22W x 0.78H x 0.56D m (grounded object_dimensions 'anvil' length 0.55 / width 0.25 / work_top 0.8)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("anvil", header, m.emit_lines([]), m, anchors)
+
+
+def gen_bellows():
+    # great double-lung bellows: ~1.5 m long, ~0.33 m wide, ~0.33 m tall. Long axis = Z (length).
+    # Wide chamber at the back (z max), tapering to a Metal nozzle at the front (z0, toward the forge).
+    m = Model()
+    m.fill(0, 2, 0, 2, 8, 13, "Wood")     # back chamber (full 3x3 cross-section), z8..13
+    m.fill(1, 1, 0, 2, 4, 7, "Wood")      # narrowing middle, z4..7
+    m.fill(1, 1, 1, 1, 0, 3, "Metal")     # nozzle pipe to the front (z0..3)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         bellows\n"
+        "# display_name: Bellows\n"
+        "# description:  A great double-lung blacksmith's bellows -- wide chamber tapering to an iron nozzle.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         bellows, smithy, blacksmith, forge, air\n"
+        "# materials:    Wood, Metal\n"
+        "# facing:       +Z (nozzle to the front / the forge)\n"
+        "# bounds:       0.33W x 0.33H x 1.56D m (grounded object_dimensions 'bellows' length 1.5 / width 0.3 / height 0.35)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("bellows", header, m.emit_lines([]), m)
+
+
+def gen_tool_rack():
+    # tool_rack: a wall-mounted board (~1.0 m wide, thin) hung with hammers + tongs. The MOUNT height
+    # (~1.5 m) is a placement concern; the asset is the board + tools. facing +Z (tools face the room).
+    W = 9                             # 1.0 m wide (canon width 1.0)
+    m = Model()
+    m.fill(0, W - 1, 0, 5, 0, 0, "Wood")          # back board (against the wall, z0)
+    m.fill(0, W - 1, 5, 5, 0, 1, "Wood")          # top peg rail (a little depth, z1)
+    for tx in (1, 3, 5, 7):                        # hanging tools (hammers / tongs)
+        m.m(tx, 4, 1, "Metal")
+        m.m(tx, 3, 1, "Metal")
+        m.m(tx, 2, 1, "Metal")
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         tool_rack\n"
+        "# display_name: Tool Rack\n"
+        "# description:  A wall-mounted smith's tool rack -- a board hung with hammers and tongs.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         tool, rack, smithy, blacksmith, wall, hammers, tongs\n"
+        "# materials:    Wood, Metal\n"
+        "# facing:       +Z (tools face the room; mounts on a wall ~1.5 m up)\n"
+        "# bounds:       1.0W x ~0.67H x 0.22D m (grounded object_dimensions 'tool_rack' width 1.0 / depth 0.15 / mount 1.5)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("tool_rack", header, m.emit_lines([]), m)
+
+
+def gen_oven_bread():
+    # bread oven: a Stone masonry dome oven -- hearth floor at work_top ~0.8 m, a ~0.9 m baking chamber
+    # in thick heat-retaining masonry, an arched mouth opening to the room + a flue up the back (VENTED
+    # like the forge; gets a place_chimney stack through the roof). facing +Z (mouth to the room; the
+    # flue / chimney breast backs onto the wall). Grounded object_dimensions 'oven_bread'
+    # (interior 0.9 / width 1.6 / depth 1.4 / work_top 0.8; mouth ~0.63 of the dome height).
+    W, D = 14, 12                     # 1.56 x 1.33 m masonry mass
+    FLOOR = 6                         # solid base y0..6 -> hearth floor top at y7 = 0.778 m (work_top ~0.8)
+    DOME = 11                         # dome shell ceiling (cavity y7..10 ~ 0.44 m interior, dome_height 0.45)
+    m = Model()
+    m.fill(0, W - 1, 0, DOME, 0, D - 1, "Stone")          # solid masonry mass
+    # baking chamber: carve ~0.9 m interior above the hearth floor, thick walls all round (z 2..D-3)
+    m.clear(3, W - 4, FLOOR + 1, DOME - 1, 2, D - 3)
+    m.fill(3, W - 4, FLOOR + 1, FLOOR + 1, 2, D - 3, "glow")   # glowing coals on the hearth floor
+    # mouth: an arched opening through the FRONT wall (z 0..1) at the hearth level (~0.28 m tall)
+    m.clear(5, W - 6, FLOOR + 1, FLOOR + 3, 0, 1)
+    # hood + flue: rise up the BACK (z D-2..D-1) within the footprint -- the vent
+    m.fill(4, W - 5, DOME + 1, 20, D - 2, D - 1, "Stone")
+    anchors = [{
+        "point_id": "work_0", "kind": "work_surface",
+        "local_position": [round((W / 2.0) / 9, 3), round(7 / 9, 3), round((D - 1) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(7 / 9, 3)},
+    }]
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         oven_bread\n"
+        "# display_name: Bread Oven\n"
+        "# description:  A stone masonry dome bread oven -- baking chamber of glowing coals, arched mouth, back flue.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         oven, bread, bakery, baker, bakehouse, fire, vented\n"
+        "# materials:    Stone, glow\n"
+        "# facing:       +Z (mouth opens to the room; flue / chimney breast to the wall, +z)\n"
+        "# work_top:     0.778\n"
+        "# bounds:       1.56W x ~2.3H x 1.33D m (grounded object_dimensions 'oven_bread' interior 0.9 / width 1.6 / depth 1.4 / work_top 0.8)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    m.mirror_z()   # mouth -> +Z (faces the room); flue/chimney breast -> the wall (placer +Z convention)
+    write("oven_bread", header, m.emit_lines([]), m, anchors)
+
+
+def gen_chopping_block():
+    # butcher's chopping block: a heavy end-grain Log top on Wood legs, work_top ~0.89 m (chopping/work
+    # height, anthropometric). top ~0.56 x 0.56 m. The butcher's defining fixture (cf. the smith's anvil).
+    W, D = 5, 5                       # 0.556 x 0.556 m top
+    TOP = 7                           # legs y0..4, thick top y5..7 -> top face 8/9 = 0.889 m (work_top 0.89)
+    m = Model()
+    m.fill(0, W - 1, 5, TOP, 0, D - 1, "Log")             # thick end-grain block top
+    for lx in (0, W - 1):
+        for lz in (0, D - 1):
+            m.fill(lx, lx, 0, 4, lz, lz, "Wood")          # leg
+    anchors = [{
+        "point_id": "work_0", "kind": "work_surface",
+        "local_position": [round((W / 2.0) / 9, 3), round(8 / 9, 3), round((D / 2.0) / 9, 3)],
+        "facing_yaw": 0.0, "features": {"work_top_y": round(8 / 9, 3)},
+    }]
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         chopping_block\n"
+        "# display_name: Chopping Block\n"
+        "# description:  A heavy end-grain wooden butcher's chopping block on legs -- the cutting surface.\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         butcher, block, chopping, shambles, meat\n"
+        "# materials:    Log, Wood\n"
+        "# facing:       +Z\n"
+        "# work_top:     0.889\n"
+        "# bounds:       0.56W x 0.89H x 0.56D m (grounded object_dimensions 'chopping_block' work_top 0.89)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("chopping_block", header, m.emit_lines([]), m, anchors)
+
+
+def gen_meat_rail():
+    # butcher's hanging meat rail: a FREESTANDING post rack (two Log posts + a top rail) hung with iron
+    # (Metal) hooks. ~2.0 m tall (carcasses clear the floor), ~1.56 m span. The hanging MEAT itself awaits
+    # a meat material (user's materials thread) -- the iron hooks are grounded, the meat is not faked.
+    W = 14                            # 1.556 m span
+    H = 18                            # 2.0 m tall
+    m = Model()
+    for px in (0, W - 1):
+        m.fill(px, px, 0, H, 6, 6, "Log")                 # vertical posts (z mid)
+    m.fill(0, W - 1, H - 1, H, 6, 6, "Log")               # top rail
+    for hx in range(2, W - 1, 3):                          # iron hooks hanging below the rail
+        m.m(hx, H - 2, 6, "Metal")
+        m.m(hx, H - 3, 6, "Metal")
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         meat_rail\n"
+        "# display_name: Meat Rail\n"
+        "# description:  A freestanding butcher's rail -- two posts + a top rail hung with iron hooks (meat awaits a material).\n"
+        "# category:     furniture\n"
+        "# subcategory:  fixture\n"
+        "# tags:         butcher, meat, rail, hooks, shambles, hanging\n"
+        "# materials:    Log, Metal\n"
+        "# facing:       +Z\n"
+        "# bounds:       1.56W x 2.0H x 0.11D m (grounded object_dimensions 'meat_rail')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("meat_rail", header, m.emit_lines([]), m)
+
+
+def gen_hanging_sign():
+    # hanging_sign: a projecting pictorial trade sign on a wrought-iron bracket, hung over a shop
+    # entrance. Authored BROADSIDE-to-street in the y-z plane (1 micro thick in x = 0.11 m board, read
+    # walking along the street): the wall mount is at local z=0, a Metal bracket arm projects +Z, and a
+    # Wood board (Log-framed) hangs from the arm's reach. NO mirror_z: the board (the decal/approach face)
+    # is already at z-high = +Z, matching the placer's rot-0 front=+z convention. The board's image is the
+    # DECAL system (backlog) -- this is the BOARD + BRACKET only, never a faked picture (placer F4).
+    # Grounded (object_dimensions 'hanging_sign'): board ~0.78 x 0.56 m (area 0.42 m2 << 12 sq ft / 1.11
+    # m2 cap); projection 0.78 m (< 48 in / 1.22 m cap). The >= 8 ft (2.44 m) ground clearance is a
+    # PLACEMENT/mount-height concern (task 30), not the asset geometry.
+    Z0, Z1 = 1, 6                     # board spans z 1..6 = 6 micro = 0.667 m (broadside width)
+    BY0, BY1 = 0, 4                   # board spans y 0..4 = 5 micro = 0.556 m tall; bottom at local y0
+    ARM_Y = 6                         # bracket arm at y6; arm reaches wall (z0) -> board (z6)
+    m = Model()
+    # board: Wood field with a Log frame top + bottom (a framed sign board), thin in x (x=0)
+    m.fill(0, 0, BY0, BY1, Z0, Z1, "Wood")
+    m.fill(0, 0, BY0, BY0, Z0, Z1, "Log")     # bottom rail
+    m.fill(0, 0, BY1, BY1, Z0, Z1, "Log")     # top rail
+    # wrought-iron bracket: an arm from the wall (z0) out over the board, + a short wall foot, + two
+    # hanger links dropping from the arm to the board's top corners.
+    m.fill(0, 0, ARM_Y, ARM_Y, 0, Z1, "Metal")   # the projecting arm (z0..6)
+    m.m(0, ARM_Y - 1, 0, "Metal")                 # wall foot (the bolted bracket base at z0)
+    m.m(0, BY1 + 1, Z0, "Metal")                  # hanger link, near corner
+    m.m(0, BY1 + 1, Z1, "Metal")                  # hanger link, far corner
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         hanging_sign\n"
+        "# display_name: Hanging Sign (Trade Sign)\n"
+        "# description:  A projecting pictorial trade sign -- a framed wooden board on a wrought-iron bracket, hung over a shop entrance. (Board image = the decal system, backlog; this is board + bracket only.)\n"
+        "# category:     signage\n"
+        "# subcategory:  sign\n"
+        "# tags:         sign, signage, shop, trade, hanging, bracket, street\n"
+        "# materials:    Wood, Log, Metal\n"
+        "# facing:       +Z (board/approach face to +Z; the wall mount is at -Z / local z=0)\n"
+        "# bounds:       0.11W x ~0.78H x 0.78D m (grounded object_dimensions 'hanging_sign' board 0.8x0.6 / projection 0.8)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("hanging_sign", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -580,3 +867,11 @@ if __name__ == "__main__":
     gen_counter()
     gen_barrel()
     gen_bench_wood()
+    gen_forge_hearth()
+    gen_anvil()
+    gen_bellows()
+    gen_tool_rack()
+    gen_oven_bread()
+    gen_chopping_block()
+    gen_meat_rail()
+    gen_hanging_sign()

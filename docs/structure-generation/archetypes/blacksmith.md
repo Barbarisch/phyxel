@@ -1,6 +1,15 @@
 # Blacksmith / Smithy — Archetype Data Sheet
 
-> Status: **DRAFT**. Schema: [`README.md`](README.md).
+> Status: **PARTIALLY GROUNDED** (program + footprint SCALE cited to the excavated Jamestown smithy;
+> work height grounded; anvil/bellows dims are disclosed functional/anachronism proxies; **open
+> NEEDS-RESEARCH: period bellows dims**). Schema: [`README.md`](README.md). First non-residential
+> workshop typology wired to the engine (after `tavern`) — see `ValidationLedger.md`.
+>
+> **Grounding-auditor correction (2026-06-28):** an earlier draft mis-cited the Anderson Blacksmith
+> Shop (Colonial Williamsburg) for the footprint — the "under 30 ft / 16×20 ft kitchen" text was **not
+> on the cited page** (a WebSearch misattribution). Corrected to the **excavated Jamestown smithy
+> (16×20 ft = 4.9×6.1 m)**. Anvil length corrected 0.55→0.60 m (right product). Bellows dims downgraded
+> to INFERRED (open source gives 4 ft, not 5 ft).
 
 ## 1. Identity
 - **id:** `blacksmith` / `smithy` / `forge`
@@ -29,7 +38,7 @@ customer edge. Defining quality: the forge relationship *and* fire safety — no
 ## 5. Required spaces (program)
 | Space | Tier | Purpose | Required fixtures | Size |
 |---|---|---|---|---|
-| forge_floor | T1 | forging | **forge/hearth on the back wall** + chimney/hood, **anvil** (~0.80 m work height) within a step, **quench trough**, bellows, tool rack, workbench | `to_ground` (small hobby ref ~3.7 m sq — FLAG modern) |
+| forge_floor | T1 | forging | **forge/hearth on the back wall** + chimney/hood, **anvil** (~0.80 m work height) within a step, **quench trough**, bellows, tool rack, workbench | ~1 timber bay (~4 m × ~5.5 m); forge workspace at the excavated Jamestown smithy scale (16×20 ft = 4.9×6.1 m) |
 | fuel + stock store | — | feed the fire / stock | fuel bin, stock-iron rack | `to_ground` |
 | storefront / yard | T0 | sell, shoe | finished-goods rack, shoeing area | `to_ground` |
 | dwelling | — | smith's home | dwelling fixtures | `to_ground` (mixed-use) |
@@ -74,12 +83,28 @@ rack, trade sign decal. → [`WantedAssetsBacklog.md`](../../WantedAssetsBacklog
 | Claim | Provenance |
 |---|---|
 | anvil/hearth working height ~0.80 m (31.5") — knuckle height | CITED — [Planning the forge (Beautiful Iron)](https://beautifuliron.com/forge_planning.htm) *(a modern craft guide; the height is anthropometric/invariant, not a period survey)* |
-| forge on the back wall, vented; combustibles above/out; non-combustible structure | CITED — same; [Forge (Wikipedia)](https://en.wikipedia.org/wiki/Forge) |
-| smithy floor ~3.7 m sq (12 ft) | FLAG — modern hobby-shop reference, not medieval |
-| medieval smithy floor area | `to_ground` |
+| forge on the back wall, vented; combustibles above/out; non-combustible structure (firebrick/fireclay hearth + tuyere) | CITED — same; [Forge (Wikipedia)](https://en.wikipedia.org/wiki/Forge) |
+| smithy **workspace footprint ~4.9 × 6.1 m (16 × 20 ft)** — an EXCAVATED smithy | CITED — [Blacksmith Shop/Bakery, Historic Jamestowne](https://historicjamestowne.org/archaeology/map-of-discoveries/blacksmith-shopbakery/) ("rectangular, 16 feet by 20 feet"; James Fort metalworking structure c.1608, later a bakery). *Grounds the forge-WORKSPACE scale; it was a single forge cellar, not a 2-room shop.* |
+| ~~Anderson Blacksmith Shop "under 30 ft" / 16×20 ft kitchen~~ | **RETRACTED** — grounding-auditor confirmed the text is NOT on the cited beautifuliron page; RR1690 is a tinsmithing report. Do not cite. (CW Archaeological Reports RR1227/RR1230 for Building 22 would be the right docs but are access-restricted.) |
+| **DESIGN DECISION: 2-bay open-fronted village smithy (~8 m × ~5.5 m), forge floor + storefront/yard** | bay 1 (forge floor) ≈ the Jamestown workspace scale; bay 2 (storefront) ADDED by analogy to the grounded ~4 m timber-frame bay (croft/longhouse/hall_house, Brunskill 1985 caveat). Same honest-analogy basis as the `tavern` bay frame; storefront is the disclosed addition. |
+| anvil overall **~0.60 m (23.5–23.75") long × ~0.25 m (10") base, ~0.10 m (4") face**, 100–120 lb working anvil; mounted to ~0.80 m | CITED — [Centaur Emerson 100 lb](https://www.centaurforge.com/100-lbs-Emerson-Traditional-Anvil-w_-Turning-Cams/productinfo/EMERSON100/) (23.75") / [Centaur JHM Legend 120 lb](https://www.centaurforge.com/120-lbs-JHM-Legend-Anvil/productinfo/AB120LEGEND/) (23.5", 10" base). **ANACHRONISM (disclosed):** London-pattern anvil is ~16–17th c; the medieval anvil was a simpler block — modern dims used as a form proxy. |
+| forge **firepot opening ~0.23 × 0.33 m (9 × 13", two axes of one oblong pot) × ~0.11 m (4.5") deep**; shop hearth pan 0.61 × 0.76 m (24 × 30") | CITED — [Shady Grove firepot](https://blksmth.com/mild-steel-firepot/) / [Centaur 24" coal forge](https://www.centaurforge.com/24-Wide-Shop-Coal-Forge-Dumping-Ashgate/productinfo/SVD/). *(forge_hearth canon width 1.0 m = pan + hood framing, DESIGN — framing extent not separately sourced.)* |
+| great double-lung **bellows ~1.5 m long** | **INFERRED, not cited** — open source ([Persimmon Forge](http://persimmonforge.blogspot.com/2013/01/making-great-double-lung-blacksmith.html)) gives the author's own at **4 ft (1.22 m)**, "up to ~6 ft"; 1.5 m is the mid of that 4–6 ft range. Width/loft are functional estimates. **NEEDS-RESEARCH:** Smith, *The Blacksmith's Craft* (1956); Horne, *The Artist-Blacksmith* (2002). |
+| **quench / slack tub = a water-filled barrel** | CITED — [Forge (Wikipedia)](https://en.wikipedia.org/wiki/Forge) ("usually a large container", whiskey barrel) → **REUSE the grounded `barrel` canon** (no new dim) |
 | forge as a function fixture | also in Part 3 (smithy program) |
 | water-powered trip-hammer | GENRE-FLAG — later/industrial (see `foundry`) |
 
 ## 13. Open questions / unknowns
-- Medieval smithy **floor area** — `to_ground` (find a surveyed example).
-- Charcoal vs coal vs coke by period/region — affects fuel store + the genre flag.
+- Smithy **floor area** — grounded to the EXCAVATED Jamestown smithy (16×20 ft = 4.9×6.1 m) for the
+  forge workspace; the 2-bay (forge + storefront) frame is the disclosed design decision. A *directly
+  surveyed MEDIEVAL English* smithy footprint (Jamestown is early-colonial 1608; Wharram Percy /
+  Portmahomack left only superficial footprints) would sharpen the period fit — soft refinement, not a
+  blocker.
+- **Bellows dimensions** — NEEDS-RESEARCH: open craft sources give 4 ft (1.22 m); the shipped 1.5 m is
+  INFERRED within the attested 4–6 ft range. Consult Smith, *The Blacksmith's Craft* (1956) / Horne,
+  *The Artist-Blacksmith* (2002).
+- **Tool-rack** exact size — `to_ground`; built as a wall-mounted rack at ~1.4–1.7 m mount height
+  (analogy to the cited sconce/wall-mount precedent).
+- **Workbench** — REUSE the existing `counter`/`bench` canon at ~0.9 m working height (no new asset).
+- Charcoal vs coal vs coke by period/region — affects fuel store + the genre flag (charcoal = the
+  conservative medieval default; coal/coke flagged later/industrial).

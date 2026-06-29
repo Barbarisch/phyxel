@@ -1,0 +1,84 @@
+# ==========================================================
+# ASSET METADATA
+# name:         meat_rail
+# display_name: Meat Rail
+# description:  A freestanding butcher's rail -- two posts + a top rail hung with iron hooks (meat awaits a material).
+# category:     furniture
+# subcategory:  fixture
+# tags:         butcher, meat, rail, hooks, shambles, hanging
+# materials:    Log, Metal
+# facing:       +Z
+# bounds:       1.56W x 2.0H x 0.11D m (grounded object_dimensions 'meat_rail')
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 2 0 0 0 Log
+M 0 0 0 0 0 2 0 1 0 Log
+M 0 0 0 0 0 2 0 2 0 Log
+M 0 0 0 0 1 2 0 0 0 Log
+M 0 0 0 0 1 2 0 1 0 Log
+M 0 0 0 0 1 2 0 2 0 Log
+M 0 0 0 0 2 2 0 0 0 Log
+M 0 0 0 0 2 2 0 1 0 Log
+M 0 0 0 0 2 2 0 2 0 Log
+M 0 1 0 0 0 2 0 0 0 Log
+M 0 1 0 0 0 2 0 1 0 Log
+M 0 1 0 0 0 2 0 2 0 Log
+M 0 1 0 0 1 2 0 0 0 Log
+M 0 1 0 0 1 2 0 1 0 Log
+M 0 1 0 0 1 2 0 2 0 Log
+M 0 1 0 0 2 2 0 0 0 Log
+M 0 1 0 0 2 2 0 1 0 Log
+M 0 1 0 0 2 2 0 2 0 Log
+M 0 2 0 0 0 2 0 0 0 Log
+M 0 1 0 0 2 2 1 2 0 Log
+M 0 2 0 0 0 2 1 0 0 Log
+M 0 1 0 0 2 2 2 0 0 Metal
+M 0 1 0 0 2 2 2 1 0 Metal
+M 0 1 0 0 2 2 2 2 0 Log
+M 0 2 0 0 0 2 2 0 0 Log
+M 0 1 0 1 2 2 0 2 0 Log
+M 0 2 0 1 0 2 0 0 0 Log
+M 0 1 0 1 2 2 1 2 0 Log
+M 0 2 0 1 0 2 1 0 0 Log
+M 0 1 0 1 2 2 2 0 0 Metal
+M 0 1 0 1 2 2 2 1 0 Metal
+M 0 1 0 1 2 2 2 2 0 Log
+M 0 2 0 1 0 2 2 0 0 Log
+M 0 1 0 2 2 2 0 2 0 Log
+M 0 2 0 2 0 2 0 0 0 Log
+M 0 1 0 2 2 2 1 2 0 Log
+M 0 2 0 2 0 2 1 0 0 Log
+M 0 1 0 2 2 2 2 0 0 Metal
+M 0 1 0 2 2 2 2 1 0 Metal
+M 0 1 0 2 2 2 2 2 0 Log
+M 0 2 0 2 0 2 2 0 0 Log
+M 1 1 0 0 2 2 0 2 0 Log
+M 1 2 0 0 0 2 0 0 0 Log
+M 1 1 0 0 2 2 1 2 0 Log
+M 1 2 0 0 0 2 1 0 0 Log
+M 1 1 0 0 2 2 2 0 0 Metal
+M 1 1 0 0 2 2 2 1 0 Metal
+M 1 1 0 0 2 2 2 2 0 Log
+M 1 2 0 0 0 2 2 0 0 Log
+M 1 1 0 1 2 2 0 2 0 Log
+M 1 2 0 1 0 2 0 0 0 Log
+M 1 0 0 1 0 2 1 0 0 Log
+M 1 0 0 1 0 2 1 1 0 Log
+M 1 0 0 1 0 2 1 2 0 Log
+M 1 0 0 1 1 2 1 0 0 Log
+M 1 0 0 1 1 2 1 1 0 Log
+M 1 0 0 1 1 2 1 2 0 Log
+M 1 0 0 1 2 2 1 0 0 Log
+M 1 0 0 1 2 2 1 1 0 Log
+M 1 0 0 1 2 2 1 2 0 Log
+M 1 1 0 1 0 2 1 0 0 Log
+M 1 1 0 1 0 2 1 1 0 Log
+M 1 1 0 1 0 2 1 2 0 Log
+M 1 1 0 1 1 2 1 0 0 Log
+M 1 1 0 1 1 2 1 1 0 Log
+M 1 1 0 1 1 2 1 2 0 Log
+M 1 1 0 1 2 2 1 0 0 Log
+M 1 1 0 1 2 2 1 1 0 Log
+M 1 1 0 1 2 2 1 2 0 Log
+M 1 2 0 1 0 2 1 0 0 Log

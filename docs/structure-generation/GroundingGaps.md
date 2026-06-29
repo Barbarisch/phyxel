@@ -16,8 +16,11 @@ Everything else in the spec is **cited** or **reuse-canon** — and Parts 5–8 
 | 2 | **Printing-house** press-room footprint | `printing_house.md` | a print-shop archaeological / architectural survey (workflow is documented; dimensions aren't) |
 | 3 | **Foundry** hall size + bloomery-vs-blast-furnace cutoff | `foundry.md` | Agricola *De Re Metallica*; Blanchard, *Mining, Metallurgy & Minting*; furnace archaeology |
 | 4 | **Cooper/carpenter** workshop floor for long timber | `cooper_carpenter.md`, `workshop.md` | a surveyed building-yard / cooperage |
+| 5 | **Bellows** period length/width/loft | `object_dimensions.json` (`bellows`), `blacksmith.md` | Smith, *The Blacksmith's Craft* (1956); Horne, *The Artist-Blacksmith* (2002) — open craft sources give 4 ft; shipped 1.5 m is INFERRED within the 4–6 ft range |
+| 6 | **Firebox opening area** (drives the flue size) | `14_place_chimney.md` | Neufert *Architects' Data* (fireplace opening tables); a medieval hall/tavern hearth survey — the 0.44 m² used for the 1/10 flue rule is currently UNSOURCED |
+| 7 | **Chimney stack wall thickness** | `14_place_chimney.md` (engine = 1 micro / 0.11 m) | Brunskill *Vernacular Architecture of Britain* (English medieval ≥215 mm brick / ≥300 mm rubble) — the 1-micro masonry wall is thin/unsourced |
 
-All four are honestly flagged in-place; **none are faked into a number.**
+All seven are honestly flagged in-place; **none are faked into a number.**
 
 ## to_ground — deferred to the model (~265)
 
@@ -33,6 +36,7 @@ flagged so the generator knows to *derive*, not assume.
 ## Resolved on this track (started as gaps, now cited)
 
 - Loom **warp = 24 yd** (assize broadcloth, 1196); **mine adit ~2.29 × 1.14 m** (Agricola); **shop-unit ~2–2.5 m frontage** (Chester selds); **Byczyna gate** single-sourced (medievalheritage.eu).
+- **Smithy footprint** — was `to_ground`; now anchored to an **EXCAVATED smithy: Jamestown 16×20 ft = 4.9×6.1 m** (Historic Jamestowne) for the forge workspace; 2-bay (forge + storefront) is the disclosed design decision. Anvil/forge work-top 0.80 m + anvil 0.60 m + firepot 0.23×0.33 m + quench=barrel cited; **bellows 1.5 m is INFERRED** (open source = 4 ft) → NEEDS-RESEARCH. *(An earlier draft mis-cited the Anderson shop, Colonial Williamsburg — retracted; the text was not on the cited page.)*
 - Audit corrections applied: **Cloaca Maxima** (height vs width axis), **Great Coxwell** (internal vs external), **Red Lion 1567** (vs The Theatre 1576), **keep walls 2–4 m** (was 1.5 m).
 
 ## Migrated to JSON canon (grounded only)

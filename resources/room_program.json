@@ -65,6 +65,103 @@
         "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn)."
       }
     },
+    "blacksmith": {
+      "_grounding_note": "Program (forge floor on the forge->anvil->quench work triangle + a customer-facing storefront/yard) grounded in the smithing record (Beautiful Iron, Wikipedia Forge). FOOTPRINT scale anchored to an EXCAVATED smithy: the Jamestown (James Fort) metalworking structure was 16x20 ft = 4.9x6.1 m (Historic Jamestowne archaeology, 2006). That grounds the forge-WORKSPACE scale (~5x6 m, one ~4 m bay wide); the 2nd bay (the customer storefront) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) -- the same honest basis as the tavern bay frame. (An earlier draft mis-cited the Anderson shop, Colonial Williamsburg; that text was not on the cited page -- corrected to Jamestown.) See docs/structure-generation/archetypes/blacksmith.md.",
+      "description": "Village smithy -- open-fronted single-story timber-frame workshop: forge floor (forge on the vented back wall, anvil within a step, quench/slack tub beside it) + a customer-facing storefront/yard. Fire-managed: non-combustible around the forge.",
+      "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
+      "stories": 1,
+      "rooms": [
+        { "id": "forge_floor", "purpose": "forge", "bays": 1 },
+        { "id": "storefront", "purpose": "service", "bays": 1 }
+      ],
+      "source": "Blacksmith/forge program (beautifuliron.com forge planning; Wikipedia Forge) + Jamestown excavated smithy footprint scale (Historic Jamestowne) + the ~4 m timber-frame bay as the modelling analogy",
+      "sources": {
+        "rooms": "the forge->anvil->quench work triangle on a fire-safe forge floor (beautifuliron.com/forge_planning.htm; en.wikipedia.org/wiki/Forge) + a customer-facing storefront/yard (medieval smithy mixed-use). forge_floor T1 (smith-only), storefront T0 (customers).",
+        "width_max": "<=6 m: cruck dwelling/workshop width 'no more than 6 m' (buildingconservation.com); matches the Jamestown smithy ~4.9-6.1 m footprint",
+        "width_min": "5 m: a working forge floor + clearance around the anvil work triangle (DESIGN, lower end of the framed range; ~ the Jamestown 4.9 m short side)",
+        "bays": "DESIGN DECISION (analogy, not a surveyed 2-room smithy): bay 1 = forge floor at ~Jamestown workspace scale (~4x5.5 m); bay 2 = customer storefront ADDED by analogy to the grounded ~4 m timber bay. The Jamestown smithy (16x20 ft) was a single forge cellar, not a 2-room shop -- the storefront is the disclosed design addition.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; Brunskill 1985 TBD caveat)",
+        "proportion_max": "2.5 DESIGN: keeps the 2-bay plan from elongating past a usable storefront-to-forge depth (no surveyed ratio; cf. manor_hall's cited 1.5-3x for great halls)",
+        "stories": "1 storey: the village smithy is a single open-fronted workshop (mixed-use dwelling above is a HIGH-status variant, not the default; archetype sheet sec.9). Fire risk favours keeping the forge floor on the ground, often detached.",
+        "footprint_example_for_SCALE_only": "Jamestown (James Fort) metalworking structure, 'rectangular, 16 feet by 20 feet' = 4.9x6.1 m, a forge shop c.1608 later converted to a bakery (Historic Jamestowne, map-of-discoveries/blacksmith-shopbakery) -- an EXCAVATED smithy, evidence for the workspace SCALE, not this 2-room plan."
+      }
+    },
+    "general_store": {
+      "_grounding_note": "Program (a street-facing SALESROOM at the front of the burgage plot + a STOREROOM behind) is grounded in the medieval urban-shop record: the front of a burgage plot facing the street was the business space (shop/workshop), with storage/living to the rear (RuralHistoria; burgageplots.info 'the burgage plot as a workplace'). FOOTPRINT scale anchored to documented burgage FRONTAGE: plot widths ran c. 5 m (one perch) to ~17 m, MODAL ~8 m / typical 2 perches ~10 m, lengths tens of metres (Tait, 'Burgage plot patterns and dimensions in four Scottish burghs', PSAS 138 (2009), journals.socantscot.org/.../view/9724). A general store = the NARROW end of that range (~5-6 m / 1-1.2 perch frontage), NOT the typical 8-10 m. The 2-bay depth (~8 m) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) and sits well within documented plot depths (tens of m) -- same honest basis as the tavern/blacksmith bay frame. (grounding-auditor 2026-06-28: corrected the PSAS citation from the Edinburgh-only paper /9686 to the four-burgh paper /9724, and the frontage floor from a 5.5 m misread of '5.5 yards' to ~5 m = one perch 5.03 m.)",
+      "description": "Town general store / merchant's shop -- single-story timber building on a burgage frontage: a street-facing salesroom (sales counter + shelved goods + barrels) and a storeroom behind (stock: barrels, crates, coffers).",
+      "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
+      "stories": 1,
+      "rooms": [
+        { "id": "salesroom", "purpose": "salesroom", "bays": 1 },
+        { "id": "storeroom", "purpose": "service",   "bays": 1 }
+      ],
+      "source": "Medieval urban shop / burgage-plot record (RuralHistoria; burgageplots.info) + documented burgage frontage dimensions (Tait, PSAS 138 (2009) four-burgh paper, journals.socantscot.org/.../view/9724) + the ~4 m timber-frame bay as the modelling analogy",
+      "sources": {
+        "rooms": "front of the burgage plot (street frontage) = the business space -- shop/workshop/tavern; storage + living to the rear (ruralhistoria.com/2023/12/04/what-is-a-medieval-burgage-plot; burgageplots.info/the-burgage-plot-as-a-workplace). salesroom = the shopfront (customer-facing, T0); storeroom = rear stock (T1).",
+        "width_min": "5 m: the NARROW end of documented burgage frontage = ONE PERCH (5.5 yards / 16.5 ft = 5.03 m), the documented minimum frontage unit (burgageplots.info; cf. Birmingham burgage plots 'about five metres wide', sarahhayes.org). The Tait PSAS 138 (2009) four-burgh modal frontage is 8 m (quarter-plot steps from 6 m), so 5 m sits just below Tait's smallest step, on the perch/Birmingham basis. A small urban shop sits at the narrow end; the TYPICAL frontage was ~2 perches / 8-10 m.",
+        "width_max": "6 m (~1.2 perch): still the NARROW end of the c. 5-17 m documented frontage range, modal ~8 m (Tait, PSAS 138 (2009) /view/9724); also <= the cruck-workshop 6 m max (buildingconservation.com)",
+        "bays": "DESIGN DECISION (analogy, not a surveyed 2-room shop): bay 1 = street salesroom, bay 2 = rear storeroom, by analogy to the grounded ~4 m timber bay. The burgage record grounds the FRONT-business / REAR-storage split + the frontage width, not a specific bay count.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; Brunskill 1985 TBD caveat)",
+        "proportion_max": "2.5 DESIGN: keeps the 2-bay plan from elongating past a usable shop depth; ~8 m deep sits within the documented 10 m+ burgage plot length (no surveyed shop ratio; cf. blacksmith 2.5)"
+      }
+    },
+    "bakery": {
+      "_grounding_note": "Program (a BAKEHOUSE with the masonry oven + a kneading/work surface, and a customer SALESROOM/shopfront selling the bread) is grounded in the medieval baking record: the bakehouse was the dedicated oven-room workspace (en.wikipedia.org/wiki/Bakehouse_(building)); commercial bakers baked and SOLD bread under the Assize of Bread, so a town bakery has a shopfront as well as the bakehouse (RuralHistoria burgage front-business pattern). FOOTPRINT on a burgage frontage like the general_store (documented 5-17 m, narrow-end shop ~6 m; Tait PSAS 138 (2009)). The OVEN is the grounded commercial dome (object_dimensions 'oven_bread': ~0.9 m interior, williamrubel.com), VENTED on the back wall + chimney (place_chimney), fire-managed like the forge. The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same honest basis as tavern/blacksmith/general_store.",
+      "description": "Town bakery -- single-story timber building on a burgage frontage: a bakehouse (the vented masonry bread oven + a kneading counter + flour barrels) and a street salesroom selling the bread.",
+      "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
+      "stories": 1,
+      "rooms": [
+        { "id": "bakehouse", "purpose": "bakehouse", "bays": 1 },
+        { "id": "salesroom", "purpose": "salesroom", "bays": 1 }
+      ],
+      "source": "Medieval bakehouse + baker's-shop record (en.wikipedia.org/wiki/Bakehouse_(building); Assize of Bread) + commercial dome-oven dimensions (williamrubel.com; object_dimensions 'oven_bread') + burgage frontage (Tait, PSAS 138 (2009)) + the ~4 m timber bay analogy",
+      "sources": {
+        "rooms": "the bakehouse = the dedicated oven workspace (en.wikipedia.org/wiki/Bakehouse_(building)); a commercial baker sold bread from a shopfront (Assize of Bread regulated baker's sale; burgage front-business pattern, ruralhistoria.com). bakehouse T1 (the oven/work), salesroom T0 (customers).",
+        "width_min": "5 m: a narrow urban shop at ~one perch (5.5 yd = 5.03 m, the documented minimum burgage unit, burgageplots.info; cf. Birmingham burgage plots 'about five metres wide', sarahhayes.org). The Tait PSAS 138 (2009) four-burgh modal frontage is 8 m (quarter-plot steps from 6 m); 5 m is the perch/Birmingham narrow end. The bakehouse must still seat the 1.6 m oven + clearance.",
+        "width_max": "6 m (~1.2 perch): narrow end of the c. 5-17 m frontage range (Tait, PSAS 138 (2009)); <= the cruck-workshop 6 m max (buildingconservation.com)",
+        "bays": "DESIGN DECISION (analogy, not a surveyed 2-room bakery): bay 1 = bakehouse (oven + kneading), bay 2 = street salesroom, by analogy to the grounded ~4 m timber bay. The record grounds the bakehouse/oven + the baker selling bread, not a specific bay count.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; Brunskill 1985 TBD caveat)",
+        "proportion_max": "2.5 DESIGN: keeps the 2-bay plan from over-elongating (cf. blacksmith/general_store 2.5; no surveyed bakery ratio)"
+      }
+    },
+    "apothecary": {
+      "_grounding_note": "Program (a DISPENSARY/shopfront -- a dispensing counter with shelves of labeled jars/bottles BEHIND it -- plus a rear STOREROOM for stock) is grounded in the apothecary-shop record: 'drug jars lined shelves behind the counter where prescriptions were made up', the apothecary moving between customers and stock (manyheadedmonster.com 'The World in a Jar' -- EARLY MODERN England c.1550-1800; larsdatter.com = period image refs). PERIOD CAVEAT: the cited prose is early modern; the counter + shelved-jars dispensary form is plausibly medieval (albarello drug jars predate 1550) but not directly attested medieval -- evidence for the LAYOUT (cf. the tavern's New-Inn TYPE cite). FOOTPRINT on a burgage frontage like the general_store (Tait PSAS 138 (2009); narrow shop ~5-6 m). All fixtures reuse grounded assets (counter; back_bar shelving, which carries jars/bottles; coffer; candelabra for the dim apothecary light). The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same basis as the other shops.",
+      "description": "Town apothecary / herbalist -- single-story timber building on a burgage frontage: a dispensary (dispensing counter + shelves of jars/bottles behind + a coffer + a candelabra) and a rear storeroom of stock.",
+      "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
+      "stories": 1,
+      "rooms": [
+        { "id": "dispensary", "purpose": "dispensary", "bays": 1 },
+        { "id": "storeroom",  "purpose": "service",    "bays": 1 }
+      ],
+      "source": "Apothecary-shop layout record (manyheadedmonster.com 'The World in a Jar', EARLY MODERN c.1550-1800; larsdatter.com image refs) + burgage frontage (Tait, PSAS 138 (2009)) + the ~4 m timber bay analogy",
+      "sources": {
+        "rooms": "'tin-glazed earthenware drug jars lined shelves BEHIND the counter where prescriptions were made up', the apothecary moving between customers and stock (manyheadedmonster.com/2021/04/13/the-world-in-a-jar). PERIOD CAVEAT: that source is EARLY MODERN England (c.1550-1800); the counter + shelved-jars dispensary form is plausibly medieval (albarello drug jars predate 1550) but this source does not directly attest the medieval period -- evidence for the LAYOUT, disclosed like the tavern's New-Inn TYPE cite. (grounding-auditor 2026-06-28: the quote is from manyheadedmonster, not larsdatter (an image aggregator); reordered + added the period disclosure.) dispensary = the counter + shelved jars (T0 customer-facing); storeroom = rear stock (T1).",
+        "width_min": "5 m: a narrow urban shop at ~one perch (5.5 yd = 5.03 m, the documented minimum burgage unit, burgageplots.info); cf. Birmingham burgage plots 'about five metres wide' (sarahhayes.org). NOTE: the Tait PSAS 138 (2009) four-burgh modal frontage is 8 m (quarter-plot steps from 6 m); 5 m is the perch/Birmingham narrow end, below Tait's smallest step.",
+        "width_max": "6 m (~1.2 perch): narrow end of the c. 5-17 m frontage range (Tait, PSAS 138 (2009)); <= cruck 6 m max (buildingconservation.com)",
+        "bays": "DESIGN DECISION (analogy, not a surveyed 2-room apothecary): bay 1 = dispensary, bay 2 = rear storeroom, by analogy to the grounded ~4 m timber bay. The record grounds the counter+shelved-jars dispensary, not a bay count.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; Brunskill 1985 TBD caveat)",
+        "proportion_max": "2.5 DESIGN (cf. the other shops; no surveyed apothecary ratio)"
+      }
+    },
+    "butcher": {
+      "_grounding_note": "Program (a street-facing SHAMBLES shopfront -- a stall-board/display counter, the chopping block, a rail of meat hooks -- with a back room for slaughter/storage) is grounded in the medieval butcher record: the Shambles were streets of butchers' shops 'many complete with a slaughterhouse at the back', with low display windowsills (stall boards) and meat-HOOKS on the shop fronts (historyofyork.org.uk/themes/medieval/the-shambles; asparadventures.com York Shambles). The chopping BLOCK is an attested trade tool (choppingblocks.com) but NOT quoted in those Shambles pages; interior meat RAILS are a Victorian-era form (buildingourpast.com), a disclosed post-medieval analogy. FOOTPRINT on a burgage frontage like the other shops (Tait PSAS 138 (2009); narrow ~5-6 m). 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy).",
+      "description": "Town butcher's shop (the shambles) -- single-story timber building on a burgage frontage: a shopfront (stall-board counter + chopping block + a rail of meat hooks) and a back room (slaughter/storage).",
+      "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
+      "stories": 1,
+      "rooms": [
+        { "id": "shopfront", "purpose": "shambles", "bays": 1 },
+        { "id": "backroom",  "purpose": "service",  "bays": 1 }
+      ],
+      "source": "Medieval butcher / Shambles record (historyofyork.org.uk the-shambles; asparadventures.com; buildingourpast.com) + burgage frontage (Tait, PSAS 138 (2009)) + the ~4 m timber bay analogy",
+      "sources": {
+        "rooms": "Shambles = butchers' shops 'with a slaughterhouse at the back', 'shammels'/stall-board shop-fronts for display, and meat-HOOKS on the shop fronts (historyofyork.org.uk/themes/medieval/the-shambles; asparadventures.com/2018/04/20). The chopping BLOCK is an attested trade tool (choppingblocks.com) but is NOT quoted in those Shambles pages; interior meat RAILS are a Victorian-era form (buildingourpast.com), a disclosed post-medieval analogy. shopfront = the shambles (counter + block + meat rail, T0 customer-facing); backroom = slaughter/storage (T1). (grounding-auditor 2026-06-28: removed a misattributed wooden-block quote that was falsely pinned to historyofyork; flagged rails as Victorian.)",
+        "width_min": "5 m: a narrow urban shop at ~one perch (5.5 yd = 5.03 m, the documented minimum burgage unit, burgageplots.info; cf. Birmingham burgage plots 'about five metres wide', sarahhayes.org). The Tait PSAS 138 (2009) four-burgh modal frontage is 8 m (quarter-plot steps from 6 m); 5 m is the perch/Birmingham narrow end.",
+        "width_max": "6 m (~1.2 perch): narrow end of the c. 5-17 m frontage range, = Tait's smallest quarter-plot step 3/4 x 8 m (Tait, PSAS 138 (2009)); <= cruck 6 m max (buildingconservation.com)",
+        "bays": "DESIGN DECISION (analogy, not a surveyed 2-room butcher): bay 1 = shambles shopfront, bay 2 = back slaughter/storage, by analogy to the grounded ~4 m timber bay. The record grounds the shopfront-block-hooks + rear-slaughterhouse split, not a bay count.",
+        "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; Brunskill 1985 TBD caveat)",
+        "proportion_max": "2.5 DESIGN (cf. the other shops; no surveyed butcher ratio)"
+      }
+    },
     "manor_hall": {
       "description": "Stone manor / great hall — large open hall, length 1.5-3x its width and higher than wide.",
       "width_min": 8, "width_max": 17, "bay_length": 5, "bays": 4, "proportion_min": 1.5, "proportion_max": 3.0,

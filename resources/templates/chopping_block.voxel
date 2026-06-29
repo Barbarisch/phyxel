@@ -1,0 +1,110 @@
+# ==========================================================
+# ASSET METADATA
+# name:         chopping_block
+# display_name: Chopping Block
+# description:  A heavy end-grain wooden butcher's chopping block on legs -- the cutting surface.
+# category:     furniture
+# subcategory:  fixture
+# tags:         butcher, block, chopping, shambles, meat
+# materials:    Log, Wood
+# facing:       +Z
+# work_top:     0.889
+# bounds:       0.56W x 0.89H x 0.56D m (grounded object_dimensions 'chopping_block' work_top 0.89)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 Wood
+M 0 0 0 0 0 1 0 0 1 Wood
+M 0 0 0 0 0 0 0 1 0 Wood
+M 0 0 0 0 0 1 0 1 1 Wood
+M 0 0 0 0 0 0 0 2 0 Wood
+M 0 0 0 0 0 1 0 2 1 Wood
+M 0 0 0 0 1 0 0 0 0 Wood
+M 0 0 0 0 1 1 0 0 1 Wood
+M 0 0 0 0 1 0 0 1 0 Wood
+M 0 0 0 0 1 1 0 1 1 Wood
+M 0 0 0 0 1 0 0 2 0 Log
+M 0 0 0 0 1 0 0 2 1 Log
+M 0 0 0 0 1 0 0 2 2 Log
+M 0 0 0 0 1 1 0 2 0 Log
+M 0 0 0 0 1 1 0 2 1 Log
+M 0 0 0 0 2 0 0 0 0 Log
+M 0 0 0 0 2 0 0 0 1 Log
+M 0 0 0 0 2 0 0 0 2 Log
+M 0 0 0 0 2 1 0 0 0 Log
+M 0 0 0 0 2 1 0 0 1 Log
+M 0 0 0 0 2 0 0 1 0 Log
+M 0 0 0 0 2 0 0 1 1 Log
+M 0 0 0 0 2 0 0 1 2 Log
+M 0 0 0 0 2 1 0 1 0 Log
+M 0 0 0 0 2 1 0 1 1 Log
+M 0 0 0 0 1 0 1 2 0 Log
+M 0 0 0 0 1 0 1 2 1 Log
+M 0 0 0 0 1 0 1 2 2 Log
+M 0 0 0 0 1 1 1 2 0 Log
+M 0 0 0 0 1 1 1 2 1 Log
+M 0 0 0 0 2 0 1 0 0 Log
+M 0 0 0 0 2 0 1 0 1 Log
+M 0 0 0 0 2 0 1 0 2 Log
+M 0 0 0 0 2 1 1 0 0 Log
+M 0 0 0 0 2 1 1 0 1 Log
+M 0 0 0 0 2 0 1 1 0 Log
+M 0 0 0 0 2 0 1 1 1 Log
+M 0 0 0 0 2 0 1 1 2 Log
+M 0 0 0 0 2 1 1 1 0 Log
+M 0 0 0 0 2 1 1 1 1 Log
+M 0 0 0 0 1 0 2 2 0 Log
+M 0 0 0 0 1 0 2 2 1 Log
+M 0 0 0 0 1 0 2 2 2 Log
+M 0 0 0 0 1 1 2 2 0 Log
+M 0 0 0 0 1 1 2 2 1 Log
+M 0 0 0 0 2 0 2 0 0 Log
+M 0 0 0 0 2 0 2 0 1 Log
+M 0 0 0 0 2 0 2 0 2 Log
+M 0 0 0 0 2 1 2 0 0 Log
+M 0 0 0 0 2 1 2 0 1 Log
+M 0 0 0 0 2 0 2 1 0 Log
+M 0 0 0 0 2 0 2 1 1 Log
+M 0 0 0 0 2 0 2 1 2 Log
+M 0 0 0 0 2 1 2 1 0 Log
+M 0 0 0 0 2 1 2 1 1 Log
+M 0 0 0 1 1 0 0 2 0 Log
+M 0 0 0 1 1 0 0 2 1 Log
+M 0 0 0 1 1 0 0 2 2 Log
+M 0 0 0 1 1 1 0 2 0 Log
+M 0 0 0 1 1 1 0 2 1 Log
+M 0 0 0 1 2 0 0 0 0 Log
+M 0 0 0 1 2 0 0 0 1 Log
+M 0 0 0 1 2 0 0 0 2 Log
+M 0 0 0 1 2 1 0 0 0 Log
+M 0 0 0 1 2 1 0 0 1 Log
+M 0 0 0 1 2 0 0 1 0 Log
+M 0 0 0 1 2 0 0 1 1 Log
+M 0 0 0 1 2 0 0 1 2 Log
+M 0 0 0 1 2 1 0 1 0 Log
+M 0 0 0 1 2 1 0 1 1 Log
+M 0 0 0 1 0 0 1 0 0 Wood
+M 0 0 0 1 0 1 1 0 1 Wood
+M 0 0 0 1 0 0 1 1 0 Wood
+M 0 0 0 1 0 1 1 1 1 Wood
+M 0 0 0 1 0 0 1 2 0 Wood
+M 0 0 0 1 0 1 1 2 1 Wood
+M 0 0 0 1 1 0 1 0 0 Wood
+M 0 0 0 1 1 1 1 0 1 Wood
+M 0 0 0 1 1 0 1 1 0 Wood
+M 0 0 0 1 1 1 1 1 1 Wood
+M 0 0 0 1 1 0 1 2 0 Log
+M 0 0 0 1 1 0 1 2 1 Log
+M 0 0 0 1 1 0 1 2 2 Log
+M 0 0 0 1 1 1 1 2 0 Log
+M 0 0 0 1 1 1 1 2 1 Log
+M 0 0 0 1 2 0 1 0 0 Log
+M 0 0 0 1 2 0 1 0 1 Log
+M 0 0 0 1 2 0 1 0 2 Log
+M 0 0 0 1 2 1 1 0 0 Log
+M 0 0 0 1 2 1 1 0 1 Log
+M 0 0 0 1 2 0 1 1 0 Log
+M 0 0 0 1 2 0 1 1 1 Log
+M 0 0 0 1 2 0 1 1 2 Log
+M 0 0 0 1 2 1 1 1 0 Log
+M 0 0 0 1 2 1 1 1 1 Log

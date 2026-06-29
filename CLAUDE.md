@@ -28,6 +28,15 @@ build-freeze perf fix (place 13.8s→0.9s).
 dimension (grounding-auditor); red-before-green + solution-auditor on every "works/fixed" claim
 (Stop-hook gate); "reachable" must mean physically walkable.
 
+> **HARD RULE — provenance / no substitution (enforced by the Stop-hook):** When asked to *use the
+> engine* to generate something (a town, structure, terrain…), the deliverable is the **engine's
+> generator producing it** (e.g. `POST /api/settlement/build` for a town). If the generator errors or
+> looks wrong, **say so and fix the generator** — NEVER hand-assemble a lookalike (individual
+> `build_structure` calls, hand-placed voxels) and present it as the engine's output. **State exactly
+> what produced every artifact** (which generator/route, or "hand-placed") — no burying it. A
+> screenshot is never evidence on its own; cite the command run + its raw result. Presenting hand-work
+> as generator output is a fabrication, same as a fake test pass.
+
 ## Auto-Context on Startup
 
 When starting a new conversation in the engine terminal, **proactively check engine state** before the user asks. Call `engine_status` — if the engine is running, gather world context by running `/context` (or manually calling the same MCP tools). This saves the user from having to explain what's loaded. If the engine is not running, skip and wait for instructions.

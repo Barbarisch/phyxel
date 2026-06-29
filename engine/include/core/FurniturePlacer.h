@@ -29,9 +29,12 @@ namespace Core {
 
 struct FurniturePlacement {
     std::string type;        ///< fixture type (fireplace, bed, table, counter, chest, bench, ...)
-    glm::ivec3  worldPos{0}; ///< template origin in world space, on the floor
+    glm::ivec3  worldPos{0}; ///< template origin in world space (CUBES), on the floor
     int         rotation = 0;///< 0/90/180/270 — front faces INTO the room
     std::string room;        ///< owning room id
+    glm::ivec3  backDir{0};  ///< OUTWARD normal of the wall this piece backs onto (0 = centre/interior);
+                             ///< the consumer insets the piece by the wall thickness along -backDir so
+                             ///< it sits flush against the wall's interior face, not inside the wall.
 };
 
 /// A fixture's real footprint in CUBES (from the asset library's .metrics.json bounding box).
@@ -85,6 +88,13 @@ public:
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).
     static int facingIntoRoom(int inwardDx, int inwardDz);
+
+    /// Convert a (cube-cell) placement to a MICRO-PRECISE world position (cube*9 + micro) so the piece
+    /// sits flush against the wall's interior face and on the walkable surface — never inside the wall
+    /// or floor. X/Z: cube*9 inset by `extTMicro` along -backDir (toward the room). Y: the absolute
+    /// walkable-surface micro-Y (`surfaceMicroY`), NOT the truncated cube `worldPos.y`. This is the
+    /// fix for furniture clipping thin sub-cube walls / sinking into the mid-cube floor. Testable.
+    static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY);
 
     /// The furniture a room of this purpose REQUIRES, as fixture-type names (the recipe that
     /// furnish() places). Exposed so the asset-coverage validator can assert each required type
