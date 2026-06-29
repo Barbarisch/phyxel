@@ -86,10 +86,13 @@ struct InstanceData {
     uint32_t light = 0;       // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
     uint32_t light2 = 0;      // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
     uint32_t light3 = 0;      // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
-    // Total: 20 bytes
+    uint32_t tint = 0xFFFFFFu; // Per-voxel 0xRRGGBB tint multiplier (0xFFFFFF = none). Decouples color
+                               // from material (docs/VoxelAppearanceModel.md). MUST also be mirrored in
+                               // Phyxel::Vulkan::InstanceData (vulkan/VulkanDevice.h) — see [[dual struct]].
+    // Total: 24 bytes
 
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions();  // packedData + textureIndex + flags + light + light2 + light3
+    static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions();  // + tint
 };
 
 struct CharacterInstanceData {

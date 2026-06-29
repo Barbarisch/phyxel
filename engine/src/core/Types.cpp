@@ -69,8 +69,8 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 6> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 6> desc{};
+std::array<VkVertexInputAttributeDescription, 7> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 7> desc{};
 
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
@@ -107,6 +107,12 @@ std::array<VkVertexInputAttributeDescription, 6> InstanceData::getAttributeDescr
     desc[5].location = 6;  // layout(location = 6) in uint inLight3
     desc[5].format = VK_FORMAT_R32_UINT;  // uint32_t light3
     desc[5].offset = offsetof(InstanceData, light3);
+
+    // Per-voxel tint (0xRRGGBB multiplier; 0xFFFFFF = none)
+    desc[6].binding = 1;
+    desc[6].location = 7;  // layout(location = 7) in uint inTint
+    desc[6].format = VK_FORMAT_R32_UINT;  // uint32_t tint
+    desc[6].offset = offsetof(InstanceData, tint);
 
     return desc;
 }

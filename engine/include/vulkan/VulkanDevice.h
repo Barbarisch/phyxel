@@ -48,6 +48,7 @@ struct InstanceData {
     uint32_t light;           // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
     uint32_t light2;          // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
     uint32_t light3;          // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    uint32_t tint;            // Per-voxel 0xRRGGBB tint multiplier (0xFFFFFF = none). MUST match Phyxel::InstanceData.
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -58,7 +59,7 @@ struct InstanceData {
     }
 
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(6);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(7);
 
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
@@ -89,6 +90,11 @@ struct InstanceData {
         attributeDescriptions[5].location = 6;
         attributeDescriptions[5].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 2,3)
         attributeDescriptions[5].offset = offsetof(InstanceData, light3);
+
+        attributeDescriptions[6].binding = 1;
+        attributeDescriptions[6].location = 7;
+        attributeDescriptions[6].format = VK_FORMAT_R32_UINT;  // uint32 per-voxel tint (0xRRGGBB)
+        attributeDescriptions[6].offset = offsetof(InstanceData, tint);
 
         return attributeDescriptions;
     }

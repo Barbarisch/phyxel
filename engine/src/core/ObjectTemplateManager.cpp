@@ -455,70 +455,10 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     // work (movable voxels stay baked, behavior is identical to pre-C0b).
     const bool routeKinematic = hasMovable && (m_kinematicManager != nullptr);
 
-    // --------------------------------------------------------------------
-    // Decorated-prop path (Phase 1, docs/VoxelAppearanceModel.md).
-    // The static chunk path has no per-voxel tint channel, so any template
-    // carrying tints renders as a single static KinematicVoxelObject (Tier 2),
-    // which DOES carry tint (packed into KinematicFaceData.faceId). Only kicks
-    // in for tinted, non-movable templates with a wired kinematic manager;
-    // everything else falls through to the unchanged chunk-bake path.
-    // Rotation is applied about the object origin (exact for rotation==0, the
-    // common placement; full pivot handling is a later refinement).
-    auto isTinted = [](uint32_t t) { return t != 0xFFFFFFu; };
-    bool hasTint = false;
-    for (const auto& c : tmpl->cubes)      if (isTinted(c.tint)) { hasTint = true; break; }
-    if (!hasTint) for (const auto& s : tmpl->subcubes)   if (isTinted(s.tint)) { hasTint = true; break; }
-    if (!hasTint) for (const auto& m : tmpl->microcubes) if (isTinted(m.tint)) { hasTint = true; break; }
-    if (hasTint && !hasMovable && m_kinematicManager) {
-        std::vector<Core::KinematicVoxel> voxels;
-        voxels.reserve(tmpl->cubes.size() + tmpl->subcubes.size() + tmpl->microcubes.size());
-        for (const auto& c : tmpl->cubes) {
-            Core::KinematicVoxel v;
-            v.localPos     = glm::vec3(c.relativePos) + glm::vec3(0.5f);
-            v.scale        = glm::vec3(1.0f);
-            v.parentFrac   = glm::vec3(0.0f);
-            v.materialName  = c.material;
-            v.tint          = c.tint;
-            voxels.push_back(v);
-        }
-        for (const auto& s : tmpl->subcubes) {
-            const glm::vec3 parent = glm::vec3(s.parentRelativePos);
-            const glm::vec3 sub    = glm::vec3(s.subcubePos) / 3.0f;
-            const glm::vec3 size   = glm::vec3(1.0f / 3.0f);
-            Core::KinematicVoxel v;
-            v.localPos     = parent + sub + size * 0.5f;
-            v.scale        = size;
-            v.parentFrac   = sub;
-            v.materialName  = s.material;
-            v.tint          = s.tint;
-            voxels.push_back(v);
-        }
-        for (const auto& m : tmpl->microcubes) {
-            const glm::vec3 parent = glm::vec3(m.parentRelativePos);
-            const glm::vec3 sub    = glm::vec3(m.subcubePos) / 3.0f;
-            const glm::vec3 micro  = glm::vec3(m.microcubePos) / 9.0f;
-            const glm::vec3 size   = glm::vec3(1.0f / 9.0f);
-            Core::KinematicVoxel v;
-            v.localPos     = parent + sub + micro + size * 0.5f;
-            v.scale        = size;
-            v.parentFrac   = sub + micro;
-            v.materialName  = m.material;
-            v.tint          = m.tint;
-            voxels.push_back(v);
-        }
-        glm::ivec3 base = glm::round(worldPos);
-        int rs = ((rotation % 360) + 360) % 360 / 90;
-        float rr = glm::radians(static_cast<float>(rs * 90));
-        glm::mat4 xform = glm::translate(glm::mat4(1.0f), glm::vec3(base)) *
-                          glm::rotate(glm::mat4(1.0f), -rr, glm::vec3(0, 1, 0));
-        std::string kid = m_kinematicManager->add(
-            tmpl->name + "_decorated", std::move(voxels), xform, "", false);
-        m_lastSpawnedKinematicIds.push_back(kid);
-        LOG_INFO_FMT("ObjectTemplateManager",
-            "Spawned tinted template '" << tmpl->name << "' as kinematic decorated prop ("
-            << kid << ")");
-        return true;
-    }
+    // Per-voxel tint (docs/VoxelAppearanceModel.md): Phase 1b gives the static chunk
+    // InstanceData a tint channel, so tinted, non-movable templates now BAKE TO CHUNKS
+    // (gaining collision + greedy meshing) with tint flowing through Chunk::addSubcube/
+    // addMicrocube below. Movable parts carry tint via the kinematic gather (v.tint).
 
     // Normalize rotation to number of 90° steps
     int rotSteps = ((rotation % 360) + 360) % 360 / 90;
@@ -635,7 +575,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addSubcube(localPos, subPos, tSub.material);
+            chunk->addSubcube(localPos, subPos, tSub.material, tSub.tint);
         }
     }
 
@@ -661,7 +601,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material);
+            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material, tMicro.tint);
         }
     }
 
@@ -971,7 +911,7 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material)) {
+                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material, tSub.tint)) {
                     modifiedChunks.insert(chunk);
                 }
             }
@@ -1006,7 +946,7 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material)) {
+                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material, tMicro.tint)) {
                     modifiedChunks.insert(chunk);
                 }
             }

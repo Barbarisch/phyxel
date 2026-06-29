@@ -676,6 +676,7 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 
                 // Assign texture based on material and face ID
                 faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(subcube->getMaterialName(), faceID);
+                faceInstance.tint = subcube->getTint();   // per-voxel tint (multiplies albedo in voxel.frag)
                 {
                     const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(subcube->getMaterialName());
                     bool isEmissive    = matDef && matDef->emissive;
@@ -795,6 +796,7 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                 
                 // Assign texture based on material and face ID
                 faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(microcube->getMaterialName(), faceID);
+                faceInstance.tint = microcube->getTint();   // per-voxel tint (multiplies albedo in voxel.frag)
                 {
                     const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(microcube->getMaterialName());
                     bool isEmissive    = matDef && matDef->emissive;

@@ -26,6 +26,7 @@ layout(location = 3) in uint inFlags;           // per-instance flags (emissive,
 layout(location = 4) in uint inLight;           // per-instance: 4 per-corner skylight nibbles (bits0-15)
 layout(location = 5) in uint inLight2;          // per-instance: per-corner block RGB (corner0 bits0-11, corner1 bits12-23)
 layout(location = 6) in uint inLight3;          // per-instance: per-corner block RGB (corner2 bits0-11, corner3 bits12-23)
+layout(location = 7) in uint inTint;            // per-instance: packed 0xRRGGBB tint (0xFFFFFF = none)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -315,7 +316,12 @@ void main() {
     // No need for face visibility checking - all vertices here should be rendered
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
-    vTint = vec3(1.0);
+    // Per-voxel tint multiplies the material albedo in voxel.frag. inTint==0 is
+    // treated as "no tint" (0 would render a voxel black and is never a real tint).
+    vTint = (inTint == 0u) ? vec3(1.0)
+          : vec3(float((inTint >> 16) & 0xFFu),
+                 float((inTint >>  8) & 0xFFu),
+                 float( inTint        & 0xFFu)) / 255.0;
     
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;

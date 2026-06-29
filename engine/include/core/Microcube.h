@@ -48,6 +48,7 @@ public:
     bool isVisible() const { return visible; }
     Physics::VoxelRigidBody* getVoxelBody() const { return voxelBody; }
     const std::string& getMaterialName() const { return materialName; }
+    uint32_t getTint() const { return tint; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
@@ -63,6 +64,7 @@ public:
     void setPhysicsPosition(const glm::vec3& pos) { physicsPosition = pos; }
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
     void setMaterialName(const std::string& mat) { materialName = mat; }
+    void setTint(uint32_t t) { tint = t; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
@@ -80,6 +82,7 @@ private:
     glm::ivec3 microcubeLocalPosition;   // Local position within parent subcube (0-2 for each axis)
     float scale;                         // Scale factor (1/9 of regular cube)
     std::string materialName = "Default";
+    uint32_t tint = 0xFFFFFFu;   // Packed 0xRRGGBB tint multiplier; 0xFFFFFF = none.
     float lifetime = 30.0f;              // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;
