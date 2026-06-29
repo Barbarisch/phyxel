@@ -1,0 +1,33 @@
+# ==========================================================
+# ASSET METADATA
+# name:         barony_apple
+# description:  Imported from Barony .vox (Apple.vox)
+# category:     imported
+# materials:    Bricks, Log, LogSpruce
+# bounds:       1W x 1H x 1D cubes  (scale=micro, up=z)
+# primitives:   22 M (downsample=2)
+# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)
+# ==========================================================
+
+M 0 0 0  0 0 0  0 0 1  Log  tint=#a11008
+M 0 0 0  0 0 0  0 0 2  LogSpruce  tint=#950800
+M 0 0 0  0 0 1  0 0 0  Log  tint=#a50800
+M 0 0 0  0 0 0  0 1 1  Bricks  tint=#c20000
+M 0 0 0  0 0 0  0 1 2  Bricks  tint=#ae0c0c
+M 0 0 0  0 0 1  0 1 0  Log  tint=#a50800
+M 0 0 0  0 0 0  0 2 1  Bricks  tint=#da0808
+M 0 0 0  0 0 0  0 2 2  Bricks  tint=#c20000
+M 0 0 0  0 0 0  1 0 0  LogSpruce  tint=#3c1c14
+M 0 0 0  0 0 0  1 0 1  Bricks  tint=#ae0c0c
+M 0 0 0  0 0 0  1 0 2  LogSpruce  tint=#000000
+M 0 0 0  0 0 1  1 0 0  LogSpruce  tint=#890800
+M 0 0 0  0 0 0  1 1 0  LogSpruce  tint=#301810
+M 0 0 0  0 0 0  1 1 1  Bricks  tint=#da0808
+M 0 0 0  0 0 0  1 1 2  LogSpruce  tint=#000000
+M 0 0 0  0 0 1  1 1 0  LogSpruce  tint=#890800
+M 0 0 0  0 0 0  1 2 1  Bricks  tint=#ff1414
+M 0 0 0  0 0 0  1 2 2  Bricks  tint=#c20000
+M 0 0 0  0 0 0  2 0 1  Bricks  tint=#ae0c0c
+M 0 0 0  0 0 0  2 0 2  Bricks  tint=#ae0c0c
+M 0 0 0  0 0 0  2 1 1  Bricks  tint=#da0808
+M 0 0 0  0 0 0  2 1 2  Bricks  tint=#c20000

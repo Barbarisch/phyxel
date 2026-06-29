@@ -1,0 +1,46 @@
+# ==========================================================
+# ASSET METADATA
+# name:         barony_bread
+# description:  Imported from Barony .vox (Bread.vox)
+# category:     imported
+# materials:    LeafAutumn, Log, Sandstone, Thatch, Wood
+# bounds:       1W x 1H x 1D cubes  (scale=micro, up=z)
+# primitives:   35 M (downsample=2)
+# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)
+# ==========================================================
+
+M 0 0 0  0 0 0  0 0 1  Thatch  tint=#b69950
+M 0 0 0  0 0 0  0 1 0  Sandstone  tint=#e2ba65
+M 0 0 0  0 0 0  0 1 1  Log  tint=#a57524
+M 0 0 0  0 0 0  0 2 0  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  0 2 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  0 0 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  0 0 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  0 1 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  0 1 1  Log  tint=#a57524
+M 0 0 0  0 1 0  0 2 0  LeafAutumn  tint=#b28124
+M 0 0 0  0 1 0  0 2 1  LeafAutumn  tint=#b28124
+M 0 0 0  0 0 0  1 0 0  Sandstone  tint=#eec669
+M 0 0 0  0 0 0  1 0 1  Sandstone  tint=#e2ba65
+M 0 0 0  0 0 0  1 1 0  Wood  tint=#d6b259
+M 0 0 0  0 0 0  1 1 1  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  1 2 0  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  1 2 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  1 0 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  1 0 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  1 1 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  1 1 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  1 2 0  LeafAutumn  tint=#b28124
+M 0 0 0  0 1 0  1 2 1  Log  tint=#a57524
+M 0 0 0  0 0 0  2 0 0  Wood  tint=#d6b259
+M 0 0 0  0 0 0  2 0 1  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  2 1 0  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  2 1 1  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  2 2 0  Thatch  tint=#ba8d34
+M 0 0 0  0 0 0  2 2 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  2 0 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  2 0 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  2 1 0  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  2 1 1  Thatch  tint=#ba8d34
+M 0 0 0  0 1 0  2 2 0  LeafAutumn  tint=#b28124
+M 0 0 0  0 1 0  2 2 1  LeafAutumn  tint=#b27d24

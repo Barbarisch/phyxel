@@ -1,0 +1,73 @@
+# ==========================================================
+# ASSET METADATA
+# name:         barony_arcanechair
+# description:  Imported from Barony .vox (ArcaneChair.vox)
+# category:     imported
+# materials:    Bricks, Cobblestone, Dirt, LeafAutumn, Log, LogSpruce, Metal, StoneBricks
+# bounds:       1W x 1H x 1D cubes  (scale=micro, up=z)
+# primitives:   62 M (downsample=2)
+# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)
+# ==========================================================
+
+M 0 0 0  0 0 0  0 0 0  Log  tint=#954414
+M 0 0 0  0 0 1  0 0 0  Log  tint=#954414
+M 0 0 0  0 0 0  0 1 0  LeafAutumn  tint=#da8130
+M 0 0 0  0 0 1  0 1 0  LeafAutumn  tint=#da8130
+M 0 0 0  0 0 0  0 2 0  LeafAutumn  tint=#de6514
+M 0 0 0  0 0 0  0 2 1  Log  tint=#954414
+M 0 0 0  0 0 0  0 2 2  Log  tint=#954414
+M 0 0 0  0 0 1  0 2 0  LeafAutumn  tint=#de6514
+M 0 0 0  0 1 0  0 0 0  Bricks  tint=#be5518
+M 0 0 0  0 1 0  0 0 1  StoneBricks  tint=#711ca1
+M 0 0 0  0 1 0  0 0 2  StoneBricks  tint=#711ca1
+M 0 0 0  0 1 1  0 0 0  Log  tint=#aa4418
+M 0 0 0  0 1 0  0 1 0  LeafAutumn  tint=#da8130
+M 0 0 0  0 1 0  0 1 1  LeafAutumn  tint=#de6514
+M 0 0 0  0 1 0  0 1 2  Bricks  tint=#be5518
+M 0 0 0  0 1 1  0 1 0  LeafAutumn  tint=#da8130
+M 0 0 0  0 1 0  0 2 0  LeafAutumn  tint=#de6514
+M 0 0 0  0 1 0  0 2 1  LogSpruce  tint=#482818
+M 0 0 0  0 1 0  0 2 2  Dirt  tint=#713c1c
+M 0 0 0  0 1 1  0 2 0  Bricks  tint=#be5518
+M 0 0 0  0 2 0  0 0 0  Bricks  tint=#be5518
+M 0 0 0  0 2 0  0 0 1  Log  tint=#954414
+M 0 0 0  0 2 0  0 0 2  Log  tint=#954414
+M 0 0 0  0 2 1  0 0 0  Cobblestone  tint=#892cbe
+M 0 0 0  0 2 0  0 1 0  LeafAutumn  tint=#de6514
+M 0 0 0  0 2 0  0 1 1  Log  tint=#954414
+M 0 0 0  0 2 0  0 1 2  LogSpruce  tint=#482818
+M 0 0 0  0 2 1  0 1 0  LeafAutumn  tint=#e69528
+M 0 0 0  0 2 0  0 2 1  LeafAutumn  tint=#da8130
+M 0 0 0  0 2 0  0 2 2  LeafAutumn  tint=#e69528
+M 0 0 0  0 0 0  1 0 0  Log  tint=#aa5018
+M 0 0 0  0 0 1  1 0 0  Log  tint=#aa5018
+M 0 0 0  0 0 0  1 2 0  Log  tint=#954414
+M 0 0 0  0 0 0  1 2 1  Dirt  tint=#79401c
+M 0 0 0  0 0 0  1 2 2  Dirt  tint=#79401c
+M 0 0 0  0 0 1  1 2 0  Log  tint=#954414
+M 0 0 0  0 1 0  1 0 0  StoneBricks  tint=#711ca1
+M 0 0 0  0 1 0  1 0 1  LogSpruce  tint=#482818
+M 0 0 0  0 1 0  1 0 2  Metal  tint=#be40ff
+M 0 0 0  0 1 1  1 0 0  StoneBricks  tint=#711ca1
+M 0 0 0  0 0 0  2 0 0  Log  tint=#aa5018
+M 0 0 0  0 0 1  2 0 0  Log  tint=#aa5018
+M 0 0 0  0 0 0  2 2 0  Log  tint=#954414
+M 0 0 0  0 0 0  2 2 1  Dirt  tint=#79401c
+M 0 0 0  0 0 0  2 2 2  Dirt  tint=#79401c
+M 0 0 0  0 0 1  2 2 0  Log  tint=#954414
+M 0 0 0  0 1 0  2 0 0  StoneBricks  tint=#711ca1
+M 0 0 0  0 1 0  2 0 1  LogSpruce  tint=#61381c
+M 0 0 0  0 1 0  2 0 2  Metal  tint=#be40ff
+M 0 0 0  0 1 1  2 0 0  LogSpruce  tint=#482818
+M 0 0 0  1 0 0  0 0 0  Log  tint=#954414
+M 0 0 0  1 0 1  0 0 0  LogSpruce  tint=#7d300c
+M 0 0 0  1 0 0  0 1 0  LeafAutumn  tint=#ca5510
+M 0 0 0  1 0 1  0 1 0  LeafAutumn  tint=#ca5510
+M 0 0 0  1 0 0  0 2 0  LeafAutumn  tint=#de6514
+M 0 0 0  1 0 0  0 2 1  Log  tint=#954414
+M 0 0 0  1 0 0  0 2 2  Log  tint=#954414
+M 0 0 0  1 0 1  0 2 0  LeafAutumn  tint=#de6514
+M 0 0 0  1 1 0  0 0 0  Dirt  tint=#8d3838
+M 0 0 0  1 1 0  0 0 1  LogSpruce  tint=#482818
+M 0 0 0  1 1 0  0 0 2  LogSpruce  tint=#482818
+M 0 0 0  1 1 1  0 0 0  Dirt  tint=#8d3838

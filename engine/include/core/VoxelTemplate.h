@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
@@ -13,6 +14,9 @@ struct TemplateCube {
     /// Index into VoxelTemplate::parts. 0 is the implicit "default" part
     /// (static, no hinge) for backward compatibility.
     int partId = 0;
+    /// Packed 0xRRGGBB per-voxel tint multiplier; 0xFFFFFF = no tint.
+    /// Decouples color from material (see docs/VoxelAppearanceModel.md).
+    uint32_t tint = 0xFFFFFFu;
 };
 
 struct TemplateSubcube {
@@ -20,6 +24,7 @@ struct TemplateSubcube {
     glm::ivec3 subcubePos;
     std::string material;
     int partId = 0;
+    uint32_t tint = 0xFFFFFFu;   ///< Packed 0xRRGGBB per-voxel tint; 0xFFFFFF = none.
 };
 
 struct TemplateMicrocube {
@@ -28,6 +33,7 @@ struct TemplateMicrocube {
     glm::ivec3 microcubePos;
     std::string material;
     int partId = 0;
+    uint32_t tint = 0xFFFFFFu;   ///< Packed 0xRRGGBB per-voxel tint; 0xFFFFFF = none.
 };
 
 /// Composite-part metadata. A template ships at least one part — the
@@ -111,19 +117,19 @@ public:
     /// — only used during load.
     int currentPartId = 0;
 
-    void addCube(const glm::ivec3& pos, const std::string& mat) {
+    void addCube(const glm::ivec3& pos, const std::string& mat, uint32_t tint = 0xFFFFFFu) {
         ensureDefaultPart();
-        cubes.push_back({pos, mat, currentPartId});
+        cubes.push_back({pos, mat, currentPartId, tint});
     }
 
-    void addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const std::string& mat) {
+    void addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const std::string& mat, uint32_t tint = 0xFFFFFFu) {
         ensureDefaultPart();
-        subcubes.push_back({parentPos, subPos, mat, currentPartId});
+        subcubes.push_back({parentPos, subPos, mat, currentPartId, tint});
     }
 
-    void addMicrocube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const glm::ivec3& microPos, const std::string& mat) {
+    void addMicrocube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const glm::ivec3& microPos, const std::string& mat, uint32_t tint = 0xFFFFFFu) {
         ensureDefaultPart();
-        microcubes.push_back({parentPos, subPos, microPos, mat, currentPartId});
+        microcubes.push_back({parentPos, subPos, microPos, mat, currentPartId, tint});
     }
 };
 

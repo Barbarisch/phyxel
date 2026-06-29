@@ -9,6 +9,7 @@ layout(location = 4) in vec3 inNormal;           // from vertex shader
 layout(location = 5) in vec3 inWorldPos;         // from vertex shader
 layout(location = 6) in float vSkyLight;          // baked skylight 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) in vec3  vBlockColor;        // baked coloured block light 0..1/channel — SMOOTH (interpolated per-corner)
+layout(location = 8) in vec3  vTint;              // per-voxel tint multiplier (1,1,1 = none). Decouples color from material.
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -197,7 +198,7 @@ void main() {
     vec3 N = normalize(T * nTS.x + B * nTS.y + Ng * nTS.z);
 
     vec3 V = normalize(ubo.cameraPosition - inWorldPos);
-    vec3 albedo = textureColor.rgb;
+    vec3 albedo = textureColor.rgb * vTint;   // per-voxel tint (material texture × tint color)
 
     // Shadow — 16-sample Poisson disk PCF (uses the geometric normal's shadow coord).
     // Only inside the shadow map's [0,1] UV footprint; outside it (beyond the fitted volume)

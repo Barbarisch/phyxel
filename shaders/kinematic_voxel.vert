@@ -47,6 +47,7 @@ layout(location = 4) out vec3      outNormal;
 layout(location = 5) out vec3      outWorldPos;
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
 layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
+layout(location = 8) out vec3  vTint;              // per-voxel tint (decoded from inFaceId high bits)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
@@ -54,13 +55,22 @@ void main() {
     const uint cornerRemap[6] = uint[6](0u, 2u, 1u, 1u, 2u, 3u);
     uint cornerID = cornerRemap[uint(gl_VertexIndex)];
 
+    // inFaceId packs faceId in bits 0-2 and an RGB888 tint in bits 3-26
+    // (see KinematicVoxelManager::buildFaces). Decode both. Default tint
+    // 0xFFFFFF -> (1,1,1) -> no color change, so untinted objects are unaffected.
+    uint faceID = inFaceId & 0x7u;
+    uint tpk    = inFaceId >> 3;
+    vTint = vec3(float((tpk >> 16) & 0xFFu),
+                 float((tpk >>  8) & 0xFFu),
+                 float( tpk        & 0xFFu)) / 255.0;
+
     // Generate face vertex offset in [0,1]^3 space
     vec3 faceOffset = vec3(0.0);
-    if      (inFaceId == 0u) faceOffset = vec3(float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u), 1.0);
-    else if (inFaceId == 1u) faceOffset = vec3(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u), 0.0);
-    else if (inFaceId == 2u) faceOffset = vec3(1.0, float((cornerID >> 1) & 1u), 1.0 - float((cornerID >> 0) & 1u));
-    else if (inFaceId == 3u) faceOffset = vec3(0.0, float((cornerID >> 1) & 1u), float((cornerID >> 0) & 1u));
-    else if (inFaceId == 4u) faceOffset = vec3(float((cornerID >> 0) & 1u), 1.0, 1.0 - float((cornerID >> 1) & 1u));
+    if      (faceID == 0u) faceOffset = vec3(float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u), 1.0);
+    else if (faceID == 1u) faceOffset = vec3(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u), 0.0);
+    else if (faceID == 2u) faceOffset = vec3(1.0, float((cornerID >> 1) & 1u), 1.0 - float((cornerID >> 0) & 1u));
+    else if (faceID == 3u) faceOffset = vec3(0.0, float((cornerID >> 1) & 1u), float((cornerID >> 0) & 1u));
+    else if (faceID == 4u) faceOffset = vec3(float((cornerID >> 0) & 1u), 1.0, 1.0 - float((cornerID >> 1) & 1u));
     else                     faceOffset = vec3(float((cornerID >> 0) & 1u), 0.0, float((cornerID >> 1) & 1u));
 
     // Vertex in local space: center voxel at inLocalPosition, scale to [-0.5, 0.5]*scale
@@ -71,11 +81,11 @@ void main() {
 
     // Base UV coordinates (0-1 range for a full face)
     vec2 baseUV = vec2(0.0);
-    if      (inFaceId == 0u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 1u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
-    else if (inFaceId == 2u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 3u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
-    else if (inFaceId == 4u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
+    if      (faceID == 0u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (faceID == 1u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
+    else if (faceID == 2u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (faceID == 3u) baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
+    else if (faceID == 4u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
     else                     baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
 
     // Sub-tile texture mapping: scale UV to voxel's portion of parent cube
@@ -87,11 +97,11 @@ void main() {
     // Face normal in local space, rotated into world space by the model matrix
     // (mat3 upper-left is correct for uniform-scale rotations; doors only rotate)
     vec3 localNormal = vec3(0.0);
-    if      (inFaceId == 0u) localNormal = vec3( 0.0,  0.0,  1.0);
-    else if (inFaceId == 1u) localNormal = vec3( 0.0,  0.0, -1.0);
-    else if (inFaceId == 2u) localNormal = vec3( 1.0,  0.0,  0.0);
-    else if (inFaceId == 3u) localNormal = vec3(-1.0,  0.0,  0.0);
-    else if (inFaceId == 4u) localNormal = vec3( 0.0,  1.0,  0.0);
+    if      (faceID == 0u) localNormal = vec3( 0.0,  0.0,  1.0);
+    else if (faceID == 1u) localNormal = vec3( 0.0,  0.0, -1.0);
+    else if (faceID == 2u) localNormal = vec3( 1.0,  0.0,  0.0);
+    else if (faceID == 3u) localNormal = vec3(-1.0,  0.0,  0.0);
+    else if (faceID == 4u) localNormal = vec3( 0.0,  1.0,  0.0);
     else                     localNormal = vec3( 0.0, -1.0,  0.0);
 
     outNormal = normalize(mat3(pc.modelMatrix) * localNormal);

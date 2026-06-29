@@ -1,0 +1,67 @@
+# ==========================================================
+# ASSET METADATA
+# name:         barony_bomb
+# description:  Imported from Barony .vox (Bomb.vox)
+# category:     imported
+# materials:    Cobblestone, LogBirch, LogSpruce
+# bounds:       1W x 1H x 1D cubes  (scale=micro, up=z)
+# primitives:   56 M (downsample=2)
+# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)
+# ==========================================================
+
+M 0 0 0  0 0 0  0 0 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  0 0 1  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  0 0 2  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  0 1 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  0 1 1  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  0 1 2  LogSpruce  tint=#101010
+M 0 0 0  0 0 1  0 1 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  0 2 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  0 2 1  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  0 2 2  LogSpruce  tint=#181818
+M 0 0 0  0 0 1  0 2 0  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  0 0 1  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  0 0 2  LogSpruce  tint=#181818
+M 0 0 0  0 0 0  1 0 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  1 0 1  LogSpruce  tint=#000000
+M 0 0 0  0 0 0  1 0 2  LogSpruce  tint=#000000
+M 0 0 0  0 0 1  1 0 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  1 1 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  1 1 1  LogSpruce  tint=#000000
+M 0 0 0  0 0 0  1 1 2  LogSpruce  tint=#000000
+M 0 0 0  0 0 1  1 1 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  1 2 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  1 2 1  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  1 2 2  LogSpruce  tint=#080808
+M 0 0 0  0 0 1  1 2 0  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  1 0 0  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  1 0 1  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  1 0 2  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  1 1 1  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  1 1 2  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  1 2 2  Cobblestone  tint=#818181
+M 0 0 0  0 1 1  1 2 0  LogBirch  tint=#c2c2c2
+M 0 0 0  0 0 0  2 0 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  2 0 1  LogSpruce  tint=#000000
+M 0 0 0  0 0 0  2 0 2  LogSpruce  tint=#080808
+M 0 0 0  0 0 1  2 0 0  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  2 1 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  2 1 1  LogSpruce  tint=#000000
+M 0 0 0  0 0 0  2 1 2  LogSpruce  tint=#000000
+M 0 0 0  0 0 1  2 1 0  LogSpruce  tint=#181818
+M 0 0 0  0 0 0  2 2 0  LogSpruce  tint=#101010
+M 0 0 0  0 0 0  2 2 1  LogSpruce  tint=#080808
+M 0 0 0  0 0 0  2 2 2  LogSpruce  tint=#080808
+M 0 0 0  0 0 1  2 2 0  LogSpruce  tint=#181818
+M 0 0 0  0 1 0  2 0 0  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  2 0 1  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  2 0 2  LogSpruce  tint=#202020
+M 0 0 0  0 1 0  2 1 1  LogSpruce  tint=#202020
+M 0 0 0  1 0 0  0 0 1  LogSpruce  tint=#080808
+M 0 0 0  1 0 0  0 0 2  LogSpruce  tint=#080808
+M 0 0 0  1 0 0  0 1 0  LogSpruce  tint=#101010
+M 0 0 0  1 0 0  0 1 1  LogSpruce  tint=#101010
+M 0 0 0  1 0 0  0 1 2  LogSpruce  tint=#181818
+M 0 0 0  1 0 0  0 2 0  LogSpruce  tint=#101010
+M 0 0 0  1 0 0  0 2 1  LogSpruce  tint=#181818
+M 0 0 0  1 0 0  0 2 2  LogSpruce  tint=#181818

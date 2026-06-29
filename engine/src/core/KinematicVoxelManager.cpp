@@ -145,7 +145,9 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
             f.localPosition = v.localPos;
             f.scale         = v.scale;
             f.textureIndex  = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(v.materialName, (int)faceId);
-            f.faceId        = faceId;
+            // Pack face (bits 0-2) + per-voxel 0xRRGGBB tint (bits 3-26). The shader
+            // masks the low 3 bits for the face and decodes the rest as the tint.
+            f.faceId        = (faceId & 0x7u) | (v.tint << 3);
 
             // Compute UV offset for sub-tile texture mapping.
             // Must match per-face axis mapping and flips from static_voxel.vert.

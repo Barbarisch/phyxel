@@ -557,16 +557,29 @@
       "description": "Emissive blue glow",
       "emissive": true,
       "physics": {
-        "mass": 1.0, "friction": 0.5, "restitution": 0.5,
-        "linearDamping": 0.1, "angularDamping": 0.1,
-        "breakForceMultiplier": 1.0, "bondStrength": 0.5, "angularVelocityScale": 1.0,
-        "colorTint": [ 0.25, 0.45, 1.0 ],
-        "metallic": 0.0, "roughness": 0.5
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.5,
+        "linearDamping": 0.1,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.25,
+          0.45,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
       },
       "textures": {
-        "side_n": "glow_side_n.png", "side_s": "glow_side_s.png",
-        "side_e": "glow_side_e.png", "side_w": "glow_side_w.png",
-        "top": "glow_top.png", "bottom": "glow_bottom.png"
+        "side_n": "glow_side_n.png",
+        "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png",
+        "side_w": "glow_side_w.png",
+        "top": "glow_top.png",
+        "bottom": "glow_bottom.png"
       }
     },
     {
@@ -575,16 +588,29 @@
       "description": "Emissive green glow",
       "emissive": true,
       "physics": {
-        "mass": 1.0, "friction": 0.5, "restitution": 0.5,
-        "linearDamping": 0.1, "angularDamping": 0.1,
-        "breakForceMultiplier": 1.0, "bondStrength": 0.5, "angularVelocityScale": 1.0,
-        "colorTint": [ 0.3, 1.0, 0.4 ],
-        "metallic": 0.0, "roughness": 0.5
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.5,
+        "linearDamping": 0.1,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.3,
+          1.0,
+          0.4
+        ],
+        "metallic": 0.0,
+        "roughness": 0.5
       },
       "textures": {
-        "side_n": "glow_side_n.png", "side_s": "glow_side_s.png",
-        "side_e": "glow_side_e.png", "side_w": "glow_side_w.png",
-        "top": "glow_top.png", "bottom": "glow_bottom.png"
+        "side_n": "glow_side_n.png",
+        "side_s": "glow_side_s.png",
+        "side_e": "glow_side_e.png",
+        "side_w": "glow_side_w.png",
+        "top": "glow_top.png",
+        "bottom": "glow_bottom.png"
       }
     },
     {
@@ -874,6 +900,1446 @@
         "side_w": "thatch_side_w.png",
         "top": "thatch_top.png",
         "bottom": "thatch_bottom.png"
+      }
+    },
+    {
+      "name": "vox_00",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(49,21,19)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.1922,
+          0.0824,
+          0.0745
+        ]
+      },
+      "textures": {
+        "top": "vox_00.png",
+        "bottom": "vox_00.png",
+        "side_n": "vox_00.png",
+        "side_s": "vox_00.png",
+        "side_e": "vox_00.png",
+        "side_w": "vox_00.png"
+      }
+    },
+    {
+      "name": "vox_01",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(52,53,84)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.2039,
+          0.2078,
+          0.3294
+        ]
+      },
+      "textures": {
+        "top": "vox_01.png",
+        "bottom": "vox_01.png",
+        "side_n": "vox_01.png",
+        "side_s": "vox_01.png",
+        "side_e": "vox_01.png",
+        "side_w": "vox_01.png"
+      }
+    },
+    {
+      "name": "vox_02",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(1,0,0)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0039,
+          0.0,
+          0.0
+        ]
+      },
+      "textures": {
+        "top": "vox_02.png",
+        "bottom": "vox_02.png",
+        "side_n": "vox_02.png",
+        "side_s": "vox_02.png",
+        "side_e": "vox_02.png",
+        "side_w": "vox_02.png"
+      }
+    },
+    {
+      "name": "vox_03",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(89,59,29)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.349,
+          0.2314,
+          0.1137
+        ]
+      },
+      "textures": {
+        "top": "vox_03.png",
+        "bottom": "vox_03.png",
+        "side_n": "vox_03.png",
+        "side_s": "vox_03.png",
+        "side_e": "vox_03.png",
+        "side_w": "vox_03.png"
+      }
+    },
+    {
+      "name": "vox_04",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(12,52,28)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0471,
+          0.2039,
+          0.1098
+        ]
+      },
+      "textures": {
+        "top": "vox_04.png",
+        "bottom": "vox_04.png",
+        "side_n": "vox_04.png",
+        "side_s": "vox_04.png",
+        "side_e": "vox_04.png",
+        "side_w": "vox_04.png"
+      }
+    },
+    {
+      "name": "vox_05",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(43,43,43)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.1686,
+          0.1686,
+          0.1686
+        ]
+      },
+      "textures": {
+        "top": "vox_05.png",
+        "bottom": "vox_05.png",
+        "side_n": "vox_05.png",
+        "side_s": "vox_05.png",
+        "side_e": "vox_05.png",
+        "side_w": "vox_05.png"
+      }
+    },
+    {
+      "name": "vox_06",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(23,23,21)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0902,
+          0.0902,
+          0.0824
+        ]
+      },
+      "textures": {
+        "top": "vox_06.png",
+        "bottom": "vox_06.png",
+        "side_n": "vox_06.png",
+        "side_s": "vox_06.png",
+        "side_e": "vox_06.png",
+        "side_w": "vox_06.png"
+      }
+    },
+    {
+      "name": "vox_07",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(81,116,133)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.3176,
+          0.4549,
+          0.5216
+        ]
+      },
+      "textures": {
+        "top": "vox_07.png",
+        "bottom": "vox_07.png",
+        "side_n": "vox_07.png",
+        "side_s": "vox_07.png",
+        "side_e": "vox_07.png",
+        "side_w": "vox_07.png"
+      }
+    },
+    {
+      "name": "vox_08",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(66,52,33)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.2588,
+          0.2039,
+          0.1294
+        ]
+      },
+      "textures": {
+        "top": "vox_08.png",
+        "bottom": "vox_08.png",
+        "side_n": "vox_08.png",
+        "side_s": "vox_08.png",
+        "side_e": "vox_08.png",
+        "side_w": "vox_08.png"
+      }
+    },
+    {
+      "name": "vox_09",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(76,33,16)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.298,
+          0.1294,
+          0.0627
+        ]
+      },
+      "textures": {
+        "top": "vox_09.png",
+        "bottom": "vox_09.png",
+        "side_n": "vox_09.png",
+        "side_s": "vox_09.png",
+        "side_e": "vox_09.png",
+        "side_w": "vox_09.png"
+      }
+    },
+    {
+      "name": "vox_10",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(60,58,57)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.2353,
+          0.2275,
+          0.2235
+        ]
+      },
+      "textures": {
+        "top": "vox_10.png",
+        "bottom": "vox_10.png",
+        "side_n": "vox_10.png",
+        "side_s": "vox_10.png",
+        "side_e": "vox_10.png",
+        "side_w": "vox_10.png"
+      }
+    },
+    {
+      "name": "vox_11",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(74,75,75)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.2902,
+          0.2941,
+          0.2941
+        ]
+      },
+      "textures": {
+        "top": "vox_11.png",
+        "bottom": "vox_11.png",
+        "side_n": "vox_11.png",
+        "side_s": "vox_11.png",
+        "side_e": "vox_11.png",
+        "side_w": "vox_11.png"
+      }
+    },
+    {
+      "name": "vox_12",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(86,90,94)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.3373,
+          0.3529,
+          0.3686
+        ]
+      },
+      "textures": {
+        "top": "vox_12.png",
+        "bottom": "vox_12.png",
+        "side_n": "vox_12.png",
+        "side_s": "vox_12.png",
+        "side_e": "vox_12.png",
+        "side_w": "vox_12.png"
+      }
+    },
+    {
+      "name": "vox_13",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(103,88,71)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.4039,
+          0.3451,
+          0.2784
+        ]
+      },
+      "textures": {
+        "top": "vox_13.png",
+        "bottom": "vox_13.png",
+        "side_n": "vox_13.png",
+        "side_s": "vox_13.png",
+        "side_e": "vox_13.png",
+        "side_w": "vox_13.png"
+      }
+    },
+    {
+      "name": "vox_14",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(107,106,104)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.4196,
+          0.4157,
+          0.4078
+        ]
+      },
+      "textures": {
+        "top": "vox_14.png",
+        "bottom": "vox_14.png",
+        "side_n": "vox_14.png",
+        "side_s": "vox_14.png",
+        "side_e": "vox_14.png",
+        "side_w": "vox_14.png"
+      }
+    },
+    {
+      "name": "vox_15",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(133,112,66)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.5216,
+          0.4392,
+          0.2588
+        ]
+      },
+      "textures": {
+        "top": "vox_15.png",
+        "bottom": "vox_15.png",
+        "side_n": "vox_15.png",
+        "side_s": "vox_15.png",
+        "side_e": "vox_15.png",
+        "side_w": "vox_15.png"
+      }
+    },
+    {
+      "name": "vox_16",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(120,81,43)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.4706,
+          0.3176,
+          0.1686
+        ]
+      },
+      "textures": {
+        "top": "vox_16.png",
+        "bottom": "vox_16.png",
+        "side_n": "vox_16.png",
+        "side_s": "vox_16.png",
+        "side_e": "vox_16.png",
+        "side_w": "vox_16.png"
+      }
+    },
+    {
+      "name": "vox_17",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(220,239,247)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.8627,
+          0.9373,
+          0.9686
+        ]
+      },
+      "textures": {
+        "top": "vox_17.png",
+        "bottom": "vox_17.png",
+        "side_n": "vox_17.png",
+        "side_s": "vox_17.png",
+        "side_e": "vox_17.png",
+        "side_w": "vox_17.png"
+      }
+    },
+    {
+      "name": "vox_18",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(168,123,48)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.6588,
+          0.4824,
+          0.1882
+        ]
+      },
+      "textures": {
+        "top": "vox_18.png",
+        "bottom": "vox_18.png",
+        "side_n": "vox_18.png",
+        "side_s": "vox_18.png",
+        "side_e": "vox_18.png",
+        "side_w": "vox_18.png"
+      }
+    },
+    {
+      "name": "vox_19",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(127,53,35)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.498,
+          0.2078,
+          0.1373
+        ]
+      },
+      "textures": {
+        "top": "vox_19.png",
+        "bottom": "vox_19.png",
+        "side_n": "vox_19.png",
+        "side_s": "vox_19.png",
+        "side_e": "vox_19.png",
+        "side_w": "vox_19.png"
+      }
+    },
+    {
+      "name": "vox_20",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(184,189,192)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.7216,
+          0.7412,
+          0.7529
+        ]
+      },
+      "textures": {
+        "top": "vox_20.png",
+        "bottom": "vox_20.png",
+        "side_n": "vox_20.png",
+        "side_s": "vox_20.png",
+        "side_e": "vox_20.png",
+        "side_w": "vox_20.png"
+      }
+    },
+    {
+      "name": "vox_21",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(178,49,44)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.698,
+          0.1922,
+          0.1725
+        ]
+      },
+      "textures": {
+        "top": "vox_21.png",
+        "bottom": "vox_21.png",
+        "side_n": "vox_21.png",
+        "side_s": "vox_21.png",
+        "side_e": "vox_21.png",
+        "side_w": "vox_21.png"
+      }
+    },
+    {
+      "name": "vox_22",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(137,127,125)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.5373,
+          0.498,
+          0.4902
+        ]
+      },
+      "textures": {
+        "top": "vox_22.png",
+        "bottom": "vox_22.png",
+        "side_n": "vox_22.png",
+        "side_s": "vox_22.png",
+        "side_e": "vox_22.png",
+        "side_w": "vox_22.png"
+      }
+    },
+    {
+      "name": "vox_23",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(130,22,13)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.5098,
+          0.0863,
+          0.051
+        ]
+      },
+      "textures": {
+        "top": "vox_23.png",
+        "bottom": "vox_23.png",
+        "side_n": "vox_23.png",
+        "side_s": "vox_23.png",
+        "side_e": "vox_23.png",
+        "side_w": "vox_23.png"
+      }
+    },
+    {
+      "name": "vox_24",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(164,145,101)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.6431,
+          0.5686,
+          0.3961
+        ]
+      },
+      "textures": {
+        "top": "vox_24.png",
+        "bottom": "vox_24.png",
+        "side_n": "vox_24.png",
+        "side_s": "vox_24.png",
+        "side_e": "vox_24.png",
+        "side_w": "vox_24.png"
+      }
+    },
+    {
+      "name": "vox_25",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(158,76,21)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.6196,
+          0.298,
+          0.0824
+        ]
+      },
+      "textures": {
+        "top": "vox_25.png",
+        "bottom": "vox_25.png",
+        "side_n": "vox_25.png",
+        "side_s": "vox_25.png",
+        "side_e": "vox_25.png",
+        "side_w": "vox_25.png"
+      }
+    },
+    {
+      "name": "vox_26",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(195,148,68)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.7647,
+          0.5804,
+          0.2667
+        ]
+      },
+      "textures": {
+        "top": "vox_26.png",
+        "bottom": "vox_26.png",
+        "side_n": "vox_26.png",
+        "side_s": "vox_26.png",
+        "side_e": "vox_26.png",
+        "side_w": "vox_26.png"
+      }
+    },
+    {
+      "name": "vox_27",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(206,217,222)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.8078,
+          0.851,
+          0.8706
+        ]
+      },
+      "textures": {
+        "top": "vox_27.png",
+        "bottom": "vox_27.png",
+        "side_n": "vox_27.png",
+        "side_s": "vox_27.png",
+        "side_e": "vox_27.png",
+        "side_w": "vox_27.png"
+      }
+    },
+    {
+      "name": "vox_28",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(134,166,183)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.5255,
+          0.651,
+          0.7176
+        ]
+      },
+      "textures": {
+        "top": "vox_28.png",
+        "bottom": "vox_28.png",
+        "side_n": "vox_28.png",
+        "side_s": "vox_28.png",
+        "side_e": "vox_28.png",
+        "side_w": "vox_28.png"
+      }
+    },
+    {
+      "name": "vox_29",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(81,11,5)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.3176,
+          0.0431,
+          0.0196
+        ]
+      },
+      "textures": {
+        "top": "vox_29.png",
+        "bottom": "vox_29.png",
+        "side_n": "vox_29.png",
+        "side_s": "vox_29.png",
+        "side_e": "vox_29.png",
+        "side_w": "vox_29.png"
+      }
+    },
+    {
+      "name": "vox_30",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(19,98,48)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0745,
+          0.3843,
+          0.1882
+        ]
+      },
+      "textures": {
+        "top": "vox_30.png",
+        "bottom": "vox_30.png",
+        "side_n": "vox_30.png",
+        "side_s": "vox_30.png",
+        "side_e": "vox_30.png",
+        "side_w": "vox_30.png"
+      }
+    },
+    {
+      "name": "vox_31",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(165,160,160)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.6471,
+          0.6275,
+          0.6275
+        ]
+      },
+      "textures": {
+        "top": "vox_31.png",
+        "bottom": "vox_31.png",
+        "side_n": "vox_31.png",
+        "side_s": "vox_31.png",
+        "side_e": "vox_31.png",
+        "side_w": "vox_31.png"
+      }
+    },
+    {
+      "name": "vox_32",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(179,103,61)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.702,
+          0.4039,
+          0.2392
+        ]
+      },
+      "textures": {
+        "top": "vox_32.png",
+        "bottom": "vox_32.png",
+        "side_n": "vox_32.png",
+        "side_s": "vox_32.png",
+        "side_e": "vox_32.png",
+        "side_w": "vox_32.png"
+      }
+    },
+    {
+      "name": "vox_33",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(185,169,124)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.7255,
+          0.6627,
+          0.4863
+        ]
+      },
+      "textures": {
+        "top": "vox_33.png",
+        "bottom": "vox_33.png",
+        "side_n": "vox_33.png",
+        "side_s": "vox_33.png",
+        "side_e": "vox_33.png",
+        "side_w": "vox_33.png"
+      }
+    },
+    {
+      "name": "vox_34",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(41,169,212)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.1608,
+          0.6627,
+          0.8314
+        ]
+      },
+      "textures": {
+        "top": "vox_34.png",
+        "bottom": "vox_34.png",
+        "side_n": "vox_34.png",
+        "side_s": "vox_34.png",
+        "side_e": "vox_34.png",
+        "side_w": "vox_34.png"
+      }
+    },
+    {
+      "name": "vox_35",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(222,178,84)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.8706,
+          0.698,
+          0.3294
+        ]
+      },
+      "textures": {
+        "top": "vox_35.png",
+        "bottom": "vox_35.png",
+        "side_n": "vox_35.png",
+        "side_s": "vox_35.png",
+        "side_e": "vox_35.png",
+        "side_w": "vox_35.png"
+      }
+    },
+    {
+      "name": "vox_36",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(118,218,241)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.4627,
+          0.8549,
+          0.9451
+        ]
+      },
+      "textures": {
+        "top": "vox_36.png",
+        "bottom": "vox_36.png",
+        "side_n": "vox_36.png",
+        "side_s": "vox_36.png",
+        "side_e": "vox_36.png",
+        "side_w": "vox_36.png"
+      }
+    },
+    {
+      "name": "vox_37",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(212,100,14)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.8314,
+          0.3922,
+          0.0549
+        ]
+      },
+      "textures": {
+        "top": "vox_37.png",
+        "bottom": "vox_37.png",
+        "side_n": "vox_37.png",
+        "side_s": "vox_37.png",
+        "side_e": "vox_37.png",
+        "side_w": "vox_37.png"
+      }
+    },
+    {
+      "name": "vox_38",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(15,104,129)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0588,
+          0.4078,
+          0.5059
+        ]
+      },
+      "textures": {
+        "top": "vox_38.png",
+        "bottom": "vox_38.png",
+        "side_n": "vox_38.png",
+        "side_s": "vox_38.png",
+        "side_e": "vox_38.png",
+        "side_w": "vox_38.png"
+      }
+    },
+    {
+      "name": "vox_39",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(218,190,126)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.8549,
+          0.7451,
+          0.4941
+        ]
+      },
+      "textures": {
+        "top": "vox_39.png",
+        "bottom": "vox_39.png",
+        "side_n": "vox_39.png",
+        "side_s": "vox_39.png",
+        "side_e": "vox_39.png",
+        "side_w": "vox_39.png"
+      }
+    },
+    {
+      "name": "vox_40",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(236,177,17)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.9255,
+          0.6941,
+          0.0667
+        ]
+      },
+      "textures": {
+        "top": "vox_40.png",
+        "bottom": "vox_40.png",
+        "side_n": "vox_40.png",
+        "side_s": "vox_40.png",
+        "side_e": "vox_40.png",
+        "side_w": "vox_40.png"
+      }
+    },
+    {
+      "name": "vox_41",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(252,251,244)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.9882,
+          0.9843,
+          0.9569
+        ]
+      },
+      "textures": {
+        "top": "vox_41.png",
+        "bottom": "vox_41.png",
+        "side_n": "vox_41.png",
+        "side_s": "vox_41.png",
+        "side_e": "vox_41.png",
+        "side_w": "vox_41.png"
+      }
+    },
+    {
+      "name": "vox_42",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(118,31,150)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.4627,
+          0.1216,
+          0.5882
+        ]
+      },
+      "textures": {
+        "top": "vox_42.png",
+        "bottom": "vox_42.png",
+        "side_n": "vox_42.png",
+        "side_s": "vox_42.png",
+        "side_e": "vox_42.png",
+        "side_w": "vox_42.png"
+      }
+    },
+    {
+      "name": "vox_43",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(7,28,151)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0275,
+          0.1098,
+          0.5922
+        ]
+      },
+      "textures": {
+        "top": "vox_43.png",
+        "bottom": "vox_43.png",
+        "side_n": "vox_43.png",
+        "side_s": "vox_43.png",
+        "side_e": "vox_43.png",
+        "side_w": "vox_43.png"
+      }
+    },
+    {
+      "name": "vox_44",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(7,161,5)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.0275,
+          0.6314,
+          0.0196
+        ]
+      },
+      "textures": {
+        "top": "vox_44.png",
+        "bottom": "vox_44.png",
+        "side_n": "vox_44.png",
+        "side_s": "vox_44.png",
+        "side_e": "vox_44.png",
+        "side_w": "vox_44.png"
+      }
+    },
+    {
+      "name": "vox_45",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(38,5,86)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.149,
+          0.0196,
+          0.3373
+        ]
+      },
+      "textures": {
+        "top": "vox_45.png",
+        "bottom": "vox_45.png",
+        "side_n": "vox_45.png",
+        "side_s": "vox_45.png",
+        "side_e": "vox_45.png",
+        "side_w": "vox_45.png"
+      }
+    },
+    {
+      "name": "vox_46",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(231,220,175)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.9059,
+          0.8627,
+          0.6863
+        ]
+      },
+      "textures": {
+        "top": "vox_46.png",
+        "bottom": "vox_46.png",
+        "side_n": "vox_46.png",
+        "side_s": "vox_46.png",
+        "side_e": "vox_46.png",
+        "side_w": "vox_46.png"
+      }
+    },
+    {
+      "name": "vox_47",
+      "category": "vox_palette",
+      "description": "Flat voxel-palette color rgb(98,215,54)",
+      "physics": {
+        "mass": 1.5,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "metallic": 0.0,
+        "roughness": 0.85,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "angularVelocityScale": 1.0,
+        "bondStrength": 0.5,
+        "breakForceMultiplier": 0.8,
+        "colorTint": [
+          0.3843,
+          0.8431,
+          0.2118
+        ]
+      },
+      "textures": {
+        "top": "vox_47.png",
+        "bottom": "vox_47.png",
+        "side_n": "vox_47.png",
+        "side_s": "vox_47.png",
+        "side_e": "vox_47.png",
+        "side_w": "vox_47.png"
       }
     }
   ]

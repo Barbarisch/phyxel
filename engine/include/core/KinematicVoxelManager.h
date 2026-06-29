@@ -23,7 +23,8 @@ struct KinematicFaceData {
     glm::vec3 scale;            ///< Per-axis scale: (1,1,1) = full cube, (1,1,0.125) = thin slab
     glm::vec2 uvOffset;         ///< UV offset within parent cube for sub-tile texture mapping
     uint32_t  textureIndex;    ///< Material texture atlas index
-    uint32_t  faceId;           ///< 0=+Z  1=-Z  2=+X  3=-X  4=+Y  5=-Y
+    uint32_t  faceId;           ///< bits 0-2: face (0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y);
+                                ///< bits 3-26: packed 0xRRGGBB tint (decoded in kinematic_voxel.vert)
 };
 static_assert(sizeof(KinematicFaceData) == 40, "KinematicFaceData must be 40 bytes");
 
@@ -36,6 +37,8 @@ struct KinematicVoxel {
                                                  ///< Set from subcubePos/microcubePos before COM shift.
                                                  ///< Full cubes: (0,0,0). Microcube at grid (1,2,0): (1/9,2/9,0).
     std::string materialName = "Default";       ///< Material name for per-face texture lookup
+    uint32_t    tint = 0xFFFFFFu;                ///< Packed 0xRRGGBB tint multiplier; 0xFFFFFF = none.
+                                                 ///< Decouples color from material (docs/VoxelAppearanceModel.md).
 };
 
 /// A group of voxels rendered together with a shared world transform.

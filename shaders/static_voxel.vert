@@ -47,6 +47,7 @@ layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
+layout(location = 8) out vec3  vTint;              // per-voxel tint — chunk path has no tint channel yet, always 1.0
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -314,6 +315,7 @@ void main() {
     // No need for face visibility checking - all vertices here should be rendered
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
+    vTint = vec3(1.0);
     
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;

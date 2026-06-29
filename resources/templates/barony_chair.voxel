@@ -1,0 +1,81 @@
+# ==========================================================
+# ASSET METADATA
+# name:         barony_chair
+# description:  Imported from Barony .vox (Chair.vox)
+# category:     imported
+# materials:    Dirt, LogSpruce
+# bounds:       1W x 2H x 1D cubes  (scale=micro, up=z)
+# primitives:   70 M (downsample=2)
+# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)
+# ==========================================================
+
+M 0 0 0  0 0 0  0 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 0 1  0 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 0 0  0 1 0  LogSpruce  tint=#502008
+M 0 0 0  0 0 1  0 1 0  LogSpruce  tint=#502008
+M 0 0 0  0 0 0  0 2 0  LogSpruce  tint=#441c08
+M 0 0 0  0 0 1  0 2 0  LogSpruce  tint=#441c08
+M 0 0 0  0 1 0  0 0 0  LogSpruce  tint=#612810
+M 0 0 0  0 1 0  0 0 1  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  0 0 2  LogSpruce  tint=#55240c
+M 0 0 0  0 1 1  0 0 0  LogSpruce  tint=#612810
+M 0 0 0  0 1 0  0 1 0  LogSpruce  tint=#692c14
+M 0 0 0  0 1 0  0 1 1  LogSpruce  tint=#612810
+M 0 0 0  0 1 0  0 1 2  LogSpruce  tint=#612810
+M 0 0 0  0 1 1  0 1 0  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  0 2 0  LogSpruce  tint=#5d280c
+M 0 0 0  0 1 0  0 2 1  LogSpruce  tint=#652c10
+M 0 0 0  0 1 0  0 2 2  LogSpruce  tint=#612810
+M 0 0 0  0 1 1  0 2 0  LogSpruce  tint=#55240c
+M 0 0 0  0 2 0  0 0 0  LogSpruce  tint=#652c10
+M 0 0 0  0 2 0  0 0 1  LogSpruce  tint=#652c10
+M 0 0 0  0 2 0  0 0 2  LogSpruce  tint=#612810
+M 0 0 0  0 2 1  0 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 2 0  0 1 0  LogSpruce  tint=#652c10
+M 0 0 0  0 2 0  0 1 1  LogSpruce  tint=#652c10
+M 0 0 0  0 2 0  0 1 2  LogSpruce  tint=#612810
+M 0 0 0  0 2 1  0 1 0  LogSpruce  tint=#55240c
+M 0 0 0  0 2 0  0 2 0  LogSpruce  tint=#55240c
+M 0 0 0  0 2 0  0 2 1  LogSpruce  tint=#692c14
+M 0 0 0  0 2 0  0 2 2  LogSpruce  tint=#692c14
+M 0 0 0  0 2 1  0 2 0  LogSpruce  tint=#55240c
+M 0 1 0  0 0 0  0 0 0  Dirt  tint=#853818
+M 0 1 0  0 0 0  0 0 1  LogSpruce  tint=#652c10
+M 0 1 0  0 0 0  0 0 2  Dirt  tint=#853818
+M 0 1 0  0 0 1  0 0 0  Dirt  tint=#853818
+M 0 0 0  0 0 0  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 0 1  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 0 0  1 2 0  LogSpruce  tint=#441c08
+M 0 0 0  0 0 1  1 2 0  LogSpruce  tint=#441c08
+M 0 0 0  0 1 0  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  1 0 1  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  1 0 2  LogSpruce  tint=#502008
+M 0 0 0  0 1 1  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 0 0  2 0 0  LogSpruce  tint=#713014
+M 0 0 0  0 0 1  2 0 0  LogSpruce  tint=#713014
+M 0 0 0  0 0 0  2 2 0  LogSpruce  tint=#612810
+M 0 0 0  0 0 1  2 2 0  LogSpruce  tint=#612810
+M 0 0 0  0 1 0  2 0 0  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  2 0 1  LogSpruce  tint=#55240c
+M 0 0 0  0 1 0  2 0 2  LogSpruce  tint=#5d280c
+M 0 0 0  0 1 1  2 0 0  LogSpruce  tint=#55240c
+M 0 0 0  1 0 0  0 0 0  LogSpruce  tint=#612810
+M 0 0 0  1 0 1  0 0 0  LogSpruce  tint=#612810
+M 0 0 0  1 0 0  0 2 0  LogSpruce  tint=#502008
+M 0 0 0  1 0 1  0 2 0  LogSpruce  tint=#55240c
+M 0 0 0  1 1 0  0 0 0  LogSpruce  tint=#502008
+M 0 0 0  1 1 0  0 0 1  LogSpruce  tint=#55240c
+M 0 0 0  1 1 0  0 0 2  LogSpruce  tint=#5d280c
+M 0 0 0  1 1 1  0 0 0  LogSpruce  tint=#55240c
+M 0 0 0  1 0 0  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  1 0 1  1 0 0  LogSpruce  tint=#55240c
+M 0 0 0  1 0 0  1 1 0  LogSpruce  tint=#502008
+M 0 0 0  1 0 0  1 1 1  LogSpruce  tint=#502008
+M 0 0 0  1 0 0  1 1 2  LogSpruce  tint=#55240c
+M 0 0 0  1 0 1  1 1 0  LogSpruce  tint=#401804
+M 0 0 0  1 0 0  1 2 0  LogSpruce  tint=#441c08
+M 0 0 0  1 0 1  1 2 0  LogSpruce  tint=#441c08
+M 0 0 0  1 1 0  1 0 0  LogSpruce  tint=#612810
+M 0 0 0  1 1 0  1 0 1  LogSpruce  tint=#55240c
+M 0 0 0  1 1 0  1 0 2  LogSpruce  tint=#55240c
+M 0 0 0  1 1 1  1 0 0  LogSpruce  tint=#5d280c
