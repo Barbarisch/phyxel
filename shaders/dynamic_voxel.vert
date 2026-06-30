@@ -45,6 +45,7 @@ layout(location = 5) out vec3 outWorldPos;        // pass world position to frag
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
 layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 layout(location = 8) out vec3  vTint;              // per-voxel tint — debris path has no tint channel, always 1.0
+layout(location = 9) out flat uint vState;         // per-voxel state — not carried on debris path (always 0)
 
 // Rotate a vector by a quaternion
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -257,6 +258,7 @@ void main() {
     // Dummy flags
     flags = 0u;
     vTint = vec3(1.0);
+    vState = 0u;
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;

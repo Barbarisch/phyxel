@@ -130,7 +130,7 @@ void ChunkRenderManager::rebuildAllFaces(
     // Rebuild faces for each voxel type. Cubes first: rebuildCubeFaces fills m_solidVis (cube-level
     // occupancy) which the sub/micro occlusion reuses. Then build the leaf sub/micro occupancy so
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
-    rebuildCubeFaces(cubes, worldOrigin, getNeighborCube, columnOpenMask);
+    rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask);
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
@@ -142,6 +142,8 @@ void ChunkRenderManager::rebuildAllFaces(
 
 void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Cube>>& cubes,
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
+    const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
     const std::vector<uint8_t>* columnOpenMask)
@@ -322,6 +324,43 @@ void ChunkRenderManager::rebuildCubeFaces(
             if (m >= 0 && (matFaces[m].reserved & 1u)) {  // emissive flag (reserved bit 0)
                 bump(cell, matFaces[m].emR, matFaces[m].emG, matFaces[m].emB);
             }
+        }
+        // Seed block light from emissive (glow material) OR flaming/smoldering sub-microcubes,
+        // at their parent cube cell. This reuses the torch/glow firelight path for state=flaming
+        // (Phase 2b) AND makes emissive subcube light sources actually illuminate their room.
+        // Hue from the material colorTint (glow) or the per-voxel tint (flaming); brightest channel
+        // scaled to 15 (flaming) / 9 (smoldering), like the cube emissive seed.
+        auto seedVoxelLight = [&](const glm::ivec3& parentWorldPos, const std::string& matName,
+                                  uint32_t tint, uint8_t state) {
+            glm::ivec3 lp = parentWorldPos - worldOrigin;
+            if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) return;
+            glm::vec3 hue(0.0f); float scale = 0.0f;
+            if (state == 1u || state == 2u) {                 // flaming / smoldering -> per-voxel tint
+                hue = glm::vec3((tint >> 16) & 0xFFu, (tint >> 8) & 0xFFu, tint & 0xFFu) / 255.0f;
+                scale = (state == 1u) ? 15.0f : 9.0f;
+            } else {
+                const auto* md = reg.getMaterial(matName);
+                if (!md || !md->emissive) return;             // only emissive materials otherwise
+                hue = md->physics.colorTint; scale = 15.0f;
+            }
+            float mx = std::max(hue.x, std::max(hue.y, std::max(hue.z, 0.0001f)));
+            float s = scale / mx;
+            bump(cellIdx(lp.x, lp.y, lp.z),
+                 static_cast<uint8_t>(glm::clamp(hue.x * s, 0.0f, 15.0f) + 0.5f),
+                 static_cast<uint8_t>(glm::clamp(hue.y * s, 0.0f, 15.0f) + 0.5f),
+                 static_cast<uint8_t>(glm::clamp(hue.z * s, 0.0f, 15.0f) + 0.5f));
+        };
+        for (const auto& sc : subcubes) {
+            if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+            if (sc->getState() == 0 && reg.getMaterial(sc->getMaterialName()) &&
+                !reg.getMaterial(sc->getMaterialName())->emissive) continue;
+            seedVoxelLight(sc->getPosition(), sc->getMaterialName(), sc->getTint(), sc->getState());
+        }
+        for (const auto& mc : microcubes) {
+            if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+            if (mc->getState() == 0 && reg.getMaterial(mc->getMaterialName()) &&
+                !reg.getMaterial(mc->getMaterialName())->emissive) continue;
+            seedVoxelLight(mc->getParentCubePosition(), mc->getMaterialName(), mc->getTint(), mc->getState());
         }
         // Cross-chunk seed from neighbouring chunks' baked block colour across the 6 boundary planes.
         if (m_neighborLight) {
@@ -674,9 +713,17 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                     localPos.x, localPos.y, localPos.z
                 );
                 
-                // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(subcube->getMaterialName(), faceID);
-                faceInstance.tint = subcube->getTint();   // per-voxel tint (multiplies albedo in voxel.frag)
+                // Assign texture based on material and face ID. STATE can REPLACE the surface
+                // (docs/VoxelAppearanceModel.md): a flaming/smoldering voxel renders the
+                // "burning_wood" ember surface instead of its base material texture — material
+                // (physics) is unchanged. So a flaming log looks like burning wood, not tinted wood.
+                {
+                    uint8_t st = subcube->getState();
+                    const char* surfMat = (st == 1 || st == 2) ? "burning_wood" : subcube->getMaterialName().c_str();
+                    faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(surfMat, faceID);
+                }
+                // Pack 0xRRGGBB tint in bits 0-23 + voxel state in bits 24-31 (decoded in static_voxel.vert)
+                faceInstance.tint = (static_cast<uint32_t>(subcube->getState()) << 24) | (subcube->getTint() & 0xFFFFFFu);
                 {
                     const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(subcube->getMaterialName());
                     bool isEmissive    = matDef && matDef->emissive;
@@ -794,9 +841,15 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     microcubePos.x, microcubePos.y, microcubePos.z
                 );
                 
-                // Assign texture based on material and face ID
-                faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(microcube->getMaterialName(), faceID);
-                faceInstance.tint = microcube->getTint();   // per-voxel tint (multiplies albedo in voxel.frag)
+                // Assign texture based on material and face ID. State=flaming/smoldering
+                // swaps the surface to "burning_wood" (see subcube path above).
+                {
+                    uint8_t st = microcube->getState();
+                    const char* surfMat = (st == 1 || st == 2) ? "burning_wood" : microcube->getMaterialName().c_str();
+                    faceInstance.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(surfMat, faceID);
+                }
+                // Pack 0xRRGGBB tint in bits 0-23 + voxel state in bits 24-31 (decoded in static_voxel.vert)
+                faceInstance.tint = (static_cast<uint32_t>(microcube->getState()) << 24) | (microcube->getTint() & 0xFFFFFFu);
                 {
                     const auto* matDef = Phyxel::Core::MaterialRegistry::instance().getMaterial(microcube->getMaterialName());
                     bool isEmissive    = matDef && matDef->emissive;

@@ -559,10 +559,10 @@ bool Chunk::subdivideAt(const glm::ivec3& localPos) {
     return voxelManager.subdivideAt(localPos);
 }
 
-bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material, uint32_t tint) {
+bool Chunk::addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material, uint32_t tint, uint8_t state) {
     bool ok = voxelManager.addSubcube(parentPos, subcubePos, material);
-    if (ok && tint != 0xFFFFFFu) {
-        if (Subcube* sc = getSubcubeAt(parentPos, subcubePos)) sc->setTint(tint);
+    if (ok && (tint != 0xFFFFFFu || state != 0)) {
+        if (Subcube* sc = getSubcubeAt(parentPos, subcubePos)) { sc->setTint(tint); sc->setState(state); }
     }
     return ok;
 }
@@ -810,10 +810,10 @@ bool Chunk::subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subc
     return voxelManager.subdivideSubcubeAt(cubePos, subcubePos);
 }
 
-bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material, uint32_t tint) {
+bool Chunk::addMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, const std::string& material, uint32_t tint, uint8_t state) {
     bool ok = voxelManager.addMicrocube(parentCubePos, subcubePos, microcubePos, material);
-    if (ok && tint != 0xFFFFFFu) {
-        if (Microcube* mc = getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) mc->setTint(tint);
+    if (ok && (tint != 0xFFFFFFu || state != 0)) {
+        if (Microcube* mc = getMicrocubeAt(parentCubePos, subcubePos, microcubePos)) { mc->setTint(tint); mc->setState(state); }
     }
     return ok;
 }

@@ -78,6 +78,8 @@ public:
 
     void rebuildCubeFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,      // for emissive/flaming block-light seeding
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,  // (sub/micro sources seed at their parent cube cell)
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
         const std::vector<uint8_t>* columnOpenMask = nullptr

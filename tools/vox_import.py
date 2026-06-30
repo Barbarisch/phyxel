@@ -83,6 +83,13 @@ def load_materials(path, exclude=("Default", "Mirror"), prefix=None, exclude_pre
     return out
 
 
+# Combustion is a state OF a substance (wood), so a flaming/smoldering/charred
+# voxel's material must follow the burning structure — NOT the flame colour's
+# nearest RGB match (bright orange is closest to Bricks, which made campfire
+# embers literally brick). These indices get re-pointed at the burn material.
+COMBUSTION_STATES = {"flaming", "smoldering", "charred"}
+
+
 def nearest_material(rgb, mat_table):
     r, g, b = rgb
     best, bestd = None, 1 << 30
@@ -187,8 +194,46 @@ def convert(args):
         return f"#{r:02x}{g:02x}{b:02x}"
     idx_to_tint = {i: (hex_of(i) if args.emit == "tint" else None) for i in range(256)}
 
+    # Per-voxel STATE overrides (docs/VoxelAppearanceModel.md Phase 2). --state-map
+    # is "<index_or_#hex>=<state>,..." e.g. "16=flaming,17=flaming,21=smoldering".
+    # state names: flaming, smoldering, charred, wet, mossy (default: none).
+    state_index = {}   # palette index -> state name
+    state_color = {}   # (r,g,b) -> state name
+    if args.state_map:
+        for tok in args.state_map.split(","):
+            k, _, v = tok.partition("=")
+            k, v = k.strip(), v.strip()
+            if k.startswith("#") and len(k) == 7:
+                state_color[(int(k[1:3], 16), int(k[3:5], 16), int(k[5:7], 16))] = v
+            elif k:
+                state_index[int(k)] = v
+    idx_to_state = {i: state_index.get(i, state_color.get(palette[i])) for i in range(256)}
+
+    # Couple combustion state -> substance. A flaming/smoldering/charred voxel is
+    # burning WOOD, so re-point it onto the structure's dominant material (or an
+    # explicit --burn-material) instead of the flame colour's nearest match. Without
+    # this, bright-orange embers map to Bricks (closest real material to orange) and
+    # the campfire's "burning bits" end up made of brick — wrong physics AND look.
+    if any(s in COMBUSTION_STATES for s in idx_to_state.values()):
+        burn_mat = args.burn_material
+        if not burn_mat:
+            substance = Counter()  # dominant material among NON-combustion voxels
+            for x in range(w):
+                for y in range(h):
+                    for z in range(d):
+                        pidx = grid[x * h * d + y * d + z]
+                        if pidx == 0xFF or idx_to_state[pidx] in COMBUSTION_STATES:
+                            continue
+                        substance[idx_to_mat[pidx]] += 1
+            if substance:
+                burn_mat = substance.most_common(1)[0][0]
+        if burn_mat:
+            for i in range(256):
+                if idx_to_state[i] in COMBUSTION_STATES:
+                    idx_to_mat[i] = burn_mat
+
     # Gather occupied source voxels, remapped to Phyxel-oriented coords (proper rotation).
-    raw = []  # (px, py, pz, material, tint)
+    raw = []  # (px, py, pz, material, tint, state)
     usage = Counter()
     for x in range(w):
         for y in range(h):
@@ -200,7 +245,7 @@ def convert(args):
                 if keep and mat not in keep:
                     continue
                 px, py, pz, _ = remap_axes(x, y, z, (w, h, d), args.up)
-                raw.append((px, py, pz, mat, idx_to_tint[pidx]))
+                raw.append((px, py, pz, mat, idx_to_tint[pidx], idx_to_state[pidx]))
                 usage[(pidx, mat)] += 1
 
     if not raw:
@@ -210,17 +255,17 @@ def convert(args):
     minx = min(c[0] for c in raw)
     miny = min(c[1] for c in raw)
     minz = min(c[2] for c in raw)
-    raw = [(x - minx, y - miny, z - minz, m, t) for (x, y, z, m, t) in raw]
+    raw = [(x - minx, y - miny, z - minz, m, t, s) for (x, y, z, m, t, s) in raw]
 
     # Optional integer downsample: merge f^3 source voxels into one output cell
-    # (occupied if any constituent is; appearance = most common (material,tint)).
+    # (occupied if any constituent is; appearance = most common (material,tint,state)).
     # Barony art is ~16-18 voxels/"meter"; with microcubes (9 cells/cube) a factor
     # of 2 lands a humanoid near Phyxel's ~1.75-cube character height.
     f = max(1, args.downsample)
     if f > 1:
-        blocks = {}  # (X,Y,Z) -> Counter((material, tint))
-        for (x, y, z, m, t) in raw:
-            blocks.setdefault((x // f, y // f, z // f), Counter())[(m, t)] += 1
+        blocks = {}  # (X,Y,Z) -> Counter((material, tint, state))
+        for (x, y, z, m, t, s) in raw:
+            blocks.setdefault((x // f, y // f, z // f), Counter())[(m, t, s)] += 1
         cells = [(x, y, z) + c.most_common(1)[0][0] for (x, y, z), c in blocks.items()]
     else:
         cells = raw
@@ -228,20 +273,23 @@ def convert(args):
     # Emit at the chosen primitive resolution (cube=1, sub=3, micro=9 cells/cube).
     res = {"cube": 1, "sub": 3, "micro": 9}[args.scale]
 
-    def appearance(m, t):
-        return f"{m}  tint={t}" if t else f"{m}"
+    def appearance(m, t, s):
+        out = m
+        if t: out += f"  tint={t}"
+        if s: out += f"  state={s}"
+        return out
 
     lines = []
-    for (x, y, z, m, t) in sorted(cells, key=lambda c: (c[0], c[1], c[2])):
+    for (x, y, z, m, t, s) in sorted(cells, key=lambda c: (c[0], c[1], c[2])):
         cx, cy, cz = x // res, y // res, z // res
         if res == 1:
-            lines.append(f"C {cx} {cy} {cz}  {appearance(m, t)}")
+            lines.append(f"C {cx} {cy} {cz}  {appearance(m, t, s)}")
         elif res == 3:
-            lines.append(f"S {cx} {cy} {cz}  {x % 3} {y % 3} {z % 3}  {appearance(m, t)}")
+            lines.append(f"S {cx} {cy} {cz}  {x % 3} {y % 3} {z % 3}  {appearance(m, t, s)}")
         else:  # micro: split the in-cube 0..8 coord into sub(//3) + micro(%3)
             ix, iy, iz = x % 9, y % 9, z % 9
             lines.append(f"M {cx} {cy} {cz}  {ix // 3} {iy // 3} {iz // 3}  "
-                         f"{ix % 3} {iy % 3} {iz % 3}  {appearance(m, t)}")
+                         f"{ix % 3} {iy % 3} {iz % 3}  {appearance(m, t, s)}")
 
     # Bounds in cube units.
     bx = (max(c[0] for c in cells) // res) + 1
@@ -300,6 +348,14 @@ def main():
     ap.add_argument("--up", choices=["x", "y", "z"], default="z")
     ap.add_argument("--name")
     ap.add_argument("--map")
+    ap.add_argument("--state-map", dest="state_map",
+                    help="per-voxel state overrides: '<index_or_#hex>=<state>,...' "
+                         "(states: flaming,smoldering,charred,wet,mossy). "
+                         "e.g. '16=flaming,17=flaming,21=smoldering'")
+    ap.add_argument("--burn-material", dest="burn_material",
+                    help="substance for combustion-state (flaming/smoldering/charred) "
+                         "voxels; default = the model's dominant material (so embers "
+                         "share the logs' substance instead of mapping to brick-by-colour)")
     ap.add_argument("--only")
     ap.add_argument("--report", action="store_true")
     args = ap.parse_args()

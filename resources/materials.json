@@ -2341,6 +2341,37 @@
         "side_e": "vox_47.png",
         "side_w": "vox_47.png"
       }
+    },
+    {
+      "name": "burning_wood",
+      "emissive": true,
+      "resolution": 512,
+      "description": "State surface: charred wood + glowing ember cracks (state=flaming). Physics unused; applied as a surface over the real material.",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          1.0,
+          0.45,
+          0.12
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "burning_wood.png",
+        "side_s": "burning_wood.png",
+        "side_e": "burning_wood.png",
+        "side_w": "burning_wood.png",
+        "top": "burning_wood.png",
+        "bottom": "burning_wood.png"
+      }
     }
   ]
 }

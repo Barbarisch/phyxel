@@ -10,6 +10,7 @@ layout(location = 5) in vec3 inWorldPos;         // from vertex shader
 layout(location = 6) in float vSkyLight;          // baked skylight 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) in vec3  vBlockColor;        // baked coloured block light 0..1/channel — SMOOTH (interpolated per-corner)
 layout(location = 8) in vec3  vTint;              // per-voxel tint multiplier (1,1,1 = none). Decouples color from material.
+layout(location = 9) in flat uint vState;         // per-voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -199,6 +200,22 @@ void main() {
 
     vec3 V = normalize(ubo.cameraPosition - inWorldPos);
     vec3 albedo = textureColor.rgb * vTint;   // per-voxel tint (material texture × tint color)
+
+    // Per-voxel STATE visual modifiers (docs/VoxelAppearanceModel.md, Phase 2).
+    // Flaming/smoldering: the mesher swapped the surface to the emissive burning_wood
+    // ember texture — show it RAW (no tint) so fire colours read true, boosted so the
+    // bloom pass catches it, and skip the lit path entirely.
+    if (vState == 1u || vState == 2u) {
+        float glow = (vState == 1u) ? 1.0 : 0.45;   // flaming bright, smoldering dim
+        outColor = vec4(textureColor.rgb * ubo.emissiveMultiplier * glow, textureColor.a);
+        return;
+    } else if (vState == 3u) {                       // charred — dark, desaturated
+        float l = dot(albedo, vec3(0.299, 0.587, 0.114));
+        albedo = mix(vec3(l), albedo, 0.25) * 0.32;
+    } else if (vState == 4u) {                       // wet — darker + glossier
+        albedo *= 0.72;
+        rough = min(rough, 0.15);
+    }
 
     // Shadow — 16-sample Poisson disk PCF (uses the geometric normal's shadow coord).
     // Only inside the shadow map's [0,1] UV footprint; outside it (beyond the fitted volume)

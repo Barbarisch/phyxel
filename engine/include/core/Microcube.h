@@ -49,6 +49,7 @@ public:
     Physics::VoxelRigidBody* getVoxelBody() const { return voxelBody; }
     const std::string& getMaterialName() const { return materialName; }
     uint32_t getTint() const { return tint; }
+    uint8_t getState() const { return state; }
     float getLifetime() const { return lifetime; }
     bool hasExpired() const { return lifetime <= 0.0f; }
     const glm::vec3& getPhysicsPosition() const { return physicsPosition; }
@@ -65,6 +66,7 @@ public:
     void setPhysicsRotation(const glm::vec4& rot) { physicsRotation = rot; }
     void setMaterialName(const std::string& mat) { materialName = mat; }
     void setTint(uint32_t t) { tint = t; }
+    void setState(uint8_t s) { state = s; }
     void setLifetime(float time) { lifetime = time; }
     void updateLifetime(float deltaTime) { lifetime -= deltaTime; }
     
@@ -83,6 +85,7 @@ private:
     float scale;                         // Scale factor (1/9 of regular cube)
     std::string materialName = "Default";
     uint32_t tint = 0xFFFFFFu;   // Packed 0xRRGGBB tint multiplier; 0xFFFFFF = none.
+    uint8_t  state = 0;          // Voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet (Phase 2).
     float lifetime = 30.0f;              // Lifetime in seconds (auto-cleanup after 30 seconds)
     bool broken = false;
     bool visible = true;

@@ -276,41 +276,52 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
     char type;
     ss >> type;
 
-    // Optional trailing `tint=#rrggbb` token (any order after the material) →
-    // packed 0xRRGGBB; 0xFFFFFF when absent. Decouples color from material.
-    auto parseTint = [](std::stringstream& s) -> uint32_t {
+    // Optional trailing `tint=#rrggbb` and/or `state=<name>` tokens (any order after
+    // the material). tint -> packed 0xRRGGBB (0xFFFFFF when absent); state -> enum
+    // (0 normal,1 flaming,2 smoldering,3 charred,4 wet,5 mossy). Decouples color +
+    // state from material (docs/VoxelAppearanceModel.md).
+    auto parseExtras = [](std::stringstream& s, uint32_t& tint, uint8_t& state) {
+        tint = 0xFFFFFFu; state = 0;
         std::string tok;
         while (s >> tok) {
             if (tok.rfind("tint=", 0) == 0) {
                 std::string hex = tok.substr(5);
                 if (!hex.empty() && hex[0] == '#') hex.erase(0, 1);
                 if (hex.size() == 6) {
-                    try { return static_cast<uint32_t>(std::stoul(hex, nullptr, 16)); }
+                    try { tint = static_cast<uint32_t>(std::stoul(hex, nullptr, 16)); }
                     catch (...) {}
                 }
+            } else if (tok.rfind("state=", 0) == 0) {
+                std::string v = tok.substr(6);
+                if      (v == "flaming")    state = 1;
+                else if (v == "smoldering") state = 2;
+                else if (v == "charred")    state = 3;
+                else if (v == "wet")        state = 4;
+                else if (v == "mossy")      state = 5;
+                else                        state = 0;  // "normal" / unknown
             }
         }
-        return 0xFFFFFFu;
     };
 
+    uint32_t tint; uint8_t state;
     if (type == 'C') {
         int x, y, z;
         std::string mat;
         ss >> x >> y >> z >> mat;
-        uint32_t tint = parseTint(ss);
-        tmpl.addCube({x, y, z}, mat, tint);
+        parseExtras(ss, tint, state);
+        tmpl.addCube({x, y, z}, mat, tint);   // cube greedy path carries no tint/state yet
     } else if (type == 'S') {
         int px, py, pz, sx, sy, sz;
         std::string mat;
         ss >> px >> py >> pz >> sx >> sy >> sz >> mat;
-        uint32_t tint = parseTint(ss);
-        tmpl.addSubcube({px, py, pz}, {sx, sy, sz}, mat, tint);
+        parseExtras(ss, tint, state);
+        tmpl.addSubcube({px, py, pz}, {sx, sy, sz}, mat, tint, state);
     } else if (type == 'M') {
         int px, py, pz, sx, sy, sz, mx, my, mz;
         std::string mat;
         ss >> px >> py >> pz >> sx >> sy >> sz >> mx >> my >> mz >> mat;
-        uint32_t tint = parseTint(ss);
-        tmpl.addMicrocube({px, py, pz}, {sx, sy, sz}, {mx, my, mz}, mat, tint);
+        parseExtras(ss, tint, state);
+        tmpl.addMicrocube({px, py, pz}, {sx, sy, sz}, {mx, my, mz}, mat, tint, state);
     }
 }
 
@@ -575,7 +586,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 subPos = rotateLocal(tSub.subcubePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addSubcube(localPos, subPos, tSub.material, tSub.tint);
+            chunk->addSubcube(localPos, subPos, tSub.material, tSub.tint, tSub.state);
         }
     }
 
@@ -601,7 +612,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         glm::ivec3 microPos = rotateLocal(tMicro.microcubePos);
         glm::ivec3 localPos = Utils::CoordinateUtils::worldToLocalCoord(parentPos);
         if (Chunk* chunk = getOrCreateChunk(parentPos)) {
-            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material, tMicro.tint);
+            chunk->addMicrocube(localPos, subPos, microPos, tMicro.material, tMicro.tint, tMicro.state);
         }
     }
 
@@ -911,7 +922,7 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material, tSub.tint)) {
+                if (chunk->addSubcube(localPos, tSub.subcubePos, tSub.material, tSub.tint, tSub.state)) {
                     modifiedChunks.insert(chunk);
                 }
             }
@@ -946,7 +957,7 @@ void ObjectTemplateManager::update(float deltaTime) {
             }
 
             if (chunk) {
-                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material, tMicro.tint)) {
+                if (chunk->addMicrocube(localPos, tMicro.subcubePos, tMicro.microcubePos, tMicro.material, tMicro.tint, tMicro.state)) {
                     modifiedChunks.insert(chunk);
                 }
             }

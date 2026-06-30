@@ -25,6 +25,7 @@ struct TemplateSubcube {
     std::string material;
     int partId = 0;
     uint32_t tint = 0xFFFFFFu;   ///< Packed 0xRRGGBB per-voxel tint; 0xFFFFFF = none.
+    uint8_t state = 0;           ///< Voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet.
 };
 
 struct TemplateMicrocube {
@@ -34,6 +35,7 @@ struct TemplateMicrocube {
     std::string material;
     int partId = 0;
     uint32_t tint = 0xFFFFFFu;   ///< Packed 0xRRGGBB per-voxel tint; 0xFFFFFF = none.
+    uint8_t state = 0;           ///< Voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet.
 };
 
 /// Composite-part metadata. A template ships at least one part — the
@@ -122,14 +124,14 @@ public:
         cubes.push_back({pos, mat, currentPartId, tint});
     }
 
-    void addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const std::string& mat, uint32_t tint = 0xFFFFFFu) {
+    void addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const std::string& mat, uint32_t tint = 0xFFFFFFu, uint8_t state = 0) {
         ensureDefaultPart();
-        subcubes.push_back({parentPos, subPos, mat, currentPartId, tint});
+        subcubes.push_back({parentPos, subPos, mat, currentPartId, tint, state});
     }
 
-    void addMicrocube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const glm::ivec3& microPos, const std::string& mat, uint32_t tint = 0xFFFFFFu) {
+    void addMicrocube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const glm::ivec3& microPos, const std::string& mat, uint32_t tint = 0xFFFFFFu, uint8_t state = 0) {
         ensureDefaultPart();
-        microcubes.push_back({parentPos, subPos, microPos, mat, currentPartId, tint});
+        microcubes.push_back({parentPos, subPos, microPos, mat, currentPartId, tint, state});
     }
 };
 

@@ -48,6 +48,7 @@ layout(location = 5) out vec3      outWorldPos;
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
 layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (decoded from inFaceId high bits)
+layout(location = 9) out flat uint vState;         // per-voxel state — not carried on the kinematic path yet (always 0)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
@@ -63,6 +64,7 @@ void main() {
     vTint = vec3(float((tpk >> 16) & 0xFFu),
                  float((tpk >>  8) & 0xFFu),
                  float( tpk        & 0xFFu)) / 255.0;
+    vState = 0u;   // per-voxel state not carried on the kinematic path yet
 
     // Generate face vertex offset in [0,1]^3 space
     vec3 faceOffset = vec3(0.0);

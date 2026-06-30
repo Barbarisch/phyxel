@@ -48,7 +48,8 @@ layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
 layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
-layout(location = 8) out vec3  vTint;              // per-voxel tint — chunk path has no tint channel yet, always 1.0
+layout(location = 8) out vec3  vTint;              // per-voxel tint (low 24 bits of inTint)
+layout(location = 9) out flat uint vState;         // per-voxel state (high byte of inTint): 0 normal,1 flaming,2 smoldering,3 charred,4 wet
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -316,12 +317,13 @@ void main() {
     // No need for face visibility checking - all vertices here should be rendered
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
-    // Per-voxel tint multiplies the material albedo in voxel.frag. inTint==0 is
-    // treated as "no tint" (0 would render a voxel black and is never a real tint).
-    vTint = (inTint == 0u) ? vec3(1.0)
-          : vec3(float((inTint >> 16) & 0xFFu),
-                 float((inTint >>  8) & 0xFFu),
-                 float( inTint        & 0xFFu)) / 255.0;
+    // inTint packs 0xRRGGBB tint in bits 0-23 and the voxel STATE in bits 24-31.
+    // Tint multiplies the material albedo in voxel.frag; state drives glow/wet/etc.
+    uint tintRGB = inTint & 0xFFFFFFu;
+    vState = (inTint >> 24) & 0xFFu;
+    vTint = vec3(float((tintRGB >> 16) & 0xFFu),
+                 float((tintRGB >>  8) & 0xFFu),
+                 float( tintRGB        & 0xFFu)) / 255.0;
     
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;
