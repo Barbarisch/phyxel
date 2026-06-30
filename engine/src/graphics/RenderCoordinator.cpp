@@ -22,6 +22,8 @@
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
 #include "core/ChunkManager.h"
+#include "core/Chunk.h"
+#include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/Cube.h"
 #include "utils/CoordinateUtils.h"
@@ -168,6 +170,9 @@ RenderCoordinator::RenderCoordinator(
             }
         });
     vfxDirector = std::make_unique<VfxDirector>(vfxSystem.get());
+    // Continuous flame VFX manager: spawns a flame tongue per flaming ember voxel.
+    fireEmitters = std::make_unique<FireEmitterManager>();
+    fireEmitters->setVfx(vfxSystem.get());
     vfxPipeline = std::make_unique<VfxRenderPipeline>();
     vfxPipeline->initialize(
         vulkanDevice->getDevice(),
@@ -250,6 +255,21 @@ void RenderCoordinator::updateVfx(float dt) {
     // Director first: it drains last frame's events and fires new emissions
     // (spawning into vfxSystem), which the integrate pass below then ticks.
     if (vfxDirector) vfxDirector->update(dt);
+
+    // Drive continuous flame VFX from the world's state=flaming voxels: gather
+    // every flaming ember position from the loaded chunks (each chunk caches its
+    // own list at bake time) and let the fire manager reconcile flame tongues.
+    // sync() only spawns/dismisses on change, so a steady fire costs ~nothing.
+    if (fireEmitters && chunkManager) {
+        std::vector<glm::vec3> flaming;
+        for (const auto& ch : chunkManager->chunks) {
+            if (!ch) continue;
+            const auto& fv = ch->getFlamingVoxels();
+            flaming.insert(flaming.end(), fv.begin(), fv.end());
+        }
+        fireEmitters->sync(flaming);
+    }
+
     if (vfxSystem) vfxSystem->update(dt);
 }
 

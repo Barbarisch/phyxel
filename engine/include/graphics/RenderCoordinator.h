@@ -43,6 +43,7 @@ namespace Phyxel {
         class VfxRenderPipeline;
         class WaterRenderPipeline;
         class WaterCellRenderPipeline;
+        class FireEmitterManager;
     }
     namespace Core {
         class NPCManager;
@@ -321,6 +322,7 @@ private:
     // Lightweight VFX particle system + its instanced-cube renderer + composition runtime.
     std::unique_ptr<VfxSystem> vfxSystem;
     std::unique_ptr<VfxDirector> vfxDirector;
+    std::unique_ptr<FireEmitterManager> fireEmitters;  // continuous flame VFX from state=flaming voxels
     std::unique_ptr<VfxRenderPipeline> vfxPipeline;
 
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)

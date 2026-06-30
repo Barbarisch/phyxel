@@ -668,6 +668,7 @@ std::string VfxSystem::spawnField(const glm::vec3& center, const VfxFieldParams&
     f.anchor           = params.anchor;
 
     f.lightId = -1;
+    f.lightIntensity = params.lightIntensity;
     if (params.light && m_addLight) {
         f.lightId = m_addLight(center, params.color, params.lightIntensity, params.lightRadius);
     }
@@ -721,15 +722,46 @@ void VfxSystem::updateFields(float dt) {
         }
 
         int count = std::max(1, static_cast<int>(f.density));
-        for (int i = 0; i < count; ++i) {
-            // Place on the shell shape, then jitter outward for shell thickness.
-            glm::vec3 pos = randomShellPoint(f.shape, f.center, r, f.direction, f.extent);
-            pos += randomUnitVector() * (frand(-1.0f, 1.0f) * f.thickness * 0.5f);
-            float flicker = frand(0.6f, 1.0f) * pulse * fade;
-            float size = f.thickness * frand(0.7f, 1.1f);
-            emitParticle(pos, glm::vec3(0.0f), size,
-                         glm::vec4(glm::vec3(emissive) * flicker, 1.0f),
-                         f.particleLifetime, 0.0f, 0.0f);
+        if (f.shape == VfxShape::Fountain) {
+            // Rising-fire fountain (campfire/torch): each frame spray particles
+            // UPWARD from a small base disk; they arc up under gravity and fade.
+            // Central jets are hotter — faster and yellower — so it reads as a
+            // flame core, not a uniform plume. Reuses the field lifecycle
+            // (persistence / anchored light / dismiss) for a continuous fire.
+            for (int i = 0; i < count; ++i) {
+                float ang = frand(0.0f, 6.2831853f);
+                float rr  = f.radius * std::sqrt(frand(0.0f, 1.0f)); // uniform over disk
+                glm::vec3 base = f.center + glm::vec3(std::cos(ang) * rr,
+                                                      frand(0.0f, f.radius * 0.3f),
+                                                      std::sin(ang) * rr);
+                float hot = 1.0f - rr / std::max(0.001f, f.radius);  // 1 at centre -> 0 at edge
+                float up  = frand(0.6f, 1.2f) + hot * 0.6f;          // low flames; hotter core rises a bit faster
+                glm::vec3 vel(std::cos(ang) * frand(0.0f, 0.3f), up,
+                              std::sin(ang) * frand(0.0f, 0.3f));
+                float life = f.particleLifetime * frand(0.55f, 1.0f);
+                float size = f.thickness * frand(0.7f, 1.3f);
+                glm::vec3 c = f.color;
+                c.g = std::min(1.0f, c.g + hot * 0.35f);             // yellow-hot core
+                float flick = frand(0.7f, 1.05f) * pulse;
+                emitParticle(base, vel, size,
+                             glm::vec4(c * f.intensity * flick, 1.0f),
+                             life, -2.2f /*gravity*/, 0.9f /*drag*/);
+            }
+            // Flicker the firelight around its base intensity for a living flame.
+            if (f.lightId >= 0 && m_setIntensity) {
+                m_setIntensity(f.lightId, f.lightIntensity * frand(0.78f, 1.12f));
+            }
+        } else {
+            for (int i = 0; i < count; ++i) {
+                // Place on the shell shape, then jitter outward for shell thickness.
+                glm::vec3 pos = randomShellPoint(f.shape, f.center, r, f.direction, f.extent);
+                pos += randomUnitVector() * (frand(-1.0f, 1.0f) * f.thickness * 0.5f);
+                float flicker = frand(0.6f, 1.0f) * pulse * fade;
+                float size = f.thickness * frand(0.7f, 1.1f);
+                emitParticle(pos, glm::vec3(0.0f), size,
+                             glm::vec4(glm::vec3(emissive) * flicker, 1.0f),
+                             f.particleLifetime, 0.0f, 0.0f);
+            }
         }
 
         if (!f.untilDismissed && f.elapsed >= f.duration) {
@@ -781,6 +813,7 @@ VfxShape VfxSystem::shapeFromString(const std::string& s) {
     if (s == "cylinder") return VfxShape::Cylinder;
     if (s == "wall")     return VfxShape::Wall;
     if (s == "line")     return VfxShape::Line;
+    if (s == "fountain") return VfxShape::Fountain;
     return VfxShape::Sphere;
 }
 
@@ -797,6 +830,34 @@ int VfxSystem::castField(const std::string& effect, const glm::vec3& center, con
         p.color = glm::vec3(0.3f, 0.6f, 1.0f); // protective blue
         p.light = true;
         p.lightRadius = 6.0f;
+        p.lightIntensity = 1.8f;
+    } else if (effect == "campfire") {
+        // Persistent rising flame for a campfire (use dismiss(id) to put it out).
+        p.radius = 0.4f;             // base disk
+        p.thickness = 0.1f;          // particle cube size
+        p.density = 5.0f;            // particles per frame (additive — keep low)
+        p.intensity = 1.0f;
+        p.particleLifetime = 0.45f;  // rise/fall time
+        p.pulseSpeed = 8.0f;         // quick shimmer
+        p.color = glm::vec3(1.0f, 0.45f, 0.12f); // warm fire orange
+        p.shape = VfxShape::Fountain;
+        p.untilDismissed = true;     // persistent
+        p.light = true;
+        p.lightRadius = 7.0f;
+        p.lightIntensity = 2.4f;
+    } else if (effect == "torch") {
+        // Smaller, tighter persistent flame for a torch/brazier.
+        p.radius = 0.18f;
+        p.thickness = 0.07f;
+        p.density = 3.0f;
+        p.intensity = 0.95f;
+        p.particleLifetime = 0.35f;
+        p.pulseSpeed = 9.0f;
+        p.color = glm::vec3(1.0f, 0.5f, 0.15f);
+        p.shape = VfxShape::Fountain;
+        p.untilDismissed = true;
+        p.light = true;
+        p.lightRadius = 5.0f;
         p.lightIntensity = 1.8f;
     }
     // (unknown effects use the default field params)

@@ -4080,6 +4080,18 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/vfx/dismiss — End a sustained VFX (field/beam) by instance id
+    srv.Post("/api/vfx/dismiss", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("dismiss_vfx", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // AUDIO ENDPOINTS
     // ====================================================================

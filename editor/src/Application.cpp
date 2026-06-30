@@ -10695,12 +10695,48 @@ void Application::registerEffectsCommands() {
 
     reg.on("cast_vfx_field", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        auto* vfx = renderCoordinator->getVfxSystem();
         std::string effect = cmd.params.value("effect", std::string("shield"));
         std::string shape = cmd.params.value("shape", std::string(""));
         glm::vec3 center(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
-        int n = renderCoordinator->getVfxSystem()->castField(effect, center, shape);
+
+        // Persistent fire (campfire/torch): build a Fountain field with preset
+        // defaults that callers can override live (density/intensity/lifetime/
+        // size/radius/color/light), and return the instance id so it can be
+        // dismissed. Other effects use the named-preset castField path.
+        if (effect == "campfire" || effect == "torch") {
+            const bool torch = (effect == "torch");
+            Phyxel::VfxFieldParams p;
+            p.shape = Phyxel::VfxShape::Fountain;
+            p.untilDismissed = true;
+            p.light = true;
+            p.radius           = cmd.params.value("radius",          torch ? 0.18f : 0.4f);
+            p.thickness        = cmd.params.value("size",            torch ? 0.07f : 0.1f);
+            p.density          = cmd.params.value("density",         torch ? 3.0f  : 5.0f);
+            p.intensity        = cmd.params.value("intensity",       torch ? 0.95f : 1.0f);
+            p.particleLifetime = cmd.params.value("lifetime",        torch ? 0.35f : 0.45f);
+            p.pulseSpeed       = cmd.params.value("pulse",           torch ? 9.0f  : 8.0f);
+            p.lightRadius      = cmd.params.value("light_radius",    torch ? 5.0f  : 7.0f);
+            p.lightIntensity   = cmd.params.value("light_intensity", torch ? 1.8f  : 2.4f);
+            p.color = glm::vec3(cmd.params.value("r", 1.0f),
+                                cmd.params.value("g", torch ? 0.5f : 0.45f),
+                                cmd.params.value("b", torch ? 0.15f : 0.12f));
+            std::string id = vfx->spawnField(center, p);
+            r = {{"success", !id.empty()}, {"effect", effect}, {"id", id},
+                 {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}};
+            return;
+        }
+
+        int n = vfx->castField(effect, center, shape);
         r = {{"success", true}, {"effect", effect}, {"fields", n},
              {"center", {{"x", center.x}, {"y", center.y}, {"z", center.z}}}};
+    });
+
+    reg.on("dismiss_vfx", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator || !renderCoordinator->getVfxSystem()) return noVfx(r);
+        std::string id = cmd.params.value("id", std::string(""));
+        bool ok = renderCoordinator->getVfxSystem()->dismiss(id);
+        r = {{"success", ok}, {"id", id}};
     });
 
     reg.on("set_smooth_lighting", [this](const Core::APICommand& cmd, nlohmann::json& r) {

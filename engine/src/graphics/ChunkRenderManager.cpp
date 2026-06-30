@@ -155,6 +155,9 @@ void ChunkRenderManager::rebuildCubeFaces(
     constexpr int N = 32;
     auto cellIdx = [](int x, int y, int z) { return z + y * 32 + x * 1024; };
 
+    // Reset the flaming-voxel seed list; the sub/micro light-seed loops below refill it.
+    m_flamingVoxels.clear();
+
     // Per-material face textures + flags (computed once per distinct material in chunk).
     // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
     // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
@@ -352,12 +355,14 @@ void ChunkRenderManager::rebuildCubeFaces(
         };
         for (const auto& sc : subcubes) {
             if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+            if (sc->getState() == 1u) m_flamingVoxels.push_back(sc->getWorldPosition()); // fire VFX seed
             if (sc->getState() == 0 && reg.getMaterial(sc->getMaterialName()) &&
                 !reg.getMaterial(sc->getMaterialName())->emissive) continue;
             seedVoxelLight(sc->getPosition(), sc->getMaterialName(), sc->getTint(), sc->getState());
         }
         for (const auto& mc : microcubes) {
             if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+            if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition()); // fire VFX seed
             if (mc->getState() == 0 && reg.getMaterial(mc->getMaterialName()) &&
                 !reg.getMaterial(mc->getMaterialName())->emissive) continue;
             seedVoxelLight(mc->getParentCubePosition(), mc->getMaterialName(), mc->getTint(), mc->getState());

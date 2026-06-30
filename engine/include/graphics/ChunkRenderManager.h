@@ -91,6 +91,11 @@ public:
     // Read this chunk's baked light at a local cell (for neighbours). Returns false if not baked.
     bool bakedLightAt(int x, int y, int z, BakedLight& out) const;
 
+    // World positions of this chunk's state=flaming leaf voxels, collected on the
+    // last rebuild. The fire VFX manager reads these to spawn a flame tongue per
+    // ember (see Graphics::FireEmitterManager). Empty for chunks with no fire.
+    const std::vector<glm::vec3>& getFlamingVoxels() const { return m_flamingVoxels; }
+
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const glm::ivec3& worldOrigin
@@ -222,6 +227,9 @@ private:
     // neighbour re-meshing; m_lightBordersChanged is set when it differs after a rebuild.
     std::vector<uint8_t> m_prevBorderLight;
     bool m_lightBordersChanged = false;
+
+    // World positions of state=flaming leaf voxels found on the last rebuild (fire VFX seeds).
+    std::vector<glm::vec3> m_flamingVoxels;
 
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)

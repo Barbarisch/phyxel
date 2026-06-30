@@ -20,7 +20,10 @@ enum class VfxShape {
     Cube,      // within/on a box of half-extent `extent`
     Cylinder,  // shell of a cylinder: radius `radius`, height `extent.y`, axis `direction`
     Wall,      // planar rectangle: normal `direction`, size `extent.x` x `extent.y`
-    Line       // along a segment of length `extent.x` centered, along `direction`
+    Line,      // along a segment of length `extent.x` centered, along `direction`
+    Fountain   // (fields only) rising-fire VOLUME: sprays particles upward with
+               // gravity from a base disk of `radius` — a campfire/torch flame,
+               // not a static shell. Particles get velocity, unlike other shapes.
 };
 
 // An anchor: fills outPos with the live position to track and returns true,
@@ -225,7 +228,7 @@ public:
     size_t getActiveCount() const { return m_activeCount; }
 
     static const char* effectList() {
-        return "fireball, magic_missile, eldritch_blast, shield, heal, spark";
+        return "fireball, magic_missile, eldritch_blast, shield, heal, spark, campfire, torch";
     }
 
 private:
@@ -293,6 +296,7 @@ private:
         bool  hemisphere = false;
         glm::vec3 color{1.0f};
         int   lightId = -1;
+        float lightIntensity = 0.0f;     // base intensity (Fountain flickers around it)
         VfxShape  shape = VfxShape::Sphere;
         glm::vec3 direction{0.0f, 1.0f, 0.0f};
         glm::vec3 extent{4.0f, 3.0f, 0.0f};

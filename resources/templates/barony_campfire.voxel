@@ -37,7 +37,7 @@ M 0 0 0  0 0 1  2 1 1  LogSpruce  tint=#402410
 M 0 0 0  0 0 1  2 1 2  LogSpruce  tint=#1c0c08
 M 0 0 0  0 0 2  2 1 0  LogSpruce  tint=#2c1818
 M 0 0 0  0 0 1  2 2 1  LogSpruce  tint=#2c1c10
-M 0 0 0  0 1 1  2 0 1  LogSpruce  tint=#c22800  state=flaming
+M 0 0 0  0 1 1  2 0 1  LogSpruce  tint=#343434
 M 0 0 0  1 0 0  0 0 0  LogSpruce  tint=#3c2410
 M 0 0 0  1 0 0  0 0 1  LogSpruce  tint=#402410
 M 0 0 0  1 0 0  0 0 2  LogSpruce  tint=#343434
@@ -52,8 +52,8 @@ M 0 0 0  1 0 0  0 1 1  LogSpruce  tint=#4c2814
 M 0 0 0  1 0 0  0 1 2  LogSpruce  tint=#382010
 M 0 0 0  1 0 1  0 1 0  LogSpruce  tint=#2c1c10
 M 0 0 0  1 0 1  0 1 1  LogSpruce  tint=#181818
-M 0 0 0  1 0 1  0 1 2  LogSpruce  tint=#610800  state=smoldering
-M 0 0 0  1 0 2  0 1 0  LogSpruce  tint=#610800  state=smoldering
+M 0 0 0  1 0 1  0 1 2  LogSpruce  tint=#343434
+M 0 0 0  1 0 2  0 1 0  LogSpruce  tint=#343434
 M 0 0 0  1 0 2  0 1 1  LogSpruce  tint=#2c1c10
 M 0 0 0  1 0 2  0 1 2  LogSpruce  tint=#4c2814
 M 0 0 0  1 0 1  0 2 0  LogSpruce  tint=#181410
@@ -61,10 +61,10 @@ M 0 0 0  1 0 1  0 2 1  LogSpruce  tint=#402410
 M 0 0 0  1 0 1  0 2 2  LogSpruce  tint=#2c1c10
 M 0 0 0  1 0 2  0 2 0  LogSpruce  tint=#2c1c10
 M 0 0 0  1 0 2  0 2 1  LogSpruce  tint=#4c2814
-M 0 0 0  1 1 1  0 0 1  LogSpruce  tint=#692400  state=smoldering
+M 0 0 0  1 1 1  0 0 1  LogSpruce  tint=#343434
 M 0 0 0  1 1 1  0 0 2  LogSpruce  tint=#181410
 M 0 0 0  1 1 2  0 0 0  LogSpruce  tint=#2c1c10
-M 0 0 0  1 1 1  0 1 1  LogSpruce  tint=#181410
+M 0 0 0  1 1 1  0 1 1  LogSpruce  tint=#c22800  state=flaming
 M 0 0 0  1 1 1  0 1 2  LogSpruce  tint=#c22800  state=flaming
 M 0 0 0  1 0 0  1 0 0  LogSpruce  tint=#2c2c2c
 M 0 0 0  1 0 0  1 0 1  LogSpruce  tint=#2c2c2c

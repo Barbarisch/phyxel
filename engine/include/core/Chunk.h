@@ -217,6 +217,8 @@ public:
     bool bakedLightAt(const glm::ivec3& localPos, BakedLight& out) const {
         return renderManager.bakedLightAt(localPos.x, localPos.y, localPos.z, out);
     }
+    // World positions of this chunk's state=flaming voxels (fire VFX seeds; see FireEmitterManager).
+    const std::vector<glm::vec3>& getFlamingVoxels() const { return renderManager.getFlamingVoxels(); }
 
     void updateVulkanBuffer();                     // Update GPU buffer with face data
     
