@@ -53,6 +53,11 @@ struct MaterialDef {
     bool emissive = false;
     float alpha = 1.0f;     ///< 1.0 = fully opaque, <1.0 = transparent (OIT)
     bool isMirror = false;  ///< True = reflective surface (mirror pass)
+    /// Procedural tiling variation: hash-rotate each tile in the fragment shader to
+    /// break the per-cube grid repeat (docs/VoxelOrientation.md, Phase A). Static cube
+    /// path only; sets InstanceData.reserved bit 15. Use for NON-directional natural
+    /// surfaces (stone/dirt/sand/grass); leave off for directional ones (planks/bricks).
+    bool varied = false;
 
     MaterialPhysics physics;
     MaterialTextures textures;

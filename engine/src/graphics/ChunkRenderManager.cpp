@@ -199,9 +199,12 @@ void ChunkRenderManager::rebuildCubeFaces(
             bool em = md && md->emissive;
             bool tr = md && md->alpha < 0.99f;
             bool mi = md && md->isMirror;
+            bool va = md && md->varied;   // procedural tiling variation (docs/VoxelOrientation.md)
             uint16_t qa = tr ? static_cast<uint16_t>(md->alpha * 255.0f) : 255u;
+            // bit15 = varied. Constant per material, so it does NOT split greedy merges.
             mf.reserved = static_cast<uint16_t>((em ? 1u : 0u) | (tr ? 2u : 0u) |
-                                                (qa << 2u) | (mi ? (1u << 10) : 0u));
+                                                (qa << 2u) | (mi ? (1u << 10) : 0u) |
+                                                (va ? (1u << 15) : 0u));
             // Emissive light colour from the material tint, normalised so the brightest channel
             // emits at full range (15) and the hue is preserved.
             mf.emR = mf.emG = mf.emB = 0;

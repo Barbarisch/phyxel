@@ -64,7 +64,8 @@
         "side_w": "dirt_side_w.png",
         "top": "dirt_top.png",
         "bottom": "dirt_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Grass",
@@ -94,7 +95,8 @@
         "side_w": "grass_side_w.png",
         "top": "grass_top.png",
         "bottom": "grass_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Stone",
@@ -125,7 +127,8 @@
         "top": "stone_top.png",
         "bottom": "stone_bottom.png"
       },
-      "resolution": 1024
+      "resolution": 1024,
+      "varied": true
     },
     {
       "name": "Cobblestone",
@@ -156,7 +159,8 @@
         "top": "cobblestone_top.png",
         "bottom": "cobblestone_bottom.png"
       },
-      "resolution": 1024
+      "resolution": 1024,
+      "varied": true
     },
     {
       "name": "StoneBricks",
@@ -187,7 +191,8 @@
         "side_w": "stonebricks_side_w.png",
         "top": "stonebricks_top.png",
         "bottom": "stonebricks_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Sand",
@@ -217,7 +222,8 @@
         "side_w": "sand_side_w.png",
         "top": "sand_top.png",
         "bottom": "sand_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Gravel",
@@ -247,7 +253,8 @@
         "side_w": "gravel_side_w.png",
         "top": "gravel_top.png",
         "bottom": "gravel_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Wood",
@@ -340,7 +347,8 @@
         "side_w": "bricks_side_w.png",
         "top": "bricks_top.png",
         "bottom": "bricks_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Sandstone",
@@ -371,7 +379,8 @@
         "top": "sandstone_top.png",
         "bottom": "sandstone_bottom.png"
       },
-      "resolution": 1024
+      "resolution": 1024,
+      "varied": true
     },
     {
       "name": "Glass",
@@ -496,7 +505,8 @@
         "top": "ice_top.png",
         "bottom": "ice_bottom.png"
       },
-      "resolution": 1024
+      "resolution": 1024,
+      "varied": true
     },
     {
       "name": "Leaf",
@@ -851,7 +861,8 @@
         "side_w": "grass_forest_side_w.png",
         "top": "grass_forest_top.png",
         "bottom": "grass_forest_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "GrassSavanna",
@@ -881,7 +892,8 @@
         "side_w": "grass_savanna_side_w.png",
         "top": "grass_savanna_top.png",
         "bottom": "grass_savanna_bottom.png"
-      }
+      },
+      "varied": true
     },
     {
       "name": "Thatch",

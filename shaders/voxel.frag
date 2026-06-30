@@ -63,21 +63,75 @@ layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
 
 layout(location = 0) out vec4 outColor;   // output color
 
+// Cheap 2D hash -> [0,1). Used to pick a per-world-cell tile rotation (Phase A).
+float hash21(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 34.23);
+    return fract(p.x * p.y);
+}
+
+// Project a world position onto the face plane (the two axes perpendicular to the
+// face normal) -> continuous in-plane coords whose integer part is the world cell.
+vec2 worldFaceUV(vec3 wp, vec3 n) {
+    vec3 a = abs(n);
+    if (a.y >= a.x && a.y >= a.z) return wp.xz;   // top/bottom
+    if (a.x >= a.z)               return wp.zy;   // +/-X
+    return wp.xy;                                 // +/-Z
+}
+
 // Sample albedo + normal/roughness for a per-face index. The index encodes the resolution
 // class in bit 15 (0 = 512px, 1 = 1024px) and the within-class layer in bits 0..14. Out of
 // range / sentinel (0xFFFF) indices fall back to the placeholder layer in the 512 class.
 // nrm = raw 0..1 tangent-space normal (RGB), rough = roughness (A).
-void sampleVoxelPBR(uint texIndex, vec2 uv, out vec4 albedo, out vec3 nrm, out float rough) {
+//
+// When `varied` (materials.json "varied", static cube path only — docs/VoxelOrientation.md
+// Phase A), each world cell's tile is hash-rotated (90deg step + optional flip) to break the
+// per-cube grid repeat. textureGrad keeps mips correct across the per-tile rotation seam, and
+// the tangent-space normal's xy is rotated to match so relief lights consistently.
+void sampleVoxelPBR(uint texIndex, vec2 uv, bool varied, vec3 worldPos, vec3 faceNormal,
+                    out vec4 albedo, out vec3 nrm, out float rough) {
     uint cls   = (texIndex >> 15) & 1u;
     uint layer = texIndex & 0x7FFFu;
     uint count = (cls == 1u) ? atlasUVs.count1024 : atlasUVs.count512;
     bool fb = (texIndex == 0xFFFFu || layer >= count);
     float L = fb ? float(atlasUVs.fallbackIndex) : float(layer);
     uint c = fb ? 0u : cls;
+
+    // Sampling coords + screen-space gradients (explicit so divergent rotation is well-defined).
+    vec2 suv = uv;
+    vec2 gx  = dFdx(uv);
+    vec2 gy  = dFdy(uv);
+    int  rotStep = 0;
+    bool flipped = false;
+    if (varied) {
+        vec2 p = worldFaceUV(worldPos, faceNormal);
+        float h = hash21(floor(p) + 0.5);
+        rotStep = int(floor(h * 4.0)) & 3;        // 0/90/180/270
+        flipped = fract(h * 16.0) > 0.5;
+        vec2 lp  = fract(p);
+        vec2 dpx = dFdx(p);
+        vec2 dpy = dFdy(p);
+        if (flipped) { lp.x = 1.0 - lp.x; dpx.x = -dpx.x; dpy.x = -dpy.x; }
+        vec2 ctr = lp - 0.5;
+        if      (rotStep == 1) { ctr = vec2(-ctr.y, ctr.x); dpx = vec2(-dpx.y, dpx.x); dpy = vec2(-dpy.y, dpy.x); }
+        else if (rotStep == 2) { ctr = -ctr;                dpx = -dpx;                dpy = -dpy;                }
+        else if (rotStep == 3) { ctr = vec2(ctr.y, -ctr.x); dpx = vec2(dpx.y, -dpx.x); dpy = vec2(dpy.y, -dpy.x); }
+        suv = ctr + 0.5;
+        gx = dpx; gy = dpy;
+    }
+
     vec4 nr;
-    if (c == 1u) { albedo = texture(textureArrayHi, vec3(uv, L)); nr = texture(textureNormalHi, vec3(uv, L)); }
-    else         { albedo = texture(textureArray,   vec3(uv, L)); nr = texture(textureNormal,   vec3(uv, L)); }
+    if (c == 1u) { albedo = textureGrad(textureArrayHi, vec3(suv, L), gx, gy); nr = textureGrad(textureNormalHi, vec3(suv, L), gx, gy); }
+    else         { albedo = textureGrad(textureArray,   vec3(suv, L), gx, gy); nr = textureGrad(textureNormal,   vec3(suv, L), gx, gy); }
     nrm = nr.rgb;
+    if (varied) {                                  // rotate tangent normal xy to match the tile
+        vec2 nxy = nrm.xy * 2.0 - 1.0;
+        if (flipped) nxy.x = -nxy.x;
+        if      (rotStep == 1) nxy = vec2(-nxy.y, nxy.x);
+        else if (rotStep == 2) nxy = -nxy;
+        else if (rotStep == 3) nxy = vec2(nxy.y, -nxy.x);
+        nrm.xy = nxy * 0.5 + 0.5;
+    }
     rough = nr.a;
 }
 
@@ -156,7 +210,8 @@ void main() {
     vec4 textureColor;
     vec3 nrmRaw;
     float rough;
-    sampleVoxelPBR(textureIndex, texCoord, textureColor, nrmRaw, rough);
+    bool varied = ((flags >> 15u) & 1u) != 0u;   // material opted into procedural tiling variation
+    sampleVoxelPBR(textureIndex, texCoord, varied, inWorldPos, inNormal, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
     // = within-class layer, offset by count512 for the 1024 class. The authored roughness scalar

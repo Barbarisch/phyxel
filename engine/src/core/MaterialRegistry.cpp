@@ -103,6 +103,7 @@ bool MaterialRegistry::loadFromJson(const std::string& path) {
         def.description = matJson.value("description", "");
         def.category = matJson.value("category", "material");
         def.emissive  = matJson.value("emissive", false);
+        def.varied    = matJson.value("varied", false);
         def.alpha     = matJson.value("alpha", 1.0f);
         def.isMirror  = matJson.value("isMirror", false);
         def.resolution = matJson.value("resolution", 512);
@@ -150,6 +151,7 @@ bool MaterialRegistry::saveToJson(const std::string& path) const {
         matJson["description"] = mat.description;
         matJson["category"] = mat.category;
         if (mat.emissive) matJson["emissive"] = true;
+        if (mat.varied) matJson["varied"] = true;
         if (mat.hasPhysics()) {
             matJson["physics"] = serializePhysics(mat.physics);
         }
