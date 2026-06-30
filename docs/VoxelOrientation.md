@@ -76,11 +76,24 @@ bombing. It is the right tool for **variation** and is essentially free.
 
 ## 5. Phased plan (cheapest-highest-value first)
 
-- **Phase A — procedural variation (frag shader, per-material opt-in).** Hash-rotate
-  tiles for materials flagged `"varied"` in `materials.json`. Natural surfaces
-  (Dirt/Stone/Sand/Gravel/Grass/Sandstone/Ice) on; directional ones
-  (Wood/Log/Bricks/StoneBricks/paving) off. Zero memory cost, merging preserved.
-  **Prototyped — see §6.**
+- **Phase A — procedural variation via ROTATION (frag shader, per-material opt-in).**
+  Hash-rotate tiles for materials flagged `"varied"`. Breaks the per-cube repeat for
+  **ISOTROPIC** textures (rock/dirt/sand/gravel/grass/sandstone/ice — no "correct up").
+  Does NOT work for **DIRECTIONAL** textures (wood slats, brick/paving courses — the
+  elongated features end up running different ways per cube → patchwork), so those stay
+  off. Zero memory cost, merging preserved. **SHIPPED (commits 41444c4/aadc632/69429cc).**
+- **Phase E — multi-variant tiling / "texture bombing" (the directional-safe variation).**
+  The counterpart to Phase A for **directional** materials, where rotation can't be used.
+  Instead of rotating one tile, hash the cube's world position to pick among **N variant
+  tiles** (e.g. 3–4 different brick/plank images) for that material. The features still run
+  the correct direction (no rotation), but neighbouring cubes show *different content*, so
+  the grid-repeat dissolves — exactly the "slight repeating pattern" seen on a tiled brick
+  wall. Real engine work (a per-material **variant set**: extra atlas layers + a frag-shader
+  layer pick from `hash(worldCell) % N`, ideally still merge-friendly by keying the pick on
+  world pos like Phase A does). Cheaper interim mitigation: prefer **uniform** textures
+  (few standout landmarks) for tiled directional materials — the repeat is far less
+  perceptible without memorable features to track. **FUTURE — requested 2026-06-30, not
+  scheduled.**
 - **Phase B — continuity polish.** Derive unmerged/sub/microcube UV from world position
   so phase aligns *everywhere*, not just inside merged quads. Shader UV math; no struct
   change. (Largely cosmetic given §2 — do only if a real discontinuity is found.)

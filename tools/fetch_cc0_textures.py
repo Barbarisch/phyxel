@@ -56,7 +56,7 @@ ASSETS = {
     "Sand":         {"all": "Ground027"},
     "Gravel":       {"all": "Gravel022"},
     "Wood":         {"all": "WoodFloor007"},
-    "Bricks":       {"all": "Bricks075A"},
+    "Bricks":       {"all": "Bricks097"},
     "Sandstone":    {"all": "Rock035"},
     "Metal":        {"all": "MetalPlates006"},
     "Ice":          {"all": "Ice001"},
