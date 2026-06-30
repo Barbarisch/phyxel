@@ -25,10 +25,15 @@ Gold/Metal/Glass/Mirror bumped to **1024**; Leaf (+birch/spruce/jungle/autumn), 
 Thatch, Default at **512**. Also fixed the **Mirror** material (pointed at a missing
 `Glass_side.png` -> rendered fallback; now uses `mirror_*.png`).
 
-**Tier 2 — candidates still at 512 that would gain from a 1024 detail regen** (seen up
-close on builds/furniture/props, not distant terrain): Cobblestone, Sandstone, Stone, Log
-(+birch/spruce), Sand­stone, Ice. Leave pure terrain (Dirt/Grass/Sand/Gravel/biome grass)
-at 512. Skip `vox_00`–`vox_47` (Barony palette, being retired for per-voxel tint).
+**Tier 2 DONE (2026-06-30, commit 250c2db):** Stone, Cobblestone, Sandstone, Log,
+LogBirch, LogSpruce, Ice bumped to **1024** and re-sourced from their ambientCG CC0
+assets at 1K via `tools/fetch_cc0_textures.py` (real photo textures + `_nr` PBR sidecars,
+not procedural). Leave pure terrain (Dirt/Grass/Sand/Gravel/biome grass) at 512. Skip
+`vox_00`–`vox_47` (Barony palette, being retired for per-voxel tint).
+
+**Remaining nicety (not blocking):** logs use one bark tile on all 6 faces (`{"all":
+"Bark00x"}`) — top/bottom caps show bark, not tree rings. A ring-cap texture for log
+top/bottom would finish them.
 
 ## Missing — projected SURFACE art (surfaced by VoxelAppearanceModel Phase 3, 2026-06-30)
 The planar projected-surface path now works (rugs/paintings/banners stretch one image across the
