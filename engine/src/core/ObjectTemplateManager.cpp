@@ -110,6 +110,29 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
             return;
         }
 
+        // Planar projected surface (Tier 2 decorated prop — rug/painting/banner):
+        //   "# surface: texture=<material> projection=planar axis=<x|y|z>"
+        // One image is stretched across the object footprint along the two axes
+        // perpendicular to `axis` (see docs/VoxelAppearanceModel.md §7 Phase 3).
+        const std::string surfaceKey = "# surface:";
+        if (line.compare(0, surfaceKey.size(), surfaceKey) == 0) {
+            std::istringstream iss(line.substr(surfaceKey.size()));
+            std::string token;
+            while (iss >> token) {
+                auto eq = token.find('=');
+                if (eq == std::string::npos) continue;
+                std::string key = token.substr(0, eq);
+                std::string val = token.substr(eq + 1);
+                if (key == "texture")          tmpl.surface.texture = val;
+                else if (key == "projection")  tmpl.surface.projection = val;
+                else if (key == "axis" && !val.empty())
+                    tmpl.surface.axis = static_cast<char>(std::tolower(val[0]));
+            }
+            if (tmpl.surface.texture.empty())
+                LOG_WARN_FMT("ObjectTemplateManager", "# surface: missing texture= in line: " << line);
+            return;
+        }
+
         // Composite-part directive:
         //   "# part: <name>"                              (static part)
         //   "# part: <name> hinge=<keyword|x,y,z> axis=<x|y|z>"  (movable part)

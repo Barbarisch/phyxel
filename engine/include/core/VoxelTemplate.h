@@ -74,6 +74,18 @@ struct VoxelTemplatePart {
     glm::vec3 slideDirLocal{0.0f};
 };
 
+/// Planar projected-surface authoring metadata, parsed from a
+/// `# surface: texture=<name> projection=planar axis=<x|y|z>` header.
+/// When `texture` is non-empty the object is a Tier-2 decorated prop: a single
+/// image is projected across its footprint along `axis` (rug, painting,
+/// banner, mosaic). See docs/VoxelAppearanceModel.md §7 Phase 3.
+struct VoxelSurface {
+    std::string texture;        ///< Surface texture provider (a material name); empty = none.
+    std::string projection = "planar";
+    char        axis = 'y';     ///< 'x' | 'y' | 'z'
+    bool active() const { return !texture.empty(); }
+};
+
 class VoxelTemplate {
 public:
     std::string name;
@@ -97,6 +109,10 @@ public:
     /// knock-over/grab furniture or inert static scenery. Empty when the
     /// source file declares no category. See DynamicFurnitureManager.
     std::string category;
+
+    /// Optional planar projected surface (rug/painting/banner). Parsed from a
+    /// "# surface:" header. Inactive (empty texture) for ordinary templates.
+    VoxelSurface surface;
 
     /// Interaction points parsed from "# interaction:" headers in the .txt file.
     std::vector<Core::InteractionPointDef> interactionPoints;

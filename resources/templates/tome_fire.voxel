@@ -1,0 +1,25 @@
+# ==========================================================
+# ASSET METADATA
+# name:         tome_fire
+# display_name: Tome of Embers
+# description:  A magical tome; the glowing cover is projected onto the front.
+# category:     item
+# subcategory:  decor
+# tags:         projected-surface, decor, demo
+# materials:    Wood
+# bounds:       0.67W x 1.00H x 1/3D
+# primitives:   6 S
+# author:       phyxel
+# method:       gen_surface_demo_assets.py
+# created:      2026-06-30
+# version:      1
+# ==========================================================
+
+# surface: texture=tome_fire projection=planar axis=z
+
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  0 2 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  1 2 0  Wood

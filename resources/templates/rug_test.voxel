@@ -1,0 +1,43 @@
+# ==========================================================
+# ASSET METADATA
+# name:         rug_test
+# display_name: Rug (Projection Test)
+# description:  Thin flat rug for Phase 3 planar projected-surface verification.
+#               One image (surface_test) is projected across the whole rug along
+#               +Y instead of tiling per voxel. Non-square footprint (2x1 cubes)
+#               so per-axis projection is exercised. See docs/VoxelAppearanceModel.md.
+# category:     item
+# subcategory:  decor
+# tags:         rug, mat, floor, decor, projected-surface
+# materials:    Wood
+# facing:       +Y (lie on top)
+# bounds:       2W x 1/3H x 1D
+# primitives:   18 S
+# author:       phyxel
+# method:       hand-authored
+# created:      2026-06-30
+# version:      1
+# ==========================================================
+
+# Planar projected surface: stretch surface_test across the whole rug along Y.
+# surface: texture=surface_test projection=planar axis=y
+
+# Continuous 6x3 subcube slab (2x1 parent cubes), one subcube thick (sy=0).
+S 0 0 0  0 0 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 0  2 0 2  Wood
+S 1 0 0  0 0 0  Wood
+S 1 0 0  1 0 0  Wood
+S 1 0 0  2 0 0  Wood
+S 1 0 0  0 0 1  Wood
+S 1 0 0  1 0 1  Wood
+S 1 0 0  2 0 1  Wood
+S 1 0 0  0 0 2  Wood
+S 1 0 0  1 0 2  Wood
+S 1 0 0  2 0 2  Wood

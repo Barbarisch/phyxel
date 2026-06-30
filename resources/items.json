@@ -17,16 +17,32 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.5, -0.17, -0.5],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.5,
+          -0.17,
+          -0.5
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "foe_sense",
-          "anchor": [0.5, 0.9, 0.5],
+          "anchor": [
+            0.5,
+            0.9,
+            0.5
+          ],
           "vfx": {
-            "color": [0.3, 0.55, 1.0],
+            "color": [
+              0.3,
+              0.55,
+              1.0
+            ],
             "rate": 6,
             "count": 2,
             "size": 0.04,
@@ -35,15 +51,26 @@
             "gravity": 0.15,
             "lifetime": 0.7,
             "intensity": 2.2,
-            "posJitter": [0.04, 0.35, 0.04]
+            "posJitter": [
+              0.04,
+              0.35,
+              0.04
+            ]
           },
           "light": {
-            "color": [0.35, 0.55, 1.0],
+            "color": [
+              0.35,
+              0.55,
+              1.0
+            ],
             "intensity": 1.6,
             "radius": 6.0
           },
           "when": {
-            "nearby": { "type": "npc", "radius": 8.0 }
+            "nearby": {
+              "type": "npc",
+              "radius": 8.0
+            }
           }
         }
       ]
@@ -65,8 +92,16 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.18, -0.1, -0.18],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.18,
+          -0.1,
+          -0.18
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 0.35
       }
     },
@@ -87,8 +122,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.18, -0.1, -0.18],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.18,
+          -0.1,
+          -0.18
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 0.35
       }
     },
@@ -103,16 +146,32 @@
       "templateFile": "items/torch.voxel",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.5, -0.25, -0.5],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.5,
+          -0.25,
+          -0.5
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "flame",
-          "anchor": [0.5, 0.85, 0.5],
+          "anchor": [
+            0.5,
+            0.85,
+            0.5
+          ],
           "vfx": {
-            "color": [1.0, 0.55, 0.15],
+            "color": [
+              1.0,
+              0.55,
+              0.15
+            ],
             "rate": 9,
             "count": 3,
             "size": 0.045,
@@ -121,10 +180,18 @@
             "gravity": 0.6,
             "lifetime": 0.55,
             "intensity": 2.8,
-            "posJitter": [0.05, 0.03, 0.05]
+            "posJitter": [
+              0.05,
+              0.03,
+              0.05
+            ]
           },
           "light": {
-            "color": [1.0, 0.75, 0.4],
+            "color": [
+              1.0,
+              0.75,
+              0.4
+            ],
             "intensity": 2.5,
             "radius": 10.0
           }
@@ -204,6 +271,150 @@
       "description": "An old key that opens something somewhere.",
       "stackable": false,
       "maxStack": 1
+    },
+    {
+      "id": "rug_test",
+      "name": "Rug (Projection Test)",
+      "type": 1,
+      "description": "A test rug demonstrating a planar projected surface texture.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "rug_test.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "prop_rug_oriental",
+      "name": "Oriental Rug",
+      "type": 1,
+      "description": "A hand-knotted oriental rug.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "rug_oriental.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "prop_sign_prancing_pony",
+      "name": "Sign: The Prancing Pony",
+      "type": 1,
+      "description": "A hanging tavern sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "sign_prancing_pony.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "prop_tome_arcane",
+      "name": "Arcane Tome",
+      "type": 1,
+      "description": "A glowing tome of arcane secrets.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "tome_arcane.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 0.6
+      }
+    },
+    {
+      "id": "prop_tome_necromantic",
+      "name": "Necromantic Tome",
+      "type": 1,
+      "description": "A grim tome bound in dark leather.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "tome_necromantic.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 0.6
+      }
+    },
+    {
+      "id": "prop_tome_fire",
+      "name": "Tome of Embers",
+      "type": 1,
+      "description": "A tome wreathed in ember-light.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "tome_fire.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 0.6
+      }
     }
   ]
 }

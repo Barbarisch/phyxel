@@ -1,0 +1,55 @@
+# ==========================================================
+# ASSET METADATA
+# name:         rug_oriental
+# display_name: Oriental Rug
+# description:  Hand-knotted oriental rug; one woven image projected across the whole rug.
+# category:     item
+# subcategory:  decor
+# tags:         projected-surface, decor, demo
+# materials:    Wood
+# bounds:       2.00W x 1/3H x 2.00D
+# primitives:   36 S
+# author:       phyxel
+# method:       gen_surface_demo_assets.py
+# created:      2026-06-30
+# version:      1
+# ==========================================================
+
+# surface: texture=rug_oriental projection=planar axis=y
+
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 0 1  Wood
+S 0 0 0  0 0 2  Wood
+S 0 0 1  0 0 0  Wood
+S 0 0 1  0 0 1  Wood
+S 0 0 1  0 0 2  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  1 0 1  Wood
+S 0 0 0  1 0 2  Wood
+S 0 0 1  1 0 0  Wood
+S 0 0 1  1 0 1  Wood
+S 0 0 1  1 0 2  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 0 1  Wood
+S 0 0 0  2 0 2  Wood
+S 0 0 1  2 0 0  Wood
+S 0 0 1  2 0 1  Wood
+S 0 0 1  2 0 2  Wood
+S 1 0 0  0 0 0  Wood
+S 1 0 0  0 0 1  Wood
+S 1 0 0  0 0 2  Wood
+S 1 0 1  0 0 0  Wood
+S 1 0 1  0 0 1  Wood
+S 1 0 1  0 0 2  Wood
+S 1 0 0  1 0 0  Wood
+S 1 0 0  1 0 1  Wood
+S 1 0 0  1 0 2  Wood
+S 1 0 1  1 0 0  Wood
+S 1 0 1  1 0 1  Wood
+S 1 0 1  1 0 2  Wood
+S 1 0 0  2 0 0  Wood
+S 1 0 0  2 0 1  Wood
+S 1 0 0  2 0 2  Wood
+S 1 0 1  2 0 0  Wood
+S 1 0 1  2 0 1  Wood
+S 1 0 1  2 0 2  Wood

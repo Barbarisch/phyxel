@@ -18,7 +18,8 @@
 // Per-instance attributes (one per face)
 layout(location = 0) in vec3  inLocalPosition;  // voxel center in hinge-local space
 layout(location = 1) in vec3  inScale;           // per-axis scale: (1,1,1) = full cube, (1,1,0.125) = thin
-layout(location = 2) in vec2  inUvOffset;        // UV offset within parent cube for sub-tile mapping
+layout(location = 2) in vec2  inUvOffset;        // UV min of this face's sub-rectangle
+layout(location = 5) in vec2  inUvScale;         // per-axis UV span (sub-tile = voxel scale; projected = object fraction)
 layout(location = 3) in uint  inTextureIndex;    // atlas texture index
 layout(location = 4) in uint  inFaceId;          // 0=+Z  1=-Z  2=+X  3=-X  4=+Y  5=-Y
 
@@ -90,11 +91,11 @@ void main() {
     else if (faceID == 4u) baseUV = vec2(1.0 - float((cornerID >> 0) & 1u), float((cornerID >> 1) & 1u));
     else                     baseUV = vec2(float((cornerID >> 0) & 1u), 1.0 - float((cornerID >> 1) & 1u));
 
-    // Sub-tile texture mapping: scale UV to voxel's portion of parent cube
-    // and offset to the correct slice. For full cubes (scale=1), uvScale=1
-    // and uvOffset=(0,0) so this is a no-op.
-    float uvScale = inScale.x;  // Uniform scale: 1.0, 1/3, or 1/9
-    vec2 uv = baseUV * uvScale + inUvOffset;
+    // Map the face quad into its sub-rectangle of the texture. uvScale/uvOffset
+    // are CPU-computed (KinematicVoxelManager::buildFaces): per-cube sub-tile
+    // slice for material tiling, or the object-extent fraction for a planar
+    // projected surface (rug/painting). Full cubes: uvScale=1, uvOffset=0 (no-op).
+    vec2 uv = baseUV * inUvScale + inUvOffset;
 
     // Face normal in local space, rotated into world space by the model matrix
     // (mat3 upper-left is correct for uniform-scale rotations; doors only rotate)

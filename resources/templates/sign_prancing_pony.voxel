@@ -1,0 +1,55 @@
+# ==========================================================
+# ASSET METADATA
+# name:         sign_prancing_pony
+# display_name: Sign: The Prancing Pony
+# description:  Hanging tavern sign; the painted board is projected across the panel.
+# category:     item
+# subcategory:  decor
+# tags:         projected-surface, decor, demo
+# materials:    Wood
+# bounds:       2.00W x 2.00H x 1/3D
+# primitives:   36 S
+# author:       phyxel
+# method:       gen_surface_demo_assets.py
+# created:      2026-06-30
+# version:      1
+# ==========================================================
+
+# surface: texture=sign_prancing_pony projection=planar axis=z
+
+S 0 0 0  0 0 0  Wood
+S 0 0 0  0 1 0  Wood
+S 0 0 0  0 2 0  Wood
+S 0 1 0  0 0 0  Wood
+S 0 1 0  0 1 0  Wood
+S 0 1 0  0 2 0  Wood
+S 0 0 0  1 0 0  Wood
+S 0 0 0  1 1 0  Wood
+S 0 0 0  1 2 0  Wood
+S 0 1 0  1 0 0  Wood
+S 0 1 0  1 1 0  Wood
+S 0 1 0  1 2 0  Wood
+S 0 0 0  2 0 0  Wood
+S 0 0 0  2 1 0  Wood
+S 0 0 0  2 2 0  Wood
+S 0 1 0  2 0 0  Wood
+S 0 1 0  2 1 0  Wood
+S 0 1 0  2 2 0  Wood
+S 1 0 0  0 0 0  Wood
+S 1 0 0  0 1 0  Wood
+S 1 0 0  0 2 0  Wood
+S 1 1 0  0 0 0  Wood
+S 1 1 0  0 1 0  Wood
+S 1 1 0  0 2 0  Wood
+S 1 0 0  1 0 0  Wood
+S 1 0 0  1 1 0  Wood
+S 1 0 0  1 2 0  Wood
+S 1 1 0  1 0 0  Wood
+S 1 1 0  1 1 0  Wood
+S 1 1 0  1 2 0  Wood
+S 1 0 0  2 0 0  Wood
+S 1 0 0  2 1 0  Wood
+S 1 0 0  2 2 0  Wood
+S 1 1 0  2 0 0  Wood
+S 1 1 0  2 1 0  Wood
+S 1 1 0  2 2 0  Wood

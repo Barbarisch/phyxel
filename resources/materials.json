@@ -2372,6 +2372,186 @@
         "top": "burning_wood.png",
         "bottom": "burning_wood.png"
       }
+    },
+    {
+      "name": "surface_test",
+      "resolution": 512,
+      "description": "Projected-surface placeholder (Phase 3): an asymmetric labeled image so projection-vs-tiling is unmistakable. Physics unused; applied as a projected surface over a substance material. Swap for real art later.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "textures": {
+        "side_n": "rug_test.png",
+        "side_s": "rug_test.png",
+        "side_e": "rug_test.png",
+        "side_w": "rug_test.png",
+        "top": "rug_test.png",
+        "bottom": "rug_test.png"
+      }
+    },
+    {
+      "name": "rug_oriental",
+      "resolution": 512,
+      "description": "Projected surface: oriental rug pattern.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "rug_oriental.png",
+        "side_s": "rug_oriental.png",
+        "side_e": "rug_oriental.png",
+        "side_w": "rug_oriental.png",
+        "top": "rug_oriental.png",
+        "bottom": "rug_oriental.png"
+      }
+    },
+    {
+      "name": "sign_prancing_pony",
+      "resolution": 512,
+      "description": "Projected surface: Prancing Pony tavern sign.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_prancing_pony.png",
+        "side_s": "sign_prancing_pony.png",
+        "side_e": "sign_prancing_pony.png",
+        "side_w": "sign_prancing_pony.png",
+        "top": "sign_prancing_pony.png",
+        "bottom": "sign_prancing_pony.png"
+      }
+    },
+    {
+      "name": "tome_arcane",
+      "resolution": 512,
+      "description": "Projected surface: arcane tome cover.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "tome_arcane.png",
+        "side_s": "tome_arcane.png",
+        "side_e": "tome_arcane.png",
+        "side_w": "tome_arcane.png",
+        "top": "tome_arcane.png",
+        "bottom": "tome_arcane.png"
+      }
+    },
+    {
+      "name": "tome_necromantic",
+      "resolution": 512,
+      "description": "Projected surface: necromantic tome cover.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "tome_necromantic.png",
+        "side_s": "tome_necromantic.png",
+        "side_e": "tome_necromantic.png",
+        "side_w": "tome_necromantic.png",
+        "top": "tome_necromantic.png",
+        "bottom": "tome_necromantic.png"
+      }
+    },
+    {
+      "name": "tome_fire",
+      "resolution": 512,
+      "description": "Projected surface: tome of embers cover.",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "tome_fire.png",
+        "side_s": "tome_fire.png",
+        "side_e": "tome_fire.png",
+        "side_w": "tome_fire.png",
+        "top": "tome_fire.png",
+        "bottom": "tome_fire.png"
+      }
     }
   ]
 }

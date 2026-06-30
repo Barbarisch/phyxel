@@ -21,12 +21,28 @@ namespace Core {
 struct KinematicFaceData {
     glm::vec3 localPosition;   ///< Voxel center in object-local (hinge) space
     glm::vec3 scale;            ///< Per-axis scale: (1,1,1) = full cube, (1,1,0.125) = thin slab
-    glm::vec2 uvOffset;         ///< UV offset within parent cube for sub-tile texture mapping
-    uint32_t  textureIndex;    ///< Material texture atlas index
+    glm::vec2 uvOffset;         ///< UV min within the texture for this face's sub-rectangle
+    glm::vec2 uvScale;          ///< Per-axis UV span for this face. For sub-tile material tiling
+                                ///< this equals (scale.x, scale.x). For a planar projected surface
+                                ///< it is the face's fraction of the whole-object extent, so one
+                                ///< image spans the object (see docs/VoxelAppearanceModel.md §3 Phase 3).
+    uint32_t  textureIndex;    ///< Material/surface texture atlas index
     uint32_t  faceId;           ///< bits 0-2: face (0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y);
                                 ///< bits 3-26: packed 0xRRGGBB tint (decoded in kinematic_voxel.vert)
 };
-static_assert(sizeof(KinematicFaceData) == 40, "KinematicFaceData must be 40 bytes");
+static_assert(sizeof(KinematicFaceData) == 48, "KinematicFaceData must be 48 bytes");
+
+/// Planar projected-surface descriptor for a kinematic object (Tier 2 decorated
+/// prop). When active, faces whose normal lies along `axis` are textured so a
+/// single image (`textureIndex`) spans the whole object's footprint along the
+/// other two axes — a rug pattern, painting, banner, mosaic, etc. Faces not on
+/// the projection axis keep their per-voxel material tiling.
+/// See docs/VoxelAppearanceModel.md §7 Phase 3.
+struct KinematicSurface {
+    bool     active = false;
+    uint16_t textureIndex = 0;   ///< Atlas layer of the projected image.
+    uint8_t  axis = 1;           ///< Projection axis: 0=X, 1=Y (floor rug), 2=Z (wall).
+};
 
 /// A single voxel within a KinematicVoxelObject, stored in object-local space.
 /// Supports all three voxel sizes: cube (1.0), subcube (1/3), microcube (1/9).
@@ -58,6 +74,7 @@ struct KinematicVoxelObject {
     std::vector<KinematicFaceData> faces;  ///< Pre-built face buffer (6 per voxel)
     glm::mat4   currentTransform{1.0f};   ///< World transform — set each frame by owner
     bool        visible = true;
+    KinematicSurface surface;              ///< Optional planar projected texture (Tier 2).
 };
 
 /// Owns all KinematicVoxelObjects in the scene.
@@ -77,7 +94,8 @@ public:
                     std::vector<KinematicVoxel> voxels,
                     const glm::mat4& initialTransform = glm::mat4(1.0f),
                     const std::string& placedObjectId = "",
-                    bool skipCollider = false);
+                    bool skipCollider = false,
+                    const KinematicSurface& surface = {});
 
     /// Remove an object and free all resources.
     void remove(const std::string& id);
@@ -104,8 +122,11 @@ public:
     size_t count() const { return m_objects.size(); }
 
 private:
-    /// Build 6 face entries per voxel (all faces, no CPU-side culling).
-    static std::vector<KinematicFaceData> buildFaces(const std::vector<KinematicVoxel>& voxels);
+    /// Build face entries per voxel (with adjacency culling). When `surface`
+    /// is active, faces on its projection axis are planar-projected across the
+    /// whole object instead of per-voxel material tiling.
+    static std::vector<KinematicFaceData> buildFaces(const std::vector<KinematicVoxel>& voxels,
+                                                     const KinematicSurface& surface = {});
 
     /// Compute AABB half-extents from a voxel list for collider sizing.
     static glm::vec3 computeHalfExtents(const std::vector<KinematicVoxel>& voxels);

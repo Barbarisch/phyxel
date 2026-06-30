@@ -3,6 +3,7 @@
 #include "core/ItemEffectSystem.h"
 #include "core/ItemRegistry.h"
 #include "core/KinematicVoxelManager.h"
+#include "core/MaterialRegistry.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/ChunkManager.h"
@@ -16,6 +17,25 @@ namespace fs = std::filesystem;
 
 namespace Phyxel {
 namespace Core {
+
+namespace {
+// Resolve a template's authored # surface: into the render-side descriptor:
+// the surface texture name → atlas layer (via the material texture cache), and
+// the axis char → 0/1/2. Inactive when the template has no surface texture.
+KinematicSurface surfaceFromTemplate(const VoxelTemplate& tmpl) {
+    KinematicSurface surf;
+    if (!tmpl.surface.active()) return surf;
+    int axis = (tmpl.surface.axis == 'x') ? 0 : (tmpl.surface.axis == 'z') ? 2 : 1;
+    // Sample the surface material on its dominant (positive-axis) face. A surface
+    // material carries one albedo, so any face index resolves to the same layer.
+    static const int axisPosFace[3] = {2 /*+X*/, 4 /*+Y*/, 0 /*+Z*/};
+    surf.active = true;
+    surf.axis = static_cast<uint8_t>(axis);
+    surf.textureIndex = MaterialRegistry::instance().getTextureIndex(tmpl.surface.texture,
+                                                                     axisPosFace[axis]);
+    return surf;
+}
+}  // namespace
 
 std::vector<KinematicVoxel> ItemPropManager::voxelsFromTemplate(const VoxelTemplate& tmpl) {
     std::vector<KinematicVoxel> voxels;
@@ -130,7 +150,8 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
         whi = glm::max(whi, w);
     }
 
-    std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform);
+    std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform,
+                                         "", false, surfaceFromTemplate(*tmpl));
 
     std::string placedId = m_placed->registerItemProp(
         itemId, tmpl->name,
@@ -212,7 +233,8 @@ void ItemPropManager::rebuildFromPlacedObjects() {
         transform = glm::rotate(transform, glm::radians((float)obj.rotation), glm::vec3(0, 1, 0));
         transform = glm::scale(transform, glm::vec3(propScale));
 
-        std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform);
+        std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform,
+                                             "", false, surfaceFromTemplate(*tmpl));
         m_props[obj.id] = {obj.id, itemId, kinId};
         registerPropEffects(m_props[obj.id]);
         ++rebuilt;

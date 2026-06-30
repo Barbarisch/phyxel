@@ -18,6 +18,19 @@ substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing bett
 | **Clay tile / slate** | manor / townhouse roofs | `stone_manor` roof is "Wood" PLACEHOLDER; real clay tile at 35–45°. |
 | **Wattle & daub (limewashed)** | timber-cottage exterior wall infill | currently "Wood"; real daub is a limewashed off-white panel between dark timbers. |
 
+## Missing — projected SURFACE art (surfaced by VoxelAppearanceModel Phase 3, 2026-06-30)
+The planar projected-surface path now works (rugs/paintings/banners stretch one image across the
+whole prop — see `docs/VoxelAppearanceModel.md` §7 Phase 3). It needs real art; only the
+placeholder `surface_test` (asymmetric labeled grid, `tools/gen_surface_textures.py`) exists.
+| Need | Used for | Notes |
+|------|----------|-------|
+| **Rug / carpet patterns** (Persian, woven, braided) | floor rugs (`# surface: … axis=y`) | the demo `rug_test.voxel` uses `surface_test` as a stand-in |
+| **Painting / portrait images** | wall paintings (`axis=z`/`x`) | framed canvas; pairs with a thin frame prop |
+| **Banner / tapestry / heraldry** | hanging wall banners | tall vertical projection |
+| **Mosaic / tile floor patterns** | floor medallions | same path as rugs |
+Open engine follow-ups (not art): a dedicated surface-texture registry (MVP reuses the material
+array, so each surface image is a texture-carrier material like `burning_wood`/`surface_test`).
+
 ## Missing — interior / finish
 | Need | Used for | Notes |
 |------|----------|-------|

@@ -1,9 +1,11 @@
 # Voxel Appearance Model — Material / Tint / State / Texturing
 
-> **Status:** design (2026-06-28). Nothing implemented yet. This is the canonical
+> **Status:** Phases 1–3 shipped (per §7 phase plan); Phase 4 pending. Canonical
 > reference for decoupling a voxel's *appearance* from its *substance*. Born out of
 > the Barony `.vox` import work (`tools/vox_import.py`, `tools/gen_vox_palette.py`),
 > which exposed that "material" is currently overloaded to mean both physics and looks.
+> Phase 1 (per-voxel tint) and Phase 2 (authored state surfaces) landed earlier; Phase 3
+> (planar projected textures — rugs/paintings/banners) shipped 2026-06-30 (MVP).
 
 ## 1. The problem
 
@@ -169,9 +171,25 @@ voxel = {
 - **Phase 2 — Authored static state.** A `state` field + visual-modifier table,
   reusing emissive/damage hooks. Ship `flaming` (emissive+warm) and `wet`
   (darken+gloss) first. No simulation yet.
-- **Phase 3 — Planar projected textures (Tier 2).** One image across a flat object
-  along its dominant axis. Pure CPU UV math on the kinematic path. Unlocks
-  rug/painting/banner/mosaic. Authoring: `# surface:` metadata + the texture asset.
+- **Phase 3 — Planar projected textures (Tier 2). ✅ SHIPPED (2026-06-30, MVP).** One
+  image across a flat object along its dominant axis. Pure CPU UV math on the kinematic
+  path. Unlocks rug/painting/banner/mosaic. Authoring: `# surface: texture=<material>
+  projection=planar axis=<x|y|z>` header + the texture asset (a texture-carrier material,
+  like `surface_test`/`burning_wood`). Implementation:
+  - `KinematicFaceData` grew a per-axis `vec2 uvScale` (40→48B; attribute loc 5 in
+    `KinematicVoxelPipeline` + `kinematic_voxel.vert` `uv = baseUV*inUvScale + inUvOffset`).
+    Non-projected faces set `uvScale = vec2(scale.x)` → byte-identical legacy behavior.
+  - `KinematicVoxelManager::buildFaces(voxels, KinematicSurface)`: faces whose normal is
+    on the surface axis project across the whole object extent (same per-face flip
+    convention) and swap to the surface texture index; all other faces tile per-cube.
+  - Parsed in `ObjectTemplateManager` → `VoxelTemplate::surface`; resolved + carried to
+    the kinematic group in `ItemPropManager` (both `spawnProp` + `rebuildFromPlacedObjects`).
+  - Validated: `tests/core/KinematicSurfaceProjectionTest.cpp` (L2 — UV slices tile the
+    object extent, non-square + single-cube + legacy-guard) and L4 runtime (`rug_test`
+    item → one continuous image across a 2:1 subcube rug).
+  - **Still open:** real art (placeholder `rug_test.png` only — track in
+    `docs/MaterialTextureNeeds.md`); a dedicated surface-texture registry (MVP reuses the
+    material array); vertical-axis (painting/banner) runtime check; books = Phase 4 box-unwrap.
 - **Phase 4 — Dynamic state + box-unwrap textures.** State *transitions* + physics
   deltas (fire spread weakening bonds; wet propagation) via `HazardSystem`/
   `WaterManager`; and skin-style box unwrap for books/crates/signs.
