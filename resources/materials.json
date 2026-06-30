@@ -127,8 +127,7 @@
         "top": "stone_top.png",
         "bottom": "stone_bottom.png"
       },
-      "resolution": 1024,
-      "varied": true
+      "resolution": 1024
     },
     {
       "name": "Cobblestone",
@@ -159,8 +158,7 @@
         "top": "cobblestone_top.png",
         "bottom": "cobblestone_bottom.png"
       },
-      "resolution": 1024,
-      "varied": true
+      "resolution": 1024
     },
     {
       "name": "StoneBricks",
@@ -191,8 +189,7 @@
         "side_w": "stonebricks_side_w.png",
         "top": "stonebricks_top.png",
         "bottom": "stonebricks_bottom.png"
-      },
-      "varied": true
+      }
     },
     {
       "name": "Sand",
@@ -347,8 +344,7 @@
         "side_w": "bricks_side_w.png",
         "top": "bricks_top.png",
         "bottom": "bricks_bottom.png"
-      },
-      "varied": true
+      }
     },
     {
       "name": "Sandstone",
