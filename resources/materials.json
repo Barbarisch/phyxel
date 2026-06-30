@@ -398,7 +398,8 @@
         "side_w": "glass_side_w.png",
         "top": "glass_top.png",
         "bottom": "glass_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Metal",
@@ -428,7 +429,8 @@
         "side_w": "metal_side_w.png",
         "top": "metal_top.png",
         "bottom": "metal_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Gold",
@@ -458,7 +460,8 @@
         "side_w": "gold_side_w.png",
         "top": "gold_top.png",
         "bottom": "gold_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Ice",
@@ -624,13 +627,14 @@
         "restitution": 0.1
       },
       "textures": {
-        "side_n": "Glass_side.png",
-        "side_s": "Glass_side.png",
-        "side_e": "Glass_side.png",
-        "side_w": "Glass_side.png",
-        "top": "Glass_side.png",
-        "bottom": "Glass_side.png"
-      }
+        "side_n": "mirror_side_n.png",
+        "side_s": "mirror_side_s.png",
+        "side_e": "mirror_side_e.png",
+        "side_w": "mirror_side_w.png",
+        "top": "mirror_top.png",
+        "bottom": "mirror_bottom.png"
+      },
+      "resolution": 1024
     },
     {
       "name": "LogBirch",
