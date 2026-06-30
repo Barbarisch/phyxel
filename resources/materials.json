@@ -124,7 +124,8 @@
         "side_w": "stone_side_w.png",
         "top": "stone_top.png",
         "bottom": "stone_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Cobblestone",
@@ -154,7 +155,8 @@
         "side_w": "cobblestone_side_w.png",
         "top": "cobblestone_top.png",
         "bottom": "cobblestone_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "StoneBricks",
@@ -306,7 +308,8 @@
         "side_w": "log_side_w.png",
         "top": "log_top.png",
         "bottom": "log_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Bricks",
@@ -367,7 +370,8 @@
         "side_w": "sandstone_side_w.png",
         "top": "sandstone_top.png",
         "bottom": "sandstone_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Glass",
@@ -491,7 +495,8 @@
         "side_w": "ice_side_w.png",
         "top": "ice_top.png",
         "bottom": "ice_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Leaf",
@@ -664,7 +669,8 @@
         "side_w": "log_birch_side_w.png",
         "top": "log_birch_top.png",
         "bottom": "log_birch_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "LogSpruce",
@@ -694,7 +700,8 @@
         "side_w": "log_spruce_side_w.png",
         "top": "log_spruce_top.png",
         "bottom": "log_spruce_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "LeafBirch",

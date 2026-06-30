@@ -12,7 +12,7 @@
       "all": "PavingStones128"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Dirt": {
@@ -66,7 +66,7 @@
       "all": "Ice001"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Log": {
@@ -74,7 +74,7 @@
       "all": "Bark007"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "LogBirch": {
@@ -82,7 +82,7 @@
       "all": "Bark011"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "LogSpruce": {
@@ -90,7 +90,7 @@
       "all": "Bark006"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Metal": {
@@ -114,7 +114,7 @@
       "all": "Rock035"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Stone": {
@@ -122,7 +122,7 @@
       "all": "Rock030"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "StoneBricks": {
