@@ -18,6 +18,18 @@ substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing bett
 | **Clay tile / slate** | manor / townhouse roofs | `stone_manor` roof is "Wood" PLACEHOLDER; real clay tile at 35–45°. |
 | **Wattle & daub (limewashed)** | timber-cottage exterior wall infill | currently "Wood"; real daub is a limewashed off-white panel between dark timbers. |
 
+## Resolution / quality pass (texture-array is mixed 512/1024 BC7; see CLAUDE.md)
+**Tier 1 DONE (2026-06-30, `tools/gen_highdef_materials.py`, commit 2ea8b8d):** materials
+that shipped as 64x64 (blurry upscales) regenerated with real detail —
+Gold/Metal/Glass/Mirror bumped to **1024**; Leaf (+birch/spruce/jungle/autumn), glow,
+Thatch, Default at **512**. Also fixed the **Mirror** material (pointed at a missing
+`Glass_side.png` -> rendered fallback; now uses `mirror_*.png`).
+
+**Tier 2 — candidates still at 512 that would gain from a 1024 detail regen** (seen up
+close on builds/furniture/props, not distant terrain): Cobblestone, Sandstone, Stone, Log
+(+birch/spruce), Sand­stone, Ice. Leave pure terrain (Dirt/Grass/Sand/Gravel/biome grass)
+at 512. Skip `vox_00`–`vox_47` (Barony palette, being retired for per-voxel tint).
+
 ## Missing — projected SURFACE art (surfaced by VoxelAppearanceModel Phase 3, 2026-06-30)
 The planar projected-surface path now works (rugs/paintings/banners stretch one image across the
 whole prop — see `docs/VoxelAppearanceModel.md` §7 Phase 3). It needs real art; only the
