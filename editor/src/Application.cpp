@@ -7003,6 +7003,41 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_grass") {
+        // Runtime grass knobs / on-off toggle (grass blade layer). Any field may be omitted;
+        // negative numeric values leave a field unchanged. Used for live FPS A/B + tuning.
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            if (cmd.params.contains("enabled")) {
+                renderCoordinator->setGrassEnabled(cmd.params.value("enabled", true));
+            }
+            renderCoordinator->setGrassParams(
+                cmd.params.value("radius",          -1.0f),
+                cmd.params.value("bladeHeight",     -1.0f),
+                cmd.params.value("windStrength",    -1.0f),
+                cmd.params.value("bladesPerVoxel",  -1));
+            response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()}};
+        }
+        return true;
+
+    } else if (action == "set_foliage") {
+        // Runtime leaf-card foliage knobs / on-off toggle. Fields omitted or negative are unchanged.
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            if (cmd.params.contains("enabled")) {
+                renderCoordinator->setFoliageEnabled(cmd.params.value("enabled", true));
+            }
+            renderCoordinator->setFoliageParams(
+                cmd.params.value("cardSize",       -1.0f),
+                cmd.params.value("windStrength",   -1.0f),
+                cmd.params.value("cardsPerVoxel",  -1),
+                cmd.params.value("radius",         -1.0f));
+            response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()}};
+        }
+        return true;
+
     } else if (action == "set_render_distance") {
         // Set the camera far plane / chunk render distance. NOTE: the runtime default is
         // small (~96) — far chunks are frustum-culled until this is raised.

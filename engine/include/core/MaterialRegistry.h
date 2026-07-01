@@ -58,6 +58,9 @@ struct MaterialDef {
     /// path only; sets InstanceData.reserved bit 15. Use for NON-directional natural
     /// surfaces (stone/dirt/sand/grass); leave off for directional ones (planks/bricks).
     bool varied = false;
+    /// Billboarded foliage: the chunk mesher skips this material's solid subcube faces and the
+    /// FoliageRenderPipeline draws cutout leaf cards instead (leaf materials). See the foliage plan.
+    bool billboarded = false;
 
     MaterialPhysics physics;
     MaterialTextures textures;

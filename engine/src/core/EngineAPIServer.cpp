@@ -897,6 +897,40 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/grass — toggle / tune the grass blade layer at runtime (for FPS A/B + tuning)
+    // Body: { "enabled": bool (opt), "radius": float, "bladeHeight": float,
+    //         "windStrength": float, "bladesPerVoxel": int } — omitted/negative fields unchanged.
+    // ====================================================================
+    srv.Post("/api/debug/grass", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_grass", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/foliage — toggle / tune the leaf-card foliage layer (FPS A/B + tuning)
+    // Body: { "enabled": bool (opt), "cardSize": float, "windStrength": float,
+    //         "cardsPerVoxel": int, "radius": float } — omitted/negative fields unchanged.
+    // ====================================================================
+    srv.Post("/api/debug/foliage", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_foliage", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/debug/render_distance — set the camera far plane / chunk render distance
     // Body: { "distance": float }.  NOTE: the runtime default is small (~96).
     // ====================================================================

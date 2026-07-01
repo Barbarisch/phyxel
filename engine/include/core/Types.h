@@ -95,6 +95,63 @@ struct InstanceData {
     static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions();  // + tint
 };
 
+// Grass blade instance — ONE per exposed grass-topped voxel (material Grass/GrassForest/
+// GrassSavanna with an exposed +Y face). The vertex shader (grass.vert) procedurally fans each
+// instance into a small clump of blades via gl_VertexIndex, so the per-chunk buffer stays tiny
+// (8 bytes/voxel). Colour is derived from the voxel's grass-top texture; wind + sprout-in growth
+// come from UBO.elapsedTime. Lightweight, cutout (alpha-tested), no physics. See the grass plan.
+struct GrassInstanceData {
+    // packed: bits 0-4 x | 5-9 y | 10-14 z (local 0-31)  |  15-18 skylight(0-15)
+    //         | 19-22 blockR | 23-26 blockG | 27-30 blockB (each 0-15)
+    uint32_t packed = 0;
+    // low 16 bits: grass top-face texture-array index (colour source, class bit 15 + layer).
+    // high 16 bits: reserved.
+    uint32_t tex = 0;
+    // Total: 8 bytes
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription b{};
+        b.binding   = 0;   // grass uses no vertex buffer; instance data is binding 0
+        b.stride    = sizeof(GrassInstanceData);
+        b.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+        return b;
+    }
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> a{};
+        a[0].binding = 0; a[0].location = 0; a[0].format = VK_FORMAT_R32_UINT; a[0].offset = offsetof(GrassInstanceData, packed);
+        a[1].binding = 0; a[1].location = 1; a[1].format = VK_FORMAT_R32_UINT; a[1].offset = offsetof(GrassInstanceData, tex);
+        return a;
+    }
+};
+
+// Foliage card instance — ONE per exposed billboarded-leaf SUBCUBE (materials flagged
+// "billboarded": Leaf/LeafBirch/…). The vertex shader (foliage.vert) fans each instance into a
+// small clustered sprig of rounded cutout leaf cards in hashed 3D orientations, filling the
+// subcube's volume so the tree's silhouette envelope is preserved. Colour from the leaf texture;
+// wind from UBO.elapsedTime. Cutout (opaque pass, no OIT). Sibling of GrassInstanceData. 8 bytes.
+struct FoliageInstanceData {
+    // packed: bits 0-4 x |5-9 y |10-14 z (parent cube local 0-31)  |15-16 sx |17-18 sy |19-20 sz
+    //         (subcube local 0-2)  |21-24 skylight (0-15)
+    uint32_t packed = 0;
+    // tex: low 16 = leaf texture-array index (colour source)  |16-19 blockR |20-23 blockG |24-27 blockB
+    uint32_t tex = 0;
+    // Total: 8 bytes
+
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription b{};
+        b.binding   = 0;
+        b.stride    = sizeof(FoliageInstanceData);
+        b.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+        return b;
+    }
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> a{};
+        a[0].binding = 0; a[0].location = 0; a[0].format = VK_FORMAT_R32_UINT; a[0].offset = offsetof(FoliageInstanceData, packed);
+        a[1].binding = 0; a[1].location = 1; a[1].format = VK_FORMAT_R32_UINT; a[1].offset = offsetof(FoliageInstanceData, tex);
+        return a;
+    }
+};
+
 struct CharacterInstanceData {
     glm::vec3 offset;
     glm::vec3 scale;

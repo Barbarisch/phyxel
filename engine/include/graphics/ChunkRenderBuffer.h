@@ -50,6 +50,19 @@ public:
     void createBuffer(const std::vector<InstanceData>& initialData, size_t capacity = 0);
 
     /**
+     * @brief Create a buffer for an arbitrary instance stream (e.g. grass blades).
+     * @param initialData Pointer to first instance (may be null when count==0)
+     * @param count Number of instances to copy
+     * @param elemSize Per-instance stride in bytes (stored; used by reallocate too)
+     * @param capacity Buffer capacity in instances (0 → max(DEFAULT_BUFFER_CAPACITY, count))
+     *
+     * The InstanceData createBuffer() delegates here with sizeof(InstanceData). Callers with a
+     * small, bounded stream (grass: ≤1024/chunk) should pass an explicit small capacity so each
+     * per-chunk buffer stays tiny rather than defaulting to DEFAULT_BUFFER_CAPACITY.
+     */
+    void createBufferRaw(const void* initialData, size_t count, size_t elemSize, size_t capacity = 0);
+
+    /**
      * @brief Reallocate buffer with larger capacity
      * @param requiredInstances Minimum required capacity
      * 
@@ -119,6 +132,7 @@ private:
     
     size_t bufferCapacity;
     size_t maxInstancesUsed;
+    size_t elementSize;  // per-instance stride in bytes (default sizeof(InstanceData); overridden by createBufferRaw)
 };
 
 } // namespace Graphics

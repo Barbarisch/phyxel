@@ -16,6 +16,7 @@ ChunkRenderBuffer::ChunkRenderBuffer(VkDevice device, VkPhysicalDevice physicalD
     , mappedMemory(nullptr)
     , bufferCapacity(0)
     , maxInstancesUsed(0)
+    , elementSize(sizeof(InstanceData))
 {
 }
 
@@ -31,6 +32,7 @@ ChunkRenderBuffer::ChunkRenderBuffer(ChunkRenderBuffer&& other) noexcept
     , mappedMemory(other.mappedMemory)
     , bufferCapacity(other.bufferCapacity)
     , maxInstancesUsed(other.maxInstancesUsed)
+    , elementSize(other.elementSize)
 {
     other.instanceBuffer = VK_NULL_HANDLE;
     other.instanceMemory = VK_NULL_HANDLE;
@@ -50,7 +52,8 @@ ChunkRenderBuffer& ChunkRenderBuffer::operator=(ChunkRenderBuffer&& other) noexc
         mappedMemory = other.mappedMemory;
         bufferCapacity = other.bufferCapacity;
         maxInstancesUsed = other.maxInstancesUsed;
-        
+        elementSize = other.elementSize;
+
         other.instanceBuffer = VK_NULL_HANDLE;
         other.instanceMemory = VK_NULL_HANDLE;
         other.mappedMemory = nullptr;
@@ -61,18 +64,24 @@ ChunkRenderBuffer& ChunkRenderBuffer::operator=(ChunkRenderBuffer&& other) noexc
 }
 
 void ChunkRenderBuffer::createBuffer(const std::vector<InstanceData>& initialData, size_t capacity) {
+    createBufferRaw(initialData.data(), initialData.size(), sizeof(InstanceData), capacity);
+}
+
+void ChunkRenderBuffer::createBufferRaw(const void* initialData, size_t count, size_t elemSize, size_t capacity) {
     if (device == VK_NULL_HANDLE) {
         throw std::runtime_error("ChunkRenderBuffer not initialized with valid Vulkan device!");
     }
-    
+
+    elementSize = elemSize;
+
     // Use provided capacity, or calculate based on initial data
     if (capacity == 0) {
-        capacity = std::max(DEFAULT_BUFFER_CAPACITY, initialData.size());
+        capacity = std::max(DEFAULT_BUFFER_CAPACITY, count);
     }
-    
-    VkDeviceSize bufferSize = sizeof(InstanceData) * capacity;
+
+    VkDeviceSize bufferSize = elementSize * capacity;
     bufferCapacity = capacity;
-    
+
     // Create buffer with fixed capacity
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -104,9 +113,9 @@ void ChunkRenderBuffer::createBuffer(const std::vector<InstanceData>& initialDat
     vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
     
     // Copy initial data (only the used portion)
-    if (!initialData.empty()) {
-        VkDeviceSize usedSize = sizeof(InstanceData) * initialData.size();
-        memcpy(mappedMemory, initialData.data(), usedSize);
+    if (initialData && count > 0) {
+        VkDeviceSize usedSize = elementSize * count;
+        memcpy(mappedMemory, initialData, usedSize);
     }
 }
 
@@ -129,7 +138,7 @@ void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
     }
     
     // Create new larger buffer
-    VkDeviceSize bufferSize = sizeof(InstanceData) * newCapacity;
+    VkDeviceSize bufferSize = elementSize * newCapacity;
     bufferCapacity = newCapacity;
     
     VkBufferCreateInfo bufferInfo{};

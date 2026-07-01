@@ -112,6 +112,7 @@ struct UniformBufferObject {
     alignas(4) float emissiveMultiplier; // Brightness of emissive objects
     alignas(16) glm::vec3 cameraPosition; // World-space camera position for specular
     alignas(16) glm::mat4 reflectedViewProj; // Reflected camera VP matrix (identity if no mirrors)
+    alignas(4) float elapsedTime; // Seconds since engine start — drives grass wind + growth. Trailing field: safe to append.
 };
 
 class VulkanDevice {
@@ -159,7 +160,7 @@ public:
     bool createDescriptorSetLayout();
     bool createDescriptorPool();
     bool createDescriptorSets();
-    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f, const glm::vec3& cameraPosition = glm::vec3(0.0f));
+    void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f, const glm::vec3& cameraPosition = glm::vec3(0.0f), float elapsedTime = 0.0f);
     void setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP);
 
     // Reflection UBO buffers (separate per-frame UBOs for rendering from reflected camera)

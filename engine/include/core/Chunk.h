@@ -285,6 +285,14 @@ public:
     const std::vector<InstanceData>& getFaces() const { return renderManager.getFaces(); }
     void* getMappedMemory() const { return renderManager.getMappedMemory(); }
 
+    // Grass blade layer (lightweight): parallel per-chunk buffer + instance count.
+    VkBuffer getGrassBuffer() const { return renderManager.getGrassBuffer(); }
+    uint32_t getGrassCount() const { return renderManager.getGrassCount(); }
+
+    // Foliage leaf-card layer: parallel per-chunk buffer + instance count.
+    VkBuffer getFoliageBuffer() const { return renderManager.getFoliageBuffer(); }
+    uint32_t getFoliageCount() const { return renderManager.getFoliageCount(); }
+
 private:
     // No private members needed - all moved to subsystems
     

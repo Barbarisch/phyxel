@@ -40,6 +40,8 @@ namespace Phyxel {
     namespace Graphics {
         class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
+        class GrassRenderPipeline;
+        class FoliageRenderPipeline;
         class VfxRenderPipeline;
         class WaterRenderPipeline;
         class WaterCellRenderPipeline;
@@ -328,6 +330,24 @@ private:
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
     std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;
     Core::KinematicVoxelManager* m_kinematicObjects = nullptr;
+
+    // Lightweight grass-blade layer on grass-topped terrain (distance-limited, cutout).
+    std::unique_ptr<GrassRenderPipeline> grassPipeline;
+    void renderGrass();  // draws grass for the currently-visible chunks within grass radius
+
+    // Leaf foliage card layer (cutout leaf cards replacing solid leaf voxels).
+    std::unique_ptr<FoliageRenderPipeline> foliagePipeline;
+    void renderFoliage();  // draws leaf cards for the currently-visible chunks
+public:
+    // Runtime grass knobs (see /api/debug/grass). Negative/absent values leave a field unchanged.
+    void setGrassEnabled(bool on);
+    void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel);
+    bool isGrassEnabled() const;
+    // Runtime foliage knobs (see /api/debug/foliage). Negative/absent values leave a field unchanged.
+    void setFoliageEnabled(bool on);
+    void setFoliageParams(float cardSize, float windStrength, int cardsPerVoxel, float radius);
+    bool isFoliageEnabled() const;
+private:
 
     // Water surface. Default OFF; enabled + sea level come from the per-world game
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.

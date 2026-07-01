@@ -43,6 +43,12 @@ public:
     // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
     static bool s_smoothLighting;
     static int  s_mergeTolerance;
+    // Billboarded foliage: when ON, the mesher skips solid faces for "billboarded" leaf subcubes
+    // and collects foliage card instances instead (FoliageRenderPipeline draws them). Toggling
+    // requires a chunk re-bake. Default ON.
+    static bool s_foliageEnabled;
+    static void setFoliageEnabled(bool on) { s_foliageEnabled = on; }
+    static bool getFoliageEnabled()        { return s_foliageEnabled; }
     static void setSmoothLighting(bool on) { s_smoothLighting = on; }
     static void setMergeTolerance(int t)   { s_mergeTolerance = t < 0 ? 0 : t; }
     static bool getSmoothLighting()        { return s_smoothLighting; }
@@ -144,6 +150,20 @@ public:
     // Accessors
     const std::vector<InstanceData>& getFaces() const { return faces; }
     uint32_t getNumInstances() const { return numInstances; }
+
+    // --- Grass (lightweight blade layer) ---
+    // Grass blade instances collected on the last rebuild — one per exposed grass-topped voxel
+    // (see rebuildCubeFaces). The GPU grass buffer is created/updated alongside the face buffer.
+    const std::vector<GrassInstanceData>& getGrassInstances() const { return m_grassInstances; }
+    VkBuffer getGrassBuffer() const { return grassBuffer.getBuffer(); }
+    uint32_t getGrassCount() const { return static_cast<uint32_t>(m_grassInstances.size()); }
+
+    // --- Foliage (leaf billboard cards) ---
+    // Foliage instances collected on the last rebuild — one per exposed billboarded-leaf subcube.
+    // The GPU foliage buffer is created/updated alongside the face buffer (like grass).
+    const std::vector<FoliageInstanceData>& getFoliageInstances() const { return m_foliageInstances; }
+    VkBuffer getFoliageBuffer() const { return foliageBuffer.getBuffer(); }
+    uint32_t getFoliageCount() const { return static_cast<uint32_t>(m_foliageInstances.size()); }
     bool getNeedsUpdate() const { return needsUpdate; }
     void setNeedsUpdate(bool update) { needsUpdate = update; }
 
@@ -236,7 +256,15 @@ private:
     uint32_t numInstances;                     // Count of visible faces
     bool needsUpdate;                          // Flag for buffer updates
 
-    ChunkRenderBuffer renderBuffer;            // Vulkan buffer management
+    // Grass blade instances (one per exposed grass-topped voxel), rebuilt with the faces and
+    // uploaded to grassBuffer. Empty for chunks with no grass surface.
+    std::vector<GrassInstanceData> m_grassInstances;
+    // Foliage card instances (one per exposed billboarded-leaf subcube), uploaded to foliageBuffer.
+    std::vector<FoliageInstanceData> m_foliageInstances;
+
+    ChunkRenderBuffer renderBuffer;            // Vulkan buffer management (cube/sub/micro faces)
+    ChunkRenderBuffer grassBuffer;             // Parallel buffer for grass blade instances
+    ChunkRenderBuffer foliageBuffer;           // Parallel buffer for foliage leaf-card instances
 
     VkDevice device;
     VkPhysicalDevice physicalDevice;

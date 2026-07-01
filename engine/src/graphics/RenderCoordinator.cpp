@@ -13,6 +13,8 @@
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
+#include "graphics/GrassRenderPipeline.h"
+#include "graphics/FoliageRenderPipeline.h"
 #include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
 #include "ui/ImGuiRenderer.h"
@@ -223,6 +225,30 @@ RenderCoordinator::RenderCoordinator(
             return glm::vec4(bl.sky, bl.r, bl.g, bl.b) / 15.0f;
         });
     }
+
+    // Lightweight grass-blade layer (distance-limited cutout; renders in the opaque scene pass).
+    grassPipeline = std::make_unique<GrassRenderPipeline>();
+    if (!grassPipeline->initialize(
+            vulkanDevice->getDevice(),
+            vulkanDevice->getPhysicalDevice(),
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout())) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize GrassRenderPipeline");
+        grassPipeline.reset();
+    }
+
+    // Leaf foliage card layer (cutout leaf cards replacing solid leaf voxels; opaque scene pass).
+    foliagePipeline = std::make_unique<FoliageRenderPipeline>();
+    if (!foliagePipeline->initialize(
+            vulkanDevice->getDevice(),
+            vulkanDevice->getPhysicalDevice(),
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout())) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize FoliageRenderPipeline");
+        foliagePipeline.reset();
+    }
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -359,6 +385,97 @@ size_t RenderCoordinator::renderStaticGeometry() {
     }
     
     return renderedChunks;
+}
+
+void RenderCoordinator::renderGrass() {
+    // Grass rides on the chunks that just survived static-geometry culling (visibleChunkIndices is
+    // populated by renderStaticGeometry, which runs immediately before this). We additionally clip
+    // to the grass radius so far terrain stays bare — the hard cost bound. No per-frame CPU beyond
+    // assembling the small draw list; blades are GPU-expanded.
+    if (!grassPipeline || !grassPipeline->params().enabled || !chunkManager) return;
+    if (visibleChunkIndices.empty()) return;
+
+    const glm::vec3 cameraPos = camera->getPosition();
+    // Cull whole chunks by center distance, padded by a chunk half-diagonal (~sqrt(3)*16) so a
+    // chunk with grass near its edge inside the radius isn't dropped; the per-blade height fade in
+    // the shader does the smooth cutoff at the true radius.
+    const float radius = grassPipeline->params().radius + 27.8f;
+    const float radiusSq = radius * radius;
+
+    std::vector<GrassRenderPipeline::ChunkDraw> draws;
+    draws.reserve(visibleChunkIndices.size());
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (!chunk || chunk->getGrassCount() == 0) continue;
+
+        // Clip by chunk-center distance (blades themselves fade to zero height near the edge).
+        glm::vec3 center = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
+        if (glm::dot(center - cameraPos, center - cameraPos) > radiusSq) continue;
+
+        glm::ivec3 origin = chunk->getWorldOrigin();
+        draws.push_back({ chunk->getGrassBuffer(), chunk->getGrassCount(),
+                          glm::vec3(origin.x, origin.y, origin.z) });
+    }
+    if (draws.empty()) return;
+
+    grassPipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
+                          vulkanDevice->getDescriptorSet(currentFrame), draws);
+}
+
+void RenderCoordinator::renderFoliage() {
+    // Leaf cards ride on the chunks that survived static-geometry culling (visibleChunkIndices).
+    // Unlike grass there's no radius fade by default — trees keep their leaves at any distance; only
+    // frustum culling applies. Assembling the small draw list is the only per-frame CPU work.
+    if (!foliagePipeline || !foliagePipeline->params().enabled || !chunkManager) return;
+    if (visibleChunkIndices.empty()) return;
+
+    std::vector<FoliageRenderPipeline::ChunkDraw> draws;
+    draws.reserve(visibleChunkIndices.size());
+    for (size_t chunkIndex : visibleChunkIndices) {
+        const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
+        if (!chunk || chunk->getFoliageCount() == 0) continue;
+        glm::ivec3 origin = chunk->getWorldOrigin();
+        draws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
+                          glm::vec3(origin.x, origin.y, origin.z) });
+    }
+    if (draws.empty()) return;
+
+    foliagePipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
+                            vulkanDevice->getDescriptorSet(currentFrame), draws);
+}
+
+void RenderCoordinator::setFoliageEnabled(bool on) {
+    if (foliagePipeline) foliagePipeline->params().enabled = on;
+}
+
+void RenderCoordinator::setFoliageParams(float cardSize, float windStrength, int cardsPerVoxel, float radius) {
+    if (!foliagePipeline) return;
+    auto& p = foliagePipeline->params();
+    if (cardSize     >= 0.0f) p.cardSize      = cardSize;
+    if (windStrength >= 0.0f) p.windStrength  = windStrength;
+    if (cardsPerVoxel > 0)    p.cardsPerVoxel = static_cast<uint32_t>(cardsPerVoxel);
+    if (radius       >= 0.0f) p.radius        = radius;
+}
+
+bool RenderCoordinator::isFoliageEnabled() const {
+    return foliagePipeline && foliagePipeline->params().enabled;
+}
+
+void RenderCoordinator::setGrassEnabled(bool on) {
+    if (grassPipeline) grassPipeline->params().enabled = on;
+}
+
+void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel) {
+    if (!grassPipeline) return;
+    auto& p = grassPipeline->params();
+    if (radius       >= 0.0f) p.radius        = radius;
+    if (bladeHeight  >= 0.0f) p.bladeHeight   = bladeHeight;
+    if (windStrength >= 0.0f) p.windStrength  = windStrength;
+    if (bladesPerVoxel > 0)   p.bladesPerVoxel = static_cast<uint32_t>(bladesPerVoxel);
+}
+
+bool RenderCoordinator::isGrassEnabled() const {
+    return grassPipeline && grassPipeline->params().enabled;
 }
 
 void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
@@ -1150,7 +1267,10 @@ void RenderCoordinator::drawFrame() {
     size_t uniformBufferSize = sizeof(glm::mat4) * 3 + sizeof(glm::vec3) * 2 + sizeof(uint32_t) + sizeof(float) * 2; // view + proj + lightSpace + sunDir + sunColor + cubeCount + ambient + emissive
     performanceProfiler->recordMemoryTransfer(uniformBufferSize);
     
-    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos);
+    // Seconds since first frame — drives grass wind + growth in the shaders (UBO.elapsedTime).
+    static const auto renderStartTime = std::chrono::high_resolution_clock::now();
+    float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
+    vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
     
     // Upload light data to GPU SSBO
     auto gpuLightData = lightManager.getGPUData();
@@ -1261,7 +1381,19 @@ void RenderCoordinator::drawFrame() {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
             actuallyRenderedChunks = renderStaticGeometry();
         }
-        
+
+        // Grass blades on grass-topped terrain (opaque cutout; reuses the just-computed visible set)
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Grass");
+            renderGrass();
+        }
+
+        // Leaf foliage cards on trees/bushes (opaque cutout; reuses the same visible set)
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Foliage");
+            renderFoliage();
+        }
+
         // Render dynamic subcubes with separate pipeline
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Dynamic Subcubes");

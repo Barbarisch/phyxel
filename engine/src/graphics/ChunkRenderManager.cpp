@@ -21,11 +21,14 @@ namespace Graphics {
 // as an opt-in perf lever; the default prioritizes look.
 bool ChunkRenderManager::s_smoothLighting = true;
 int  ChunkRenderManager::s_mergeTolerance = 0;
+bool ChunkRenderManager::s_foliageEnabled = true;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
     , needsUpdate(false)
     , renderBuffer(VK_NULL_HANDLE, VK_NULL_HANDLE)
+    , grassBuffer(VK_NULL_HANDLE, VK_NULL_HANDLE)
+    , foliageBuffer(VK_NULL_HANDLE, VK_NULL_HANDLE)
     , device(VK_NULL_HANDLE)
     , physicalDevice(VK_NULL_HANDLE)
 {
@@ -40,7 +43,11 @@ ChunkRenderManager::ChunkRenderManager(ChunkRenderManager&& other) noexcept
     : faces(std::move(other.faces))
     , numInstances(other.numInstances)
     , needsUpdate(other.needsUpdate)
+    , m_grassInstances(std::move(other.m_grassInstances))
+    , m_foliageInstances(std::move(other.m_foliageInstances))
     , renderBuffer(std::move(other.renderBuffer))
+    , grassBuffer(std::move(other.grassBuffer))
+    , foliageBuffer(std::move(other.foliageBuffer))
     , device(other.device)
     , physicalDevice(other.physicalDevice)
 {
@@ -57,7 +64,11 @@ ChunkRenderManager& ChunkRenderManager::operator=(ChunkRenderManager&& other) no
         faces = std::move(other.faces);
         numInstances = other.numInstances;
         needsUpdate = other.needsUpdate;
+        m_grassInstances = std::move(other.m_grassInstances);
+        m_foliageInstances = std::move(other.m_foliageInstances);
         renderBuffer = std::move(other.renderBuffer);
+        grassBuffer = std::move(other.grassBuffer);
+        foliageBuffer = std::move(other.foliageBuffer);
         device = other.device;
         physicalDevice = other.physicalDevice;
         
@@ -72,7 +83,9 @@ ChunkRenderManager& ChunkRenderManager::operator=(ChunkRenderManager&& other) no
 void ChunkRenderManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     device = dev;
     physicalDevice = physDev;
-    renderBuffer = ChunkRenderBuffer(device, physicalDevice);
+    renderBuffer  = ChunkRenderBuffer(device, physicalDevice);
+    grassBuffer   = ChunkRenderBuffer(device, physicalDevice);
+    foliageBuffer = ChunkRenderBuffer(device, physicalDevice);
 }
 
 uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
@@ -157,11 +170,15 @@ void ChunkRenderManager::rebuildCubeFaces(
 
     // Reset the flaming-voxel seed list; the sub/micro light-seed loops below refill it.
     m_flamingVoxels.clear();
+    // Reset grass blade instances; refilled by the grass scan after neighbour solidity is known.
+    m_grassInstances.clear();
+    // Reset foliage card instances; refilled by the leaf scans in this (cube) + the subcube pass.
+    m_foliageInstances.clear();
 
     // Per-material face textures + flags (computed once per distinct material in chunk).
     // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
     // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
-    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; };
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; uint8_t isGrass; uint8_t isBillboarded; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
     // Reused member scratch buffers (.assign re-zeros without reallocating once warm) — avoids
@@ -195,7 +212,11 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (it == matIdByName.end()) {
             MatFace mf{};
             for (int f = 0; f < 6; ++f) mf.tex[f] = reg.getTextureIndex(mname, f);
+            // Grass-topped materials get a procedural blade layer (see grass scan below).
+            mf.isGrass = (mname == "Grass" || mname == "GrassForest" || mname == "GrassSavanna") ? 1u : 0u;
             const auto* md = reg.getMaterial(mname);
+            // Billboarded (leaf) materials: solid faces are skipped and foliage cards drawn instead.
+            mf.isBillboarded = (s_foliageEnabled && md && md->billboarded) ? 1u : 0u;
             bool em = md && md->emissive;
             bool tr = md && md->alpha < 0.99f;
             bool mi = md && md->isMirror;
@@ -439,6 +460,60 @@ void ChunkRenderManager::rebuildCubeFaces(
         return false;  // chunk boundary, no lookup → face exposed
     };
 
+    // --- Grass blade instances: one per exposed grass-topped voxel ---
+    // A grass voxel sprouts blades when its +Y face is exposed (the same visibility test the top
+    // face mesh uses via neighborSolid, so grass never appears under a structure/overhang or in a
+    // filled cave). The air cell directly above supplies the baked skylight + block light so blades
+    // darken in shadow/caves and pick up glow. Colour comes from the voxel's grass-top texture
+    // (matFaces[m].tex[4]); the vertex shader fans this single instance into a clump of blades.
+    for (int x = 0; x < N; ++x)
+    for (int z = 0; z < N; ++z)
+    for (int y = 0; y < N; ++y) {
+        int cell = cellIdx(x, y, z);
+        if (!solidVis[cell]) continue;
+        int m = cellMat[cell];
+        if (m < 0) continue;
+        // Billboarded leaf CUBE (rare — most leaves are subcubes): its solid faces were skipped in
+        // the mesh above; emit ONE foliage instance (cards at the cube centre) if the cube is exposed.
+        if (matFaces[m].isBillboarded) {
+            bool exposed = !neighborSolid(x + 1, y, z) || !neighborSolid(x - 1, y, z) ||
+                           !neighborSolid(x, y + 1, z) || !neighborSolid(x, y - 1, z) ||
+                           !neighborSolid(x, y, z + 1) || !neighborSolid(x, y, z - 1);
+            if (exposed) {
+                uint8_t sky = skyLightAt(x, y + 1, z) & 0xF;  // sample air above the canopy cube
+                uint8_t br = 0, bg = 0, bb = 0;
+                blockLightAt(x, y + 1, z, br, bg, bb);
+                FoliageInstanceData fi;
+                fi.packed = (static_cast<uint32_t>(x) & 0x1F)
+                          | ((static_cast<uint32_t>(y) & 0x1F) << 5)
+                          | ((static_cast<uint32_t>(z) & 0x1F) << 10)
+                          | (1u << 15) | (1u << 17) | (1u << 19)   // sub = (1,1,1): cube centre
+                          | ((static_cast<uint32_t>(sky) & 0xF) << 21);
+                fi.tex = static_cast<uint32_t>(matFaces[m].tex[0])
+                       | ((static_cast<uint32_t>(br) & 0xF) << 16)
+                       | ((static_cast<uint32_t>(bg) & 0xF) << 20)
+                       | ((static_cast<uint32_t>(bb) & 0xF) << 24);
+                m_foliageInstances.push_back(fi);
+            }
+            continue;  // billboarded leaf cube is not grass
+        }
+        if (!matFaces[m].isGrass) continue;
+        if (neighborSolid(x, y + 1, z)) continue;   // top face covered → no grass
+        uint8_t sky = skyLightAt(x, y + 1, z) & 0xF;
+        uint8_t br = 0, bg = 0, bb = 0;
+        blockLightAt(x, y + 1, z, br, bg, bb);
+        GrassInstanceData gi;
+        gi.packed = (static_cast<uint32_t>(x) & 0x1F)
+                  | ((static_cast<uint32_t>(y) & 0x1F) << 5)
+                  | ((static_cast<uint32_t>(z) & 0x1F) << 10)
+                  | ((static_cast<uint32_t>(sky) & 0xF) << 15)
+                  | ((static_cast<uint32_t>(br) & 0xF) << 19)
+                  | ((static_cast<uint32_t>(bg) & 0xF) << 23)
+                  | ((static_cast<uint32_t>(bb) & 0xF) << 27);
+        gi.tex = matFaces[m].tex[4];  // +Y (top) grass texture — colour source
+        m_grassInstances.push_back(gi);
+    }
+
     // Face direction offsets: 0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y
     const int fdx[6] = {0, 0, 1, -1, 0, 0};
     const int fdy[6] = {0, 0, 0, 0, 1, -1};
@@ -481,6 +556,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                     if (!solidVis[cell]) continue;
                     if (neighborSolid(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID])) continue;
                     int m = cellMat[cell];
+                    if (m >= 0 && matFaces[m].isBillboarded) continue;  // leaf cube → foliage cards, no solid face
                     int mi = u * N + v;
                     hasFace[mi] = 1;
                     // Fold damage into the merge key so damaged voxels don't merge with pristine.
@@ -666,6 +742,9 @@ void ChunkRenderManager::rebuildSubcubeFaces(
     const std::vector<std::unique_ptr<Subcube>>& subcubes,
     const glm::ivec3& worldOrigin)
 {
+    // (m_foliageInstances is cleared in rebuildCubeFaces, which runs first via rebuildAllFaces, so
+    // cube-leaf + subcube-leaf foliage instances accumulate into the same list.)
+
     // Process subcubes (from subdivided cubes)
     for (const auto& subcube : subcubes) {
         // Skip broken or hidden subcubes
@@ -705,6 +784,40 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 } else {
                     faceVisible[f] = !subCellSolid(nx / 3, ny / 3, nz / 3, nx % 3, ny % 3, nz % 3);
                 }
+            }
+        }
+
+        // Billboarded foliage (leaf materials): skip solid faces entirely — the FoliageRenderPipeline
+        // draws cutout leaf cards instead. Emit ONE foliage instance for exposed (canopy-shell) leaf
+        // subcubes; buried ones are invisible and contribute nothing. The subcube stays in occupancy
+        // (buildSubMicroOccupancy) so interior wood faces still cull. Gated on s_foliageEnabled.
+        if (s_foliageEnabled) {
+            const auto* md = Phyxel::Core::MaterialRegistry::instance().getMaterial(subcube->getMaterialName());
+            if (md && md->billboarded) {
+                bool exposed = faceVisible[0] || faceVisible[1] || faceVisible[2] ||
+                               faceVisible[3] || faceVisible[4] || faceVisible[5];
+                if (exposed) {
+                    // Baked light at the leaf's own (air) cell — canopy gets dappled sky/block light.
+                    uint8_t skyV = skyLightAt(parentChunkPos.x, parentChunkPos.y, parentChunkPos.z) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(parentChunkPos.x, parentChunkPos.y, parentChunkPos.z, br, bg, bb);
+                    FoliageInstanceData fi;
+                    fi.packed = (static_cast<uint32_t>(parentChunkPos.x) & 0x1F)
+                              | ((static_cast<uint32_t>(parentChunkPos.y) & 0x1F) << 5)
+                              | ((static_cast<uint32_t>(parentChunkPos.z) & 0x1F) << 10)
+                              | ((static_cast<uint32_t>(localPos.x) & 0x3) << 15)
+                              | ((static_cast<uint32_t>(localPos.y) & 0x3) << 17)
+                              | ((static_cast<uint32_t>(localPos.z) & 0x3) << 19)
+                              | ((static_cast<uint32_t>(skyV) & 0xF) << 21);
+                    uint16_t leafTex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
+                                           subcube->getMaterialName(), 0 /*side_n*/);
+                    fi.tex = static_cast<uint32_t>(leafTex)
+                           | ((static_cast<uint32_t>(br) & 0xF) << 16)
+                           | ((static_cast<uint32_t>(bg) & 0xF) << 20)
+                           | ((static_cast<uint32_t>(bb) & 0xF) << 24);
+                    m_foliageInstances.push_back(fi);
+                }
+                continue;  // billboarded leaf: no solid faces emitted
             }
         }
 
@@ -835,6 +948,38 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
             }
         }
 
+        // Billboarded leaf MICROCUBE (rare — trees prune micro leaves): skip solid faces; emit one
+        // foliage instance at the parent subcube position if exposed. (Multiple micro leaves in one
+        // subcube overlap into a denser sprig — acceptable for this rare case.)
+        if (s_foliageEnabled) {
+            const auto* md = Phyxel::Core::MaterialRegistry::instance().getMaterial(microcube->getMaterialName());
+            if (md && md->billboarded) {
+                bool exposed = faceVisible[0] || faceVisible[1] || faceVisible[2] ||
+                               faceVisible[3] || faceVisible[4] || faceVisible[5];
+                if (exposed) {
+                    uint8_t skyV = skyLightAt(parentChunkPos.x, parentChunkPos.y, parentChunkPos.z) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0;
+                    blockLightAt(parentChunkPos.x, parentChunkPos.y, parentChunkPos.z, br, bg, bb);
+                    FoliageInstanceData fi;
+                    fi.packed = (static_cast<uint32_t>(parentChunkPos.x) & 0x1F)
+                              | ((static_cast<uint32_t>(parentChunkPos.y) & 0x1F) << 5)
+                              | ((static_cast<uint32_t>(parentChunkPos.z) & 0x1F) << 10)
+                              | ((static_cast<uint32_t>(subcubePos.x) & 0x3) << 15)
+                              | ((static_cast<uint32_t>(subcubePos.y) & 0x3) << 17)
+                              | ((static_cast<uint32_t>(subcubePos.z) & 0x3) << 19)
+                              | ((static_cast<uint32_t>(skyV) & 0xF) << 21);
+                    uint16_t leafTex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex(
+                                           microcube->getMaterialName(), 0);
+                    fi.tex = static_cast<uint32_t>(leafTex)
+                           | ((static_cast<uint32_t>(br) & 0xF) << 16)
+                           | ((static_cast<uint32_t>(bg) & 0xF) << 20)
+                           | ((static_cast<uint32_t>(bb) & 0xF) << 24);
+                    m_foliageInstances.push_back(fi);
+                }
+                continue;  // billboarded leaf microcube: no solid faces emitted
+            }
+        }
+
         // Generate instance data for each visible face of the microcube
         for (int faceID = 0; faceID < 6; ++faceID) {
             if (faceVisible[faceID]) {
@@ -898,22 +1043,45 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
 }
 
 void ChunkRenderManager::updateVulkanBuffer() {
-    if (faces.empty()) return;
-    if (!renderBuffer.getMappedMemory()) return;
+    // Face buffer (cube/sub/micro). A chunk may legitimately have no solid faces but still have
+    // foliage/grass (e.g. a leaf-only bush, whose billboarded leaves emit no faces), so the grass
+    // and foliage uploads below are NOT gated on faces being non-empty.
+    if (!faces.empty() && renderBuffer.getMappedMemory()) {
+        // ensureBufferCapacity may call reallocateBuffer() which remaps memory —
+        // fetch the pointer AFTER this call so we never write to a freed mapping.
+        ensureBufferCapacity(faces.size());
+        void* mappedMem = renderBuffer.getMappedMemory();
+        if (mappedMem) {
+            renderBuffer.updateMaxUsage(faces.size());
+            memcpy(mappedMem, faces.data(), sizeof(InstanceData) * faces.size());
+        }
+    }
 
-    // ensureBufferCapacity may call reallocateBuffer() which remaps memory —
-    // fetch the pointer AFTER this call so we never write to a freed mapping.
-    ensureBufferCapacity(faces.size());
+    // Grass parallel buffer: grow if a terrain edit added grass beyond capacity, then upload.
+    // (Grass only exists on visible top faces, so faces is non-empty whenever grass is.)
+    if (!m_grassInstances.empty() && grassBuffer.getMappedMemory()) {
+        if (m_grassInstances.size() > grassBuffer.getCapacity()) {
+            grassBuffer.reallocateBuffer(m_grassInstances.size());
+        }
+        void* grassMem = grassBuffer.getMappedMemory();  // re-fetch: reallocate may remap
+        if (grassMem) {
+            memcpy(grassMem, m_grassInstances.data(),
+                   sizeof(GrassInstanceData) * m_grassInstances.size());
+        }
+    }
 
-    void* mappedMem = renderBuffer.getMappedMemory();
-    if (!mappedMem) return;
+    // Foliage parallel buffer (same pattern as grass).
+    if (!m_foliageInstances.empty() && foliageBuffer.getMappedMemory()) {
+        if (m_foliageInstances.size() > foliageBuffer.getCapacity()) {
+            foliageBuffer.reallocateBuffer(m_foliageInstances.size());
+        }
+        void* foliageMem = foliageBuffer.getMappedMemory();  // re-fetch: reallocate may remap
+        if (foliageMem) {
+            memcpy(foliageMem, m_foliageInstances.data(),
+                   sizeof(FoliageInstanceData) * m_foliageInstances.size());
+        }
+    }
 
-    // Track peak usage for analysis
-    renderBuffer.updateMaxUsage(faces.size());
-
-    // Copy data to GPU buffer (only the used portion)
-    VkDeviceSize copySize = sizeof(InstanceData) * faces.size();
-    memcpy(mappedMem, faces.data(), copySize);
     needsUpdate = false;
     
     // Periodic utilization logging
@@ -1039,10 +1207,20 @@ void ChunkRenderManager::createVulkanBuffer() {
         throw std::runtime_error("ChunkRenderManager::createVulkanBuffer() called before initialize()!");
     }
     renderBuffer.createBuffer(faces);
+    // Parallel grass buffer, sized to the grass instances (small: ≤1024/chunk). Capacity floor of 1
+    // keeps a valid mapped buffer even for grassless chunks (the renderer skips them by count).
+    grassBuffer.createBufferRaw(m_grassInstances.data(), m_grassInstances.size(),
+                                sizeof(GrassInstanceData),
+                                std::max<size_t>(m_grassInstances.size(), 1));
+    foliageBuffer.createBufferRaw(m_foliageInstances.data(), m_foliageInstances.size(),
+                                  sizeof(FoliageInstanceData),
+                                  std::max<size_t>(m_foliageInstances.size(), 1));
 }
 
 void ChunkRenderManager::cleanupVulkanResources() {
     renderBuffer.cleanup();
+    grassBuffer.cleanup();
+    foliageBuffer.cleanup();
 }
 
 void ChunkRenderManager::ensureBufferCapacity(size_t requiredInstances) {

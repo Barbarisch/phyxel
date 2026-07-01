@@ -535,7 +535,8 @@
         "side_w": "leaf_side_w.png",
         "top": "leaf_top.png",
         "bottom": "leaf_bottom.png"
-      }
+      },
+      "billboarded": true
     },
     {
       "name": "glow",
@@ -740,7 +741,8 @@
         "side_w": "leaf_birch_side_w.png",
         "top": "leaf_birch_top.png",
         "bottom": "leaf_birch_bottom.png"
-      }
+      },
+      "billboarded": true
     },
     {
       "name": "LeafSpruce",
@@ -770,7 +772,8 @@
         "side_w": "leaf_spruce_side_w.png",
         "top": "leaf_spruce_top.png",
         "bottom": "leaf_spruce_bottom.png"
-      }
+      },
+      "billboarded": true
     },
     {
       "name": "LeafJungle",
@@ -800,7 +803,8 @@
         "side_w": "leaf_jungle_side_w.png",
         "top": "leaf_jungle_top.png",
         "bottom": "leaf_jungle_bottom.png"
-      }
+      },
+      "billboarded": true
     },
     {
       "name": "LeafAutumn",
@@ -830,7 +834,8 @@
         "side_w": "leaf_autumn_side_w.png",
         "top": "leaf_autumn_top.png",
         "bottom": "leaf_autumn_bottom.png"
-      }
+      },
+      "billboarded": true
     },
     {
       "name": "GrassForest",

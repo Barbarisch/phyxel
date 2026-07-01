@@ -708,5 +708,37 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling grass vertex shader...
+%GLSLANG% -V -I. shaders\grass.vert -o shaders\grass.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile grass.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling grass fragment shader...
+%GLSLANG% -V -I. shaders\grass.frag -o shaders\grass.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile grass.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling foliage vertex shader...
+%GLSLANG% -V -I. shaders\foliage.vert -o shaders\foliage.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile foliage.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling foliage fragment shader...
+%GLSLANG% -V -I. shaders\foliage.frag -o shaders\foliage.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile foliage.frag
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause
