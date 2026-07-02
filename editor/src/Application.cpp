@@ -13067,6 +13067,15 @@ void Application::processAPICommands() {
                                 }
                             }
 
+                            // NOTE: yard grading (V3 yard_not_flat) is intentionally NOT done here. A
+                            // per-building hard-flatten of the footprint+yardWidth ring creates a cliff at
+                            // the ring boundary, and because a building's footprint is usually smaller than
+                            // its plot the FENCE sits at the plot edge — beyond that ring — right against
+                            // the new cliff, regressing fence_along_cliff (measured 0->17). Correct yard
+                            // grading must be SETTLEMENT-level: grade the whole plot to the building grade
+                            // with a gentle (<=1-step) skirt OUTSIDE the plot so the fence never abuts a
+                            // cliff. Deferred as a terracing feature.
+
                             // Rebuild NavGrid for the affected region
                             if (npcManager) {
                                 npcManager->onRegionChanged(smin, smax);
