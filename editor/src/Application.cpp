@@ -13148,6 +13148,15 @@ void Application::processAPICommands() {
                                             got = true;
                                         }
                                     }
+                                    // NOTE: a hearth (and any large wall-backed piece) spills ~1 cube past
+                                    // its cube footprint — its sub-cube micro width + the wall-inset anchor
+                                    // straddles an extra cube — leaving a "free" cell the reservation didn't
+                                    // claim, so furniture lands there (V5 furniture_overlap / on_fireplace).
+                                    // A +1 footprint pad closes it BUT over-reserves and drops furniture in
+                                    // tight rooms (measured: house_2 hall lost table+bench). The correct fix
+                                    // is to reserve the fixture's ACTUAL placed cube extent (compute the
+                                    // rotated micro-AABB with the real anchor, floor/ceil to cubes) so the
+                                    // reservation matches the render exactly. Deferred.
                                     if (got) fixtureFootprints[type] = fp;
                                 }
                                 {
