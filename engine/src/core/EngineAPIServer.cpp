@@ -1119,6 +1119,39 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/world/validate — Run geometric world-placement detectors over the
+    // live realized world (placed fixtures + stamped voxels). Body: {} (no params).
+    // Returns a ValidationReport (issues[] with code/message/where).
+    // ====================================================================
+    srv.Post("/api/world/validate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("validate_world", params, 30000);   // heavy micro-scans
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/world/scan_micro — Micro-resolution region scan (cube/subcube/
+    // microcube materials per cube). Body: {x1,y1,z1,x2,y2,z2} in CUBE coords.
+    // ====================================================================
+    srv.Post("/api/world/scan_micro", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("scan_region_micro", params, 30000);   // micro-resolution scan
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/structure/types — List available structure types
     // ====================================================================
     srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {

@@ -56,6 +56,10 @@ ASSETS = {
     "Sand":         {"all": "Ground027"},
     "Gravel":       {"all": "Gravel022"},
     "Wood":         {"all": "WoodFloor007"},
+    # Furniture hardwood — dark espresso walnut, distinct from the light oak floor (Wood).
+    # Wood051 is CC0 and explicitly "furniture"-tagged; its roughness map reads polished, so
+    # materials.json overrides roughness to 0.60 for the oiled/waxed medieval look.
+    "WoodWalnut":   {"all": "Wood051"},
     "Bricks":       {"all": "Bricks097"},
     "Sandstone":    {"all": "Rock035"},
     "Metal":        {"all": "MetalPlates006"},

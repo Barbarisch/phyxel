@@ -74,6 +74,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/FurniturePlacer.h"           // v2 algorithmic furniture placement (facing/clearance)
 #include "core/FurnitureCatalog.h"          // type->template single source + asset-coverage gate
 #include "core/RealizedStructureValidator.h" // V6 hanging-sign clearance/projection gate
+#include "core/RealizedWorldValidator.h"     // geometric world-placement detectors (furniture overlap, ...)
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
@@ -6748,6 +6749,192 @@ static bool handlePlacedObjectCommand(
         }
         return true;
 
+    } else if (cmd.action == "validate_world") {
+        // Run the geometric world-placement detectors over the live placed fixtures. Fixtures only
+        // (category "template"); the structure shells are the containers, not overlap candidates.
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+        } else {
+            std::vector<Core::PlacedBox> boxes;
+            std::vector<Core::FootprintScan> structs;
+            for (const auto& o : placedObjectManager->list()) {
+                if (o.category == "structure") {
+                    structs.push_back({o.id, o.boundingMin, o.boundingMax});
+                    continue;
+                }
+                if (o.category != "template") continue;
+                Core::PlacedBox b;
+                b.id = o.id;
+                b.parent = o.parentId;
+                b.type = (o.metadata.contains("fixture") && o.metadata["fixture"].contains("type"))
+                             ? o.metadata["fixture"]["type"].get<std::string>()
+                             : o.templateName;
+                b.min = o.boundingMin;
+                b.max = o.boundingMax;
+                boxes.push_back(b);
+            }
+            // Material lookup at a world CUBE coordinate (empty string if no cube there).
+            Core::MaterialAt matAt = [cm = chunkManager](int x, int y, int z) -> std::string {
+                if (!cm) return std::string();
+                auto* c = cm->getCubeAt(glm::ivec3(x, y, z));
+                return c ? c->getMaterialName() : std::string();
+            };
+            // Micro-aware predicate: does world cube (x,y,z) contain `mat` at cube/subcube/microcube
+            // level? (Chimney/wall Stone are sub/microcubes, invisible to the full-cube lookup.)
+            Core::CubeHasMaterial hasMat = [cm = chunkManager](int x, int y, int z,
+                                                               const std::string& mat) -> bool {
+                if (!cm) return false;
+                glm::ivec3 wc(x, y, z);
+                if (auto* c = cm->getCubeAt(wc)) if (c->getMaterialName() == mat) return true;
+                Chunk* chunk = cm->getChunkAt(wc);
+                if (!chunk) return false;
+                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
+                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
+                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
+                    glm::ivec3 sp(sx, sy, sz);
+                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) if (sc->getMaterialName() == mat) return true;
+                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
+                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
+                            if (mc->getMaterialName() == mat) return true;
+                }
+                return false;
+            };
+            std::vector<Core::PlacedBox> fireplaces;
+            for (const auto& b : boxes)
+                if (Core::RealizedWorldValidator::isHearth(b.type)) fireplaces.push_back(b);
+
+            Core::ValidationReport rep;
+            rep.merge(Core::RealizedWorldValidator::checkFurnitureOverlaps(boxes));
+            rep.merge(Core::RealizedWorldValidator::checkGrassUnderFootprint(structs, matAt));
+            rep.merge(Core::RealizedWorldValidator::checkChimneyOverHearth(fireplaces, hasMat));
+            rep.merge(Core::RealizedWorldValidator::checkPathUnderFootprint(structs, hasMat));
+            // Terrain surface height at a column (highest solid full cube; terrain is full cubes).
+            Core::SurfaceHeight surfaceH = [cm = chunkManager](int x, int z) -> int {
+                if (!cm) return INT_MIN;
+                for (int y = 80; y >= -16; --y)
+                    if (cm->getCubeAt(glm::ivec3(x, y, z))) return y;
+                return INT_MIN;
+            };
+            rep.merge(Core::RealizedWorldValidator::checkYardFlatness(structs, surfaceH));
+            rep.merge(Core::RealizedWorldValidator::checkFloorFlush(structs, surfaceH));
+
+            // Fence posts: count Log micro/subcubes in a world cube (fences are Log micros).
+            auto logCount = [cm = chunkManager](int x, int y, int z) -> int {
+                if (!cm) return 0;
+                if (auto* c = cm->getCubeAt(glm::ivec3(x, y, z)))
+                    if (c->getMaterialName() == "Log") return 27;
+                Chunk* chunk = cm->getChunkAt(glm::ivec3(x, y, z));
+                if (!chunk) return 0;
+                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
+                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
+                int n = 0;
+                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
+                    glm::ivec3 sp(sx, sy, sz);
+                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) if (sc->getMaterialName() == "Log") ++n;
+                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
+                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
+                            if (mc->getMaterialName() == "Log") ++n;
+                }
+                return n;
+            };
+            std::vector<Core::FencePost> fencePosts;
+            const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
+            for (const auto& s : structs) {
+                for (int x = s.min.x - FR; x <= s.max.x + FR; ++x)
+                    for (int z = s.min.z - FR; z <= s.max.z + FR; ++z) {
+                        const int surf = surfaceH(x, z);
+                        if (surf == INT_MIN) continue;
+                        int bestY = INT_MIN, bestN = 0;
+                        for (int y = surf; y <= surf + 2; ++y) {
+                            const int n = logCount(x, y, z);
+                            if (n > bestN) { bestN = n; bestY = y; }
+                        }
+                        if (bestN >= 10) fencePosts.push_back({glm::ivec3(x, bestY, z), bestN});
+                    }
+            }
+            rep.merge(Core::RealizedWorldValidator::checkFenceCornerOverlaps(fencePosts));
+            rep.merge(Core::RealizedWorldValidator::checkFenceOverPath(fencePosts, hasMat));
+            rep.merge(Core::RealizedWorldValidator::checkFenceAgainstRise(fencePosts, surfaceH));
+
+            // Chest facing: a chest should back onto its nearest wall. Wall = structural (Wood/
+            // StoneBricks/Stone) at two heights with NO Metal (excludes the chest/furniture itself).
+            Core::WallAt wallAt = [&](int x, int y, int z) -> bool {
+                if (hasMat(x, y, z, "Metal") || hasMat(x, y + 1, z, "Metal")) return false;
+                auto structural = [&](int yy) {
+                    return hasMat(x, yy, z, "Wood") || hasMat(x, yy, z, "StoneBricks") ||
+                           hasMat(x, yy, z, "Stone");
+                };
+                return structural(y) && structural(y + 1);
+            };
+            std::vector<Core::ChestPlacement> chests;
+            for (const auto& o : placedObjectManager->list()) {
+                if (o.category != "template") continue;
+                const std::string type =
+                    (o.metadata.contains("fixture") && o.metadata["fixture"].contains("type"))
+                        ? o.metadata["fixture"]["type"].get<std::string>() : o.templateName;
+                if (type.find("chest") == std::string::npos) continue;
+                Core::ChestPlacement cp;
+                cp.id = o.id;
+                cp.center = glm::ivec3((o.boundingMin.x + o.boundingMax.x) / 2, o.boundingMin.y,
+                                       (o.boundingMin.z + o.boundingMax.z) / 2);
+                cp.rotation = o.rotation;
+                chests.push_back(cp);
+            }
+            rep.merge(Core::RealizedWorldValidator::checkChestFacing(chests, wallAt));
+
+            response = rep.toJson();
+            response["scanned_chests"] = chests.size();
+            response["scanned_fixtures"] = boxes.size();
+            response["scanned_structures"] = structs.size();
+            response["scanned_fireplaces"] = fireplaces.size();
+            response["scanned_fence_posts"] = fencePosts.size();
+        }
+        return true;
+
+    } else if (cmd.action == "scan_region_micro") {
+        // Micro-resolution scan: unlike scan_region (full cubes only), this reports the distinct
+        // materials present at cube/subcube/microcube level per world cube — so structure walls,
+        // roofs, chimneys, and paths (all sub/microcubes) are visible. Region is in CUBE coords.
+        if (!chunkManager) {
+            response = {{"error", "ChunkManager not available"}};
+        } else {
+            const int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+            const int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+            const int lox = std::min(x1, x2), hix = std::max(x1, x2);
+            const int loy = std::min(y1, y2), hiy = std::max(y1, y2);
+            const int loz = std::min(z1, z2), hiz = std::max(z1, z2);
+            nlohmann::json cells = nlohmann::json::array();
+            long budget = 4000;
+            for (int x = lox; x <= hix && budget > 0; ++x)
+            for (int y = loy; y <= hiy && budget > 0; ++y)
+            for (int z = loz; z <= hiz && budget > 0; ++z) {
+                glm::ivec3 wc(x, y, z);
+                Chunk* chunk = chunkManager->getChunkAt(wc);
+                if (!chunk) continue;
+                // Chunk-local cube position (0..31) via floor-division (world coords can be negative).
+                auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
+                const glm::ivec3 lc(x - fdiv(x, 32) * 32, y - fdiv(y, 32) * 32, z - fdiv(z, 32) * 32);
+                std::map<std::string, int> matc;   // material -> occupied sub/microcube count
+                if (auto* c = chunkManager->getCubeAt(wc)) matc[c->getMaterialName()] += 27;  // a full cube
+                for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz) {
+                    glm::ivec3 sp(sx, sy, sz);
+                    if (auto* sc = chunk->getSubcubeAt(lc, sp)) matc[sc->getMaterialName()] += 1;
+                    for (int mx = 0; mx < 3; ++mx) for (int my = 0; my < 3; ++my) for (int mz = 0; mz < 3; ++mz)
+                        if (auto* mc = chunk->getMicrocubeAt(lc, sp, glm::ivec3(mx, my, mz)))
+                            matc[mc->getMaterialName()] += 1;
+                }
+                if (!matc.empty()) {
+                    std::vector<std::string> keys;
+                    for (const auto& kv : matc) keys.push_back(kv.first);
+                    cells.push_back({{"x", x}, {"y", y}, {"z", z},
+                                     {"materials", keys}, {"counts", matc}});
+                    --budget;
+                }
+            }
+            response = {{"cells", cells}, {"count", cells.size()}};
+        }
+        return true;
+
     } else if (cmd.action == "get_placed_object") {
         if (!placedObjectManager) {
             response = {{"error", "PlacedObjectManager not available"}};
@@ -10136,8 +10323,64 @@ void Application::registerSettlementCommands() {
         Core::RoomProgramRegistry roomReg;
         roomReg.loadFromFile("resources/room_program.json");
 
+        // TERRACE (settlement pre-pass, terrain mode): treat each parcel (structure + its yard) as ONE
+        // unit and grade it into the terrain BEFORE any building seats — so the yard is flat, the floor
+        // lands flush (no step-in), and the perimeter fence sits on level ground. Median grade minimises
+        // earthwork; a skirt outside the plot ramps to natural terrain at <=1 step/cube so the fence
+        // never abuts a cliff. Applied per-plot (later plots grade over earlier skirts); runs before the
+        // build loop's groundTopAt seating, so buildings seat on the graded parcel. (floor_not_flush +
+        // yard_not_flat; must NOT reintroduce fence_along_cliff.)
+        if (terrain && chunkManager) {
+            const int SK = 4;                 // skirt width (cubes) blending plot grade -> natural terrain
+            long terracedCols = 0, tCut = 0, tFill = 0;
+            for (const auto& plot : layout.plots) {
+                const Core::Rect& pr = plot.rect;
+                const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
+                if (pw < 2 || pd < 2) continue;
+                std::vector<int> tops;
+                for (int x = px0; x < px0 + pw; ++x)
+                    for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(groundTopAt(x, z));
+                std::sort(tops.begin(), tops.end());
+                const int grade = tops[tops.size() / 2];          // median plot grade
+                std::vector<glm::ivec3> tcut;
+                Core::StructureResult tfill;
+                auto addT = [&](int x, int y, int z, const char* mat) {
+                    Core::VoxelPlacement vp; vp.position = glm::ivec3(x, y, z);
+                    vp.material = mat; vp.level = Core::VoxelLevel::Cube; tfill.voxels.push_back(vp);
+                };
+                for (int x = px0 - SK; x < px0 + pw + SK; ++x)
+                    for (int z = pz0 - SK; z < pz0 + pd + SK; ++z) {
+                        const bool inPlot = x >= px0 && x < px0 + pw && z >= pz0 && z < pz0 + pd;
+                        int target;
+                        if (inPlot) {
+                            target = grade;
+                        } else {                                   // skirt: ramp grade -> natural, <=1/cube
+                            const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
+                            const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
+                            const int dist = std::max(dx, dz);     // Chebyshev distance outside the plot
+                            const int nat = groundTopAt(x, z);
+                            target = (nat > grade) ? std::min(nat, grade + dist)
+                                                   : std::max(nat, grade - dist);
+                        }
+                        const int cur = groundTopAt(x, z);
+                        if (target == cur) continue;               // already at target (flat / skirt tail)
+                        for (int y = target + 1; y <= cur; ++y) { tcut.push_back(glm::ivec3(x, y, z)); ++tCut; }
+                        for (int y = cur + 1; y < target; ++y) { addT(x, y, z, "Dirt"); ++tFill; }
+                        tcut.push_back(glm::ivec3(x, target, z));  // (re)surface the graded top as Grass
+                        addT(x, target, z, "Grass"); ++tFill;
+                        ++terracedCols;
+                    }
+                if (!tcut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, tcut);
+                if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
+            }
+            if (terracedCols > 0) chunkManager->buildAllChunkPhysics();
+            LOG_INFO_FMT("Settlement", "terrace: graded " << layout.plots.size() << " parcels ("
+                         << terracedCols << " columns, cut " << tCut << " fill " << tFill << ")");
+        }
+
         nlohmann::json queued = nlohmann::json::array();
         std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
+        std::vector<glm::ivec4> bFoot;        // per-building footprint (x,z,w,d) — paths must not pave under it (V7)
         for (size_t i = 0; i < buildings.size(); ++i) {
             const auto& b = buildings[i];
             const int plotX = ox + b.footprint.x, plotZ = oz + b.footprint.z;
@@ -10183,6 +10426,7 @@ void Application::registerSettlementCommands() {
                               {"footprint", nlohmann::json::array({bw, bd})},
                               {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
             doorCenters.push_back(glm::ivec3(bx + bw / 2, by, bz + bd / 2));  // path anchor
+            bFoot.push_back(glm::ivec4(bx, bz, bw, bd));                      // footprint for path masking (V7)
         }
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
@@ -10244,12 +10488,25 @@ void Application::registerSettlementCommands() {
             // WRITE PASS: pave each cell. FILL/LEVEL (S>=terr) place a Cobblestone ribbon from the terrain
             // up to S — the top microcube sits in open air (no terrain cube to subdivide), so it is cheap.
             long placedFill = 0, levelPaved = 0, cut = 0;
+            std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED (Cobblestone) — fences gap here (V1)
+            // V7: a path must route AROUND buildings — never pave the footprint INTERIOR (inset 1 from the
+            // walls so a path meeting the door at the perimeter is fine, matching the V7 detector).
+            auto insideFootprint = [&](int cbx, int cbz) {
+                for (const auto& f : bFoot)
+                    if (cbx >= f.x + 1 && cbx <= f.x + f.z - 2 && cbz >= f.y + 1 && cbz <= f.y + f.w - 2)
+                        return true;
+                return false;
+            };
             const double t0 = glfwGetTime();
             for (const auto& kv : col) {
                 const int cx = static_cast<int>(kv.first >> 32), cz = static_cast<int>(static_cast<int32_t>(kv.first & 0xffffffffLL));
+                const int ccx = fl9(cx), ccz = fl9(cz);
+                if (insideFootprint(ccx, ccz)) continue;   // V7: don't pave under a building
                 const int S = kv.second.first, terr = kv.second.second;
-                if (S >= terr) for (int my = terr; my <= S; ++my) { if (stampMicro(cx, my, cz)) (S == terr ? ++levelPaved : ++placedFill); }
-                else ++cut;  // S below terrain -> owed: removeMicrocube above S (36b)
+                if (S >= terr) {
+                    pavedCols.insert({ccx, ccz});          // V1: only REALLY-paved columns gap the fence (not cut cells)
+                    for (int my = terr; my <= S; ++my) { if (stampMicro(cx, my, cz)) (S == terr ? ++levelPaved : ++placedFill); }
+                } else ++cut;  // S below terrain -> owed: removeMicrocube above S (36b)
             }
             const double stampMs = (glfwGetTime() - t0) * 1000.0;
             chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
@@ -10300,9 +10557,14 @@ void Application::registerSettlementCommands() {
                                                                               : (scz > pcz ? 'N' : 'S');
                 ++parcels;
                 // stamp one parcel edge: run along an axis at a fixed boundary cube row; leave the gate gap.
+                const int NDX[4] = {1, -1, 0, 0}, NDZ[4] = {0, 0, 1, -1};
                 auto stampEdge = [&](bool alongX, int fixedCube, int runFrom, int runTo, char thisSide) {
                     const int runLenMicro = (runTo - runFrom) * 9;
-                    const Core::FenceProfile prof = Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType);
+                    if (runLenMicro <= 0) return;                              // empty run (corner-excluded W/E)
+                    // endPosts = alongX: the N/S runs own the corner posts; the W/E runs omit their end
+                    // posts so each corner is ONE shared post (no doubled corner). (fence_posts_adjacent)
+                    const Core::FenceProfile prof =
+                        Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType, 1, alongX);
                     if (!prof.ok) return;
                     int gLo = -1, gHi = -1;
                     if (thisSide == gate) { const int gs = ((runTo - runFrom) - gateW) / 2; gLo = gs * 9; gHi = (gs + gateW) * 9; }
@@ -10310,14 +10572,23 @@ void Application::registerSettlementCommands() {
                         if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
                         const int wx = alongX ? (ox + runFrom) * 9 + c.u : (ox + fixedCube) * 9 + c.w;
                         const int wz = alongX ? (oz + fixedCube) * 9 + c.w : (oz + runFrom) * 9 + c.u;
-                        const int base = (gtAt(fl9(wx), fl9(wz)) + 1) * 9;     // top face of terrain
+                        const int ccx = fl9(wx), ccz = fl9(wz);
+                        if (pavedCols.count({ccx, ccz})) continue;            // V1: gap where a path crosses (gate straddle)
+                        const int g0 = gtAt(ccx, ccz);
+                        bool cliff = false;                                    // V2: don't fence along a >=2-cube terrain step
+                        for (int k = 0; k < 4; ++k)
+                            if (std::abs(gtAt(ccx + NDX[k], ccz + NDZ[k]) - g0) >= 2) { cliff = true; break; }
+                        if (cliff) continue;
+                        const int base = (g0 + 1) * 9;                         // top face of terrain
                         if (fenceMicro(wx, base + c.y, wz)) ++fenceMicros;
                     }
                 };
+                // N/S run the full width (incl. corners); W/E EXCLUDE the corner rows so each corner is
+                // stamped exactly once (V6 fence_corner_overlap: two runs doubling the corner post).
                 stampEdge(true,  pr.z,        pr.x, pr.x1(), 'S');
                 stampEdge(true,  pr.z1() - 1, pr.x, pr.x1(), 'N');
-                stampEdge(false, pr.x,        pr.z, pr.z1(), 'W');
-                stampEdge(false, pr.x1() - 1, pr.z, pr.z1(), 'E');
+                stampEdge(false, pr.x,        pr.z + 1, pr.z1() - 1, 'W');
+                stampEdge(false, pr.x1() - 1, pr.z + 1, pr.z1() - 1, 'E');
             }
             chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fenceMicros
@@ -12665,6 +12936,20 @@ void Application::processAPICommands() {
                                         vp.level    = Core::VoxelLevel::Cube;
                                         fill.voxels.push_back(vp);
                                     }
+                                    // The pad must be BARE EARTH under the floor — clear the grass
+                                    // surface so no grass blades emit under the building (V10
+                                    // grass_under_house). Replace the pad-top cube (level columns) and
+                                    // any original grass surface buried by fill (fill columns) with Dirt.
+                                    auto clearToDirt = [&](int yy) {
+                                        cut.push_back(glm::ivec3(cl.x, yy, cl.y));
+                                        Core::VoxelPlacement pv;
+                                        pv.position = glm::ivec3(cl.x, yy, cl.y);
+                                        pv.material = "Dirt";
+                                        pv.level    = Core::VoxelLevel::Cube;
+                                        fill.voxels.push_back(pv);
+                                    };
+                                    clearToDirt(padLevel);
+                                    if (tops[i] < padLevel) clearToDirt(tops[i]);
                                 }
                                 if (!cut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, cut);
                                 if (!fill.voxels.empty()) Core::StructureGenerator::place(chunkManager, fill);
@@ -12811,6 +13096,45 @@ void Application::processAPICommands() {
                                 if (ws) placedObjectManager->saveToDb(ws->getDb());
                             }
 
+                            // Clear grass under the whole footprint (V10 grass_under_house). prepare_pad
+                            // works on the program footprint and can miss perimeter/wall columns; sweep
+                            // the structure's ACTUAL bbox for terrain grass just below the floor and turn
+                            // it to Dirt so no grass blades emit under the building.
+                            if (!objectId.empty() && chunkManager) {
+                                auto isG = [](const std::string& m) {
+                                    return m == "Grass" || m == "GrassForest" || m == "GrassSavanna";
+                                };
+                                std::vector<glm::ivec3> gcut;
+                                Core::StructureResult gfill;
+                                for (int gx = smin.x; gx <= smax.x; ++gx)
+                                    for (int gz = smin.z; gz <= smax.z; ++gz)
+                                        for (int gy = smin.y - 1; gy >= smin.y - 4; --gy) {
+                                            auto* gc = chunkManager->getCubeAt(glm::ivec3(gx, gy, gz));
+                                            if (gc && isG(gc->getMaterialName())) {
+                                                gcut.push_back(glm::ivec3(gx, gy, gz));
+                                                Core::VoxelPlacement vp;
+                                                vp.position = glm::ivec3(gx, gy, gz);
+                                                vp.material = "Dirt";
+                                                vp.level    = Core::VoxelLevel::Cube;
+                                                gfill.voxels.push_back(vp);
+                                            }
+                                        }
+                                if (!gcut.empty()) {
+                                    Core::StructureGenerator::removeVoxels(chunkManager, gcut);
+                                    Core::StructureGenerator::place(chunkManager, gfill);
+                                    chunkManager->buildAllChunkPhysics();
+                                }
+                            }
+
+                            // NOTE: yard grading (V3 yard_not_flat) is intentionally NOT done here. A
+                            // per-building hard-flatten of the footprint+yardWidth ring creates a cliff at
+                            // the ring boundary, and because a building's footprint is usually smaller than
+                            // its plot the FENCE sits at the plot edge — beyond that ring — right against
+                            // the new cliff, regressing fence_along_cliff (measured 0->17). Correct yard
+                            // grading must be SETTLEMENT-level: grade the whole plot to the building grade
+                            // with a gentle (<=1-step) skirt OUTSIDE the plot so the fence never abuts a
+                            // cliff. Deferred as a terracing feature.
+
                             // Rebuild NavGrid for the affected region
                             if (npcManager) {
                                 npcManager->onRegionChanged(smin, smax);
@@ -12846,13 +13170,64 @@ void Application::processAPICommands() {
                                 for (const auto& type : Core::FurnitureCatalog::mappedTypes()) {
                                     const std::string tmpl = Core::FurnitureCatalog::templateFor(type);
                                     if (tmpl.empty()) continue;
-                                    nlohmann::json m = loadAssetMetricsSidecar(tmpl);
-                                    if (!m.is_object() || !m.contains("overall_max") ||
-                                        !m["overall_max"].is_array() || m["overall_max"].size() < 3)
-                                        continue;
-                                    const double ex = m["overall_max"][0].get<double>();
-                                    const double ez = m["overall_max"][2].get<double>();
-                                    fixtureFootprints[type] = Core::footprintFromExtents(ex, ez);
+                                    // Footprint from the template's ACTUAL occupied cubes (x=width,
+                                    // z=depth) — the metrics overall_max is transposed/wrong vs the voxels
+                                    // (bed_single renders 2x1 but metrics say 1x2), which made the placer
+                                    // reserve the wrong cells and drop a chest inside a bed. The RECTANGLE
+                                    // from the real cube extents corrects the orientation; the placer's
+                                    // coverAt already swaps width/depth per wall so it stays aligned under
+                                    // rotation. (Rectangle, NOT a square — a square over-reserves and drops
+                                    // furniture in tight rooms; V5 furniture_overlap.)
+                                    Core::Footprint fp;
+                                    bool got = false;
+                                    const auto* t = objectTemplateManager
+                                        ? objectTemplateManager->getTemplate(tmpl) : nullptr;
+                                    if (t) {
+                                        int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
+                                        int uMaxX = 0, uMaxZ = 0;   // max MICRO index (for the true placed span)
+                                        auto acc = [&](const glm::ivec3& cube, int microX, int microZ) {
+                                            mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
+                                            mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
+                                            uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
+                                        };
+                                        for (const auto& c : t->cubes)
+                                            acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8);
+                                        for (const auto& s : t->subcubes)
+                                            acc(s.parentRelativePos,
+                                                s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
+                                                s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2);
+                                        for (const auto& mc : t->microcubes)
+                                            acc(mc.parentRelativePos,
+                                                mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
+                                                mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z);
+                                        if (mxx >= mnx) {
+                                            fp.width = mxx - mnx + 1;
+                                            fp.depth = mxz - mnz + 1;
+                                            fp.microW = uMaxX;   // real micro extents -> placedCubeSpan (0-anchored templates)
+                                            fp.microD = uMaxZ;
+                                            got = true;
+                                        }
+                                    }
+                                    if (!got) {   // fallback: metrics sidecar
+                                        nlohmann::json m = loadAssetMetricsSidecar(tmpl);
+                                        if (m.is_object() && m.contains("overall_max") &&
+                                            m["overall_max"].is_array() && m["overall_max"].size() >= 3) {
+                                            const double ex = m["overall_max"][0].get<double>();
+                                            const double ez = m["overall_max"][2].get<double>();
+                                            fp = Core::footprintFromExtents(ex, ez);
+                                            got = true;
+                                        }
+                                    }
+                                    // NOTE: a hearth (and any large wall-backed piece) spills ~1 cube past
+                                    // its cube footprint — its sub-cube micro width + the wall-inset anchor
+                                    // straddles an extra cube — leaving a "free" cell the reservation didn't
+                                    // claim, so furniture lands there (V5 furniture_overlap / on_fireplace).
+                                    // A +1 footprint pad closes it BUT over-reserves and drops furniture in
+                                    // tight rooms (measured: house_2 hall lost table+bench). The correct fix
+                                    // is to reserve the fixture's ACTUAL placed cube extent (compute the
+                                    // rotated micro-AABB with the real anchor, floor/ceil to cubes) so the
+                                    // reservation matches the render exactly. Deferred.
+                                    if (got) fixtureFootprints[type] = fp;
                                 }
                                 {
                                     auto bedIt = fixtureFootprints.find("bed");
@@ -12875,7 +13250,7 @@ void Application::processAPICommands() {
                                         ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
                                         story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
-                                        &v2Unplaced);
+                                        &v2Unplaced, v2ExtTMicro);   // extTMicro -> reserve the TRUE placed span
                                     // Semantic identity per fixture (room/purpose/ordinal/type), 1:1
                                     // with placements — so a session can address "the 2nd bedroom's bed".
                                     auto labels = Core::FurniturePlacer::labelFixtures(story, placements);
@@ -12918,8 +13293,17 @@ void Application::processAPICommands() {
                                             Core::Footprint cfp;
                                             auto fpIt = fixtureFootprints.find(pl.type);
                                             if (fpIt != fixtureFootprints.end()) cfp = fpIt->second;
-                                            const int ccx = microPos.x + std::max(1, cfp.width) * 9 / 2;
-                                            const int ccz = microPos.z + std::max(1, cfp.depth) * 9 / 2;
+                                            // Center the stack on the hearth's ACTUAL placed footprint
+                                            // (its registered world bbox), so a ROTATED hearth still
+                                            // gets its chimney directly overhead. The old calc added the
+                                            // UNROTATED footprint to microPos, so rot 90/270 hearths got
+                                            // an offset stack (V8 chimney_offset_from_hearth).
+                                            int ccx = microPos.x + std::max(1, cfp.width) * 9 / 2;
+                                            int ccz = microPos.z + std::max(1, cfp.depth) * 9 / 2;
+                                            if (const auto* hobj = placedObjectManager->get(fid)) {
+                                                ccx = (hobj->boundingMin.x + hobj->boundingMax.x + 1) * 9 / 2;
+                                                ccz = (hobj->boundingMin.z + hobj->boundingMax.z + 1) * 9 / 2;
+                                            }
                                             // The stack RESTS ON the hearth top (mantel), not from the
                                             // floor — else it punches up through the firebox and reads as
                                             // a separate column overlapping the hearth (V2
@@ -12940,7 +13324,7 @@ void Application::processAPICommands() {
                                                 Core::StructureGenerator::kChimneyRidgeClearanceMicro;
                                             if (topY > baseY) {
                                                 auto chimney = Core::StructureGenerator::planChimneyStack(
-                                                    ccx, ccz, baseY, topY, "Stone");
+                                                    ccx, ccz, baseY, topY, "Bricks");
                                                 Core::StructureGenerator::place(chunkManager, chimney);
                                             }
                                         }

@@ -14,6 +14,44 @@ bool RealizedStructureValidator::isStoneFamily(const std::string& m) {
            m == "Sandstone" || m == "Gravel";
 }
 
+bool RealizedStructureValidator::isEmissive(const std::string& m) {
+    return m == "glow" || m == "glow_blue" || m == "glow_green";
+}
+
+// M1 — flora must not glow. Any emissive material in a plant template is a defect (glowing shrubs).
+ValidationReport RealizedStructureValidator::checkFloraNoEmissive(
+    const std::string& type, const std::vector<std::string>& materials) {
+    ValidationReport rep;
+    for (const auto& m : materials) {
+        if (isEmissive(m)) {
+            rep.addError("flora_emissive",
+                "flora '" + type + "' contains emissive material '" + m + "' — plants (shrubs/bushes/"
+                "trees) must not glow; remove the light-emitting blocks", type);
+        }
+    }
+    return rep;
+}
+
+// M3 — a fireplace/chimney's masonry should be brick, not plain quarried stone. Only "fireplace"/
+// "chimney" types are constrained (a forge/oven of stone is fine). Fuel Log + ember glow are allowed.
+ValidationReport RealizedStructureValidator::checkHearthMasonryIsBrick(
+    const std::string& type, const std::vector<std::string>& materials) {
+    ValidationReport rep;
+    std::string t = type;
+    std::transform(t.begin(), t.end(), t.begin(), [](unsigned char c) { return std::tolower(c); });
+    const bool isHearth = t.find("fireplace") != std::string::npos ||
+                          t.find("chimney") != std::string::npos;
+    if (!isHearth) return rep;
+    for (const auto& m : materials) {
+        if (m == "Stone" || m == "Cobblestone") {
+            rep.addError("hearth_not_brick",
+                type + " masonry uses '" + m + "' — a fireplace/chimney should be brick (Bricks), "
+                "not plain quarried stone; replace the masonry", type);
+        }
+    }
+    return rep;
+}
+
 // V1 — no hovering roof. A WALL column is a contiguous solid run from the bottom that reaches into the
 // upper half of the structure; if there's then an AIR gap before the next solid (the roof) above it,
 // the roof floats over the wall instead of resting on it. (Interior columns — floor only, low run —

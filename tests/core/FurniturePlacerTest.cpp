@@ -217,3 +217,26 @@ TEST(FurniturePlacerTest, MicroPlacementCentrePieceNoInsetButOnSurface) {
     EXPECT_EQ(m.z, 14 * 9);
     EXPECT_EQ(m.y, 150)    << "still on the exact surface (the floor-sink fix applies to all pieces)";
 }
+
+// placedCubeSpan is the single source of truth for the cubes a micro-placed fixture actually occupies
+// (reservation == registration == render). It must reproduce the observed MICRO-SPILL: the house_3
+// fireplace template is 2x1 CUBES (micro extents 17 x 8) but, inset 3 micro off two walls at a corner,
+// renders across 3x2 world cubes (x -10..-8, z 38..39) — the exact Bricks seen in the world.
+TEST(FurniturePlacerTest, PlacedCubeSpanReproducesMicroSpill) {
+    // corner hearth: backDir on BOTH axes, extT=3 -> +1 cube each axis (the spill).
+    CubeSpan s = placedCubeSpan(/*microW=*/17, /*microD=*/8, /*rot=*/0,
+                                glm::ivec3(1, 0, 1), /*extT=*/3, /*baseX=*/-9, /*baseZ=*/39);
+    EXPECT_EQ(s.minX, -10); EXPECT_EQ(s.maxX, -8) << "fireplace spills to 3 cubes in x";
+    EXPECT_EQ(s.minZ, 38);  EXPECT_EQ(s.maxZ, 39) << "fireplace spills to 2 cubes in z";
+    EXPECT_EQ(s.width(), 3); EXPECT_EQ(s.depth(), 2);
+
+    // NO inset (backDir 0) -> no spill: a 2x1-cube template stays 2x1.
+    CubeSpan flush = placedCubeSpan(17, 8, 0, glm::ivec3(0, 0, 0), 3, 5, 5);
+    EXPECT_EQ(flush.width(), 2) << "cube-aligned (no inset) template does not spill in x";
+    EXPECT_EQ(flush.depth(), 1) << "cube-aligned template does not spill in z";
+
+    // rotation 90 swaps the micro extents (a bed's long axis turns).
+    CubeSpan rot = placedCubeSpan(17, 8, 90, glm::ivec3(0, 0, 0), 3, 0, 0);
+    EXPECT_EQ(rot.width(), 1) << "rot90: x takes the SHORT micro extent";
+    EXPECT_EQ(rot.depth(), 2) << "rot90: z takes the LONG micro extent";
+}

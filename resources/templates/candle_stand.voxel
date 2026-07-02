@@ -18,8 +18,8 @@ M 0 0 0 0 0 0 0 0 2 Metal
 M 0 1 0 0 0 0 0 0 0 Metal
 M 0 1 0 0 0 0 0 0 1 Metal
 M 0 1 0 0 0 0 0 0 2 Metal
-M 0 1 0 0 0 0 0 1 0 Wood
-M 0 1 0 0 0 0 0 1 2 Wood
+M 0 1 0 0 0 0 0 1 0 WoodWalnut
+M 0 1 0 0 0 0 0 1 2 WoodWalnut
 M 0 1 0 0 0 0 0 2 0 glow
 M 0 1 0 0 0 0 0 2 2 glow
 M 0 0 0 0 0 0 1 0 0 Metal
@@ -36,7 +36,7 @@ M 0 0 0 0 2 0 1 2 1 Metal
 M 0 1 0 0 0 0 1 0 0 Metal
 M 0 1 0 0 0 0 1 0 1 Metal
 M 0 1 0 0 0 0 1 0 2 Metal
-M 0 1 0 0 0 0 1 1 1 Wood
+M 0 1 0 0 0 0 1 1 1 WoodWalnut
 M 0 1 0 0 0 0 1 2 1 glow
 M 0 0 0 0 0 0 2 0 0 Metal
 M 0 0 0 0 0 0 2 0 1 Metal
@@ -44,7 +44,7 @@ M 0 0 0 0 0 0 2 0 2 Metal
 M 0 1 0 0 0 0 2 0 0 Metal
 M 0 1 0 0 0 0 2 0 1 Metal
 M 0 1 0 0 0 0 2 0 2 Metal
-M 0 1 0 0 0 0 2 1 0 Wood
-M 0 1 0 0 0 0 2 1 2 Wood
+M 0 1 0 0 0 0 2 1 0 WoodWalnut
+M 0 1 0 0 0 0 2 1 2 WoodWalnut
 M 0 1 0 0 0 0 2 2 0 glow
 M 0 1 0 0 0 0 2 2 2 glow

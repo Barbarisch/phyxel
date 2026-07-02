@@ -3,7 +3,7 @@
 # name:         book_stack
 # display_name: Book Stack
 # category:     furniture
-# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
+# materials:    WoodWalnut, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
 # facing:       +Z (tabletop decoration)
 # primitives:   0 C + 0 S + 126 M = 126
 # method:       structure_pipeline.furniture (multi-resolution DetailCanvas)

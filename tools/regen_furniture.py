@@ -141,7 +141,7 @@ def gen_chest():
     body_top = 3   # body occupies y 0..3, lid y 4..5
     m = Model()
     # body shell (hollow): walls + bottom, open top (lid sits over it)
-    m.box_shell(0, W - 1, 0, body_top, 0, D - 1, "Wood", faces=("x", "z", "ymin"))
+    m.box_shell(0, W - 1, 0, body_top, 0, D - 1, "WoodWalnut", faces=("x", "z", "ymin"))
     # iron straps on the front face (z=0)
     for sx in (2, W - 3):
         for y in range(0, body_top + 1):
@@ -151,7 +151,7 @@ def gen_chest():
     for x in range(0, W):
         for z in range(0, D):
             for y in range(body_top + 1, H):
-                lid.m(x, y, z, "Wood")
+                lid.m(x, y, z, "WoodWalnut")
     lid.m(W // 2, body_top + 1, 0, "Metal")  # clasp, front centre
     for k, v in lid.cells.items():
         m.cells[k] = v
@@ -183,15 +183,15 @@ def gen_fireplace():
     # hearth: 14 wide (1.56), 11 tall (1.22), 5 deep (0.56). facing +Z (opening front).
     W, H, D = 14, 11, 5
     m = Model()
-    # hearth base slab
-    m.fill(0, W - 1, 0, 1, 0, D - 1, "Stone")
+    # hearth base slab (brick masonry — a fireplace/chimney is brick, not quarried stone)
+    m.fill(0, W - 1, 0, 1, 0, D - 1, "Bricks")
     # back wall / chimney breast at z=0 (the side that backs ONTO the room wall)
-    m.fill(0, W - 1, 0, H - 1, 0, 0, "Stone")
+    m.fill(0, W - 1, 0, H - 1, 0, 0, "Bricks")
     # side pillars
-    m.fill(0, 2, 2, H - 1, 0, D - 1, "Stone")
-    m.fill(W - 3, W - 1, 2, H - 1, 0, D - 1, "Stone")
+    m.fill(0, 2, 2, H - 1, 0, D - 1, "Bricks")
+    m.fill(W - 3, W - 1, 2, H - 1, 0, D - 1, "Bricks")
     # lintel / mantel across the top
-    m.fill(0, W - 1, H - 3, H - 1, 0, D - 1, "Stone")
+    m.fill(0, W - 1, H - 3, H - 1, 0, D - 1, "Bricks")
     # carve the firebox opening toward +Z (the OPENING faces the room; chimney breast to the wall).
     # Keep z=0 solid (the back); open z=1..D-1 so the firebox faces +Z (matches the header + the placer
     # convention rot 0 -> front +z, so a wall-backed fireplace opens INTO the room, not at the wall).
@@ -204,9 +204,9 @@ def gen_fireplace():
         "# ASSET METADATA\n"
         "# name:         fireplace\n"
         "# display_name: Fireplace\n"
-        "# description:  A stone hearth with a fire opening and chimney breast.\n"
+        "# description:  A brick hearth with a fire opening and chimney breast.\n"
         "# category:     furniture\n"
-        "# materials:    Stone, Log, glow\n"
+        "# materials:    Bricks, Log, glow\n"
         "# facing:       +Z (opening faces +Z; chimney breast to the wall)\n"
         "# bounds:       1.56W x 1.22H x 0.56D m (grounded to object_dimensions 'hearth' 1.5x1.2x0.6)\n"
         "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
@@ -222,11 +222,11 @@ def gen_bar():
     BODY_TOP = 8                    # cabinet y 0..8 (top face 1.0 m); cap at y9 -> top 1.111 m
     m = Model()
     # front panel (patron side, z=0..1) + end panels + a back kick, leaving the cabinet hollow.
-    m.fill(0, L - 1, 0, BODY_TOP, 1, 1, "Wood")            # front face (set back 1 micro for a toe kick)
-    m.fill(0, 0, 0, BODY_TOP, 1, 5, "Wood")                # left end
-    m.fill(L - 1, L - 1, 0, BODY_TOP, 1, 5, "Wood")        # right end
-    m.fill(0, L - 1, 0, 0, 5, 5, "Wood")                   # back kick rail (bartender side)
-    m.fill(0, L - 1, BODY_TOP + 1, BODY_TOP + 1, 0, 5, "Wood")  # top cap (overhangs to z=0 for legroom)
+    m.fill(0, L - 1, 0, BODY_TOP, 1, 1, "WoodWalnut")            # front face (set back 1 micro for a toe kick)
+    m.fill(0, 0, 0, BODY_TOP, 1, 5, "WoodWalnut")                # left end
+    m.fill(L - 1, L - 1, 0, BODY_TOP, 1, 5, "WoodWalnut")        # right end
+    m.fill(0, L - 1, 0, 0, 5, 5, "WoodWalnut")                   # back kick rail (bartender side)
+    m.fill(0, L - 1, BODY_TOP + 1, BODY_TOP + 1, 0, 5, "WoodWalnut")  # top cap (overhangs to z=0 for legroom)
     m.fill(0, L - 1, BODY_TOP, BODY_TOP, 0, 0, "Log")      # dark front rail under the cap edge
     header = (
         "# ==========================================================\n"
@@ -252,13 +252,13 @@ def gen_back_bar():
     # Three shelves of bottles (Glass) — the "shelves behind and above the bar".
     L, H, D = 27, 16, 3
     m = Model()
-    m.fill(0, L - 1, 0, H - 1, D - 1, D - 1, "Wood")       # back panel (against the wall)
-    m.fill(0, 0, 0, H - 1, 0, D - 1, "Wood")               # left end
-    m.fill(L - 1, L - 1, 0, H - 1, 0, D - 1, "Wood")       # right end
-    m.fill(0, L - 1, 0, 0, 0, D - 1, "Wood")               # base
+    m.fill(0, L - 1, 0, H - 1, D - 1, D - 1, "WoodWalnut")       # back panel (against the wall)
+    m.fill(0, 0, 0, H - 1, 0, D - 1, "WoodWalnut")               # left end
+    m.fill(L - 1, L - 1, 0, H - 1, 0, D - 1, "WoodWalnut")       # right end
+    m.fill(0, L - 1, 0, 0, 0, D - 1, "WoodWalnut")               # base
     shelves = (4, 9, 14)
     for sy in shelves:
-        m.fill(0, L - 1, sy, sy, 0, D - 1, "Wood")         # shelf board
+        m.fill(0, L - 1, sy, sy, 0, D - 1, "WoodWalnut")         # shelf board
     # bottles: pairs of Glass micro standing on each shelf (1 above the board), spaced along the run.
     for sy in shelves:
         for bx in range(2, L - 2, 3):
@@ -289,10 +289,10 @@ def gen_bar_stool():
     W = 4                           # seat 4x4 micro (0.444 m, within 12-18\" seat)
     SEAT_Y = 6                      # seat slab at y6 -> top face 7/9 = 0.778 m
     m = Model()
-    m.fill(0, W - 1, SEAT_Y, SEAT_Y, 0, W - 1, "Wood")     # seat slab
+    m.fill(0, W - 1, SEAT_Y, SEAT_Y, 0, W - 1, "WoodWalnut")     # seat slab
     legs = [(0, 0), (W - 1, 0), (0, W - 1), (W - 1, W - 1)]
     for lx, lz in legs:
-        m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "Wood")      # leg
+        m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "WoodWalnut")      # leg
     # footrest ring at y2 connecting the legs (a square rail)
     ry = 2
     m.fill(0, W - 1, ry, ry, 0, 0, "Log")
@@ -328,7 +328,7 @@ def gen_candle_stand():
     m.fill(1, 1, 1, 8, 1, 1, "Metal")              # central pole
     m.fill(0, 2, 9, 9, 0, 2, "Metal")              # top tray
     for cx, cz in [(0, 0), (2, 0), (0, 2), (2, 2), (1, 1)]:
-        m.m(cx, 10, cz, "Wood")                    # candle
+        m.m(cx, 10, cz, "WoodWalnut")                    # candle
         m.m(cx, 11, cz, "glow")                    # flame (emissive)
     header = (
         "# ==========================================================\n"
@@ -384,7 +384,7 @@ def gen_chandelier():
     m = Model()
     m.box_shell(0, R - 1, 0, 0, 0, R - 1, "Metal", faces=("x", "z"))  # ring rim at y0
     for (cx, cz) in [(0, 2), (2, 0), (4, 2), (2, 4), (0, 0), (4, 4), (0, 4), (4, 0)]:
-        m.m(cx, 1, cz, "Wood")                      # candle on the rim
+        m.m(cx, 1, cz, "WoodWalnut")                      # candle on the rim
         m.m(cx, 2, cz, "glow")                      # flame
     m.fill(2, 2, 1, 5, 2, 2, "Metal")              # central chain up to the ceiling
     header = (
@@ -409,7 +409,7 @@ def gen_mug():
     # mug / tankard: a pint pewter/wood tankard ~0.125 m tall, ~0.095 m dia. At the 1/9 m micro floor
     # that is ~1 micro -> a single small block (table clutter; reads as a cup at player scale).
     m = Model()
-    m.m(0, 0, 0, "Wood")                            # wooden tankard (treen) — 0.111 m cube
+    m.m(0, 0, 0, "WoodWalnut")                            # wooden tankard (treen) — 0.111 m cube
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -434,7 +434,7 @@ def gen_bottle():
     m = Model()
     m.m(0, 0, 0, "Glass")
     m.m(0, 1, 0, "Glass")
-    m.m(0, 2, 0, "Wood")                            # cork / stopper
+    m.m(0, 2, 0, "WoodWalnut")                            # cork / stopper
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -456,10 +456,10 @@ def gen_bottle():
 def _table(name, L, D, display, tags, desc):
     # a slab-top table: top surface at 7 micro (0.778 m ~ 0.75 m dining height), 4 corner legs.
     m = Model()
-    m.fill(0, L - 1, 6, 6, 0, D - 1, "Wood")        # top slab (y6 -> top face 0.778 m)
+    m.fill(0, L - 1, 6, 6, 0, D - 1, "WoodWalnut")        # top slab (y6 -> top face 0.778 m)
     for lx in (1, L - 2):
         for lz in (1, D - 2):
-            m.fill(lx, lx, 0, 5, lz, lz, "Wood")    # leg
+            m.fill(lx, lx, 0, 5, lz, lz, "WoodWalnut")    # leg
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -494,10 +494,10 @@ def gen_counter():
     # kitchen work surface: top ~0.89 m (0.9 m canon), depth 0.56 m (~0.6), length ~1.56 m.
     L = 14
     m = Model()
-    m.fill(0, L - 1, 0, 6, 1, 1, "Wood")            # front panel (toe kick at z0)
-    m.fill(0, 0, 0, 6, 1, 4, "Wood")                # left end
-    m.fill(L - 1, L - 1, 0, 6, 1, 4, "Wood")        # right end
-    m.fill(0, L - 1, 7, 7, 0, 4, "Wood")            # work top (overhang to z0)
+    m.fill(0, L - 1, 0, 6, 1, 1, "WoodWalnut")            # front panel (toe kick at z0)
+    m.fill(0, 0, 0, 6, 1, 4, "WoodWalnut")                # left end
+    m.fill(L - 1, L - 1, 0, 6, 1, 4, "WoodWalnut")        # right end
+    m.fill(0, L - 1, 7, 7, 0, 4, "WoodWalnut")            # work top (overhang to z0)
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -527,7 +527,7 @@ def gen_barrel():
             for z in range(R):
                 if (x, z) in corners:
                     continue                         # bevel the corners -> rounder barrel
-                m.cells[(x, y, z)] = "Wood"
+                m.cells[(x, y, z)] = "WoodWalnut"
     for hoop in (1, H - 2):                          # iron hoops near top + bottom
         for x in range(R):
             for z in range(R):
@@ -557,10 +557,10 @@ def gen_bench_wood():
     # backless bench / settle: seat top ~0.44 m (0.45 canon), depth ~0.44 m, length ~1.44 m.
     L, D, SEAT_Y = 13, 4, 3
     m = Model()
-    m.fill(0, L - 1, SEAT_Y, SEAT_Y, 0, D - 1, "Wood")   # seat slab (top face 0.444 m)
+    m.fill(0, L - 1, SEAT_Y, SEAT_Y, 0, D - 1, "WoodWalnut")   # seat slab (top face 0.444 m)
     for lx in (0, L - 1):
         for lz in (0, D - 1):
-            m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "Wood")
+            m.fill(lx, lx, 0, SEAT_Y - 1, lz, lz, "WoodWalnut")
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -651,8 +651,8 @@ def gen_bellows():
     # great double-lung bellows: ~1.5 m long, ~0.33 m wide, ~0.33 m tall. Long axis = Z (length).
     # Wide chamber at the back (z max), tapering to a Metal nozzle at the front (z0, toward the forge).
     m = Model()
-    m.fill(0, 2, 0, 2, 8, 13, "Wood")     # back chamber (full 3x3 cross-section), z8..13
-    m.fill(1, 1, 0, 2, 4, 7, "Wood")      # narrowing middle, z4..7
+    m.fill(0, 2, 0, 2, 8, 13, "WoodWalnut")     # back chamber (full 3x3 cross-section), z8..13
+    m.fill(1, 1, 0, 2, 4, 7, "WoodWalnut")      # narrowing middle, z4..7
     m.fill(1, 1, 1, 1, 0, 3, "Metal")     # nozzle pipe to the front (z0..3)
     header = (
         "# ==========================================================\n"
@@ -677,8 +677,8 @@ def gen_tool_rack():
     # (~1.5 m) is a placement concern; the asset is the board + tools. facing +Z (tools face the room).
     W = 9                             # 1.0 m wide (canon width 1.0)
     m = Model()
-    m.fill(0, W - 1, 0, 5, 0, 0, "Wood")          # back board (against the wall, z0)
-    m.fill(0, W - 1, 5, 5, 0, 1, "Wood")          # top peg rail (a little depth, z1)
+    m.fill(0, W - 1, 0, 5, 0, 0, "WoodWalnut")          # back board (against the wall, z0)
+    m.fill(0, W - 1, 5, 5, 0, 1, "WoodWalnut")          # top peg rail (a little depth, z1)
     for tx in (1, 3, 5, 7):                        # hanging tools (hammers / tongs)
         m.m(tx, 4, 1, "Metal")
         m.m(tx, 3, 1, "Metal")
@@ -753,7 +753,7 @@ def gen_chopping_block():
     m.fill(0, W - 1, 5, TOP, 0, D - 1, "Log")             # thick end-grain block top
     for lx in (0, W - 1):
         for lz in (0, D - 1):
-            m.fill(lx, lx, 0, 4, lz, lz, "Wood")          # leg
+            m.fill(lx, lx, 0, 4, lz, lz, "WoodWalnut")          # leg
     anchors = [{
         "point_id": "work_0", "kind": "work_surface",
         "local_position": [round((W / 2.0) / 9, 3), round(8 / 9, 3), round((D / 2.0) / 9, 3)],
@@ -824,7 +824,7 @@ def gen_hanging_sign():
     ARM_Y = 6                         # bracket arm at y6; arm reaches wall (z0) -> board (z6)
     m = Model()
     # board: Wood field with a Log frame top + bottom (a framed sign board), thin in x (x=0)
-    m.fill(0, 0, BY0, BY1, Z0, Z1, "Wood")
+    m.fill(0, 0, BY0, BY1, Z0, Z1, "WoodWalnut")
     m.fill(0, 0, BY0, BY0, Z0, Z1, "Log")     # bottom rail
     m.fill(0, 0, BY1, BY1, Z0, Z1, "Log")     # top rail
     # wrought-iron bracket: an arm from the wall (z0) out over the board, + a short wall foot, + two

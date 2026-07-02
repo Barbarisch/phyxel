@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <set>
+#include <vector>
 
 #include "core/FenceBuilder.h"
 #include "core/DimensionCanon.h"
@@ -113,4 +115,47 @@ TEST(FenceProfileTest, PostRailIsOpenBetweenPosts) {
     int railsThere = 0; for (int y = 0; y < p.heightMicro; ++y) if (cellAt(p, midU, y)) ++railsThere;
     EXPECT_GE(railsThere, 1) << "no rail spanning between posts";
     EXPECT_LE(railsThere, 3) << "between posts should be only rails, not a filled column";
+}
+
+// Corner cleanliness (the deterministic ground-truth for the user's "fences don't meet to a clean
+// corner — stop short / overshoot" report). A picket fence's density can't distinguish a post from a
+// slat, so this is validated on the GENERATOR (fencePostPositions), not a world scan: posts must be
+// EVENLY spaced with no two adjacent (a doubled corner), and endPosts=false must omit the end columns
+// so two perpendicular runs meet at ONE shared corner post.
+TEST(FenceProfileTest, PostPositionsEvenAndCornerShared) {
+    // SCAN the property across every realistic parcel-edge length (2..40 cubes) and all three canon
+    // post spacings — not one hand-picked size — so the anti-doubling + shared-corner invariants are
+    // pinned everywhere fencePostPositions is actually invoked. (The old sweep+end-post algorithm
+    // produced minGap=0 doubled posts at run lengths that are exact spacing multiples; even
+    // distribution + the >=1-cube gap cap must never do so.)
+    for (double spacingM : {1.8, 2.4, 2.7}) {
+        const int spacing = micro(spacingM);
+        for (int cubes = 2; cubes <= 40; ++cubes) {
+            const int runLen = micro(static_cast<double>(cubes));
+            const int span = runLen - 1;
+
+            std::vector<int> owned = fencePostPositions(runLen, spacing, /*endPosts=*/true);
+            ASSERT_GE(owned.size(), 2u) << "cubes=" << cubes << " spacing=" << spacingM;
+            EXPECT_EQ(owned.front(), 0)    << "must post the START corner (cubes=" << cubes << ")";
+            EXPECT_EQ(owned.back(),  span) << "must post the END corner (cubes=" << cubes << ")";
+            int minGap = span, maxGap = 0;
+            for (size_t i = 1; i < owned.size(); ++i) {
+                const int g = owned[i] - owned[i - 1];
+                minGap = std::min(minGap, g);
+                maxGap = std::max(maxGap, g);
+            }
+            EXPECT_GT(minGap, 9)
+                << "two posts within one cube — doubled/messy corner (cubes=" << cubes
+                << " spacing=" << spacingM << ")";
+            EXPECT_LE(maxGap, spacing + 1)
+                << "gap wider than the post spacing — sagging run (cubes=" << cubes << ")";
+
+            // The perpendicular run OMITS its end columns, so the shared corner carries ONE post.
+            std::vector<int> shared = fencePostPositions(runLen, spacing, /*endPosts=*/false);
+            for (int u : shared) {
+                EXPECT_GT(u, 0)    << "endPosts=false posted the start corner (cubes=" << cubes << ")";
+                EXPECT_LT(u, span) << "endPosts=false posted the end corner (cubes=" << cubes << ")";
+            }
+        }
+    }
 }

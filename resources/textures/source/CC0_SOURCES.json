@@ -140,5 +140,13 @@
     "license": "CC0",
     "resolution": 1024,
     "source": "ambientCG"
+  },
+  "WoodWalnut": {
+    "assets": {
+      "all": "Wood051"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
   }
 }

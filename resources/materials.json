@@ -2579,6 +2579,37 @@
         "top": "tome_fire.png",
         "bottom": "tome_fire.png"
       }
+    },
+    {
+      "name": "WoodWalnut",
+      "category": "material",
+      "description": "European walnut furniture hardwood, oiled/waxed finish. Warm dark chocolate-brown heartwood, deliberately distinct from the light oak floor (Wood) so furniture reads clearly indoors. Period-valid for continental-medieval / fantasy settings (walnut was a prized furniture wood in medieval France & Italy; strictly English-medieval common furniture would use oak/elm). Source: ambientCG Wood051 (CC0).",
+      "resolution": 1024,
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.45,
+          0.25,
+          0.10
+        ],
+        "metallic": 0.0,
+        "roughness": 0.6
+      },
+      "textures": {
+        "side_n": "wood_walnut_side_n.png",
+        "side_s": "wood_walnut_side_s.png",
+        "side_e": "wood_walnut_side_e.png",
+        "side_w": "wood_walnut_side_w.png",
+        "top": "wood_walnut_top.png",
+        "bottom": "wood_walnut_bottom.png"
+      }
     }
   ]
 }

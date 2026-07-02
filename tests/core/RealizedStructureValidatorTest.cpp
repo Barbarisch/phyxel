@@ -48,11 +48,13 @@ std::set<std::string> templateMaterials(const std::string& name) {
         if (!f.good()) continue;
         std::string line;
         while (std::getline(f, line)) {
-            if (line.empty() || line[0] != 'M') continue;
+            // Voxel rows are C (cube) / S (subcube) / M (microcube); the material is the last
+            // non key=value token (skip trailing tint=.../state=... suffixes).
+            if (line.empty() || (line[0] != 'C' && line[0] != 'S' && line[0] != 'M')) continue;
             std::istringstream ss(line);
-            std::string tok, last;
-            while (ss >> tok) last = tok;
-            if (!last.empty()) mats.insert(last);
+            std::string tok, mat;
+            while (ss >> tok) { if (tok.find('=') == std::string::npos) mat = tok; }
+            if (!mat.empty()) mats.insert(mat);
         }
         break;
     }
@@ -138,6 +140,46 @@ TEST(RealizedStructureValidatorTest, RealBedMaterialIsFlagged_RED) {
     auto rep = RealizedStructureValidator::checkFurnitureMaterialPlausibility("bed", v);
     EXPECT_FALSE(rep.ok()) << "expected bed_single's stone/sand bedding to be flagged; materials were not";
     if (!rep.ok()) std::cout << "[V4 fires] " << rep.summary() << "\n";
+}
+
+// ---- M1 flora emissive -----------------------------------------------------
+// TEETH: a plant with a glow block fires; a plain plant passes.
+TEST(RealizedStructureValidatorTest, FloraEmissiveDetectorHasTeeth) {
+    EXPECT_FALSE(RealizedStructureValidator::checkFloraNoEmissive(
+        "bush_flower", {"Leaf", "Wood", "glow"}).ok()) << "glowing flora not flagged";
+    EXPECT_TRUE(RealizedStructureValidator::checkFloraNoEmissive(
+        "bush_round", {"Leaf", "Wood"}).ok()) << "non-glowing flora wrongly flagged";
+}
+// GREEN after the fix: bush_flower.voxel + tree_apple.voxel no longer embed `glow` (the user's
+// "shrubs with light-emitting blocks" defect); the glow flowers/apples are now non-emissive LeafAutumn.
+TEST(RealizedStructureValidatorTest, RealFloraNotEmissive) {
+    for (const char* tmpl : {"bush_flower", "tree_apple"}) {
+        const auto mats = templateMaterials(tmpl);
+        if (mats.empty()) { GTEST_SKIP() << tmpl << ".voxel not reachable from CWD"; return; }
+        std::vector<std::string> v(mats.begin(), mats.end());
+        auto rep = RealizedStructureValidator::checkFloraNoEmissive(tmpl, v);
+        EXPECT_TRUE(rep.ok()) << tmpl << " should not glow after the fix:\n" << rep.summary();
+    }
+}
+
+// ---- M3 hearth masonry is brick --------------------------------------------
+// TEETH: a stone fireplace fires; a brick fireplace passes; a stone forge/oven is unconstrained.
+TEST(RealizedStructureValidatorTest, HearthMasonryDetectorHasTeeth) {
+    EXPECT_FALSE(RealizedStructureValidator::checkHearthMasonryIsBrick(
+        "fireplace", {"Stone", "Log", "glow"}).ok()) << "stone fireplace masonry not flagged";
+    EXPECT_TRUE(RealizedStructureValidator::checkHearthMasonryIsBrick(
+        "fireplace", {"Bricks", "Log", "glow"}).ok()) << "brick fireplace wrongly flagged";
+    EXPECT_TRUE(RealizedStructureValidator::checkHearthMasonryIsBrick(
+        "forge_hearth", {"Stone"}).ok()) << "a forge is not constrained to brick";
+}
+// GREEN after the fix: fireplace.voxel is now brick (gen_fireplace uses Bricks). Was RED (Stone).
+TEST(RealizedStructureValidatorTest, RealFireplaceMasonryIsBrick) {
+    const auto mats = templateMaterials("fireplace");
+    if (mats.empty()) GTEST_SKIP() << "fireplace.voxel not reachable from CWD";
+    std::vector<std::string> v(mats.begin(), mats.end());
+    auto rep = RealizedStructureValidator::checkHearthMasonryIsBrick("fireplace", v);
+    EXPECT_TRUE(rep.ok()) << "fireplace should be brick (not quarried stone) after the fix:\n"
+                          << rep.summary();
 }
 
 // ---- V5 footprint diversity ------------------------------------------------
