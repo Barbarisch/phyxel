@@ -136,6 +136,15 @@ public:
     static ValidationReport checkChestFacing(const std::vector<ChestPlacement>& chests,
                                              const WallAt& wallAt, int reach = 3);
 
+    // Floor must be FLUSH with the yard — you should walk from the yard onto the floor without a step.
+    // Compares each structure's floor cube level (bbox min.y) to the median yard terrain in the 1-ring
+    // just outside the footprint; fires `floor_not_flush` when the step exceeds flushTol. (User: "you
+    // shouldn't have to step down from yard terrain into a house; the top of the floor should align with
+    // the top of the outside yard/terrain.") The terrace pass should grade the whole structure+yard unit
+    // into the terrain so the floor and yard share one level.
+    static ValidationReport checkFloorFlush(const std::vector<FootprintScan>& structures,
+                                            const SurfaceHeight& surfaceH, int flushTol = 1);
+
     /// True for small surface props that legitimately rest on other furniture.
     static bool isClutter(const std::string& type);
     /// True for a vented hearth (fireplace/forge/oven) — furniture must not overlap it.

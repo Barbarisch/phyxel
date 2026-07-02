@@ -225,6 +225,41 @@ ValidationReport RealizedWorldValidator::checkChestFacing(
     return rep;
 }
 
+// Floor-flush — the building floor should sit level with the surrounding yard, so entry has no step.
+ValidationReport RealizedWorldValidator::checkFloorFlush(
+    const std::vector<FootprintScan>& structures, const SurfaceHeight& surfaceH, int flushTol) {
+    ValidationReport rep;
+    if (!surfaceH) return rep;
+    for (const auto& s : structures) {
+        const int floorY = s.min.y;                 // floor cube level (slab substructure)
+        std::vector<int> ys;                        // yard terrain heights in the 1-ring outside the footprint
+        for (int x = s.min.x - 1; x <= s.max.x + 1; ++x)
+            for (int z = s.min.z - 1; z <= s.max.z + 1; ++z) {
+                const bool inFoot = x >= s.min.x && x <= s.max.x && z >= s.min.z && z <= s.max.z;
+                if (inFoot) continue;
+                const int h = surfaceH(x, z);
+                if (h != INT_MIN) ys.push_back(h);
+            }
+        if (ys.empty()) continue;                   // no terrain around it — can't judge
+        // The WORST-deviating side is where you'd step (median washes out on a balanced slope). Flag the
+        // biggest gap between the floor and any adjacent yard column.
+        int worst = 0, worstYard = floorY;
+        for (int h : ys) {
+            const int d = std::abs(floorY - h);
+            if (d > worst) { worst = d; worstYard = h; }
+        }
+        if (worst > flushTol) {
+            rep.addError("floor_not_flush",
+                "structure '" + s.id + "' floor (y=" + std::to_string(floorY) + ") is " +
+                std::to_string(worst) + " cubes " + (floorY > worstYard ? "above" : "below") +
+                " the yard (y=" + std::to_string(worstYard) + " on the worst side) — you step " +
+                (floorY > worstYard ? "up" : "down") + " to enter; grade the structure+yard unit so the "
+                "floor sits flush with the yard", s.id);
+        }
+    }
+    return rep;
+}
+
 // V2 — fence along a terrain cliff. A fence post whose adjacent terrain steps by >= cliffTol cubes is
 // hugging a cliff/rise; the terrain is already the barrier, so the fence is pointless there.
 ValidationReport RealizedWorldValidator::checkFenceAgainstRise(

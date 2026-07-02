@@ -6816,6 +6816,7 @@ static bool handlePlacedObjectCommand(
                 return INT_MIN;
             };
             rep.merge(Core::RealizedWorldValidator::checkYardFlatness(structs, surfaceH));
+            rep.merge(Core::RealizedWorldValidator::checkFloorFlush(structs, surfaceH));
 
             // Fence posts: count Log micro/subcubes in a world cube (fences are Log micros).
             auto logCount = [cm = chunkManager](int x, int y, int z) -> int {

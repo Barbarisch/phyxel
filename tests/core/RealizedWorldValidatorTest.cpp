@@ -170,6 +170,26 @@ TEST(RealizedWorldValidatorTest, YardFlatnessDetectorHasTeeth) {
         << "a flat yard wrongly flagged";
 }
 
+TEST(RealizedWorldValidatorTest, FloorFlushDetectorHasTeeth) {
+    // floor at y=17 (bbox min.y)
+    std::vector<FootprintScan> structs = { {"house_x", {4, 17, -2}, {11, 20, 3}} };
+
+    // STEP: yard sits at y=15, floor at 17 -> step 2 (>flushTol 1) -> fires (you step up to enter).
+    auto stepped = [](int, int) -> int { return 15; };
+    EXPECT_FALSE(RealizedWorldValidator::checkFloorFlush(structs, stepped).ok())
+        << "a floor sitting above the yard was NOT detected";
+
+    // FLUSH: yard level with the floor (y=17) -> step 0 -> passes.
+    auto flush = [](int, int) -> int { return 17; };
+    EXPECT_TRUE(RealizedWorldValidator::checkFloorFlush(structs, flush).ok())
+        << "a flush floor was wrongly flagged";
+
+    // 1-cube threshold is tolerated (not a real step).
+    auto oneStep = [](int, int) -> int { return 16; };
+    EXPECT_TRUE(RealizedWorldValidator::checkFloorFlush(structs, oneStep).ok())
+        << "a 1-cube threshold should be within tolerance";
+}
+
 // ---- V6 fence corner overlap -----------------------------------------------
 // TEETH, calibrated on the real (11,28) corner: straights ~48 Log micros, doubled corner 94.
 TEST(RealizedWorldValidatorTest, FenceCornerOverlapDetectorHasTeeth) {
