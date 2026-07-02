@@ -39,8 +39,18 @@ struct FenceProfile {
 /// slats (gaps), Privacy = solid close boards, PostRail = posts + rails only (open). The fence is
 /// `thickMicro` (a few micro) THICK, never a full cube. Deterministic. Caller supplies the canon-derived
 /// dims (height/post_spacing/rails) so this stays pure + unit-testable against object_dimensions.json.
+// Post column positions (micro offsets along a run) — EVENLY distributed so an interior post never
+// lands adjacent to an end/corner post (the doubled, messy corner). endPosts=false omits the two end
+// columns so the perpendicular run's post is the single shared corner. Pure + deterministic: this is
+// the ground-truth the corner-cleanliness unit test asserts on (a picket fence's voxel density can't
+// distinguish a post from a slat, so density-based world detection is unsound — test the plan instead).
+std::vector<int> fencePostPositions(int runLenMicro, int postSpacingMicro, bool endPosts = true);
+
+// endPosts: place a post at BOTH run ends (a run that owns its corners). Pass false for the runs whose
+// corners are owned by the perpendicular run, so adjacent edges meet at ONE shared corner post instead
+// of doubling it. Posts are EVENLY distributed (never colliding with the end posts).
 FenceProfile planFenceProfile(int runLenMicro, int heightMicro, int postSpacingMicro, int rails,
-                              FenceType type, int thickMicro = 1);
+                              FenceType type, int thickMicro = 1, bool endPosts = true);
 
 }  // namespace Core
 }  // namespace Phyxel

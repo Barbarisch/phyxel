@@ -10561,7 +10561,10 @@ void Application::registerSettlementCommands() {
                 auto stampEdge = [&](bool alongX, int fixedCube, int runFrom, int runTo, char thisSide) {
                     const int runLenMicro = (runTo - runFrom) * 9;
                     if (runLenMicro <= 0) return;                              // empty run (corner-excluded W/E)
-                    const Core::FenceProfile prof = Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType);
+                    // endPosts = alongX: the N/S runs own the corner posts; the W/E runs omit their end
+                    // posts so each corner is ONE shared post (no doubled corner). (fence_posts_adjacent)
+                    const Core::FenceProfile prof =
+                        Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType, 1, alongX);
                     if (!prof.ok) return;
                     int gLo = -1, gHi = -1;
                     if (thisSide == gate) { const int gs = ((runTo - runFrom) - gateW) / 2; gLo = gs * 9; gHi = (gs + gateW) * 9; }

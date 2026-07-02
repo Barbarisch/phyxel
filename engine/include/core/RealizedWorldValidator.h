@@ -112,6 +112,13 @@ public:
     static ValidationReport checkFenceCornerOverlaps(const std::vector<FencePost>& posts,
                                                      double overlapFactor = 1.5);
 
+    // NOTE: fence corner cleanliness (doubled/misaligned corner posts) is NOT validated by a world scan.
+    // A picket fence's posts and infill slats are the SAME full-height column primitive, so per-cube Log
+    // density can't distinguish a post from a slat (density-based detection is structurally unsound — it
+    // desensitizes to noise and gives false confidence). The corner-cleanliness invariant is asserted
+    // deterministically on the generator instead: Core::fencePostPositions (see FenceBuilderTest — posts
+    // evenly spaced, never adjacent, shared corner via endPosts=false), plus a visual/screenshot check.
+
     // V1: fence floating over a path. Where a path crosses the fence line there must be a gate/gap, not
     // the fence sitting on top of it. Fires for any fence post with a Cobblestone (path) cell directly
     // below it (within `depth` cubes). Observed at (0,20,28): Log fence over a Cobblestone path at y19.

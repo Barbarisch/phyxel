@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <map>
+#include <set>
 #include <utility>
 
 namespace Phyxel {
