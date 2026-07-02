@@ -86,10 +86,15 @@ public:
     /// FOOTPRINT-AWARE: a piece reserves all the cells it covers; pieces PACK along walls (multiple
     /// per wall) at the first free slot. A piece that fits NOWHERE is recorded in `*unplaced` (if
     /// given) — never silently dropped. Omitted/missing footprints default to 1×1.
+    /// `extTMicro` = exterior-wall thickness in micro (the wall-inset applied at placement). When > 0,
+    /// reservation uses the TRUE placed cube span (placedCubeSpan) — the actual render extent including
+    /// the micro-spill — instead of the bare footprint, so reservation == render (no overlaps). 0 keeps
+    /// the legacy footprint reservation.
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
                                                    const glm::ivec3& origin, int floorY,
                                                    const std::map<std::string, Footprint>& footprints = {},
-                                                   std::vector<UnplacedFixture>* unplaced = nullptr);
+                                                   std::vector<UnplacedFixture>* unplaced = nullptr,
+                                                   int extTMicro = 0);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

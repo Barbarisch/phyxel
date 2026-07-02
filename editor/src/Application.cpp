@@ -13184,16 +13184,27 @@ void Application::processAPICommands() {
                                         ? objectTemplateManager->getTemplate(tmpl) : nullptr;
                                     if (t) {
                                         int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
-                                        auto acc = [&](const glm::ivec3& p) {
-                                            mnx = std::min(mnx, p.x); mxx = std::max(mxx, p.x);
-                                            mnz = std::min(mnz, p.z); mxz = std::max(mxz, p.z);
+                                        int uMaxX = 0, uMaxZ = 0;   // max MICRO index (for the true placed span)
+                                        auto acc = [&](const glm::ivec3& cube, int microX, int microZ) {
+                                            mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
+                                            mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
+                                            uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
                                         };
-                                        for (const auto& c : t->cubes)       acc(c.relativePos);
-                                        for (const auto& s : t->subcubes)    acc(s.parentRelativePos);
-                                        for (const auto& mc : t->microcubes) acc(mc.parentRelativePos);
+                                        for (const auto& c : t->cubes)
+                                            acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8);
+                                        for (const auto& s : t->subcubes)
+                                            acc(s.parentRelativePos,
+                                                s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
+                                                s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2);
+                                        for (const auto& mc : t->microcubes)
+                                            acc(mc.parentRelativePos,
+                                                mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
+                                                mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z);
                                         if (mxx >= mnx) {
                                             fp.width = mxx - mnx + 1;
                                             fp.depth = mxz - mnz + 1;
+                                            fp.microW = uMaxX;   // real micro extents -> placedCubeSpan (0-anchored templates)
+                                            fp.microD = uMaxZ;
                                             got = true;
                                         }
                                     }
@@ -13239,7 +13250,7 @@ void Application::processAPICommands() {
                                         ? v2FloorYByStory[si] : v2FloorY;
                                     auto placements = Core::FurniturePlacer::furnish(
                                         story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
-                                        &v2Unplaced);
+                                        &v2Unplaced, v2ExtTMicro);   // extTMicro -> reserve the TRUE placed span
                                     // Semantic identity per fixture (room/purpose/ordinal/type), 1:1
                                     // with placements — so a session can address "the 2nd bedroom's bed".
                                     auto labels = Core::FurniturePlacer::labelFixtures(story, placements);

@@ -203,7 +203,7 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
-    std::vector<UnplacedFixture>* unplaced) {
+    std::vector<UnplacedFixture>* unplaced, int extTMicro) {
     std::vector<FurniturePlacement> out;
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
@@ -261,24 +261,48 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             }
             return true;
         };
-        auto reserve = [&](const std::vector<std::pair<int, int>>& cells, const std::string& type,
-                           int rot) {
+        // backDir = the OUTWARD normal of EVERY room-edge (wall) the footprint abuts (corners + interior
+        // partitions included); a piece in the interior -> (0,0,0). The consumer insets off these walls.
+        auto backDirOf = [&](int mnx, int mnz, int mxx, int mxz) -> glm::ivec3 {
+            glm::ivec3 bd(0);
+            if (mnx == rx)               bd.x = -1;
+            else if (mxx == rx + rw - 1) bd.x = +1;
+            if (mnz == rz)               bd.z = -1;
+            else if (mxz == rz + rd - 1) bd.z = +1;
+            return bd;
+        };
+        // The TRUE cube span a piece occupies once placed (reservation == render): the footprint PLUS the
+        // micro-spill from the wall-inset anchor. extTMicro==0 -> legacy (reserve the bare footprint).
+        auto spanCellsOf = [&](const std::vector<std::pair<int, int>>& cells, int rot,
+                               const Footprint& fp) -> std::vector<std::pair<int, int>> {
+            if (extTMicro <= 0 || cells.empty()) return cells;
             int mnx = cells[0].first, mnz = cells[0].second, mxx = mnx, mxz = mnz;
             for (const auto& c : cells) {
-                occupied.insert(c);
                 mnx = std::min(mnx, c.first);  mnz = std::min(mnz, c.second);
                 mxx = std::max(mxx, c.first);  mxz = std::max(mxz, c.second);
             }
-            // backDir = the OUTWARD normal of EVERY room-edge (wall) the footprint abuts — so the
-            // consumer insets off ALL of them, including the perpendicular wall at a corner and an
-            // interior partition (any room edge carries a wall). A piece in the interior -> (0,0,0).
-            glm::ivec3 bd(0);
-            if (mnx == rx)               bd.x = -1;            // at min-x edge: wall on -x
-            else if (mxx == rx + rw - 1) bd.x = +1;            // at max-x edge: wall on +x
-            if (mnz == rz)               bd.z = -1;
-            else if (mxz == rz + rd - 1) bd.z = +1;
+            const glm::ivec3 bd = backDirOf(mnx, mnz, mxx, mxz);
+            const int mW = fp.microW > 0 ? fp.microW : std::max(1, fp.width) * 9 - 1;
+            const int mD = fp.microD > 0 ? fp.microD : std::max(1, fp.depth) * 9 - 1;
+            const CubeSpan s = placedCubeSpan(mW, mD, rot, bd, extTMicro, mnx, mnz);
+            std::vector<std::pair<int, int>> out2;
+            for (int x = s.minX; x <= s.maxX; ++x)
+                for (int z = s.minZ; z <= s.maxZ; ++z) out2.push_back({x, z});
+            return out2;
+        };
+        // Reserve a placed piece: occupy its TRUE span, but anchor worldPos + backDir from the FOOTPRINT.
+        auto reserve = [&](const std::vector<std::pair<int, int>>& fpCells,
+                           const std::vector<std::pair<int, int>>& spanCells, const std::string& type,
+                           int rot) {
+            int mnx = fpCells[0].first, mnz = fpCells[0].second, mxx = mnx, mxz = mnz;
+            for (const auto& c : fpCells) {
+                mnx = std::min(mnx, c.first);  mnz = std::min(mnz, c.second);
+                mxx = std::max(mxx, c.first);  mxz = std::max(mxz, c.second);
+            }
+            for (const auto& c : spanCells) occupied.insert(c);
             FurniturePlacement f;
-            f.type = type; f.room = room.id; f.rotation = rot; f.backDir = bd;
+            f.type = type; f.room = room.id; f.rotation = rot;
+            f.backDir = backDirOf(mnx, mnz, mxx, mxz);
             f.worldPos = glm::ivec3(origin.x + mnx, floorY, origin.z + mnz);   // anchor = footprint corner
             out.push_back(f);
         };
@@ -308,7 +332,9 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             const int rot = (std::abs(dcx) >= std::abs(dcz))
                 ? facingIntoRoom(dcx > 0 ? 1 : (dcx < 0 ? -1 : 0), 0)
                 : facingIntoRoom(0, dcz > 0 ? 1 : (dcz < 0 ? -1 : 0));
-            reserve(cells, type, rot);
+            const auto span = spanCellsOf(cells, rot, fp);
+            if (!fits(span)) return false;   // the true placed span (with spill) collides
+            reserve(cells, span, type, rot);
             return true;
         };
 
@@ -332,7 +358,8 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
 
             if (!placed && piece.center) {
                 auto cells = coverAt(0, fp, 0, /*center=*/true);
-                if (fits(cells)) { reserve(cells, piece.type, 0); placed = true; }
+                auto span = spanCellsOf(cells, 0, fp);
+                if (fits(cells) && fits(span)) { reserve(cells, span, piece.type, 0); placed = true; }
             }
             if (!placed) {
                 // PACK along walls: scan non-door walls first, then door walls; within each wall scan
@@ -343,12 +370,15 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 for (int k = 0; k < n && !placed; ++k) {
                     const int w = order[k];
                     const int runLen = (w < 2) ? rd : rw;       // walls 0/1 run along z, 2/3 along x
+                    const int rot = facingIntoRoom(WALLS[w].inwardDx, WALLS[w].inwardDz);
                     for (int along = 0; along + width <= runLen; ++along) {
                         auto cells = coverAt(w, fp, along, /*center=*/false);
                         if (!fits(cells)) continue;
-                        // reserve() derives backDir from which room edges the footprint abuts (insets
-                        // off every wall it touches — corners + partitions included).
-                        reserve(cells, piece.type, facingIntoRoom(WALLS[w].inwardDx, WALLS[w].inwardDz));
+                        // reserve the TRUE placed span (footprint + micro-spill); skip the slot if the
+                        // span collides with an already-placed piece (this is what kills the overlaps).
+                        auto span = spanCellsOf(cells, rot, fp);
+                        if (!fits(span)) continue;
+                        reserve(cells, span, piece.type, rot);
                         placed = true;
                         break;
                     }
