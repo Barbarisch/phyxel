@@ -10323,6 +10323,61 @@ void Application::registerSettlementCommands() {
         Core::RoomProgramRegistry roomReg;
         roomReg.loadFromFile("resources/room_program.json");
 
+        // TERRACE (settlement pre-pass, terrain mode): treat each parcel (structure + its yard) as ONE
+        // unit and grade it into the terrain BEFORE any building seats — so the yard is flat, the floor
+        // lands flush (no step-in), and the perimeter fence sits on level ground. Median grade minimises
+        // earthwork; a skirt outside the plot ramps to natural terrain at <=1 step/cube so the fence
+        // never abuts a cliff. Applied per-plot (later plots grade over earlier skirts); runs before the
+        // build loop's groundTopAt seating, so buildings seat on the graded parcel. (floor_not_flush +
+        // yard_not_flat; must NOT reintroduce fence_along_cliff.)
+        if (terrain && chunkManager) {
+            const int SK = 4;                 // skirt width (cubes) blending plot grade -> natural terrain
+            long terracedCols = 0, tCut = 0, tFill = 0;
+            for (const auto& plot : layout.plots) {
+                const Core::Rect& pr = plot.rect;
+                const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
+                if (pw < 2 || pd < 2) continue;
+                std::vector<int> tops;
+                for (int x = px0; x < px0 + pw; ++x)
+                    for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(groundTopAt(x, z));
+                std::sort(tops.begin(), tops.end());
+                const int grade = tops[tops.size() / 2];          // median plot grade
+                std::vector<glm::ivec3> tcut;
+                Core::StructureResult tfill;
+                auto addT = [&](int x, int y, int z, const char* mat) {
+                    Core::VoxelPlacement vp; vp.position = glm::ivec3(x, y, z);
+                    vp.material = mat; vp.level = Core::VoxelLevel::Cube; tfill.voxels.push_back(vp);
+                };
+                for (int x = px0 - SK; x < px0 + pw + SK; ++x)
+                    for (int z = pz0 - SK; z < pz0 + pd + SK; ++z) {
+                        const bool inPlot = x >= px0 && x < px0 + pw && z >= pz0 && z < pz0 + pd;
+                        int target;
+                        if (inPlot) {
+                            target = grade;
+                        } else {                                   // skirt: ramp grade -> natural, <=1/cube
+                            const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
+                            const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
+                            const int dist = std::max(dx, dz);     // Chebyshev distance outside the plot
+                            const int nat = groundTopAt(x, z);
+                            target = (nat > grade) ? std::min(nat, grade + dist)
+                                                   : std::max(nat, grade - dist);
+                        }
+                        const int cur = groundTopAt(x, z);
+                        if (target == cur) continue;               // already at target (flat / skirt tail)
+                        for (int y = target + 1; y <= cur; ++y) { tcut.push_back(glm::ivec3(x, y, z)); ++tCut; }
+                        for (int y = cur + 1; y < target; ++y) { addT(x, y, z, "Dirt"); ++tFill; }
+                        tcut.push_back(glm::ivec3(x, target, z));  // (re)surface the graded top as Grass
+                        addT(x, target, z, "Grass"); ++tFill;
+                        ++terracedCols;
+                    }
+                if (!tcut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, tcut);
+                if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
+            }
+            if (terracedCols > 0) chunkManager->buildAllChunkPhysics();
+            LOG_INFO_FMT("Settlement", "terrace: graded " << layout.plots.size() << " parcels ("
+                         << terracedCols << " columns, cut " << tCut << " fill " << tFill << ")");
+        }
+
         nlohmann::json queued = nlohmann::json::array();
         std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
         std::vector<glm::ivec4> bFoot;        // per-building footprint (x,z,w,d) — paths must not pave under it (V7)
