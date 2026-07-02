@@ -41,9 +41,24 @@ struct FurniturePlacement {
 /// `width` = extent across the front (along the wall it backs onto); `depth` = front-to-back
 /// (extends into the room). Default 1×1 keeps a piece a single cell (legacy / unknown asset).
 struct Footprint {
-    int width = 1;   ///< cubes along the wall
-    int depth = 1;   ///< cubes into the room
+    int width = 1;    ///< cubes along the wall
+    int depth = 1;    ///< cubes into the room
+    int microW = 0;   ///< template micro extent along x (max micro index; 0 = unknown -> width*9-1)
+    int microD = 0;   ///< template micro extent along z
 };
+
+/// The set of world CUBES a micro-placed template ACTUALLY occupies — the single source of truth for
+/// reservation (planner), registration (bbox), and render. It captures the "micro-spill": the anchor is
+/// inset off the wall by `extTMicro` on each `backDir` axis, which pushes the render off the cube grid so
+/// a zero-margin template spills +1 cube. `microW/microD` = the template's micro extents (max micro
+/// index, min 0); they SWAP at 90/270. `baseCube` = the footprint MIN corner (world cubes). Inclusive.
+struct CubeSpan {
+    int minX = 0, minZ = 0, maxX = 0, maxZ = 0;
+    int width()  const { return maxX - minX + 1; }
+    int depth()  const { return maxZ - minZ + 1; }
+};
+CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
+                        int extTMicro, int baseCubeX, int baseCubeZ);
 
 /// The semantic identity of a placed fixture — what's needed to address it later in a session
 /// ("rotate the bed", "move the 2nd bedroom's bed"). Carried into the PlacedObject's metadata.

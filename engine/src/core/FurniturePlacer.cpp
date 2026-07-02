@@ -51,6 +51,21 @@ std::vector<Piece> recipeFor(const std::string& purpose) {
 
 } // namespace
 
+CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
+                        int extTMicro, int baseCubeX, int baseCubeZ) {
+    auto floorDiv9 = [](int a) { int q = a / 9; if (a % 9 != 0 && a < 0) --q; return q; };
+    const int r = ((rotation % 360) + 360) % 360;
+    const int Wm = (r == 90 || r == 270) ? microD : microW;   // rotated micro extents
+    const int Dm = (r == 90 || r == 270) ? microW : microD;
+    // anchor = footprint corner in micro, inset toward the room by extT on each wall-abutting axis
+    const int Ox = baseCubeX * 9 - backDir.x * extTMicro;
+    const int Oz = baseCubeZ * 9 - backDir.z * extTMicro;
+    CubeSpan s;
+    s.minX = floorDiv9(Ox);  s.maxX = floorDiv9(Ox + Wm);
+    s.minZ = floorDiv9(Oz);  s.maxZ = floorDiv9(Oz + Dm);
+    return s;
+}
+
 std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& purpose) {
     std::vector<std::string> types;
     for (const auto& pc : recipeFor(purpose)) types.push_back(pc.type);
