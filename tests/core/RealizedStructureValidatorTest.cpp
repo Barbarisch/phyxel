@@ -150,15 +150,16 @@ TEST(RealizedStructureValidatorTest, FloraEmissiveDetectorHasTeeth) {
     EXPECT_TRUE(RealizedStructureValidator::checkFloraNoEmissive(
         "bush_round", {"Leaf", "Wood"}).ok()) << "non-glowing flora wrongly flagged";
 }
-// RED on real output: bush_flower.voxel embeds `glow` blocks (the user's "shrubs with light-emitting
-// blocks" defect). Scans the actual template.
-TEST(RealizedStructureValidatorTest, RealBushFlowerEmissive_RED) {
-    const auto mats = templateMaterials("bush_flower");
-    if (mats.empty()) GTEST_SKIP() << "bush_flower.voxel not reachable from CWD";
-    std::vector<std::string> v(mats.begin(), mats.end());
-    auto rep = RealizedStructureValidator::checkFloraNoEmissive("bush_flower", v);
-    EXPECT_FALSE(rep.ok()) << "expected bush_flower's glow blocks to be flagged; materials were not";
-    if (!rep.ok()) std::cout << "[M1 fires] " << rep.summary() << "\n";
+// GREEN after the fix: bush_flower.voxel + tree_apple.voxel no longer embed `glow` (the user's
+// "shrubs with light-emitting blocks" defect); the glow flowers/apples are now non-emissive LeafAutumn.
+TEST(RealizedStructureValidatorTest, RealFloraNotEmissive) {
+    for (const char* tmpl : {"bush_flower", "tree_apple"}) {
+        const auto mats = templateMaterials(tmpl);
+        if (mats.empty()) { GTEST_SKIP() << tmpl << ".voxel not reachable from CWD"; return; }
+        std::vector<std::string> v(mats.begin(), mats.end());
+        auto rep = RealizedStructureValidator::checkFloraNoEmissive(tmpl, v);
+        EXPECT_TRUE(rep.ok()) << tmpl << " should not glow after the fix:\n" << rep.summary();
+    }
 }
 
 // ---- M3 hearth masonry is brick --------------------------------------------
