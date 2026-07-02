@@ -2,11 +2,11 @@
 # ASSET METADATA
 # name:         crate_wood
 # display_name: Wooden Crate
-# description:  A solid wooden shipping crate. Wood plank texture reads as slatted sides.
+# description:  A solid wooden shipping crate. WoodWalnut plank texture reads as slatted sides.
 # category:     furniture
 # subcategory:  container
 # tags:         crate, box, storage, shipping, dungeon, warehouse, common
-# materials:    Wood
+# materials:    WoodWalnut
 # facing:       +Z
 # bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
 # primitives:   1 C + 0 S + 0 M = 1
@@ -16,4 +16,4 @@
 # version:      1
 # ==========================================================
 
-C 0 0 0  Wood
+C 0 0 0  WoodWalnut

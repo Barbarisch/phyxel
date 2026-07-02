@@ -6,7 +6,7 @@
 # category:     furniture
 # subcategory:  seating
 # tags:         stool, seat, bar, tavern, house, inn, common
-# materials:    Wood
+# materials:    WoodWalnut
 # facing:       +Z
 # bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes)
 # seat_height:  0.667
@@ -20,20 +20,20 @@
 # Three-leg tripod stool — distinguishes from 4-leg bench and workbench.
 
 # --- SEAT (sy=2, full 3x3) ---
-S 0 0 0  0 2 0  Wood
-S 0 0 0  1 2 0  Wood
-S 0 0 0  2 2 0  Wood
-S 0 0 0  0 2 1  Wood
-S 0 0 0  1 2 1  Wood
-S 0 0 0  2 2 1  Wood
-S 0 0 0  0 2 2  Wood
-S 0 0 0  1 2 2  Wood
-S 0 0 0  2 2 2  Wood
+S 0 0 0  0 2 0  WoodWalnut
+S 0 0 0  1 2 0  WoodWalnut
+S 0 0 0  2 2 0  WoodWalnut
+S 0 0 0  0 2 1  WoodWalnut
+S 0 0 0  1 2 1  WoodWalnut
+S 0 0 0  2 2 1  WoodWalnut
+S 0 0 0  0 2 2  WoodWalnut
+S 0 0 0  1 2 2  WoodWalnut
+S 0 0 0  2 2 2  WoodWalnut
 
 # --- LEGS (tripod: front-center, back-left, back-right) ---
-S 0 0 0  1 0 0  Wood
-S 0 0 0  1 1 0  Wood
-S 0 0 0  0 0 2  Wood
-S 0 0 0  0 1 2  Wood
-S 0 0 0  2 0 2  Wood
-S 0 0 0  2 1 2  Wood
+S 0 0 0  1 0 0  WoodWalnut
+S 0 0 0  1 1 0  WoodWalnut
+S 0 0 0  0 0 2  WoodWalnut
+S 0 0 0  0 1 2  WoodWalnut
+S 0 0 0  2 0 2  WoodWalnut
+S 0 0 0  2 1 2  WoodWalnut

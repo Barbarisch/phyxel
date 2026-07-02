@@ -3,7 +3,7 @@
 # name:         armchair
 # display_name: Armchair
 # category:     furniture
-# materials:    Wood, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
+# materials:    WoodWalnut, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
 # facing:       +Z (seat faces +Z)
 # primitives:   0 C + 0 S + 175 M = 175
 # method:       structure_pipeline.furniture (multi-resolution DetailCanvas)

@@ -13,16 +13,16 @@
 # method:       tools/regen_furniture.py (deterministic, canon-proportioned)
 # ==========================================================
 
-M 0 0 0 0 0 0 0 0 0 Wood
-M 0 0 0 0 0 1 0 0 1 Wood
-M 0 0 0 0 0 0 0 1 0 Wood
-M 0 0 0 0 0 1 0 1 1 Wood
-M 0 0 0 0 0 0 0 2 0 Wood
-M 0 0 0 0 0 1 0 2 1 Wood
-M 0 0 0 0 1 0 0 0 0 Wood
-M 0 0 0 0 1 1 0 0 1 Wood
-M 0 0 0 0 1 0 0 1 0 Wood
-M 0 0 0 0 1 1 0 1 1 Wood
+M 0 0 0 0 0 0 0 0 0 WoodWalnut
+M 0 0 0 0 0 1 0 0 1 WoodWalnut
+M 0 0 0 0 0 0 0 1 0 WoodWalnut
+M 0 0 0 0 0 1 0 1 1 WoodWalnut
+M 0 0 0 0 0 0 0 2 0 WoodWalnut
+M 0 0 0 0 0 1 0 2 1 WoodWalnut
+M 0 0 0 0 1 0 0 0 0 WoodWalnut
+M 0 0 0 0 1 1 0 0 1 WoodWalnut
+M 0 0 0 0 1 0 0 1 0 WoodWalnut
+M 0 0 0 0 1 1 0 1 1 WoodWalnut
 M 0 0 0 0 1 0 0 2 0 Log
 M 0 0 0 0 1 0 0 2 1 Log
 M 0 0 0 0 1 0 0 2 2 Log
@@ -83,16 +83,16 @@ M 0 0 0 1 2 0 0 1 1 Log
 M 0 0 0 1 2 0 0 1 2 Log
 M 0 0 0 1 2 1 0 1 0 Log
 M 0 0 0 1 2 1 0 1 1 Log
-M 0 0 0 1 0 0 1 0 0 Wood
-M 0 0 0 1 0 1 1 0 1 Wood
-M 0 0 0 1 0 0 1 1 0 Wood
-M 0 0 0 1 0 1 1 1 1 Wood
-M 0 0 0 1 0 0 1 2 0 Wood
-M 0 0 0 1 0 1 1 2 1 Wood
-M 0 0 0 1 1 0 1 0 0 Wood
-M 0 0 0 1 1 1 1 0 1 Wood
-M 0 0 0 1 1 0 1 1 0 Wood
-M 0 0 0 1 1 1 1 1 1 Wood
+M 0 0 0 1 0 0 1 0 0 WoodWalnut
+M 0 0 0 1 0 1 1 0 1 WoodWalnut
+M 0 0 0 1 0 0 1 1 0 WoodWalnut
+M 0 0 0 1 0 1 1 1 1 WoodWalnut
+M 0 0 0 1 0 0 1 2 0 WoodWalnut
+M 0 0 0 1 0 1 1 2 1 WoodWalnut
+M 0 0 0 1 1 0 1 0 0 WoodWalnut
+M 0 0 0 1 1 1 1 0 1 WoodWalnut
+M 0 0 0 1 1 0 1 1 0 WoodWalnut
+M 0 0 0 1 1 1 1 1 1 WoodWalnut
 M 0 0 0 1 1 0 1 2 0 Log
 M 0 0 0 1 1 0 1 2 1 Log
 M 0 0 0 1 1 0 1 2 2 Log
