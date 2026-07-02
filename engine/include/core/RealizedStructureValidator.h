@@ -43,6 +43,19 @@ public:
     static ValidationReport checkFurnitureMaterialPlausibility(const std::string& type,
                                                               const std::vector<std::string>& materials);
 
+    // M1: flora (shrub/bush/tree/fern/flower) must not contain EMISSIVE (glow*) materials — plants do
+    // not glow. `type` = the flora template/type; `materials` = materials it is built from. Flags every
+    // emissive material found (the user's "some shrubs have light-emitting blocks in them" defect).
+    static ValidationReport checkFloraNoEmissive(const std::string& type,
+                                                 const std::vector<std::string>& materials);
+
+    // M3: a fireplace/chimney's MASONRY should be brick (Bricks/StoneBricks), not plain quarried stone.
+    // Applies ONLY to types containing "fireplace"/"chimney" (a forge/oven of stone is fine). Fuel Log +
+    // ember glow are allowed; flags plain Stone/Cobblestone masonry. (User: "fireplaces and chimneys
+    // should be brick (red brick).")
+    static ValidationReport checkHearthMasonryIsBrick(const std::string& type,
+                                                      const std::vector<std::string>& materials);
+
     // V5: footprint diversity across a generated SET. `footprintShapes` = the shape tag of each building
     // ("" or "rect" = rectangle; "L"/"T"/"U"/... = articulated). Flags a corpus that is 100%
     // rectangular — the generator must actually exercise non-rect plans.
@@ -71,6 +84,9 @@ public:
 
     /// True if `material` is a hard stone-family / granular material implausible for soft furnishings.
     static bool isStoneFamily(const std::string& material);
+
+    /// True if `material` is an emissive/glow material (glow, glow_blue, glow_green).
+    static bool isEmissive(const std::string& material);
 };
 
 } // namespace Core
