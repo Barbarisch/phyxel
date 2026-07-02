@@ -1036,10 +1036,14 @@ bool ChunkVoxelManager::addMicrocube(
         // Check if parent subcube exists and remove it if found
         Subcube* parentSubcube = getSubcubeHelper(parentCubePos, subcubePos);
         if (parentSubcube) {
-            LOG_WARN_FMT("ChunkVoxelManager", "[DATA INTEGRITY] Found parent subcube when adding first microcube at cube (" 
-                      << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
-                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z 
-                      << ") - removing parent (possible database corruption)");
+            // A finer microcube supersedes the coarser subcube filling the same 1/3 cell — an EXPECTED
+            // operation (e.g. a micro-detailed fixture placed over a subcube structure), not corruption.
+            // Debug-level so it doesn't spam the log; a fixture eating STRUCTURE here is caught by the
+            // realized-world validators (wall-gap / hearth-flush), not by this low-level voxel op.
+            LOG_DEBUG_FMT("ChunkVoxelManager", "microcube supersedes existing subcube at cube ("
+                      << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z
+                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
+                      << ") - removing the subcube (finer voxel replaces coarser)");
             
             // Remove from maps and vector
             removeSubcubeFromMaps(parentCubePos, subcubePos);
