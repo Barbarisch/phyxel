@@ -20,6 +20,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
     mat4 reflectedViewProj;
     float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -101,5 +103,5 @@ void main() {
     float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
 
     vec3 worldPos = center + (q.x * right + q.y * up) * scale;
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

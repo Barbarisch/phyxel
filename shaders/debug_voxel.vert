@@ -151,6 +151,7 @@ void main() {
     
     debugMode = pushConstants.debugMode;
     
-    // Transform to clip space
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    // Transform to clip space (reassociated: two mat4*vec4 instead of mat4*mat4 per vertex;
+    // this shader's UBO block declares only view/proj, so no precombined field is available)
+    gl_Position = ubo.proj * (ubo.view * vec4(worldPos, 1.0));
 }

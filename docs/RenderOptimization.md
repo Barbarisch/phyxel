@@ -59,6 +59,51 @@ fine; forcing a valid index in C++ AND in-shader still magenta → frag-side, sc
 likely the world-space UV × texture-array sample). Backed out to keep the tree green; redo from the
 design below in a focused session.
 
+## Baseline 2026-07-03 — shader-math + greedy-mesh campaigns (Increment 0)
+
+Fresh capture for [`ShaderMathRedundancyPlan.md`](ShaderMathRedundancyPlan.md) +
+[`BinaryGreedyMeshingPlan.md`](BinaryGreedyMeshingPlan.md). **DEBUG build @ commit `6e9f55e`
+(main) + Phase 1 culling**, StructGenTest flat world (pristine reset), one v2 tavern built by the
+engine generator: `POST /api/structure/build {"schema":"v2","typology":"tavern","function":"tavern",
+"style":"medieval","footprint":[16,7],"stories":[{},{}],"position":{"x":8,"y":16,"z":8}}` —
+log-verified: `auto-filled 2 story(ies) -> 6 rooms [typology tavern]`, validation OK, 20 fixtures
+placed 0 skipped, sign hung. Structure AABB (8,17,8)–(23,27,14).
+
+| scene | `total_visible_faces` | notes |
+|-------|--:|-------|
+| empty flat world | 14 | 138.7 FPS at initial camera |
+| + v2 tavern | **51,258** | close to the documented post-Phase-1 55,068 (different seed/pos) |
+
+**Fixed comparison poses** (MCP `set_camera` mode:"free" — see methodology warning below):
+
+| pose | position | yaw/pitch | reference screenshot |
+|------|----------|-----------|----------------------|
+| A exterior NE | (34, 32, 29) | −135 / −25 | `screenshots/screenshot_20260703_084841_802.png` |
+| B exterior W (sign + character visible) | (−6, 28, 28) | −37 / −16 | `screenshots/screenshot_20260703_084913_364.png` |
+| C interior (furniture + micro walls) | (18.5, 20, 11.5) | −165 / −18 | `screenshots/screenshot_20260703_085015_966.png` |
+
+**⚠ FPS methodology (hard-won, 2026-07-03):**
+1. **`POST /api/camera` does NOT reliably hold a free-camera pose** — the camera can revert to
+   player-follow (~(22.6,19.2,22.6)) within seconds, silently measuring the wrong view. The MCP
+   `set_camera` tool holds indefinitely. Always **verify `GET /api/camera` position in the same
+   breath as reading `GET /api/debug/engine_timing`**, or the number is meaningless.
+2. **Restart-to-restart FPS variance is ±20% on the target rig** (same shaders, same DB world,
+   same verified pose: 140.4 vs 113.6 FPS across two launches). Only **within-run** comparisons
+   at verified poses are meaningful at the few-ms scale.
+3. World state must be **loaded from the saved DB** (`POST /api/world/save` after building —
+   chunk voxels are NOT auto-persisted by the structure build; a force-killed engine loses them.
+   Rebuilding the same payload at the same position is deterministic: 51,258 faces every time).
+
+**Shader-math A/B result (2026-07-03, `ShaderMathRedundancyPlan.md` executed):** old vs new
+shaders (same binary, same DB world, verified poses): A 142.4→140.4 FPS, C 75.7→72.8 FPS —
+**no measurable difference** (within noise). The NVIDIA driver on the RTX 4090 was already
+hoisting the per-vertex uniform mat4×mat4 products (the plan's documented caveat). The changes
+ship anyway: correct-by-construction, removes reliance on driver heroics, fixes the misdeclared
+`static_voxel.vert` UBO block, and eliminates a real per-fragment matrix product in
+`character.frag`. Visual identity verified at poses A/B/C by manual comparison (not a pixel-diff
+tool) — after-screenshots: A = `screenshot_20260703_090250_111.png`, B = `_091328_493.png`,
+C = `_090307_105.png`.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

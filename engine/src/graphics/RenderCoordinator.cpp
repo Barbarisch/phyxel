@@ -1786,7 +1786,8 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     }
 
     // Instanced characters in the main pass (main camera view-projection).
-    renderInstancedCharacters(commandBuffer, cachedProjectionMatrix * cachedViewMatrix,
+    const glm::mat4 mainViewProj = cachedProjectionMatrix * cachedViewMatrix;
+    renderInstancedCharacters(commandBuffer, mainViewProj,
                               renderPipeline->getInstancedCharacterPipeline());
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
@@ -1802,7 +1803,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         // Fallback generic entity rendering
         {
             glm::mat4 model = glm::mat4(1.0f);
-            glm::mat4 viewProj = cachedProjectionMatrix * cachedViewMatrix;
+            const glm::mat4& viewProj = mainViewProj;
             glm::vec4 color = glm::vec4(1.0f);
 
             struct PushConsts {

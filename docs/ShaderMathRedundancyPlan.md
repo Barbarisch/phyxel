@@ -1,6 +1,20 @@
 # Shader Math Redundancy — Fix Plan
 
-> **Status: PLANNED — not started.** Written 2026-07-02 from an audit inspired by the
+> **Status: ✅ EXECUTED 2026-07-03** (branch `render-perf-shader-math`). Both increments shipped
+> and verified visually identical at the three fixed poses. **Measured FPS outcome: no change**
+> — verified-pose A/B (old vs new shaders, same binary/world) showed differences within noise;
+> the RTX 4090 driver was already hoisting the uniform mat4×mat4 (the caveat below, confirmed).
+> Kept anyway: correct-by-construction, fixes the misdeclared `static_voxel.vert` UBO block
+> (declared offsets didn't match the C++ struct — unread fields, latent trap), removes the
+> per-fragment matrix product in `character.frag`. Full results + FPS-methodology warnings
+> (HTTP camera unreliable, ±20% restart variance): `RenderOptimization.md` "Baseline 2026-07-03".
+> Deviation from plan: `character.frag` consumes `ubo.biasedLightSpace` in-place instead of a
+> vertex-shader varying — the character vertex stage has no UBO binding, and adding one would
+> mean descriptor stage-flag surgery for negligible further gain.
+>
+> Original plan follows.
+>
+> Written 2026-07-02 from an audit inspired by the
 > ["Redundancy seen in AAA game engines" series](https://zero-irp.github.io/Redundancy-seen-in-AAA-game-engines/)
 > (z1rp). Companion research digest: [`EngineAdvancesResearch.md`](EngineAdvancesResearch.md).
 >

@@ -34,6 +34,12 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 sunColor;
     uint numInstances;
     float ambientLight;
+    float emissiveMultiplier;
+    vec3 cameraPosition;
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
@@ -246,21 +252,15 @@ void main() {
     // Rotate normal
     outNormal = rotateByQuaternion(normal, inRotation);
 
-    // Shadow coord
-    const mat4 biasMat = mat4( 
-        0.5, 0.0, 0.0, 0.0,
-        0.0, 0.5, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.5, 0.5, 0.0, 1.0 
-    );
-    shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+    // Shadow coord (bias * lightSpace precombined on CPU)
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
     
     // Dummy flags
     flags = 0u;
     vTint = vec3(1.0);
     vState = 0u;
 
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
     // Baked light sampled at spawn (Phase 4c): debris darkens in unlit interiors + picks up glow.
     vSkyLight   = float(inDebrisLight & 0xFu) / 15.0;

@@ -22,6 +22,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
     mat4 reflectedViewProj;
     float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -134,5 +136,5 @@ void main() {
     // Colour-sample UV: a stable per-blade point in the grass tile (subtle per-blade variation).
     vUV = fract(vec2(rootWorld.x, rootWorld.z) * 0.5 + vec2(h0, h1) * 0.3);
 
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }
