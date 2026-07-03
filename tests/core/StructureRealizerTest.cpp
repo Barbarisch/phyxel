@@ -9,6 +9,19 @@
 
 using namespace Phyxel::Core;
 
+// thicknessMicro CLAMPS wall thickness to [1,9] micro (max one full cube). The furniture pass reuses
+// this converter for its wall-inset, so the clamp is a contract, not an implementation detail: a
+// stone_keep exterior_wall of 3.0 m must NOT yield a 27-micro inset (it would push furniture 3 cubes
+// off the 1-cube wall the realizer actually built and drop it). Teeth: an un-clamped lround(3.0*9)
+// would be 27, so the ==9 assertion is falsifiable.
+TEST(StructureRealizerTest, ThicknessMicroClampsToOneCube) {
+    EXPECT_EQ(StructureRealizer::thicknessMicro(3.0), 9)   << "keep 3.0 m must clamp to 1 cube (9), not 27";
+    EXPECT_EQ(StructureRealizer::thicknessMicro(0.667), 6) << "manor 0.667 m -> 6 micro (unclamped)";
+    EXPECT_EQ(StructureRealizer::thicknessMicro(0.333), 3) << "cottage 0.333 m -> 3 micro";
+    EXPECT_EQ(StructureRealizer::thicknessMicro(0.222), 2) << "studwork 0.222 m -> 2 micro";
+    EXPECT_EQ(StructureRealizer::thicknessMicro(0.0), 1)   << "min 1 micro (never zero)";
+}
+
 namespace {
 // The first-slice cottage: hall + kitchen tile a 7x9 rectangle, crawlspace, gable,
 // a front door and an interior arch.

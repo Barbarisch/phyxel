@@ -12992,10 +12992,16 @@ void Application::processAPICommands() {
                             v2FloorYByStory.push_back(oy + ft / 9);          // legacy cube Y (back-compat)
                             v2SurfaceMicroYByStory.push_back(oy * 9 + ft);   // EXACT walkable surface micro-Y
                         }
-                        // exterior-wall thickness in micro (1 cube = 9 micro) — the inset the furniture
-                        // pass applies so pieces clear the thin perimeter wall band.
-                        v2ExtTMicro = std::max(1, (int)std::lround(
-                            style.thicknessOf("exterior_wall", 0.333) * 9.0));
+                        // exterior-wall thickness in micro — the inset the furniture pass applies so
+                        // pieces clear the perimeter wall band. MUST equal the thickness the REALIZER
+                        // actually built (StructureRealizer::thicknessMicro CLAMPS to [1,9] = max 1 cube),
+                        // not the raw style value: a stone_keep authors exterior_wall=3.0 m, so the raw
+                        // lround(3.0*9)=27 would inset furniture 3 CUBES off a wall the realizer clamped
+                        // to 1 cube — pushing every piece's reserved span out of a narrow room and
+                        // dropping it (house_1 solar/service: bed+chest+chest lost). Use the realizer's
+                        // own converter so inset == realized wall.
+                        v2ExtTMicro = Core::StructureRealizer::thicknessMicro(
+                            style.thicknessOf("exterior_wall", 0.333));
                         // Roof apex (world micro) for place_chimney (#14): the stack must clear it.
                         {
                             glm::ivec3 cLo, cHi;

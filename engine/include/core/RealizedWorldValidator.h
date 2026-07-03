@@ -134,12 +134,15 @@ public:
     static ValidationReport checkFenceAgainstRise(const std::vector<FencePost>& posts,
                                                   const SurfaceHeight& surfaceH, int cliffTol = 2);
 
-    // V11: chest facing. A chest should back onto its nearest wall so the clasp/front opens into the
-    // room. Clasp direction from rotation (rot0=+Z, 90=-X, 180=-Z, 270=+X, per the engine's rotateOffset
-    // transform). Fires when the chest's BACK does not face its nearest wall (chest is mis-oriented /
-    // opens toward a wall). Skips chests with no wall within `reach` (open placement, can't judge).
-    // (User: "chests seem to always be facing the wrong way" — e.g. chest_closed_2 at (4,17,22), rot 90,
-    // clasp faces -X while its nearest wall is the south wall at z=24.)
+    // V11: chest facing. The defect is a chest whose LID OPENS INTO A WALL. Clasp (front) direction from
+    // rotation (rot0=+Z, 90=-X, 180=-Z, 270=+X, per the engine's rotateOffset transform). Fires only when
+    // the clasp faces a wall (within `reach`) that is NEARER than the chest's back — i.e. the chest is
+    // backwards, and flipping it would open into clearance. It does NOT fire on a chest that backs one
+    // wall while a PERPENDICULAR wall sits alongside (a corner / narrow room): the clasp still opens into
+    // the room. (The earlier "back must face the single nearest wall" rule mis-flagged those corners —
+    // a chest inset against an exterior wall in its own perimeter cube reads as "back open" to an outward
+    // scan while its clasp opens into the room.) (User: "chests seem to always be facing the wrong way" —
+    // the root was the chest template's z-low clasp, since fixed so every chest opens +Z into the room.)
     static ValidationReport checkChestFacing(const std::vector<ChestPlacement>& chests,
                                              const WallAt& wallAt, int reach = 3);
 

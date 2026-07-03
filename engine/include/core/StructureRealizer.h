@@ -47,7 +47,10 @@ public:
     /// StructureGenerator::place / VoxelModificationSystem.
     static StructureResult toStructureResult(const ShellResult& shell, const glm::ivec3& worldOrigin);
 
-    /// Micro thickness (cells) for a thickness given in cubes; at least 1 cell.
+    /// Micro thickness (cells) for a thickness given in cubes, CLAMPED to [1,9] (min 1 cell, max one
+    /// full cube). The furniture pass uses this same converter for its wall-inset so the inset matches
+    /// the realized wall band exactly (a raw >9-micro value would over-inset furniture off a clamped
+    /// 1-cube wall).
     static int thicknessMicro(double cubes);
 };
 

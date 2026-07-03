@@ -195,33 +195,36 @@ ValidationReport RealizedWorldValidator::checkFenceCornerOverlaps(
 }
 
 // V11 — chest facing. Clasp direction from rotation (engine rotateOffset: rot0=+Z, 90=-X, 180=-Z,
-// 270=+X). A correctly placed chest backs onto its nearest wall (back faces the closest wall). Fires
-// when the back does NOT face the nearest wall — the chest is turned the wrong way / opens at a wall.
+// 270=+X). The real defect is a chest whose LID OPENS INTO A WALL — its clasp faces a wall that is
+// NEARER than its back, i.e. the chest is backwards and flipping it would open into clearance. Fires
+// only then. It deliberately does NOT fire on a chest that backs one wall while a PERPENDICULAR wall
+// sits alongside (a corner / narrow room): the clasp still opens into the room (front is clear), so it
+// is correctly placed. (The earlier "back must face the single NEAREST wall" rule mis-flagged those —
+// e.g. a chest inset against an exterior wall in its own perimeter cube reads as "back open" to an
+// outward scan while its clasp opens into the room; that is a false positive, not a defect.)
 ValidationReport RealizedWorldValidator::checkChestFacing(
     const std::vector<ChestPlacement>& chests, const WallAt& wallAt, int reach) {
     ValidationReport rep;
     if (!wallAt) return rep;
-    // clasp (dx,dz) for rotation 0/90/180/270
+    // clasp (front) (dx,dz) for rotation 0/90/180/270
     const int cd[4][2] = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
     for (const auto& c : chests) {
         const int r = (((c.rotation % 360) + 360) % 360) / 90;
-        const int bx = -cd[r][0], bz = -cd[r][1];   // back direction
+        const int fx = cd[r][0], fz = cd[r][1];     // front (clasp) direction
         auto nearest = [&](int dx, int dz) -> int {
             for (int s = 1; s <= reach; ++s)
                 if (wallAt(c.center.x + dx * s, c.center.y, c.center.z + dz * s)) return s;
             return 999;
         };
-        const int dpx = nearest(1, 0), dmx = nearest(-1, 0), dpz = nearest(0, 1), dmz = nearest(0, -1);
-        const int minD = std::min(std::min(dpx, dmx), std::min(dpz, dmz));
-        if (minD > reach) continue;                  // no wall nearby — open placement, can't judge
-        const int backD = nearest(bx, bz);
-        if (backD > minD) {
+        const int frontD = nearest(fx, fz), backD = nearest(-fx, -fz);
+        // Clasp opens toward a wall (frontD<=reach) that is strictly nearer than the back -> backwards.
+        if (frontD <= reach && frontD < backD) {
             rep.addError("chest_facing_wrong",
                 "chest '" + c.id + "' at (" + std::to_string(c.center.x) + "," +
                 std::to_string(c.center.y) + "," + std::to_string(c.center.z) + ") rot " +
-                std::to_string(c.rotation) + " does not back onto its nearest wall (back faces an open "
-                "side; nearest wall is " + std::to_string(minD) + " away on another side) — the clasp "
-                "opens the wrong way", c.id);
+                std::to_string(c.rotation) + " opens toward a wall " + std::to_string(frontD) +
+                " away while its back (" + std::to_string(backD == 999 ? -1 : backD) +
+                ") is clearer — the chest is backwards; its lid opens into the wall", c.id);
         }
     }
     return rep;

@@ -205,6 +205,17 @@ public:
                               int rotation = 0, const std::string& parentId = "",
                               bool snapToGround = true);
 
+    /// RENDER-ACCURATE cube bbox for a MICRO-placed template. Unlike computeTemplateBounds (which
+    /// anchors on the CUBE-truncated position and uses the template's cube-coordinate extents), this
+    /// mirrors ObjectTemplateManager::spawnTemplateMicro exactly: it expands the template to its
+    /// template-local MICRO AABB, rotates it about the micro pivot, shifts by the exact (off-grid)
+    /// `worldMicro`, and floor-divides to cubes. So the registered bbox equals what actually renders —
+    /// including the sub-cube "micro-spill" a wall-inset anchor pushes into the next cube (which the
+    /// cube-anchored bounds silently drop). Matches FurniturePlacer::placedCubeSpan (the reservation),
+    /// so reservation == registration == render. Returns {min,max}; {worldMicro/9, same} if no template.
+    std::pair<glm::ivec3, glm::ivec3> computeMicroPlacedBounds(
+        const std::string& templateName, const glm::ivec3& worldMicro, int rotation) const;
+
     /// Place a STATIC template at a MICRO-precise world position (sub-cube), via
     /// ObjectTemplateManager::spawnTemplateMicro, AND register a PlacedObject so the piece stays
     /// addressable + removable (parent/metadata/bbox). `worldMicro` = cube*9 + micro per axis. Used

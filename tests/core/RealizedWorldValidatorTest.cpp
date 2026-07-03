@@ -241,19 +241,31 @@ TEST(RealizedWorldValidatorTest, FenceOverPathDetectorHasTeeth) {
 }
 
 // ---- V11 chest facing ------------------------------------------------------
-// TEETH, calibrated on the real chest_closed_2 (center (4,17,22), rot 90) with the south wall at z>=24.
+// The defect is a chest whose LID OPENS INTO A WALL (clasp faces a nearer wall than the back). TEETH: a
+// backwards chest fires; a correctly-opening chest passes even in a corner/narrow room where a
+// perpendicular wall sits alongside (the false positive the old "back must face the nearest wall" rule
+// produced — the real chest_closed_8 in a byre, inset against the exterior wall in its own cube).
 TEST(RealizedWorldValidatorTest, ChestFacingDetectorHasTeeth) {
-    auto wallSouth = [](int, int, int z) { return z >= 24; };   // a wall band to the south (+Z)
+    auto wallNorth = [](int, int, int z) { return z >= 24; };   // a wall band to the north (+Z)
 
-    // rot 90 -> clasp faces -X, back faces +X (open); nearest wall is +Z -> mis-facing -> fires.
-    std::vector<ChestPlacement> wrong = { {"chest_a", {4, 17, 22}, 90} };
-    EXPECT_FALSE(RealizedWorldValidator::checkChestFacing(wrong, wallSouth).ok())
-        << "mis-facing chest NOT detected";
+    // BACKWARDS: rot 0 -> clasp faces +Z, straight into the north wall (front nearer than the open
+    // back) -> fires. Center at z=22 so the +Z wall (z>=24) is 2 away, the -Z back is open.
+    std::vector<ChestPlacement> wrong = { {"chest_a", {4, 17, 22}, 0} };
+    EXPECT_FALSE(RealizedWorldValidator::checkChestFacing(wrong, wallNorth).ok())
+        << "backwards chest (clasp opens into the north wall) NOT detected";
 
-    // rot 180 -> clasp faces -Z (into room), back faces +Z (onto the south wall) -> correct -> passes.
+    // CORRECT: rot 180 -> clasp faces -Z (into room), back faces +Z (onto the north wall) -> passes.
     std::vector<ChestPlacement> right = { {"chest_b", {4, 17, 22}, 180} };
-    EXPECT_TRUE(RealizedWorldValidator::checkChestFacing(right, wallSouth).ok())
+    EXPECT_TRUE(RealizedWorldValidator::checkChestFacing(right, wallNorth).ok())
         << "a correctly wall-backed chest wrongly flagged";
+
+    // CORNER (regression guard for the old false positive): a chest backs the north wall (rot 180,
+    // clasp -Z into the room) with a PERPENDICULAR wall to the west (-X) alongside. The clasp opens into
+    // the room, so it must PASS even though a wall sits beside it.
+    auto wallNorthAndWest = [](int x, int, int z) { return z >= 24 || x <= 2; };
+    std::vector<ChestPlacement> corner = { {"chest_c", {4, 17, 22}, 180} };
+    EXPECT_TRUE(RealizedWorldValidator::checkChestFacing(corner, wallNorthAndWest).ok())
+        << "a corner chest that opens into the room was wrongly flagged (the old false positive)";
 
     // no wall within reach -> open placement, cannot judge -> passes.
     auto noWall = [](int, int, int) { return false; };
