@@ -1,0 +1,155 @@
+# Engine Advances Research Digest
+
+> Web research sweep, 2026-07-02 — modern game-engine techniques evaluated for applicability to
+> Phyxel. Companion to [`ShaderMathRedundancyPlan.md`](ShaderMathRedundancyPlan.md) (the immediately
+> actionable item). Ordered by (relevance to current pain × maturity). Each entry says what it is,
+> why Phyxel specifically, and the adoption cost. These are **candidates**, not commitments — each
+> would need its own grounded plan + stress test before any code.
+
+## 1. Binary greedy meshing — direct hit on the #1 open issue
+
+> **➡ EXECUTED 2026-07-02:** grounded implementation plan written —
+> [`BinaryGreedyMeshingPlan.md`](BinaryGreedyMeshingPlan.md). Key discovery: 32 provably-unused
+> bits in the existing lighting words hold merged-quad extents with **zero struct widening**,
+> sidestepping the failure surface of the reverted Phase 2 attempt.
+
+**What:** meshing sub/micro voxel faces with bitwise ops — cull 64 faces at a time with bitmasks,
+merge quads via bit manipulation. Reference implementation:
+[cgerikj/binary-greedy-meshing](https://github.com/cgerikj/binary-greedy-meshing) (claims ~3.9×
+faster than classic greedy meshing at ~20% more triangles); see also
+[Vercidium's voxel-mesh-generation](https://github.com/Vercidium/voxel-mesh-generation) and the
+[Exile voxel pipeline writeup](https://thenumb.at/Voxel-Meshing-in-Exile/).
+
+**Why Phyxel:** the #1 known issue is exactly un-merged sub/micro faces (412k faces → 49 FPS,
+`docs/RenderOptimization.md`). Phase 2 greedy-merge was attempted and **parked** on the
+`InstanceData` encoding constraint (bits 20–31 doubly-booked: merge extents for cubes vs grid
+position for sub/micro). Binary meshing doesn't remove that encoding problem, but it makes the
+*mesher* cheap enough that re-meshing on edit stops being the bottleneck argument, and the
+bitmask-column representation is a natural fit for 32³ chunks (a column = one `uint32_t`).
+A subcube chunk column at 3× subdivision is 96 bits = fits established 64+32 mask tricks.
+
+**Cost:** medium-high — reopens the parked Phase 2 including the instance-encoding redesign.
+**Verdict: strongest candidate; schedule as the next render-perf campaign.**
+
+## 2. GPU-driven rendering (multi-draw indirect + compute culling)
+
+**What:** move per-chunk draw decisions to the GPU: scene data in SSBOs, a compute pass does
+frustum + occlusion culling (last frame's depth pyramid) and writes `VkDrawIndexedIndirectCommand`s;
+CPU issues one `vkCmdDrawIndexedIndirect`. Canonical guides:
+[vkguide GPU-driven overview](https://vkguide.dev/docs/gpudriven/gpu_driven_engines/),
+[compute culling](https://vkguide.dev/docs/gpudriven/compute_culling/),
+[Vulkan samples: multi-draw indirect](https://docs.vulkan.org/samples/latest/samples/performance/multi_draw_indirect/README.html),
+and vkguide's newer [voxel/mesh rendering chapter](https://vkguide.dev/docs/ascendant/ascendant_geometry/).
+
+**Why Phyxel:** chunks are a perfectly uniform unit for indirect draws, and occlusion culling is
+where dense settlement scenes (many buildings occluding each other) would pay off — greedy meshing
+reduces faces per chunk, GPU culling reduces chunks drawn at all. Complementary to #1.
+
+**Cost:** high — restructures how ChunkManager feeds the renderer (per-chunk instance buffers →
+one big buffer + offsets, depth pyramid pass, indirect buffer plumbing). **Verdict: right
+long-term direction; adopt after #1, starting with GPU frustum culling only (no occlusion) as a
+low-risk first increment.**
+
+## 3. AVBD — SIGGRAPH 2025 paper vs Phyxel's implementation
+
+> **➡ EXECUTED 2026-07-02:** audit complete — [`AvbdSolverAudit.md`](AvbdSolverAudit.md).
+> Verdict: Phyxel already implements genuine AVBD (primal-dual, warm-started λ/κ); no formulation
+> rewrite needed. Found: iteration headroom (8 vs the paper's 3-4) and **two silent-failure
+> defects** in dense piles (bodies with graph color ≥ 12 skip the primal solve; constraints past
+> the 60k cap silently dropped). Ranked fix plan R1-R6 in the audit.
+
+**What:** Augmented Vertex Block Descent — VBD + Augmented Lagrangian for hard constraints —
+published at SIGGRAPH 2025 (Giles et al., Roblox/Utah):
+[project page + paper](https://graphics.cs.utah.edu/research/projects/avbd/),
+[Real-Time Live! demo](https://dl.acm.org/doi/10.1145/3721243.3735982), plus a readable
+[WebGPU implementation](https://www.webgpu.com/showcase/webphysics-webgpu-avbd-solver/).
+Headline claims: unconditional stability, stable large stacks and long articulated chains at
+**a few iterations per frame**.
+
+**Why Phyxel:** `GpuParticlePhysics` already runs XPBD/AVBD-style compute. Worth a focused
+comparison of Phyxel's solver against the published formulation — especially warm-starting
+(the paper's penalty/λ carry-over) and stacking stability, since debris piles and destruction
+are the primary use. Potential outcome: fewer iterations for the same stability → raises the
+~10k particle cap.
+
+**Cost:** low to investigate (read paper, diff against our compute shaders), medium to adopt
+changes. **Verdict: cheap high-value audit; also relevant to the CPU `VoxelDynamicsWorld` if
+furniture stacking ever shows jitter.**
+
+## 4. Radiance cascades — GI that fits voxel worlds
+
+**What:** noiseless real-time GI storing a radiance field in hierarchical cascades of probes
+(near = dense probes/few directions, far = sparse probes/many directions); cost independent of
+light count and geometry complexity. Intro:
+[jason.today/rc](https://jason.today/rc); 2025 advance:
+[Holographic Radiance Cascades (arXiv 2505.02041)](https://arxiv.org/abs/2505.02041);
+overview: [80.lv article](https://80.lv/articles/radiance-cascades-new-approach-to-calculating-global-illumination).
+
+**Why Phyxel:** current lighting is per-corner sky+block light words (Minecraft-style flood).
+Taverns/inns are interior scenes lit by point lights — exactly where flood-fill light looks
+flattest and GI would visibly raise the "better than Minecraft" bar. A voxel grid gives free
+ray-marching structure (DDA through chunk occupancy) for cascade interval tracing.
+
+**Cost:** high (new lighting pipeline + storage), and interacts with the existing emissive/
+point-light system. **Verdict: the most promising *visual-quality* leap; park until render-perf
+(#1/#2) lands — GI on top of an unmerged 412k-face scene compounds the wrong thing.**
+
+## 5. Render graph / frame graph for the Vulkan backend
+
+**What:** declare render passes + resource usage as a DAG; the graph derives barriers, layout
+transitions, pass order, and aliases transient memory. References:
+[LegitEngine (rendergraph Vulkan framework)](https://github.com/Raikiri/LegitEngine),
+[Vulkan-tutorial engine-architecture chapter](https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/05_rendering_pipeline.html),
+[a 2025 build log with VMA-backed frame graph](https://dev.to/p3ngu1nzz/advanced-vulkan-rendering-building-a-modern-frame-graph-and-memory-management-system-15kn).
+
+**Why Phyxel:** RenderCoordinator/RenderPipeline currently sequence passes (shadow, main, mirror,
+water, post) with hand-placed barriers — the mirror/reflection descriptor-pool bug and the pass
+count growing (GI, occlusion pyramid would add more) are the classic symptoms that precede
+adopting a graph. It's insurance against sync bugs, not a speed win.
+
+**Cost:** high, invasive, low user-visible payoff near-term. **Verdict: not now; reconsider when
+the pass count next grows (occlusion culling or GI). Keep hand-rolled barriers until then.**
+
+## 6. Voxel ray tracing (brickmaps / Teardown-style) — the alternative future
+
+**What:** skip meshing; trace rays through voxel data directly (DDA + brickmap or sparse-64-tree
+acceleration). Teardown rasterizes each object's OBB and traces inside the fragment shader.
+References: [Teardown teardown](https://juandiegomontoya.github.io/teardown_breakdown.html),
+[sparse 64-tree ray tracing guide](https://dubiousconst282.github.io/2024/10/03/voxel-ray-tracing/),
+[VoxelRT experiments](https://github.com/dubiousconst282/VoxelRT),
+[Aokana: GPU-driven voxel framework (arXiv 2505.02017)](https://arxiv.org/pdf/2505.02017),
+[fast voxel data structures survey](https://bink.eu.org/fast-voxel-datastructures/).
+
+**Why Phyxel:** the microcube-fidelity direction (memory: lean into microcubes for quality) is on
+a collision course with rasterized instancing — face count scales with subdivision³. Ray tracing
+scales with *screen resolution*, not voxel count; it's how Teardown affords its density, and the
+RTX 4090 target rig removes the hardware excuse. This is the "if meshing keeps losing" escape
+hatch — a whole-renderer bet, plausibly prototype-able for sub/micro detail only (hybrid: rasterize
+cubes, trace fine detail inside them, i.e. exactly Teardown's OBB trick applied to microcube
+regions).
+
+**Cost:** very high (parallel renderer). **Verdict: not actionable now, but keep on the map; if
+greedy-mesh + GPU-driven still can't hold 60 FPS at target density, this is the fork in the road.
+The hybrid form (trace only micro-detail volumes) is the realistic entry point.**
+
+## 7. Small, opportunistic wins
+
+- **Vertex pooling / persistent-mapped chunk buffers** ([Nick's blog](https://nickmcd.me/2021/04/04/high-performance-voxel-engine/)):
+  reduce per-chunk (re)allocation churn on edits. Check whether ChunkManager already pools;
+  if rebuilds allocate fresh Vulkan buffers, this is cheap latency insurance for destruction-heavy
+  scenes.
+- **Fixed-precision instance attributes** (vkguide ascendant chapter): chunk-local coords need
+  ≤6 bits/axis (10 for micro) — Phyxel's 20 B static `InstanceData` is already tight, but the
+  64 B `DynamicSubcubeInstanceData` likely compresses (quantized rotation, half-float scale) →
+  less bandwidth on the debris path at high particle counts.
+
+## Suggested sequencing
+
+1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
+2. **Next render campaign:** binary greedy meshing for sub/micro (#1) — ✅ plan written
+   (`BinaryGreedyMeshingPlan.md`), ready to execute.
+3. **Cheap parallel audit:** AVBD paper vs `GpuParticlePhysics` (#3) — ✅ done
+   (`AvbdSolverAudit.md`); its R1 (fix two silent-failure defects) is now an actionable item.
+4. **After meshing lands:** GPU frustum culling → occlusion culling (#2).
+5. **Visual-quality leap, after perf headroom exists:** radiance cascades (#4).
+6. **Hold:** render graph (#5) until pass count forces it; voxel ray tracing (#6) as the strategic fallback.
