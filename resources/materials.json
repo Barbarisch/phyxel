@@ -930,6 +930,126 @@
       }
     },
     {
+      "name": "ClayTile",
+      "category": "material",
+      "description": "Terracotta clay plain-tile roofing (courses align to subcube steps)",
+      "physics": {
+        "mass": 2.5,
+        "friction": 0.7,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.2,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 0.7,
+        "colorTint": [
+          0.72,
+          0.4,
+          0.26
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "clay_tile_side_n.png",
+        "side_s": "clay_tile_side_s.png",
+        "side_e": "clay_tile_side_e.png",
+        "side_w": "clay_tile_side_w.png",
+        "top": "clay_tile_top.png",
+        "bottom": "clay_tile_bottom.png"
+      }
+    },
+    {
+      "name": "WoodShingle",
+      "category": "material",
+      "description": "Split wooden shake roofing (courses align to subcube steps)",
+      "physics": {
+        "mass": 0.6,
+        "friction": 0.6,
+        "restitution": 0.15,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.55,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.5,
+          0.38,
+          0.25
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "textures": {
+        "side_n": "wood_shingle_side_n.png",
+        "side_s": "wood_shingle_side_s.png",
+        "side_e": "wood_shingle_side_e.png",
+        "side_w": "wood_shingle_side_w.png",
+        "top": "wood_shingle_top.png",
+        "bottom": "wood_shingle_bottom.png"
+      }
+    },
+    {
+      "name": "Slate",
+      "category": "material",
+      "description": "Thin blue-grey slate roofing (courses align to subcube steps)",
+      "physics": {
+        "mass": 3.5,
+        "friction": 0.7,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.3,
+        "bondStrength": 0.7,
+        "angularVelocityScale": 0.6,
+        "colorTint": [
+          0.3,
+          0.34,
+          0.4
+        ],
+        "metallic": 0.0,
+        "roughness": 0.6
+      },
+      "textures": {
+        "side_n": "slate_side_n.png",
+        "side_s": "slate_side_s.png",
+        "side_e": "slate_side_e.png",
+        "side_w": "slate_side_w.png",
+        "top": "slate_top.png",
+        "bottom": "slate_bottom.png"
+      }
+    },
+    {
+      "name": "StoneSlab",
+      "category": "material",
+      "description": "Heavy grey stone-slab roofing, Yorkshire-stone style (courses align to subcube steps)",
+      "physics": {
+        "mass": 5.5,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 1.6,
+        "bondStrength": 0.85,
+        "angularVelocityScale": 0.45,
+        "colorTint": [
+          0.5,
+          0.5,
+          0.46
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "stone_slab_side_n.png",
+        "side_s": "stone_slab_side_s.png",
+        "side_e": "stone_slab_side_e.png",
+        "side_w": "stone_slab_side_w.png",
+        "top": "stone_slab_top.png",
+        "bottom": "stone_slab_bottom.png"
+      }
+    },
+    {
       "name": "vox_00",
       "category": "vox_palette",
       "description": "Flat voxel-palette color rgb(49,21,19)",

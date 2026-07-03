@@ -44,7 +44,7 @@
         "floor": "INFERRED ~0.2-0.3 m oak joists + boards",
         "ceiling": "INFERRED ~0.1 m plank ceiling / underside",
         "roof.pitch_deg": "thatch demands >=45 deg, usually 50 deg, to shed water (roofonline.com; English Heritage Buildings)",
-        "roof.material": "Thatch — REQUIRES adding a 'Thatch' material to resources/materials.json (texture + atlas rebuild). Renders magenta missing-texture until that material exists.",
+        "roof.material": "Thatch — real material (tools/gen_roof_materials.py, courses align to subcube steps).",
         "ceiling_target": "ANTHROPOMETRIC (not period): character clearance (character_design_constraints.json) + IRC R305 7 ft floor"
       }
     },
@@ -66,7 +66,7 @@
         "cladding": "Stone",
         "trim": "Stone",
         "floor": "Wood",
-        "roof": "Wood",
+        "roof": "ClayTile",
         "foundation": "Stone"
       },
       "trim": {
@@ -92,7 +92,7 @@
         "floor": "INFERRED ~0.2-0.3 m timber/flagstone",
         "ceiling": "INFERRED ~0.3 m",
         "roof.pitch_deg": "clay tile 35-45 deg (Marley; roofonline.com)",
-        "roof.material": "PLACEHOLDER: real roof is CLAY TILE/slate; engine lacks the material (MaterialTextureNeeds.md)",
+        "roof.material": "ClayTile — real material (tools/gen_roof_materials.py); Slate/StoneSlab also available for stone-upland variants.",
         "ceiling_target": "ANTHROPOMETRIC + status: grand halls 'higher than wide' (Wikipedia Great hall) + character clearance"
       }
     },

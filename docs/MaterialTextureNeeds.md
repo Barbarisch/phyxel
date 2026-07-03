@@ -11,12 +11,20 @@ Sandstone, Glass, Metal, Gold, Ice, Leaf, glow, Mirror.
 These skew **terrain/exterior**. Interiors, furniture, and finish work are starved — we keep
 substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing better exists.
 
-## Missing — period ROOFING (surfaced by E2 grounding, 2026-06-22)
-| Need | Used for | Notes |
-|------|----------|-------|
-| **Thatch** | medieval cottage/croft roofs | the canonical peasant roof; `timber_cottage` roof is "Wood" as a PLACEHOLDER. Real thatch needs ≥45–50° pitch (now grounded in structure_styles.json). |
-| **Clay tile / slate** | manor / townhouse roofs | `stone_manor` roof is "Wood" PLACEHOLDER; real clay tile at 35–45°. |
-| **Wattle & daub (limewashed)** | timber-cottage exterior wall infill | currently "Wood"; real daub is a limewashed off-white panel between dark timbers. |
+## Period ROOFING — DONE (2026-07-02, `tools/gen_roof_materials.py`)
+Full vernacular roof family shipped: **Thatch** (redo), **ClayTile**, **WoodShingle**,
+**Slate**, **StoneSlab** (all 512px, `varied:false`). Alignment is art-only, in the voxel
+idiom (no projected/sloped geometry): the *stepped* subcube roof supplies the course rhythm,
+so each texture has ONE course lip at the tile's bottom edge (period = subcube step, 3/tile)
+instead of baked mid-face lines, and runs consistently down-slope (image-Y) so straw/grain/seams
+continue over the step lip. `timber_cottage`→Thatch, `stone_manor`→ClayTile (placeholders
+removed); Slate/StoneSlab wired into `vernacular_materials.json` stone-upland regions.
+| Was wanted | Status |
+|------|--------|
+| Thatch (cottage/croft) | ✅ Thatch (v2, courses fixed) |
+| Clay tile / slate (manor/townhouse) | ✅ ClayTile, Slate |
+| Wood shingle / stone slab | ✅ WoodShingle, StoneSlab |
+| **Wattle & daub (limewashed)** | ❌ still wanted — timber-cottage wall infill; currently "Wood"; real daub is a limewashed off-white panel between dark timbers. **The remaining vernacular gap.** |
 
 ## Resolution / quality pass (texture-array is mixed 512/1024 BC7; see CLAUDE.md)
 **Tier 1 DONE (2026-06-30, `tools/gen_highdef_materials.py`, commit 2ea8b8d):** materials
