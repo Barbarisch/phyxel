@@ -117,6 +117,106 @@ TEST(FurniturePlacerTest, PieceForcedOntoDoorWallSkipsNotBlocks) {
     }
 }
 
+// OVER-INSET DROP (Increment C root cause). The furniture wall-inset (extTMicro) MUST equal the wall
+// the realizer actually built — which StructureRealizer::thicknessMicro CLAMPS to <=9 micro (1 cube).
+// A stone_keep authors exterior_wall=3.0 m, so the RAW lround(3.0*9)=27 insets a piece 3 CUBES off a
+// 1-cube wall; in a NARROW room the reserved span (placedCubeSpan) lands outside the room and EVERY
+// slot is rejected -> the piece is dropped (the real house_1 solar: bed+chest lost). The clamped inset
+// (9) keeps the span inside and the piece places. This pins that exact contrast.
+TEST(FurniturePlacerTest, OverInsetExtTDropsPieceThatClampedInsetPlaces) {
+    // a 3-wide x 8-deep bedchamber (the narrow hall_house solar), recipe {bed, chest}. No doors.
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"solar","rect":[0,0,3,8],"purpose":"solar"}]})json");
+    // real bed_single footprint: 2x1 cubes, micro extents 17 x 8 (from the .voxel).
+    const std::map<std::string, Footprint> fp = {{"bed", {2, 1, 17, 8}}, {"chest", {2, 1, 10, 4}}};
+    std::vector<UnplacedFixture> unRaw, unClamped;
+
+    // RED: the RAW stone_keep inset (27 micro = 3 cubes) drops the bed — its span spills out of the
+    // 3-wide room from every wall.
+    const auto raw = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp, &unRaw, /*extT=*/27);
+    bool bedDroppedRaw = false;
+    for (const auto& u : unRaw) if (u.type == "bed") bedDroppedRaw = true;
+    EXPECT_TRUE(bedDroppedRaw) << "RED baseline has no teeth: extT=27 did NOT drop the bed";
+    EXPECT_EQ(find(raw, "bed"), nullptr);
+
+    // GREEN: the realizer-clamped inset (9 micro = 1 cube) keeps the span inside — the bed places.
+    const auto clamped = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp, &unClamped, /*extT=*/9);
+    EXPECT_NE(find(clamped, "bed"), nullptr)
+        << "clamped inset (9) still drops the bed — the over-inset fix does not recover it";
+    for (const auto& u : unClamped) EXPECT_NE(u.type, "bed") << "bed still reported unplaced at extT=9";
+}
+
+// ROOM NORM — a chest must open into CLEARANCE, not across a narrow room into the opposite wall. In a
+// 3-wide x 8-deep solar, backing the chest onto a LONG (z-running) wall makes its lid open across the
+// 3-wide width, one cube from the far wall (the real house_3 chest_closed_6 defect: chest_facing_wrong).
+// Backing it onto a SHORT (x-running) wall opens the lid along the 8-deep length. So a chest prefers the
+// wall whose inward normal runs along the room's LONGER axis.
+TEST(FurniturePlacerTest, ChestOpensIntoRoomLongAxisNotAcrossNarrowWidth) {
+    // 3 wide x 8 deep, a lone chest (default recipe), door on the WEST long wall.
+    const auto s = story(R"json({"height":3,
+        "rooms":[{"id":"r","rect":[0,0,3,8],"purpose":"vault"}],
+        "portals":[{"between":["hall","r"],"pos":[0,3],"width":1,"height":2,"kind":"door"}]})json");
+    const std::map<std::string, Footprint> fp = {{"chest", {2, 1, 10, 4}}};
+    const auto fx = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp);
+    const FurniturePlacement* chest = find(fx, "chest");
+    ASSERT_NE(chest, nullptr);
+    // GREEN: rot 0/180 backs a short (x-running) wall -> the clasp opens along the 8-deep length. The RED
+    // baseline (index-ordered walls) backed the east long wall -> rot 90 (opens across the 3-wide width).
+    EXPECT_TRUE(chest->rotation == 0 || chest->rotation == 180)
+        << "chest opens across the narrow 3-wide width (rot " << chest->rotation
+        << ") instead of along the 8-deep length";
+}
+
+// ROOM NORM — a chest avoids the wall CORNER, where its clasp would open into the perpendicular wall
+// (the real byre chest_closed_8: at a corner its +Z lid ran into the side partition). Middle-out offset
+// scan seats it mid-wall so the clasp is clear. In a 4-wide x 8-deep room the chest picks a short
+// (x-running) wall and should sit at the middle offset (anchor x = rx+1), not the corner (x = rx).
+TEST(FurniturePlacerTest, ChestAvoidsCornerSoClaspIsClear) {
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,8],"purpose":"vault"}]})json");
+    const std::map<std::string, Footprint> fp = {{"chest", {2, 1, 10, 4}}};
+    const auto fx = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp);
+    const FurniturePlacement* chest = find(fx, "chest");
+    ASSERT_NE(chest, nullptr);
+    // rot 0/180 -> backs a short (x-running) wall; the 2-wide chest should span x=1..2 (anchor x=1),
+    // clear of both x-corners (0 and 3). RED (left-to-right scan) put it at the corner (anchor x=0).
+    ASSERT_TRUE(chest->rotation == 0 || chest->rotation == 180) << "chest not on a short wall";
+    EXPECT_EQ(chest->worldPos.x, 1)
+        << "chest sits in the corner (anchor x=" << chest->worldPos.x
+        << ") — its clasp can open into the perpendicular wall";
+}
+
+// ROOM NORM — a bench SEATS NEXT TO the table (nearest free slot via placeNear), not marooned on a far
+// wall. In a roomy 9x9 hall the seating path puts the bench ADJACENT to the centred table, whereas the
+// old wall-packing lands it on the perimeter several cubes away. (In a CRAMPED room where doors block
+// the near-table cells the bench sits as near as it can — the real house_5 hall, 3 cubes out — and the
+// point there is that it PLACES at all instead of dropping; see the settlement evidence, baseline WARN
+// -> 0. This test isolates the "clusters at the table" mechanism, red-before-green.)
+TEST(FurniturePlacerTest, BenchSeatsNextToTableNotOnAFarWall) {
+    // a roomy 9x9 living room, no doors, so a wall-packed bench would land far from the centred table.
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"h","rect":[0,0,9,9],"purpose":"living"}]})json");
+    const std::map<std::string, Footprint> fp = {
+        {"fireplace", {2, 1, 13, 4}}, {"table", {2, 1, 12, 7}}, {"bench", {2, 1, 12, 3}}};
+    std::vector<UnplacedFixture> un;
+    const auto fx = FurniturePlacer::furnish(s, glm::ivec3(0, 0, 0), 10, fp, &un);
+    const FurniturePlacement* table = find(fx, "table");
+    const FurniturePlacement* bench = find(fx, "bench");
+    ASSERT_NE(table, nullptr);
+    ASSERT_NE(bench, nullptr) << "bench dropped instead of seating by the table";
+    // Measure FOOTPRINT adjacency (the pieces touch), not anchor distance — a 2-wide bench diagonally
+    // touching the table has anchors 2 apart but footprints adjacent. The table (centre) and the bench
+    // (placeNear) both lay width along x, depth along z, so each AABB = worldPos + [0,w-1]x[0,d-1].
+    auto fpOf = [&](const std::string& t) { auto it = fp.find(t); return it->second; };
+    const Footprint tf = fpOf("table"), bf = fpOf("bench");
+    const int txmin = table->worldPos.x, txmax = txmin + std::max(1, tf.width) - 1;
+    const int tzmin = table->worldPos.z, tzmax = tzmin + std::max(1, tf.depth) - 1;
+    const int bxmin = bench->worldPos.x, bxmax = bxmin + std::max(1, bf.width) - 1;
+    const int bzmin = bench->worldPos.z, bzmax = bzmin + std::max(1, bf.depth) - 1;
+    const int gapX = std::max(0, std::max(txmin - bxmax, bxmin - txmax));
+    const int gapZ = std::max(0, std::max(tzmin - bzmax, bzmin - tzmax));
+    const int gap = std::max(gapX, gapZ);   // 1 = footprints touching (edge/diagonal); >=2 = apart
+    EXPECT_LE(gap, 1) << "bench footprint does not touch the table (gap " << gap
+                      << ") — it wall-packed instead of seating at the table";
+}
+
 // The convention I kept getting wrong by hand: a piece against the MIN-X wall faces
 // +x (into the room) => rotation 270, NOT 90/"east".
 TEST(FurniturePlacerTest, FacingIntoRoomMatchesEngineConvention) {

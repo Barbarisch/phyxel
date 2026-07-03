@@ -343,7 +343,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         const bool forgeFloor = roomPurpose.find("forge") != std::string::npos
                              || roomPurpose.find("smith") != std::string::npos
                              || roomPurpose.find("anvil") != std::string::npos;
-        std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1};
+        std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1}, tableCell{-1, -1};
 
         for (const auto& piece : recipeFor(room.purpose)) {
             const Footprint fp = footprintOf(piece.type);
@@ -355,6 +355,13 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 placed = placeNear(forgeCell, fp, piece.type);
             else if (forgeFloor && piece.type == "barrel" && anvilCell.first >= 0)
                 placed = placeNear(anvilCell, fp, piece.type);
+            // SEATING AROUND THE TABLE: a bench in a room with a centred table seats BESIDE the table
+            // (facing it), not marooned on a far wall — and in a narrow room where no free wall slot
+            // remains it's the reason the bench used to drop. placeNear hugs the table and faces the
+            // room centre (== the table), so the bench fronts it. Falls through to wall-packing if the
+            // table's surround is full.
+            else if (piece.type == "bench" && tableCell.first >= 0)
+                placed = placeNear(tableCell, fp, piece.type);
 
             if (!placed && piece.center) {
                 auto cells = coverAt(0, fp, 0, /*center=*/true);
@@ -364,14 +371,43 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             if (!placed) {
                 // PACK along walls: scan non-door walls first, then door walls; within each wall scan
                 // every offset for the first free slot. Multiple pieces share a wall (no one-per-wall cap).
+                // A CHEST opens perpendicular to its wall, so it must open into CLEARANCE — prefer the
+                // wall whose inward normal runs along the room's LONGER axis (clearance = the room extent
+                // perpendicular to the wall: rw for the x-walls 0/1, rd for the z-walls 2/3). Otherwise a
+                // 2-wide chest in a narrow room backs a long wall and its lid opens into the near opposite
+                // wall (chest_facing_wrong). Other pieces keep the stable index order.
+                const bool opensToRoom = piece.type.find("chest") != std::string::npos;
+                auto clearance = [&](int w) { return (w < 2) ? rw : rd; };
                 int order[4]; int n = 0;
                 for (int w = 0; w < 4; ++w) if (!doorWall[w]) order[n++] = w;   // non-door walls first
                 for (int w = 0; w < 4; ++w) if ( doorWall[w]) order[n++] = w;   // then door walls
+                if (opensToRoom) {   // stable-sort each (non-door | door) group by clearance, desc
+                    std::stable_sort(order, order + n, [&](int a, int b) {
+                        if (doorWall[a] != doorWall[b]) return !doorWall[a];   // keep non-door first
+                        return clearance(a) > clearance(b);
+                    });
+                }
                 for (int k = 0; k < n && !placed; ++k) {
                     const int w = order[k];
                     const int runLen = (w < 2) ? rd : rw;       // walls 0/1 run along z, 2/3 along x
                     const int rot = facingIntoRoom(WALLS[w].inwardDx, WALLS[w].inwardDz);
-                    for (int along = 0; along + width <= runLen; ++along) {
+                    const int maxAlong = runLen - width;        // last valid offset
+                    // Offset scan order. An OPENING piece (chest) scans MIDDLE-OUT so it avoids the two
+                    // corner offsets, where it would abut a PERPENDICULAR wall and its clasp would open
+                    // into that wall's cells (the real byre chest_closed_8: at a corner its +Z lid ran
+                    // into the side partition). A mid-wall slot keeps the clasp clear. Others: left-to-
+                    // right (unchanged).
+                    std::vector<int> alongs;
+                    alongs.reserve(maxAlong + 1);
+                    if (opensToRoom && maxAlong > 0) {
+                        for (int off = 0; off <= maxAlong; ++off) {   // mid, mid-1, mid+1, ...
+                            const int a = maxAlong / 2 + ((off % 2) ? (off + 1) / 2 : -(off / 2));
+                            if (a >= 0 && a <= maxAlong) alongs.push_back(a);
+                        }
+                    } else {
+                        for (int a = 0; a <= maxAlong; ++a) alongs.push_back(a);
+                    }
+                    for (int along : alongs) {
                         auto cells = coverAt(w, fp, along, /*center=*/false);
                         if (!fits(cells)) continue;
                         // reserve the TRUE placed span (footprint + micro-spill); skip the slot if the
@@ -384,12 +420,14 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     }
                 }
             }
-            if (placed && forgeFloor) {   // remember anchors so the next triangle piece can hug them
+            if (placed) {   // remember anchors so later pieces can hug them
                 const auto& last = out.back();
-                if (piece.type == "forge_hearth")
+                if (forgeFloor && piece.type == "forge_hearth")
                     forgeCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
-                else if (piece.type == "anvil")
+                else if (forgeFloor && piece.type == "anvil")
                     anvilCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
+                else if (piece.type == "table")   // seating hugs the table (any room with one)
+                    tableCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
             }
             if (!placed && unplaced) unplaced->push_back({room.id, piece.type});  // honest: never silent
         }

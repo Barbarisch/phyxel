@@ -330,6 +330,55 @@ std::pair<glm::ivec3, glm::ivec3> PlacedObjectManager::computeTemplateBounds(
     return {position + localMin, position + localMax};
 }
 
+std::pair<glm::ivec3, glm::ivec3> PlacedObjectManager::computeMicroPlacedBounds(
+    const std::string& templateName, const glm::ivec3& worldMicro, int rotation) const
+{
+    auto fdiv = [](int a, int b) { int q = a / b; if ((a % b) != 0 && ((a < 0) != (b < 0))) --q; return q; };
+    const glm::ivec3 cubeAnchor(fdiv(worldMicro.x, 9), fdiv(worldMicro.y, 9), fdiv(worldMicro.z, 9));
+    if (!m_templateManager) return {cubeAnchor, cubeAnchor};
+    const VoxelTemplate* tmpl = m_templateManager->getTemplate(templateName);
+    if (!tmpl || (tmpl->cubes.empty() && tmpl->subcubes.empty() && tmpl->microcubes.empty()))
+        return {cubeAnchor, cubeAnchor};
+
+    // Template-local MICRO AABB — expand each primitive to its micro cell RANGE (cube -> 9, subcube ->
+    // 3, microcube -> 1), exactly as spawnTemplateMicro does. Track the min origin and the max cell
+    // (origin + span - 1) so the AABB covers the last filled micro.
+    glm::ivec3 mmin(INT_MAX), mmax(INT_MIN);
+    auto acc = [&](const glm::ivec3& origin, int span) {
+        mmin = glm::min(mmin, origin);
+        mmax = glm::max(mmax, origin + glm::ivec3(span - 1));
+    };
+    for (const auto& c : tmpl->cubes)      acc(c.relativePos * 9, 9);
+    for (const auto& s : tmpl->subcubes)   acc(s.parentRelativePos * 9 + s.subcubePos * 3, 3);
+    for (const auto& m : tmpl->microcubes) acc(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1);
+    if (mmin.x > mmax.x) return {cubeAnchor, cubeAnchor};
+
+    // Rotate the micro AABB about the micro pivot (mmax), matching spawnTemplateMicro's rotMicro. The
+    // image of an axis-aligned box under this reflection-and-swap is another axis-aligned box, exactly
+    // spanned by the rotated 8 corners — so min/max over the corners is the true rotated AABB.
+    const int rotSteps = ((rotation % 360) + 360) % 360 / 90;
+    auto rotMicro = [&](const glm::ivec3& p) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(mmax.z - p.z, p.y, p.x);
+            case 2: return glm::ivec3(mmax.x - p.x, p.y, mmax.z - p.z);
+            case 3: return glm::ivec3(p.z, p.y, mmax.x - p.x);
+            default: return p;
+        }
+    };
+    glm::ivec3 rmin(INT_MAX), rmax(INT_MIN);
+    for (int cx = 0; cx < 2; ++cx) for (int cy = 0; cy < 2; ++cy) for (int cz = 0; cz < 2; ++cz) {
+        const glm::ivec3 corner(cx ? mmax.x : mmin.x, cy ? mmax.y : mmin.y, cz ? mmax.z : mmin.z);
+        const glm::ivec3 r = rotMicro(corner);
+        rmin = glm::min(rmin, r);  rmax = glm::max(rmax, r);
+    }
+
+    // Shift by the exact worldMicro (INCLUDING the off-grid inset) and floor-divide to cubes.
+    const glm::ivec3 gmin = worldMicro + rmin;
+    const glm::ivec3 gmax = worldMicro + rmax;
+    return {glm::ivec3(fdiv(gmin.x, 9), fdiv(gmin.y, 9), fdiv(gmin.z, 9)),
+            glm::ivec3(fdiv(gmax.x, 9), fdiv(gmax.y, 9), fdiv(gmax.z, 9))};
+}
+
 // ============================================================================
 // Deterministic structure seating
 //
@@ -631,11 +680,16 @@ std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateN
         if (m_objects.find(parentId) == m_objects.end()) return "";
     }
 
-    // Cube-granular bbox from the rounded cube position (fine for overlap/removal; the micro shift is
-    // at most a fraction of a cube). FLOOR-divide so negative world coords map correctly.
+    // RENDER-ACCURATE bbox: the registered box must equal what spawnTemplateMicro actually stamps,
+    // including the sub-cube micro-spill an off-grid (wall-inset) worldMicro pushes into the next cube.
+    // The old cube-anchored computeTemplateBounds(floorDiv(worldMicro/9)) dropped that spill, so the
+    // registered box was a strict SUBSET of the render — the furniture-overlap + chest-facing detectors
+    // and the V8 chimney-centering all read this box, so they saw a fixture smaller/mis-centred vs its
+    // real geometry. computeMicroPlacedBounds matches FurniturePlacer::placedCubeSpan (the reservation),
+    // giving reservation == registration == render.
     auto fdiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
     const glm::ivec3 cubePos(fdiv(worldMicro.x, 9), fdiv(worldMicro.y, 9), fdiv(worldMicro.z, 9));
-    auto [bmin, bmax] = computeTemplateBounds(templateName, cubePos, rotation);
+    auto [bmin, bmax] = computeMicroPlacedBounds(templateName, worldMicro, rotation);
 
     if (!m_templateManager->spawnTemplateMicro(templateName, worldMicro, rotation)) return "";
 

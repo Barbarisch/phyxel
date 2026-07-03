@@ -152,9 +152,16 @@ def gen_chest():
         for z in range(0, D):
             for y in range(body_top + 1, H):
                 lid.m(x, y, z, "WoodWalnut")
-    lid.m(W // 2, body_top + 1, 0, "Metal")  # clasp, front centre
+    lid.m(W // 2, body_top + 1, 0, "Metal")  # clasp, front centre (authored at z=0)
     for k, v in lid.cells.items():
         m.cells[k] = v
+    # The straps/clasp were authored on the z=0 face; mirror to the HIGH-z side so the coffer's front
+    # obeys the placer's +Z-front convention (FurniturePlacer rot 0 -> front +z). Without this the chest
+    # opened INTO its backing wall (every chest failed V11 chest_facing). The other directional assets
+    # (bar/counter/fireplace/forge) already mirror_z; the chest was the lone omission. After the flip the
+    # physical back sits at LOW z, so the lid hinge keyword becomes "front_top" (resolveHingeKeyword:
+    # front=minZ) to keep the hinge on the real back — the lid still opens up-and-away from the clasp.
+    m.mirror_z()
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
@@ -174,7 +181,9 @@ def gen_chest():
     is_lid = lambda px, py, pz: py > body_top
     order = [
         (lambda px, py, pz: py <= body_top, "# part: base"),
-        (is_lid, "# part: lid hinge=back_top axis=x"),
+        # hinge=front_top: after mirror_z the physical back is at LOW z (keyword "front"), so the lid
+        # hinges there and swings up-and-away from the +Z clasp.
+        (is_lid, "# part: lid hinge=front_top axis=x"),
     ]
     write("chest_closed", header, m.emit_lines(order), m)
 
