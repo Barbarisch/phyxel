@@ -6839,9 +6839,20 @@ static bool handlePlacedObjectCommand(
             };
             std::vector<Core::FencePost> fencePosts;
             const int FR = 5;   // parcel fences sit up to ~4-5 cubes outside the footprint
+            // A fence NEVER runs inside a building — it rings the yard on the plot edge. So Log micros
+            // found INSIDE a structure footprint are furniture (e.g. a fireplace's Log fire-bed), not a
+            // fence post; counting them mis-identifies a fence post and then false-flags fence_along_cliff
+            // against the building's OWN wall (the real (7,-2) case: fireplace_1's 11 Log micros inside
+            // house_1). Skip any cell inside any structure's footprint.
+            auto insideAnyStruct = [&](int x, int z) {
+                for (const auto& st : structs)
+                    if (x >= st.min.x && x <= st.max.x && z >= st.min.z && z <= st.max.z) return true;
+                return false;
+            };
             for (const auto& s : structs) {
                 for (int x = s.min.x - FR; x <= s.max.x + FR; ++x)
                     for (int z = s.min.z - FR; z <= s.max.z + FR; ++z) {
+                        if (insideAnyStruct(x, z)) continue;   // furniture Log, not a fence
                         const int surf = surfaceH(x, z);
                         if (surf == INT_MIN) continue;
                         int bestY = INT_MIN, bestN = 0;
