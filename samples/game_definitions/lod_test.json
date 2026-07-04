@@ -1,0 +1,29 @@
+{
+  "name": "LodTest",
+  "description": "Far-terrain LOD test world: fixed-seed streaming Perlin terrain for baseline + far-field verification.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 777001,
+    "streaming": true,
+    "loadRadius": 5,
+    "unloadRadius": 8,
+    "from": { "x": -2, "y": 0, "z": -2 },
+    "to": { "x": 2, "y": 0, "z": 2 },
+    "params": {
+      "heightScale": 14.0,
+      "frequency": 0.03,
+      "octaves": 4,
+      "persistence": 0.5
+    }
+  },
+  "camera": {
+    "position": { "x": 16, "y": 48, "z": 80 },
+    "yaw": -90,
+    "pitch": -25
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 16, "y": 30, "z": 16 }
+  }
+}

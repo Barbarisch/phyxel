@@ -740,5 +740,21 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling far terrain vertex shader...
+%GLSLANG% -V -I. shaders\far_terrain.vert -o shaders\far_terrain.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_terrain.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling far terrain fragment shader...
+%GLSLANG% -V -I. shaders\far_terrain.frag -o shaders\far_terrain.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_terrain.frag
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause

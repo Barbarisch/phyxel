@@ -2,7 +2,8 @@
 # This builds the test executable with all unit tests
 
 # Collect unit test source files (exclude integration/benchmark/stress/e2e)
-file(GLOB_RECURSE TEST_SOURCES
+# CONFIGURE_DEPENDS re-globs at build time so new test files are picked up (matches engine/).
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
     "ai/*.cpp"
     "core/*.cpp"
     "graphics/*.cpp"
