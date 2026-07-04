@@ -106,6 +106,7 @@ public:
     // Opt-in; default off so existing pre-baked / bulk-loaded worlds are unaffected.
     std::unique_ptr<WorldGenerator> m_worldGenerator;
     std::function<void(Chunk&, const glm::ivec3&)> m_floraDecorator;
+    bool m_hasWorkerFlora = false;
     bool m_streamingGenerationEnabled = false;
 
     // Hybrid physics routing: FPS-based Bullet vs GPU fallback
@@ -164,6 +165,14 @@ public:
     // manager); invoked after a newly generated chunk's terrain is filled, before faces/physics.
     void setFloraDecorator(std::function<void(Chunk&, const glm::ivec3&)> cb) {
         m_floraDecorator = std::move(cb);
+    }
+    // Worker-thread flora decoration (async generation): same stamping, but running on
+    // the generation worker with ITS private generator. When set, the main-thread
+    // m_floraDecorator is skipped for async-generated chunks. The callback must only
+    // read shared state (preloaded template library) and write into the passed chunk.
+    void setWorkerFloraDecorator(ChunkStreamingManager::WorkerDecorateFunc cb) {
+        m_hasWorkerFlora = static_cast<bool>(cb);
+        m_streamingManager.setWorkerFloraDecorator(std::move(cb));
     }
 
     // Chunk streaming for infinite worlds
@@ -314,6 +323,12 @@ public:
     // Dirty chunk tracking for performance optimization
     void markChunkDirty(size_t chunkIndex);
     void markChunkDirty(Chunk* chunk);               // Overload for chunk pointer
+    // Queue a budgeted re-mesh WITHOUT the DB-dirty flag (voxel data unchanged —
+    // e.g. neighbour re-cull after a chunk streams in). See DirtyChunkTracker.
+    void markChunkForRemesh(Chunk* chunk);
+    // Low-priority variant: processed only when the main dirty queue is empty
+    // (cosmetic neighbour re-culls — skipping never creates holes).
+    void markChunkForRemeshIdle(Chunk* chunk);
     void clearDirtyChunkList();
     size_t getChunkIndex(const Chunk* chunk) const;  // Helper to find chunk index from pointer
     

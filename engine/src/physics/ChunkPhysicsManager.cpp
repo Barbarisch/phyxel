@@ -75,6 +75,13 @@ void ChunkPhysicsManager::createChunkPhysicsBody(const CubesArrayAccessFunc& get
     LOG_TRACE("ChunkPhysicsManager", "Chunk occupancy grid registered");
 }
 
+void ChunkPhysicsManager::registerPrebuiltGrid() {
+    if (!physicsWorld) return;
+    if (auto* vw = physicsWorld->getVoxelWorld())
+        vw->registerGrid(&m_occupancyGrid);
+    LOG_TRACE("ChunkPhysicsManager", "Prebuilt occupancy grid registered");
+}
+
 void ChunkPhysicsManager::updateChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
                                                  const StaticSubcubesAccessFunc& getStaticSubcubes,
                                                  const StaticMicrocubesAccessFunc& getStaticMicrocubes,

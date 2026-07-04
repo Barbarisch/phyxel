@@ -3,13 +3,20 @@
 #include "Types.h"
 #include "Chunk.h"
 #include <glm/glm.hpp>
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <functional>
-#include <vector>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace Phyxel {
-    class WorldStorage; // Forward declaration
+    class WorldStorage;   // Forward declaration
+    class WorldGenerator; // Forward declaration (async generation worker)
 }
 
 namespace Phyxel {
@@ -84,7 +91,10 @@ public:
     /// automatic: the Chunk destructor unregisters its grid and frees its buffer.
     using OnChunkStreamedInFunc = std::function<void(Chunk& chunk)>;
 
-    ChunkStreamingManager() = default;
+    // Out-of-line (cpp): members include unique_ptr<WorldGenerator>, which is only
+    // forward-declared here — inline ctor/dtor would instantiate its deleter on an
+    // incomplete type in every including TU.
+    ChunkStreamingManager();
     ~ChunkStreamingManager();
 
     // Callback setup
@@ -108,6 +118,36 @@ public:
     /// first) so a single frame's pump cannot generate a whole sphere and hitch.
     /// 0 = unlimited (legacy behavior). Default 0.
     void setMaxChunksPerUpdate(int n) { m_maxChunksPerUpdate = n; }
+
+    // ---- Async generation (Phase 1c) -------------------------------------------------
+    /// Returns a PRIVATE WorldGenerator copy for the worker thread (the live streaming
+    /// generator must never be shared across threads — sampleColumn is non-const).
+    /// Called lazily on the first pump, i.e. after the game-definition loader has
+    /// finished applying recipe/params. Return null to keep generation synchronous.
+    using GeneratorSnapshotFunc = std::function<std::unique_ptr<WorldGenerator>()>;
+    /// Main-thread finalize for a worker-generated chunk AFTER it was initialized,
+    /// buffered and inserted: physics attach + prebuilt-grid registration,
+    /// pristine-clean, budgeted remesh marks.
+    using FinalizeGeneratedChunkFunc = std::function<void(Chunk& chunk, const glm::ivec3& chunkCoord)>;
+    /// Flora decoration on the WORKER thread, using the worker's private generator.
+    /// Must only read shared state (the preloaded template library) and write into the
+    /// passed chunk — ObjectTemplateManager::decorateChunk satisfies this. Flora was
+    /// the dominant main-thread cost after generation moved off-thread (dense-forest
+    /// chunks: 450-625ms of template stamping each).
+    using WorkerDecorateFunc = std::function<void(Chunk& chunk, const glm::ivec3& chunkCoord,
+                                                  WorldGenerator& workerGenerator)>;
+    void setWorkerFloraDecorator(WorkerDecorateFunc cb) { m_workerDecorate = std::move(cb); }
+
+    /// Enable async generation: terrain fill + voxel maps + occupancy-grid FILL run on
+    /// a dedicated worker thread (chunks arrive a few pumps later instead of stalling
+    /// the frame); DB loads and everything Vulkan/physics-world stay on the main
+    /// thread. The worker starts lazily on the first pump after a snapshot succeeds.
+    void setAsyncGeneration(GeneratorSnapshotFunc snapshotFn, FinalizeGeneratedChunkFunc finalizeFn) {
+        m_generatorSnapshot = std::move(snapshotFn);
+        m_finalizeGenerated = std::move(finalizeFn);
+    }
+    /// Join the worker and drop queued/finished work (world switch, shutdown).
+    void stopAsyncGeneration();
 
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
@@ -148,8 +188,46 @@ private:
     // unloadDistantChunks().
     std::vector<std::unique_ptr<Chunk>> m_pendingDeletion;
 
-    // World storage
+    // World storage. All SQLite access is serialized by m_storageMutex: the async
+    // worker LOADS chunk rows off-thread (a DB chunk load is ~150-400ms in Debug —
+    // it was the moving-camera stall in DB-saved regions), while the main thread
+    // still saves (dirty evictions, save_world) and reads meta. SQLite is
+    // serialized-mode safe, but WorldStorage keeps statement state, so we guard
+    // explicitly.
     WorldStorage* worldStorage = nullptr;
+    std::mutex m_storageMutex;
+
+    // ---- Async generation worker state (Phase 1c) ----
+    GeneratorSnapshotFunc m_generatorSnapshot;
+    FinalizeGeneratedChunkFunc m_finalizeGenerated;
+    WorkerDecorateFunc m_workerDecorate;
+    std::unique_ptr<WorldGenerator> m_workerGenerator;  // owned/used by the worker only
+    std::thread m_genWorker;
+    std::mutex m_genRequestMutex;
+    std::condition_variable m_genCv;
+    std::deque<glm::ivec3> m_genRequests;               // guarded by m_genRequestMutex
+    std::mutex m_genResultMutex;
+    std::vector<std::unique_ptr<Chunk>> m_genResults;   // guarded by m_genResultMutex
+    std::unordered_set<glm::ivec3, ChunkCoordHash> m_genPending;  // main thread only
+    std::vector<glm::ivec3> m_genFailed;                // coords whose build threw (guarded by m_genResultMutex)
+    std::atomic<bool> m_stopGen{false};
+
+    // Disposal worker: owns the off-thread destruction of evicted chunk husks. A
+    // JOINABLE thread (stopped in stopAsyncGeneration/dtor), NOT detached — a detached
+    // thread still freeing memory during process/CRT teardown dies silently with no
+    // crash dump, which is exactly the failure mode we cannot debug.
+    std::thread m_disposalThread;
+    std::mutex m_disposalMutex;
+    std::condition_variable m_disposalCv;
+    std::vector<std::unique_ptr<Chunk>> m_disposalQueue;  // guarded by m_disposalMutex
+    void disposalLoop();
+
+    void maybeStartGenWorker();
+    void genWorkerLoop();
+    /// Main thread: initialize + buffer + insert + finalize worker-built chunks
+    /// (bounded per pump; drops results that were superseded or flown past).
+    void drainGeneratedChunks(const glm::vec3& position, float unloadRadius);
+    bool asyncGenerationActive() const { return m_genWorker.joinable(); }
 
     // Helper methods
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);

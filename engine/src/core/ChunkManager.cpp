@@ -1,5 +1,6 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
+#include <chrono>
 #include "core/WorldStorage.h"
 #include "core/GpuParticlePhysics.h"
 #include "core/Subcube.h"
@@ -39,31 +40,38 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
     m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
         if (!m_gpuParticles) return;
-        // Find the chunk at this origin and upload all solid voxels
-        for (const auto& chunkPtr : chunks) {
-            if (chunkPtr->getWorldOrigin() != origin) continue;
-            const Chunk* chunk = chunkPtr.get();
-            for (int lx = 0; lx < 32; ++lx) {
-                for (int ly = 0; ly < 32; ++ly) {
-                    for (int lz = 0; lz < 32; ++lz) {
-                        glm::ivec3 world(origin.x + lx, origin.y + ly, origin.z + lz);
-                        if (hasVoxelAt(world))
-                            m_gpuParticles->setOccupied(world.x, world.y, world.z, true);
-                    }
+        // Direct map lookup + dense-array cube reads. The previous form linear-scanned
+        // the chunk vector, then made 32k GLOBAL hasVoxelAt queries (chunk lookup + hash
+        // each) — ~26ms per streamed chunk, in the pump, on the main thread.
+        Chunk* chunk = getChunkAtCoord(Utils::CoordinateUtils::worldToChunkCoord(origin));
+        if (!chunk) return;
+        for (int lx = 0; lx < 32; ++lx) {
+            for (int ly = 0; ly < 32; ++ly) {
+                for (int lz = 0; lz < 32; ++lz) {
+                    if (chunk->getCubeAt(glm::ivec3(lx, ly, lz)))
+                        m_gpuParticles->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, true);
                 }
             }
-            break;
         }
     });
     // Phase 1 — generation wire: streamed chunks are filled by the configured world
     // generator (when enabled) instead of the legacy random fill.
     m_streamingManager.setGenerationCallback([this](Chunk& chunk, const glm::ivec3& chunkCoord) {
         if (m_streamingGenerationEnabled && m_worldGenerator) {
+            auto t0 = std::chrono::steady_clock::now();
             m_worldGenerator->generateChunk(chunk, chunkCoord);
+            auto t1 = std::chrono::steady_clock::now();
             // Decorate the freshly generated terrain with biome flora (clipped to this chunk).
             // Only newly generated chunks are decorated — DB-loaded chunks keep their saved
             // state. The decorator is wired by the editor (it owns the template manager).
             if (m_floraDecorator) m_floraDecorator(chunk, chunkCoord);
+            auto t2 = std::chrono::steady_clock::now();
+            const double genMs   = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const double floraMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            if (genMs + floraMs > 40.0) {
+                LOG_WARN("ChunkStreaming", "Slow streamed generation at ({},{},{}): terrain={}ms flora={}ms",
+                         chunkCoord.x, chunkCoord.y, chunkCoord.z, genMs, floraMs);
+            }
         } else {
             chunk.populateWithCubes();
         }
@@ -74,6 +82,11 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     // buffer, so this is the per-chunk counterpart to rebuildAllChunkFaces(). Eviction
     // teardown is automatic (the Chunk destructor unregisters its grid and frees its buffer).
     m_streamingManager.setOnChunkStreamedIn([this](Chunk& chunk) {
+        // Air chunks occlude nothing, collide with nothing and mesh to nothing — skip
+        // finalize entirely. Most streamed chunks at flight altitude ARE pure air (the
+        // load sphere spans ~10 vertical chunk bands, terrain occupies ~2), so this
+        // cuts the remesh flood (and its ~50ms-per-chunk drain frames) by that factor.
+        if (!chunk.hasAnySolidVoxel()) return;
         if (physicsWorld) {
             chunk.setPhysicsWorld(physicsWorld);
             chunk.createChunkPhysicsBody();
@@ -82,21 +95,33 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // voxels in this chunk. DB-loaded streamed chunks don't get the bulk
         // initializeAllChunkVoxelMaps() pass, so they'd otherwise be invisible to mouse-over.
         chunk.initializeVoxelMaps();
-        // Build this chunk's faces with cross-chunk culling, then update its buffer.
-        rebuildChunkFacesWithCrosschunkCulling(chunk);
-        chunk.updateVulkanBuffer();
-        // Re-cull the 26 neighbours so their faces toward this new chunk are now occluded.
+        // Meshing (self + the 26 neighbours whose faces toward this chunk changed) goes
+        // through the budgeted DirtyChunkTracker instead of running synchronously here.
+        // The synchronous form did up to 27 full remeshes (skylight + blocklight BFS each)
+        // PER STREAMED CHUNK per pump = multi-second frame hitches while flying. The
+        // dirty queue dedupes shared neighbours and spreads the same work across frames
+        // (kDirtyChunkBudgetMs); chunks pop in a few frames later instead of stalling the
+        // frame. Physics + voxel maps above stay synchronous (cheap, and collision must
+        // exist the moment the chunk does). markChunkForRemesh, NOT markChunkDirty: only
+        // the render mesh is stale — the DB-dirty flag would make eviction re-save every
+        // touched neighbour to SQLite (mass save stalls). Freshly GENERATED chunks are
+        // already DB-dirty via addCube, so persistence is unaffected.
+        markChunkForRemesh(&chunk);
+        // Only the 6 FACE-adjacent neighbours: cross-chunk culling and border-light
+        // seeding both sample the 6 face directions only, so diagonal/corner neighbours
+        // are unaffected by this chunk's arrival (the old 26-neighbour sweep quadrupled
+        // the remesh queue for nothing). IDLE tier: a neighbour re-cull only removes
+        // now-hidden boundary faces + refreshes border light — cosmetic, never holes —
+        // so it waits for a quiet frame instead of competing with must-have meshes
+        // (each full remesh is ~50ms in Debug; 7 per streamed chunk was the moving-
+        // camera FPS drop).
+        static const glm::ivec3 kFaceDirs[6] = {
+            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
         glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
-        for (int dx = -1; dx <= 1; ++dx)
-            for (int dy = -1; dy <= 1; ++dy)
-                for (int dz = -1; dz <= 1; ++dz) {
-                    if (dx == 0 && dy == 0 && dz == 0) continue;
-                    Chunk* adj = getChunkAtCoord(cc + glm::ivec3(dx, dy, dz));
-                    if (adj) {
-                        rebuildChunkFacesWithCrosschunkCulling(*adj);
-                        adj->updateVulkanBuffer();
-                    }
-                }
+        for (const glm::ivec3& d : kFaceDirs) {
+            if (Chunk* adj = getChunkAtCoord(cc + d))
+                markChunkForRemeshIdle(adj);
+        }
     });
 
     // Setup dynamic object manager callbacks
@@ -192,6 +217,9 @@ void ChunkManager::disconnectWorldStorage() {
 }
 
 void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::GenerationType type, uint32_t seed) {
+    // Reconfiguring (world switch): stop any running async worker so its private
+    // generator snapshot can't outlive the world it belongs to.
+    m_streamingManager.stopAsyncGeneration();
     m_streamingGenerationEnabled = enabled;
     if (enabled) {
         m_worldGenerator = std::make_unique<WorldGenerator>(type, seed);
@@ -199,10 +227,48 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     // When streaming generation is on, chunks finalize (collision + faces) as they stream
     // in/out at runtime; off otherwise so bulk DB loads aren't double-processed.
     m_streamingManager.setPerChunkPhysics(enabled);
-    // Bound per-frame generation so the streaming pump stays smooth (nearest-first).
-    m_streamingManager.setMaxChunksPerUpdate(enabled ? 4 : 0);
+    // Bound per-pump main-thread work (nearest-first): with async generation this caps
+    // synchronous DB loads + finished-chunk finalizes per pump, not generation itself
+    // (that runs on the worker).
+    m_streamingManager.setMaxChunksPerUpdate(enabled ? 2 : 0);
+
+    // Async generation (Phase 1c): terrain fill + voxel maps + occupancy-grid fill on a
+    // dedicated worker with a PRIVATE generator copy; the main thread only initializes,
+    // uploads, inserts and finalizes (flora + grid registration + remesh marks).
+    if (enabled) {
+        m_streamingManager.setAsyncGeneration(
+            [this]() -> std::unique_ptr<WorldGenerator> {
+                if (!m_streamingGenerationEnabled || !m_worldGenerator) return nullptr;
+                // Snapshot AFTER the loader applied recipe/params (lazy: first pump).
+                return std::make_unique<WorldGenerator>(*m_worldGenerator);
+            },
+            [this](Chunk& chunk, const glm::ivec3& chunkCoord) {
+                // Flora normally runs on the WORKER (setWorkerFloraDecorator); the
+                // main-thread decorator is only a fallback when no worker decorator is
+                // wired. Then mark the whole chunk pristine: generated terrain + flora
+                // regenerate deterministically, so only player edits should hit the DB.
+                if (!m_hasWorkerFlora && m_floraDecorator) m_floraDecorator(chunk, chunkCoord);
+                chunk.markClean();
+                if (!chunk.hasAnySolidVoxel()) return;  // pure air: nothing to collide/mesh
+                if (physicsWorld) {
+                    chunk.setPhysicsWorld(physicsWorld);
+                    chunk.registerPrebuiltPhysics();
+                }
+                markChunkForRemesh(&chunk);
+                // Neighbour re-culls are cosmetic (overdraw + border light, never
+                // holes) — idle tier, so they only run in quiet frames.
+                static const glm::ivec3 kFaceDirs[6] = {
+                    {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+                glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
+                for (const glm::ivec3& d : kFaceDirs) {
+                    if (Chunk* adj = getChunkAtCoord(cc + d))
+                        markChunkForRemeshIdle(adj);
+                }
+            });
+    }
     LOG_INFO_FMT("Chunk", "Streaming generation " << (enabled ? "ENABLED" : "disabled")
-                 << " (type=" << static_cast<int>(type) << ", seed=" << seed << ")");
+                 << " (type=" << static_cast<int>(type) << ", seed=" << seed
+                 << ", asyncGen=" << (enabled ? 1 : 0) << ")");
 }
 
 void ChunkManager::updateChunkStreaming() {
@@ -391,12 +457,17 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
     // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges
     // (light is monotonic and capped) rather than looping forever.
+    // IDLE-tier remesh, NOT markChunkDirty: (1) the neighbours' VOXEL data is unchanged —
+    // the DB-dirty flag made the streaming evictor re-save every light-rippled chunk to
+    // SQLite (~200ms each, one per pump = the moving-camera stutter after everything else
+    // went async); (2) a stale border light is cosmetic and converges in quiet frames,
+    // it must not compete with must-run meshes of newly arrived chunks.
     if (chunk.lightBordersChanged()) {
         glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
         const glm::ivec3 dirs[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
         for (const auto& d : dirs) {
             Chunk* nb = getChunkAtCoord(cc + d);
-            if (nb && nb != &chunk) markChunkDirty(nb);
+            if (nb && nb != &chunk) markChunkForRemeshIdle(nb);
         }
     }
 }
@@ -671,6 +742,14 @@ void ChunkManager::markChunkDirty(size_t chunkIndex) {
 
 void ChunkManager::markChunkDirty(Chunk* chunk) {
     m_dirtyChunkTracker.markChunkDirty(chunk);
+}
+
+void ChunkManager::markChunkForRemesh(Chunk* chunk) {
+    m_dirtyChunkTracker.markChunkForRemesh(chunk);
+}
+
+void ChunkManager::markChunkForRemeshIdle(Chunk* chunk) {
+    m_dirtyChunkTracker.markChunkForRemeshIdle(chunk);
 }
 
 void ChunkManager::clearDirtyChunkList() {

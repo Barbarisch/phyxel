@@ -111,6 +111,15 @@ public:
     // Basic properties
     glm::ivec3 getWorldOrigin() const { return worldOrigin; }
     size_t getCubeCount() const { return cubes.size(); }
+    /// True if the chunk holds at least one solid cube/subcube/microcube. The cube
+    /// store may be sparse (pushed) or dense (32768 nullptr slots), so size() can't
+    /// answer this — scan for a non-null entry (cheap pointer null-checks).
+    bool hasAnySolidVoxel() const {
+        if (!staticSubcubes.empty() || !staticMicrocubes.empty()) return true;
+        for (const auto& c : cubes) if (c) return true;
+        return false;
+    }
+
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
     size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
@@ -243,6 +252,10 @@ public:
     // Physics management
     void setPhysicsWorld(class Physics::PhysicsWorld* world);
     void createChunkPhysicsBody();                    // Create compound shape physics body for static geometry
+    /// Register an occupancy grid that was already FILLED off-thread (async streaming:
+    /// the worker runs forcePhysicsRebuild — pure CPU; only this registration touches
+    /// the dynamics world and must run on the main thread, after setPhysicsWorld()).
+    void registerPrebuiltPhysics();
     void updateChunkPhysicsBody();                    // Rebuild physics body when static geometry changes
     void forcePhysicsRebuild();                       // Force immediate compound shape rebuild (bypasses performance optimization)
     void cleanupPhysicsResources();

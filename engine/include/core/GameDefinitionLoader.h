@@ -143,6 +143,13 @@ struct GameSubsystems {
     /// must outlive the spawned NPCs. Typically one RuleBasedCharacterAgent for all NPCs.
     Story::CharacterAgent* characterAgent = nullptr;
 
+    /// When true, loadWorld applies world CONFIG (recipe, terrain params, streaming
+    /// generation + radii) but skips terrain generation + flora. Set by hosts whose
+    /// world DB already holds the chunks (pre-baked / previously saved projects) —
+    /// previously the whole world block was dropped in that case, which silently
+    /// disabled streaming generation on every relaunch of a streaming world.
+    bool skipTerrainGeneration = false;
+
     /// Callback for spawning player entities (Application-specific).
     /// Takes (type, position, animFile) → returns entity pointer or nullptr.
     using EntitySpawnFn = std::function<Scene::Entity*(const std::string& type, const glm::vec3& pos, const std::string& animFile)>;

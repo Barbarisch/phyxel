@@ -52,13 +52,39 @@ public:
     
     /**
      * @brief Mark a chunk as dirty by pointer
-     * 
+     *
      * Converts chunk pointer to index and marks dirty
-     * 
+     *
      * @param chunk Pointer to the chunk to mark dirty
      */
     void markChunkDirty(Chunk* chunk);
-    
+
+    /**
+     * @brief Queue a chunk for budgeted re-meshing WITHOUT marking it dirty for
+     * database persistence.
+     *
+     * markChunkDirty() also sets the chunk's DB-dirty flag, which makes the streaming
+     * evictor re-save the chunk to SQLite. Use this variant when only the render mesh
+     * is stale (e.g. cross-chunk culling after a neighbour streams in) — the voxel
+     * DATA is unchanged, so a DB write would be pure waste (and mass evictions of
+     * such chunks caused multi-hundred-ms save stalls).
+     */
+    void markChunkForRemesh(size_t chunkIndex);
+    void markChunkForRemesh(Chunk* chunk);
+
+    /**
+     * @brief LOW-PRIORITY remesh: processed only when the main dirty queue is empty.
+     *
+     * For cosmetic-only remeshes — a neighbour re-cull after a chunk streams in
+     * removes now-hidden boundary faces (overdraw) and refreshes boundary light, but
+     * skipping it never creates holes. A streamed-in chunk used to cost 7 full
+     * remeshes (~50ms each in Debug) in the frame loop; with neighbours on the idle
+     * tier it costs 1 while the camera is churning chunks, and the rest converge
+     * once the primary queue goes quiet.
+     */
+    void markChunkForRemeshIdle(size_t chunkIndex);
+    void markChunkForRemeshIdle(Chunk* chunk);
+
     /**
      * @brief Update all dirty chunks and clear dirty list
      *
@@ -101,7 +127,12 @@ private:
     // Dirty chunk tracking state
     std::mutex m_dirtyMutex;  // Protects dirty indices from concurrent markDirty calls
     std::vector<size_t> m_dirtyChunkIndices;
+    std::vector<size_t> m_idleChunkIndices;   // low-priority tier (guarded by m_dirtyMutex)
     bool m_hasDirtyChunks = false;
+    // Adaptive backoff (see updateDirtyChunks): frames to skip after a call whose
+    // single-chunk minimum blew far past the budget, so a churn backlog amortizes
+    // instead of taxing every frame.
+    int m_backoffFrames = 0;
 };
 
 } // namespace Phyxel

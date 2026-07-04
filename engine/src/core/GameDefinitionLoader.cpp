@@ -276,6 +276,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
                 if (WorldGenerator* g = cm->getStreamingGenerator())
                     otm->decorateChunk(chunk, coord, *g);
             });
+            // Async generation: flora stamps on the WORKER with its private generator
+            // (decorateChunk only reads the preloaded template library and writes the
+            // passed chunk). Dense-forest chunks cost 450-625ms — off the main thread.
+            cm->setWorkerFloraDecorator([otm](Chunk& chunk, const glm::ivec3& coord,
+                                              WorldGenerator& workerGen) {
+                otm->decorateChunk(chunk, coord, workerGen);
+            });
         }
         if (worldDef.contains("loadRadius"))
             sub.chunkManager->loadDistance = worldDef["loadRadius"].get<float>() * 32.0f;
@@ -287,6 +294,14 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         LOG_INFO("GameDefinitionLoader", "World: streaming terrain ENABLED (loadDist=" +
                  std::to_string(sub.chunkManager->loadDistance) + ", unloadDist=" +
                  std::to_string(sub.chunkManager->unloadDistance) + ")");
+    }
+
+    // Pre-baked / previously saved worlds: the DB already holds the terrain, so stop
+    // here — config above (recipe, params, streaming generation, radii) is applied,
+    // but regeneration would overwrite saved edits and is very slow.
+    if (sub.skipTerrainGeneration) {
+        LOG_INFO("GameDefinitionLoader", "World: config applied; terrain generation skipped (chunks already in DB)");
+        return;
     }
 
     // Collect chunk coordinates

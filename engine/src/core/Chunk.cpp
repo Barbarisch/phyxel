@@ -210,9 +210,14 @@ void Chunk::populateWithCubes() {
 
 void Chunk::initializeForLoading() {
     cubes.clear();
-    
+
     // Initialize sparse cube storage (32x32x32 array with nullptr entries)
     cubes.resize(32 * 32 * 32);  // unique_ptr default-constructs to nullptr
+
+    // Give the occupancy grid its origin so an off-thread forcePhysicsRebuild (async
+    // chunk generation) fills a correctly-positioned grid. Idempotent: the later
+    // main-thread initialize() re-runs this with the same origin (grid data survives).
+    physicsManager.initialize(nullptr, worldOrigin);
     
     // Clear any existing subcubes (unique_ptr auto-deletes)
     staticSubcubes.clear();
@@ -600,6 +605,10 @@ bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubeP
 
 void Chunk::setPhysicsWorld(Physics::PhysicsWorld* world) {
     physicsManager.setPhysicsWorld(world);
+}
+
+void Chunk::registerPrebuiltPhysics() {
+    physicsManager.registerPrebuiltGrid();
 }
 
 void Chunk::validateCollisionSystem() const {

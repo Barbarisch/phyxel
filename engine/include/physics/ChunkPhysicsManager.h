@@ -58,6 +58,10 @@ public:
                              const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                              const IndexToLocalFunc& indexToLocal,
                              const CubeAccessFunc& getCube);
+    /// Register an ALREADY-BUILT occupancy grid with the dynamics world. The async
+    /// chunk-generation worker pre-fills the grid off-thread (forcePhysicsRebuild —
+    /// pure CPU); only this registration must happen on the main thread.
+    void registerPrebuiltGrid();
     void cleanupPhysicsResources();
 
     // Collision entity management

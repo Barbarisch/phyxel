@@ -35,10 +35,57 @@ void DirtyChunkTracker::markChunkDirty(size_t chunkIndex) {
 
 void DirtyChunkTracker::markChunkDirty(Chunk* chunk) {
     if (!chunk) return;
-    
+
     size_t chunkIndex = m_getChunkIndex(chunk);
     if (chunkIndex != SIZE_MAX) {
         markChunkDirty(chunkIndex);
+    }
+}
+
+void DirtyChunkTracker::markChunkForRemesh(size_t chunkIndex) {
+    auto& chunks = m_getChunks();
+    if (chunkIndex >= chunks.size()) return;
+
+    // Render mesh is stale, voxel data is NOT: no setDirty(true) here — DB-dirty
+    // would make the streaming evictor re-save an unchanged chunk to SQLite.
+    chunks[chunkIndex]->setNeedsUpdate(true);
+
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
+    if (std::find(m_dirtyChunkIndices.begin(), m_dirtyChunkIndices.end(), chunkIndex) == m_dirtyChunkIndices.end()) {
+        m_dirtyChunkIndices.push_back(chunkIndex);
+        m_hasDirtyChunks = true;
+    }
+}
+
+void DirtyChunkTracker::markChunkForRemesh(Chunk* chunk) {
+    if (!chunk) return;
+
+    size_t chunkIndex = m_getChunkIndex(chunk);
+    if (chunkIndex != SIZE_MAX) {
+        markChunkForRemesh(chunkIndex);
+    }
+}
+
+void DirtyChunkTracker::markChunkForRemeshIdle(size_t chunkIndex) {
+    auto& chunks = m_getChunks();
+    if (chunkIndex >= chunks.size()) return;
+
+    // Cosmetic tier: no needsUpdate flag yet — it's set when the chunk is promoted
+    // for processing (setting it now would make unrelated updateChunk calls pay the
+    // full remesh early). No DB-dirty either (voxel data unchanged).
+    std::lock_guard<std::mutex> lock(m_dirtyMutex);
+    if (std::find(m_idleChunkIndices.begin(), m_idleChunkIndices.end(), chunkIndex) == m_idleChunkIndices.end() &&
+        std::find(m_dirtyChunkIndices.begin(), m_dirtyChunkIndices.end(), chunkIndex) == m_dirtyChunkIndices.end()) {
+        m_idleChunkIndices.push_back(chunkIndex);
+    }
+}
+
+void DirtyChunkTracker::markChunkForRemeshIdle(Chunk* chunk) {
+    if (!chunk) return;
+
+    size_t chunkIndex = m_getChunkIndex(chunk);
+    if (chunkIndex != SIZE_MAX) {
+        markChunkForRemeshIdle(chunkIndex);
     }
 }
 
@@ -47,15 +94,39 @@ void DirtyChunkTracker::updateDirtyChunks() {
 }
 
 void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
-    // Atomically drain the dirty list
+    // Adaptive backoff: a single chunk remesh (full mesh + light bake) can cost far
+    // more than the whole budget (~50ms Debug), and the "always process ≥1" progress
+    // guarantee means a long backlog (streaming churn) would otherwise burn that cost
+    // EVERY frame — a constant ~18 FPS band while flying. When the last call blew well
+    // past its budget, sit out a couple of frames so the cost amortizes (~45 FPS feel);
+    // small edit remeshes stay effectively instant (a ≤2-frame delay is imperceptible).
+    if (budgetMs > 0.0 && m_backoffFrames > 0) {
+        --m_backoffFrames;
+        return;
+    }
+
+    // Atomically drain the dirty list. When the mandatory queue is empty, promote ONE
+    // idle-tier chunk (cosmetic neighbour re-culls) — they only run in quiet frames.
     std::vector<size_t> toUpdate;
     {
         std::lock_guard<std::mutex> lock(m_dirtyMutex);
-        if (!m_hasDirtyChunks || m_dirtyChunkIndices.empty()) {
+        if (m_hasDirtyChunks && !m_dirtyChunkIndices.empty()) {
+            std::swap(toUpdate, m_dirtyChunkIndices);
+            m_hasDirtyChunks = false;
+        } else if (!m_idleChunkIndices.empty()) {
+            toUpdate.push_back(m_idleChunkIndices.front());
+            m_idleChunkIndices.erase(m_idleChunkIndices.begin());
+        } else {
             return;
         }
-        std::swap(toUpdate, m_dirtyChunkIndices);
-        m_hasDirtyChunks = false;
+    }
+    {
+        // Promoted idle chunks need their needsUpdate flag set now (deferred at mark
+        // time — see markChunkForRemeshIdle).
+        auto& allChunks = m_getChunks();
+        for (size_t idx : toUpdate) {
+            if (idx < allChunks.size()) allChunks[idx]->setNeedsUpdate(true);
+        }
     }
 
     auto& chunks = m_getChunks();
@@ -80,6 +151,12 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
         }
     }
 
+    if (budgeted) {
+        const double totalMs = std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - start).count();
+        if (totalMs > budgetMs * 4.0) m_backoffFrames = 2;
+    }
+
     // Re-queue any chunks we didn't get to. Prepend them (they were dirty first)
     // ahead of anything added concurrently, deduping so a chunk re-marked during
     // processing isn't meshed twice.
@@ -98,6 +175,7 @@ void DirtyChunkTracker::updateDirtyChunks(double budgetMs) {
 
 void DirtyChunkTracker::clearDirtyChunkList() {
     m_dirtyChunkIndices.clear();
+    m_idleChunkIndices.clear();
     m_hasDirtyChunks = false;
 }
 
