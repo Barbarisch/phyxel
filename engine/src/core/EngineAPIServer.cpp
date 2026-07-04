@@ -946,6 +946,23 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // ====================================================================
+    // POST /api/debug/far_terrain — far-terrain LOD control/debug
+    // Body: { "enabled": bool?, "maxDistance": float?, "debug_tile": bool?, "step": int? }
+    // debug_tile builds+uploads the tile containing the camera (synchronous; test rig).
+    // ====================================================================
+    srv.Post("/api/debug/far_terrain", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_far_terrain", params, 30000);  // sync tile build
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/smooth_lighting — toggle smooth per-corner lighting + set merge tolerance,
     // then re-bake all chunks. Body: { "enabled": bool (opt), "tolerance": int (opt) }
     srv.Post("/api/debug/smooth_lighting", [this](const httplib::Request& req, httplib::Response& res) {

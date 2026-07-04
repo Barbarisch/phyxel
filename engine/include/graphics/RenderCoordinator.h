@@ -42,6 +42,8 @@ namespace Phyxel {
         class KinematicVoxelPipeline;
         class GrassRenderPipeline;
         class FoliageRenderPipeline;
+        class FarTerrainRenderPipeline;
+        class FarTerrainManager;
         class VfxRenderPipeline;
         class WaterRenderPipeline;
         class WaterCellRenderPipeline;
@@ -117,6 +119,9 @@ public:
         int    mirrorGeomDrawCalls   = 0;
         int    visibleChunkCount     = 0;
         int    totalVisibleFaces     = 0;   // per-face instances across visible chunks (greedy-merged cubes count as 1)
+        int    farTilesResident      = 0;   // far-terrain LOD tiles resident on GPU
+        int    farTilesDrawn         = 0;   // far-terrain tiles drawn last frame (post frustum cull)
+        int    farTriangles          = 0;   // triangles across drawn far tiles
         float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
         float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
@@ -338,7 +343,14 @@ private:
     // Leaf foliage card layer (cutout leaf cards replacing solid leaf voxels).
     std::unique_ptr<FoliageRenderPipeline> foliagePipeline;
     void renderFoliage();  // draws leaf cards for the currently-visible chunks
+
+    // Far-terrain LOD tiles (blocky heightmap columns beyond the real-chunk radius).
+    std::unique_ptr<FarTerrainRenderPipeline> farTerrainPipeline;
+    std::unique_ptr<FarTerrainManager> farTerrainManager;
+    void renderFarTerrain();  // draws frustum-visible far tiles (after static geometry)
 public:
+    /// Far-terrain manager (debug tile building, params). Null if init failed.
+    FarTerrainManager* getFarTerrainManager() { return farTerrainManager.get(); }
     // Runtime grass knobs (see /api/debug/grass). Negative/absent values leave a field unchanged.
     void setGrassEnabled(bool on);
     void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel);

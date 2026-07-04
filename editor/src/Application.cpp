@@ -11,6 +11,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <unistd.h>
 #endif
 #include "Application.h"
+#include "graphics/FarTerrainManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
@@ -3626,7 +3627,11 @@ void Application::update(float deltaTime) {
     // over frames instead of stalling the main thread for seconds at once.
     constexpr double kDirtyChunkBudgetMs = 6.0;
     if (chunkManager) {
+        // Slow-frame triage timers (streamed worlds hitch in this block; the profiler
+        // doesn't cover it). Warn per stage above 100ms so the culprit is attributable.
+        auto tChunk0 = std::chrono::steady_clock::now();
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
+        auto tChunk1 = std::chrono::steady_clock::now();
         // Reset per-frame break counter for hybrid physics routing
         chunkManager->resetFrameBreakCounter();
         // Update player position for hybrid Bullet/GPU proximity routing
@@ -3638,9 +3643,18 @@ void Application::update(float deltaTime) {
             static int s_streamTick = 0;
             if (++s_streamTick >= 6) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
         }
+        auto tChunk2 = std::chrono::steady_clock::now();
         // Bullet dynamic object update  --  always runs in hybrid mode since
         // nearby cubes use Bullet while mass debris uses GPU particles.
         chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
+        auto tChunk3 = std::chrono::steady_clock::now();
+        const double dirtyMs  = std::chrono::duration<double, std::milli>(tChunk1 - tChunk0).count();
+        const double streamMs = std::chrono::duration<double, std::milli>(tChunk2 - tChunk1).count();
+        const double dynMs    = std::chrono::duration<double, std::milli>(tChunk3 - tChunk2).count();
+        if (dirtyMs > 100.0 || streamMs > 100.0 || dynMs > 100.0) {
+            LOG_WARN("Performance", "Slow chunk update: dirtyRemesh={}ms streaming={}ms dynamicObjects={}ms",
+                     dirtyMs, streamMs, dynMs);
+        }
     }
     
     // Update physics with FIXED timestep for smooth, jitter-free simulation
@@ -5400,15 +5414,19 @@ void Application::autoLoadGameDefinition() {
         // "world" erase below doesn't drop it.
         setupGameHud(gameDef);
 
-        // If chunks were already loaded from the database (pre-baked world),
-        // skip world generation from the definition  --  it would overwrite the
-        // pre-existing terrain and is very slow.
-        if (gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty()) {
+        // If chunks were already loaded from the database (pre-baked world), skip world
+        // GENERATION from the definition — it would overwrite the pre-existing terrain and
+        // is very slow. World CONFIG (recipe, streaming generation, radii) must still be
+        // applied, so pass the skip flag through instead of erasing the world block
+        // (erasing it silently disabled streaming generation on every project relaunch).
+        const bool worldAlreadyInDb =
+            gameDef.contains("world") && chunkManager && !chunkManager->chunks.empty();
+        if (worldAlreadyInDb) {
             LOG_INFO("Application", "Skipping world generation - {} chunks already loaded from database", chunkManager->chunks.size());
-            gameDef.erase("world");
         }
 
         Core::GameSubsystems subsystems;
+        subsystems.skipTerrainGeneration = worldAlreadyInDb;
         subsystems.chunkManager     = chunkManager;
         subsystems.npcManager       = npcManager.get();
         subsystems.entityRegistry   = entityRegistry.get();
@@ -7251,6 +7269,32 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"chunk_inclusion_distance", chunkInclusionDistance}};
         return true;
 
+    } else if (action == "set_far_terrain") {
+        // Far-terrain LOD control/debug. Body: { "enabled": bool?, "debug_tile": bool?, "step": int? }
+        // debug_tile synchronously builds+uploads the tile containing the camera (Phase 2 rig).
+        auto* ft = renderCoordinator ? renderCoordinator->getFarTerrainManager() : nullptr;
+        if (!ft) {
+            response = {{"error", "FarTerrainManager not available"}};
+            return true;
+        }
+        if (cmd.params.contains("enabled")) ft->params().enabled = cmd.params.value("enabled", false);
+        if (cmd.params.contains("maxDistance")) ft->params().maxDistance = cmd.params.value("maxDistance", 2048.0f);
+        response = {{"success", true}, {"enabled", ft->params().enabled}};
+        if (cmd.params.value("debug_tile", false)) {
+            if (!ft->isConfigured()) {
+                WorldGenerator* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                if (!gen) {
+                    response = {{"error", "No procedural generator available - far terrain v1 needs a streaming/procedural world"}};
+                    return true;
+                }
+                ft->configure(*gen);
+            }
+            size_t verts = ft->debugBuildTile(camera->getPosition(), cmd.params.value("step", 2));
+            response["debug_tile_vertices"] = verts;
+        }
+        response["resident_tiles"] = ft->residentTiles();
+        return true;
+
     } else if (action == "get_render_stats") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
@@ -7262,6 +7306,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
+                {"far_tiles_resident",       s.farTilesResident},
+                {"far_tiles_drawn",          s.farTilesDrawn},
+                {"far_triangles",            s.farTriangles},
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
                 {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
                 {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}

@@ -126,6 +126,39 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **FAR-TERRAIN LOD + ASYNC STREAMING (committed 2026-07-03; feature OFF by default).**
+  Two related bodies of work landed together:
+  1. **Far-terrain LOD** (`engine/{include,src}/graphics/FarTerrain*`, `shaders/far_terrain.*`): blocky
+     heightmap tiles synthesized from `WorldGenerator::sampleSurface` on a worker thread — camera-follow
+     rings out to 2048+ world units, no Chunk objects/physics/light bake. **Status: Phases 0-3 done and
+     verified** (deterministic across relaunch, watertight-mesh unit tests in
+     `tests/graphics/FarTerrainMesherTest.cpp`, zero stutters at 2048u in Release). **OFF unless enabled**
+     via `POST /api/debug/render_distance {"distance":2048}` then `POST /api/debug/far_terrain
+     {"enabled":true,"maxDistance":2048}`. ⚠️ **Before flipping this on in a future session, know what is
+     NOT done (Phase 4):** no `game.json` config, no automatic far-plane extension (must raise
+     render_distance manually FIRST), no horizon fog, Debug-build flights with it on still show 50-470ms
+     spikes (Release is clean), no far water/flora, ignores player edits at distance. Procedural/streaming
+     worlds only. Test world: `PhyxelProjects/LodTest` (from `samples/game_definitions/lod_test.json`).
+     Phase 5 (chunk-downsample LOD for real chunks) designed but not built — plan + post-mortem of the old
+     reverted attempt in the 2026-07-03 session plan.
+  2. **Async streaming overhaul (ALWAYS ON — this is the load-bearing change):** chunk generation, flora
+     stamping, DB loads, occupancy-grid fill and chunk destruction all moved off the main thread
+     (`ChunkStreamingManager` gen worker + disposal worker, `m_storageMutex` serializes SQLite); remeshes go
+     through a two-tier budgeted queue (`DirtyChunkTracker::markChunkForRemesh[Idle]` — the Idle tier is for
+     cosmetic neighbour re-culls/light ripples and runs only in quiet frames); pristine generated chunks are
+     `markClean()` (deterministic regen — DB stores only player EDITS now; stops DB bloat); evict-saves are
+     dirty-gated. **Result: seconds-long streaming freezes → zero stutter warnings in Release.** Key traps
+     for future sessions: `markChunkDirty` sets the DB-PERSISTENCE flag (use `markChunkForRemesh*` for
+     render-only staleness); world-position hashing in shaders MUST wrap (`mod(pos, 2048)`) in the VERTEX
+     stage only — fragment-stage interpolated positions can't be fixed this way (see grass.vert/foliage.vert;
+     the voxel.frag attempt was reverted for seam artifacts); the single shadow map is fitted to
+     `min(renderDistance, 160)` — don't raise that cap without cascades; standing >100km from origin wobbles
+     (world-space float pipeline; camera-relative rendering is the eventual fix). Per-stage pump timers +
+     stutter breadcrumbs are left in (warn >100ms) — keep until the async paths have soaked. Six pre-existing
+     engine bugs were fixed in the same arc (streaming dying silently after relaunch, every-evict DB saves,
+     light-ripple phantom saves, 27-remesh cascade, GPU-particle slow sync, silent-terminate worker paths).
+     One unresolved: a single untraced silent crash while AFK (no dump; workers now log before dying).
+
 - **STRUCTURE GENERATION v2 — the ACTIVE focus (branch `feature/structure-generation-v2`).**
   **Read [`docs/structure-generation/README.md`](structure-generation/README.md) first** — canonical entry
   for all structure-gen work. Companion docs: [`ValidationLedger.md`](structure-generation/ValidationLedger.md)

@@ -62,6 +62,12 @@ void main() {
 
     // Min corner of the voxel's top face in world space (voxel occupies [p, p+1]; top at y+1).
     vec3 cellBase = pc.chunkBaseOffset + vec3(lx, ly + 1.0, lz);
+    // Hash-domain coordinates: world positions WRAPPED to a 2048-unit period before any
+    // hashing/phase math. Raw world coords break float precision inside hash21 far from
+    // the origin (fract(400000 * 127.1) has no fractional bits) — clump centers and
+    // jitter degenerate and every blade in a voxel stacks into one spike. cellBase is
+    // integer-exact, so mod() is exact; the 2km repeat is imperceptible.
+    vec3 cellHash = mod(cellBase, 2048.0);
 
     int blade  = gl_VertexIndex / 6;
     int corner = gl_VertexIndex - blade * 6;
@@ -73,9 +79,20 @@ void main() {
     int clumpId      = blade / BLADES_PER_CLUMP;
     int bladeInClump = blade - clumpId * BLADES_PER_CLUMP;
 
+    // Patchy coverage: grass grows in irregular MULTI-VOXEL patches, not a uniform
+    // per-voxel carpet. A large-scale patch field (5-voxel cells) + finer breakup give
+    // each clump a coverage threshold: patch cores keep all their clumps (dense tufts),
+    // patch edges thin out, and the gaps between patches stay bare.
+    float patchBig  = hash21(floor(cellHash.xz / 5.0) * 1.31 + 17.7);
+    float patchFine = hash21(floor(cellHash.xz / 2.0) * 2.17 + 5.9);
+    float coverage  = patchBig * 0.72 + patchFine * 0.28;
+    int   numClumps = (int(pc.bladesPerVoxel) + BLADES_PER_CLUMP - 1) / BLADES_PER_CLUMP;
+    float clumpFrac = (float(clumpId) + 0.5) / float(max(numClumps, 1));
+    float keep      = step(0.25 + 0.55 * clumpFrac, coverage);
+
     // Clump center within the [0,1]^2 top face (margin off the edges).
-    vec2 cseed = vec2(cellBase.x * 3.17 + cellBase.z * 7.71 + float(clumpId) * 13.1,
-                      cellBase.z * 2.39 - cellBase.x * 5.11 + float(clumpId) * 7.31);
+    vec2 cseed = vec2(cellHash.x * 3.17 + cellHash.z * 7.71 + float(clumpId) * 13.1,
+                      cellHash.z * 2.39 - cellHash.x * 5.11 + float(clumpId) * 7.31);
     vec2 clumpCenter = vec2(0.18 + 0.64 * hash21(cseed),
                             0.18 + 0.64 * hash21(cseed + 5.27));
 
@@ -113,7 +130,7 @@ void main() {
     // Distance fade: shrink height to 0 approaching the radius edge (blade collapses, invisible).
     float dist = length(ubo.cameraPosition - rootWorld);
     float fade = 1.0 - clamp((dist - (pc.radius - pc.fadeRange)) / max(pc.fadeRange, 0.001), 0.0, 1.0);
-    H *= fade;
+    H *= fade * keep;   // keep = patch-coverage gate (0 collapses the blade)
 
     // Horizontal blade orientation (yaw), width offset across the blade.
     float yaw = h3 * 6.2831853;
@@ -121,9 +138,10 @@ void main() {
     vec3 widthOffset = vec3(dir.x, 0.0, dir.y) * (uCentered * bladeWidth);
 
     // Coherent wind: whole field bends along a shared direction, phase varying with world position
-    // so it ripples. v*v → base stays planted, tip sways most.
+    // so it ripples. v*v → base stays planted, tip sways most. Phase from the hash-domain
+    // position: sin() of a raw 400k-coord is float garbage (all blades sway in lockstep).
     vec2 windDir = normalize(vec2(0.85, 0.35));
-    float phase = rootWorld.x * 0.6 + rootWorld.z * 0.55;
+    float phase = (cellHash.x + root2.x) * 0.6 + (cellHash.z + root2.y) * 0.55;
     float sway  = sin(ubo.elapsedTime * 1.7 + phase) * pc.windStrength;
     // Scale sway by blade height so short blades bend proportionally, not wildly.
     vec3 windOffset = vec3(windDir.x, 0.0, windDir.y) * (sway * v * v * H * 2.0);
@@ -132,7 +150,8 @@ void main() {
     worldPos.y   += v * H;
 
     // Colour-sample UV: a stable per-blade point in the grass tile (subtle per-blade variation).
-    vUV = fract(vec2(rootWorld.x, rootWorld.z) * 0.5 + vec2(h0, h1) * 0.3);
+    // Hash-domain coords again — fract() of a raw far coord is quantized.
+    vUV = fract(vec2(cellHash.x + root2.x, cellHash.z + root2.y) * 0.5 + vec2(h0, h1) * 0.3);
 
     gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
 }

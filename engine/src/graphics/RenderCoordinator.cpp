@@ -14,6 +14,8 @@
 #include "core/VfxDirector.h"
 #include "graphics/KinematicVoxelPipeline.h"
 #include "graphics/GrassRenderPipeline.h"
+#include "graphics/FarTerrainRenderPipeline.h"
+#include "graphics/FarTerrainManager.h"
 #include "graphics/FoliageRenderPipeline.h"
 #include "core/KinematicVoxelManager.h"
 #include "vulkan/RenderPipeline.h"
@@ -249,6 +251,20 @@ RenderCoordinator::RenderCoordinator(
         LOG_ERROR("RenderCoordinator", "Failed to initialize FoliageRenderPipeline");
         foliagePipeline.reset();
     }
+
+    // Far-terrain LOD tiles (blocky heightmap columns beyond the real-chunk radius).
+    farTerrainPipeline = std::make_unique<FarTerrainRenderPipeline>();
+    if (!farTerrainPipeline->initialize(
+            vulkanDevice->getDevice(),
+            vulkanDevice->getPhysicalDevice(),
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout())) {
+        LOG_ERROR("RenderCoordinator", "Failed to initialize FarTerrainRenderPipeline");
+        farTerrainPipeline.reset();
+    }
+    farTerrainManager = std::make_unique<FarTerrainManager>(
+        vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -420,6 +436,71 @@ void RenderCoordinator::renderGrass() {
 
     grassPipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
                           vulkanDevice->getDescriptorSet(currentFrame), draws);
+}
+
+void RenderCoordinator::renderFarTerrain() {
+    // Far-terrain LOD tiles. Drawn AFTER static geometry so near chunks fill depth
+    // first and far-tile pixels behind them are z-rejected. Excluded from the shadow
+    // pass by construction. Tiles are frustum-culled by their AABB here.
+    lastFrameStats.farTilesDrawn    = 0;
+    lastFrameStats.farTriangles     = 0;
+    if (!farTerrainPipeline || !farTerrainManager) {
+        lastFrameStats.farTilesResident = 0;
+        return;
+    }
+
+    // Auto-configure from the world's streaming generator the first time far terrain
+    // is enabled on a procedural world (game.json wiring lands with the config phase).
+    if (farTerrainManager->params().enabled && !farTerrainManager->isConfigured() &&
+        chunkManager && chunkManager->getStreamingGenerator()) {
+        farTerrainManager->setChunkCoverageFn(
+            [cm = chunkManager](const glm::ivec2& minXZ, const glm::ivec2& maxXZ) {
+                // True iff EVERY 32x32 column in the rect has a loaded chunk (any Y).
+                const int cx0 = int(std::floor(minXZ.x / 32.0f));
+                const int cx1 = int(std::floor((maxXZ.x - 1) / 32.0f));
+                const int cz0 = int(std::floor(minXZ.y / 32.0f));
+                const int cz1 = int(std::floor((maxXZ.y - 1) / 32.0f));
+                for (int cz = cz0; cz <= cz1; ++cz) {
+                    for (int cx = cx0; cx <= cx1; ++cx) {
+                        bool any = false;
+                        for (int cy = -4; cy <= 8 && !any; ++cy) {
+                            if (cm->getChunkAtCoord(glm::ivec3(cx, cy, cz))) any = true;
+                        }
+                        if (!any) return false;
+                    }
+                }
+                return true;
+            });
+        farTerrainManager->configure(*chunkManager->getStreamingGenerator());
+    }
+
+    // Per-frame lifecycle: refresh wanted set on camera movement, drain worker
+    // results (budgeted uploads), evict + frame-deferred-delete out-of-range tiles.
+    farTerrainManager->update(camera->getPosition());
+
+    lastFrameStats.farTilesResident = int(farTerrainManager->residentTiles());
+    if (!farTerrainManager->params().enabled) return;
+    const auto& tiles = farTerrainManager->tileDraws();
+    if (tiles.empty()) return;
+
+    const glm::vec3 cameraPos = camera->getPosition();
+    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + camera->getFront(), camera->getUp());
+    Utils::Frustum frustum;
+    frustum.extractFromMatrix(cachedProjectionMatrix * view);
+
+    std::vector<FarTerrainRenderPipeline::TileDraw> draws;
+    draws.reserve(tiles.size());
+    for (const auto& t : tiles) {
+        Utils::AABB aabb(t.aabbMin, t.aabbMax);
+        if (!frustum.intersects(aabb)) continue;
+        draws.push_back(t.draw);
+        lastFrameStats.farTriangles += int(t.draw.indexCount / 3);
+    }
+    if (draws.empty()) return;
+    lastFrameStats.farTilesDrawn = int(draws.size());
+
+    farTerrainPipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
+                               vulkanDevice->getDescriptorSet(currentFrame), draws);
 }
 
 void RenderCoordinator::renderFoliage() {
@@ -1207,9 +1288,12 @@ void RenderCoordinator::drawFrame() {
     float shadowCullRadius = 1.0f;
     if (shadowMap) {
         // Shadow draw distance — how far shadows render (must be <= view distance; full view-
-        // distance shadows at this quality would need cascades). Capped to the render distance so
-        // we never fit past what's visible. 400 + 4096² map keeps ~0.12 units/texel.
-        const float kMaxShadowDist = std::min(maxChunkRenderDistance, 400.0f);
+        // distance shadows at this quality would need cascades). Capped INDEPENDENTLY of the
+        // render distance: raising the view distance (e.g. 2048 with far-terrain LOD) must not
+        // stretch the single shadow map over a huge volume — at the old 400-unit cap shadows
+        // degraded to smeared low-res blobs with acne. 160 + 4096² keeps ~0.05 units/texel,
+        // close to the density everything was visually tuned at (96-unit render distance).
+        const float kMaxShadowDist = std::min(maxChunkRenderDistance, 160.0f);
         const float kNear = 0.5f;
         float a00 = cachedProjectionMatrix[0][0];
         float a11 = cachedProjectionMatrix[1][1];
@@ -1392,6 +1476,12 @@ void RenderCoordinator::drawFrame() {
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Foliage");
             renderFoliage();
+        }
+
+        // Far-terrain LOD tiles (after static geometry: near chunks fill depth first)
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Far Terrain");
+            renderFarTerrain();
         }
 
         // Render dynamic subcubes with separate pipeline

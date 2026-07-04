@@ -59,13 +59,17 @@ void main() {
 
     // Subcube centre in world space: cube-local + (sub + 0.5)/3 (subcube = 1/3 cube).
     vec3 subCenter = pc.chunkBaseOffset + vec3(lx, ly, lz) + (vec3(sx, sy, sz) + 0.5) / 3.0;
+    // Hash-domain coords: wrap to a 2048-unit period before hashing/phase math. Raw
+    // far-from-origin coords lose all fractional precision inside hash21 (cards then
+    // share one orientation → the whole canopy turns coplanar and vanishes edge-on).
+    vec3 scHash = mod(subCenter, 2048.0);
 
     int card   = gl_VertexIndex / 6;
     int corner = gl_VertexIndex - card * 6;
 
     // Per-card hash (seeded on subcube world cell + card index → stable, seamless across chunks).
-    vec2 seed = vec2(subCenter.x * 6.13 + subCenter.z * 11.7 + float(card) * 3.71,
-                     subCenter.z * 4.19 - subCenter.y * 7.53 + float(card) * 5.31);
+    vec2 seed = vec2(scHash.x * 6.13 + scHash.z * 11.7 + float(card) * 3.71,
+                     scHash.z * 4.19 - scHash.y * 7.53 + float(card) * 5.31);
     float h0 = hash21(seed);
     float h1 = hash21(seed + 13.1);
     float h2 = hash21(seed + 27.7);
@@ -84,9 +88,10 @@ void main() {
     vec3 jitter = (vec3(h0, h1, h2) - 0.5) * (2.0 / 3.0) * 0.55;
     vec3 center = subCenter + jitter;
 
-    // Gentle coherent wind: whole card drifts, tips more; phase varies with world position.
+    // Gentle coherent wind: whole card drifts, tips more; phase varies with world position
+    // (hash-domain coords — sin() of a raw far coord is float garbage).
     vec2 windDir = normalize(vec2(0.8, 0.35));
-    float phase = center.x * 0.5 + center.z * 0.45 + float(card);
+    float phase = scHash.x * 0.5 + scHash.z * 0.45 + float(card);
     float sway  = sin(ubo.elapsedTime * 1.3 + phase) * pc.windStrength;
     center.xz  += windDir * sway;
 
