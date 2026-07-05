@@ -1,0 +1,1265 @@
+# ==========================================================
+# name:         forge_palm_m
+# display_name: Palm (forge h12)
+# description:  Unified space-colonization tree, 133 nodes.
+# category:     nature
+# subcategory:  trees
+# facing:       +Z
+# bounds:       9W x 11H x 9D cubes
+# primitives:   0 C + 128 S + 1125 M = 1253
+# generator:    tree_forge.py --preset palm --height 12 --seed 121 --tier forest
+# ==========================================================
+
+S 2 0 4 2 0 0 Log
+S 2 0 4 2 0 1 Log
+S 2 0 5 2 0 0 Log
+S 2 0 5 2 0 1 Log
+S 3 0 3 1 0 1 Log
+S 3 0 3 1 0 2 Log
+S 3 0 3 2 0 2 Log
+S 3 0 4 0 0 0 Log
+S 3 0 4 0 0 1 Log
+S 3 0 4 0 0 2 Log
+S 3 0 4 1 0 0 Log
+S 3 0 4 1 0 1 Log
+S 3 0 4 1 0 2 Log
+S 3 0 4 2 0 0 Log
+S 3 0 4 2 0 1 Log
+S 3 0 4 2 0 2 Log
+S 3 0 4 2 1 1 Log
+S 3 0 5 0 0 0 Log
+S 3 0 5 0 0 1 Log
+S 3 0 5 1 0 0 Log
+S 3 0 5 1 0 1 Log
+S 3 0 5 2 0 0 Log
+S 3 0 5 2 0 1 Log
+S 4 0 4 0 0 0 Log
+S 4 0 4 0 0 1 Log
+S 4 0 4 0 0 2 Log
+S 4 0 4 1 0 0 Log
+S 4 0 4 1 0 1 Log
+S 4 0 4 1 0 2 Log
+S 4 0 4 2 0 0 Log
+S 4 0 4 2 0 1 Log
+S 4 0 4 2 0 2 Log
+S 4 0 5 0 0 0 Log
+S 4 0 5 0 0 1 Log
+S 4 0 5 0 0 2 Log
+S 4 0 5 0 1 1 Log
+S 4 0 5 1 0 0 Log
+S 4 0 5 1 0 1 Log
+S 4 0 5 1 0 2 Log
+S 4 0 5 1 1 1 Log
+S 4 0 5 2 0 0 Log
+S 4 0 5 2 0 1 Log
+S 4 0 5 2 0 2 Log
+S 4 0 6 1 0 0 Log
+S 4 0 6 2 0 0 Log
+S 5 0 4 0 0 2 Log
+S 5 0 5 0 0 2 Log
+S 5 0 6 0 0 0 Log
+S 5 0 6 0 0 1 Log
+S 2 9 4 1 2 0 Leaf
+S 2 9 4 2 2 0 Leaf
+S 2 9 4 2 2 1 Leaf
+S 2 9 5 2 2 0 Leaf
+S 3 9 3 0 2 2 Leaf
+S 3 9 3 1 2 2 Leaf
+S 3 9 4 0 1 1 Leaf
+S 3 9 4 0 2 1 Leaf
+S 3 9 4 0 2 2 Leaf
+S 3 9 4 1 1 0 Leaf
+S 3 9 4 1 1 1 Leaf
+S 3 9 4 1 1 2 Leaf
+S 3 9 4 1 2 0 Leaf
+S 3 9 4 2 0 1 Leaf
+S 3 9 4 2 0 2 Leaf
+S 3 9 4 2 1 0 Leaf
+S 3 9 4 2 1 1 Leaf
+S 3 9 4 2 1 2 Leaf
+S 3 9 5 0 2 0 Leaf
+S 3 9 5 1 1 0 Leaf
+S 3 9 5 1 2 1 Leaf
+S 3 9 5 2 0 0 Leaf
+S 3 9 5 2 1 0 Leaf
+S 3 9 5 2 1 1 Leaf
+S 3 9 5 2 2 0 Leaf
+S 3 9 5 2 2 1 Leaf
+S 3 9 5 2 2 2 Leaf
+S 3 9 6 2 2 0 Leaf
+S 3 9 6 2 2 1 Leaf
+S 4 9 3 0 2 2 Leaf
+S 4 9 4 0 0 1 Leaf
+S 4 9 4 0 0 2 Leaf
+S 4 9 4 0 1 0 Leaf
+S 4 9 4 0 1 1 Leaf
+S 4 9 4 0 1 2 Leaf
+S 4 9 4 0 2 0 Leaf
+S 4 9 4 1 0 2 Leaf
+S 4 9 4 1 1 2 Leaf
+S 4 9 4 2 1 2 Leaf
+S 4 9 5 0 0 0 Leaf
+S 4 9 5 0 1 0 Leaf
+S 4 9 5 0 1 1 Leaf
+S 4 9 5 1 0 0 Leaf
+S 4 9 5 1 1 0 Leaf
+S 4 9 5 1 1 1 Leaf
+S 4 9 5 1 1 2 Leaf
+S 4 9 5 1 2 0 Leaf
+S 4 9 5 1 2 2 Leaf
+S 4 9 5 2 1 2 Leaf
+S 4 9 5 2 2 0 Leaf
+S 4 9 5 2 2 1 Leaf
+S 4 9 5 2 2 2 Leaf
+S 4 9 6 2 2 0 Leaf
+S 5 9 4 0 1 2 Leaf
+S 5 9 4 0 2 2 Leaf
+S 5 9 4 1 2 2 Leaf
+S 5 9 6 0 2 0 Leaf
+S 5 9 6 0 2 1 Leaf
+S 5 9 6 0 2 2 Leaf
+S 5 9 6 1 2 2 Leaf
+S 5 9 7 1 2 0 Leaf
+S 2 10 3 2 0 0 Leaf
+S 2 10 3 2 0 1 Leaf
+S 2 10 3 2 1 0 Leaf
+S 2 10 5 0 0 0 Leaf
+S 2 10 5 1 0 0 Leaf
+S 2 10 5 2 0 0 Leaf
+S 3 10 3 0 0 1 Leaf
+S 3 10 3 0 0 2 Leaf
+S 3 10 5 1 0 1 Leaf
+S 3 10 5 1 0 2 Leaf
+S 3 10 6 2 0 1 Leaf
+S 3 10 6 2 0 2 Leaf
+S 4 10 3 0 0 0 Leaf
+S 4 10 3 0 0 1 Leaf
+S 4 10 5 2 0 1 Leaf
+S 5 10 5 0 0 1 Leaf
+S 5 10 5 1 1 2 Leaf
+S 5 10 5 2 1 2 Leaf
+M 3 0 4 2 1 2 2 0 2 Log
+M 3 0 5 2 1 0 2 0 0 Log
+M 3 0 5 2 1 0 2 1 0 Log
+M 3 0 5 2 1 0 2 2 0 Log
+M 3 0 5 2 2 0 2 0 0 Log
+M 3 0 5 2 2 0 2 1 0 Log
+M 4 0 4 0 1 2 0 0 2 Log
+M 4 0 4 0 1 2 0 1 2 Log
+M 4 0 4 0 1 2 0 2 2 Log
+M 4 0 4 0 2 2 0 0 2 Log
+M 4 0 4 0 2 2 0 1 2 Log
+M 4 0 4 0 2 2 0 2 2 Log
+M 4 0 5 0 1 0 0 0 0 Log
+M 4 0 5 0 1 0 0 1 0 Log
+M 4 0 5 0 1 0 0 2 0 Log
+M 4 0 5 0 2 0 0 0 0 Log
+M 4 0 5 0 2 0 0 1 0 Log
+M 4 0 5 0 2 0 0 2 0 Log
+M 4 0 5 0 2 0 1 0 0 Log
+M 4 0 5 0 2 0 1 1 0 Log
+M 4 0 5 0 2 0 1 2 0 Log
+M 4 1 4 0 0 2 0 0 2 Log
+M 4 1 5 0 0 0 0 0 0 Log
+M 4 1 5 0 0 0 0 1 0 Log
+M 4 1 5 0 0 0 0 2 0 Log
+M 4 1 5 0 0 0 1 0 0 Log
+M 4 1 5 0 0 0 1 1 0 Log
+M 4 1 5 0 0 0 1 2 0 Log
+M 4 1 5 0 1 0 0 0 0 Log
+M 4 1 5 0 1 0 0 1 0 Log
+M 4 1 5 0 1 0 0 2 0 Log
+M 4 1 5 0 1 0 1 0 0 Log
+M 4 1 5 0 1 0 1 0 1 Log
+M 4 1 5 0 1 0 1 1 0 Log
+M 4 1 5 0 1 0 1 1 1 Log
+M 4 1 5 0 1 0 1 2 0 Log
+M 4 1 5 0 1 0 1 2 1 Log
+M 4 1 5 0 2 0 1 0 0 Log
+M 4 1 5 0 2 0 1 0 1 Log
+M 4 1 5 0 2 0 1 1 0 Log
+M 4 1 5 0 2 0 1 1 1 Log
+M 4 1 5 0 2 0 1 2 0 Log
+M 4 1 5 0 2 0 1 2 1 Log
+M 4 1 5 0 2 0 2 1 0 Log
+M 4 1 5 0 2 0 2 1 1 Log
+M 4 1 5 0 2 0 2 2 0 Log
+M 4 1 5 0 2 0 2 2 1 Log
+M 4 2 5 0 0 0 1 0 0 Log
+M 4 2 5 0 0 0 1 0 1 Log
+M 4 2 5 0 0 0 1 1 1 Log
+M 4 2 5 0 0 0 1 2 1 Log
+M 4 2 5 0 0 0 2 0 0 Log
+M 4 2 5 0 0 0 2 0 1 Log
+M 4 2 5 0 0 0 2 1 0 Log
+M 4 2 5 0 0 0 2 1 1 Log
+M 4 2 5 0 0 0 2 2 0 Log
+M 4 2 5 0 0 0 2 2 1 Log
+M 4 2 5 0 1 0 1 0 1 Log
+M 4 2 5 0 1 0 1 1 1 Log
+M 4 2 5 0 1 0 1 2 1 Log
+M 4 2 5 0 1 0 2 0 0 Log
+M 4 2 5 0 1 0 2 0 1 Log
+M 4 2 5 0 1 0 2 1 0 Log
+M 4 2 5 0 1 0 2 1 1 Log
+M 4 2 5 0 1 0 2 2 0 Log
+M 4 2 5 0 1 0 2 2 1 Log
+M 4 2 5 0 2 0 1 0 1 Log
+M 4 2 5 0 2 0 2 0 0 Log
+M 4 2 5 0 2 0 2 0 1 Log
+M 4 2 5 0 2 0 2 1 0 Log
+M 4 2 5 0 2 0 2 1 1 Log
+M 4 2 5 0 2 0 2 2 0 Log
+M 4 2 5 0 2 0 2 2 1 Log
+M 4 3 4 0 2 2 2 0 2 Log
+M 4 3 4 0 2 2 2 1 2 Log
+M 4 3 4 0 2 2 2 2 2 Log
+M 4 3 5 0 0 0 2 0 0 Log
+M 4 3 5 0 0 0 2 0 1 Log
+M 4 3 5 0 0 0 2 1 0 Log
+M 4 3 5 0 0 0 2 1 1 Log
+M 4 3 5 0 0 0 2 2 0 Log
+M 4 3 5 0 0 0 2 2 1 Log
+M 4 3 5 0 1 0 2 0 0 Log
+M 4 3 5 0 1 0 2 0 1 Log
+M 4 3 5 0 1 0 2 1 0 Log
+M 4 3 5 0 1 0 2 1 1 Log
+M 4 3 5 0 1 0 2 2 0 Log
+M 4 3 5 0 1 0 2 2 1 Log
+M 4 3 5 0 2 0 2 0 0 Log
+M 4 3 5 0 2 0 2 1 0 Log
+M 4 3 5 0 2 0 2 2 0 Log
+M 4 3 5 1 1 0 0 0 0 Log
+M 4 3 5 1 1 0 0 1 0 Log
+M 4 3 5 1 1 0 0 2 0 Log
+M 4 3 5 1 2 0 0 0 0 Log
+M 4 4 4 0 0 2 1 2 2 Log
+M 4 4 4 0 0 2 2 0 2 Log
+M 4 4 4 0 0 2 2 1 2 Log
+M 4 4 4 0 0 2 2 2 2 Log
+M 4 4 4 0 1 2 1 0 2 Log
+M 4 4 4 0 1 2 1 1 2 Log
+M 4 4 4 0 1 2 1 2 2 Log
+M 4 4 4 0 1 2 2 0 2 Log
+M 4 4 4 0 1 2 2 1 2 Log
+M 4 4 4 0 1 2 2 2 2 Log
+M 4 4 4 0 2 2 0 2 2 Log
+M 4 4 4 0 2 2 1 0 2 Log
+M 4 4 4 0 2 2 1 1 2 Log
+M 4 4 4 0 2 2 1 2 2 Log
+M 4 4 4 0 2 2 2 0 2 Log
+M 4 4 5 0 0 0 1 1 0 Log
+M 4 4 5 0 0 0 1 2 0 Log
+M 4 4 5 0 0 0 2 0 0 Log
+M 4 4 5 0 0 0 2 1 0 Log
+M 4 4 5 0 0 0 2 2 0 Log
+M 4 4 5 0 1 0 1 0 0 Log
+M 4 4 5 0 1 0 1 1 0 Log
+M 4 4 5 0 1 0 1 2 0 Log
+M 4 4 5 0 1 0 2 0 0 Log
+M 4 4 5 0 1 0 2 1 0 Log
+M 4 4 5 0 1 0 2 2 0 Log
+M 4 4 5 0 2 0 1 0 0 Log
+M 4 4 5 0 2 0 1 1 0 Log
+M 4 4 5 0 2 0 1 2 0 Log
+M 4 5 4 0 0 2 0 0 2 Log
+M 4 5 4 0 0 2 0 1 2 Log
+M 4 5 4 0 0 2 0 2 2 Log
+M 4 5 4 0 0 2 1 0 2 Log
+M 4 5 4 0 0 2 1 1 2 Log
+M 4 5 4 0 0 2 1 2 1 Log
+M 4 5 4 0 0 2 1 2 2 Log
+M 4 5 4 0 1 2 0 0 1 Log
+M 4 5 4 0 1 2 0 0 2 Log
+M 4 5 4 0 1 2 0 1 1 Log
+M 4 5 4 0 1 2 0 1 2 Log
+M 4 5 4 0 1 2 0 2 1 Log
+M 4 5 4 0 1 2 0 2 2 Log
+M 4 5 4 0 1 2 1 0 1 Log
+M 4 5 4 0 1 2 1 0 2 Log
+M 4 5 4 0 1 2 1 1 1 Log
+M 4 5 4 0 1 2 1 1 2 Log
+M 4 5 4 0 1 2 1 2 1 Log
+M 4 5 4 0 1 2 1 2 2 Log
+M 4 5 4 0 2 2 0 0 1 Log
+M 4 5 4 0 2 2 0 0 2 Log
+M 4 5 4 0 2 2 0 1 1 Log
+M 4 5 4 0 2 2 0 1 2 Log
+M 4 5 4 0 2 2 0 2 1 Log
+M 4 5 4 0 2 2 0 2 2 Log
+M 4 5 4 0 2 2 1 0 1 Log
+M 4 5 4 0 2 2 1 0 2 Log
+M 4 5 4 0 2 2 1 1 1 Log
+M 4 5 4 0 2 2 1 1 2 Log
+M 4 5 4 0 2 2 1 2 1 Log
+M 4 5 4 0 2 2 1 2 2 Log
+M 4 6 4 0 0 2 0 0 1 Log
+M 4 6 4 0 0 2 0 0 2 Log
+M 4 6 4 0 0 2 0 1 1 Log
+M 4 6 4 0 0 2 0 1 2 Log
+M 4 6 4 0 0 2 0 2 1 Log
+M 4 6 4 0 0 2 0 2 2 Log
+M 4 6 4 0 0 2 1 0 1 Log
+M 4 6 4 0 0 2 1 0 2 Log
+M 4 6 4 0 0 2 1 1 1 Log
+M 4 6 4 0 0 2 1 1 2 Log
+M 4 6 4 0 0 2 1 2 1 Log
+M 4 6 4 0 0 2 1 2 2 Log
+M 4 6 4 0 1 2 0 0 1 Log
+M 4 6 4 0 1 2 0 0 2 Log
+M 4 6 4 0 1 2 0 1 1 Log
+M 4 6 4 0 1 2 0 1 2 Log
+M 4 6 4 0 1 2 0 2 1 Log
+M 4 6 4 0 1 2 1 0 1 Log
+M 4 6 4 0 1 2 1 0 2 Log
+M 4 6 4 0 1 2 1 1 1 Log
+M 4 6 4 0 1 2 1 1 2 Log
+M 4 6 4 0 1 2 1 2 1 Log
+M 4 6 4 0 1 2 1 2 2 Log
+M 4 6 4 0 2 2 0 0 1 Log
+M 4 6 4 0 2 2 0 1 1 Log
+M 4 6 4 0 2 2 0 2 1 Log
+M 4 6 4 0 2 2 1 0 1 Log
+M 4 6 4 0 2 2 1 1 1 Log
+M 4 6 4 0 2 2 1 2 1 Log
+M 4 7 4 0 0 2 0 0 1 Log
+M 4 7 4 0 0 2 0 1 1 Log
+M 4 7 4 0 0 2 0 2 1 Log
+M 4 7 4 0 0 2 1 0 0 Log
+M 4 7 4 0 0 2 1 0 1 Log
+M 4 7 4 0 0 2 1 1 0 Log
+M 4 7 4 0 0 2 1 1 1 Log
+M 4 7 4 0 0 2 1 2 0 Log
+M 4 7 4 0 0 2 1 2 1 Log
+M 4 7 4 0 1 2 0 2 0 Log
+M 4 7 4 0 1 2 1 0 0 Log
+M 4 7 4 0 1 2 1 0 1 Log
+M 4 7 4 0 1 2 1 1 0 Log
+M 4 7 4 0 1 2 1 1 1 Log
+M 4 7 4 0 1 2 1 2 0 Log
+M 4 7 4 0 1 2 1 2 1 Log
+M 4 7 4 0 2 2 0 0 0 Log
+M 4 7 4 0 2 2 0 1 0 Log
+M 4 7 4 0 2 2 0 2 0 Log
+M 4 7 4 0 2 2 1 0 0 Log
+M 4 7 4 0 2 2 1 0 1 Log
+M 4 7 4 0 2 2 1 1 0 Log
+M 4 7 4 0 2 2 1 1 1 Log
+M 4 7 4 0 2 2 1 2 0 Log
+M 4 7 4 0 2 2 1 2 1 Log
+M 0 8 3 0 1 1 1 2 1 Leaf
+M 0 8 3 0 1 1 1 2 2 Leaf
+M 0 8 3 0 1 1 2 2 1 Leaf
+M 0 8 3 0 1 1 2 2 2 Leaf
+M 0 8 3 0 2 1 1 0 1 Leaf
+M 0 8 3 0 2 1 1 0 2 Leaf
+M 0 8 3 0 2 1 2 0 1 Leaf
+M 0 8 3 0 2 1 2 0 2 Leaf
+M 0 8 3 0 2 1 2 1 1 Leaf
+M 0 8 3 0 2 1 2 1 2 Leaf
+M 0 8 3 0 2 1 2 2 1 Leaf
+M 0 8 3 0 2 1 2 2 2 Leaf
+M 0 8 3 1 2 1 0 1 2 Leaf
+M 0 8 3 1 2 1 0 2 1 Leaf
+M 0 8 3 1 2 1 0 2 2 Leaf
+M 3 8 8 1 2 1 0 2 2 Leaf
+M 3 8 8 1 2 1 1 1 2 Leaf
+M 3 8 8 1 2 1 1 2 2 Leaf
+M 3 8 8 1 2 2 0 0 0 Leaf
+M 3 8 8 1 2 2 0 1 0 Leaf
+M 3 8 8 1 2 2 0 2 0 Leaf
+M 3 8 8 1 2 2 1 0 0 Leaf
+M 3 8 8 1 2 2 1 1 0 Leaf
+M 3 8 8 1 2 2 1 2 0 Leaf
+M 4 8 4 0 0 2 0 0 0 Log
+M 4 8 4 0 0 2 0 1 0 Log
+M 4 8 4 0 0 2 0 2 0 Log
+M 4 8 4 0 0 2 1 0 0 Log
+M 4 8 4 0 0 2 1 0 1 Log
+M 4 8 4 0 0 2 1 1 0 Log
+M 4 8 4 0 0 2 1 2 0 Log
+M 4 8 4 0 1 2 0 0 0 Log
+M 4 8 4 0 1 2 0 1 0 Log
+M 4 8 4 0 1 2 0 2 0 Log
+M 4 8 4 0 1 2 0 2 1 Log
+M 4 8 4 0 1 2 1 0 0 Log
+M 4 8 4 0 1 2 1 1 0 Log
+M 4 8 4 0 1 2 1 2 0 Log
+M 4 8 4 0 2 2 0 0 0 Log
+M 4 8 4 0 2 2 0 0 1 Log
+M 4 8 4 0 2 2 0 1 0 Log
+M 4 8 4 0 2 2 0 1 1 Log
+M 4 8 4 0 2 2 0 2 0 Log
+M 4 8 4 0 2 2 0 2 1 Log
+M 4 8 4 0 2 2 1 0 0 Log
+M 4 8 4 0 2 2 1 1 0 Log
+M 5 8 7 2 2 2 2 1 2 Leaf
+M 5 8 7 2 2 2 2 2 2 Leaf
+M 5 8 8 2 2 0 2 0 0 Leaf
+M 5 8 8 2 2 0 2 1 0 Leaf
+M 5 8 8 2 2 0 2 2 0 Leaf
+M 6 8 7 0 2 2 0 1 2 Leaf
+M 6 8 7 0 2 2 0 2 2 Leaf
+M 6 8 8 0 0 0 0 2 1 Leaf
+M 6 8 8 0 0 0 1 2 1 Leaf
+M 6 8 8 0 0 0 1 2 2 Leaf
+M 6 8 8 0 1 0 0 0 1 Leaf
+M 6 8 8 0 1 0 0 1 0 Leaf
+M 6 8 8 0 1 0 0 1 1 Leaf
+M 6 8 8 0 1 0 0 2 0 Leaf
+M 6 8 8 0 1 0 0 2 1 Leaf
+M 6 8 8 0 1 0 1 0 1 Leaf
+M 6 8 8 0 1 0 1 0 2 Leaf
+M 6 8 8 0 1 0 1 1 1 Leaf
+M 6 8 8 0 1 0 1 2 1 Leaf
+M 6 8 8 0 2 0 0 0 0 Leaf
+M 6 8 8 0 2 0 0 0 1 Leaf
+M 6 8 8 0 2 0 0 1 0 Leaf
+M 6 8 8 0 2 0 0 2 0 Leaf
+M 7 8 4 2 2 2 2 1 2 Leaf
+M 7 8 4 2 2 2 2 2 2 Leaf
+M 7 8 5 2 2 0 1 2 0 Leaf
+M 7 8 5 2 2 0 2 0 0 Leaf
+M 7 8 5 2 2 0 2 1 0 Leaf
+M 7 8 5 2 2 0 2 2 0 Leaf
+M 8 8 4 0 1 2 0 2 2 Leaf
+M 8 8 4 0 2 2 0 0 2 Leaf
+M 8 8 5 0 1 0 0 2 0 Leaf
+M 8 8 5 0 1 0 1 2 0 Leaf
+M 8 8 5 0 2 0 0 0 0 Leaf
+M 8 8 5 0 2 0 0 1 0 Leaf
+M 0 9 3 0 0 1 2 0 2 Leaf
+M 0 9 3 1 0 1 0 0 1 Leaf
+M 0 9 3 1 0 1 0 0 2 Leaf
+M 0 9 3 1 0 1 0 1 2 Leaf
+M 0 9 3 1 0 1 0 2 2 Leaf
+M 0 9 3 1 0 1 1 0 2 Leaf
+M 0 9 3 1 0 1 1 1 2 Leaf
+M 0 9 3 1 0 1 1 2 2 Leaf
+M 0 9 3 1 0 1 2 2 2 Leaf
+M 0 9 3 1 0 2 1 2 0 Leaf
+M 0 9 3 1 1 1 1 0 2 Leaf
+M 0 9 3 1 1 1 2 0 2 Leaf
+M 0 9 3 1 1 1 2 1 2 Leaf
+M 0 9 3 1 1 2 1 0 0 Leaf
+M 0 9 3 1 1 2 2 0 0 Leaf
+M 0 9 3 1 1 2 2 1 0 Leaf
+M 0 9 3 1 1 2 2 2 0 Leaf
+M 0 9 3 2 1 1 0 1 2 Leaf
+M 0 9 3 2 1 1 0 2 2 Leaf
+M 0 9 3 2 1 2 0 1 0 Leaf
+M 0 9 3 2 1 2 0 2 0 Leaf
+M 0 9 3 2 1 2 1 2 0 Leaf
+M 0 9 3 2 2 2 0 0 0 Leaf
+M 0 9 3 2 2 2 1 0 0 Leaf
+M 0 9 3 2 2 2 1 0 1 Leaf
+M 0 9 3 2 2 2 2 0 0 Leaf
+M 0 9 3 2 2 2 2 0 1 Leaf
+M 0 9 3 2 2 2 2 1 0 Leaf
+M 0 9 3 2 2 2 2 1 1 Leaf
+M 0 9 5 0 0 2 1 0 0 Leaf
+M 0 9 5 0 0 2 1 0 1 Leaf
+M 0 9 5 0 0 2 1 1 0 Leaf
+M 0 9 5 0 0 2 1 2 0 Leaf
+M 0 9 5 0 0 2 2 0 0 Leaf
+M 0 9 5 0 0 2 2 1 0 Leaf
+M 0 9 5 0 0 2 2 1 1 Leaf
+M 0 9 5 0 0 2 2 2 0 Leaf
+M 0 9 5 0 0 2 2 2 1 Leaf
+M 0 9 5 0 1 2 2 0 0 Leaf
+M 0 9 5 0 1 2 2 1 0 Leaf
+M 0 9 5 1 1 1 0 1 2 Leaf
+M 0 9 5 1 1 1 0 2 2 Leaf
+M 0 9 5 1 1 1 1 2 2 Leaf
+M 0 9 5 1 1 2 0 0 0 Leaf
+M 0 9 5 1 1 2 0 1 0 Leaf
+M 0 9 5 1 1 2 0 2 0 Leaf
+M 0 9 5 1 1 2 1 2 0 Leaf
+M 0 9 5 1 2 1 1 0 2 Leaf
+M 0 9 5 1 2 1 1 1 2 Leaf
+M 0 9 5 1 2 1 2 0 2 Leaf
+M 0 9 5 1 2 1 2 1 2 Leaf
+M 0 9 5 1 2 1 2 2 2 Leaf
+M 0 9 5 1 2 2 0 0 0 Leaf
+M 0 9 5 1 2 2 1 0 0 Leaf
+M 0 9 5 1 2 2 1 1 0 Leaf
+M 0 9 5 1 2 2 2 0 0 Leaf
+M 0 9 5 1 2 2 2 1 0 Leaf
+M 0 9 5 1 2 2 2 2 0 Leaf
+M 0 9 5 2 2 1 0 1 2 Leaf
+M 0 9 5 2 2 1 0 2 2 Leaf
+M 0 9 5 2 2 1 1 2 2 Leaf
+M 0 9 5 2 2 2 0 2 0 Leaf
+M 1 9 1 1 0 2 1 0 0 Leaf
+M 1 9 1 1 0 2 1 1 0 Leaf
+M 1 9 1 1 0 2 1 2 0 Leaf
+M 1 9 1 1 0 2 1 2 1 Leaf
+M 1 9 1 1 0 2 2 1 0 Leaf
+M 1 9 1 1 0 2 2 2 0 Leaf
+M 1 9 1 1 0 2 2 2 1 Leaf
+M 1 9 1 1 1 2 1 0 0 Leaf
+M 1 9 1 1 1 2 1 0 1 Leaf
+M 1 9 1 1 1 2 2 0 0 Leaf
+M 1 9 1 1 1 2 2 0 1 Leaf
+M 1 9 1 1 1 2 2 1 0 Leaf
+M 1 9 1 1 1 2 2 1 1 Leaf
+M 1 9 1 1 1 2 2 2 1 Leaf
+M 1 9 1 1 1 2 2 2 2 Leaf
+M 1 9 1 1 2 2 2 0 1 Leaf
+M 1 9 1 1 2 2 2 0 2 Leaf
+M 1 9 1 2 1 2 0 1 1 Leaf
+M 1 9 1 2 1 2 0 2 1 Leaf
+M 1 9 1 2 1 2 0 2 2 Leaf
+M 1 9 1 2 2 2 0 0 1 Leaf
+M 1 9 1 2 2 2 0 0 2 Leaf
+M 1 9 1 2 2 2 0 1 2 Leaf
+M 1 9 1 2 2 2 1 0 2 Leaf
+M 1 9 1 2 2 2 1 1 2 Leaf
+M 1 9 1 2 2 2 1 2 2 Leaf
+M 1 9 2 2 2 0 0 1 0 Leaf
+M 1 9 2 2 2 0 0 2 0 Leaf
+M 1 9 2 2 2 0 1 1 0 Leaf
+M 1 9 2 2 2 0 1 2 0 Leaf
+M 1 9 2 2 2 0 1 2 1 Leaf
+M 1 9 2 2 2 0 2 2 0 Leaf
+M 1 9 2 2 2 0 2 2 1 Leaf
+M 1 9 3 0 2 2 0 1 0 Leaf
+M 1 9 3 0 2 2 0 1 1 Leaf
+M 1 9 3 0 2 2 0 2 1 Leaf
+M 1 9 3 0 2 2 1 1 1 Leaf
+M 1 9 3 0 2 2 1 1 2 Leaf
+M 1 9 3 0 2 2 1 2 1 Leaf
+M 1 9 3 0 2 2 1 2 2 Leaf
+M 1 9 3 0 2 2 2 1 1 Leaf
+M 1 9 3 0 2 2 2 1 2 Leaf
+M 1 9 3 0 2 2 2 2 1 Leaf
+M 1 9 3 0 2 2 2 2 2 Leaf
+M 1 9 3 1 2 2 0 2 1 Leaf
+M 1 9 3 1 2 2 0 2 2 Leaf
+M 1 9 3 1 2 2 1 2 2 Leaf
+M 1 9 3 1 2 2 2 2 2 Leaf
+M 1 9 3 2 2 2 0 2 2 Leaf
+M 1 9 4 1 2 0 1 2 0 Leaf
+M 1 9 4 1 2 0 2 2 0 Leaf
+M 1 9 4 2 2 0 0 2 0 Leaf
+M 1 9 4 2 2 0 1 2 0 Leaf
+M 1 9 4 2 2 0 1 2 1 Leaf
+M 1 9 4 2 2 0 2 2 0 Leaf
+M 1 9 4 2 2 0 2 2 1 Leaf
+M 1 9 7 2 1 2 1 2 2 Leaf
+M 1 9 7 2 1 2 2 1 2 Leaf
+M 1 9 7 2 1 2 2 2 2 Leaf
+M 1 9 7 2 2 2 2 0 2 Leaf
+M 1 9 7 2 2 2 2 1 1 Leaf
+M 1 9 7 2 2 2 2 1 2 Leaf
+M 1 9 7 2 2 2 2 2 1 Leaf
+M 1 9 7 2 2 2 2 2 2 Leaf
+M 1 9 8 2 1 0 1 2 0 Leaf
+M 1 9 8 2 1 0 2 1 0 Leaf
+M 1 9 8 2 1 0 2 2 0 Leaf
+M 1 9 8 2 2 0 2 0 0 Leaf
+M 2 9 4 0 2 0 0 2 0 Leaf
+M 2 9 4 0 2 0 0 2 1 Leaf
+M 2 9 4 0 2 0 1 2 0 Leaf
+M 2 9 4 0 2 0 1 2 1 Leaf
+M 2 9 4 0 2 0 1 2 2 Leaf
+M 2 9 4 0 2 0 2 2 0 Leaf
+M 2 9 4 0 2 0 2 2 1 Leaf
+M 2 9 4 0 2 0 2 2 2 Leaf
+M 2 9 4 1 2 1 0 2 0 Leaf
+M 2 9 7 0 2 2 0 0 2 Leaf
+M 2 9 7 0 2 2 0 1 2 Leaf
+M 2 9 7 0 2 2 0 2 1 Leaf
+M 2 9 7 0 2 2 0 2 2 Leaf
+M 3 9 7 1 2 1 2 2 1 Leaf
+M 3 9 7 1 2 1 2 2 2 Leaf
+M 3 9 7 1 2 2 1 1 2 Leaf
+M 3 9 7 1 2 2 1 2 0 Leaf
+M 3 9 7 1 2 2 1 2 1 Leaf
+M 3 9 7 1 2 2 1 2 2 Leaf
+M 3 9 7 1 2 2 2 1 1 Leaf
+M 3 9 7 1 2 2 2 1 2 Leaf
+M 3 9 7 1 2 2 2 2 0 Leaf
+M 3 9 7 1 2 2 2 2 1 Leaf
+M 3 9 7 1 2 2 2 2 2 Leaf
+M 3 9 7 2 2 1 0 2 2 Leaf
+M 3 9 7 2 2 2 0 2 0 Leaf
+M 3 9 8 1 0 1 0 0 2 Leaf
+M 3 9 8 1 0 1 0 1 2 Leaf
+M 3 9 8 1 0 1 0 2 1 Leaf
+M 3 9 8 1 0 1 1 0 2 Leaf
+M 3 9 8 1 0 1 1 1 1 Leaf
+M 3 9 8 1 0 1 1 1 2 Leaf
+M 3 9 8 1 0 1 1 2 1 Leaf
+M 3 9 8 1 0 1 1 2 2 Leaf
+M 3 9 8 1 0 2 1 0 0 Leaf
+M 3 9 8 1 1 0 1 1 2 Leaf
+M 3 9 8 1 1 0 1 2 1 Leaf
+M 3 9 8 1 1 0 1 2 2 Leaf
+M 3 9 8 1 1 0 2 2 2 Leaf
+M 3 9 8 1 1 1 1 0 0 Leaf
+M 3 9 8 1 1 1 1 0 1 Leaf
+M 3 9 8 1 1 1 1 1 0 Leaf
+M 3 9 8 1 1 1 1 1 1 Leaf
+M 3 9 8 1 1 1 1 2 0 Leaf
+M 3 9 8 1 1 1 2 1 0 Leaf
+M 3 9 8 1 2 0 1 0 0 Leaf
+M 3 9 8 1 2 0 1 0 1 Leaf
+M 3 9 8 1 2 0 1 0 2 Leaf
+M 3 9 8 1 2 0 1 1 0 Leaf
+M 3 9 8 1 2 0 1 1 1 Leaf
+M 3 9 8 1 2 0 1 2 0 Leaf
+M 3 9 8 1 2 0 2 0 0 Leaf
+M 3 9 8 1 2 0 2 0 1 Leaf
+M 3 9 8 1 2 0 2 0 2 Leaf
+M 3 9 8 1 2 0 2 1 0 Leaf
+M 3 9 8 1 2 0 2 1 1 Leaf
+M 3 9 8 1 2 0 2 2 0 Leaf
+M 4 9 0 0 0 2 0 2 1 Leaf
+M 4 9 0 0 0 2 1 2 1 Leaf
+M 4 9 0 0 1 2 0 0 1 Leaf
+M 4 9 0 0 1 2 0 0 2 Leaf
+M 4 9 0 0 1 2 0 1 1 Leaf
+M 4 9 0 0 1 2 0 1 2 Leaf
+M 4 9 0 0 1 2 0 2 2 Leaf
+M 4 9 0 0 1 2 1 0 1 Leaf
+M 4 9 0 0 1 2 1 0 2 Leaf
+M 4 9 0 0 1 2 1 1 1 Leaf
+M 4 9 0 0 1 2 1 1 2 Leaf
+M 4 9 0 0 1 2 1 2 2 Leaf
+M 4 9 0 0 2 2 0 0 2 Leaf
+M 4 9 0 0 2 2 1 0 2 Leaf
+M 4 9 1 0 1 0 1 2 0 Leaf
+M 4 9 1 0 2 0 0 0 0 Leaf
+M 4 9 1 0 2 0 0 1 0 Leaf
+M 4 9 1 0 2 0 0 1 1 Leaf
+M 4 9 1 0 2 0 0 2 1 Leaf
+M 4 9 1 0 2 0 0 2 2 Leaf
+M 4 9 1 0 2 0 1 0 0 Leaf
+M 4 9 1 0 2 0 1 1 0 Leaf
+M 4 9 1 0 2 0 1 1 1 Leaf
+M 4 9 1 0 2 0 1 2 0 Leaf
+M 4 9 1 0 2 0 1 2 1 Leaf
+M 4 9 1 0 2 0 1 2 2 Leaf
+M 5 9 4 2 2 2 0 1 1 Leaf
+M 5 9 4 2 2 2 0 1 2 Leaf
+M 5 9 4 2 2 2 0 2 1 Leaf
+M 5 9 4 2 2 2 0 2 2 Leaf
+M 5 9 4 2 2 2 1 1 1 Leaf
+M 5 9 4 2 2 2 1 1 2 Leaf
+M 5 9 4 2 2 2 1 2 1 Leaf
+M 5 9 4 2 2 2 1 2 2 Leaf
+M 5 9 4 2 2 2 2 2 1 Leaf
+M 5 9 4 2 2 2 2 2 2 Leaf
+M 5 9 7 1 1 0 1 2 2 Leaf
+M 5 9 7 1 1 0 2 2 2 Leaf
+M 5 9 7 1 1 1 1 2 0 Leaf
+M 5 9 7 1 1 1 2 1 1 Leaf
+M 5 9 7 1 1 1 2 2 0 Leaf
+M 5 9 7 1 1 1 2 2 1 Leaf
+M 5 9 7 1 1 1 2 2 2 Leaf
+M 5 9 7 1 2 1 1 0 0 Leaf
+M 5 9 7 1 2 1 2 0 0 Leaf
+M 5 9 7 1 2 1 2 0 1 Leaf
+M 5 9 7 2 0 2 1 1 1 Leaf
+M 5 9 7 2 0 2 1 2 0 Leaf
+M 5 9 7 2 0 2 1 2 1 Leaf
+M 5 9 7 2 0 2 2 0 1 Leaf
+M 5 9 7 2 0 2 2 0 2 Leaf
+M 5 9 7 2 0 2 2 1 1 Leaf
+M 5 9 7 2 0 2 2 1 2 Leaf
+M 5 9 7 2 0 2 2 2 0 Leaf
+M 5 9 7 2 0 2 2 2 1 Leaf
+M 5 9 7 2 0 2 2 2 2 Leaf
+M 5 9 7 2 1 1 0 0 2 Leaf
+M 5 9 7 2 1 1 0 1 1 Leaf
+M 5 9 7 2 1 1 0 1 2 Leaf
+M 5 9 7 2 1 1 0 2 0 Leaf
+M 5 9 7 2 1 1 0 2 1 Leaf
+M 5 9 7 2 1 1 0 2 2 Leaf
+M 5 9 7 2 1 1 1 0 2 Leaf
+M 5 9 7 2 1 1 1 1 1 Leaf
+M 5 9 7 2 1 1 1 1 2 Leaf
+M 5 9 7 2 1 1 1 2 1 Leaf
+M 5 9 7 2 1 1 1 2 2 Leaf
+M 5 9 7 2 1 2 0 0 0 Leaf
+M 5 9 7 2 1 2 0 1 0 Leaf
+M 5 9 7 2 1 2 1 0 0 Leaf
+M 5 9 7 2 1 2 1 0 1 Leaf
+M 5 9 7 2 1 2 1 1 0 Leaf
+M 5 9 7 2 1 2 2 0 0 Leaf
+M 5 9 7 2 1 2 2 0 1 Leaf
+M 5 9 7 2 2 0 0 0 2 Leaf
+M 5 9 7 2 2 1 0 0 0 Leaf
+M 5 9 7 2 2 1 0 0 1 Leaf
+M 5 9 8 2 0 0 2 0 0 Leaf
+M 6 9 4 0 2 2 0 2 1 Leaf
+M 6 9 4 0 2 2 0 2 2 Leaf
+M 6 9 4 0 2 2 1 2 1 Leaf
+M 6 9 4 0 2 2 1 2 2 Leaf
+M 6 9 4 0 2 2 2 2 1 Leaf
+M 6 9 4 0 2 2 2 2 2 Leaf
+M 6 9 4 1 2 2 0 2 1 Leaf
+M 6 9 4 1 2 2 0 2 2 Leaf
+M 6 9 4 1 2 2 1 2 1 Leaf
+M 6 9 4 1 2 2 1 2 2 Leaf
+M 6 9 4 1 2 2 2 2 1 Leaf
+M 6 9 4 1 2 2 2 2 2 Leaf
+M 6 9 4 2 2 2 0 2 2 Leaf
+M 6 9 4 2 2 2 1 2 2 Leaf
+M 6 9 4 2 2 2 2 1 2 Leaf
+M 6 9 4 2 2 2 2 2 2 Leaf
+M 6 9 5 1 2 0 2 2 0 Leaf
+M 6 9 5 2 2 0 0 2 0 Leaf
+M 6 9 5 2 2 0 1 2 0 Leaf
+M 6 9 5 2 2 0 2 2 0 Leaf
+M 6 9 6 2 2 2 2 2 1 Leaf
+M 6 9 7 0 0 2 0 0 2 Leaf
+M 7 9 4 0 2 2 0 1 2 Leaf
+M 7 9 4 0 2 2 0 2 2 Leaf
+M 7 9 4 0 2 2 1 1 2 Leaf
+M 7 9 4 0 2 2 1 2 2 Leaf
+M 7 9 4 0 2 2 2 0 2 Leaf
+M 7 9 4 0 2 2 2 1 2 Leaf
+M 7 9 4 1 1 2 0 2 2 Leaf
+M 7 9 4 1 1 2 1 2 2 Leaf
+M 7 9 4 1 1 2 2 0 2 Leaf
+M 7 9 4 1 1 2 2 1 2 Leaf
+M 7 9 4 1 1 2 2 2 2 Leaf
+M 7 9 4 1 2 2 0 0 2 Leaf
+M 7 9 4 1 2 2 0 1 2 Leaf
+M 7 9 4 1 2 2 1 0 2 Leaf
+M 7 9 4 2 0 2 0 2 2 Leaf
+M 7 9 4 2 0 2 1 0 2 Leaf
+M 7 9 4 2 0 2 1 1 2 Leaf
+M 7 9 4 2 0 2 1 2 2 Leaf
+M 7 9 4 2 0 2 2 0 2 Leaf
+M 7 9 4 2 1 2 0 0 2 Leaf
+M 7 9 4 2 1 2 0 1 2 Leaf
+M 7 9 5 0 2 0 0 1 0 Leaf
+M 7 9 5 0 2 0 0 2 0 Leaf
+M 7 9 5 0 2 0 1 1 0 Leaf
+M 7 9 5 0 2 0 2 0 0 Leaf
+M 7 9 5 0 2 0 2 1 0 Leaf
+M 7 9 5 1 1 0 0 2 0 Leaf
+M 7 9 5 1 1 0 1 1 0 Leaf
+M 7 9 5 1 1 0 1 2 0 Leaf
+M 7 9 5 1 1 0 2 0 0 Leaf
+M 7 9 5 1 1 0 2 1 0 Leaf
+M 7 9 5 1 1 0 2 2 0 Leaf
+M 7 9 5 1 2 0 0 0 0 Leaf
+M 7 9 5 1 2 0 1 0 0 Leaf
+M 7 9 5 2 0 0 0 1 0 Leaf
+M 7 9 5 2 0 0 0 2 0 Leaf
+M 7 9 5 2 0 0 1 0 0 Leaf
+M 7 9 5 2 0 0 1 1 0 Leaf
+M 7 9 5 2 0 0 1 2 0 Leaf
+M 7 9 5 2 0 0 2 0 0 Leaf
+M 7 9 5 2 0 0 2 1 0 Leaf
+M 7 9 5 2 1 0 0 0 0 Leaf
+M 7 9 5 2 1 0 0 1 0 Leaf
+M 7 9 6 0 1 2 1 1 2 Leaf
+M 7 9 6 0 1 2 1 2 2 Leaf
+M 7 9 6 0 1 2 2 0 2 Leaf
+M 7 9 6 0 1 2 2 1 2 Leaf
+M 7 9 6 0 1 2 2 2 2 Leaf
+M 7 9 6 0 2 2 0 0 2 Leaf
+M 7 9 6 0 2 2 0 1 1 Leaf
+M 7 9 6 0 2 2 0 1 2 Leaf
+M 7 9 6 0 2 2 0 2 1 Leaf
+M 7 9 6 0 2 2 0 2 2 Leaf
+M 7 9 6 0 2 2 1 0 2 Leaf
+M 7 9 6 0 2 2 1 1 1 Leaf
+M 7 9 6 0 2 2 1 1 2 Leaf
+M 7 9 6 0 2 2 1 2 2 Leaf
+M 7 9 7 0 0 0 2 2 0 Leaf
+M 7 9 7 0 1 0 1 0 0 Leaf
+M 7 9 7 0 1 0 1 1 0 Leaf
+M 7 9 7 0 1 0 1 2 0 Leaf
+M 7 9 7 0 1 0 2 0 0 Leaf
+M 7 9 7 0 1 0 2 1 0 Leaf
+M 7 9 7 0 1 0 2 2 0 Leaf
+M 7 9 7 0 2 0 1 0 0 Leaf
+M 0 10 5 2 0 1 0 0 2 Leaf
+M 0 10 5 2 0 1 1 0 1 Leaf
+M 0 10 5 2 0 1 1 0 2 Leaf
+M 0 10 5 2 0 1 1 1 2 Leaf
+M 0 10 5 2 0 1 2 0 1 Leaf
+M 0 10 5 2 0 1 2 0 2 Leaf
+M 0 10 5 2 0 1 2 1 1 Leaf
+M 0 10 5 2 0 1 2 1 2 Leaf
+M 1 10 2 2 0 0 1 0 0 Leaf
+M 1 10 2 2 0 0 1 0 1 Leaf
+M 1 10 2 2 0 0 2 0 0 Leaf
+M 1 10 2 2 0 0 2 0 1 Leaf
+M 1 10 2 2 0 0 2 0 2 Leaf
+M 1 10 2 2 0 0 2 1 1 Leaf
+M 1 10 2 2 0 0 2 1 2 Leaf
+M 1 10 2 2 0 1 2 1 0 Leaf
+M 1 10 3 0 0 2 2 0 2 Leaf
+M 1 10 3 1 0 2 0 0 1 Leaf
+M 1 10 3 1 0 2 0 0 2 Leaf
+M 1 10 3 1 0 2 1 0 1 Leaf
+M 1 10 3 1 0 2 1 0 2 Leaf
+M 1 10 3 1 0 2 2 0 2 Leaf
+M 1 10 3 2 0 2 0 0 2 Leaf
+M 1 10 3 2 0 2 1 0 2 Leaf
+M 1 10 4 1 0 0 1 0 0 Leaf
+M 1 10 4 1 0 0 2 0 0 Leaf
+M 1 10 4 2 0 0 0 0 0 Leaf
+M 1 10 4 2 0 0 0 0 1 Leaf
+M 1 10 4 2 0 0 0 1 0 Leaf
+M 1 10 4 2 0 0 1 0 0 Leaf
+M 1 10 4 2 0 0 1 0 1 Leaf
+M 1 10 4 2 0 0 1 1 0 Leaf
+M 1 10 4 2 0 0 2 0 0 Leaf
+M 1 10 4 2 0 0 2 0 1 Leaf
+M 1 10 4 2 0 0 2 1 0 Leaf
+M 1 10 4 2 0 0 2 1 1 Leaf
+M 1 10 5 0 0 1 0 0 1 Leaf
+M 1 10 5 0 0 1 0 1 1 Leaf
+M 1 10 5 0 0 1 0 1 2 Leaf
+M 1 10 5 0 0 1 0 2 1 Leaf
+M 1 10 5 0 0 1 0 2 2 Leaf
+M 1 10 5 0 0 1 1 1 0 Leaf
+M 1 10 5 0 0 1 1 1 1 Leaf
+M 1 10 5 0 0 1 1 1 2 Leaf
+M 1 10 5 0 0 1 1 2 0 Leaf
+M 1 10 5 0 0 1 1 2 1 Leaf
+M 1 10 5 0 0 1 1 2 2 Leaf
+M 1 10 5 0 0 1 2 1 0 Leaf
+M 1 10 5 0 0 1 2 1 1 Leaf
+M 1 10 5 0 0 1 2 2 0 Leaf
+M 1 10 5 0 0 1 2 2 1 Leaf
+M 1 10 5 0 0 1 2 2 2 Leaf
+M 1 10 5 0 1 1 2 0 1 Leaf
+M 1 10 5 1 0 0 1 2 2 Leaf
+M 1 10 5 1 0 0 2 2 2 Leaf
+M 1 10 5 1 0 1 0 1 0 Leaf
+M 1 10 5 1 0 1 0 1 1 Leaf
+M 1 10 5 1 0 1 0 2 0 Leaf
+M 1 10 5 1 0 1 0 2 1 Leaf
+M 1 10 5 1 0 1 1 2 0 Leaf
+M 1 10 5 1 0 1 1 2 1 Leaf
+M 1 10 5 1 0 1 2 2 0 Leaf
+M 1 10 5 1 0 1 2 2 1 Leaf
+M 1 10 5 1 1 0 2 0 2 Leaf
+M 1 10 5 1 1 1 0 0 0 Leaf
+M 1 10 5 1 1 1 0 0 1 Leaf
+M 1 10 5 1 1 1 1 0 0 Leaf
+M 1 10 5 1 1 1 1 0 1 Leaf
+M 1 10 5 1 1 1 2 0 0 Leaf
+M 1 10 5 1 1 1 2 0 1 Leaf
+M 1 10 5 2 0 0 0 2 2 Leaf
+M 1 10 5 2 0 0 1 1 2 Leaf
+M 1 10 5 2 0 0 1 2 2 Leaf
+M 1 10 5 2 0 0 2 1 2 Leaf
+M 1 10 5 2 0 0 2 2 1 Leaf
+M 1 10 5 2 0 0 2 2 2 Leaf
+M 1 10 5 2 0 1 0 2 0 Leaf
+M 1 10 5 2 0 1 0 2 1 Leaf
+M 1 10 5 2 0 1 1 2 0 Leaf
+M 1 10 5 2 0 1 2 2 0 Leaf
+M 1 10 5 2 1 0 0 0 2 Leaf
+M 1 10 5 2 1 0 1 0 2 Leaf
+M 1 10 5 2 1 0 2 0 1 Leaf
+M 1 10 5 2 1 0 2 0 2 Leaf
+M 1 10 5 2 1 1 0 0 0 Leaf
+M 1 10 5 2 1 1 0 0 1 Leaf
+M 1 10 5 2 1 1 1 0 0 Leaf
+M 1 10 5 2 1 1 2 0 0 Leaf
+M 1 10 7 2 0 2 2 0 1 Leaf
+M 2 10 2 0 0 0 0 0 1 Leaf
+M 2 10 2 0 0 0 0 0 2 Leaf
+M 2 10 2 0 0 0 0 1 2 Leaf
+M 2 10 2 0 0 0 0 2 2 Leaf
+M 2 10 2 0 0 0 1 1 2 Leaf
+M 2 10 2 0 0 1 0 1 0 Leaf
+M 2 10 2 0 0 1 0 1 1 Leaf
+M 2 10 2 0 0 1 0 2 0 Leaf
+M 2 10 2 0 0 1 0 2 1 Leaf
+M 2 10 2 0 0 1 1 1 0 Leaf
+M 2 10 2 0 0 1 1 1 1 Leaf
+M 2 10 2 0 0 1 1 2 0 Leaf
+M 2 10 2 0 0 1 1 2 1 Leaf
+M 2 10 2 0 0 1 1 2 2 Leaf
+M 2 10 2 0 0 1 2 1 1 Leaf
+M 2 10 2 0 0 1 2 1 2 Leaf
+M 2 10 2 0 0 1 2 2 1 Leaf
+M 2 10 2 0 0 1 2 2 2 Leaf
+M 2 10 2 0 0 2 2 2 0 Leaf
+M 2 10 2 0 1 1 1 0 1 Leaf
+M 2 10 2 0 1 1 1 0 2 Leaf
+M 2 10 2 0 1 1 2 0 1 Leaf
+M 2 10 2 0 1 1 2 0 2 Leaf
+M 2 10 2 0 1 2 2 0 0 Leaf
+M 2 10 2 0 1 2 2 0 1 Leaf
+M 2 10 2 1 0 1 0 2 2 Leaf
+M 2 10 2 1 0 2 0 2 0 Leaf
+M 2 10 2 1 0 2 0 2 1 Leaf
+M 2 10 2 1 0 2 0 2 2 Leaf
+M 2 10 2 1 0 2 1 2 0 Leaf
+M 2 10 2 1 0 2 1 2 1 Leaf
+M 2 10 2 1 0 2 1 2 2 Leaf
+M 2 10 2 1 0 2 2 2 1 Leaf
+M 2 10 2 1 0 2 2 2 2 Leaf
+M 2 10 2 1 1 1 0 0 2 Leaf
+M 2 10 2 1 1 2 0 0 0 Leaf
+M 2 10 2 1 1 2 0 0 1 Leaf
+M 2 10 2 1 1 2 0 0 2 Leaf
+M 2 10 2 1 1 2 1 0 0 Leaf
+M 2 10 2 1 1 2 1 0 1 Leaf
+M 2 10 2 1 1 2 1 0 2 Leaf
+M 2 10 2 1 1 2 1 1 1 Leaf
+M 2 10 2 1 1 2 2 0 1 Leaf
+M 2 10 2 1 1 2 2 0 2 Leaf
+M 2 10 2 2 0 2 0 2 2 Leaf
+M 2 10 2 2 1 2 0 0 2 Leaf
+M 2 10 3 1 0 0 1 2 0 Leaf
+M 2 10 3 1 0 0 2 2 0 Leaf
+M 2 10 3 1 0 0 2 2 1 Leaf
+M 2 10 3 1 1 0 1 0 0 Leaf
+M 2 10 3 1 1 0 2 0 0 Leaf
+M 2 10 3 1 1 0 2 0 1 Leaf
+M 2 10 3 1 1 0 2 1 0 Leaf
+M 2 10 4 0 0 0 0 0 0 Leaf
+M 2 10 4 0 0 0 0 0 1 Leaf
+M 2 10 4 0 0 0 0 0 2 Leaf
+M 2 10 4 0 0 0 0 1 0 Leaf
+M 2 10 4 0 0 0 0 1 1 Leaf
+M 2 10 4 0 0 0 1 0 0 Leaf
+M 2 10 4 0 0 0 1 0 1 Leaf
+M 2 10 4 0 0 0 1 0 2 Leaf
+M 2 10 4 0 0 0 1 1 1 Leaf
+M 2 10 4 0 0 0 2 0 0 Leaf
+M 2 10 4 0 0 0 2 0 1 Leaf
+M 2 10 4 0 0 0 2 0 2 Leaf
+M 2 10 4 1 0 0 0 0 1 Leaf
+M 2 10 4 1 0 0 0 0 2 Leaf
+M 2 10 4 1 0 0 1 0 1 Leaf
+M 2 10 4 1 0 0 1 0 2 Leaf
+M 2 10 5 0 0 1 0 2 0 Leaf
+M 2 10 5 0 1 0 0 0 1 Leaf
+M 2 10 5 0 1 0 0 0 2 Leaf
+M 2 10 5 0 1 0 1 0 2 Leaf
+M 2 10 5 0 1 1 0 0 0 Leaf
+M 2 10 6 1 1 2 1 2 2 Leaf
+M 2 10 6 1 1 2 2 1 2 Leaf
+M 2 10 6 1 1 2 2 2 1 Leaf
+M 2 10 6 1 1 2 2 2 2 Leaf
+M 2 10 6 1 2 2 2 0 1 Leaf
+M 2 10 6 1 2 2 2 0 2 Leaf
+M 2 10 6 2 1 0 2 1 2 Leaf
+M 2 10 6 2 1 0 2 2 2 Leaf
+M 2 10 6 2 1 1 0 2 2 Leaf
+M 2 10 6 2 1 1 1 1 1 Leaf
+M 2 10 6 2 1 1 1 1 2 Leaf
+M 2 10 6 2 1 1 1 2 0 Leaf
+M 2 10 6 2 1 1 1 2 1 Leaf
+M 2 10 6 2 1 1 1 2 2 Leaf
+M 2 10 6 2 1 1 2 1 0 Leaf
+M 2 10 6 2 1 1 2 1 1 Leaf
+M 2 10 6 2 1 1 2 1 2 Leaf
+M 2 10 6 2 1 1 2 2 0 Leaf
+M 2 10 6 2 1 1 2 2 1 Leaf
+M 2 10 6 2 1 1 2 2 2 Leaf
+M 2 10 6 2 1 2 0 2 0 Leaf
+M 2 10 6 2 1 2 0 2 1 Leaf
+M 2 10 6 2 1 2 0 2 2 Leaf
+M 2 10 6 2 1 2 1 1 0 Leaf
+M 2 10 6 2 1 2 1 2 0 Leaf
+M 2 10 6 2 1 2 1 2 1 Leaf
+M 2 10 6 2 2 1 1 0 1 Leaf
+M 2 10 6 2 2 1 1 0 2 Leaf
+M 2 10 6 2 2 1 2 0 1 Leaf
+M 2 10 6 2 2 2 0 0 0 Leaf
+M 2 10 6 2 2 2 0 0 1 Leaf
+M 2 10 6 2 2 2 0 0 2 Leaf
+M 2 10 6 2 2 2 1 0 0 Leaf
+M 2 10 7 0 0 1 0 2 2 Leaf
+M 2 10 7 0 0 1 1 1 2 Leaf
+M 2 10 7 0 0 1 1 2 2 Leaf
+M 2 10 7 0 0 1 2 2 2 Leaf
+M 2 10 7 0 0 2 0 0 0 Leaf
+M 2 10 7 0 0 2 0 0 1 Leaf
+M 2 10 7 0 0 2 0 0 2 Leaf
+M 2 10 7 0 0 2 0 1 0 Leaf
+M 2 10 7 0 0 2 0 1 1 Leaf
+M 2 10 7 0 0 2 0 2 0 Leaf
+M 2 10 7 0 0 2 1 1 0 Leaf
+M 2 10 7 0 0 2 1 2 0 Leaf
+M 2 10 7 0 1 0 2 1 2 Leaf
+M 2 10 7 0 1 1 1 0 1 Leaf
+M 2 10 7 0 1 1 1 0 2 Leaf
+M 2 10 7 0 1 1 2 0 0 Leaf
+M 2 10 7 0 1 1 2 0 1 Leaf
+M 2 10 7 0 1 1 2 0 2 Leaf
+M 2 10 7 0 1 1 2 1 0 Leaf
+M 2 10 7 0 1 1 2 1 1 Leaf
+M 2 10 7 1 1 0 0 1 1 Leaf
+M 2 10 7 1 1 0 0 1 2 Leaf
+M 2 10 7 1 1 0 0 2 1 Leaf
+M 2 10 7 1 1 0 0 2 2 Leaf
+M 2 10 7 1 1 0 1 1 0 Leaf
+M 2 10 7 1 1 0 1 1 1 Leaf
+M 2 10 7 1 1 0 1 1 2 Leaf
+M 2 10 7 1 1 0 1 2 0 Leaf
+M 2 10 7 1 1 0 1 2 1 Leaf
+M 2 10 7 1 1 0 1 2 2 Leaf
+M 2 10 7 1 1 0 2 1 0 Leaf
+M 2 10 7 1 1 0 2 2 0 Leaf
+M 2 10 7 1 1 0 2 2 1 Leaf
+M 2 10 7 1 1 1 0 0 0 Leaf
+M 2 10 7 1 1 1 0 1 0 Leaf
+M 3 10 2 2 1 2 2 0 1 Leaf
+M 3 10 2 2 1 2 2 0 2 Leaf
+M 3 10 3 2 0 0 2 2 0 Leaf
+M 3 10 3 2 0 0 2 2 1 Leaf
+M 3 10 3 2 0 0 2 2 2 Leaf
+M 3 10 5 0 0 2 1 2 2 Leaf
+M 3 10 5 0 0 2 2 2 1 Leaf
+M 3 10 5 0 0 2 2 2 2 Leaf
+M 3 10 5 0 1 2 1 0 2 Leaf
+M 3 10 5 0 1 2 1 1 2 Leaf
+M 3 10 5 0 1 2 2 0 1 Leaf
+M 3 10 5 0 1 2 2 0 2 Leaf
+M 3 10 5 0 1 2 2 1 2 Leaf
+M 3 10 5 1 1 2 0 0 2 Leaf
+M 3 10 6 0 0 0 1 2 0 Leaf
+M 3 10 6 0 0 0 2 2 0 Leaf
+M 3 10 6 0 1 0 0 0 0 Leaf
+M 3 10 6 0 1 0 0 0 1 Leaf
+M 3 10 6 0 1 0 0 0 2 Leaf
+M 3 10 6 0 1 0 0 1 0 Leaf
+M 3 10 6 0 1 0 0 1 1 Leaf
+M 3 10 6 0 1 0 0 1 2 Leaf
+M 3 10 6 0 1 0 0 2 1 Leaf
+M 3 10 6 0 1 0 0 2 2 Leaf
+M 3 10 6 0 1 0 1 0 0 Leaf
+M 3 10 6 0 1 0 1 0 1 Leaf
+M 3 10 6 0 1 0 1 0 2 Leaf
+M 3 10 6 0 1 0 1 1 0 Leaf
+M 3 10 6 0 1 0 1 1 1 Leaf
+M 3 10 6 0 1 0 1 1 2 Leaf
+M 3 10 6 0 1 0 1 2 1 Leaf
+M 3 10 6 0 1 0 1 2 2 Leaf
+M 3 10 6 0 1 0 2 0 0 Leaf
+M 3 10 6 0 1 0 2 0 1 Leaf
+M 3 10 6 0 1 0 2 1 0 Leaf
+M 3 10 6 0 1 0 2 1 1 Leaf
+M 3 10 6 0 1 1 0 1 0 Leaf
+M 3 10 6 0 1 1 0 1 1 Leaf
+M 3 10 6 0 1 1 0 2 0 Leaf
+M 3 10 6 0 1 1 0 2 1 Leaf
+M 3 10 6 0 1 1 1 1 0 Leaf
+M 3 10 6 1 0 2 2 0 2 Leaf
+M 3 10 6 1 0 2 2 1 1 Leaf
+M 3 10 6 1 0 2 2 1 2 Leaf
+M 3 10 6 1 1 0 0 0 0 Leaf
+M 3 10 7 1 0 0 2 0 0 Leaf
+M 3 10 7 1 0 0 2 0 1 Leaf
+M 3 10 7 1 0 0 2 0 2 Leaf
+M 3 10 7 1 0 0 2 1 0 Leaf
+M 3 10 7 1 0 0 2 1 1 Leaf
+M 3 10 7 1 0 0 2 1 2 Leaf
+M 3 10 7 1 0 1 1 0 2 Leaf
+M 3 10 7 1 0 1 2 0 0 Leaf
+M 3 10 7 1 0 1 2 0 1 Leaf
+M 3 10 7 1 0 1 2 0 2 Leaf
+M 3 10 7 1 0 1 2 1 0 Leaf
+M 3 10 7 1 0 1 2 1 1 Leaf
+M 3 10 7 1 0 1 2 1 2 Leaf
+M 3 10 7 1 0 2 1 0 0 Leaf
+M 3 10 7 1 0 2 1 0 1 Leaf
+M 3 10 7 1 0 2 2 0 0 Leaf
+M 3 10 7 1 0 2 2 0 1 Leaf
+M 3 10 7 1 0 2 2 0 2 Leaf
+M 3 10 7 2 0 0 0 0 0 Leaf
+M 3 10 7 2 0 0 0 0 1 Leaf
+M 3 10 7 2 0 0 0 0 2 Leaf
+M 3 10 7 2 0 0 0 1 0 Leaf
+M 3 10 7 2 0 0 0 1 1 Leaf
+M 3 10 7 2 0 0 0 1 2 Leaf
+M 3 10 7 2 0 0 0 2 0 Leaf
+M 3 10 7 2 0 0 1 0 0 Leaf
+M 3 10 7 2 0 0 1 0 1 Leaf
+M 3 10 7 2 0 0 1 1 0 Leaf
+M 3 10 7 2 0 0 1 1 1 Leaf
+M 3 10 7 2 0 1 0 0 0 Leaf
+M 3 10 7 2 0 1 0 0 1 Leaf
+M 3 10 7 2 0 1 0 0 2 Leaf
+M 3 10 7 2 0 1 0 1 0 Leaf
+M 3 10 7 2 0 1 0 1 1 Leaf
+M 3 10 7 2 0 2 0 0 0 Leaf
+M 4 10 1 0 0 0 0 0 1 Leaf
+M 4 10 1 0 0 0 0 0 2 Leaf
+M 4 10 1 0 0 0 0 1 2 Leaf
+M 4 10 1 0 0 0 1 0 1 Leaf
+M 4 10 1 0 0 0 1 0 2 Leaf
+M 4 10 1 0 0 0 1 1 2 Leaf
+M 4 10 1 0 0 1 0 1 0 Leaf
+M 4 10 1 0 0 1 0 1 1 Leaf
+M 4 10 1 0 0 1 0 2 1 Leaf
+M 4 10 1 0 0 1 0 2 2 Leaf
+M 4 10 1 0 0 1 1 0 0 Leaf
+M 4 10 1 0 0 1 1 1 0 Leaf
+M 4 10 1 0 0 1 1 1 1 Leaf
+M 4 10 1 0 0 1 1 2 1 Leaf
+M 4 10 1 0 0 1 1 2 2 Leaf
+M 4 10 1 0 0 2 0 2 0 Leaf
+M 4 10 1 0 0 2 0 2 1 Leaf
+M 4 10 1 0 0 2 1 2 0 Leaf
+M 4 10 1 0 0 2 1 2 1 Leaf
+M 4 10 1 0 1 1 0 0 2 Leaf
+M 4 10 1 0 1 1 1 0 2 Leaf
+M 4 10 1 0 1 2 0 0 0 Leaf
+M 4 10 1 0 1 2 0 0 1 Leaf
+M 4 10 1 0 1 2 0 0 2 Leaf
+M 4 10 1 0 1 2 0 1 2 Leaf
+M 4 10 1 0 1 2 1 0 0 Leaf
+M 4 10 1 0 1 2 1 0 1 Leaf
+M 4 10 1 0 1 2 1 0 2 Leaf
+M 4 10 1 0 1 2 1 1 2 Leaf
+M 4 10 2 0 0 2 0 2 0 Leaf
+M 4 10 2 0 0 2 0 2 1 Leaf
+M 4 10 2 0 0 2 0 2 2 Leaf
+M 4 10 2 0 0 2 1 2 1 Leaf
+M 4 10 2 0 0 2 1 2 2 Leaf
+M 4 10 2 0 1 0 0 0 0 Leaf
+M 4 10 2 0 1 0 0 0 1 Leaf
+M 4 10 2 0 1 0 0 0 2 Leaf
+M 4 10 2 0 1 0 0 1 0 Leaf
+M 4 10 2 0 1 0 0 1 1 Leaf
+M 4 10 2 0 1 0 0 1 2 Leaf
+M 4 10 2 0 1 0 1 0 0 Leaf
+M 4 10 2 0 1 0 1 0 1 Leaf
+M 4 10 2 0 1 0 1 0 2 Leaf
+M 4 10 2 0 1 0 1 1 0 Leaf
+M 4 10 2 0 1 0 1 1 1 Leaf
+M 4 10 2 0 1 0 1 1 2 Leaf
+M 4 10 2 0 1 1 0 0 0 Leaf
+M 4 10 2 0 1 1 0 0 1 Leaf
+M 4 10 2 0 1 1 0 0 2 Leaf
+M 4 10 2 0 1 1 0 1 0 Leaf
+M 4 10 2 0 1 1 0 1 1 Leaf
+M 4 10 2 0 1 1 0 1 2 Leaf
+M 4 10 2 0 1 1 1 0 0 Leaf
+M 4 10 2 0 1 1 1 0 1 Leaf
+M 4 10 2 0 1 1 1 0 2 Leaf
+M 4 10 2 0 1 1 1 1 0 Leaf
+M 4 10 2 0 1 1 1 1 1 Leaf
+M 4 10 2 0 1 1 1 1 2 Leaf
+M 4 10 2 0 1 2 0 0 0 Leaf
+M 4 10 2 0 1 2 0 0 1 Leaf
+M 4 10 2 0 1 2 0 0 2 Leaf
+M 4 10 2 0 1 2 0 1 0 Leaf
+M 4 10 2 0 1 2 0 1 1 Leaf
+M 4 10 2 0 1 2 0 1 2 Leaf
+M 4 10 2 0 1 2 1 0 0 Leaf
+M 4 10 2 0 1 2 1 0 1 Leaf
+M 4 10 2 0 1 2 1 0 2 Leaf
+M 4 10 2 0 1 2 1 1 0 Leaf
+M 4 10 2 0 1 2 1 1 1 Leaf
+M 4 10 3 0 1 0 0 0 0 Leaf
+M 4 10 3 0 1 0 0 0 1 Leaf
+M 4 10 3 0 1 0 0 0 2 Leaf
+M 4 10 3 0 1 0 1 0 0 Leaf
+M 4 10 3 0 1 0 1 0 1 Leaf
+M 4 10 3 0 1 0 1 0 2 Leaf
+M 5 10 4 1 0 2 2 0 1 Leaf
+M 5 10 4 1 0 2 2 0 2 Leaf
+M 5 10 4 2 0 2 0 0 1 Leaf
+M 5 10 4 2 0 2 0 0 2 Leaf
+M 5 10 4 2 0 2 1 0 1 Leaf
+M 5 10 4 2 0 2 1 0 2 Leaf
+M 5 10 4 2 0 2 2 0 1 Leaf
+M 5 10 4 2 0 2 2 0 2 Leaf
+M 5 10 6 1 1 0 2 1 0 Leaf
+M 5 10 6 2 1 0 0 0 0 Leaf
+M 5 10 6 2 1 0 0 1 0 Leaf
+M 5 10 6 2 1 0 1 0 0 Leaf
+M 5 10 6 2 1 0 1 1 0 Leaf
+M 5 10 6 2 1 0 1 1 1 Leaf
+M 5 10 6 2 1 0 1 2 0 Leaf
+M 5 10 6 2 1 0 2 0 0 Leaf
+M 5 10 6 2 1 0 2 0 1 Leaf
+M 5 10 6 2 1 0 2 1 0 Leaf
+M 5 10 6 2 1 0 2 1 1 Leaf
+M 5 10 6 2 1 0 2 1 2 Leaf
+M 5 10 6 2 1 0 2 2 0 Leaf
+M 5 10 6 2 1 0 2 2 1 Leaf
+M 6 10 4 0 0 2 0 0 1 Leaf
+M 6 10 4 0 0 2 0 0 2 Leaf
+M 6 10 4 0 0 2 1 0 1 Leaf
+M 6 10 4 0 0 2 1 0 2 Leaf
+M 6 10 4 0 0 2 1 1 2 Leaf
+M 6 10 4 0 0 2 2 0 1 Leaf
+M 6 10 4 0 0 2 2 0 2 Leaf
+M 6 10 4 0 0 2 2 1 2 Leaf
+M 6 10 4 1 0 2 0 0 1 Leaf
+M 6 10 4 1 0 2 0 0 2 Leaf
+M 6 10 4 1 0 2 0 1 2 Leaf
+M 6 10 4 1 0 2 1 0 1 Leaf
+M 6 10 4 1 0 2 1 0 2 Leaf
+M 6 10 4 1 0 2 2 0 1 Leaf
+M 6 10 4 1 0 2 2 0 2 Leaf
+M 6 10 4 2 0 2 0 0 1 Leaf
+M 6 10 4 2 0 2 0 0 2 Leaf
+M 6 10 4 2 0 2 1 0 2 Leaf
+M 6 10 4 2 0 2 2 0 2 Leaf
+M 6 10 5 0 0 0 1 0 0 Leaf
+M 6 10 5 0 0 0 2 0 0 Leaf
+M 6 10 5 1 0 0 0 0 0 Leaf
+M 6 10 5 1 0 0 1 0 0 Leaf
+M 6 10 5 1 0 0 2 0 0 Leaf
+M 6 10 5 2 0 0 0 0 0 Leaf
+M 6 10 5 2 0 0 1 0 0 Leaf
+M 6 10 6 0 1 0 0 0 1 Leaf
+M 6 10 6 0 1 0 0 1 0 Leaf
+M 6 10 6 0 1 0 0 1 1 Leaf
+M 6 10 6 0 1 0 0 1 2 Leaf
+M 6 10 6 0 1 0 0 2 0 Leaf
+M 6 10 6 0 1 0 0 2 1 Leaf
+M 6 10 6 0 1 0 0 2 2 Leaf
+M 6 10 6 0 1 0 1 0 1 Leaf
+M 6 10 6 0 1 0 1 0 2 Leaf
+M 6 10 6 0 1 0 1 1 1 Leaf
+M 6 10 6 0 1 0 1 1 2 Leaf
+M 6 10 6 0 1 0 1 2 1 Leaf
+M 6 10 6 0 1 0 1 2 2 Leaf
+M 6 10 6 0 1 0 2 0 2 Leaf
+M 6 10 6 0 1 0 2 1 1 Leaf
+M 6 10 6 0 1 0 2 1 2 Leaf
+M 6 10 6 0 1 0 2 2 2 Leaf
+M 6 10 6 0 1 1 1 1 0 Leaf
+M 6 10 6 0 1 1 2 0 0 Leaf
+M 6 10 6 0 1 1 2 1 0 Leaf
+M 6 10 6 1 0 1 2 2 1 Leaf
+M 6 10 6 1 0 1 2 2 2 Leaf
+M 6 10 6 1 1 0 0 0 2 Leaf
+M 6 10 6 1 1 0 0 1 2 Leaf
+M 6 10 6 1 1 1 0 0 0 Leaf
+M 6 10 6 1 1 1 0 0 1 Leaf
+M 6 10 6 1 1 1 0 1 0 Leaf
+M 6 10 6 1 1 1 0 1 1 Leaf
+M 6 10 6 1 1 1 1 0 0 Leaf
+M 6 10 6 1 1 1 1 0 1 Leaf
+M 6 10 6 1 1 1 1 0 2 Leaf
+M 6 10 6 1 1 1 1 1 0 Leaf
+M 6 10 6 1 1 1 1 1 1 Leaf
+M 6 10 6 1 1 1 2 0 1 Leaf
+M 6 10 6 1 1 1 2 0 2 Leaf
+M 6 10 6 1 1 1 2 1 1 Leaf
+M 6 10 6 2 0 1 0 2 2 Leaf
+M 6 10 6 2 0 1 1 2 2 Leaf
+M 6 10 6 2 0 2 0 1 0 Leaf
+M 6 10 6 2 0 2 0 2 0 Leaf
+M 6 10 6 2 0 2 1 1 0 Leaf
+M 6 10 6 2 0 2 1 1 1 Leaf
+M 6 10 6 2 0 2 1 2 0 Leaf
+M 6 10 6 2 0 2 2 0 0 Leaf
+M 6 10 6 2 0 2 2 0 1 Leaf
+M 6 10 6 2 0 2 2 1 0 Leaf
+M 6 10 6 2 0 2 2 1 1 Leaf
+M 6 10 6 2 1 1 0 0 2 Leaf
+M 7 10 6 0 0 2 0 0 1 Leaf

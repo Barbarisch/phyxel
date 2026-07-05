@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Parametric voxel tree generator — token-free biome flora (v2, sub-voxel).
 
+*** DEPRECATED (2026-07-05) — superseded by tools/tree_forge.py ***
+Biome flora pools (resources/biomes.json) now stamp forge_* templates from
+tools/forge_library.json (one space-colonization algorithm, per-voxel multi-res,
+detail-by-default). This generator and its tree_* templates remain ONLY because
+existing worlds' persisted recipes (world.db world_meta) reference the old
+template names. Do not add new archetypes here — extend tree_forge presets.
+
 Generates trees as .voxel templates using ALL THREE voxel resolutions:
   C  full cube  (1.0)   — canopy interior mass, lower trunk
   S  subcube    (1/3)   — dithered canopy shells, branches, trunk taper,

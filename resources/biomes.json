@@ -1,5 +1,5 @@
 {
-  "_comment": "Biome table for procedural terrain. Each column samples temperature + moisture (domain-warped, 4-octave low-frequency noise) + continentalness. The biome whose climate-cell CENTRE (mid of its temp/moisture ranges) is nearest the column's climate supplies materials. heightScale/heightOffset shape elevation and blend smoothly across biomes (no cliffs). surfaceAlt + surfaceAltChance scatter a second surface material in patches (e.g. a dirty forest floor). flora.spacing = min distance between plants (the slot grid); flora.density = fraction of those slots that fill (0.85 = dense, 0.3 = patchy). Placement is an order-independent local-maxima test so a streamed chunk and a whole region agree. flora.items = weighted pool of vegetation templates (gen_tree.py .voxel output) the decoration pass stamps on the surface. Materials are names from materials.json; templates are names from resources/templates/. Tree 'extremeness' (height + fullness) is selected by WEIGHTING template variants: e.g. tree_oak_lush (tall, dense) for a lush forest vs tree_oak_sparse (short, see-through) for open plains. Variants live in tools/tree_library.json.",
+  "_comment": "Biome table for procedural terrain. Each column samples temperature + moisture (domain-warped, 4-octave low-frequency noise) + continentalness. The biome whose climate-cell CENTRE (mid of its temp/moisture ranges) is nearest the column's climate supplies materials. heightScale/heightOffset shape elevation and blend smoothly across biomes (no cliffs). surfaceAlt + surfaceAltChance scatter a second surface material in patches (e.g. a dirty forest floor). flora.spacing = min distance between plants (the slot grid); flora.density = fraction of those slots that fill (0.85 = dense, 0.3 = patchy). Placement is an order-independent local-maxima test so a streamed chunk and a whole region agree. flora.items = weighted pool of vegetation templates (tree_forge.py .voxel output \u2014 see tools/forge_library.json) the decoration pass stamps on the surface. Materials are names from materials.json; templates are names from resources/templates/. Tree 'extremeness' (height + fullness) is selected by WEIGHTING template variants: e.g. tree_oak_lush (tall, dense) for a lush forest vs tree_oak_sparse (short, see-through) for open plains. Variants live in tools/tree_library.json.",
   "biomes": [
     {
       "name": "Snow",
@@ -21,35 +21,35 @@
         "spacing": 6,
         "items": [
           {
-            "template": "tree_spruce_m",
+            "template": "forge_spruce_m",
             "weight": 4
           },
           {
-            "template": "tree_spruce_s",
+            "template": "forge_spruce_s",
             "weight": 3
           },
           {
-            "template": "tree_spruce_l",
+            "template": "forge_spruce_l",
             "weight": 2
           },
           {
-            "template": "tree_pine_m",
+            "template": "forge_pine_m",
             "weight": 3
           },
           {
-            "template": "tree_fir_m",
+            "template": "forge_fir_m",
             "weight": 3
           },
           {
-            "template": "tree_fir_l",
+            "template": "forge_fir_l",
             "weight": 2
           },
           {
-            "template": "tree_spruce_crisp_m",
+            "template": "forge_pine_l",
             "weight": 2
           },
           {
-            "template": "tree_dead_s",
+            "template": "forge_dead_s",
             "weight": 1
           }
         ]
@@ -75,15 +75,15 @@
         "spacing": 14,
         "items": [
           {
-            "template": "tree_palm_m",
+            "template": "forge_palm_m",
             "weight": 2
           },
           {
-            "template": "tree_dead_s",
+            "template": "forge_dead_s",
             "weight": 2
           },
           {
-            "template": "bush_round",
+            "template": "forge_bush_s",
             "weight": 2
           }
         ]
@@ -111,15 +111,15 @@
         "spacing": 9,
         "items": [
           {
-            "template": "tree_acacia_m",
+            "template": "forge_acacia_m",
             "weight": 4
           },
           {
-            "template": "tree_acacia_l",
+            "template": "forge_acacia_l",
             "weight": 2
           },
           {
-            "template": "bush_round",
+            "template": "forge_bush_s",
             "weight": 4
           }
         ]
@@ -147,35 +147,35 @@
         "spacing": 6,
         "items": [
           {
-            "template": "tree_oak_lush",
+            "template": "forge_oak_m",
             "weight": 5
           },
           {
-            "template": "tree_oak_l",
+            "template": "forge_oak_l",
             "weight": 4
           },
           {
-            "template": "tree_oak_m",
+            "template": "forge_oak_hero",
             "weight": 3
           },
           {
-            "template": "tree_birch_l",
+            "template": "forge_birch_l",
             "weight": 2
           },
           {
-            "template": "tree_birch_m",
+            "template": "forge_birch_m",
             "weight": 2
           },
           {
-            "template": "tree_pine_l",
+            "template": "forge_pine_l",
             "weight": 2
           },
           {
-            "template": "bush_leafy_m",
+            "template": "forge_bush_m",
             "weight": 4
           },
           {
-            "template": "bush_leafy_s",
+            "template": "forge_bush_s",
             "weight": 3
           },
           {
@@ -205,11 +205,11 @@
         "spacing": 9,
         "items": [
           {
-            "template": "tree_oak_sparse",
+            "template": "forge_oak_sparse",
             "weight": 3
           },
           {
-            "template": "tree_oak_m",
+            "template": "forge_oak_m",
             "weight": 2
           },
           {
@@ -221,7 +221,7 @@
             "weight": 4
           },
           {
-            "template": "bush_round",
+            "template": "forge_bush_s",
             "weight": 3
           },
           {
@@ -253,15 +253,15 @@
         "spacing": 4,
         "items": [
           {
-            "template": "bush_glow_green",
+            "template": "forge_bush_glow_green",
             "weight": 4
           },
           {
-            "template": "bush_glow_blue",
+            "template": "forge_bush_glow_blue",
             "weight": 2
           },
           {
-            "template": "bush_leafy_m",
+            "template": "forge_bush_m",
             "weight": 3
           },
           {
@@ -269,7 +269,7 @@
             "weight": 3
           },
           {
-            "template": "tree_oak_m",
+            "template": "forge_oak_m",
             "weight": 2
           }
         ]
@@ -280,11 +280,15 @@
           "spacing": 24,
           "items": [
             {
-              "template": "tree_elder_oak",
+              "template": "forge_elder_oak_xxl",
               "weight": 3
             },
             {
-              "template": "tree_redwood_l",
+              "template": "forge_redwood_xxl",
+              "weight": 2
+            },
+            {
+              "template": "forge_enchanted_oak",
               "weight": 2
             }
           ]

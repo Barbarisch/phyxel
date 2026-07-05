@@ -117,6 +117,23 @@ forge equivalent that survives visual A/B — not merely "forge exists".
 4. **Bake + wire**: full forge library into `biomes.json` pool flora side-by-side with gen_tree,
    A/B per biome in-engine, then retire gen_tree in one commit. Giant-tier presets must ENFORCE
    `leaf_res=cube` (the megaflora perf rule) rather than rely on remembering.
+   **DONE 2026-07-05 (first pass):** 29 templates baked into resources/ (giants at leaf_res=9;
+   xxl sizes match gen_tree scale — redwood_xxl 39x72x42 vs old 41x74x41); every biome flora
+   pool swapped to forge_* (hand-made tree_apple/bush_flower/fern kept); forge_enchanted_oak
+   added to the EnchantedForest giant layer (masked-emissive trunks now in world gen);
+   gen_tree.py marked DEPRECATED (file + old templates stay — existing worlds' persisted
+   recipes reference them). Verified live in a fresh LodTest streaming world: oaks stamp
+   grounded on slopes (no floating/leaf blobs), spawned redwood_xxl towers correctly.
+   **Perf datum:** one redwood_xxl ≈ +40k visible faces (81k total vs 25k baseline; Debug FPS
+   unchanged ~24). CAVEAT: old cube-shell giants were ~3k faces — forge giants are ~13x
+   heavier (subcube trunk/branch shells). EnchantedForest giant spacing 24 could reach
+   tavern-class face counts (412k→49FPS datum) in Release worst case — if it does, options:
+   widen giant spacing, coarse-shell override for giant boles, or wait for greedy meshing
+   (#40). Verify with a Release EnchantedForest flythrough before shipping a demo.
+   **Verification lessons:** /api/world/generate does NOT run flora decoration (streaming is
+   the decorated path); a no-project empty world has no recipe so streaming never generates —
+   use a --project launch with a fresh worlds/default.db. Forge-verified world kept at
+   LodTest/worlds/forge_flora_test.db.
 5. **Extract `MicroVoxels` + `emit()`** as the shared substrate for future organic generators
    (rocks, vines, roots, stalagmites) — the multi-res emit is the reusable standard, forge is its
    first client.
