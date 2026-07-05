@@ -227,12 +227,19 @@ void ChunkRenderManager::rebuildCubeFaces(
                                                 (qa << 2u) | (mi ? (1u << 10) : 0u) |
                                                 (va ? (1u << 15) : 0u));
             // Emissive light colour from the material tint, normalised so the brightest channel
-            // emits at full range (15) and the hue is preserved.
+            // emits at `peak` and the hue is preserved. Full-emissive blocks (glow/torch) emit at
+            // max (15); MASKED-emissive materials (enchanted log — only cracks glow) cast a dimmer
+            // light scaled by emissiveStrength, so a cracked log lights the forest softly, not like a
+            // lantern. Block-light seeding below is gated on this colour being non-zero, so it fires
+            // for masked materials too even though they don't set the shader's full-emissive bit.
             mf.emR = mf.emG = mf.emB = 0;
-            if (em && md) {
+            bool castsLight = md && (md->emissive || md->emissiveStrength > 0.0f);
+            if (castsLight) {
                 glm::vec3 t = md->physics.colorTint;
                 float mx = std::max(t.x, std::max(t.y, std::max(t.z, 0.0001f)));
-                float s = 15.0f / mx;
+                float peak = md->emissive ? 15.0f
+                                          : glm::clamp(md->emissiveStrength * 4.0f, 2.0f, 10.0f);
+                float s = peak / mx;
                 mf.emR = static_cast<uint8_t>(glm::clamp(t.x * s, 0.0f, 15.0f) + 0.5f);
                 mf.emG = static_cast<uint8_t>(glm::clamp(t.y * s, 0.0f, 15.0f) + 0.5f);
                 mf.emB = static_cast<uint8_t>(glm::clamp(t.z * s, 0.0f, 15.0f) + 0.5f);
@@ -348,7 +355,9 @@ void ChunkRenderManager::rebuildCubeFaces(
         };
         for (int cell = 0; cell < N * N * N; ++cell) {
             int m = cellMat[cell];
-            if (m >= 0 && (matFaces[m].reserved & 1u)) {  // emissive flag (reserved bit 0)
+            // Seed on the precomputed emissive COLOUR being non-zero (not the reserved emissive bit),
+            // so MASKED-emissive materials (enchanted log) cast their dim crack-light too.
+            if (m >= 0 && (matFaces[m].emR | matFaces[m].emG | matFaces[m].emB)) {
                 bump(cell, matFaces[m].emR, matFaces[m].emG, matFaces[m].emB);
             }
         }
@@ -367,8 +376,9 @@ void ChunkRenderManager::rebuildCubeFaces(
                 scale = (state == 1u) ? 15.0f : 9.0f;
             } else {
                 const auto* md = reg.getMaterial(matName);
-                if (!md || !md->emissive) return;             // only emissive materials otherwise
-                hue = md->physics.colorTint; scale = 15.0f;
+                if (!md || (!md->emissive && md->emissiveStrength <= 0.0f)) return;
+                hue = md->physics.colorTint;
+                scale = md->emissive ? 15.0f : glm::clamp(md->emissiveStrength * 4.0f, 2.0f, 10.0f);
             }
             float mx = std::max(hue.x, std::max(hue.y, std::max(hue.z, 0.0001f)));
             float s = scale / mx;
@@ -380,15 +390,19 @@ void ChunkRenderManager::rebuildCubeFaces(
         for (const auto& sc : subcubes) {
             if (!sc || sc->isBroken() || !sc->isVisible()) continue;
             if (sc->getState() == 1u) m_flamingVoxels.push_back(sc->getWorldPosition()); // fire VFX seed
-            if (sc->getState() == 0 && reg.getMaterial(sc->getMaterialName()) &&
-                !reg.getMaterial(sc->getMaterialName())->emissive) continue;
+            if (sc->getState() == 0) {
+                const auto* scMd = reg.getMaterial(sc->getMaterialName());
+                if (scMd && !scMd->emissive && scMd->emissiveStrength <= 0.0f) continue;
+            }
             seedVoxelLight(sc->getPosition(), sc->getMaterialName(), sc->getTint(), sc->getState());
         }
         for (const auto& mc : microcubes) {
             if (!mc || mc->isBroken() || !mc->isVisible()) continue;
             if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition()); // fire VFX seed
-            if (mc->getState() == 0 && reg.getMaterial(mc->getMaterialName()) &&
-                !reg.getMaterial(mc->getMaterialName())->emissive) continue;
+            if (mc->getState() == 0) {
+                const auto* mcMd = reg.getMaterial(mc->getMaterialName());
+                if (mcMd && !mcMd->emissive && mcMd->emissiveStrength <= 0.0f) continue;
+            }
             seedVoxelLight(mc->getParentCubePosition(), mc->getMaterialName(), mc->getTint(), mc->getState());
         }
         // Cross-chunk seed from neighbouring chunks' baked block colour across the 6 boundary planes.

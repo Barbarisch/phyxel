@@ -108,6 +108,8 @@ bool MaterialRegistry::loadFromJson(const std::string& path) {
         def.isMirror  = matJson.value("isMirror", false);
         def.billboarded = matJson.value("billboarded", false);
         def.resolution = matJson.value("resolution", 512);
+        def.emissiveStrength = matJson.value("emissiveStrength", 0.0f);
+        def.emissiveThreshold = matJson.value("emissiveThreshold", 0.55f);
 
         if (def.name.empty()) {
             LOG_WARN("MaterialRegistry", "Skipping material with empty name");
@@ -154,6 +156,11 @@ bool MaterialRegistry::saveToJson(const std::string& path) const {
         if (mat.emissive) matJson["emissive"] = true;
         if (mat.varied) matJson["varied"] = true;
         if (mat.billboarded) matJson["billboarded"] = true;
+        if (mat.emissiveStrength > 0.0f) {
+            matJson["emissiveStrength"] = mat.emissiveStrength;
+            matJson["emissiveThreshold"] = mat.emissiveThreshold;
+        }
+        if (mat.resolution != 512) matJson["resolution"] = mat.resolution;
         if (mat.hasPhysics()) {
             matJson["physics"] = serializePhysics(mat.physics);
         }

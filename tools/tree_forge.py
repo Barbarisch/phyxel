@@ -414,6 +414,10 @@ PRESETS = {
     "redwood": {"envelope": "column", "up_tropism": 0.6, "jitter": 0.15, "crook": 0.12,
                 "canopy_r_mult": 0.7, "canopy_h_mult": 1.15},
     "elder_oak": {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.45, "crook": 0.4},
+    # enchanted-forest giant: ancient gnarled world-tree with a glowing-crack trunk (masked-emissive
+    # enchanted_log material — docs/MaskedEmissiveSpec.md).
+    "enchanted_oak": {"envelope": "dome", "up_tropism": 0.14, "jitter": 0.45, "crook": 0.45,
+                      "log_mat": "enchanted_log"},
 }
 # preset keys ending in _mult scale the height-derived default of the base key (applied in build_tree)
 _MULT_KEYS = {"canopy_r_mult": "canopy_r", "canopy_h_mult": "canopy_h", "leaf_r_mult": "leaf_r"}

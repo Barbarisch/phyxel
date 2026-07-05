@@ -62,6 +62,14 @@ struct MaterialDef {
     /// FoliageRenderPipeline draws cutout leaf cards instead (leaf materials). See the foliage plan.
     bool billboarded = false;
 
+    /// Masked emission (docs/MaskedEmissiveSpec.md): the surface is lit NORMALLY, and the bright
+    /// pixels of its albedo (above emissiveThreshold luminance) additionally EMIT light — e.g. an
+    /// "enchanted log": normal bark + glowing cracks. Distinct from `emissive` (whole-face self-lit).
+    /// emissiveStrength > 0 enables it; the glow colour is the albedo's own bright pixels, and the
+    /// block-light it casts uses physics.colorTint. 0 = ordinary material (no behaviour change).
+    float emissiveStrength = 0.0f;
+    float emissiveThreshold = 0.55f;   ///< albedo luminance above which a pixel glows
+
     MaterialPhysics physics;
     MaterialTextures textures;
 

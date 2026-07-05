@@ -223,10 +223,14 @@ void main() {
     uint giLayer = textureIndex & 0x7FFFu;
     uint gi = (giCls == 1u) ? atlasUVs.count512 + giLayer : giLayer;
     float metallic = 0.0;
+    float emStrength = 0.0;    // masked emission: >0 = bright albedo pixels also EMIT (enchanted log)
+    float emThreshold = 0.55;  // albedo luminance above which a pixel glows
     if (gi < atlasUVs.count512 + atlasUVs.count1024) {
         vec4 mprops = atlasUVs.textureUVs[gi];
         metallic = mprops.x;
         rough = mprops.y;  // authored roughness is authoritative (matte nature, glossy metal); avoids grazing-angle specular sparkle from the shiny roughness map
+        emStrength = mprops.z;
+        emThreshold = mprops.w;
     }
 
     // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
@@ -360,6 +364,16 @@ void main() {
             float spotFactor = smoothstep(outerCone, innerCone, theta);
             color += pbrBRDF(N, V, ldir, albedo, rough, metallic, lightColor * intensity * atten * spotFactor);
         }
+    }
+
+    // Masked emission (docs/MaskedEmissiveSpec.md): the surface above was lit NORMALLY; now ADD glow
+    // from the bright pixels of the albedo (e.g. an enchanted log's cracks) without a per-face flag.
+    // The glow colour is the albedo's own bright pixels, boosted by emissiveMultiplier so the bloom
+    // pass catches it. emStrength==0 for ordinary materials -> no cost effect.
+    if (emStrength > 0.0) {
+        float luma = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+        float e = smoothstep(emThreshold, 1.0, luma) * emStrength;
+        color += e * albedo * ubo.emissiveMultiplier;
     }
 
     outColor = vec4(color, textureColor.a);
