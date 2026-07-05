@@ -141,6 +141,24 @@ def _envelope_points(rng, params):
             d = (px / rr) ** 2 + ((py - cy) / hh) ** 2 + (pz / rr) ** 2
             if d > 1.0:
                 continue
+        elif shape == "umbrella":
+            # acacia: a wide, THIN, flat-topped crown slab held high; slightly lower at the rim
+            if rad > 1.0:
+                continue
+            py = cy + hh * (0.35 + 0.65 * ev) * (1.0 - 0.3 * rad * rad)
+        elif shape == "weeping":
+            # willow: a dome cap plus a hanging CURTAIN — attractors descend on a loose
+            # cylindrical shell from the crown rim toward the ground, so limbs grow out
+            # over the rim and then chase them DOWN (hanging foliage).
+            if ev < 0.3:
+                if rad > 1.0:
+                    continue
+                py = cy + (ev / 0.3) * hh                    # top cap
+            else:
+                if not (0.55 <= rad <= 1.05):
+                    continue                                  # shell only
+                t = (ev - 0.3) / 0.7
+                py = (cy + hh) - t * (cy + hh - 2.0)          # descend to ~2 cubes off the ground
         else:  # dome: oblate ellipsoid, fuller in the upper 2/3
             py = cy - hh * 0.4 + ev * hh * 1.4
             d = (px / rr) ** 2 + ((py - cy) / hh) ** 2 + (pz / rr) ** 2
@@ -280,6 +298,40 @@ def add_roots(nodes, rng, params):
     return nodes
 
 
+def add_fronds(nodes, rng, params):
+    """Palm frond crown: leaf-material arcs radiating from the trunk apex — each rises, arcs
+    over, and droops. The fronds ARE the palm's foliage (palm sets leaf_mat="" so add_foliage
+    stays out of the way); per-node `mat` overrides the log material in rasterization."""
+    fr = params.get("fronds")
+    if not fr:
+        return nodes
+    apex_i = max(range(len(nodes)), key=lambda i: nodes[i]["pos"][1])
+    ax, ay, az = nodes[apex_i]["pos"]
+    step = params["step"]
+    length = params["frond_len"]
+    mat = params["frond_mat"]
+    r_min = params["r_min"]
+    for k in range(rng.randint(*fr)):
+        ang = 2 * math.pi * (k + rng.uniform(-0.3, 0.3)) / fr[1]
+        dx, dz = math.cos(ang), math.sin(ang)
+        elev = rng.uniform(0.55, 0.95)                 # initial upward pitch
+        px, py, pz = ax, ay, az
+        parent = apex_i
+        nseg = max(3, int(length / step))
+        rr = params["frond_r"] * rng.uniform(0.8, 1.1)
+        for s in range(nseg):
+            t = (s + 1) / nseg
+            e = max(elev - t * t * 2.1, -1.2)          # arc over, then droop
+            px += dx * math.cos(e) * step
+            pz += dz * math.cos(e) * step
+            py += math.sin(e) * step
+            nodes.append({"pos": (px, py, pz), "parent": parent, "children": [],
+                          "radius": max(r_min, rr * (1.0 - 0.75 * t)),
+                          "mat": mat, "frond": True})
+            parent = len(nodes) - 1
+    return nodes
+
+
 # ============================================================ voxelization
 
 def _res_for_radius(r_cube):
@@ -316,6 +368,7 @@ def rasterize_branches(nodes, mv, params):
         b = _mul(nd["pos"], MP)
         ra = nodes[p]["radius"] * MP
         rb = nd["radius"] * MP
+        seg_mat = nd.get("mat", log)                 # fronds etc. override the wood material
         vs = _res_for_radius(max(nodes[p]["radius"], nd["radius"]))
         ab = _sub(b, a)
         abl2 = _dot(ab, ab) or 1.0
@@ -334,7 +387,7 @@ def rasterize_branches(nodes, mv, params):
                     dx = apx - ab[0] * tt; dy = apy - ab[1] * tt; dz = apz - ab[2] * tt
                     r = ra + (rb - ra) * tt
                     if dx * dx + dy * dy + dz * dz <= (r + half * 0.3) ** 2:
-                        _fill_voxel(mv, vx, vy, vz, vs, log)
+                        _fill_voxel(mv, vx, vy, vz, vs, seg_mat)
 
 
 def add_foliage(nodes, mv, rng, params):
@@ -350,7 +403,7 @@ def add_foliage(nodes, mv, rng, params):
     below = params["leaf_below_r"]
     fv = mv.v
     for nd in nodes:
-        if nd.get("root"):
+        if nd.get("root") or nd.get("frond"):
             continue                                 # root spurs are wood, never foliage — their
         if nd["radius"] > below:                     # thin tips would otherwise ALWAYS leaf out
             continue                                 # (childless => the density roll never applies)
@@ -394,6 +447,8 @@ def default_params(h, seed):
         "trunk_r": max(0.9, h * 0.075), "r_min": 0.09, "murray_n": 2.5,
         "leaf_r": max(0.6, h * 0.045), "leaf_below_r": 0.42, "leaf_density": 0.95,
         "leaf_res": SUB_PER_CUBE,            # subcube leaves by default (perf lever: 9/3/1)
+        # palm-style frond crown (off unless a preset sets `fronds` to a (min,max) count)
+        "fronds": None, "frond_len": max(3.0, h * 0.42), "frond_r": 0.24, "frond_mat": "Leaf",
         # exposed root flare: the base widens (elephant-foot) and a few spurs fan out along the
         # ground while the trunk itself stays straight. Heavily randomized for a natural look.
         "root_flare": 1.6, "root_flare_h": max(2.0, h * 0.14),
@@ -402,14 +457,49 @@ def default_params(h, seed):
 
 
 PRESETS = {
-    # oak-like: broad spreading dome, weak leader (co-dominant forks), gnarled
-    "oak":   {"envelope": "dome",   "up_tropism": 0.18, "jitter": 0.4, "crook": 0.32},
-    # pine-like: conical, strong central leader, straight, narrow crown, spruce materials
-    "pine":  {"envelope": "cone",   "up_tropism": 0.62, "jitter": 0.15, "crook": 0.1,
-              "canopy_r_mult": 0.62, "canopy_h_mult": 1.25, "leaf_r_mult": 0.8,
-              "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
-    "birch": {"envelope": "dome",   "up_tropism": 0.45, "jitter": 0.28, "crook": 0.18,
-              "canopy_r_mult": 0.8, "leaf_mat": "LeafBirch", "log_mat": "LogBirch"},
+    # ---- broadleaf domes ----
+    "oak":    {"envelope": "dome", "up_tropism": 0.18, "jitter": 0.4, "crook": 0.32},
+    "autumn": {"envelope": "dome", "up_tropism": 0.18, "jitter": 0.4, "crook": 0.32,
+               "leaf_mat": "LeafAutumn"},
+    "birch":  {"envelope": "dome", "up_tropism": 0.45, "jitter": 0.28, "crook": 0.18,
+               "canopy_r_mult": 0.8, "leaf_mat": "LeafBirch", "log_mat": "LogBirch"},
+    # jungle canopy tree: tall bare bole, high broad crown, heavy buttress flare
+    "jungle": {"envelope": "dome", "up_tropism": 0.3, "jitter": 0.35, "crook": 0.25,
+               "crown_y_frac": 0.8, "canopy_h_mult": 0.75, "canopy_r_mult": 1.05,
+               "leaf_mat": "LeafJungle", "root_flare": 2.0},
+    # ---- conifers (natural/organic cones — crisp whorls intentionally NOT a goal, user 2026-07-05) ----
+    "pine":   {"envelope": "cone", "up_tropism": 0.62, "jitter": 0.15, "crook": 0.1,
+               "canopy_r_mult": 0.62, "canopy_h_mult": 1.25, "leaf_r_mult": 0.8,
+               "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
+    "spruce": {"envelope": "cone", "up_tropism": 0.55, "jitter": 0.18, "crook": 0.12,
+               "canopy_r_mult": 0.55, "canopy_h_mult": 1.35, "crown_y_frac": 0.58,
+               "leaf_r_mult": 0.75, "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
+    "fir":    {"envelope": "cone", "up_tropism": 0.7, "jitter": 0.12, "crook": 0.08,
+               "canopy_r_mult": 0.42, "canopy_h_mult": 1.5, "crown_y_frac": 0.55,
+               "leaf_r_mult": 0.7, "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
+    # ---- special growth habits ----
+    # acacia: umbrella slab crown on up-and-out limbs; tight leaf_below_r keeps the bole bare
+    "acacia": {"envelope": "umbrella", "up_tropism": 0.45, "jitter": 0.3, "crook": 0.28,
+               "crown_y_frac": 0.78, "canopy_h_mult": 0.6, "canopy_r_mult": 1.25,
+               "leaf_below_r": 0.3, "leaf_density": 1.0},
+    # willow: weeping curtain envelope, limbs spill over the rim and hang
+    "willow": {"envelope": "weeping", "up_tropism": 0.08, "jitter": 0.3, "crook": 0.3,
+               "crown_y_frac": 0.6, "canopy_r_mult": 0.9, "canopy_h_mult": 0.8,
+               "leaf_density": 1.0, "leaf_below_r": 0.38},
+    # palm: bare crooked trunk + frond crown; fronds ARE the foliage (leaf_mat off)
+    "palm":   {"envelope": "sphere", "attractors_mult": 0.0, "crook": 0.18, "trunk_r": 0.55,
+               "crown_y_frac": 0.92, "canopy_h_mult": 0.4, "leaf_mat": "",
+               "fronds": (7, 11), "root_flare": 1.3},
+    # dead: gnarled bare branches, no foliage at all
+    "dead":   {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.5, "crook": 0.5,
+               "leaf_mat": "", "attractors_mult": 0.6},
+    # bush: low multi-branch shrub, foliage to the ground (glow variants = leaf_mat override
+    # at bake time: glow_green / glow_blue)
+    "bush":   {"envelope": "dome", "up_tropism": 0.12, "jitter": 0.4, "crook": 0.3,
+               "crown_y_frac": 0.5, "canopy_h_mult": 1.1, "canopy_r_mult": 1.15,
+               "trunk_r": 0.3, "root_flare": 1.15, "root_count": (2, 4), "root_len": (1, 2),
+               "leaf_density": 1.0, "attractors_mult": 2.0},
+    # ---- giants ----
     "redwood": {"envelope": "column", "up_tropism": 0.6, "jitter": 0.15, "crook": 0.12,
                 "canopy_r_mult": 0.7, "canopy_h_mult": 1.15},
     "elder_oak": {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.45, "crook": 0.4},
@@ -440,6 +530,10 @@ def build_tree(preset="oak", height=15, seed=0, tier="forest", **overrides):
     for mk, base in _MULT_KEYS.items():          # apply proportion multipliers to h-derived defaults
         if mk in pr:
             p[base] = p[base] * pr.pop(mk)
+    if "crown_y_frac" in pr:                     # crown height as a fraction of tree height
+        p["crown_center"] = (0.0, height * pr.pop("crown_y_frac"), 0.0)
+    if "attractors_mult" in pr:                  # branch-density scale (0 = no colonization, e.g. palm)
+        p["attractors"] = int(p["attractors"] * pr.pop("attractors_mult"))
     p.update(pr)
     t = dict(TIERS.get(tier, {}))
     if "attractors_mult" in t:
@@ -452,6 +546,7 @@ def build_tree(preset="oak", height=15, seed=0, tier="forest", **overrides):
     nodes = grow_skeleton(rng, p)
     assign_radii(nodes, p)
     add_roots(nodes, rng, p)                     # exposed root flare on every tree
+    add_fronds(nodes, rng, p)                    # palm-style frond crown (presets opt in)
     mv = MicroVoxels()
     rasterize_branches(nodes, mv, p)
     add_foliage(nodes, mv, rng, p)

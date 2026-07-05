@@ -98,10 +98,22 @@ forge equivalent that survives visual A/B — not merely "forge exists".
    byte-identical regen pinned by `test_batch_mode_bakes_manifest` (red-first). Starter manifest
    ships 9 entries (giants carry `leaf_res: 9` per the megaflora perf rule); actual bake into
    resources/ is step 4.
-3. **Close archetype gaps**: umbrella envelope (acacia), downward tropism (weeping willow),
-   dead/bush presets; settle the crisp-conifer question (space colonization is organic — the
-   tiered-whorl crisp pine/fir aesthetic from Increment A may need a whorl mode; run
-   `test_tree_sharpness.py` metrics against forge conifers before migrating them).
+3. **Close archetype gaps** — user decisions 2026-07-05: **organic/natural is the goal, crisp
+   silhouettes explicitly de-prioritized** (no whorl mode; the Increment-A crisp-conifer
+   aesthetic is NOT a migration requirement — forge pines/firs are tuned natural cones), and
+   the retirement gate is **FULL parity**: every gen_tree archetype needs a forge equivalent —
+   oak, autumn, birch, spruce, pine, fir, acacia (umbrella envelope), palm (frond crown),
+   willow (weeping envelope), jungle, dead (leafless), bush + glow-bush variants, redwood,
+   elder_oak. Each verified visually in-engine before step 4 retires gen_tree.
+   **DONE 2026-07-05 (first pass):** all 14 archetypes shipped as presets — new `umbrella` +
+   `weeping` envelopes, `add_fronds()` palm crown (per-node material override in the
+   rasterizer), `crown_y_frac`/`attractors_mult` preset keys. Red-first structural tests
+   (acacia flat crown + bare bole, willow droop, palm bare-trunk frond reach, dead leafless,
+   bush low+leafy, per-preset material guard) — suite 22/22. Full 21-entry library baked via
+   --batch; 8 new archetypes visually surveyed in the asset editor: acacia/willow/palm/dead/
+   glow-bush/spruce/jungle read correctly; minor polish candidates: fir mid-cone patchiness,
+   willow curtain a bit monolithic. (Engine gap hit + logged in StructurePipelineGaps.md:
+   asset-editor crashes after ~9 hot-reloads.)
 4. **Bake + wire**: full forge library into `biomes.json` pool flora side-by-side with gen_tree,
    A/B per biome in-engine, then retire gen_tree in one commit. Giant-tier presets must ENFORCE
    `leaf_res=cube` (the megaflora perf rule) rather than rely on remembering.

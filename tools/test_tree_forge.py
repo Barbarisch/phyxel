@@ -197,6 +197,84 @@ def test_cli_passes_tier_through():
     assert "--tier hero" in outs["hero"], "provenance header must record the tier"
 
 
+def _leaf_micros(mv, mats=("Leaf", "LeafBirch", "LeafSpruce", "LeafJungle", "LeafAutumn")):
+    return [k for k, m in mv.v.items() if m in mats]
+
+
+def _wood_micros(mv, mats=("Log", "LogBirch", "LogSpruce", "enchanted_log")):
+    return [k for k, m in mv.v.items() if m in mats]
+
+
+def test_acacia_umbrella_crown():
+    """Acacia (umbrella envelope): a WIDE FLAT crown held high on a bare trunk — the canopy's
+    vertical extent must be small vs its width, and no foliage on the lower half of the tree."""
+    mv, _ = tf.build_tree("acacia", 12, 1)
+    leaves = _leaf_micros(mv)
+    assert leaves, "acacia has no foliage"
+    ys = [k[1] for k in leaves]
+    xs = [k[0] for k in leaves]
+    zs = [k[2] for k in leaves]
+    height = max(k[1] for k in mv.v)
+    crown_h = max(ys) - min(ys)
+    crown_w = max(max(xs) - min(xs), max(zs) - min(zs))
+    assert crown_h < crown_w * 0.55, f"acacia crown not flat: {crown_h} tall vs {crown_w} wide"
+    assert min(ys) > height * 0.45, f"acacia foliage reaches too low (bare trunk expected): min leaf y {min(ys)} of {height}"
+
+
+def test_willow_foliage_droops():
+    """Willow (weeping envelope): hanging foliage curtains — leaves must reach far BELOW the
+    crown centre, unlike an oak whose canopy sits as a dome on top."""
+    mv, _ = tf.build_tree("willow", 14, 1)
+    leaves = _leaf_micros(mv)
+    assert leaves, "willow has no foliage"
+    height = max(k[1] for k in mv.v)
+    lowest_leaf = min(k[1] for k in leaves)
+    assert lowest_leaf < height * 0.35, (
+        f"willow foliage does not droop: lowest leaf at {lowest_leaf} of height {height}")
+
+
+def test_palm_bare_trunk_frond_crown():
+    """Palm: a bare (leafless) trunk with a crown of leaf-material fronds arcing out from the
+    apex — foliage only in the top ~35%, reaching well out horizontally."""
+    mv, _ = tf.build_tree("palm", 12, 1)
+    leaves = _leaf_micros(mv)
+    assert leaves, "palm has no fronds"
+    height = max(k[1] for k in mv.v)
+    assert min(k[1] for k in leaves) > height * 0.55, "palm foliage must sit only at the top"
+    reach = max(max(abs(k[0]), abs(k[2])) for k in leaves)
+    trunk_xs = [abs(k[0]) for k in _wood_micros(mv)]
+    assert reach >= 2.5 * tf.MICRO_PER_CUBE, f"fronds barely reach out ({reach} micros)"
+
+
+def test_dead_tree_has_no_leaves():
+    """Dead preset: gnarled bare branches, ZERO foliage."""
+    mv, _ = tf.build_tree("dead", 10, 1)
+    assert not _leaf_micros(mv), "dead tree grew leaves"
+
+
+def test_bush_is_low_and_leafy():
+    """Bush: a low shrub (≤6 cubes), foliage starting near the ground (no bare trunk)."""
+    mv, _ = tf.build_tree("bush", 3, 1)
+    height = max(k[1] for k in mv.v)
+    leaves = _leaf_micros(mv)
+    assert height <= 6 * tf.MICRO_PER_CUBE, f"bush too tall: {height} micros"
+    assert leaves and min(k[1] for k in leaves) < 1.5 * tf.MICRO_PER_CUBE, "bush foliage must start near the ground"
+
+
+def test_every_preset_bakes_with_expected_materials():
+    """Every preset must build without error and use its own materials (autumn = LeafAutumn,
+    spruce/fir = spruce mats, jungle = LeafJungle...). Guards against preset typos vs
+    materials.json (unknown names render as magenta checkerboards in-engine)."""
+    expect_leaf = {"autumn": "LeafAutumn", "birch": "LeafBirch", "spruce": "LeafSpruce",
+                   "fir": "LeafSpruce", "pine": "LeafSpruce", "jungle": "LeafJungle"}
+    for preset in sorted(tf.PRESETS):
+        mv, _ = tf.build_tree(preset, 10, 1)
+        assert len(mv.v) > 0, f"{preset} baked empty"
+        if preset in expect_leaf:
+            mats = set(mv.v.values())
+            assert expect_leaf[preset] in mats, f"{preset} missing {expect_leaf[preset]} (has {mats})"
+
+
 def test_batch_mode_bakes_manifest():
     """Roadmap step 2: --batch <manifest.json> must bake every entry to --outdir with per-entry
     provenance (incl. tier), and re-running must be byte-identical (reproducible library regen)."""
