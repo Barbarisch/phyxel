@@ -33,6 +33,22 @@
             "weight": 2
           },
           {
+            "template": "tree_pine_m",
+            "weight": 3
+          },
+          {
+            "template": "tree_fir_m",
+            "weight": 3
+          },
+          {
+            "template": "tree_fir_l",
+            "weight": 2
+          },
+          {
+            "template": "tree_spruce_crisp_m",
+            "weight": 2
+          },
+          {
             "template": "tree_dead_s",
             "weight": 1
           }
@@ -151,6 +167,10 @@
             "weight": 2
           },
           {
+            "template": "tree_pine_l",
+            "weight": 2
+          },
+          {
             "template": "bush_leafy_m",
             "weight": 4
           },
@@ -210,6 +230,66 @@
           }
         ]
       }
+    },
+    {
+      "name": "EnchantedForest",
+      "surface": "GrassForest",
+      "subsurface": "Dirt",
+      "deep": "Stone",
+      "temp": [
+        0.25,
+        0.45
+      ],
+      "moisture": [
+        0.62,
+        0.82
+      ],
+      "heightScale": 1.1,
+      "heightOffset": 2.0,
+      "surfaceAlt": "Dirt",
+      "surfaceAltChance": 0.4,
+      "flora": {
+        "density": 0.9,
+        "spacing": 4,
+        "items": [
+          {
+            "template": "bush_glow_green",
+            "weight": 4
+          },
+          {
+            "template": "bush_glow_blue",
+            "weight": 2
+          },
+          {
+            "template": "bush_leafy_m",
+            "weight": 3
+          },
+          {
+            "template": "fern",
+            "weight": 3
+          },
+          {
+            "template": "tree_oak_m",
+            "weight": 2
+          }
+        ]
+      },
+      "floraLayers": [
+        {
+          "density": 1.0,
+          "spacing": 24,
+          "items": [
+            {
+              "template": "tree_elder_oak",
+              "weight": 3
+            },
+            {
+              "template": "tree_redwood_l",
+              "weight": 2
+            }
+          ]
+        }
+      ]
     }
   ]
 }

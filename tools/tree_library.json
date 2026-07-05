@@ -21,8 +21,27 @@
   {"type": "bush",   "radius": 3,  "seed": 22, "name": "bush_leafy_m",  "display": "Leafy Bush (Medium)"},
   {"type": "bush",   "radius": 2,  "seed": 30, "name": "bush_round",    "display": "Round Bush"},
 
+  {"_comment": "Crisp conifers (ProceduralTreeExpansionPlan Increment A). Heights 1 cube=1 m, GAME-COMPRESSED for render density (the engine's #1 open issue) + legibility at typical camera distance — same compression the rest of this library uses for oak/spruce. Pine models Scots pine (Pinus sylvestris); USFS Silvics field heights ~13.7-29 m. pine_l=18 is INSIDE that range; pine_s=10 and pine_m=12 are BELOW the cited range floor (13.7 m) — deliberately shortened past what the real data supports, for a small/medium game asset, NOT a claim they're real young-stand heights. Fir models balsam fir (Abies balsamea); USFS Silvics 'heights range 12-18 m' verbatim, so fir_m=14 (mid) and fir_l=18 (top of range) both sit IN it. fullness:1.0 = solid crown so emit compresses interiors to whole cubes (cheap greedy faces) not holey subcubes. Sources: research.fs.usda.gov/silvics scotch-pine + balsam-fir."},
+  {"type": "pine",   "height": 10, "seed": 41, "fullness": 1.0, "name": "tree_pine_s",   "display": "Pine Tree (Small)"},
+  {"type": "pine",   "height": 12, "seed": 42, "fullness": 1.0, "name": "tree_pine_m",   "display": "Pine Tree (Medium)"},
+  {"type": "pine",   "height": 18, "seed": 43, "fullness": 1.0, "name": "tree_pine_l",   "display": "Pine Tree (Tall)"},
+  {"type": "fir",    "height": 14, "seed": 44, "fullness": 1.0, "name": "tree_fir_m",    "display": "Fir Tree (Medium)"},
+  {"type": "fir",    "height": 18, "seed": 45, "fullness": 1.0, "name": "tree_fir_l",    "display": "Fir Tree (Tall)"},
+  {"type": "spruce", "height": 9,  "seed": 46, "edge": "crisp", "fullness": 1.0, "name": "tree_spruce_crisp_m", "display": "Spruce Tree (Crisp)"},
+  {"type": "spruce", "height": 13, "seed": 47, "edge": "crisp", "fullness": 1.0, "name": "tree_spruce_crisp_l", "display": "Spruce Tree (Crisp, Large)"},
+
   {"_comment": "Fullness axis (extremeness): height + fullness variants biomes weight toward a vibe. lush = tall + dense canopy; sparse = short + see-through."},
   {"type": "oak",    "height": 9,  "fullness": 1.0,  "seed": 31, "name": "tree_oak_lush",     "display": "Oak Tree (Lush)"},
   {"type": "oak",    "height": 6,  "fullness": 0.55, "seed": 32, "name": "tree_oak_sparse",   "display": "Oak Tree (Sparse)"},
-  {"type": "birch",  "height": 8,  "fullness": 0.55, "seed": 33, "name": "tree_birch_sparse", "display": "Birch Tree (Sparse)"}
+  {"type": "birch",  "height": 8,  "fullness": 0.55, "seed": 33, "name": "tree_birch_sparse", "display": "Birch Tree (Sparse)"},
+
+  {"_comment": "Megaflora (ProceduralTreeExpansionPlan Increment B) — enchanted-forest giants, 1 cube = 1 m, CUBE resolution (mesher greedy-merges/culls interiors; sub/micro shells would blow the face count). Canopy radius capped at 24 cubes = the engine flora-margin ceiling (ObjectTemplateManager kFloraMarginCap) beyond which a canopy clips at chunk seams. redwood models coast redwood (Sequoia sempervirens); tallest living ~115.55 m (Hyperion, Sillett 2006 per Wikipedia), so xl=115 approaches that; redwood_l=90 is an interpolated old-growth size (no single named specimen). elder_oak is a fantasy world-tree with a sequoia-SCALE TRUNK (dia factor 0.13 ≈ General Sherman's real 11.1/83.8 = 0.1325, NPS) but a DELIBERATELY BROADENED crown (~1.6x Sherman's real crown ratio) for a spreading world-tree look — glowing root veins for the enchanted read."},
+  {"type": "redwood",   "height": 46, "seed": 51, "name": "tree_redwood_l",   "display": "Redwood (Broad Giant)"},
+  {"type": "redwood",   "height": 56, "seed": 52, "name": "tree_redwood_xl",  "display": "Redwood (Great Broad Giant)"},
+  {"type": "elder_oak", "height": 32, "seed": 53, "name": "tree_elder_oak",   "display": "Elder Oak (World-Tree)"},
+  {"type": "elder_oak", "height": 38, "seed": 54, "name": "tree_elder_oak_xl","display": "Elder Oak (Great World-Tree)"},
+
+  {"_comment": "Enchanted-forest glowing understory (Increment B/C). bush archetype with an emissive leaf material override (glow_green/glow_blue exist in materials.json). Paired with sparse giants (elder_oak/redwood) in the EnchantedForest biome's two-layer flora."},
+  {"type": "bush", "radius": 2, "seed": 61, "leaf": "glow_green", "name": "bush_glow_green", "display": "Glowing Bush (Green)"},
+  {"type": "bush", "radius": 2, "seed": 62, "leaf": "glow_blue",  "name": "bush_glow_blue",  "display": "Glowing Bush (Blue)"}
 ]

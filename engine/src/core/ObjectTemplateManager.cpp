@@ -73,8 +73,35 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
                  << tmpl->interactionPoints.size() << " interaction points, "
                  << tmpl->parts.size() << " parts");
 
+    // Grow the flora decoration margin so decorateChunk's planFlora window always reaches a
+    // plant rooted this-template-radius away in a neighbor chunk. A fixed margin silently
+    // clipped any canopy wider than it at chunk seams (Increment B #1 blocker).
+    const int r = templateFootprintRadius(*tmpl);
+    if (r > kFloraMarginCap)
+        LOG_WARN_FMT("ObjectTemplateManager", "Template '" << tmpl->name << "' half-footprint "
+                     << r << " exceeds flora margin cap " << kFloraMarginCap
+                     << "; used as flora its canopy beyond " << kFloraMarginCap
+                     << " columns will clip at chunk seams");
+    m_floraMarginColumns = std::min(kFloraMarginCap, std::max(m_floraMarginColumns, r));
+
     m_templates[tmpl->name] = std::move(tmpl);
     return true;
+}
+
+// Max column overhang of a template from its stamp anchor (decorateChunk centers on
+// base = worldPos - maxExtent/2, so a voxel at relative rx sits |rx - maxX/2| columns from the
+// trunk column). Returns the larger of the X and Z overhangs — the radius the flora margin must
+// cover so no seam clips this template's footprint.
+int ObjectTemplateManager::templateFootprintRadius(const VoxelTemplate& t) {
+    glm::ivec3 mn(0), mx(0);
+    auto acc = [&](const glm::ivec3& p) { mn = glm::min(mn, p); mx = glm::max(mx, p); };
+    for (const auto& c : t.cubes)      acc(c.relativePos);
+    for (const auto& s : t.subcubes)   acc(s.parentRelativePos);
+    for (const auto& m : t.microcubes) acc(m.parentRelativePos);
+    const int halfX = mx.x / 2, halfZ = mx.z / 2;   // matches the stamp's maxExtent/2 centering
+    const int overX = std::max(mx.x - halfX, halfX - mn.x);
+    const int overZ = std::max(mx.z - halfZ, halfZ - mn.z);
+    return std::max(overX, overZ);
 }
 
 float ObjectTemplateManager::getTemplateFacingYaw(const std::string& name) const {
@@ -398,11 +425,13 @@ void ObjectTemplateManager::decorateChunk(Chunk& chunk, const glm::ivec3& chunkC
     constexpr int CS = 32;
     const int wx0 = chunkCoord.x * CS, wy0 = chunkCoord.y * CS, wz0 = chunkCoord.z * CS;
     const int wx1 = wx0 + CS - 1, wy1 = wy0 + CS - 1, wz1 = wz0 + CS - 1;
-    constexpr int kMargin = 12;  // max half-footprint (columns) of a plant that can overhang in
+    // Inflate by the widest loaded template's half-footprint (not a fixed 12) so a plant rooted
+    // in a neighbor chunk still contributes its overhang here — no silent seam clip of wide canopies.
+    const int margin = m_floraMarginColumns;
 
     // planFlora is order-independent, so the placements whose footprint reaches this chunk are
     // identical to those a whole-region pass (or a neighbor chunk) would compute.
-    auto placements = generator.planFlora(wx0 - kMargin, wz0 - kMargin, wx1 + kMargin, wz1 + kMargin, 0);
+    auto placements = generator.planFlora(wx0 - margin, wz0 - margin, wx1 + margin, wz1 + margin, 0);
     if (placements.empty()) return;
     const uint32_t worldSeed = generator.getSeed();
 

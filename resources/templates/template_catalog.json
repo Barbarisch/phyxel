@@ -2240,5 +2240,356 @@
       "forest",
       "procedural"
     ]
+  },
+  "bush_glow_blue": {
+    "display_name": "Glowing Bush (Blue)",
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 62.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "glow_blue",
+    "materials": [
+      "glow_blue"
+    ],
+    "size": 2.0,
+    "cubes": 3,
+    "subcubes": 366,
+    "microcubes": 0,
+    "total": 369,
+    "cost": 0.0,
+    "created": "2026-07-04T02:21:27.824107+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "bush_glow_green": {
+    "display_name": "Glowing Bush (Green)",
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 61.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "glow_green",
+    "materials": [
+      "glow_green"
+    ],
+    "size": 2.0,
+    "cubes": 1,
+    "subcubes": 494,
+    "microcubes": 0,
+    "total": 495,
+    "cost": 0.0,
+    "created": "2026-07-04T02:21:27.812056+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_elder_oak": {
+    "display_name": "Elder Oak (World-Tree)",
+    "description": "Procedural elder_oak tree, height 32, fullness 0.85, seed 53.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log",
+      "glow_green"
+    ],
+    "size": 32.0,
+    "cubes": 35730,
+    "subcubes": 19,
+    "microcubes": 0,
+    "total": 35749,
+    "cost": 0.0,
+    "created": "2026-07-04T13:59:51.101963+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_elder_oak_xl": {
+    "display_name": "Elder Oak (Great World-Tree)",
+    "description": "Procedural elder_oak tree, height 38, fullness 0.85, seed 54.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log",
+      "glow_green"
+    ],
+    "size": 38.0,
+    "cubes": 42041,
+    "subcubes": 5,
+    "microcubes": 0,
+    "total": 42046,
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:00.657169+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_fir_l": {
+    "display_name": "Fir Tree (Tall)",
+    "description": "Procedural fir tree, height 18, fullness 1.0, seed 45.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "size": 18.0,
+    "cubes": 40,
+    "subcubes": 1391,
+    "microcubes": 1,
+    "total": 1432,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.324216+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_fir_m": {
+    "display_name": "Fir Tree (Medium)",
+    "description": "Procedural fir tree, height 14, fullness 1.0, seed 44.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "size": 14.0,
+    "cubes": 11,
+    "subcubes": 784,
+    "microcubes": 1,
+    "total": 796,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.296410+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_pine_l": {
+    "display_name": "Pine Tree (Tall)",
+    "description": "Procedural pine tree, height 18, fullness 1.0, seed 43.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "size": 18.0,
+    "cubes": 8,
+    "subcubes": 1696,
+    "microcubes": 28,
+    "total": 1732,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.268244+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_pine_m": {
+    "display_name": "Pine Tree (Medium)",
+    "description": "Procedural pine tree, height 12, fullness 1.0, seed 42.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "size": 12.0,
+    "cubes": 5,
+    "subcubes": 506,
+    "microcubes": 20,
+    "total": 531,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.231061+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_pine_s": {
+    "display_name": "Pine Tree (Small)",
+    "description": "Procedural pine tree, height 10, fullness 1.0, seed 41.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "size": 10.0,
+    "cubes": 4,
+    "subcubes": 291,
+    "microcubes": 16,
+    "total": 311,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.208924+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_redwood_l": {
+    "display_name": "Redwood (Broad Giant)",
+    "description": "Procedural redwood tree, height 46, fullness 0.85, seed 51.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "size": 46.0,
+    "cubes": 26550,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 26550,
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:06.319337+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_redwood_xl": {
+    "display_name": "Redwood (Great Broad Giant)",
+    "description": "Procedural redwood tree, height 56, fullness 0.85, seed 52.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "size": 56.0,
+    "cubes": 38336,
+    "subcubes": 0,
+    "microcubes": 0,
+    "total": 38336,
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:14.191439+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_spruce_crisp_l": {
+    "display_name": "Spruce Tree (Crisp, Large)",
+    "description": "Procedural spruce tree, height 13, fullness 1.0, seed 47.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "size": 13.0,
+    "cubes": 183,
+    "subcubes": 2578,
+    "microcubes": 1,
+    "total": 2762,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.406365+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
+  },
+  "tree_spruce_crisp_m": {
+    "display_name": "Spruce Tree (Crisp)",
+    "description": "Procedural spruce tree, height 9, fullness 1.0, seed 46.",
+    "prompt": null,
+    "model": "procedural/gen_tree.py",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "size": 9.0,
+    "cubes": 38,
+    "subcubes": 1012,
+    "microcubes": 1,
+    "total": 1051,
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.352363+00:00",
+    "category": "nature",
+    "subcategory": "trees",
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ]
   }
 }
