@@ -32,8 +32,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
     mat4 lightSpaceMatrix;
+    vec3 sunDirection;
+    vec3 sunColor;
     uint numInstances;
     float ambientLight;
+    float emissiveMultiplier;
+    vec3 cameraPosition;
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -190,17 +198,8 @@ void main() {
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
     
-    // Calculate shadow coordinates
-    // Transform world position to light space
-    // Vulkan clip space is [0,1] for Z, but [-1,1] for XY.
-    // We need to transform from clip space [-1,1] to texture space [0,1]
-    const mat4 biasMat = mat4( 
-        0.5, 0.0, 0.0, 0.0,
-        0.0, 0.5, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.5, 0.5, 0.0, 1.0 
-    );
-    shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+    // Shadow coordinates: bias(clip [-1,1] -> UV [0,1]) * lightSpace, precombined on CPU
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
 
     // Calculate normal based on faceID
     if (faceID == 0u) outNormal = vec3(0.0, 0.0, 1.0);       // Front (+Z)
@@ -315,7 +314,7 @@ void main() {
     
     // CPU pre-filtering: Only vertices for visible faces are sent to GPU
     // No need for face visibility checking - all vertices here should be rendered
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
     // inTint packs 0xRRGGBB tint in bits 0-23 and the voxel STATE in bits 24-31.
     // Tint multiplies the material albedo in voxel.frag; state drives glow/wet/etc.

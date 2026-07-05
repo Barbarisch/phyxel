@@ -427,8 +427,10 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
     auto& registry = MaterialRegistry::instance();
     const int c0 = registry.getTextureCount(0), c1 = registry.getTextureCount(1);
 
-    // Per-layer material PBR props packed into the SSBO's (now repurposed) textureUVs[] array:
-    //   x = metallic, y = roughness scalar. Global index = layer (class 0) or c0+layer (class 1).
+    // Per-layer material props packed into the SSBO's (repurposed) textureUVs[] array:
+    //   x = metallic, y = roughness scalar, z = emissiveStrength, w = emissiveThreshold
+    //   (masked emission — docs/MaskedEmissiveSpec.md; z=0 = ordinary material).
+    // Global index = layer (class 0) or c0+layer (class 1).
     std::vector<glm::vec4> props(std::max(1, c0 + c1), glm::vec4(0.0f, 0.5f, 0.0f, 0.0f));
     for (const auto& mat : registry.getAllMaterials()) {
         int matID = registry.getMaterialID(mat.name);
@@ -436,6 +438,8 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
         const MaterialDef* md = registry.getMaterial(matID);
         float metallic = md ? md->physics.metallic : 0.0f;
         float roughness = md ? md->physics.roughness : 0.5f;
+        float emStr = md ? md->emissiveStrength : 0.0f;
+        float emThr = md ? md->emissiveThreshold : 0.55f;
         for (int f = 0; f < 6; f++) {
             uint16_t idx = registry.getTextureIndex(matID, f);
             if (idx == MaterialRegistry::INVALID_TEXTURE_INDEX) continue;
@@ -443,7 +447,7 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
             int layer = idx & MaterialRegistry::LAYER_MASK;
             int gi = (cls == 1) ? c0 + layer : layer;
             if (gi >= 0 && gi < static_cast<int>(props.size()))
-                props[gi] = glm::vec4(metallic, roughness, 0.0f, 0.0f);
+                props[gi] = glm::vec4(metallic, roughness, emStr, emThr);
         }
     }
     device->updateAtlasUVBuffer(props, registry.getPlaceholderIndex(), c0, c1);

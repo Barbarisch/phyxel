@@ -68,12 +68,13 @@ void main() {
     // Note: Offset is relative to the bone center
     vec3 localPos = pos * inScale + inOffset;
     
-    // Apply bone transform (Model Matrix)
-    gl_Position = pushConsts.viewProj * pushConsts.model * vec4(localPos, 1.0);
-    
+    // Apply bone transform (Model Matrix) once, reuse for clip position + world position
+    vec4 worldPos = pushConsts.model * vec4(localPos, 1.0);
+    gl_Position = pushConsts.viewProj * worldPos;
+
     // Transform normal (only rotation from model matrix)
     fragNormal = mat3(pushConsts.model) * normal;
     fragColor = inColor.rgb;
-    fragWorldPos = (pushConsts.model * vec4(localPos, 1.0)).xyz;
+    fragWorldPos = worldPos.xyz;
     fragBakedLight = pushConsts.bakedLight;
 }

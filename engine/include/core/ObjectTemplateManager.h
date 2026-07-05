@@ -133,6 +133,16 @@ public:
     /// Get the absolute file path for a loaded template (empty if not found).
     std::string getTemplatePath(const std::string& name) const;
 
+    /// Column margin decorateChunk inflates its planFlora window by, so a plant rooted in a
+    /// neighbor chunk still stamps its overhang into this one. Driven by the widest loaded
+    /// template's half-footprint (clamped to [12, kFloraMarginCap]) — a fixed 12 silently clipped
+    /// any canopy wider than 12 cubes at chunk seams. See docs/ProceduralTreeExpansionPlan.md B.
+    int floraMarginColumns() const { return m_floraMarginColumns; }
+    // Canopy width ceiling (columns). A wider template's canopy would clip at chunk seams. Raised
+    // to 40 for broad enchanted-forest world-trees (was 24). Cost: decorateChunk's planFlora window
+    // inflates to chunk±40 — hash-cheap, no correctness impact.
+    static constexpr int kFloraMarginCap = 40;
+
     /// Save interaction point definitions back to the template's .txt file.
     /// Replaces or appends "# interaction:" metadata lines.
     bool saveInteractionDefs(const std::string& templateName,
@@ -145,6 +155,10 @@ private:
     Core::KinematicAnimator*     m_animator         = nullptr;  // optional, Phase C
     std::unordered_map<std::string, std::unique_ptr<VoxelTemplate>> m_templates;
 
+    // Widest half-footprint (columns) over all loaded templates, clamped [12, kFloraMarginCap].
+    // Updated in loadTemplate; consumed by decorateChunk as the planFlora window inflation.
+    int m_floraMarginColumns = 12;
+
     // Sequential spawning queue
     std::deque<PendingSpawn> m_pendingSpawns;
     int m_voxelsPerFrame = 200; // Adjust based on performance needs
@@ -155,6 +169,9 @@ private:
 
     // Helper to parse a line from the template file
     void parseLine(const std::string& line, VoxelTemplate& tmpl);
+
+    // Max column overhang of a template from its stamp anchor (see .cpp). Drives the flora margin.
+    static int templateFootprintRadius(const VoxelTemplate& t);
 };
 
 } // namespace Phyxel

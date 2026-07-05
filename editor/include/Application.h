@@ -446,8 +446,8 @@ private:
     // New chunk-level frustum culling
     Utils::Frustum cameraFrustum;
     // Render distance configuration - two-tier system
-    float maxChunkRenderDistance = 96.0f; // Frustum culling distance (actual render distance)
-    float chunkInclusionDistance = 128.0f; // Chunk loading distance (always >= maxChunkRenderDistance)
+    float maxChunkRenderDistance = 192.0f; // Frustum culling distance (actual render distance; doubled from 96)
+    float chunkInclusionDistance = 288.0f; // Chunk loading distance (always >= maxChunkRenderDistance)
     void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
     std::vector<uint32_t> getVisibleChunks();
     std::vector<uint32_t> getVisibleChunksOptimized(); // Spatial query version for large worlds

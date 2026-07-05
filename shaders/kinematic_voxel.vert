@@ -37,6 +37,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint  numInstances;
     float ambientLight;
     float emissiveMultiplier;
+    vec3  cameraPosition;
+    mat4  reflectedViewProj;
+    float elapsedTime;
+    mat4  viewProj;          // proj*view, precombined once per frame on CPU
+    mat4  biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 // Outputs matching voxel.frag inputs exactly
@@ -109,14 +114,8 @@ void main() {
 
     outNormal = normalize(mat3(pc.modelMatrix) * localNormal);
 
-    // Shadow coordinate
-    const mat4 biasMat = mat4(
-        0.5, 0.0, 0.0, 0.0,
-        0.0, 0.5, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.5, 0.5, 0.0, 1.0
-    );
-    shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+    // Shadow coordinate (bias * lightSpace precombined on CPU)
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
 
     flags        = 0u;
     textureIndex = inTextureIndex;
@@ -125,5 +124,5 @@ void main() {
     vSkyLight    = pc.bakedLight.x;    // Phase 4: baked skylight sampled at the object's position
     vBlockColor  = pc.bakedLight.yzw;  // Phase 4: baked block light (glow/spell) at the object
 
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

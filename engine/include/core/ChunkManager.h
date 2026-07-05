@@ -95,9 +95,9 @@ public:
     // Voxel modification system (handles add/remove/update operations)
     ChunkVoxelModificationSystem m_voxelModificationSystem;
     
-    // Chunk streaming settings
-    float loadDistance = 160.0f;   // Distance to load chunks (5 chunks * 32 units)
-    float unloadDistance = 224.0f; // Distance to unload chunks (7 chunks * 32 units)
+    // Chunk streaming settings (default view distance; a game.json loadRadius overrides per world)
+    float loadDistance = 256.0f;   // Distance to load chunks (8 chunks; >= render distance so streamed chunks are loaded before they'd render)
+    float unloadDistance = 352.0f; // Distance to unload chunks (11 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
 
     // Streaming world generation (Phase 1: the generation wire). When enabled, chunks

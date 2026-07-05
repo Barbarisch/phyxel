@@ -22,6 +22,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraPosition;
     mat4 reflectedViewProj;
     float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -153,5 +155,5 @@ void main() {
     // Hash-domain coords again — fract() of a raw far coord is quantized.
     vUV = fract(vec2(cellHash.x + root2.x, cellHash.z + root2.y) * 0.5 + vec2(h0, h1) * 0.3);
 
-    gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

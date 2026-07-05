@@ -17,6 +17,15 @@ struct WorldRecipe {
         std::string templateName;
         int weight = 1;
     };
+    // An additional vegetation band with its own spacing/density (sparse giants over a dense
+    // understory). Mirrors WorldGenerator::Biome::FloraLayer for persistence.
+    struct FloraLayerTune {
+        float density = 0.0f;
+        int   spacing = 6;
+        std::string mode = "pool";
+        float fullness = 0.85f;
+        std::vector<FloraItem> items;
+    };
     struct BiomeTune {
         std::string name;
         float heightScale = 1.0f;          // terrain extremeness for this biome
@@ -24,7 +33,8 @@ struct WorldRecipe {
         float floraFullness = 0.85f;       // canopy density for procedural generation
         float floraDensity = 0.0f;
         int   floraSpacing = 6;
-        std::vector<FloraItem> flora;
+        std::vector<FloraItem> flora;            // layer 0
+        std::vector<FloraLayerTune> extraLayers; // additional bands
     };
 
     int version = 1;
@@ -44,12 +54,22 @@ struct WorldRecipe {
             nlohmann::json items = nlohmann::json::array();
             for (const auto& f : b.flora)
                 items.push_back({{"template", f.templateName}, {"weight", f.weight}});
+            nlohmann::json layers = nlohmann::json::array();
+            for (const auto& L : b.extraLayers) {
+                nlohmann::json litems = nlohmann::json::array();
+                for (const auto& f : L.items)
+                    litems.push_back({{"template", f.templateName}, {"weight", f.weight}});
+                layers.push_back({{"mode", L.mode}, {"fullness", L.fullness},
+                                  {"density", L.density}, {"spacing", L.spacing},
+                                  {"items", litems}});
+            }
             barr.push_back({
                 {"name", b.name},
                 {"extremeness", {{"heightScale", b.heightScale}}},
                 {"flora", {{"mode", b.floraMode}, {"fullness", b.floraFullness},
                            {"density", b.floraDensity}, {"spacing", b.floraSpacing},
                            {"items", items}}},
+                {"floraLayers", layers},
             });
         }
         root["biomes"] = barr;
@@ -79,6 +99,19 @@ struct WorldRecipe {
                         if (f.contains("items") && f["items"].is_array())
                             for (const auto& it : f["items"])
                                 bt.flora.push_back({it.value("template", ""), it.value("weight", 1)});
+                    }
+                    if (b.contains("floraLayers") && b["floraLayers"].is_array()) {
+                        for (const auto& lj : b["floraLayers"]) {
+                            FloraLayerTune L;
+                            L.mode = lj.value("mode", std::string("pool"));
+                            L.fullness = lj.value("fullness", 0.85f);
+                            L.density = lj.value("density", 0.0f);
+                            L.spacing = lj.value("spacing", 6);
+                            if (lj.contains("items") && lj["items"].is_array())
+                                for (const auto& it : lj["items"])
+                                    L.items.push_back({it.value("template", ""), it.value("weight", 1)});
+                            if (!L.items.empty()) bt.extraLayers.push_back(std::move(L));
+                        }
                     }
                     r.biomes.push_back(std::move(bt));
                 }

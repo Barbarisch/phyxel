@@ -66,6 +66,17 @@ public:
     };
     DepthProfile& getDepthProfile() { return depthProfile; }
 
+    // One vegetation band: a weighted template/type pool placed at its own spacing/density by an
+    // independent local-maxima pass. Biomes stack these (a dense understory + sparse giants) —
+    // see Biome::extraFloraLayers. Mirrors the legacy flat flora fields (which are "layer 0").
+    struct FloraLayer {
+        float density = 0.0f;
+        int spacing = 6;
+        std::string mode = "pool";       // "pool" | "procedural"
+        float fullness = 0.85f;
+        std::vector<std::pair<std::string, int>> items;  // (template/type, weight)
+    };
+
     // A biome's material rules, selected by climate (temperature + moisture). Data-driven
     // from resources/biomes.json; a built-in default set is always present as a fallback.
     struct Biome {
@@ -89,8 +100,13 @@ public:
         std::string floraMode = "pool";  // "pool" = stamp templates; "procedural" = generate fresh
         float floraFullness = 0.85f;     // canopy density for procedural generation
         // In "pool" mode the flora pair is (template name, weight); in "procedural" mode the
-        // first is a tree TYPE (oak/birch/bush/spruce/acacia/dead).
+        // first is a tree TYPE (oak/birch/bush/spruce/acacia/dead). These flat fields ARE flora
+        // "layer 0" — the biome's primary vegetation band.
         std::vector<std::pair<std::string, int>> flora;
+        // Additional flora bands with their OWN spacing/density, each placed by an independent
+        // local-maxima pass. Lets one biome carry e.g. sparse giants (spacing 24-32) over a dense
+        // understory (spacing 4-6) — the enchanted-forest requirement. Empty = single-layer (legacy).
+        std::vector<FloraLayer> extraFloraLayers;
     };
 
     // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
@@ -167,7 +183,9 @@ private:
     // Flora placement candidate grid (world columns per cell). Plants are decided per-cell by
     // an order-independent local-maxima test so a single chunk and a whole region agree.
     static constexpr int kFloraGrid = 3;
-    bool floraCell(int cellX, int cellZ, FloraPlacement& out);
+    // Plan one plant for a candidate cell in a given flora layer (0 = the biome's flat flora
+    // fields; 1+ index into Biome::extraFloraLayers). Each layer places independently.
+    bool floraCellLayer(int cellX, int cellZ, int layerIdx, FloraPlacement& out);
 
     // Material selection based on world position and terrain context (City/Random fallback)
     std::string getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const;

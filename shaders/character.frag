@@ -15,6 +15,10 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float ambientLight;
     float emissiveMultiplier;
     vec3 cameraPosition;
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;          // proj*view, precombined once per frame on CPU
+    mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
 } ubo;
 
 // Point light (32 bytes, std430)
@@ -86,13 +90,9 @@ void main() {
     float skyCurve   = sky * sky;
     const float kSkyFill = 0.35;
 
-    // Sun shadow: compute the light-space coord in the frag (the vert has no UBO) and PCF-sample
-    // the same shadow map the world uses. biasMat maps clip xy→[0,1]; z stays [0,1] (orthoRH_ZO).
-    const mat4 biasMat = mat4(0.5, 0.0, 0.0, 0.0,
-                              0.0, 0.5, 0.0, 0.0,
-                              0.0, 0.0, 1.0, 0.0,
-                              0.5, 0.5, 0.0, 1.0);
-    vec4 shadowCoord = biasMat * ubo.lightSpaceMatrix * vec4(fragWorldPos, 1.0);
+    // Sun shadow: light-space coord computed here (the vert has no UBO binding), using the
+    // CPU-precombined bias*lightSpace matrix — one mat4*vec4 instead of a mat4*mat4 per fragment.
+    vec4 shadowCoord = ubo.biasedLightSpace * vec4(fragWorldPos, 1.0);
     float shadowFactor = 1.0;
     bool inShadowMap = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 &&
                        shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;

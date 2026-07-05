@@ -196,7 +196,7 @@ std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& co
     return b.deepMaterial;
 }
 
-bool WorldGenerator::floraCell(int cx, int cz, FloraPlacement& out) {
+bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement& out) {
     if (m_biomes.empty()) return false;
     auto hashu = [](int a, int b, uint32_t salt) -> uint32_t {
         uint32_t h = static_cast<uint32_t>(a) * 374761393u + static_cast<uint32_t>(b) * 668265263u
@@ -205,40 +205,58 @@ bool WorldGenerator::floraCell(int cx, int cz, FloraPlacement& out) {
     };
     auto h01 = [&](int a, int b, uint32_t s) { return (hashu(a, b, s) & 0xFFFFFFu) / static_cast<float>(0x1000000); };
 
+    // Per-layer salt so each layer jitters + prioritizes INDEPENDENTLY — a giant and an understory
+    // plant can each win their own layer at neighboring cells (sparse giants over dense floor).
+    const uint32_t lsalt = static_cast<uint32_t>(layerIdx) * 0x9E3779B1u;
+
     // Jittered site within the cell (so plants aren't on a visible lattice).
-    const int jx = cx * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ 0xA1u) % kFloraGrid);
-    const int jz = cz * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ 0xB2u) % kFloraGrid);
+    const int jx = cx * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ (0xA1u + lsalt)) % kFloraGrid);
+    const int jz = cz * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ (0xB2u + lsalt)) % kFloraGrid);
 
     ColumnSample col = sampleColumn(jx, jz);
     const Biome& biome = m_biomes[col.biomeIndex];
-    if (biome.flora.empty() || biome.floraDensity <= 0.0f) return false;
+
+    // Resolve this layer's config: layer 0 = the biome's flat flora fields, 1+ = extraFloraLayers.
+    float density; int spacingRaw; std::string mode; float fullness;
+    const std::vector<std::pair<std::string, int>>* items;
+    if (layerIdx == 0) {
+        density = biome.floraDensity; spacingRaw = biome.floraSpacing;
+        mode = biome.floraMode; fullness = biome.floraFullness; items = &biome.flora;
+    } else {
+        const int i = layerIdx - 1;
+        if (i >= static_cast<int>(biome.extraFloraLayers.size())) return false;
+        const FloraLayer& L = biome.extraFloraLayers[i];
+        density = L.density; spacingRaw = L.spacing; mode = L.mode; fullness = L.fullness; items = &L.items;
+    }
+    if (items->empty() || density <= 0.0f) return false;
 
     // Local-maximum (Poisson-disk approximation) test: this cell wins only if its priority hash
-    // beats every cell within the biome's spacing radius. Pure function of cell coords + seed →
-    // order-independent, so a streamed chunk and a whole-region pass place identical trees.
-    const int spacing = std::max(2, biome.floraSpacing);
+    // beats every cell within this LAYER's spacing radius. Pure function of cell coords + seed +
+    // layer → order-independent, so a streamed chunk and a whole-region pass place identical plants.
+    const int spacing = std::max(2, spacingRaw);
     const int R = (spacing + kFloraGrid - 1) / kFloraGrid;
-    const uint32_t p = hashu(cx, cz, seed ^ 0x9E3779B9u);
+    const uint32_t psalt = (seed ^ 0x9E3779B9u) + lsalt;
+    const uint32_t p = hashu(cx, cz, psalt);
     for (int nz = cz - R; nz <= cz + R; ++nz)
         for (int nx = cx - R; nx <= cx + R; ++nx) {
             if (nx == cx && nz == cz) continue;
-            const uint32_t q = hashu(nx, nz, seed ^ 0x9E3779B9u);
+            const uint32_t q = hashu(nx, nz, psalt);
             if (q > p || (q == p && (nz < cz || (nz == cz && nx < cx)))) return false;  // neighbor wins
         }
 
     // Density thinning of the spacing-separated winners.
-    if (h01(jx, jz, seed ^ 0xC3u) >= biome.floraDensity) return false;
+    if (h01(jx, jz, seed ^ (0xC3u + lsalt)) >= density) return false;
 
     // Weighted template pick.
     int total = 0;
-    for (const auto& f : biome.flora) total += f.second;
-    int pick = static_cast<int>(h01(jx, jz, seed ^ 0xD4u) * total);
-    const std::string* chosen = &biome.flora.front().first;
-    for (const auto& f : biome.flora) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
+    for (const auto& f : *items) total += f.second;
+    int pick = static_cast<int>(h01(jx, jz, seed ^ (0xD4u + lsalt)) * total);
+    const std::string* chosen = &items->front().first;
+    for (const auto& f : *items) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
 
     out = FloraPlacement{*chosen, jx, col.surfaceY, jz};
-    out.procedural = (biome.floraMode == "procedural");
-    out.fullness = biome.floraFullness;
+    out.procedural = (mode == "procedural");
+    out.fullness = fullness;
     return true;
 }
 
@@ -251,13 +269,20 @@ WorldGenerator::planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ, in
     const int z0 = colMinZ + edgeInset, z1 = colMaxZ - edgeInset;
     if (x1 < x0 || z1 < z0) return out;
 
+    // Max flora layers across all biomes (layer 0 = flat fields; 1+ = extraFloraLayers).
+    int maxLayers = 1;
+    for (const auto& b : m_biomes)
+        maxLayers = std::max(maxLayers, 1 + static_cast<int>(b.extraFloraLayers.size()));
+
     auto floordiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
     for (int cz = floordiv(z0, kFloraGrid); cz <= floordiv(z1, kFloraGrid); ++cz) {
         for (int cx = floordiv(x0, kFloraGrid); cx <= floordiv(x1, kFloraGrid); ++cx) {
-            FloraPlacement p;
-            if (floraCell(cx, cz, p) && p.worldX >= x0 && p.worldX <= x1 &&
-                p.worldZ >= z0 && p.worldZ <= z1)
-                out.push_back(std::move(p));
+            for (int layer = 0; layer < maxLayers; ++layer) {
+                FloraPlacement p;
+                if (floraCellLayer(cx, cz, layer, p) && p.worldX >= x0 && p.worldX <= x1 &&
+                    p.worldZ >= z0 && p.worldZ <= z1)
+                    out.push_back(std::move(p));
+            }
         }
     }
     LOG_DEBUG_FMT("WorldGenerator", "planFlora: " << out.size() << " plants over ["
@@ -291,6 +316,12 @@ WorldRecipe WorldGenerator::makeRecipe() const {
         bt.floraDensity = b.floraDensity;
         bt.floraSpacing = b.floraSpacing;
         for (const auto& f : b.flora) bt.flora.push_back({f.first, f.second});
+        for (const auto& L : b.extraFloraLayers) {
+            WorldRecipe::FloraLayerTune lt;
+            lt.density = L.density; lt.spacing = L.spacing; lt.mode = L.mode; lt.fullness = L.fullness;
+            for (const auto& f : L.items) lt.items.push_back({f.first, f.second});
+            bt.extraLayers.push_back(std::move(lt));
+        }
         r.biomes.push_back(std::move(bt));
     }
     return r;
@@ -310,6 +341,13 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
             if (!bt.flora.empty()) {
                 b.flora.clear();
                 for (const auto& f : bt.flora) b.flora.emplace_back(f.templateName, f.weight);
+            }
+            b.extraFloraLayers.clear();
+            for (const auto& lt : bt.extraLayers) {
+                FloraLayer L;
+                L.density = lt.density; L.spacing = lt.spacing; L.mode = lt.mode; L.fullness = lt.fullness;
+                for (const auto& f : lt.items) L.items.emplace_back(f.templateName, f.weight);
+                if (!L.items.empty()) b.extraFloraLayers.push_back(std::move(L));
             }
             break;
         }
@@ -361,6 +399,24 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
                     int weight = it.value("weight", 1);
                     if (!tmpl.empty() && weight > 0) biome.flora.emplace_back(std::move(tmpl), weight);
                 }
+            }
+        }
+        // Optional additional flora bands, each with its own spacing/density (sparse giants over a
+        // dense understory). Backward-compatible: absent = single-layer biome.
+        if (b.contains("floraLayers") && b["floraLayers"].is_array()) {
+            for (const auto& lj : b["floraLayers"]) {
+                FloraLayer L;
+                L.density = lj.value("density", 0.0f);
+                L.spacing = lj.value("spacing", 6);
+                L.mode = lj.value("mode", std::string("pool"));
+                L.fullness = lj.value("fullness", 0.85f);
+                if (lj.contains("items") && lj["items"].is_array())
+                    for (const auto& it : lj["items"]) {
+                        std::string tmpl = it.value("template", "");
+                        int weight = it.value("weight", 1);
+                        if (!tmpl.empty() && weight > 0) L.items.emplace_back(std::move(tmpl), weight);
+                    }
+                if (!L.items.empty()) biome.extraFloraLayers.push_back(std::move(L));
             }
         }
         loaded.push_back(std::move(biome));

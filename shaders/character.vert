@@ -58,8 +58,11 @@ void main() {
     vec3 inPosition = positions[gl_VertexIndex];
     vec3 inNormal = normals[gl_VertexIndex];
 
-    gl_Position = pushConsts.viewProj * pushConsts.model * vec4(inPosition, 1.0);
+    // Model is always rigid here (identity fallback / translate*rotate batches), so the
+    // normal matrix is just mat3(model) — no per-vertex inverse-transpose needed.
+    vec4 worldPos = pushConsts.model * vec4(inPosition, 1.0);
+    gl_Position = pushConsts.viewProj * worldPos;
     fragColor = pushConsts.color.rgb;
-    fragNormal = mat3(transpose(inverse(pushConsts.model))) * inNormal;
-    fragWorldPos = (pushConsts.model * vec4(inPosition, 1.0)).xyz;
+    fragNormal = mat3(pushConsts.model) * inNormal;
+    fragWorldPos = worldPos.xyz;
 }

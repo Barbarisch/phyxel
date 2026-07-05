@@ -1463,6 +1463,14 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
+// Vulkan clip [-1,1] XY -> shadow-map UV [0,1]; must stay identical to the biasMat
+// the shaders used to build inline (column-major, same as GLSL mat4 constructor).
+static const glm::mat4 kShadowBiasMat(
+    0.5f, 0.0f, 0.0f, 0.0f,
+    0.0f, 0.5f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.5f, 0.5f, 0.0f, 1.0f);
+
 void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight, float emissiveMultiplier, const glm::vec3& cameraPosition, float elapsedTime) {
     UniformBufferObject ubo{};
     ubo.view = view;
@@ -1475,6 +1483,8 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.emissiveMultiplier = emissiveMultiplier;
     ubo.cameraPosition = cameraPosition;
     ubo.elapsedTime = elapsedTime;
+    ubo.viewProj = proj * view;
+    ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;
 
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;
@@ -1627,6 +1637,8 @@ void VulkanDevice::updateReflectionUniformBuffer(uint32_t frameIndex, const glm:
     ubo.emissiveMultiplier = emissiveMultiplier;
     ubo.cameraPosition = cameraPosition;
     ubo.reflectedViewProj = glm::mat4(1.0f); // Not used during reflection rendering
+    ubo.viewProj = proj * reflectedView;
+    ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;
     void* data;
     vkMapMemory(device, reflectionUniformBuffersMemory[frameIndex], 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));

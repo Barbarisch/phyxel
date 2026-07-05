@@ -24,5 +24,5 @@ void main() {
     // Scale and translate
     vec3 worldPos = (inPos * inInstanceScale) + inInstancePos;
     
-    gl_Position = pushConsts.proj * pushConsts.view * vec4(worldPos, 1.0);
+    gl_Position = pushConsts.proj * (pushConsts.view * vec4(worldPos, 1.0));
 }

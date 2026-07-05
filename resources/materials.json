@@ -2730,6 +2730,35 @@
         "top": "wood_walnut_top.png",
         "bottom": "wood_walnut_bottom.png"
       }
+    },
+    {
+      "name": "enchanted_log",
+      "category": "material",
+      "description": "Enchanted oak log - bark with glowing green cracks (masked emissive)",
+      "resolution": 1024,
+      "emissiveStrength": 1.5,
+      "emissiveThreshold": 0.6,
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [0.35, 1.0, 0.45],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "enchanted_log_side_n.png",
+        "side_s": "enchanted_log_side_s.png",
+        "side_e": "enchanted_log_side_e.png",
+        "side_w": "enchanted_log_side_w.png",
+        "top": "enchanted_log_top.png",
+        "bottom": "enchanted_log_bottom.png"
+      }
     }
   ]
 }
