@@ -9,11 +9,12 @@ Ground-up replacement for the pile of bespoke gen_tree.py archetypes. ONE algori
      with branch COUNT driven by attractor density, not a hand-placed limb count.
   2. Segment RADII follow Murray's law (parent^2 ~= sum(child^2)): thick near the trunk,
      tapering to twigs.
-  3. Everything is voxelized at MICROCUBE precision (the engine's finest resolution: 9 micro
-     per cube per axis) and then HIERARCHICALLY COMPRESSED on emit: 729 same-material micros in
-     a cube -> one C(ube); 27 in a subcube -> one S(ubcube); else M(icrocube). So a segment's
-     THICKNESS automatically picks its resolution — the trunk is cubes, twigs are microcubes —
-     using the full cube->micro range with no hand-tuned per-type switches.
+  3. Everything is voxelized on a fine grid (subcube for wood, micro for twigs) and then
+     HIERARCHICALLY COMPRESSED on emit: 729 same-material micros in a cube -> one C(ube); 27 in a
+     subcube -> one S(ubcube); else M(icrocube). Resolution is therefore per-VOXEL, by distance
+     from the surface: a thick trunk's solid INTERIOR collapses to cheap whole cubes while its
+     curved SURFACE keeps a subcube shell (slopes, not 1-cube stairsteps), and twigs stay micro —
+     no hand-tuned per-type switches.
 
 Archetypes (pine, oak, giant, ...) are PARAMETER PRESETS of this one function; `detail` (attractor
 count) is the performance dial. See docs/ProceduralTreeExpansionPlan.md.
@@ -223,7 +224,6 @@ def assign_radii(nodes, params):
     for i, nd in enumerate(nodes):
         if nd["parent"] >= 0:
             children[nd["parent"]].append(i)
-    order = sorted(range(len(nodes)), key=lambda i: -nodes[i]["pos"][1])  # high y first ~ leaves first
     rad = [r_min] * len(nodes)
     # proper post-order via child radii: iterate until stable-ish (tree is shallow enough)
     for i in sorted(range(len(nodes)), reverse=True):
@@ -272,25 +272,24 @@ def add_roots(nodes, rng, params):
             wob = rng.uniform(-0.25, 0.25)                     # heavy randomness
             px += (dx + wob) * step * spread
             pz += (dz - wob) * step * spread
-            py = base[1] - t * rng.uniform(0.4, 1.0)           # dip slightly into the ground
+            py = base[1] - t * rng.uniform(0.05, 0.3)          # hug the ground (y=0 is the floor —
             nodes.append({"pos": (px, py, pz), "parent": parent, "children": [],
-                          "radius": max(r_min, rr * (1.0 - 0.8 * t))})
+                          "radius": max(r_min, rr * (1.0 - 0.8 * t)),
+                          "root": True})                       # roots never grow foliage
             parent = len(nodes) - 1
     return nodes
 
 
 # ============================================================ voxelization
 
-def _res_for_radius(r_cube, round_trunk=False):
-    """Pick voxel size (in micro units) from a segment's radius in cube units: thick -> cube (9),
-    medium -> subcube (3), thin -> microcube (1). This is the crux — thickness picks resolution, so
-    the trunk emits as a few C's while twigs stay M's. round_trunk raises the cube threshold so all
-    but the very thickest wood uses subcubes (rounder trunk, more primitives)."""
-    cube_thresh = 1.0 if round_trunk else 0.45
-    if r_cube >= cube_thresh:
-        return MICRO_PER_CUBE          # 9 -> whole cube
+def _res_for_radius(r_cube):
+    """Pick the RASTERIZATION grid (in micro units) from a segment's radius in cube units.
+    Thick wood rasterizes at SUBCUBE resolution — never cube — so its curved surface carries a
+    subcube shell (slopes, not 1-cube stairsteps); emit() re-compresses the solid interior back to
+    whole C's for free, so cost stays cube-cheap where it's invisible. Twigs stay microcube.
+    (Resolution is thus per-VOXEL — interior C, surface S — not per-segment.)"""
     if r_cube >= 0.16:
-        return SUB_PER_CUBE            # 3 -> whole subcube
+        return SUB_PER_CUBE            # 3 -> subcube surface, emit() gives cube interior
     return 1                           # 1 -> microcube
 
 
@@ -308,7 +307,6 @@ def rasterize_branches(nodes, mv, params):
     Thick segments fill whole grid-aligned CUBES (emit as C); medium fill SUBCUBES (S); twigs fill
     MICROCUBES (M). A limb therefore tapers cube -> sub -> micro along its length."""
     log = params["log_mat"]
-    round_trunk = params.get("round_trunk", False)
     MP = MICRO_PER_CUBE
     for nd in nodes:
         p = nd["parent"]
@@ -318,7 +316,7 @@ def rasterize_branches(nodes, mv, params):
         b = _mul(nd["pos"], MP)
         ra = nodes[p]["radius"] * MP
         rb = nd["radius"] * MP
-        vs = _res_for_radius(max(nodes[p]["radius"], nd["radius"]), round_trunk)
+        vs = _res_for_radius(max(nodes[p]["radius"], nd["radius"]))
         ab = _sub(b, a)
         abl2 = _dot(ab, ab) or 1.0
         rmax = max(ra, rb) + vs
@@ -352,8 +350,10 @@ def add_foliage(nodes, mv, rng, params):
     below = params["leaf_below_r"]
     fv = mv.v
     for nd in nodes:
-        if nd["radius"] > below:
-            continue                                 # only leaf out the thin ends
+        if nd.get("root"):
+            continue                                 # root spurs are wood, never foliage — their
+        if nd["radius"] > below:                     # thin tips would otherwise ALWAYS leaf out
+            continue                                 # (childless => the density roll never applies)
         if nd["children"] and rng.random() > params["leaf_density"]:
             continue
         cx, cy, cz = _mul(nd["pos"], MP)
@@ -391,7 +391,6 @@ def default_params(h, seed):
         "influence": h * 0.5, "kill": max(0.8, h * 0.06), "step": max(0.5, h * 0.04),
         "up_tropism": 0.25, "jitter": 0.35, "max_iter": 220,
         "crook": 0.25,                       # trunk/branch wander: 0 = ramrod straight, 1 = gnarled
-        "round_trunk": False,                # False: cube trunk (blocky, cheap). True: subcube (round)
         "trunk_r": max(0.9, h * 0.075), "r_min": 0.09, "murray_n": 2.5,
         "leaf_r": max(0.6, h * 0.045), "leaf_below_r": 0.42, "leaf_density": 0.95,
         "leaf_res": SUB_PER_CUBE,            # subcube leaves by default (perf lever: 9/3/1)
@@ -423,11 +422,12 @@ PRESETS = {
 _MULT_KEYS = {"canopy_r_mult": "canopy_r", "canopy_h_mult": "canopy_h", "leaf_r_mult": "leaf_r"}
 
 
-# tiers set the perf/quality band. forest = cube trunk + medium density (cheap, run 50+ in a forest);
-# hero = round subcube trunk + denser, finer detail (a few per scene). User-chosen defaults 2026-07-04.
+# tiers set the perf/quality band. forest = medium density (cheap, run 50+ in a forest); hero =
+# denser, finer detail (a few per scene). Trunks are round at BOTH tiers since the rasterizer gives
+# thick wood a subcube surface shell (2026-07-05); the old round_trunk flag is gone.
 TIERS = {
     "forest": {},
-    "hero":   {"round_trunk": True, "leaf_below_r": 0.5, "attractors_mult": 1.5, "leaf_r_mult2": 1.15},
+    "hero":   {"leaf_below_r": 0.5, "attractors_mult": 1.5, "leaf_r_mult2": 1.15},
 }
 
 
@@ -455,41 +455,85 @@ def build_tree(preset="oak", height=15, seed=0, tier="forest", **overrides):
     mv = MicroVoxels()
     rasterize_branches(nodes, mv, p)
     add_foliage(nodes, mv, rng, p)
+    # Ground plane: y=0 IS the template floor. emit() rebases to the lowest voxel, so anything the
+    # flared base cap or root spurs pushed below y=0 would float the whole trunk above the floor
+    # when the template is stamped on terrain. Clip it — the trunk sits flush, roots lie on the
+    # ground as tapering half-round ridges.
+    mv.v = {k: m for k, m in mv.v.items() if k[1] >= 0}
     return mv, len(nodes)
 
 
-if __name__ == "__main__":
-    import argparse
+def bake(preset, height, seed=0, tier="forest", name=None, out=None, display_name=None,
+         outdir=None, **overrides):
+    """Bake one tree to a .voxel template with a full-provenance header. Used by both the
+    single-tree CLI and --batch. Returns the one-line summary string."""
     import os
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--preset", default="oak", choices=sorted(PRESETS))
-    ap.add_argument("--tier", default="forest", choices=sorted(TIERS), help="forest (cheap) | hero (round trunk, denser)")
-    ap.add_argument("--height", type=int, default=15)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--attractors", type=int, default=None, help="detail dial (default from height)")
-    ap.add_argument("--name", default=None)
-    ap.add_argument("--out", default=None, help="output .voxel path (default resources/templates/<name>.voxel)")
-    args = ap.parse_args()
-    ov = {}
-    if args.attractors is not None:
-        ov["attractors"] = args.attractors
-    mv, nnodes = build_tree(args.preset, args.height, args.seed, **ov)
+    mv, nnodes = build_tree(preset, height, seed, tier, **overrides)
     lines, (nc, ns, nm), bounds = emit(mv)
-    name = args.name or f"forge_{args.preset}_{args.height}_s{args.seed}"
+    name = name or f"forge_{preset}_{height}_s{seed}"
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = args.out or os.path.join(repo, "resources", "templates", f"{name}.voxel")
+    if out is None:
+        out = os.path.join(outdir or os.path.join(repo, "resources", "templates"), f"{name}.voxel")
+    gen = f"tree_forge.py --preset {preset} --height {height} --seed {seed} --tier {tier}"
+    gen += "".join(f" --{k} {overrides[k]}" for k in sorted(overrides) if k == "attractors")
+    extra = {k: v for k, v in overrides.items() if k != "attractors"}
     header = [
         "# ==========================================================",
         f"# name:         {name}",
-        f"# display_name: {args.preset.capitalize()} (forge h{args.height})",
+        f"# display_name: {display_name or f'{preset.capitalize()} (forge h{height})'}",
         f"# description:  Unified space-colonization tree, {nnodes} nodes.",
         "# category:     nature", "# subcategory:  trees", "# facing:       +Z",
         f"# bounds:       {bounds[0]}W x {bounds[1]}H x {bounds[2]}D cubes",
         f"# primitives:   {nc} C + {ns} S + {nm} M = {nc + ns + nm}",
-        f"# generator:    tree_forge.py --preset {args.preset} --height {args.height} --seed {args.seed}",
-        "# ==========================================================", "",
+        f"# generator:    {gen}",
     ]
+    if extra:                                # non-CLI param overrides, recorded for regen
+        import json as _json
+        header.append(f"# overrides:    {_json.dumps(extra, sort_keys=True)}")
+    header += ["# ==========================================================", ""]
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(header + lines) + "\n")
-    print(f"{name}: {nnodes} nodes -> {nc}C + {ns}S + {nm}M = {nc+ns+nm}, "
-          f"bounds {bounds[0]}x{bounds[1]}x{bounds[2]} -> {os.path.relpath(out, repo)}")
+    try:
+        shown = os.path.relpath(out, repo)
+    except ValueError:                       # Windows: --out on a different drive than the repo
+        shown = out
+    return (f"{name}: {nnodes} nodes -> {nc}C + {ns}S + {nm}M = {nc+ns+nm}, "
+            f"bounds {bounds[0]}x{bounds[1]}x{bounds[2]} -> {shown}")
+
+
+def main(argv=None):
+    import argparse
+    import json
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--preset", default="oak", choices=sorted(PRESETS))
+    ap.add_argument("--tier", default="forest", choices=sorted(TIERS), help="forest (cheap, 50+/scene) | hero (denser)")
+    ap.add_argument("--height", type=int, default=15)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--attractors", type=int, default=None, help="detail dial (default from height)")
+    ap.add_argument("--name", default=None)
+    ap.add_argument("--out", default=None, help="output .voxel path (default <outdir>/<name>.voxel)")
+    ap.add_argument("--batch", default=None, metavar="MANIFEST.json",
+                    help="bake a library: [{name, preset, height, seed, tier, ...overrides}, ...] "
+                         "(see tools/forge_library.json)")
+    ap.add_argument("--outdir", default=None, help="output directory (default resources/templates)")
+    args = ap.parse_args(argv)
+
+    if args.batch:
+        with open(args.batch, encoding="utf-8") as f:
+            entries = json.load(f)
+        for e in entries:
+            print(bake(outdir=args.outdir, **e))
+        print(f"batch: {len(entries)} trees baked from {args.batch}")
+        return 0
+
+    ov = {}
+    if args.attractors is not None:
+        ov["attractors"] = args.attractors
+    print(bake(args.preset, args.height, args.seed, args.tier,
+               name=args.name, out=args.out, outdir=args.outdir, **ov))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

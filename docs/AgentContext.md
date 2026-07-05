@@ -1049,6 +1049,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 - **Editor UI:** action buttons (Reset/Delete/…) always visible regardless of state;
   per-object properties on the object's panel; global action settings on their own panel.
 - Wants thorough design/planning discussion before building large features.
+- **Detailed by default — in the ENGINE (2026-07-05):** procedural generators must produce
+  sub/micro surface detail as their DEFAULT output, never behind an opt-in flag or "hero" tier.
+  The user should never have to ask for detail. Exemplar: tree_forge rasterizes all thick wood
+  at subcube resolution unconditionally (emit() re-compresses interiors to cheap cubes, so
+  detail costs only the surface shell — +2.4% prims on an oak); its `round_trunk` flag was
+  DELETED rather than defaulted-on. Apply the same standard to any future generator (structure
+  gen, ProceduralTree, rocks/flora): coarse interior + fine surface, detail unconditional,
+  perf spent where it's visible.
 
 ---
 

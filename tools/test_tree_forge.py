@@ -129,12 +129,16 @@ def test_crook_zero_is_straight_nonzero_bends():
     assert _stem_deviation(0.65) > 0.3, "crook=0.65 should visibly bend the trunk"
 
 
-def test_round_trunk_shifts_cube_to_subcube():
-    """round_trunk (ISOLATED, same seed/attractors) must trade cubes for subcubes — the real
-    signal, which the raw forest-vs-hero counts hide because hero also adds attractors."""
-    _, (nc0, ns0, _), _ = tf.emit(tf.build_tree("oak", 22, 2, round_trunk=False)[0])
-    _, (nc1, ns1, _), _ = tf.emit(tf.build_tree("oak", 22, 2, round_trunk=True)[0])
-    assert nc1 < nc0 and ns1 > ns0, f"round_trunk should shift C->S: {nc0}C/{ns0}S -> {nc1}C/{ns1}S"
+def test_real_trunk_band_has_subcube_shell():
+    """The trunk of a REAL tree (bottom 3 cubes, where the user sees it) must carry subcube/micro
+    surface detail, not read as pure full-cube stairsteps. (Supersedes the old round_trunk test —
+    thick wood now always rasterizes with a subcube shell; emit() keeps the interior as cubes.)"""
+    mv, _ = tf.build_tree("oak", 22, 2)
+    band = tf.MicroVoxels()
+    band.v = {k: m for k, m in mv.v.items() if k[1] < 3 * tf.MICRO_PER_CUBE}
+    _, (nc, ns, nm), _ = tf.emit(band)
+    assert ns + nm > 0, f"trunk band is pure cubes ({nc}C {ns}S {nm}M) — surface shell missing"
+    assert nc > 0, f"trunk band lost its cube interior ({nc}C {ns}S {nm}M) — perf regression"
 
 
 def test_pine_taller_narrower_than_oak():
@@ -157,6 +161,96 @@ def test_determinism():
     assert a[0] == b[0] and a[1] == b[1], "same seed must be reproducible"
 
 
+def test_thick_trunk_has_subvoxel_shell():
+    """A THICK limb must not alias its curved surface to whole-cube steps: the interior may be
+    cubes (cheap, merged) but the SURFACE band must be finer voxels. Rasterize a single fat
+    vertical capsule (r=1.5 cubes) and demand a mixed emit: cube interior AND a sub/micro shell."""
+    p = tf.default_params(15, 1)
+    nodes = [{"pos": (0.0, 0.0, 0.0), "parent": -1, "radius": 1.5, "children": [1]},
+             {"pos": (0.0, 10.0, 0.0), "parent": 0, "radius": 1.5, "children": []}]
+    mv = tf.MicroVoxels()
+    tf.rasterize_branches(nodes, mv, p)
+    _, (nc, ns, nm), _ = tf.emit(mv)
+    assert nc > 0, f"fat capsule should keep a cube interior, got {nc}C {ns}S {nm}M"
+    assert ns + nm > 0, (f"fat capsule surface must be sub/micro (slopes, not 1-cube stairsteps), "
+                         f"got {nc}C {ns}S {nm}M")
+
+
+def test_cli_passes_tier_through():
+    """BUG (a): the CLI parses --tier but must actually pass it to build_tree. Baking the same
+    (preset,height,seed) at --tier forest vs --tier hero must produce DIFFERENT output (hero adds
+    attractors + round trunk), and the provenance header must record the tier for regen."""
+    import subprocess
+    import tempfile
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tree_forge.py")
+    with tempfile.TemporaryDirectory() as td:
+        outs = {}
+        for tier in ("forest", "hero"):
+            out = os.path.join(td, f"t_{tier}.voxel")
+            r = subprocess.run([sys.executable, script, "--preset", "oak", "--height", "10",
+                                "--seed", "3", "--tier", tier, "--out", out],
+                               capture_output=True, text=True)
+            assert r.returncode == 0, f"CLI failed (--tier {tier}, --out off-repo-drive): {r.stderr.strip()}"
+            with open(out, encoding="utf-8") as f:
+                outs[tier] = f.read()
+    assert outs["forest"] != outs["hero"], "--tier hero must change the baked tree (it was ignored)"
+    assert "--tier hero" in outs["hero"], "provenance header must record the tier"
+
+
+def test_batch_mode_bakes_manifest():
+    """Roadmap step 2: --batch <manifest.json> must bake every entry to --outdir with per-entry
+    provenance (incl. tier), and re-running must be byte-identical (reproducible library regen)."""
+    import json
+    import subprocess
+    import tempfile
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tree_forge.py")
+    manifest = [{"name": "t_a", "preset": "oak", "height": 8, "seed": 1},
+                {"name": "t_b", "preset": "pine", "height": 8, "seed": 2, "tier": "hero"}]
+    with tempfile.TemporaryDirectory() as td:
+        mp = os.path.join(td, "lib.json")
+        with open(mp, "w", encoding="utf-8") as f:
+            json.dump(manifest, f)
+
+        def bake_all():
+            r = subprocess.run([sys.executable, script, "--batch", mp, "--outdir", td],
+                               capture_output=True, text=True)
+            assert r.returncode == 0, f"--batch failed: {r.stderr.strip() or r.stdout.strip()}"
+            out = {}
+            for e in manifest:
+                p = os.path.join(td, e["name"] + ".voxel")
+                assert os.path.exists(p), f"batch did not bake {e['name']}"
+                with open(p, encoding="utf-8") as f:
+                    out[e["name"]] = f.read()
+            return out
+
+        first = bake_all()
+        assert "--tier hero" in first["t_b"], "batch entry tier missing from provenance header"
+        assert "--preset oak" in first["t_a"], "provenance header missing generator flags"
+        second = bake_all()
+        assert first == second, "batch regen must be byte-identical (determinism)"
+
+
+def test_no_foliage_on_roots():
+    """BUG (b): root-spur tips taper below leaf_below_r and have no children (the density roll never
+    applies), so leaf blobs grow at ground level around every trunk base. Foliage must never appear
+    on/near the roots: no leaf micros below 2 cubes (canopy base is far higher on an h=15 oak)."""
+    mv, _ = tf.build_tree("oak", 15, 1)
+    ground_leaves = [k for k, m in mv.v.items() if m == "Leaf" and k[1] < 2 * tf.MICRO_PER_CUBE]
+    assert not ground_leaves, f"{len(ground_leaves)} leaf micros near/below ground (root foliage)"
+
+
+def test_trunk_base_sits_on_template_floor():
+    """BUG (c): emit() rebases to the lowest voxel, and roots/base-cap dip below y=0, so the trunk
+    ends up floating above the template floor when stamped on terrain. The generator-space ground
+    plane (y=0) must BE the floor: no micros below it, and wood present in the bottom micro layers
+    (ground contact is trunk/roots, not a rebased leaf blob)."""
+    mv, _ = tf.build_tree("oak", 15, 1)
+    below = [k for k in mv.v if k[1] < 0]
+    assert not below, f"{len(below)} micros below the ground plane (tree will float when placed)"
+    bottom_wood = [k for k, m in mv.v.items() if m == "Log" and k[1] < tf.MICRO_PER_CUBE]
+    assert bottom_wood, "no wood in the bottom cube layer — nothing contacts the ground"
+
+
 def _main():
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
@@ -165,6 +259,8 @@ def _main():
             fn(); print(f"PASS {name}")
         except AssertionError as e:
             failed += 1; print(f"FAIL {name}: {e}")
+        except Exception as e:                    # an erroring test must not kill the run
+            failed += 1; print(f"FAIL {name}: {type(e).__name__}: {e}")
     print(f"\n{len(tests) - failed}/{len(tests)} passed")
     return 1 if failed else 0
 

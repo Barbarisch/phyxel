@@ -11,9 +11,13 @@ parameter presets; detail and resolution fall out of the algorithm.
    genuinely recursive trunk → limbs → branches → twigs; branch COUNT is set by attractor density,
    not a hand-placed limb count. Radii via Murray's law (`assign_radii`, affine-remapped so the trunk
    hits `trunk_r` while twigs stay at `r_min`).
-2. **Multi-resolution voxelization** (`rasterize_branches` + `_res_for_radius`) — each segment is
-   rasterized at the resolution its RADIUS earns: thick → whole **cubes**, medium → **subcubes**,
-   thin → **microcubes**. A limb tapers cube→sub→micro along its length.
+2. **Multi-resolution voxelization** (`rasterize_branches` + `_res_for_radius`) — wood rasterizes
+   at **subcube** resolution (twigs at **micro**); `emit` re-compresses solid interiors to whole
+   cubes. Resolution is therefore **per-voxel by surface proximity** — a thick trunk = cheap C
+   interior + subcube surface shell (slopes, not 1-cube stairsteps). (Reworked 2026-07-05 after
+   the user caught trunks rendering as pure full cubes; the old per-segment cube path and the
+   `round_trunk` flag are gone — trunks are round at every tier. `test_thick_trunk_has_subvoxel_shell`
+   + `test_real_trunk_band_has_subcube_shell`, red-first. Cost: hero oak 35361→36217 prims, +2.4%.)
 3. **Hierarchical emit** (`emit`) — everything lives in a micro grid (9 micro/cube/axis); on output,
    729 same-material micros in a cube collapse to one `C`, 27 in a subcube to one `S`, else `M`. So
    thickness auto-picks resolution with no per-type switch. (`test_tree_forge.py`, 5/5.)
@@ -64,6 +68,69 @@ splay — on for every tree), materials.
 - **Presets** = archetype feel: `oak` (broad dome, weak leader, gnarled), `pine` (conical, strong
   leader, straight, spruce mats), plus `birch`/`redwood`/`elder_oak`. Verified in-engine: oak vs pine
   read as clearly distinct; **root flare visible** (base splays wider than the straight trunk).
+
+## Roadmap — forge as THE standard tree generator (agreed with user 2026-07-05)
+
+tree_forge becomes the engine's standard procedural tree/organic generator, **pool-mode first**
+(Python bakes templates offline; no C++ port until a biome actually needs runtime-unique trees —
+today none uses `procedural` mode). Migration gate: every archetype in `tree_library.json` has a
+forge equivalent that survives visual A/B — not merely "forge exists".
+
+1. **Fix known bugs** (found in review 2026-07-05) — **DONE 2026-07-05**, red-before-green
+   (`test_tree_forge.py` 14/14; the 3 new tests shown failing first: 6129 ground-leaf micros,
+   21870 below-ground micros, CLI crash). Also found+fixed (d): `os.path.relpath` crashed the CLI
+   whenever `--out` was on a different drive than the repo (Windows). Root dip softened to
+   0.05–0.3 so root ridges survive the ground clip. Baked forest vs hero oak now differ
+   (16068 vs 35361 primitives) with tier recorded in the provenance header.
+   (a) CLI `--tier` is parsed but never passed to `build_tree` (tree_forge.py:476) — hero tier
+   unreachable from the command line; also record tier + attractor overrides in the `# generator:`
+   provenance header.
+   (b) `add_foliage` runs over root-spur nodes: root tips taper below `leaf_below_r` AND have empty
+   `children` (density roll never applies) → every tree grows always-on leaf blobs at/below ground
+   level around its base (measured: 5/10 root nodes on a stock oak, y ≈ −0.5..−0.7). Likely much of
+   the "blobby roots" complaint. Fix: tag root nodes, skip in foliage.
+   (c) `emit` rebases to the lowest voxel, so below-ground roots/leaves lift the trunk ~1–1.5 cubes
+   above the template floor — at placement the ground-contact point is a leaf blob, inverting the
+   "roots dip into the ground" intent. Needs an explicit ground-plane anchor in the header or emit.
+2. **`forge_library.json` batch mode** mirroring `gen_tree.py --batch` — reproducible full-library
+   regen with provenance. **DONE 2026-07-05**: `tree_forge.py --batch tools/forge_library.json
+   [--outdir DIR]`; per-entry provenance headers (tier + attractor flags + JSON overrides line);
+   byte-identical regen pinned by `test_batch_mode_bakes_manifest` (red-first). Starter manifest
+   ships 9 entries (giants carry `leaf_res: 9` per the megaflora perf rule); actual bake into
+   resources/ is step 4.
+3. **Close archetype gaps**: umbrella envelope (acacia), downward tropism (weeping willow),
+   dead/bush presets; settle the crisp-conifer question (space colonization is organic — the
+   tiered-whorl crisp pine/fir aesthetic from Increment A may need a whorl mode; run
+   `test_tree_sharpness.py` metrics against forge conifers before migrating them).
+4. **Bake + wire**: full forge library into `biomes.json` pool flora side-by-side with gen_tree,
+   A/B per biome in-engine, then retire gen_tree in one commit. Giant-tier presets must ENFORCE
+   `leaf_res=cube` (the megaflora perf rule) rather than rely on remembering.
+5. **Extract `MicroVoxels` + `emit()`** as the shared substrate for future organic generators
+   (rocks, vines, roots, stalagmites) — the multi-res emit is the reusable standard, forge is its
+   first client.
+
+## Foliage appearance track (user vision 2026-07-05 — parallel to the roadmap above)
+
+Forge decides WHERE leaf voxels go; this track decides what a leaf voxel LOOKS like. They meet
+only at `leaf_res`. Aim lofty, optimize later (user directive).
+
+- **Today**: leaf cards are a procedural ellipse discard (`foliage.frag:20`) — flat circles
+  sampling the leaf texture for colour only. All cutout machinery (discard, per-card hash,
+  wind) already exists; only the SHAPE is primitive.
+- **Tier 1 — voxel-native cutout masks**: per-species alpha masks (oak lobed cluster / birch
+  sparse / spruce needle tuft / jungle frond) in the leaf textures' alpha channel (atlas already
+  loads RGBA; BC7 carries alpha). Author on a chunky hard-edged pixel grid — or GENERATE masks by
+  rendering micro-voxel leaf clusters ("leaf_forge") — so the see-through gaps read as voxel-shaped
+  holes, leaning into the engine aesthetic. Multiple variants per species, picked by the existing
+  per-card hash.
+- **Tier 2 — canopy lights like a volume**: card normal = direction from cluster/crown centre
+  (volume shading), sun-behind-leaf transmission, interior darkening. **Foliage shadow pass** —
+  currently canopies cast NO shadows (mesher skips solid leaf faces; no foliage shadow pipeline;
+  trunk-only shadows — arguably a live bug). `foliage_shadow.vert` + same alpha discard = dappled
+  light.
+- **Tier 3 — lofty**: per-species card geometry + per-material card size/count (now global push
+  constants), flutter/gusts/leaf-fall, distance impostors + alpha-to-coverage (explicitly
+  deferred perf work).
 
 ## Session-2 additions (2026-07-04)
 Added `crook` (trunk lean via damped random walk + branch wander), `round_trunk`, the `forest`/`hero`
