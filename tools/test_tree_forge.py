@@ -275,6 +275,28 @@ def test_every_preset_bakes_with_expected_materials():
             assert expect_leaf[preset] in mats, f"{preset} missing {expect_leaf[preset]} (has {mats})"
 
 
+def test_substrate_extraction_is_pure():
+    """Roadmap step 5: MicroVoxels/emit/rasterizers live in forge_core (shared substrate).
+    tree_forge must re-export the SAME objects, and — the real proof — rebaking a library
+    template through the extracted code must be byte-identical to the committed .voxel."""
+    import tempfile
+    import forge_core as fc
+    assert tf.emit is fc.emit and tf.MicroVoxels is fc.MicroVoxels, "tree_forge must reuse forge_core"
+
+    committed = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "resources", "templates", "forge_oak_m.voxel")
+    if not os.path.exists(committed):
+        return  # library not baked on this checkout; identity assert above still ran
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "forge_oak_m.voxel")
+        tf.bake("oak", 13, 11, "forest", name="forge_oak_m", out=out)
+        with open(out, encoding="utf-8") as f:
+            fresh = f.read()
+    with open(committed, encoding="utf-8") as f:
+        old = f.read()
+    assert fresh == old, "substrate extraction changed bake output — NOT a pure refactor"
+
+
 def test_batch_mode_bakes_manifest():
     """Roadmap step 2: --batch <manifest.json> must bake every entry to --outdir with per-entry
     provenance (incl. tier), and re-running must be byte-identical (reproducible library regen)."""

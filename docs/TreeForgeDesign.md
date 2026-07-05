@@ -136,7 +136,19 @@ forge equivalent that survives visual A/B — not merely "forge exists".
    LodTest/worlds/forge_flora_test.db.
 5. **Extract `MicroVoxels` + `emit()`** as the shared substrate for future organic generators
    (rocks, vines, roots, stalagmites) — the multi-res emit is the reusable standard, forge is its
-   first client.
+   first client. **DONE 2026-07-05:** `tools/forge_core.py` = MicroVoxels canvas + hierarchical
+   C/S/M emit + `rasterize_capsule`/`rasterize_sphere`/`fill_voxel` grid primitives (with the
+   determinism contract documented in its docstring); tree_forge imports/re-exports it.
+   Proven a PURE refactor: `test_substrate_extraction_is_pure` rebakes forge_oak_m through the
+   extracted code byte-identical to the committed template (suite 23/23). Future generators
+   (rock_forge, vine_forge, ...) start from forge_core, pick a grid one level finer than their
+   bulk, and get cube-cheap interiors + fine surface shells for free.
+
+**ROADMAP COMPLETE (2026-07-05).** tree_forge is the engine's standard tree/organic generator.
+Remaining parked work: the foliage-appearance track below (cutout leaf masks, foliage shadow
+pass), fir mid-cone patchiness + willow curtain uniformity polish, the EnchantedForest giant
+Release-build perf flythrough, and the asset-editor reload-crash engine bug
+(StructurePipelineGaps.md).
 
 ## Foliage appearance track (user vision 2026-07-05 — parallel to the roadmap above)
 
