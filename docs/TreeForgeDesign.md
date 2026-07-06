@@ -178,6 +178,15 @@ only at `leaf_res`. Aim lofty, optimize later (user directive).
   currently canopies cast NO shadows (mesher skips solid leaf faces; no foliage shadow pipeline;
   trunk-only shadows — arguably a live bug). `foliage_shadow.vert` + same alpha discard = dappled
   light.
+  **Shadow pass DONE 2026-07-05:** `foliage_shadow.vert/.frag` (identical card fan/wind math,
+  projected by ubo.lightSpaceMatrix, depth-only, same cutout mask → DAPPLED shadows);
+  `FoliageRenderPipeline::initializeShadow/renderShadow` (reuses the pipeline layout; the main
+  per-frame descriptor set is legal in the shadow pass because the shadow shaders never
+  statically use the shadow-map sampler binding); RenderCoordinator records it last in
+  renderShadowPass with the same shadow-sphere culling as static chunks. Verified live in the
+  forge world: oaks pool broad dappled canopy shadows (previously trunk-only), ridge trees
+  shadow at distance, Debug FPS unchanged (~22-25), no Vulkan errors. Volume-normal shading +
+  transmission remain open Tier-2 items.
 - **Tier 3 — lofty**: per-species card geometry + per-material card size/count (now global push
   constants), flutter/gusts/leaf-fall, distance impostors + alpha-to-coverage (explicitly
   deferred perf work).

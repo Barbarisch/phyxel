@@ -250,6 +250,12 @@ RenderCoordinator::RenderCoordinator(
             vulkanDevice->getDescriptorSetLayout())) {
         LOG_ERROR("RenderCoordinator", "Failed to initialize FoliageRenderPipeline");
         foliagePipeline.reset();
+    } else if (shadowMap) {
+        // Shadow-caster variant: canopies cast dappled cutout shadows (previously leaf voxels
+        // cast NONE — the mesher skips their solid faces, so only trunks shadowed the ground).
+        foliagePipeline->initializeShadow(
+            shadowMap->getRenderPass(),
+            VkExtent2D{shadowMap->getWidth(), shadowMap->getHeight()});
     }
 
     // Far-terrain LOD tiles (blocky heightmap columns beyond the real-chunk radius).
@@ -1110,6 +1116,25 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
         VkDeviceSize faceOffset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 1, 1, &faceBuffer, &faceOffset);
         vkCmdDrawIndirect(commandBuffer, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
+    }
+
+    // -------------------------------------------------------------------------
+    // Foliage leaf-card shadow pass — dappled canopy shadows (same cutout masks as the visible
+    // cards; the vert projects with ubo.lightSpaceMatrix, which drawFrame updates every frame).
+    // Same shadow-sphere culling as the static chunks above.
+    // -------------------------------------------------------------------------
+    if (foliagePipeline && foliagePipeline->params().enabled && chunkManager) {
+        std::vector<FoliageRenderPipeline::ChunkDraw> foliageDraws;
+        for (const auto& chunk : chunkManager->chunks) {
+            if (!chunk || chunk->getFoliageCount() == 0) continue;
+            glm::vec3 chunkCenter = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
+            if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue;
+            glm::ivec3 origin = chunk->getWorldOrigin();
+            foliageDraws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
+                                     glm::vec3(origin.x, origin.y, origin.z) });
+        }
+        foliagePipeline->renderShadow(commandBuffer,
+                                      vulkanDevice->getDescriptorSet(currentFrame), foliageDraws);
     }
 
     shadowMap->endRenderPass(commandBuffer);

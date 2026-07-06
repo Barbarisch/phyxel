@@ -739,6 +739,21 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+echo Compiling foliage shadow vertex shader...
+%GLSLANG% -V -I. shaders\foliage_shadow.vert -o shaders\foliage_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile foliage_shadow.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling foliage shadow fragment shader...
+%GLSLANG% -V -I. shaders\foliage_shadow.frag -o shaders\foliage_shadow.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile foliage_shadow.frag
+    pause
+    exit /b 1
+)
 
 echo Compiling far terrain vertex shader...
 %GLSLANG% -V -I. shaders\far_terrain.vert -o shaders\far_terrain.vert.spv

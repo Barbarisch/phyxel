@@ -29,6 +29,11 @@ public:
     bool initialize(VkDevice device, VkPhysicalDevice physicalDevice,
                     VkRenderPass renderPass, VkExtent2D extent,
                     VkDescriptorSetLayout uboDescriptorSetLayout);
+
+    /// Create the shadow-caster variant (depth-only, same alpha cutout) against the shadow map's
+    /// render pass. Call AFTER initialize(); safe to skip — foliage then simply casts no shadows.
+    bool initializeShadow(VkRenderPass shadowRenderPass, VkExtent2D shadowExtent);
+
     void cleanup();
 
     /// Runtime-tunable knobs (Phase 4).
@@ -50,6 +55,11 @@ public:
     /// Record foliage draws. Call inside the scene render pass, after grass.
     void render(VkCommandBuffer cmd, VkDescriptorSet uboSet, const std::vector<ChunkDraw>& chunks);
 
+    /// Record foliage SHADOW draws (dappled canopy shadows). Call inside the shadow render pass.
+    /// The main per-frame descriptor set is reused; the shadow shaders statically use only the
+    /// UBO + albedo array bindings, so the shadow-map sampler entry in that set is never touched.
+    void renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboSet, const std::vector<ChunkDraw>& chunks);
+
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D extent);
 
     Params&       params()       { return m_params; }
@@ -62,6 +72,7 @@ private:
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
+    VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;  // depth-only cutout caster (may be null)
     Params           m_params;
 };
 
