@@ -11125,6 +11125,15 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"smooth", Graphics::ChunkRenderManager::getSmoothLighting()},
              {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
     });
+
+    // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
+    // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
+    reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::ChunkRenderManager::setFineGreedyMerge(cmd.params["enabled"].get<bool>());
+        if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        r = {{"success", true}, {"fine_merge", Graphics::ChunkRenderManager::getFineGreedyMerge()}};
+    });
 }
 
 // Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.

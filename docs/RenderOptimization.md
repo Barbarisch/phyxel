@@ -104,6 +104,67 @@ ship anyway: correct-by-construction, removes reliance on driver heroics, fixes 
 tool) — after-screenshots: A = `screenshot_20260703_090250_111.png`, B = `_091328_493.png`,
 C = `_090307_105.png`.
 
+## Baseline 2026-07-06 — greedy-mesh build kickoff (Increment 0, this campaign)
+
+Fresh capture opening the `BinaryGreedyMeshingPlan.md` implementation. **DEBUG build (main + Phase 1
+culling), StructGenTest flat world (pristine reset — `worlds/default.db` deleted, world regenerated),
+one v2 tavern built by the engine generator** (provenance-verified in `phyxel.log`):
+`StructureV2 generate_room_layout: auto-filled 2 story(ies) -> 6 rooms total [typology tavern]`,
+`program validation: OK`, `StructureGenerator Placing 48492 voxels`,
+`FurniturePlacer: engine placed 20 fixtures (0 skipped)`, sign hung. Structure AABB (7,17,8)–(23,27,14).
+Payload: `POST /api/structure/build {"schema":"v2","typology":"tavern","function":"tavern",
+"style":"medieval","footprint":[16,7],"stories":[{},{}],"position":{"x":8,"y":16,"z":8}}`.
+World saved (`save_world all`) so it reloads deterministically.
+
+| scene | `total_visible_faces` | FPS | notes |
+|-------|--:|--:|-------|
+| empty flat world | 14 | 148.3 | initial camera |
+| + v2 tavern | **68,126** | — | higher than the 2026-07-03 51,258 (fuller fixture depth this build; same payload, deterministic per DB) |
+
+**Fixed comparison poses** (MCP `set_camera` mode:"free", camera position verified held in the same
+breath as the timing read, per the methodology warning above):
+
+| pose | position | yaw/pitch | FPS | cpuFrame | screenshot |
+|------|----------|-----------|----:|---------:|------------|
+| A exterior NE | (34, 32, 29) | −135 / −25 | 107.1 | 9.34 ms | `screenshots/screenshot_20260706_165136_835.png` |
+| C interior (furniture + micro walls + light) | (18.5, 20, 11.5) | −165 / −18 | 74.4 | 13.44 ms | `screenshots/screenshot_20260706_165201_478.png` |
+
+**Red unit test (red-before-green, `tests/graphics/FineFaceMergeTest.cpp`):** a 4×4 slab of
+microcube-packed cubes (729 micro/cube, same material). The green characterization guard
+(`MicrocubeSlab_UnmergedTopFaceCountIs…`) passes: the +Y direction emits exactly **1,296 = 81·N²**
+faces, every one an unmerged microcube (scaleLevel 2). Two DISABLED_ targets shown FAILING on the
+current per-face path (via `--gtest_also_run_disabled_tests`): `…CollapsesPerCube` wants ≤ N²=16
+(actual 1296 → Increment 2 greens it); `…CollapsesAcrossSlab` wants ≤ 4 (actual 1296 → Increment 4).
+
+## ✅ Increment 1 shipped (2026-07-06) — encoding spike, the Phase 2 mystery is dead
+
+Branch `render-fine-greedy-mesh`. Proved the fine-merge **encoding renders end-to-end with NO
+magenta** — the exact frag-side failure that sank the reverted Phase 2 (`:55-60`). Approach per
+`BinaryGreedyMeshingPlan.md` §4.1 **Option A**: merged sub/microcube faces store their rectangle
+extents `(sizeU-1, sizeV-1)` in the **light word bits 16-31** (provably written-0 / read-never today),
+so the `InstanceData` struct is **not** widened — the dual-struct attribute-offset failure class is
+structurally impossible, and unmerged data decodes byte-identical.
+
+Changes: `Types.h::packFineExtentsIntoLight()`; `static_voxel.vert` + `shadow.vert` decode the
+extents, scale the sub/micro quad along the per-face u/v axes, and extend the UV by the extents
+(`baseUV * extent`, within-tile). `debug_voxel.vert` deliberately untouched (it already ignores cube
+extents — a consistent dev-view limitation, not a regression). A toggle `s_fineGreedyMerge`
+(`ChunkRenderManager`, default OFF) + `POST /api/debug/fine_merge {"enabled":bool}` gate a live A/B;
+the toggle-on path emits one hand-forged 2×1 merged subcube +Z brick quad at world (10,22,20)
+(temporary probe, removed when Increment 3's real subcube mesher lands).
+
+**Evidence (DEBUG, StructGenTest + saved tavern):**
+- Toggle **OFF** = **byte-identical**: 68,126 faces (= Inc 0 baseline), interior pose C pixel-identical
+  (`screenshots/screenshot_20260706_190339_556.png` vs Inc 0 `_165201_478.png`). §4.1 invariant proven.
+- Toggle **ON**: 68,126 → **68,127** (exactly +1 — one merged instance, not two). The quad renders as a
+  correct multi-course **brick texture, NOT magenta**, as a wide 2:1 rectangle (extent scaling applied;
+  UV spans 2× the tile fraction, not a stretched single tile).
+  `screenshots/screenshot_20260706_190407_872.png`.
+- Shadow: `shadow.vert` extent math mirrors the proven `static_voxel.vert` path exactly and the shadow
+  pipeline feeds attribute location 4 (`Types.cpp:95-97`) — verified by construction.
+- Unit suite green: 68/68 (`FineFaceMerge` guard, `InstanceData*`, `Types*`, `GridEncoding*`); the two
+  DISABLED_ merge targets remain red pending Increments 2/4.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

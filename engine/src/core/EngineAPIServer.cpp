@@ -977,6 +977,20 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/fine_merge — toggle sub/microcube greedy-merge (docs/BinaryGreedyMeshingPlan.md),
+    // then re-mesh all chunks for a live A/B. Body: { "enabled": bool }
+    srv.Post("/api/debug/fine_merge", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_fine_merge", params, 30000); // re-meshes all chunks
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // ====================================================================
     // POST /api/ui/click — inject a synthetic UI click at a screen coordinate
     // Body: { "x": float, "y": float }  (UI/offscreen space = window resolution)

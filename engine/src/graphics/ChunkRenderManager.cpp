@@ -22,6 +22,7 @@ namespace Graphics {
 bool ChunkRenderManager::s_smoothLighting = true;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
+bool ChunkRenderManager::s_fineGreedyMerge = false;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
@@ -894,6 +895,34 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                 }
                 faces.push_back(faceInstance);
             }
+        }
+    }
+
+    // ── Increment 1 encoding spike (docs/BinaryGreedyMeshingPlan.md) ──────────────────────────
+    // When s_fineGreedyMerge is ON, emit ONE hand-forged 2-wide merged subcube +Z face at a fixed
+    // spot in open air, to prove the extents-in-light-word encoding renders end-to-end (main pass
+    // + shadow) with the correct sub-tile texture and NO magenta fallback — the exact failure that
+    // sank the reverted Phase 2. This is a temporary probe: Increment 3 replaces it with the real
+    // within-cube subcube mesher. Emitted only by the chunk that contains the chosen world cube.
+    if (s_fineGreedyMerge) {
+        const glm::ivec3 spikeWorldCube(10, 22, 20);   // above the StructGenTest flat ground (y=16)
+        const glm::ivec3 lp = spikeWorldCube - worldOrigin;
+        if (lp.x >= 0 && lp.x < 32 && lp.y >= 0 && lp.y < 32 && lp.z >= 0 && lp.z < 32) {
+            // A merged run of TWO subcells along +X (sizeU=2), on the +Z face (faceID 0), origin
+            // subcell (0,1,0). Face 0's U axis maps directly to subX with no flip, so the merged
+            // UV = baseUV*extent is exactly correct within the parent-cube tile.
+            InstanceData spike;
+            spike.packedData = Phyxel::InstanceDataUtils::packSubcubeFaceData(
+                lp.x, lp.y, lp.z, /*faceID=*/0u, /*localX=*/0u, /*localY=*/1u, /*localZ=*/0u);
+            spike.textureIndex = Phyxel::Core::MaterialRegistry::instance().getTextureIndex("Bricks", 0);
+            spike.reserved = 255u << 2;  // opaque, non-emissive (quantAlpha=255 in bits 2-9)
+            spike.tint  = 0xFFFFFFu;
+            // Full sky in bits 0-15, merge extents (sizeU=2, sizeV=1) in bits 16-31.
+            const uint32_t skyWord = 15u * 0x1111u;
+            spike.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(skyWord, /*sizeU=*/2u, /*sizeV=*/1u);
+            spike.light2 = 0u;  // no block light
+            spike.light3 = 0u;
+            faces.push_back(spike);
         }
     }
 }

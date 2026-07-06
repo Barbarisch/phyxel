@@ -316,6 +316,22 @@ namespace InstanceDataUtils {
                ((microcubeEncoded & 0x3F) << 26);
     }
     
+    // Store a merged fine (subcube/microcube) face's rectangle extents in the LIGHT word.
+    // For sub/micro faces, packedData's bits 20-31 are fully booked by the two 3x3x3 grid codes
+    // (the quad ORIGIN at fine resolution), leaving no room for extents there. But every current
+    // producer writes the light word's bits 16-31 as zero and every consumer masks them off
+    // (static_voxel.vert reads only bits 0-15 for the 4 per-corner sky nibbles) — see
+    // docs/BinaryGreedyMeshingPlan.md §4.1. So the merged rectangle extents live here:
+    //   bits 0-15  : per-corner sky nibbles (unchanged — passed in as skyLightWord)
+    //   bits 16-23 : sizeU-1  (extent along the face's bit0 axis, 1..256 cells)
+    //   bits 24-31 : sizeV-1  (extent along the face's bit1 axis, 1..256 cells)
+    // sizeU=sizeV=1 leaves bits 16-31 zero => byte-identical to an unmerged face.
+    inline uint32_t packFineExtentsIntoLight(uint32_t skyLightWord, uint32_t sizeU, uint32_t sizeV) {
+        uint32_t u = (sizeU - 1u) & 0xFFu;
+        uint32_t v = (sizeV - 1u) & 0xFFu;
+        return (skyLightWord & 0x0000FFFFu) | (u << 16) | (v << 24);
+    }
+
     // Pack face mask into 6-bit value
     inline uint32_t packFaceMask(const CubeFaces& faces) {
         uint32_t faceMask = 0;

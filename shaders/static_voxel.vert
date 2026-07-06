@@ -88,7 +88,20 @@ void main() {
     uint microcubeLocalX = microcubeEncoded % 3u;
     uint microcubeLocalY = (microcubeEncoded / 3u) % 3u;
     uint microcubeLocalZ = microcubeEncoded / 9u;
-    
+
+    // Merged FINE (subcube/microcube) faces carry their rectangle extents in the LIGHT word's high
+    // bits (bits 16-31), because packedData bits 20-31 are fully taken by the fine grid ORIGIN.
+    // Unmerged fine faces (and all cube faces) write 0 here => extent 1 => a single cell, so the
+    // decode is byte-identical to the old per-face path. See BinaryGreedyMeshingPlan.md §4.1.
+    uint fineSizeU = ((inLight >> 16) & 0xFFu) + 1u;
+    uint fineSizeV = ((inLight >> 24) & 0xFFu) + 1u;
+    // Per-face axis mapping for the two in-plane extents (identical to the cube sizeVec mapping):
+    //   Z faces (0,1): u=x, v=y   X faces (2,3): u=z, v=y   Y faces (4,5): u=x, v=z
+    vec3 fineSizeVec;
+    if (faceID == 0u || faceID == 1u)      fineSizeVec = vec3(float(fineSizeU), float(fineSizeV), 1.0);
+    else if (faceID == 2u || faceID == 3u) fineSizeVec = vec3(1.0, float(fineSizeV), float(fineSizeU));
+    else                                   fineSizeVec = vec3(float(fineSizeU), 1.0, float(fineSizeV));
+
     // Calculate base position (parent cube position for subcubes, cube position for regular cubes)
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));
     vec3 basePos = pushConstants.chunkBaseOffset + chunkRelativePos;
@@ -163,9 +176,10 @@ void main() {
             float(subcubeLocalY) * SUBCUBE_SCALE,
             float(subcubeLocalZ) * SUBCUBE_SCALE
         );
-        
-        worldPos = basePos + subcubeOffset + (faceOffset * SUBCUBE_SCALE);
-        
+
+        // fineSizeVec extends the quad across a merged run of subcells (1 for unmerged faces).
+        worldPos = basePos + subcubeOffset + (faceOffset * fineSizeVec * SUBCUBE_SCALE);
+
     } else if (scaleLevel == 2u) {
         // Microcube (1/9 scale)
         const float SUBCUBE_SCALE = 1.0 / 3.0;
@@ -185,9 +199,10 @@ void main() {
             float(microcubeLocalY) * MICROCUBE_SCALE,
             float(microcubeLocalZ) * MICROCUBE_SCALE
         );
-        
-        worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * MICROCUBE_SCALE);
-        
+
+        // fineSizeVec extends the quad across a merged run of microcells (1 for unmerged faces).
+        worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * fineSizeVec * MICROCUBE_SCALE);
+
     } else {
         // Reserved scale level (fallback to cube)
         scale = 1.0;
@@ -262,9 +277,12 @@ void main() {
             subcubeGridPos = vec2(float(subcubeLocalX), float(2u - subcubeLocalZ));
         }
         
-        // Scale the base UV to subcube size and add offset for this subcube's position
-        uv = (baseUV * SUBCUBE_UV_SCALE) + (subcubeGridPos * SUBCUBE_UV_SCALE);
-        
+        // Scale the base UV to subcube size and add offset for this subcube's position. For a
+        // merged run, baseUV spans fineSizeU x fineSizeV cells (bit0->U, bit1->V), tiling the
+        // parent-cube texture across the run; subcubeGridPos is the ORIGIN cell's grid position.
+        uv = (baseUV * vec2(float(fineSizeU), float(fineSizeV)) * SUBCUBE_UV_SCALE)
+           + (subcubeGridPos * SUBCUBE_UV_SCALE);
+
     } else if (scaleLevel == 2u) {
         // Microcube: modify UV to sample 1/9 of texture (2x2 out of 18x18)
         const float SUBCUBE_UV_SCALE = 1.0 / 3.0;
@@ -302,10 +320,12 @@ void main() {
             microcubeGridPos = vec2(float(microcubeLocalX), float(2u - microcubeLocalZ));
         }
         
-        // Combine: subcube offset + microcube offset within subcube
+        // Combine: subcube offset + microcube offset within subcube. For a merged run, baseUV
+        // spans fineSizeU x fineSizeV microcells; subcube/microcube grid pos = the ORIGIN cell.
         vec2 subcubeUVBase = subcubeGridPos * SUBCUBE_UV_SCALE;
         vec2 microcubeUVOffset = microcubeGridPos * MICROCUBE_UV_SCALE;
-        uv = (baseUV * MICROCUBE_UV_SCALE) + subcubeUVBase + microcubeUVOffset;
+        uv = (baseUV * vec2(float(fineSizeU), float(fineSizeV)) * MICROCUBE_UV_SCALE)
+           + subcubeUVBase + microcubeUVOffset;
         
     } else {
         // Reserved: default to full texture
