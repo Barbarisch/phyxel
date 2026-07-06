@@ -164,6 +164,15 @@ only at `leaf_res`. Aim lofty, optimize later (user directive).
   rendering micro-voxel leaf clusters ("leaf_forge") — so the see-through gaps read as voxel-shaped
   holes, leaning into the engine aesthetic. Multiple variants per species, picked by the existing
   per-card hash.
+  **DONE 2026-07-05:** `tools/leaf_forge.py` bakes deterministic 32×32-cell cluster masks into
+  all 30 leaf source PNGs' alpha (RGB untouched; coverage oak ~52% / spruce ~38% / jungle ~39% /
+  birch ~25% of the card); `foliage.frag` alpha-tests texel.a<0.5 (ellipse discard deleted);
+  `foliage.vert` adds a per-card flip/swap variant (8 orientations × 6 face textures = 48 mask
+  variants per species). BC7 alpha confirmed end-to-end (AtlasManager encodes RGBA; cache
+  re-keys on source hash). Verified live at three ranges in the forge world: close = real
+  see-through leaf clusters w/ serrated edges (bilinear + 0.5-test rounds the chunky cells
+  nicely over the painted albedo), mid = fuller ragged canopies vs the old ovals, far = NO mip
+  balding. Debug FPS inside a canopy ~14 (discard overdraw) — check Release before worrying.
 - **Tier 2 — canopy lights like a volume**: card normal = direction from cluster/crown centre
   (volume shading), sun-behind-leaf transmission, interior darkening. **Foliage shadow pass** —
   currently canopies cast NO shadows (mesher skips solid leaf faces; no foliage shadow pipeline;

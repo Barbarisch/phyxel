@@ -34,10 +34,11 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
-layout(location = 1) out vec2  vCard;       // card-plane coords in [-1,1] (rounded silhouette + UV)
+layout(location = 1) out vec2  vCard;       // card-plane coords in [-1,1] (mask UV)
 layout(location = 2) out float vSky;        // baked skylight 0..1
 layout(location = 3) out vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 4) out float vShade;      // per-card shading (hashed, for leaf-to-leaf variation)
+layout(location = 5) out flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
@@ -77,6 +78,7 @@ void main() {
     float h2 = hash21(seed + 27.7);
     float h3 = hash21(seed + 41.3);
     vShade = 0.82 + 0.18 * h3;  // subtle per-card brightness variation
+    vMaskV = uint(hash21(seed + 57.9) * 7.999);  // 8 mask orientations per texture (flip/swap)
 
     // Hashed 3D card orientation → orthonormal basis (right, up) spanning the card plane.
     float az = h0 * 6.2831853;
