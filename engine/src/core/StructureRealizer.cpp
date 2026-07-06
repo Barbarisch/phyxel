@@ -386,12 +386,18 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         const int shellM = (pitch + 1) * 3;
         const int eaveM  = eaveSub * 3;
         const int WM = W_c * 9, DM = D_c * 9;
-        for (int mx = 0; mx < WM; ++mx) {
+        // Eave overhang on ALL four sides (a hip has no gable verge) — same thin-sheet
+        // continuation as the gable pass; ⚠ modern-analog value, flagged in the style.
+        const int oM = std::max(0, (int)std::lround(style.roofOf("overhang", 0.0) * 9.0));
+        for (int mx = -oM; mx < WM + oM; ++mx) {
             const int dx = std::min(mx, WM - 1 - mx);
-            for (int mz = 0; mz < DM; ++mz) {
-                const int d     = std::min(dx, std::min(mz, DM - 1 - mz));
+            for (int mz = -oM; mz < DM + oM; ++mz) {
+                const int d     = std::min(dx, std::min(mz, DM - 1 - mz));   // negative outside
                 const int top   = eaveM + (d * pitch) / 3;
-                const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+                const bool inside = d >= 0;
+                const int under = inside ? std::max(eaveM, (top - shellM + 1) / 3 * 3)
+                                         : std::max(0, top - 2);
+                if (top < 0 || top - under + 1 <= 0) continue;
                 c.fillMicroBox(bx0 * 9 + mx, under, bz0 * 9 + mz, 1, top - under + 1, 1, matRoof);
             }
         }
@@ -419,19 +425,30 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         const int eaveM  = eaveSub * 3;    // micro y of the lowest roof course (eave-flush)
         const int shellM = shell * 3;      // same vertical shell depth as the cube-stepped roof
         const int perpM  = perp * 9;
-        for (int mb = 0; mb < spanM; ++mb) {
-            const int dd    = std::min(mb, spanM - 1 - mb);
+        // EAVE OVERHANG (P2.5 remainder; RoofForgeTest.EavesOverhangTheWalls): extend the
+        // slope plane past both eave walls by the style's roof.overhang (⚠ modern-analog
+        // 300-450 mm per TrimGrounding — the vernacular figure is NEEDS-RESEARCH; the value
+        // ships FLAGGED in the style sources). Outside the wall the shell is a thin 3-micro
+        // sheet (1 + the 2-micro max slope step — the watertightness minimum, derived not
+        // invented) following the plane down. Verge (gable-end) overhang = the bargeboard
+        // item, separately NEEDS-RESEARCH — not painted here.
+        const int oM = std::max(0, (int)std::lround(style.roofOf("overhang", 0.0) * 9.0));
+        for (int mb = -oM; mb < spanM + oM; ++mb) {
+            const int dd    = std::min(mb, spanM - 1 - mb);   // negative outside the walls
             const int top   = eaveM + (dd * pitch) / 3;   // floor-div: never above the grounded plane
-            // Underside snaps DOWN to the subcube grid (3-micro treads, thickness grows <=2
-            // micro): only the visible TOP surface pays micro cost; the shell interior stays
-            // subcube-coarsenable (VoxelCountIsReasonable budget).
-            const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+            const bool inside = mb >= 0 && mb < spanM;
+            // Underside snaps DOWN to the subcube grid inside (3-micro treads, thickness grows
+            // <=2 micro): only the visible TOP surface pays micro cost; the shell interior
+            // stays subcube-coarsenable (VoxelCountIsReasonable budget). Outside = thin sheet.
+            const int under = inside ? std::max(eaveM, (top - shellM + 1) / 3 * 3)
+                                     : std::max(0, top - 2);
+            if (top < 0 || top - under + 1 <= 0) continue;
             // One micro-thin slice of roof mass across the full perpendicular extent.
             if (slopeInZ) c.fillMicroBox(bx0 * 9, under, bz0 * 9 + mb, perpM, top - under + 1, 1, matRoof);
             else          c.fillMicroBox(bx0 * 9 + mb, under, bz0 * 9, 1, top - under + 1, perpM, matRoof);
             // The gable-end triangle stays a THIN wall (exterior-wall thickness) on the end
             // face, NOT a full-cube cross-section — else the ends read as 1 m Minecraft walls.
-            if (under > eaveM) {
+            if (inside && under > eaveM) {
                 const int gh = under - eaveM;
                 if (slopeInZ) {
                     c.fillMicroBox(bx0 * 9,        eaveM, bz0 * 9 + mb, extT, gh, 1, matExt);

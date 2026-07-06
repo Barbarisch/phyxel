@@ -155,10 +155,20 @@ height = distance-to-nearest-footprint-edge × pitch/3, micro-stepped, subcube-s
 no gable-end walls), 219/219 suite green, auditor PASS (independent disable→red→restore→green
 reproduction; L4 re-run reproduced the stone_manor bbox rise to y-max 23/22; close-up
 `screenshots/screenshot_20260706_115522_681.png` shows four-sided tile hips).
-REMAINING in P2.5: eave **overhang** (style `roof.overhang` 0.4/0.6 m, grounded) is never
-rasterized; roof shell thickness is still the legacy pitch+1-subcube vertical depth (real thatch
-coat depth NEEDS-RESEARCH before thinning — the attic dividend below); non-rectangular (L-shape)
-footprints still get the flat cap.
+**OVERHANG DONE 2026-07-06 (same session):** both roof passes extend the slope plane
+`lround(roof.overhang*9)` micro past the eave walls (hip: all four sides; gable verge excluded —
+bargeboard NEEDS-RESEARCH) as a thin 3-micro sheet (1 + max slope step = the watertightness
+minimum, derived). Red-before-green `EavesOverhangTheWalls`; 260/260 sweep; auditor PARTIAL →
+the one defect it found (mojibake em-dashes from a PS5.1 encoding round-trip in
+structure_styles.json) fixed + diff-verified clean. **Value provenance corrected:** the 0.4/0.6 m
+style values were UNCITED — now FLAGGED modern-analog (300–450 mm, odonnellroofingco via
+TrimGrounding) in the style sources; stone_manor's 0.6 EXCEEDS that range (inherited, needs the
+vernacular citation or a trim to 0.45). L4: house_3 bbox grew z-max 28→29 (the eave axis only —
+matches the code), earlier runs byte-identical at 28; street view
+`screenshots/screenshot_20260706_153334_677.png`.
+REMAINING in P2.5: roof shell thickness is still the legacy pitch+1-subcube vertical depth (real
+thatch coat depth NEEDS-RESEARCH before thinning — the attic dividend below); non-rectangular
+(L-shape) footprints still get the flat cap; gable verge/bargeboard overhang.
 
 **P2.6 — footprint composition & L-plan roofs (user concern, 2026-07-06).** Historical framing
 (to be grounding-audited before implementation): humble-tier vernacular (croft/longhouse) really

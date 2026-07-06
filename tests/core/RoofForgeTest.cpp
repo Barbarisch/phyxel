@@ -249,3 +249,73 @@ TEST(RoofForgeTest, HipEaveStaysFlushOnTheWallTop) {
     EXPECT_TRUE(c.occupiedMicro(0, eaveY - 1, 27) || c.occupiedMicro(1, eaveY - 1, 27))
         << "hip eave hovers: air directly under the roof's lowest course";
 }
+
+// ---------------------------------------------------------------------------
+// EAVE OVERHANG (P2.5 remainder): styles carry a grounded-with-caveat
+// roof.overhang (0.4 m; modern-analog 300-450 mm range per TrimGrounding —
+// the vernacular figure is NEEDS-RESEARCH, so the value ships FLAGGED in the
+// style sources). The rasterizer must extend the slope plane past the eave
+// walls so the roof visibly shelters them. RED today: the roof stops dead at
+// the footprint edge — nothing exists outside it at eave level.
+// ---------------------------------------------------------------------------
+
+namespace {
+StyleProfile overhangStyle() {
+    StyleProfileRegistry reg;
+    reg.loadFromJson(nlohmann::json::parse(R"({
+        "overhang_test": {
+            "roof_style": "gable", "foundation": "crawlspace",
+            "thickness": { "exterior_wall": 0.222, "interior_wall": 0.111,
+                           "foundation_wall": 0.444, "floor": 0.333, "ceiling": 0.111 },
+            "materials": { "structure": "Wood", "floor": "Wood", "roof": "Thatch", "foundation": "Stone" },
+            "roof": { "pitch_deg": 50.0, "overhang": 0.4 }
+        }
+    })"));
+    return *reg.get("overhang_test");
+}
+} // namespace
+
+// Roof cells exist OUTSIDE the footprint at both eave sides (x < 0 and x >= 63
+// for the 7-cube span), continuing the slope plane downward past the wall.
+TEST(RoofForgeTest, EavesOverhangTheWalls) {
+    auto r = StructureRealizer::realizeShell(
+        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+    const auto& c = r.canvas;
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(c.microBounds(lo, hi));
+
+    const int z = 4 * 9 + 4;
+    bool west = false, east = false;
+    for (int y = 0; y <= hi.y; ++y) {
+        if (roofTopAt(c, -1, z, hi.y) >= 0) west = true;
+        if (roofTopAt(c, 63, z, hi.y) >= 0) east = true;
+        break;   // roofTopAt already scans y; one call per side suffices
+    }
+    EXPECT_TRUE(west) << "no roof overhang past the west eave wall";
+    EXPECT_TRUE(east) << "no roof overhang past the east eave wall";
+}
+
+// The overhang keeps micro-stepping (the slope metric holds across the
+// extended span) and the eave-flush guard still holds AT the wall plane.
+TEST(RoofForgeTest, OverhangContinuesTheSlopePlane) {
+    auto r = StructureRealizer::realizeShell(
+        BuildingProgram::fromJson(nlohmann::json::parse(kThatchCottage)), overhangStyle());
+    ASSERT_TRUE(r.ok) << r.error;
+    const auto& c = r.canvas;
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(c.microBounds(lo, hi));
+
+    const int z = 4 * 9 + 4;
+    // Walk from the westmost overhang cell across the wall line: adjacent
+    // surface steps stay <= 2 micro (one continuous plane, no cliff at x=0).
+    int prev = -1, maxStep = 0;
+    for (int x = -4; x < 8; ++x) {
+        const int top = roofTopAt(c, x, z, hi.y);
+        if (top < 0) continue;                 // outside the actual overhang reach
+        if (prev >= 0) maxStep = std::max(maxStep, std::abs(top - prev));
+        prev = top;
+    }
+    ASSERT_GE(prev, 0);
+    EXPECT_LE(maxStep, 2) << "overhang breaks the slope plane at the wall line";
+}

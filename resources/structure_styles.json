@@ -44,6 +44,7 @@
         "floor": "INFERRED ~0.2-0.3 m oak joists + boards",
         "ceiling": "INFERRED ~0.1 m plank ceiling / underside",
         "roof.pitch_deg": "thatch demands >=45 deg, usually 50 deg, to shed water (roofonline.com; English Heritage Buildings)",
+        "roof.overhang": "FLAGGED modern-analog: 300-450 mm residential eave overhang (odonnellroofingco.com, via TrimGrounding.md) -> 0.4 m ~= 4 micro; the VERNACULAR thatch-eave figure is NEEDS-RESEARCH (thatch overhangs more than tile, no period number found) — rasterized as a thin 3-micro sheet (watertightness minimum) by the P2.5 overhang pass",
         "roof.material": "Thatch — real material (tools/gen_roof_materials.py, courses align to subcube steps).",
         "ceiling_target": "ANTHROPOMETRIC (not period): character clearance (character_design_constraints.json) + IRC R305 7 ft floor"
       }
@@ -92,6 +93,7 @@
         "floor": "INFERRED ~0.2-0.3 m timber/flagstone",
         "ceiling": "INFERRED ~0.3 m",
         "roof.pitch_deg": "clay tile 35-45 deg (Marley; roofonline.com)",
+        "roof.overhang": "FLAGGED modern-analog: 300-450 mm (odonnellroofingco.com, via TrimGrounding.md) -> 0.6 m EXCEEDS that range (~540-600 mm upper bound) — inherited value, needs the vernacular citation or a trim to 0.45; NEEDS-RESEARCH",
         "roof.material": "ClayTile — real material (tools/gen_roof_materials.py); Slate/StoneSlab also available for stone-upland variants.",
         "ceiling_target": "ANTHROPOMETRIC + status: grand halls 'higher than wide' (Wikipedia Great hall) + character clearance"
       }
@@ -144,3 +146,4 @@
     }
   }
 }
+
