@@ -170,7 +170,19 @@ REMAINING in P2.5: roof shell thickness is still the legacy pitch+1-subcube vert
 thatch coat depth NEEDS-RESEARCH before thinning — the attic dividend below); non-rectangular
 (L-shape) footprints still get the flat cap; gable verge/bargeboard overhang.
 
-**P2.6 — footprint composition & L-plan roofs (user concern, 2026-07-06).** Historical framing
+**P2.6 — footprint composition & L-plan roofs (user concern, 2026-07-06) — ROOF CORE DONE
+2026-07-06 (same session).** `decomposeRoofRanges` (2 nested bands → main range + full-depth
+cross-wing) + a composed gable rasterizer (pointwise MAX of per-range micro-stepped height
+fields — the valley emerges where they cross, watertight by construction; overhang only over
+exterior ground; gable-end walls only on exterior ends). Red-before-green `LPlanMainRangeHasARidge`
++ `LPlanWingHasAPerpendicularRidge` ("ridge 33 vs eave 33" on the flat cap); auditor PASS — it
+proved the rectangular path CELL-IDENTICAL to the old rasterizer (voxel breakdown 19944 C=0
+S=3114 M=16830 byte-equal on both) and reproduced the red by disabling only the 2-band path.
+⚠ budget watch: the cottage sits at 19,944 of the 20,000 voxel cap (56 headroom). L4: L-plan
+hall house built in-engine (`screenshots/screenshot_20260706_155713_119.png` — two thatch
+ridges + valley, notch as yard). REMAINING in P2.6: T/H plans (3+ bands → still flat cap);
+hip-on-L renders as intersecting gables (disclosed); quoins skip L-plan corners (rectangular
+gate); wealth-tier cross-wing frequency grounding (Brunskill). Historical framing
 (to be grounding-audited before implementation): humble-tier vernacular (croft/longhouse) really
 WAS plain-rectangular — one-room-deep ranges set by the timber bay system (cf. excavated village
 plans, Wharram Percy). Higher-status plans grew by **composition of rectangular ranges** — open

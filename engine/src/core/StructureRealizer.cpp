@@ -371,6 +371,68 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // wall top. The old ceil() pushed it one subcube higher, leaving the visible 1-micro hover
     // (V1 RealizedStructureValidator::checkRoofEaveFlush).
     int eaveSub = ceilTopMicro / 3;
+    // Decompose the footprint into 1-2 rectangular roof RANGES (P2.6; RoofForgeTest.LPlan*):
+    // group contiguous rows (then columns) whose occupied cells form one identical interval.
+    // 1 band = the plain rectangle; 2 bands with nested intervals = an L/T plan — the wider
+    // band is the MAIN range and the narrower interval extends across the full depth as the
+    // CROSS-WING (the grounded composition mechanism: hall + cross-wing ranges, not blobs —
+    // FinishDetailPlan P2.6). The wing range deliberately OVERLAPS the main range so the two
+    // gable surfaces intersect; the pointwise max of the two height fields forms the VALLEY.
+    // 3+ bands or split intervals keep the flat-cap fallback (H-plans etc. — later).
+    auto decomposeRoofRanges = [&]() -> std::vector<Rect> {
+        auto rowSpan = [&](int fixed, bool byZ, int& lo, int& hi) -> bool {
+            lo = INT_MAX; hi = INT_MIN;
+            for (const auto& [cx, cz] : footprint) {
+                const int f = byZ ? cz : cx, v = byZ ? cx : cz;
+                if (f != fixed) continue;
+                lo = std::min(lo, v); hi = std::max(hi, v + 1);
+            }
+            if (lo >= hi) return false;
+            for (int v = lo; v < hi; ++v)
+                if (!inFoot(byZ ? v : fixed, byZ ? fixed : v)) return false;   // split interval
+            return true;
+        };
+        for (const bool byZ : {true, false}) {
+            const int f0 = byZ ? bz0 : bx0, f1 = byZ ? bz1 : bx1;
+            struct Band { int f0, f1, lo, hi; };
+            std::vector<Band> bands;
+            bool ok = true;
+            for (int f = f0; f < f1 && ok; ++f) {
+                int lo, hi;
+                if (!rowSpan(f, byZ, lo, hi)) { ok = false; break; }
+                if (!bands.empty() && bands.back().lo == lo && bands.back().hi == hi)
+                    bands.back().f1 = f + 1;
+                else
+                    bands.push_back({f, f + 1, lo, hi});
+            }
+            if (!ok) continue;
+            if (bands.size() == 1) {
+                const Band& b = bands[0];
+                if (byZ) return {{b.lo, b.f0, b.hi - b.lo, b.f1 - b.f0}};
+                return {{b.f0, b.lo, b.f1 - b.f0, b.hi - b.lo}};
+            }
+            if (bands.size() == 2) {
+                const Band& wide   = (bands[0].hi - bands[0].lo >= bands[1].hi - bands[1].lo)
+                                     ? bands[0] : bands[1];
+                const Band& narrow = (&wide == &bands[0]) ? bands[1] : bands[0];
+                if (narrow.lo < wide.lo || narrow.hi > wide.hi) continue;      // not nested
+                Rect mainR, wingR;
+                if (byZ) {
+                    mainR = {wide.lo, wide.f0, wide.hi - wide.lo, wide.f1 - wide.f0};
+                    wingR = {narrow.lo, f0, narrow.hi - narrow.lo, f1 - f0};
+                } else {
+                    mainR = {wide.f0, wide.lo, wide.f1 - wide.f0, wide.hi - wide.lo};
+                    wingR = {f0, narrow.lo, f1 - f0, narrow.hi - narrow.lo};
+                }
+                if (mainR.w < 2 || mainR.d < 2 || wingR.w < 2 || wingR.d < 2) continue;
+                return {mainR, wingR};
+            }
+        }
+        return {};
+    };
+    const std::vector<Rect> roofRanges =
+        (roofStyle == "gable" || roofStyle == "hip") ? decomposeRoofRanges() : std::vector<Rect>{};
+
     if (rectangular && roofStyle == "hip" && W_c >= 2 && D_c >= 2) {
         // HIP roof (P2.5, RoofForgeTest): the surface slopes up from ALL FOUR eaves —
         // height above the eave = (distance to the nearest footprint edge) * pitch,
@@ -401,61 +463,84 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 c.fillMicroBox(bx0 * 9 + mx, under, bz0 * 9 + mz, 1, top - under + 1, 1, matRoof);
             }
         }
-    } else if (rectangular && roofStyle == "gable" && W_c >= 2 && D_c >= 2) {
+    } else if (!roofRanges.empty() && (roofStyle == "gable" || roofStyle == "hip") &&
+               W_c >= 2 && D_c >= 2) {
+        // COMPOSED GABLE roof over 1-2 ranges (P2.5 micro-stepping + P2.6 L-plan valleys).
         // Honor the GROUNDED roof pitch from the style (degrees). The gable rises `pitch`
         // subcubes per cube of run toward the ridge, so roof angle = atan(pitch/3): the
         // grounded subcube pitch = round(3*tan(deg)). thatch 50deg -> 4 (~53deg); tile 40deg
         // -> 3 (~45deg). Absent pitch_deg falls back to the legacy ~34deg (pitch 2).
+        // Each range gets its own micro-stepped gable height field (rise pitch/3 micro per
+        // micro of run; ridge along its longer axis); the roof surface is the POINTWISE MAX
+        // across ranges, so the valley forms where the two fields cross — watertight by
+        // construction. Eave overhang (⚠ modern-analog, flagged in styles) extends each
+        // field past eave walls that face the EXTERIOR only; no verge overhang (bargeboard =
+        // NEEDS-RESEARCH). NOTE: an L-plan with a hip style renders as intersecting gables
+        // for now — hip-valley geometry is future work, disclosed here.
         constexpr double PI = 3.14159265358979323846;
         const double pitchDeg = style.roofOf("pitch_deg", 0.0);
         const int pitch = pitchDeg > 0.0
             ? std::max(1, (int)std::lround(3.0 * std::tan(pitchDeg * PI / 180.0)))
             : 2;
-        const int shell = pitch + 1;
-        const bool slopeInZ = W_c >= D_c;                 // ridge along the longer axis
-        const int span = slopeInZ ? D_c : W_c;
-        const int perp = slopeInZ ? W_c : D_c;
-        // P2.5 MICRO-STEPPED slope (finish_forge; RoofForgeTest): advance the tread one
-        // MICRO of run at a time instead of one cube. Rise = pitch subcubes per cube of
-        // run = pitch/3 micro per micro, so a 50deg (pitch 4) surface steps 1-2 micro per
-        // column instead of jumping pitch*3 = 12 micro at every cube boundary — the roof
-        // reads as a plane, not metre stairs. The wedge interior still greedily coarsens
-        // in export(); only the stepped surface shell stays micro (tree-forge economics).
-        const int spanM  = span * 9;
-        const int eaveM  = eaveSub * 3;    // micro y of the lowest roof course (eave-flush)
-        const int shellM = shell * 3;      // same vertical shell depth as the cube-stepped roof
-        const int perpM  = perp * 9;
-        // EAVE OVERHANG (P2.5 remainder; RoofForgeTest.EavesOverhangTheWalls): extend the
-        // slope plane past both eave walls by the style's roof.overhang (⚠ modern-analog
-        // 300-450 mm per TrimGrounding — the vernacular figure is NEEDS-RESEARCH; the value
-        // ships FLAGGED in the style sources). Outside the wall the shell is a thin 3-micro
-        // sheet (1 + the 2-micro max slope step — the watertightness minimum, derived not
-        // invented) following the plane down. Verge (gable-end) overhang = the bargeboard
-        // item, separately NEEDS-RESEARCH — not painted here.
+        const int eaveM  = eaveSub * 3;      // micro y of the lowest roof course (eave-flush)
+        const int shellM = (pitch + 1) * 3;  // same vertical shell depth as the cube-stepped roof
         const int oM = std::max(0, (int)std::lround(style.roofOf("overhang", 0.0) * 9.0));
-        for (int mb = -oM; mb < spanM + oM; ++mb) {
-            const int dd    = std::min(mb, spanM - 1 - mb);   // negative outside the walls
-            const int top   = eaveM + (dd * pitch) / 3;   // floor-div: never above the grounded plane
-            const bool inside = mb >= 0 && mb < spanM;
-            // Underside snaps DOWN to the subcube grid inside (3-micro treads, thickness grows
-            // <=2 micro): only the visible TOP surface pays micro cost; the shell interior
-            // stays subcube-coarsenable (VoxelCountIsReasonable budget). Outside = thin sheet.
-            const int under = inside ? std::max(eaveM, (top - shellM + 1) / 3 * 3)
-                                     : std::max(0, top - 2);
-            if (top < 0 || top - under + 1 <= 0) continue;
-            // One micro-thin slice of roof mass across the full perpendicular extent.
-            if (slopeInZ) c.fillMicroBox(bx0 * 9, under, bz0 * 9 + mb, perpM, top - under + 1, 1, matRoof);
-            else          c.fillMicroBox(bx0 * 9 + mb, under, bz0 * 9, 1, top - under + 1, perpM, matRoof);
-            // The gable-end triangle stays a THIN wall (exterior-wall thickness) on the end
-            // face, NOT a full-cube cross-section — else the ends read as 1 m Minecraft walls.
-            if (inside && under > eaveM) {
+        auto fdivq = [](int a) { return a >= 0 ? a / 9 : (a - 8) / 9; };
+        // Candidate surface height of one range at an absolute micro column; INT_MIN = none.
+        auto rangeTop = [&](const Rect& R, int mx, int mz, bool& inside) -> int {
+            const bool sInZ = R.w >= R.d;                 // ridge along the longer axis
+            const int spanM = (sInZ ? R.d : R.w) * 9;
+            const int perpM = (sInZ ? R.w : R.d) * 9;
+            const int mb = sInZ ? mz - R.z * 9 : mx - R.x * 9;
+            const int mp = sInZ ? mx - R.x * 9 : mz - R.z * 9;
+            if (mp < 0 || mp >= perpM) return INT_MIN;    // no verge overhang
+            if (mb < -oM || mb >= spanM + oM) return INT_MIN;
+            inside = mb >= 0 && mb < spanM;
+            // Overhang only over EXTERIOR ground — never into the other range's footprint.
+            if (!inside && inFoot(fdivq(mx), fdivq(mz))) return INT_MIN;
+            return eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / 3;
+        };
+        for (int mx = bx0 * 9 - oM; mx < bx1 * 9 + oM; ++mx) {
+            for (int mz = bz0 * 9 - oM; mz < bz1 * 9 + oM; ++mz) {
+                int best = INT_MIN; bool bestInside = false;
+                for (const Rect& R : roofRanges) {
+                    bool ins = false;
+                    const int t = rangeTop(R, mx, mz, ins);
+                    if (t > best) { best = t; bestInside = ins; }
+                    else if (t == best && t != INT_MIN && ins) bestInside = true;  // valley tie: interior shell
+                }
+                if (best == INT_MIN || best < 0) continue;
+                // Underside snaps DOWN to the subcube grid inside (subcube-coarsenable shell,
+                // VoxelCountIsReasonable budget); overhang = thin 3-micro watertight sheet.
+                const int under = bestInside ? std::max(eaveM, (best - shellM + 1) / 3 * 3)
+                                             : std::max(0, best - 2);
+                if (best - under + 1 <= 0) continue;
+                c.fillMicroBox(mx, under, mz, 1, best - under + 1, 1, matRoof);
+            }
+        }
+        // Gable-end triangle walls per range — THIN (exterior-wall thickness), and only on
+        // ridge-axis end faces that meet the EXTERIOR (an end absorbed inside the other
+        // range needs no wall; the roof mass covers it).
+        for (const Rect& R : roofRanges) {
+            const bool sInZ = R.w >= R.d;
+            const int spanM = (sInZ ? R.d : R.w) * 9;
+            for (int mb = 0; mb < spanM; ++mb) {
+                const int top   = eaveM + (std::min(mb, spanM - 1 - mb) * pitch) / 3;
+                const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+                if (under <= eaveM) continue;
                 const int gh = under - eaveM;
-                if (slopeInZ) {
-                    c.fillMicroBox(bx0 * 9,        eaveM, bz0 * 9 + mb, extT, gh, 1, matExt);
-                    c.fillMicroBox(bx1 * 9 - extT, eaveM, bz0 * 9 + mb, extT, gh, 1, matExt);
+                if (sInZ) {
+                    const int cz = fdivq(R.z * 9 + mb);
+                    if (!inFoot(R.x - 1, cz))
+                        c.fillMicroBox(R.x * 9, eaveM, R.z * 9 + mb, extT, gh, 1, matExt);
+                    if (!inFoot(R.x + R.w, cz))
+                        c.fillMicroBox((R.x + R.w) * 9 - extT, eaveM, R.z * 9 + mb, extT, gh, 1, matExt);
                 } else {
-                    c.fillMicroBox(bx0 * 9 + mb, eaveM, bz0 * 9,        1, gh, extT, matExt);
-                    c.fillMicroBox(bx0 * 9 + mb, eaveM, bz1 * 9 - extT, 1, gh, extT, matExt);
+                    const int cx = fdivq(R.x * 9 + mb);
+                    if (!inFoot(cx, R.z - 1))
+                        c.fillMicroBox(R.x * 9 + mb, eaveM, R.z * 9, 1, gh, extT, matExt);
+                    if (!inFoot(cx, R.z + R.d))
+                        c.fillMicroBox(R.x * 9 + mb, eaveM, (R.z + R.d) * 9 - extT, 1, gh, extT, matExt);
                 }
             }
         }
@@ -465,7 +550,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             c.fillMicroBox(cx * 9, ceilTopMicro, cz * 9, 9, 3, 9, matRoof);
     }
     plan.roof.push_back({bx0, bz0, bx1, bz1, eaveSub / 3, style.roofOf("pitch_deg", 0.0),
-                         rectangular ? roofStyle : "flat", matRoof});
+                         !roofRanges.empty() ? roofStyle : "flat", matRoof});
 
     res.floorTopByStory = floorTopByStory;   // per-story walkable micro-Y (for the harness / KI-2)
     res.ok = true;

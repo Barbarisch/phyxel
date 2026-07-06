@@ -7,15 +7,15 @@
 using namespace Phyxel::Core;
 
 // ============================================================================
-// finish_forge P2.5 — ROOF SLOPE RESOLUTION (docs/structure-generation/FinishDetailPlan.md)
+// finish_forge P2.5 Ã¢â‚¬â€ ROOF SLOPE RESOLUTION (docs/structure-generation/FinishDetailPlan.md)
 //
 // The gable pass honors the grounded pitch_deg but rasterizes it horizontally
 // CUBE-quantized: the slope advances one full cube (1 m) of run per step, rising
 // `pitch` subcubes each time. At thatch 50 deg that is a 1.33 m rise per 1 m
-// tread — metre-wide stair-steps on the most visible plane of every building.
+// tread Ã¢â‚¬â€ metre-wide stair-steps on the most visible plane of every building.
 //
 // P2.5 invariant, measured on the REAL canvas: the roof's top surface must be
-// micro-stepped — walking the slope axis one micro column at a time, adjacent
+// micro-stepped Ã¢â‚¬â€ walking the slope axis one micro column at a time, adjacent
 // columns' surface height may differ by at most 2 micro. (A 50 deg plane rises
 // ~1.2 micro per micro of run; the cube-stepped roof jumps pitch*3 = 12 micro
 // at every cube boundary.)
@@ -135,7 +135,7 @@ TEST(RoofForgeTest, SlopeSurfaceIsMicroStepped) {
 }
 
 // Coverage guard (GREEN before and after): every micro column of the footprint
-// carries roof material at the mid-ridge slice — smoothing the slope must not
+// carries roof material at the mid-ridge slice Ã¢â‚¬â€ smoothing the slope must not
 // open holes in the surface.
 TEST(RoofForgeTest, SlopeSurfaceCoversTheFootprint) {
     auto r = build();
@@ -150,7 +150,7 @@ TEST(RoofForgeTest, SlopeSurfaceCoversTheFootprint) {
 }
 
 // Eave-flush guard (GREEN before and after): the roof's lowest course still
-// rests directly ON the wall top at the eave — micro-stepping must not
+// rests directly ON the wall top at the eave Ã¢â‚¬â€ micro-stepping must not
 // reintroduce the 1-micro hover (V1 checkRoofEaveFlush).
 TEST(RoofForgeTest, EaveStaysFlushOnTheWallTop) {
     auto r = build();
@@ -172,7 +172,7 @@ TEST(RoofForgeTest, EaveStaysFlushOnTheWallTop) {
         << "eave hovers: air directly under the roof's lowest course";
 }
 
-// A HIP roof slopes up from ALL FOUR eaves toward the ridge — no vertical gable
+// A HIP roof slopes up from ALL FOUR eaves toward the ridge Ã¢â‚¬â€ no vertical gable
 // triangle, no flat cap. RED today: "hip" is unimplemented and silently falls
 // back to a FLAT roof cap, so the surface height at the centre equals the height
 // at every edge.
@@ -204,7 +204,7 @@ TEST(RoofForgeTest, HipRoofSlopesUpFromAllFourEaves) {
 }
 
 // The hip surface must be micro-stepped along BOTH axes (same invariant as the
-// gable slope). GREEN on the flat fallback (steps of 0) and GREEN after — the
+// gable slope). GREEN on the flat fallback (steps of 0) and GREEN after Ã¢â‚¬â€ the
 // slope-exists test above carries the red; this pins smoothness once hip lands.
 TEST(RoofForgeTest, HipSlopeSurfaceIsMicroStepped) {
     auto r = buildHip();
@@ -252,11 +252,11 @@ TEST(RoofForgeTest, HipEaveStaysFlushOnTheWallTop) {
 
 // ---------------------------------------------------------------------------
 // EAVE OVERHANG (P2.5 remainder): styles carry a grounded-with-caveat
-// roof.overhang (0.4 m; modern-analog 300-450 mm range per TrimGrounding —
+// roof.overhang (0.4 m; modern-analog 300-450 mm range per TrimGrounding Ã¢â‚¬â€
 // the vernacular figure is NEEDS-RESEARCH, so the value ships FLAGGED in the
 // style sources). The rasterizer must extend the slope plane past the eave
 // walls so the roof visibly shelters them. RED today: the roof stops dead at
-// the footprint edge — nothing exists outside it at eave level.
+// the footprint edge Ã¢â‚¬â€ nothing exists outside it at eave level.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -318,4 +318,93 @@ TEST(RoofForgeTest, OverhangContinuesTheSlopePlane) {
     }
     ASSERT_GE(prev, 0);
     EXPECT_LE(maxStep, 2) << "overhang breaks the slope plane at the wall line";
+}
+
+// ---------------------------------------------------------------------------
+// P2.6 Ã¢â‚¬â€ L-PLAN ROOFS (FinishDetailPlan): a non-rectangular footprint currently
+// falls back to a FLAT CAP. The authentic mechanism (grounded direction: hall +
+// cross-wing composition) is TWO intersecting gabled ranges Ã¢â‚¬â€ the main range and
+// the wing each carry their own ridge, meeting in a valley. RED: flat cap = no
+// slope anywhere.
+// ---------------------------------------------------------------------------
+
+namespace {
+// L-plan: main range 9x4 (rooms hall+service) + wing 4x4 under the hall ->
+// footprint = 9x8 minus the notch x[4,9) z[4,8).
+const char* kLPlanHouse = R"({
+    "name": "lplan", "style": "thatch_test", "footprint": [9, 8],
+    "substructure": "slab", "roof_style": "gable",
+    "stories": [{
+        "height": 3,
+        "rooms": [
+            { "id": "hall",    "rect": [0,0,4,4], "purpose": "hall" },
+            { "id": "service", "rect": [4,0,5,4], "purpose": "service" },
+            { "id": "solar",   "rect": [0,4,4,4], "purpose": "solar" }
+        ],
+        "portals": [
+            { "between": ["exterior","service"], "pos": [6,0], "width": 1, "height": 2, "kind": "door" },
+            { "between": ["hall","service"], "pos": [4,2], "width": 1, "height": 2, "kind": "door" },
+            { "between": ["hall","solar"],   "pos": [2,4], "width": 1, "height": 2, "kind": "door" }
+        ]
+    }]
+})";
+
+StructureRealizer::ShellResult buildL() {
+    return StructureRealizer::realizeShell(
+        BuildingProgram::fromJson(nlohmann::json::parse(kLPlanHouse)), thatchStyle());
+}
+} // namespace
+
+// The MAIN range carries a real ridge: its surface at mid-depth stands well
+// above its eave. RED today: the flat cap is dead level.
+TEST(RoofForgeTest, LPlanMainRangeHasARidge) {
+    auto r = buildL();
+    ASSERT_TRUE(r.ok) << r.error;
+    const auto& c = r.canvas;
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(c.microBounds(lo, hi));
+    // x=58: inside the main range only (past the wing's x span). Slope runs
+    // along Z (span 4 cubes): eave at z~2, ridge at z~18.
+    const int eave  = roofTopAt(c, 58, 2, hi.y);
+    const int ridge = roofTopAt(c, 58, 18, hi.y);
+    ASSERT_GE(eave, 0);  ASSERT_GE(ridge, 0);
+    EXPECT_GE(ridge - eave, 12)
+        << "main range is flat (ridge " << ridge << " vs eave " << eave << ") Ã¢â‚¬â€ the L-plan flat cap";
+}
+
+// The WING carries its own perpendicular ridge. RED today (flat).
+TEST(RoofForgeTest, LPlanWingHasAPerpendicularRidge) {
+    auto r = buildL();
+    ASSERT_TRUE(r.ok) << r.error;
+    const auto& c = r.canvas;
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(c.microBounds(lo, hi));
+    // z=54: inside the wing only (past the main range's depth). Wing slope runs
+    // along X (span 4 cubes): eave at x~2, ridge at x~18.
+    const int eave  = roofTopAt(c, 2, 54, hi.y);
+    const int ridge = roofTopAt(c, 18, 54, hi.y);
+    ASSERT_GE(eave, 0);  ASSERT_GE(ridge, 0);
+    EXPECT_GE(ridge - eave, 12)
+        << "wing is flat (ridge " << ridge << " vs eave " << eave << ")";
+}
+
+// Coverage + notch guards (GREEN before and after): every footprint column
+// carries roof; the notch centre Ã¢â‚¬â€ far from any wall Ã¢â‚¬â€ stays open sky.
+TEST(RoofForgeTest, LPlanRoofCoversTheFootprintNotTheNotch) {
+    auto r = buildL();
+    ASSERT_TRUE(r.ok) << r.error;
+    const auto& c = r.canvas;
+    glm::ivec3 lo, hi;
+    ASSERT_TRUE(c.microBounds(lo, hi));
+    // Sample interior columns of both ranges + the junction line (watertight).
+    for (int x : {2, 18, 34, 40, 58, 76})
+        EXPECT_GE(roofTopAt(c, x, 18, hi.y), 0) << "roof hole in the main range at x=" << x;
+    for (int z : {2, 18, 34, 40, 58, 68})
+        EXPECT_GE(roofTopAt(c, 18, z, hi.y), 0) << "roof hole down the wing at z=" << z;
+    // Notch centre stays clear.
+    EXPECT_LT(roofTopAt(c, 58, 54, hi.y), 0) << "roof spills over the notch centre";
+    // The plan records a real roof style for the composed L, not the flat fallback
+    // (auditor gap: this field was untested).
+    ASSERT_FALSE(r.plan.roof.empty());
+    EXPECT_EQ(r.plan.roof[0].style, "gable") << "L-plan roof reported as flat in the plan";
 }
