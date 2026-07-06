@@ -39,6 +39,8 @@ layout(location = 2) out float vSky;        // baked skylight 0..1
 layout(location = 3) out vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 4) out float vShade;      // per-card shading (hashed, for leaf-to-leaf variation)
 layout(location = 5) out flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
+layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
+layout(location = 7) out vec3  vWorldPos;    // for view-dependent backlit transmission
 
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
@@ -110,5 +112,7 @@ void main() {
     float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
 
     vec3 worldPos = center + (q.x * right + q.y * up) * scale;
-    gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
+    vWorldPos    = worldPos;
+    vShadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
+    gl_Position  = ubo.viewProj * vec4(worldPos, 1.0);
 }

@@ -185,8 +185,17 @@ only at `leaf_res`. Aim lofty, optimize later (user directive).
   statically use the shadow-map sampler binding); RenderCoordinator records it last in
   renderShadowPass with the same shadow-sphere culling as static chunks. Verified live in the
   forge world: oaks pool broad dappled canopy shadows (previously trunk-only), ridge trees
-  shadow at distance, Debug FPS unchanged (~22-25), no Vulkan errors. Volume-normal shading +
-  transmission remain open Tier-2 items.
+  shadow at distance, Debug FPS unchanged (~22-25), no Vulkan errors.
+  **Volume lighting DONE 2026-07-05 (same session):** foliage.frag now RECEIVES shadows (4-tap
+  PCF on binding-2 shadowMap via vShadowCoord from biasedLightSpace; kBias 0.002 — cards sit in
+  the map with no back-face trick) and lights as fill (0.5×skylight) + sun key
+  (0.7×sunColor×shadow×skyGate) + backlit transmission (pow(dot(view,rayDir),6), damped deep in
+  canopy + when fully lit) + block light. The shadow map itself supplies the volume gradient —
+  sun-side lobes bright, undersides/far side in dappled shade; verified from three angles.
+  Explicit cluster-normal shading proved unnecessary. OPEN: transmission is untuned visually
+  (needs a low sun behind a canopy; the day/night API's timeOfDay mapping is confusing —
+  timeOfDay 0.5 → hour 0:30, sun overhead yet isNight=true — worth its own look); shadow-acne
+  spot-check at low sun angles.
 - **Tier 3 — lofty**: per-species card geometry + per-material card size/count (now global push
   constants), flutter/gusts/leaf-fall, distance impostors + alpha-to-coverage (explicitly
   deferred perf work).
