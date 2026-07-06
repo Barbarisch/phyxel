@@ -23,12 +23,15 @@ has a validator/gate; nothing physical is invented by the LLM.
    engine-resident schema. The gate before anything builds.
 3. **[StructureGenerationPlacers.md](StructureGenerationPlacers.md)** — the placers (the HOW) + the
    quality checklist. Part index; the depth lives in the subdirs below.
-4. **[StructurePipelineGaps.md](StructurePipelineGaps.md)** — engine/capability gaps (what's missing,
+4. **[FinishDetailPlan.md](FinishDetailPlan.md)** — PLAN (2026-07-05): the finish/trim layer
+   (framed openings, quoins, courses, timber framing) that fixes the "everything reads as full
+   cubes" problem, translating the tree_forge per-voxel-resolution lessons. Placers 8 + 15.
+5. **[StructurePipelineGaps.md](StructurePipelineGaps.md)** — engine/capability gaps (what's missing,
    logged honestly instead of faked).
-5. **[GroundingGaps.md](GroundingGaps.md)** — dimensions still needing a real-world source.
-6. **[BuildKnownIssues.md](BuildKnownIssues.md)** — honest tracker of issues found during runtime
+6. **[GroundingGaps.md](GroundingGaps.md)** — dimensions still needing a real-world source.
+7. **[BuildKnownIssues.md](BuildKnownIssues.md)** — honest tracker of issues found during runtime
    verification (KI-0…KI-4 history; KI-4 = the stairs-walkability saga).
-7. **[StructureGenerationPipeline.md](StructureGenerationPipeline.md)** — *superseded* by V2; kept for
+8. **[StructureGenerationPipeline.md](StructureGenerationPipeline.md)** — *superseded* by V2; kept for
    history.
 
 ### Depth sheets (subdirectories)
