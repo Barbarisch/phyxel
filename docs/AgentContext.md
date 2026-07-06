@@ -126,6 +126,44 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **FINISH_FORGE ARC — 6 increments SHIPPED 2026-07-06 (commits fc852f1, 83dcf14, c338baf on
+  main; every one red-before-green + independent solution-auditor pass).** The tree-forge
+  lessons applied to structures, per `docs/structure-generation/FinishDetailPlan.md` (the
+  canonical status doc — each increment's evidence, audit verdict, and remaining work is
+  recorded inline there):
+  1. **Micro-stepped gable slopes** (P2.5a) — roofs were horizontally cube-quantized (12-micro
+     jumps at 50°, the "stacked lumber" read); now rise pitch/3 micro per micro of run.
+  2. **Hip roofs** (P2.5b) — `stone_manor.roof_style="hip"` no longer silently degrades to a
+     flat cap; four-sided slopes, chimney planner adapts.
+  3. **Grounded openings in autofill** — cross-passage OPPOSED door pairs on the long
+     elevations at the attested bay boundary + 0-2 shuttered front-wall windows (size 1×1 cube
+     is labeled STYLIZED in room_program.json pending Brunskill/HEAG102; byre excluded; no
+     Glass pre-1558). `room_program.json` gained entrance/entrance_between/entrance_opposed/
+     windows specs; `OpeningsLayoutTest` incl. an autofill→realizeShell geometry-link test.
+  4. **Street-facing fronts** — `BuildingProgram.front` + `streetSideForPlot` (prefers the
+     FACING shared street over the perimeter ring) wired through build_settlement; village
+     rows now face each other across the main street.
+  5. **Corner quoins** (P2 place_trim increment A) — long-and-short courses on flags.quoins
+     styles (4/3-micro legs, 1-micro proud, from the reclaimed 450×300×145 mm stock;
+     `TrimGrounding.md` incl. the −23% disclosure + projection reconciliation note).
+  6. **Eave overhangs + L-plan valley roofs** (P2.5 remainder + P2.6) — slope plane extends
+     past eave walls (thin 3-micro watertight sheet; value FLAGGED modern-analog in style
+     sources — stone_manor's 0.6 m EXCEEDS the 300-450 mm analog range, needs research);
+     2-band footprints decompose into main range + cross-wing, pointwise-MAX surface forms
+     the valley (auditor proved the rect path cell-identical: 19944 = C:0 S:3114 M:16830).
+  **⚠ NEXT-SESSION TRAPS:** (a) `VoxelCountIsReasonable` sits at 19,944/20,000 — the next
+  roof/trim feature crosses it; optimize or justify a revision, don't silently raise it.
+  (b) PS5.1 `-Encoding utf8` writes BOM + mojibakes em-dashes on regex round-trips — edit
+  JSON resources via python (one mojibake incident already caught by an auditor and fixed).
+  (c) `scan_micro` counts: full cube=+27, sub/micro=+1 each — detect openings by per-column
+  SIGNATURE DIFF, never naive occupancy thresholds (framed doors read HIGH, thin walls low).
+  (d) MCP `launch_engine` pipe-deadlock re-confirmed on the main rig — launch phyxel.exe
+  directly with stdout→file. **NEXT QUEUE:** exposed timber framing (author a Daub/plaster
+  infill material first — the highest-impact medieval read); T/H plans (3+ bands still flat);
+  hip valleys; quoins on L-corners; offline NEEDS-RESEARCH batch (window sizes, sill heights,
+  string courses, thatch coat depth — Brunskill 1971 / HE HEAG102 / Weald & Downland).
+  Test worlds saved in `PhyxelProjects/StructGenTest` (village + L-plan cross-wing).
+
 - **FAR-TERRAIN LOD + ASYNC STREAMING (committed 2026-07-03; feature OFF by default).**
   Two related bodies of work landed together:
   1. **Far-terrain LOD** (`engine/{include,src}/graphics/FarTerrain*`, `shaders/far_terrain.*`): blocky
