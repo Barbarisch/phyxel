@@ -129,12 +129,15 @@ TEST(StructureRealizerTest, FrontDoorIsCarvedThroughTheWall) {
     auto r = build();
     // Door at pos (0,3): west wall, cell (0,3), opening from floor up. The wall band on the
     // -x edge (micro x 0..2) should be AIR across the opening height.
+    // finish_forge P1: the opening now carries 1-micro jambs at its z edges, so assert the
+    // CLEAR SPAN between them is air through the wall band (the original intent — a hole
+    // exists through the wall). FinishForgeTest pins the frame + walk-through invariants.
     int oy = r.floorTopMicro + 4;     // mid-door height
     bool anySolid = false;
     for (int mx = 0; mx < 3; ++mx)
-        for (int mz = 0; mz < 9; ++mz)
+        for (int mz = 1; mz < 8; ++mz)                        // clear span: skip the jamb micros
             if (r.canvas.occupiedMicro(0 * 9 + mx, oy, 3 * 9 + mz)) anySolid = true;
-    EXPECT_FALSE(anySolid) << "the front-door opening was not carved through the wall";
+    EXPECT_FALSE(anySolid) << "the front-door clear span was not carved through the wall";
 }
 
 TEST(StructureRealizerTest, ExteriorWallExistsWhereThereIsNoDoor) {

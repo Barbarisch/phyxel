@@ -206,6 +206,47 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
                     c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");   // carve to air
                 }
+
+                // ---- finish_forge P1: FRAME the opening (cut_openings leaves no raw holes).
+                // Jambs flank the clear span, a lintel carries the head (checklist D5/H1),
+                // windows get a sill ledge proud of the facade (E7/H6). Dims: jamb 1 micro
+                // (1-cube door clear stays 7 micro = 0.78 m — real clear openings 0.76-0.81 m);
+                // lintel 2 micro (~0.22 m — real timber lintels 0.15-0.23 m); sill projection
+                // 1 micro (~0.11 m, stylized vs real 25-75 mm — GroundingGaps). Trim material
+                // from the style ("trim" layer); fallback contrasts with the wall so frames
+                // read against the facade instead of vanishing into it.
+                if (p.kind == "door" || p.kind == "window") {
+                    const std::string matTrim =
+                        style.materialOf("trim", matExt == "Wood" ? "Log" : "Wood");
+                    const int kJamb = 1, kLintel = 2;
+                    const int w = std::max(1, p.width);
+                    const int jambTop = oyTop - kLintel;
+                    if (alongZ) {
+                        int cx  = p.px - (p.px == W ? 1 : 0);
+                        int fx0 = (p.px == 0) ? cx * 9 : cx * 9 + 9 - extT;   // wall band depth
+                        int z0 = p.pz * 9, z1 = (p.pz + w) * 9;
+                        c.fillMicroBox(fx0, oyBase, z0,          extT, jambTop - oyBase, kJamb, matTrim);
+                        c.fillMicroBox(fx0, oyBase, z1 - kJamb,  extT, jambTop - oyBase, kJamb, matTrim);
+                        c.fillMicroBox(fx0, jambTop, z0,         extT, kLintel, z1 - z0, matTrim);
+                        if (p.kind == "window") {
+                            int proudX = (p.px == 0) ? cx * 9 - 1 : cx * 9 + 9;
+                            c.fillMicroBox(proudX, oyBase - 1, z0, 1, 2, z1 - z0, matTrim);      // proud ledge
+                            c.fillMicroBox(fx0,    oyBase - 1, z0, extT, 1, z1 - z0, matTrim);   // sill board
+                        }
+                    } else {
+                        int cz  = p.pz - (p.pz == D ? 1 : 0);
+                        int fz0 = (p.pz == 0) ? cz * 9 : cz * 9 + 9 - extT;
+                        int x0 = p.px * 9, x1 = (p.px + w) * 9;
+                        c.fillMicroBox(x0,         oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
+                        c.fillMicroBox(x1 - kJamb, oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
+                        c.fillMicroBox(x0,         jambTop, fz0, x1 - x0, kLintel, extT, matTrim);
+                        if (p.kind == "window") {
+                            int proudZ = (p.pz == 0) ? cz * 9 - 1 : cz * 9 + 9;
+                            c.fillMicroBox(x0, oyBase - 1, proudZ, x1 - x0, 2, 1, matTrim);
+                            c.fillMicroBox(x0, oyBase - 1, fz0,    x1 - x0, 1, extT, matTrim);
+                        }
+                    }
+                }
             } else {
                 // Interior: the wall band is CENTERED on the shared coord (coord*9), straddling the
                 // cube boundary, so a single-cube carve leaves a wall sliver and the doorway isn't

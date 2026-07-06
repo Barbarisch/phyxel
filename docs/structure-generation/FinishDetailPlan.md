@@ -39,7 +39,20 @@ Audit of the current realizer (2026-07-05):
 
 ## Plan (phased; each phase = red test → implement → stress → auditors, per standing rules)
 
-### P1 — finish `cut_openings` (placer 8: P → full)
+### P1 — finish `cut_openings` (placer 8: P → full) — **CORE DONE 2026-07-05**
+Shipped red-before-green: `tests/core/FinishForgeTest.cpp` (jamb/lintel/proud-sill invariants on
+the real canvas, shown failing 7/7 against the raw-hole realizer, + a clear-passage guard) →
+framing implemented in `StructureRealizer`'s carve pass (exterior doors + windows; jamb 1 micro,
+lintel 2 micro, window sill ledge 1 micro proud of the facade; trim material = style `trim`
+layer with a contrast fallback so frames read against the wall). All 49 structure tests green;
+`FrontDoorIsCarvedThroughTheWall` re-pinned to the clear span. Grounding: GroundingGaps #8
+(frame stock stylized on the 1/9-m grid; door CLEAR width 778 mm genuinely matches real 762-813
+mm). L4 in-engine settlement check: 4 varied buildings built via /api/settlement/build (visual
+screenshots still owed — the no-project editor camera is wedged, note below). REMAINING in P1:
+reveals + thresholds as distinct elements, exterior arches.
+**Session note:** the no-project editor ignores /api/camera and orbit-screenshots (viewport
+camera never syncs — likely the project-selector state); use a --project launch for visual
+verification.
 Framed openings instead of raw holes: **jambs** (sub-thick posts either side), **lintel** (sub
 beam over the head, checklist D5), **sill** (protruding sub course under windows, sloped top via
 `chamferEdge`, E7/H6), **threshold** (micro step at doors), **reveals** (opening sides show wall

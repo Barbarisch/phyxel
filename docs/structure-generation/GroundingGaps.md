@@ -19,8 +19,9 @@ Everything else in the spec is **cited** or **reuse-canon** — and Parts 5–8 
 | 5 | **Bellows** period length/width/loft | `object_dimensions.json` (`bellows`), `blacksmith.md` | Smith, *The Blacksmith's Craft* (1956); Horne, *The Artist-Blacksmith* (2002) — open craft sources give 4 ft; shipped 1.5 m is INFERRED within the 4–6 ft range |
 | 6 | **Firebox opening area** (drives the flue size) | `14_place_chimney.md` | Neufert *Architects' Data* (fireplace opening tables); a medieval hall/tavern hearth survey — the 0.44 m² used for the 1/10 flue rule is currently UNSOURCED |
 | 7 | **Chimney stack wall thickness** | `14_place_chimney.md` (engine = 1 micro / 0.11 m) | Brunskill *Vernacular Architecture of Britain* (English medieval ≥215 mm brick / ≥300 mm rubble) — the 1-micro masonry wall is thin/unsourced |
+| 8 | **Opening-frame stock sizes** (finish_forge P1, 2026-07-05) | `StructureRealizer.cpp` framing pass | Jamb 1 micro (111 mm) vs real frame stock 38–50 mm and lintel 2 micro (222 mm) vs real timber lintels 150–225 mm are voxel-legibility choices on the 1/9-m grid; the GROUNDED part: resulting door clear width 7 micro = 778 mm matches real clear openings 762–813 mm. Sill projection 1 micro (111 mm) vs real 25–75 mm: stylized. Refine against Hewett, *English Historic Carpentry*, if a finer grid ever exists |
 
-All seven are honestly flagged in-place; **none are faked into a number.**
+All eight are honestly flagged in-place; **none are faked into a number.**
 
 ## to_ground — deferred to the model (~265)
 
