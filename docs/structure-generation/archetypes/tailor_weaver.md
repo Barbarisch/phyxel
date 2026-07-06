@@ -33,7 +33,12 @@ Defining quality: the work station + **strong natural light** (big windows) + a 
 | dwelling | — | home | dwelling fixtures | above |
 
 ## 6. Adjacency & circulation rules
-1. The **workshop is on the best-lit side** (big / north windows).
+1. The **workshop is on the best-lit side** (large windows — the period form is the domestic
+   upper-floor "weavers' window", a long multi-light opening; Wikipedia *Weavers' windows*).
+   *(CORRECTED 2026-07-06, grounding-auditor: the earlier "north windows" claim was an
+   anachronism — north-light workshop orientation is attributed to Fairbairn's 1827 sawtooth
+   textile-factory design, ~3 centuries after this catalog's period ceiling. No medieval
+   north-orientation attestation found.)*
 2. *(Loom)* the loom needs **warp clearance** — the warp beam rolls a full piece (~24 yd of cloth), so a workshop long enough to work it.
 3. The cloth store is **dry + secure**.
 4. The shopfront opens to the street.

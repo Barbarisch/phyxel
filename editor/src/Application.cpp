@@ -10468,9 +10468,22 @@ void Application::registerSettlementCommands() {
             const int by = (terrain && !seatFlat)
                 ? groundTopAt(bx + bw / 2, bz + bd / 2)
                 : oy;
+            // Street-facing front hint (OpeningsLayoutTest.FrontHint*): the entrance wall faces
+            // the plot's street side. The building rect is axis-aligned in settlement coords, so
+            // 'S' (street at -z) = its local z0 wall, etc. No street (terrain mode) = no hint.
+            std::string front;
+            if (b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size()) {
+                switch (Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)) {
+                    case 'S': front = "z0"; break;
+                    case 'N': front = "z1"; break;
+                    case 'W': front = "x0"; break;
+                    case 'E': front = "x1"; break;
+                    default: break;
+                }
+            }
             nlohmann::json bp = {
                 {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
-                {"footprint_shape", var.footprintShape},
+                {"footprint_shape", var.footprintShape}, {"front", front},
                 {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                 {"footprint", nlohmann::json::array({bw, bd})},
                 {"substructure", "slab"},

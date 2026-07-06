@@ -321,9 +321,49 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     for (const auto& [cx, cz] : footprint)
         c.fillMicroBox(cx * 9, wallTopMicro, cz * 9, 9, ceilT, 9, matCeil);
 
-    // ---- pass 5: gable roof over the bounding rectangle ----
+    // ---- pass 4.5: corner QUOINS (P2 place_trim increment A; TrimForgeTest) ----
+    // Styles with flags.quoins get alternating dressed-stone corner blocks proud of both
+    // facade planes at every corner of the RECTANGULAR bounding footprint, ground to wall
+    // top. GROUNDED (TrimGrounding.md): reclaimed stone quoins 450x300x145 mm (Britannia
+    // Stone) -> long leg 4 micro, short leg 3 micro, proud face + course height 1 micro
+    // (the 145 mm dimension at the grid floor). Long-and-short work alternates the leg
+    // orientation per course; the 4:3 rhythm comes from the grounded block itself (a
+    // sourced numeric alternation RATIO remains NEEDS-RESEARCH). Material = the style's
+    // trim layer; the outermost wall skin under each leg is recolored to trim so the
+    // quoin reads as one dressed stone, not a floating shell. L-plan notch corners are
+    // deferred with the P2.6 composition work.
     const int W_c = bx1 - bx0, D_c = bz1 - bz0;
     const bool rectangular = (int)footprint.size() == W_c * D_c;
+    if (style.flag("quoins", false) && rectangular) {
+        const std::string matTrim = style.materialOf("trim", matExt);
+        const int qLong = 4, qShort = 3;
+        const int qBase = floorTopByStory.empty() ? floorTopMicro : floorTopByStory[0];
+        struct QCorner { int cx, cz, dx, dz; };   // outermost wall cell + inward direction
+        const QCorner corners[4] = {
+            {bx0 * 9,     bz0 * 9,     +1, +1},
+            {bx1 * 9 - 1, bz0 * 9,     -1, +1},
+            {bx0 * 9,     bz1 * 9 - 1, +1, -1},
+            {bx1 * 9 - 1, bz1 * 9 - 1, -1, -1},
+        };
+        for (const auto& q : corners) {
+            for (int y = qBase; y < wallTopMicro; ++y) {
+                const int course = y - qBase;
+                const int runX = (course % 2 == 0) ? qLong : qShort;  // leg along the z-facade
+                const int runZ = (course % 2 == 0) ? qShort : qLong;  // leg along the x-facade
+                for (int k = 0; k < runX; ++k) {
+                    c.setMicroCell(q.cx + q.dx * k, y, q.cz - q.dz, matTrim);  // proud shell
+                    c.setMicroCell(q.cx + q.dx * k, y, q.cz, matTrim);         // wall skin
+                }
+                for (int k = 0; k < runZ; ++k) {
+                    c.setMicroCell(q.cx - q.dx, y, q.cz + q.dz * k, matTrim);
+                    c.setMicroCell(q.cx, y, q.cz + q.dz * k, matTrim);
+                }
+                c.setMicroCell(q.cx - q.dx, y, q.cz - q.dz, matTrim);          // corner cell
+            }
+        }
+    }
+
+    // ---- pass 5: gable roof over the bounding rectangle ----
     const std::string roofStyle = !program.roofStyle.empty() ? program.roofStyle : style.roofStyle;
     // Subcube row the roof's lowest course sits on. FLOOR-divide (not ceil): the eave rests ON the
     // wall/ceiling top with NO air row. wallTopMicro is always a multiple of 3 (crawl*9 + floorT(3) +
@@ -331,7 +371,31 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // wall top. The old ceil() pushed it one subcube higher, leaving the visible 1-micro hover
     // (V1 RealizedStructureValidator::checkRoofEaveFlush).
     int eaveSub = ceilTopMicro / 3;
-    if (rectangular && roofStyle == "gable" && W_c >= 2 && D_c >= 2) {
+    if (rectangular && roofStyle == "hip" && W_c >= 2 && D_c >= 2) {
+        // HIP roof (P2.5, RoofForgeTest): the surface slopes up from ALL FOUR eaves —
+        // height above the eave = (distance to the nearest footprint edge) * pitch,
+        // which forms a ridge segment along the longer axis. Same grounded pitch_deg
+        // conversion and micro-stepped rasterization as the gable; same subcube-snapped
+        // underside so the shell interior stays coarsenable. No gable-end walls: every
+        // side is roof down to its eave.
+        constexpr double PI = 3.14159265358979323846;
+        const double pitchDeg = style.roofOf("pitch_deg", 0.0);
+        const int pitch = pitchDeg > 0.0
+            ? std::max(1, (int)std::lround(3.0 * std::tan(pitchDeg * PI / 180.0)))
+            : 2;
+        const int shellM = (pitch + 1) * 3;
+        const int eaveM  = eaveSub * 3;
+        const int WM = W_c * 9, DM = D_c * 9;
+        for (int mx = 0; mx < WM; ++mx) {
+            const int dx = std::min(mx, WM - 1 - mx);
+            for (int mz = 0; mz < DM; ++mz) {
+                const int d     = std::min(dx, std::min(mz, DM - 1 - mz));
+                const int top   = eaveM + (d * pitch) / 3;
+                const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+                c.fillMicroBox(bx0 * 9 + mx, under, bz0 * 9 + mz, 1, top - under + 1, 1, matRoof);
+            }
+        }
+    } else if (rectangular && roofStyle == "gable" && W_c >= 2 && D_c >= 2) {
         // Honor the GROUNDED roof pitch from the style (degrees). The gable rises `pitch`
         // subcubes per cube of run toward the ridge, so roof angle = atan(pitch/3): the
         // grounded subcube pitch = round(3*tan(deg)). thatch 50deg -> 4 (~53deg); tile 40deg
@@ -345,36 +409,38 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         const bool slopeInZ = W_c >= D_c;                 // ridge along the longer axis
         const int span = slopeInZ ? D_c : W_c;
         const int perp = slopeInZ ? W_c : D_c;
-        // The sloped roof slab is a full-cross-section subcube layer (solid roof mass).
-        auto roofLayer = [&](int a, int b, int syAbs, const std::string& mat) {
-            int cx = slopeInZ ? bx0 + a : bx0 + b;
-            int cz = slopeInZ ? bz0 + b : bz0 + a;
-            int cy = syAbs / 3, subY = syAbs % 3;
-            for (int sx = 0; sx < 3; ++sx)
-                for (int sz = 0; sz < 3; ++sz) c.addSubcube(cx, cy, cz, sx, subY, sz, mat);
-        };
-        // The gable-end triangle is a THIN wall (exterior-wall thickness) on the end face,
-        // NOT a full-cube cross-section — otherwise the end walls read as 1 m Minecraft walls.
-        auto gableBand = [&](int a, int b, int syAbs, const std::string& mat) {
-            int cx = slopeInZ ? bx0 + a : bx0 + b;
-            int cz = slopeInZ ? bz0 + b : bz0 + a;
-            int y0 = syAbs * 3;
-            if (slopeInZ) {
-                int x0 = (a == 0) ? cx * 9 : cx * 9 + 9 - extT;
-                c.fillMicroBox(x0, y0, cz * 9, extT, 3, 9, mat);
-            } else {
-                int z0 = (a == 0) ? cz * 9 : cz * 9 + 9 - extT;
-                c.fillMicroBox(cx * 9, y0, z0, 9, 3, extT, mat);
+        // P2.5 MICRO-STEPPED slope (finish_forge; RoofForgeTest): advance the tread one
+        // MICRO of run at a time instead of one cube. Rise = pitch subcubes per cube of
+        // run = pitch/3 micro per micro, so a 50deg (pitch 4) surface steps 1-2 micro per
+        // column instead of jumping pitch*3 = 12 micro at every cube boundary — the roof
+        // reads as a plane, not metre stairs. The wedge interior still greedily coarsens
+        // in export(); only the stepped surface shell stays micro (tree-forge economics).
+        const int spanM  = span * 9;
+        const int eaveM  = eaveSub * 3;    // micro y of the lowest roof course (eave-flush)
+        const int shellM = shell * 3;      // same vertical shell depth as the cube-stepped roof
+        const int perpM  = perp * 9;
+        for (int mb = 0; mb < spanM; ++mb) {
+            const int dd    = std::min(mb, spanM - 1 - mb);
+            const int top   = eaveM + (dd * pitch) / 3;   // floor-div: never above the grounded plane
+            // Underside snaps DOWN to the subcube grid (3-micro treads, thickness grows <=2
+            // micro): only the visible TOP surface pays micro cost; the shell interior stays
+            // subcube-coarsenable (VoxelCountIsReasonable budget).
+            const int under = std::max(eaveM, (top - shellM + 1) / 3 * 3);
+            // One micro-thin slice of roof mass across the full perpendicular extent.
+            if (slopeInZ) c.fillMicroBox(bx0 * 9, under, bz0 * 9 + mb, perpM, top - under + 1, 1, matRoof);
+            else          c.fillMicroBox(bx0 * 9 + mb, under, bz0 * 9, 1, top - under + 1, perpM, matRoof);
+            // The gable-end triangle stays a THIN wall (exterior-wall thickness) on the end
+            // face, NOT a full-cube cross-section — else the ends read as 1 m Minecraft walls.
+            if (under > eaveM) {
+                const int gh = under - eaveM;
+                if (slopeInZ) {
+                    c.fillMicroBox(bx0 * 9,        eaveM, bz0 * 9 + mb, extT, gh, 1, matExt);
+                    c.fillMicroBox(bx1 * 9 - extT, eaveM, bz0 * 9 + mb, extT, gh, 1, matExt);
+                } else {
+                    c.fillMicroBox(bx0 * 9 + mb, eaveM, bz0 * 9,        1, gh, extT, matExt);
+                    c.fillMicroBox(bx0 * 9 + mb, eaveM, bz1 * 9 - extT, 1, gh, extT, matExt);
+                }
             }
-        };
-        for (int b = 0; b < span; ++b) {
-            int dd = std::min(b, span - 1 - b);
-            int top = eaveSub + pitch * dd;
-            int under = eaveSub + std::max(0, pitch * dd - shell + 1);
-            for (int a = 0; a < perp; ++a)
-                for (int sy = under; sy <= top; ++sy) roofLayer(a, b, sy, matRoof);
-            for (int a : {0, perp - 1})
-                for (int sy = eaveSub; sy < under; ++sy) gableBand(a, b, sy, matExt);  // thin gable wall
         }
     } else {
         // non-rectangular / flat: a simple flat roof cap one cube above the ceiling

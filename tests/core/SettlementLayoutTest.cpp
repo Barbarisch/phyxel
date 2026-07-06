@@ -238,3 +238,50 @@ TEST(SettlementLayoutTest, ComposedWorldFootprintsDontOverlap) {
         for (size_t j = i + 1; j < world.size(); ++j)
             EXPECT_FALSE(overlaps(world[i], world[j])) << "composed buildings " << i << "," << j << " overlap";
 }
+
+// ---------------------------------------------------------------------------
+// streetSideForPlot (street-facing entrances, 2026-07-06): every plot in a
+// subdivided grid must report a street side, and the reported side must
+// actually touch a street corridor (self-consistency). A layout with no
+// streets reports none (teeth: the function cannot return a constant).
+// ---------------------------------------------------------------------------
+TEST(SettlementLayoutTest, EveryGridPlotFrontsAStreet) {
+    const auto layout = subdividePlots(52, 36, 2, 2, 4);
+    ASSERT_EQ(layout.plots.size(), 4u);
+    ASSERT_FALSE(layout.streets.empty());
+    for (const auto& plot : layout.plots) {
+        const char side = streetSideForPlot(layout, plot.rect);
+        ASSERT_NE(side, 0) << "plot at (" << plot.rect.x << "," << plot.rect.z << ") fronts no street";
+        // The strip just outside the reported side must overlap a street rect.
+        Rect strip{};
+        const Rect& r = plot.rect;
+        if (side == 'S')      strip = {r.x, r.z - 1, r.w, 1};
+        else if (side == 'N') strip = {r.x, r.z1(), r.w, 1};
+        else if (side == 'W') strip = {r.x - 1, r.z, 1, r.d};
+        else                  strip = {r.x1(), r.z, 1, r.d};
+        bool touches = false;
+        for (const auto& s : layout.streets)
+            if (strip.x < s.x1() && s.x < strip.x1() && strip.z < s.z1() && s.z < strip.z1())
+                touches = true;
+        EXPECT_TRUE(touches) << "reported side '" << side << "' does not touch a street";
+    }
+    // Teeth: no streets -> no side.
+    SettlementLayout bare;
+    bare.plots = layout.plots;
+    EXPECT_EQ(streetSideForPlot(bare, layout.plots[0].rect), 0);
+}
+
+// Facing preference: in a plot grid every side touches SOME street (perimeter ring included),
+// so the side choice must prefer the SHARED street — the one with another plot across it —
+// over the outer ring. In a 2x2 grid the two rows front the middle street, facing each other
+// like a real village street. RED on the naive long-side-first pick (row 0 grabs the southern
+// perimeter ring).
+TEST(SettlementLayoutTest, PlotsFrontTheSharedStreetFacingEachOther) {
+    const auto layout = subdividePlots(52, 36, 2, 2, 4);
+    ASSERT_EQ(layout.plots.size(), 4u);
+    for (const auto& plot : layout.plots) {
+        const char side = streetSideForPlot(layout, plot.rect);
+        if (plot.row == 0) EXPECT_EQ(side, 'N') << "row-0 plot should front the shared middle street (+z)";
+        else               EXPECT_EQ(side, 'S') << "row-1 plot should front the shared middle street (-z)";
+    }
+}

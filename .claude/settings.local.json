@@ -399,7 +399,22 @@
       "mcp__phyxel__build_structure",
       "mcp__phyxel__set_ambient_light",
       "mcp__phyxel__restart_engine",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "mcp__phyxel__place_voxel",
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.buildingconservation.com)",
+      "WebFetch(domain:britanniastone.co.uk)",
+      "WebFetch(domain:www.lambsbricks.com)",
+      "WebFetch(domain:afjones.co.uk)",
+      "WebFetch(domain:historicengland.org.uk)",
+      "WebFetch(domain:www.castles-of-britain.com)",
+      "WebFetch(domain:archive.org)",
+      "WebFetch(domain:htt.herefordshire.gov.uk)",
+      "WebFetch(domain:archaeology.co.uk)",
+      "WebFetch(domain:web.archive.org)",
+      "WebFetch(domain:nosasblog.wordpress.com)",
+      "WebFetch(domain:discoveringoldwelshhouses.co.uk)"
     ]
   },
   "enableAllProjectMcpServers": true,

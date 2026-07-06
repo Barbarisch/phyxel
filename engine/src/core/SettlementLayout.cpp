@@ -6,6 +6,49 @@
 namespace Phyxel {
 namespace Core {
 
+char streetSideForPlot(const SettlementLayout& layout, const Rect& plot) {
+    auto touchesStreet = [&](const Rect& strip) {
+        for (const auto& s : layout.streets)
+            if (strip.x < s.x1() && s.x < strip.x1() && strip.z < s.z1() && s.z < strip.z1())
+                return true;
+        return false;
+    };
+    // A side is FACING when another plot lies across the street in that direction — a SHARED
+    // street with opposite frontages (the village street), as opposed to the settlement's
+    // outer ring road. In a plot grid every side touches some street, so this is what breaks
+    // the tie toward houses facing each other (SettlementLayoutTest.PlotsFrontTheSharedStreet…).
+    auto facing = [&](char side) {
+        for (const auto& q : layout.plots) {
+            const Rect& o = q.rect;
+            if (o.x == plot.x && o.z == plot.z && o.w == plot.w && o.d == plot.d) continue;  // self
+            const bool xOverlap = o.x < plot.x1() && plot.x < o.x1();
+            const bool zOverlap = o.z < plot.z1() && plot.z < o.z1();
+            if (side == 'N' && xOverlap && o.z >= plot.z1()) return true;
+            if (side == 'S' && xOverlap && o.z1() <= plot.z) return true;
+            if (side == 'E' && zOverlap && o.x >= plot.x1()) return true;
+            if (side == 'W' && zOverlap && o.x1() <= plot.x) return true;
+        }
+        return false;
+    };
+    // 1-cube strips just outside each plot edge.
+    const Rect south{plot.x, plot.z - 1, plot.w, 1};
+    const Rect north{plot.x, plot.z1(), plot.w, 1};
+    const Rect west{plot.x - 1, plot.z, 1, plot.d};
+    const Rect east{plot.x1(), plot.z, 1, plot.d};
+    // Prefer the LONG sides (the building orients along the plot's long axis, so its entrance
+    // wall is a long side); within that, prefer a FACING shared street over the outer ring.
+    const bool longX = plot.w >= plot.d;
+    const char order[4] = {longX ? 'S' : 'W', longX ? 'N' : 'E', longX ? 'W' : 'S', longX ? 'E' : 'N'};
+    auto strip = [&](char side) -> const Rect& {
+        return side == 'S' ? south : side == 'N' ? north : side == 'W' ? west : east;
+    };
+    for (char side : order)
+        if (touchesStreet(strip(side)) && facing(side)) return side;
+    for (char side : order)
+        if (touchesStreet(strip(side))) return side;
+    return 0;
+}
+
 std::vector<Plot> selectBuildablePlots(const BuildabilityMap& site, int plotSize, int spacing,
                                        int maxPlots) {
     std::vector<Plot> out;

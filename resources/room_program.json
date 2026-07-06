@@ -5,12 +5,17 @@
     "croft": {
       "description": "Single-room peasant cottage — one 'house' room with a central hearth.",
       "width_min": 4, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 3.0,
+      "entrance": "long_wall",
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
       "rooms": [ { "id": "house", "purpose": "living", "bays": 2 } ],
       "source": "Wharram Percy / vernacular cruck cottage; cruck dwelling width <=6 m",
       "sources": {
         "width_max": "crucks for houses/barns 'no more than 6 m (20 ft) wide' (buildingconservation.com timber-framed buildings)",
         "bay_length": "DERIVED ~4 m: 4-bay longhouse 15-18 m / 4 (Wikipedia Longhouse, Germanic 50-60 ft); canonical module per Brunskill, Timber Building in England (1985) — TBD",
-        "bays": "1-2 bay peasant cottage (Wharram Percy excavation, Beresford & Hurst)"
+        "bays": "1-2 bay peasant cottage (Wharram Percy excavation, Beresford & Hurst)",
+        "entrance": "long-wall entry by FAMILY ANALOGY to the cross-passage forms (Dartmoor longhouse / hall house opposed long-wall doorways); croft-specific position along the wall NEEDS-RESEARCH (Brunskill 1971 plates; Beresford & Hurst Wharram Percy building plans) — wall middle is the disclosed default (grounding-auditor 2026-07-06)",
+        "windows.count": "humble tier 0-2, door + windows sharing the sun-facing long wall: NOSAS survey of a cruck cottage near Beauly — 'a doorway and two windows in the south wall', the north window a later insertion (⚠ verify: single Scottish Highland site); 'Single room dwellings often did not even have window openings' (Herefordshire Through Time). per_bay 0.5 on the front wall ≈ 1 per 2-bay croft, inside the attested 0-2 band (grounding-auditor 2026-07-06)",
+        "windows.size": "STYLIZED — NO metric source for a humble window opening (the 12-18 in figure is 11th-c castle windows, wrong class); 1x1 cube = the smallest carvable opening on the cube portal grid, KNOWN OVERSIZED vs the qualitative 'small shuttered opening' record; pending Brunskill (1971) / Weald & Downland build records / HE HEAG102. Openings are SHUTTERED AIR, never Glass: glazing unaffordable for ordinary households before Elizabeth I (1558+) (buildingconservation.com early-casement article)"
       }
     },
     "longhouse": {
@@ -21,12 +26,20 @@
         { "id": "hall",   "purpose": "living",     "bays": 1 },
         { "id": "byre",   "purpose": "byre",        "bays": 2 }
       ],
+      "entrance": "long_wall",
+      "entrance_between": ["hall", "byre"],
+      "entrance_opposed": true,
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
       "source": "Dartmoor / Wharram Percy longhouse (Wikipedia Longhouse; English Heritage Wharram Percy)",
       "sources": {
         "bays": "Dartmoor longhouse = 'two crucked bays, a cross passage, and two crucked bays' (Wikipedia Longhouse)",
         "length": "Germanic longhouse '50 to 60 feet long' = 15-18 m (Wikipedia Longhouse)",
         "rooms": "inner room (sleeping/dairy) + living room w/ central hearth + cross passage + byre (English Heritage, Wharram Percy)",
-        "width_max": "cruck dwelling <=6 m (buildingconservation.com)"
+        "width_max": "cruck dwelling <=6 m (buildingconservation.com)",
+        "entrance": "cross passage between the dwelling end and the byre = the 4-bay midpoint ('two crucked bays, a cross passage, and two crucked bays' — Wikipedia Dartmoor longhouse; EH Wharram Percy: inner room + hall + cross passage + byre). OPPOSED pair: 'opposed doorways on the front and back walls' (Wikipedia Dartmoor longhouse); 'two opposing doors...connected by a passage' (Wikipedia Byre-dwelling). Topology fix, bay-aligned, zero rounding (grounding-auditor 2026-07-06)",
+        "windows.count": "same humble-tier 0-2 / front-wall band as croft (NOSAS Beauly survey; Herefordshire Through Time)",
+        "windows.size": "STYLIZED — same caveat as croft (no metric source; 1x1 cube = smallest carvable, oversized; shuttered air, no Glass pre-1558)",
+        "windows.byre": "byre gets NO windows — REASONED, not attested: the byre record mentions only a dung-shovel aperture + drain (Legendary Dartmoor; Wikipedia Byre-dwelling); absence-of-mention is not proof (grounding-auditor 2026-07-06)"
       }
     },
     "hall_house": {
@@ -37,11 +50,18 @@
         { "id": "hall",    "purpose": "hall",    "bays": 2 },
         { "id": "solar",   "purpose": "solar",   "bays": 1 }
       ],
+      "entrance": "long_wall",
+      "entrance_between": ["service", "hall"],
+      "entrance_opposed": true,
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
       "source": "Medieval hall house (Wikipedia Hall house)",
       "sources": {
         "bays": "'four-bay cruck-framed structure, with the open hall taking up the two bays in the middle' (Wikipedia Hall house)",
         "rooms": "open hall (middle 2 bays) + service end + solar (Wikipedia Hall house)",
-        "example": "c.1530 hall house 14.2 m x 6.7 m (Wikipedia Hall house, Rufford Old Hall, built for Sir Robert Hesketh)"
+        "example": "c.1530 hall house 14.2 m x 6.7 m (Wikipedia Hall house, Rufford Old Hall, built for Sir Robert Hesketh)",
+        "entrance": "screens passage at the LOW end, between service and hall: 'two external doors on each side of the hall formed a cross passage' (Wikipedia Hall house / Great hall) — 1 bay in from the gable, bay-aligned (grounding-auditor 2026-07-06)",
+        "windows.count": "STYLIZED count by family analogy (no dimensioned hall-house window survey found this pass; middling-tier sizes NEEDS-RESEARCH — Rufford Old Hall conservation report / Brunskill). Shutters only: glazing gated post-1558 for ordinary households (buildingconservation.com); the Stokesay part-glazed pattern is reserved for manor_hall status",
+        "windows.size": "STYLIZED — same 1x1-cube smallest-carvable caveat as croft"
       }
     },
     "tavern": {
@@ -49,6 +69,7 @@
       "description": "Town inn / tavern — ground floor: public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system. Upper floor: guest chambers (lodging), reached by a generated stair.",
       "width_min": 6, "width_max": 7, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
       "stories": 2, "upper_purpose": "bedchamber",
+      "windows": { "width": 1, "height": 1, "per_bay": 1.0, "walls": "front" },
       "rooms": [
         { "id": "taproom", "purpose": "taproom", "bays": 2 },
         { "id": "kitchen", "purpose": "kitchen", "bays": 1 },
@@ -62,7 +83,9 @@
         "bays": "DESIGN DECISION (analogy, not an inn measurement): modelled on the grounded hall_house 4-bay frame, inn ground floor ~= a hall. Taproom = the 2 middle bays (cf. hall_house open hall = middle 2 bays, Wikipedia Hall house); kitchen + store one bay each. No inn-specific bay count was sourced.",
         "bay_length": "~4 m timber-frame bay module shared with croft/longhouse/hall_house (DERIVED; same Brunskill 1985 TBD caveat as those entries)",
         "stories": "2 storeys: ground-floor public rooms + upper-floor guest chambers — the standard town-inn lodging form. Attested: The New Inn, Gloucester is a three-storey galleried inn with chambers on the upper floors (Wikipedia). 2 is the conservative town-tavern default; multi-story gen supports more. (Medievalists.net grounds the inn room programme — hall/chambers/kitchen — but not the vertical placement.)",
-        "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn)."
+        "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn).",
+        "windows.count": "STYLIZED by analogy to the hall-house family — no inn-specific window survey (would need Pantin, Medieval Inns, 1961); per_bay 1.0 on the street front (urban shopfront tier more fenestrated than the rural humble tier is a REASONED, unattested step). Shutters only per the 1558 glazing gate (buildingconservation.com); upper-floor chamber windows consistent with domestic upper-floor 'weavers' windows' precedent (Wikipedia Weavers' windows)",
+        "windows.size": "STYLIZED — same 1x1-cube smallest-carvable caveat as croft; middling/shopfront opening dims NEEDS-RESEARCH (Pantin shop-front studies; Schofield & Vince, Medieval Towns)"
       }
     },
     "blacksmith": {

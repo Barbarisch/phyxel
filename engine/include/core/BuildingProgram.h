@@ -101,6 +101,9 @@ struct BuildingProgram {
     std::string roofStyle;              ///< optional override; empty = use the style's roof
     std::string typology;               ///< RoomProgram id (croft|longhouse|hall_house|manor_hall); ""=skip room gate
     std::string footprintShape;         ///< ""/"rect" = filled box; "L" = winged non-rect (generateWingedLayout)
+    std::string front;                  ///< street-facing wall hint: "z0"|"z1"|"x0"|"x1" (footprint-local
+                                        ///< wall id); "" = default. Long-wall typologies honor it only when
+                                        ///< it names a long wall (the grounded cross-passage placement wins)
     std::vector<ProgStory> stories;
 
     static BuildingProgram fromJson(const nlohmann::json& j);

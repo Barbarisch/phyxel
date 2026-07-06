@@ -23,6 +23,19 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
     p.proportionMax = rec.value("proportion_max", 0.0);
     p.stories = std::max(1, rec.value("stories", 1));
     p.upperPurpose = rec.value("upper_purpose", "");
+    p.entrance = rec.value("entrance", "");
+    p.entranceOpposed = rec.value("entrance_opposed", false);
+    if (rec.contains("entrance_between") && rec["entrance_between"].is_array())
+        for (const auto& r : rec["entrance_between"])
+            if (r.is_string()) p.entranceBetween.push_back(r.get<std::string>());
+
+    if (rec.contains("windows") && rec["windows"].is_object()) {
+        const auto& w = rec["windows"];
+        p.windows.width  = w.value("width", 0);
+        p.windows.height = w.value("height", 0);
+        p.windows.perBay = w.value("per_bay", 0.0);
+        p.windows.walls  = w.value("walls", std::string("long"));
+    }
 
     if (rec.contains("rooms") && rec["rooms"].is_array())
         for (const auto& r : rec["rooms"]) {

@@ -27,6 +27,18 @@ struct RoomSpec {
     double      bays = 1.0;
 };
 
+/// Window-opening generation rule for a typology (JSON key "windows"). ABSENT or
+/// invalid => the typology generates NO windows: sizes/densities are grounded facts
+/// that must be declared (with sources) in room_program.json — the engine invents
+/// no defaults.
+struct WindowSpec {
+    int    width = 0;            ///< opening width in cubes
+    int    height = 0;           ///< opening height in cubes
+    double perBay = 0.0;         ///< windows per structural bay on each qualifying wall
+    std::string walls = "long";  ///< "long" (walls parallel to the long axis) | "all"
+    bool valid() const { return width > 0 && height > 0 && perBay > 0.0; }
+};
+
 /// A period house typology and how it is sized.
 struct RoomProgram {
     std::string name;
@@ -41,6 +53,14 @@ struct RoomProgram {
     int    stories = 1;                      ///< number of stories the typology generates (>=1)
     std::string upperPurpose;                ///< room purpose for AUTO-generated upper floors
                                              ///< (e.g. "bedchamber" = inn guest chambers); ""=generic
+
+    std::string entrance;                    ///< exterior-door wall rule: "long_wall" (cross-passage
+                                             ///< dwellings) | "gable" (street-frontage shops) |
+                                             ///< "" = legacy perimeter-first placement
+    std::vector<std::string> entranceBetween; ///< the two room ids the cross-passage sits between
+                                             ///< (e.g. longhouse ["hall","byre"]); empty = room 0
+    bool entranceOpposed = false;            ///< cross-passage opposed door pair (front + back walls)
+    WindowSpec windows;                      ///< window rule; invalid (default) = no windows
 
     std::vector<RoomSpec> rooms;             ///< GROUND-floor rooms + their bay allocation
     std::map<std::string, std::string> sources;  ///< per-value provenance

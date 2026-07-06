@@ -109,7 +109,8 @@ RoomLayout generateRoomLayout(int W, int D, int targetRooms, unsigned seed, int 
     return out;
 }
 
-RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typology, int minDim) {
+RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typology, int minDim,
+                                         const std::string& front) {
     RoomLayout out;
     const auto& specs = typology.rooms;
     const int n = static_cast<int>(specs.size());
@@ -171,14 +172,45 @@ RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typolo
         else               { p.px = mid;     p.pz = w.coord; }
         out.portals.push_back(p);
     }
-    // One exterior entrance into the first room (it sits at length-pos 0 -> touches the perimeter).
+    // Exterior entrance(s). The wall is a TYPOLOGY fact (OpeningsLayoutTest, grounded
+    // 2026-07-06): "long_wall" = the cross-passage/screens-passage doorway of dwelling forms —
+    // on the LONG elevation at the bay boundary named by entrance_between (longhouse: between
+    // hall and byre, the 4-bay midpoint; hall house: between service and hall — Wikipedia
+    // Dartmoor longhouse / Byre-dwelling / Hall house; EH Wharram Percy). entrance_opposed
+    // adds the attested second door on the opposite long wall ("opposed doorways on the front
+    // and back walls"). Single-room plans (croft) take the wall middle — long wall by family
+    // analogy; the position along the wall is NEEDS-RESEARCH (GroundingGaps). ""/"gable" = the
+    // legacy perimeter-first pick (correct for narrow street-frontage burgage shops).
     {
-        const Rect& r = out.rooms[0].rect;
         ProgPortal e; e.a = "exterior"; e.b = out.rooms[0].id; e.width = 1; e.height = 2; e.kind = "door";
-        if (r.x == 0)         { e.px = 0; e.pz = r.z + r.d / 2; out.portals.push_back(e); }
-        else if (r.z == 0)    { e.px = r.x + r.w / 2; e.pz = 0; out.portals.push_back(e); }
-        else if (r.x1() == W) { e.px = W; e.pz = r.z + r.d / 2; out.portals.push_back(e); }
-        else if (r.z1() == D) { e.px = r.x + r.w / 2; e.pz = D; out.portals.push_back(e); }
+        const Rect& r0 = out.rooms[0].rect;
+        if (typology.entrance == "long_wall") {
+            // The passage room = the first of entrance_between (door opens into it, hard
+            // against its boundary with the second); fallback: room 0's far edge / middle.
+            const ProgRoom* into = &out.rooms[0];
+            if (typology.entranceBetween.size() == 2)
+                for (const auto& room : out.rooms)
+                    if (room.id == typology.entranceBetween[0]) { into = &room; break; }
+            const Rect& ri = into->rect;
+            e.b = into->id;
+            // The street-facing hint flips the PRIMARY door to the far long wall when it names
+            // one; a gable hint is ignored (the grounded cross-passage stays on the long side).
+            const bool flip = lengthIsX ? (front == "z1") : (front == "x1");
+            int at;
+            if (lengthIsX) { at = (n > 1) ? std::max(ri.x, ri.x1() - 1) : ri.x + ri.w / 2; e.px = at; e.pz = flip ? D : 0; }
+            else           { at = (n > 1) ? std::max(ri.z, ri.z1() - 1) : ri.z + ri.d / 2; e.pz = at; e.px = flip ? W : 0; }
+            out.portals.push_back(e);
+            if (typology.entranceOpposed) {
+                ProgPortal b = e;                       // the opposed back door of the cross-passage
+                if (lengthIsX) b.pz = flip ? 0 : D; else b.px = flip ? 0 : W;
+                out.portals.push_back(b);
+            }
+        } else {
+            if (r0.x == 0)         { e.px = 0; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
+            else if (r0.z == 0)    { e.px = r0.x + r0.w / 2; e.pz = 0; out.portals.push_back(e); }
+            else if (r0.x1() == W) { e.px = W; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
+            else if (r0.z1() == D) { e.px = r0.x + r0.w / 2; e.pz = D; out.portals.push_back(e); }
+        }
     }
     return out;
 }
@@ -221,6 +253,64 @@ RoomLayout generateWingedLayout(int W, int D, const std::string& shape, unsigned
         out.portals.push_back(e);
     }
     return out;
+}
+
+// Window openings per the typology's GROUNDED rule (room_program.json "windows" — the engine
+// invents no sizes; a typology without a declared spec generates none). For each room edge lying
+// on a qualifying exterior wall of the bounding footprint, place lround(edge_bays * per_bay)
+// evenly-spaced width×height openings, skipping any cell already claimed by a portal (the
+// entrance) or its immediate neighbour (frame clearance). L-plan notch walls (exterior but not
+// on the bounding box) are not yet windowed — bounding-perimeter edges only.
+static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& spec, double bayLength,
+                               char frontAxis, int frontCoord) {
+    if (!spec.valid() || bayLength <= 0.0) return;
+    auto blocked = [&](int px, int pz) {
+        for (const auto& p : rl.portals)
+            if (std::abs(p.px - px) <= 1 && std::abs(p.pz - pz) <= 1) return true;
+        return false;
+    };
+    const bool lengthIsX = (W >= D);
+    for (const auto& room : rl.rooms) {
+        // Byre (livestock) rooms get no windows — reasoned from the byre record (dung aperture +
+        // drain only, no windows mentioned), NOT directly attested; labeled in room_program sources.
+        if (room.purpose == "byre") continue;
+        const Rect& r = room.rect;
+        // Candidate exterior edges: {axis, wall coord, span lo, span hi}. "front" = the entrance's
+        // wall only (the surveyed humble pattern: door + windows share the sun-facing long wall).
+        struct Edge { char axis; int coord, lo, hi; };
+        std::vector<Edge> edges;
+        const bool longWallsAreZ = lengthIsX;   // long walls run along X => they are z=const walls
+        auto wants = [&](char axis, int coord, bool isLong) {
+            if (spec.walls == "all")   return true;
+            if (spec.walls == "front") return axis == frontAxis && coord == frontCoord;
+            return isLong;                                   // "long"
+        };
+        if (r.z == 0     && wants('z', 0, longWallsAreZ))  edges.push_back({'z', 0, r.x, r.x1()});
+        if (r.z1() == D  && wants('z', D, longWallsAreZ))  edges.push_back({'z', D, r.x, r.x1()});
+        if (r.x == 0     && wants('x', 0, !longWallsAreZ)) edges.push_back({'x', 0, r.z, r.z1()});
+        if (r.x1() == W  && wants('x', W, !longWallsAreZ)) edges.push_back({'x', W, r.z, r.z1()});
+        for (const auto& ed : edges) {
+            const int len = ed.hi - ed.lo;
+            if (len < spec.width) continue;
+            const int nWin = (int)std::lround((len / bayLength) * spec.perBay);
+            for (int k = 0; k < nWin; ++k) {
+                const int ideal = ed.lo + (int)std::lround((k + 1) * (double)len / (nWin + 1));
+                // A blocked slot (the door +-1) shifts along the wall instead of dropping the
+                // window (the croft's mid-wall door sits exactly on the single window's slot).
+                for (int off : {0, 2, -2, 3, -3, 4, -4}) {
+                    const int at = std::min(std::max(ideal + off, ed.lo), ed.hi - spec.width);
+                    const int px = (ed.axis == 'z') ? at : ed.coord;
+                    const int pz = (ed.axis == 'z') ? ed.coord : at;
+                    if (blocked(px, pz)) continue;
+                    ProgPortal w; w.a = "exterior"; w.b = room.id;
+                    w.kind = "window"; w.width = spec.width; w.height = spec.height;
+                    w.px = px; w.pz = pz;
+                    rl.portals.push_back(w);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 // Upper floors of a multi-story typology = linear guest chambers (full-width slices), so the FIRST
@@ -275,6 +365,7 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
     }
 
     bool typologyApplied = false;
+    char frontAxis = 'z'; int frontCoord = 0;                // the entrance's wall (set on story 0)
     for (size_t i = 0; i < program.stories.size(); ++i) {
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
@@ -285,7 +376,7 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
             if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through
         }
         if (rl.rooms.empty() && typology && i == 0) {        // ground floor = the typology's plan
-            rl = generateRoomLayoutFromProgram(W, D, *typology);
+            rl = generateRoomLayoutFromProgram(W, D, *typology, 2, program.front);
             if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
         }
         // upper floor of a multi-story typology: grounded guest chambers (linear, landing = room 0).
@@ -299,11 +390,29 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
             const int targetRooms = std::max(1, (W * D) / 16);
             rl = generateRoomLayout(W, D, targetRooms, seed + static_cast<unsigned>(i));
         }
+        // Windows per the typology's grounded rule — every story (chambers upstairs too). The
+        // "front" wall (entrance's wall, the surveyed door+windows-share-a-wall pattern) is
+        // derived from the ground story's exterior door and reused for upper stories.
+        if (typology && typology->windows.valid()) {
+            if (i == 0) {
+                frontAxis = (W >= D) ? 'z' : 'x';            // default: a long wall
+                frontCoord = 0;
+                for (const auto& p : rl.portals) {
+                    if (p.kind != "door" || (p.a != "exterior" && p.b != "exterior")) continue;
+                    if (p.pz == 0) { frontAxis = 'z'; frontCoord = 0; }
+                    else if (p.pz == D) { frontAxis = 'z'; frontCoord = D; }
+                    else if (p.px == 0) { frontAxis = 'x'; frontCoord = 0; }
+                    else if (p.px == W) { frontAxis = 'x'; frontCoord = W; }
+                    break;                                   // the first exterior door = the front
+                }
+            }
+            addTypologyWindows(rl, W, D, typology->windows, typology->bayLength, frontAxis, frontCoord);
+        }
         st.rooms = rl.rooms;
         for (const auto& p : rl.portals) {
             const bool ext = (p.a == "exterior" || p.b == "exterior");
-            if (ext && i != 0) continue;                     // exterior entrance: ground story only
-            st.portals.push_back(p);                         // keep any authored stairs/portals
+            if (ext && i != 0 && p.kind == "door") continue;  // exterior DOORS: ground story only
+            st.portals.push_back(p);                          // keep any authored stairs/portals
         }
     }
 

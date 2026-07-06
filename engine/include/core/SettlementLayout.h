@@ -37,6 +37,12 @@ struct SettlementLayout {
 /// (caller reduces density) if the grid can't fit every plot at >= minPlot. Deterministic.
 SettlementLayout subdividePlots(int W, int D, int cols, int rows, int streetWidth, int minPlot = 6);
 
+/// Which side of `plot` fronts a street corridor: 'S' (-z) | 'N' (+z) | 'W' (-x) | 'E' (+x),
+/// or 0 if no side touches a street (e.g. terrain-mode layouts have no street rects). Prefers
+/// the plot's LONG sides — the building inside orients along the plot's long axis, and its
+/// entrance wall (the cross-passage long elevation) faces perpendicular to it. Deterministic.
+char streetSideForPlot(const SettlementLayout& layout, const Rect& plot);
+
 /// One building sited on a plot (populate_plots #45).
 struct PlacedBuilding {
     int         plotIndex = 0;
