@@ -49,6 +49,13 @@ public:
     static bool s_foliageEnabled;
     static void setFoliageEnabled(bool on) { s_foliageEnabled = on; }
     static bool getFoliageEnabled()        { return s_foliageEnabled; }
+    // Fine (sub/microcube) greedy-merge toggle. OFF (default) = the per-face path, byte-identical
+    // to the pre-merge engine. Increment 1 uses it to emit ONE hand-forged merged subcube quad
+    // (the encoding spike that proves extents-in-light-word rendering); later increments gate the
+    // real fine mesher on it for live A/B. See docs/BinaryGreedyMeshingPlan.md.
+    static bool s_fineGreedyMerge;
+    static void setFineGreedyMerge(bool on) { s_fineGreedyMerge = on; }
+    static bool getFineGreedyMerge()        { return s_fineGreedyMerge; }
     static void setSmoothLighting(bool on) { s_smoothLighting = on; }
     static void setMergeTolerance(int t)   { s_mergeTolerance = t < 0 ? 0 : t; }
     static bool getSmoothLighting()        { return s_smoothLighting; }
@@ -107,7 +114,21 @@ public:
         const glm::ivec3& worldOrigin
     );
 
+    // Increment 3: greedy-merged subcube path (within-cube same-appearance rectangles), selected by
+    // s_fineGreedyMerge. Same algorithm as rebuildMicrocubeFacesMerged at the 3x3 subcube grid.
+    void rebuildSubcubeFacesMerged(
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
+        const glm::ivec3& worldOrigin
+    );
+
     void rebuildMicrocubeFaces(
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,
+        const glm::ivec3& worldOrigin
+    );
+
+    // Increment 2: greedy-merged microcube path (within-cube same-appearance rectangles), selected
+    // by s_fineGreedyMerge. See docs/BinaryGreedyMeshingPlan.md.
+    void rebuildMicrocubeFacesMerged(
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin
     );

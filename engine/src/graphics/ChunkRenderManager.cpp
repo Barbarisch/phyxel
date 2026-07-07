@@ -22,6 +22,11 @@ namespace Graphics {
 bool ChunkRenderManager::s_smoothLighting = true;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
+// Shipped ON by default (2026-07-07): greedy-merging sub/microcube faces recovers ~5-8x FPS on
+// face-bound dense scenes (docs/RenderOptimization.md "Heavy-scene FPS validation"). The per-face
+// path stays reachable via POST /api/debug/fine_merge {"enabled":false} for A/B. Re-mesh cost of the
+// merged path measured acceptable before flipping this default.
+bool ChunkRenderManager::s_fineGreedyMerge = true;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
@@ -759,6 +764,10 @@ void ChunkRenderManager::rebuildSubcubeFaces(
     // (m_foliageInstances is cleared in rebuildCubeFaces, which runs first via rebuildAllFaces, so
     // cube-leaf + subcube-leaf foliage instances accumulate into the same list.)
 
+    // Greedy-merged path (Increment 3): same algorithm as the microcube merger, at the 3x3 subcube
+    // grid. Falls back to the per-face path below when the toggle is off.
+    if (s_fineGreedyMerge) { rebuildSubcubeFacesMerged(subcubes, worldOrigin); return; }
+
     // Process subcubes (from subdivided cubes)
     for (const auto& subcube : subcubes) {
         // Skip broken or hidden subcubes
@@ -902,6 +911,10 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin)
 {
+    // Greedy-merged path (Increment 2): collapse coplanar same-appearance microcube faces within a
+    // parent cube into rectangles. Falls back to the per-face path below when the toggle is off.
+    if (s_fineGreedyMerge) { rebuildMicrocubeFacesMerged(microcubes, worldOrigin); return; }
+
     // Process microcubes (from subdivided subcubes)
     for (const auto& microcube : microcubes) {
         // Skip broken or hidden microcubes
@@ -1051,6 +1064,336 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                     }
                 }
                 faces.push_back(faceInstance);
+            }
+        }
+    }
+}
+
+// Increment 2 — within-cube microcube greedy merge (docs/BinaryGreedyMeshingPlan.md).
+// For each parent cube, per face direction, per depth slice, collapse coplanar microcube faces of
+// identical appearance into maximal rectangles, emitting ONE InstanceData per rectangle with the
+// merge extents stored in the light word. Light is constant per (cube, face) by construction
+// (sampled at the parent cube's neighbour cell), so it never splits a merge. Occlusion is decided
+// per-cell with the same microCellSolid oracle as the per-face path, so a rectangle only ever covers
+// individually-visible cells — the result is visually identical, with far fewer instances. Cross-cube
+// merging is out of scope (Increment 4): runs stop at the 9x9x9 parent-cube border.
+void ChunkRenderManager::rebuildMicrocubeFacesMerged(
+    const std::vector<std::unique_ptr<Microcube>>& microcubes,
+    const glm::ivec3& worldOrigin)
+{
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+
+    // Two microcube faces merge iff their appearance keys are equal (light is equal by construction).
+    struct Key {
+        uint16_t tex = 0; uint16_t reserved = 0; uint32_t tint = 0; bool solid = false;
+        bool operator==(const Key& o) const {
+            return solid == o.solid && tex == o.tex && reserved == o.reserved && tint == o.tint;
+        }
+    };
+
+    static const int FDX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
+    static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+    static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+
+    // Group visible (non-billboarded) microcubes by parent cube; billboarded leaves emit a foliage
+    // instance exactly like the per-face path (not merged).
+    struct Cell { const Microcube* mc; uint8_t lx, ly, lz; };  // lx/ly/lz = 0..8 within the cube
+    std::unordered_map<uint32_t, std::vector<Cell>> byCube;
+    for (const auto& mcp : microcubes) {
+        const Microcube* mc = mcp.get();
+        if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+        glm::ivec3 pcp = mc->getParentCubePosition() - worldOrigin;
+        if (pcp.x < 0 || pcp.x >= 32 || pcp.y < 0 || pcp.y >= 32 || pcp.z < 0 || pcp.z >= 32) continue;
+        glm::ivec3 sp = mc->getSubcubeLocalPosition();
+        glm::ivec3 mp = mc->getMicrocubeLocalPosition();
+        if (sp.x < 0 || sp.x >= 3 || sp.y < 0 || sp.y >= 3 || sp.z < 0 || sp.z >= 3) continue;
+        if (mp.x < 0 || mp.x >= 3 || mp.y < 0 || mp.y >= 3 || mp.z < 0 || mp.z >= 3) continue;
+
+        if (s_foliageEnabled) {
+            const auto* md = reg.getMaterial(mc->getMaterialName());
+            if (md && md->billboarded) {
+                int gmx = pcp.x * 9 + sp.x * 3 + mp.x;
+                int gmy = pcp.y * 9 + sp.y * 3 + mp.y;
+                int gmz = pcp.z * 9 + sp.z * 3 + mp.z;
+                bool exposed = false;
+                for (int f = 0; f < 6 && !exposed; ++f) {
+                    int nx = gmx + FDX[f], ny = gmy + FDY[f], nz = gmz + FDZ[f];
+                    if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) exposed = true;
+                    else exposed = !microCellSolid(nx/9, ny/9, nz/9, (nx%9)/3, (ny%9)/3, (nz%9)/3,
+                                                   (nx%9)%3, (ny%9)%3, (nz%9)%3);
+                }
+                if (exposed) {
+                    uint8_t skyV = skyLightAt(pcp.x, pcp.y, pcp.z) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0; blockLightAt(pcp.x, pcp.y, pcp.z, br, bg, bb);
+                    FoliageInstanceData fi;
+                    fi.packed = (uint32_t(pcp.x) & 0x1F) | ((uint32_t(pcp.y) & 0x1F) << 5)
+                              | ((uint32_t(pcp.z) & 0x1F) << 10) | ((uint32_t(sp.x) & 0x3) << 15)
+                              | ((uint32_t(sp.y) & 0x3) << 17) | ((uint32_t(sp.z) & 0x3) << 19)
+                              | ((uint32_t(skyV) & 0xF) << 21);
+                    uint16_t leafTex = reg.getTextureIndex(mc->getMaterialName(), 0);
+                    fi.tex = uint32_t(leafTex) | ((uint32_t(br) & 0xF) << 16)
+                           | ((uint32_t(bg) & 0xF) << 20) | ((uint32_t(bb) & 0xF) << 24);
+                    m_foliageInstances.push_back(fi);
+                }
+                continue;
+            }
+        }
+        uint32_t cubeIdx = uint32_t(pcp.z + pcp.y * 32 + pcp.x * 1024);
+        byCube[cubeIdx].push_back({ mc, uint8_t(sp.x*3 + mp.x), uint8_t(sp.y*3 + mp.y), uint8_t(sp.z*3 + mp.z) });
+    }
+
+    for (auto& kv : byCube) {
+        uint32_t cubeIdx = kv.first;
+        int pcx = int(cubeIdx / 1024); int rem = int(cubeIdx % 1024); int pcy = rem / 32; int pcz = rem % 32;
+
+        const Microcube* grid[9][9][9];
+        std::memset(grid, 0, sizeof(grid));
+        for (const Cell& c : kv.second) grid[c.lx][c.ly][c.lz] = c.mc;
+
+        auto keyOf = [&](const Microcube* mc, int faceID) -> Key {
+            Key k; k.solid = true;
+            uint8_t st = mc->getState();
+            const char* surf = (st == 1 || st == 2) ? "burning_wood" : mc->getMaterialName().c_str();
+            k.tex = reg.getTextureIndex(surf, faceID);
+            const auto* md = reg.getMaterial(mc->getMaterialName());
+            bool em = md && md->emissive, tr = md && md->alpha < 0.99f, mi = md && md->isMirror;
+            uint16_t qa = tr ? uint16_t(md->alpha * 255.0f) : 255u;
+            k.reserved = uint16_t((em?1u:0u) | (tr?2u:0u) | (qa << 2u) | (mi?(1u<<10):0u));
+            k.tint = (uint32_t(st) << 24) | (mc->getTint() & 0xFFFFFFu);
+            return k;
+        };
+
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            // Per-cube face light (constant across the cube's microcubes for this direction).
+            int nbx = pcx + FDX[faceID], nby = pcy + FDY[faceID], nbz = pcz + FDZ[faceID];
+            uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
+            uint8_t br = 0, bg = 0, bb = 0; blockLightAt(nbx, nby, nbz, br, bg, bb);
+            uint32_t rgb12 = (uint32_t(br & 0xF)) | (uint32_t(bg & 0xF) << 4) | (uint32_t(bb & 0xF) << 8);
+            uint32_t lightSky = uint32_t(skyV & 0xF) * 0x1111u;
+            uint32_t light23  = rgb12 | (rgb12 << 12);
+
+            // (u,v,depth) -> (lx,ly,lz): Z faces u=x v=y d=z; X faces u=z v=y d=x; Y faces u=x v=z d=y.
+            for (int depth = 0; depth < 9; ++depth) {
+                Key mask[9][9];
+                for (int u = 0; u < 9; ++u) for (int v = 0; v < 9; ++v) {
+                    int lx, ly, lz;
+                    if (faceID == 0 || faceID == 1) { lx = u; ly = v; lz = depth; }
+                    else if (faceID == 2 || faceID == 3) { lz = u; ly = v; lx = depth; }
+                    else { lx = u; lz = v; ly = depth; }
+                    const Microcube* mc = grid[lx][ly][lz];
+                    if (!mc) continue;
+                    int gmx = pcx*9 + lx, gmy = pcy*9 + ly, gmz = pcz*9 + lz;
+                    int nx = gmx + FDX[faceID], ny = gmy + FDY[faceID], nz = gmz + FDZ[faceID];
+                    bool vis;
+                    if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) vis = true;
+                    else vis = !microCellSolid(nx/9, ny/9, nz/9, (nx%9)/3, (ny%9)/3, (nz%9)/3,
+                                               (nx%9)%3, (ny%9)%3, (nz%9)%3);
+                    if (!vis) continue;
+                    mask[u][v] = keyOf(mc, faceID);
+                }
+
+                bool used[9][9]; std::memset(used, 0, sizeof(used));
+                for (int v = 0; v < 9; ++v) for (int u = 0; u < 9; ++u) {
+                    if (used[u][v] || !mask[u][v].solid) continue;
+                    const Key key = mask[u][v];
+                    int uExt = 1;
+                    while (u + uExt < 9 && !used[u+uExt][v] && mask[u+uExt][v] == key) ++uExt;
+                    int vExt = 1; bool ok = true;
+                    while (v + vExt < 9 && ok) {
+                        for (int uu = u; uu < u + uExt; ++uu)
+                            if (used[uu][v+vExt] || !(mask[uu][v+vExt] == key)) { ok = false; break; }
+                        if (ok) ++vExt;
+                    }
+                    for (int vv = v; vv < v + vExt; ++vv)
+                        for (int uu = u; uu < u + uExt; ++uu) used[uu][vv] = true;
+
+                    int lx, ly, lz;  // origin cell (min-u, min-v)
+                    if (faceID == 0 || faceID == 1) { lx = u; ly = v; lz = depth; }
+                    else if (faceID == 2 || faceID == 3) { lz = u; ly = v; lx = depth; }
+                    else { lx = u; lz = v; ly = depth; }
+
+                    InstanceData inst;
+                    inst.packedData = Phyxel::InstanceDataUtils::packMicrocubeFaceData(
+                        pcx, pcy, pcz, uint32_t(faceID),
+                        lx/3, ly/3, lz/3, lx%3, ly%3, lz%3);
+                    inst.textureIndex = key.tex;
+                    inst.reserved = key.reserved;
+                    inst.tint = key.tint;
+                    inst.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(
+                                      lightSky, uint32_t(uExt), uint32_t(vExt));
+                    inst.light2 = light23;
+                    inst.light3 = light23;
+                    faces.push_back(inst);
+                }
+            }
+        }
+    }
+}
+
+// Increment 3 — within-cube subcube greedy merge. Identical structure to the microcube merger at
+// the 3x3x3 subcube grid (3x3 masks, 3 depth slices). Subcube walls dominate a v2 structure's face
+// count, so this is the biggest single reduction after Increment 2. Billboarded-leaf subcubes emit a
+// foliage card (as in the per-face path) and are not merged. Cross-cube runs stop at the cube border.
+void ChunkRenderManager::rebuildSubcubeFacesMerged(
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
+    const glm::ivec3& worldOrigin)
+{
+    // Increment 4a: CROSS-CUBE subcube merging. Merges coplanar same-appearance subcube faces across
+    // parent-cube boundaries, chunk-wide, so a long same-material wall becomes one rectangle instead
+    // of one-per-cube. The merge key now includes LIGHT (baked per cube-face), so runs split exactly
+    // at light gradients — matching the cube greedy path. A single isolated cube reduces to the
+    // Increment-3 within-cube result (no neighbours to merge with). The shader is unchanged: a run's
+    // extent simply spans multiple cubes and the REPEAT-wrap sampler restarts the tile at each cube
+    // (§4.2 of BinaryGreedyMeshingPlan.md). Cross-chunk merging is still out of scope (runs stop at
+    // the 96³ chunk border). Microcube cross-cube (288³) is deferred (Increment 4b).
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+    static const int FDX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
+    static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+    static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+    constexpr int G = 96;  // chunk-wide subcube grid (32 cubes × 3)
+
+    // Merge key = appearance (texture+flags+tint) + baked light. Cross-cube neighbours merge only
+    // when ALL of these match.
+    struct Key {
+        uint16_t tex = 0; uint16_t reserved = 0; uint32_t tint = 0;
+        uint32_t lightSky = 0, light23 = 0; bool solid = false;
+        bool operator==(const Key& o) const {
+            return solid == o.solid && tex == o.tex && reserved == o.reserved && tint == o.tint
+                && lightSky == o.lightSky && light23 == o.light23;
+        }
+    };
+
+    // Gather visible non-billboarded subcubes with their 96-grid coords + parent cube; billboarded
+    // leaves emit a foliage card (as in the per-face path) and are not merged.
+    struct SC { const Subcube* sc; int gx, gy, gz, cx, cy, cz; };
+    std::vector<SC> cells; cells.reserve(subcubes.size());
+    for (const auto& scp : subcubes) {
+        const Subcube* sc = scp.get();
+        if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+        glm::ivec3 pcp = sc->getPosition() - worldOrigin;
+        if (pcp.x < 0 || pcp.x >= 32 || pcp.y < 0 || pcp.y >= 32 || pcp.z < 0 || pcp.z >= 32) continue;
+        glm::ivec3 lp = sc->getLocalPosition();
+        if (lp.x < 0 || lp.x >= 3 || lp.y < 0 || lp.y >= 3 || lp.z < 0 || lp.z >= 3) continue;
+        int gx = pcp.x*3 + lp.x, gy = pcp.y*3 + lp.y, gz = pcp.z*3 + lp.z;
+        if (s_foliageEnabled) {
+            const auto* md = reg.getMaterial(sc->getMaterialName());
+            if (md && md->billboarded) {
+                bool exposed = false;
+                for (int f = 0; f < 6 && !exposed; ++f) {
+                    int nx = gx + FDX[f], ny = gy + FDY[f], nz = gz + FDZ[f];
+                    if (nx < 0 || nx >= G || ny < 0 || ny >= G || nz < 0 || nz >= G) exposed = true;
+                    else exposed = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
+                }
+                if (exposed) {
+                    uint8_t skyV = skyLightAt(pcp.x, pcp.y, pcp.z) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0; blockLightAt(pcp.x, pcp.y, pcp.z, br, bg, bb);
+                    FoliageInstanceData fi;
+                    fi.packed = (uint32_t(pcp.x) & 0x1F) | ((uint32_t(pcp.y) & 0x1F) << 5)
+                              | ((uint32_t(pcp.z) & 0x1F) << 10) | ((uint32_t(lp.x) & 0x3) << 15)
+                              | ((uint32_t(lp.y) & 0x3) << 17) | ((uint32_t(lp.z) & 0x3) << 19)
+                              | ((uint32_t(skyV) & 0xF) << 21);
+                    uint16_t leafTex = reg.getTextureIndex(sc->getMaterialName(), 0);
+                    fi.tex = uint32_t(leafTex) | ((uint32_t(br) & 0xF) << 16)
+                           | ((uint32_t(bg) & 0xF) << 20) | ((uint32_t(bb) & 0xF) << 24);
+                    m_foliageInstances.push_back(fi);
+                }
+                continue;
+            }
+        }
+        cells.push_back({ sc, gx, gy, gz, pcp.x, pcp.y, pcp.z });
+    }
+    if (cells.empty()) return;
+
+    auto keyOf = [&](const SC& c, int faceID) -> Key {
+        Key k; k.solid = true;
+        uint8_t st = c.sc->getState();
+        const char* surf = (st == 1 || st == 2) ? "burning_wood" : c.sc->getMaterialName().c_str();
+        k.tex = reg.getTextureIndex(surf, faceID);
+        const auto* md = reg.getMaterial(c.sc->getMaterialName());
+        bool em = md && md->emissive, tr = md && md->alpha < 0.99f, mi = md && md->isMirror;
+        uint16_t qa = tr ? uint16_t(md->alpha * 255.0f) : 255u;
+        k.reserved = uint16_t((em?1u:0u) | (tr?2u:0u) | (qa << 2u) | (mi?(1u<<10):0u));
+        k.tint = (uint32_t(st) << 24) | (c.sc->getTint() & 0xFFFFFFu);
+        int nbx = c.cx + FDX[faceID], nby = c.cy + FDY[faceID], nbz = c.cz + FDZ[faceID];
+        uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
+        uint8_t br = 0, bg = 0, bb = 0; blockLightAt(nbx, nby, nbz, br, bg, bb);
+        uint32_t rgb12 = (uint32_t(br & 0xF)) | (uint32_t(bg & 0xF) << 4) | (uint32_t(bb & 0xF) << 8);
+        k.lightSky = uint32_t(skyV & 0xF) * 0x1111u;
+        k.light23  = rgb12 | (rgb12 << 12);
+        return k;
+    };
+
+    // Reused chunk-wide plane mask + used marks. Only touched cells are ever written/cleared, so the
+    // per-slice cost is O(occupied), not O(G²).
+    std::vector<Key> mask(static_cast<size_t>(G) * G);
+    std::vector<uint8_t> used(static_cast<size_t>(G) * G, 0);
+
+    for (int faceID = 0; faceID < 6; ++faceID) {
+        // (u,v,depth) per face: Z faces u=x v=y d=z; X faces u=z v=y d=x; Y faces u=x v=z d=y.
+        std::unordered_map<int, std::vector<int>> byDepth;  // depth coord -> indices into `cells`
+        for (int ci = 0; ci < static_cast<int>(cells.size()); ++ci) {
+            const SC& c = cells[ci];
+            int nx = c.gx + FDX[faceID], ny = c.gy + FDY[faceID], nz = c.gz + FDZ[faceID];
+            bool vis;
+            if (nx < 0 || nx >= G || ny < 0 || ny >= G || nz < 0 || nz >= G) vis = true;
+            else vis = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
+            if (!vis) continue;
+            int depth = (faceID == 0 || faceID == 1) ? c.gz : (faceID == 2 || faceID == 3) ? c.gx : c.gy;
+            byDepth[depth].push_back(ci);
+        }
+        auto uvOf = [&](const SC& c, int& u, int& v) {
+            if (faceID == 0 || faceID == 1) { u = c.gx; v = c.gy; }
+            else if (faceID == 2 || faceID == 3) { u = c.gz; v = c.gy; }
+            else { u = c.gx; v = c.gz; }
+        };
+        for (auto& db : byDepth) {
+            const int depth = db.first;
+            const std::vector<int>& idxs = db.second;
+            int minU = G, minV = G, maxU = -1, maxV = -1;
+            for (int ci : idxs) {
+                int u, v; uvOf(cells[ci], u, v);
+                mask[static_cast<size_t>(v)*G + u] = keyOf(cells[ci], faceID);
+                minU = std::min(minU, u); maxU = std::max(maxU, u);
+                minV = std::min(minV, v); maxV = std::max(maxV, v);
+            }
+            for (int v = minV; v <= maxV; ++v) for (int u = minU; u <= maxU; ++u) {
+                size_t idx = static_cast<size_t>(v)*G + u;
+                if (used[idx] || !mask[idx].solid) continue;
+                const Key key = mask[idx];
+                int uExt = 1;
+                while (u + uExt <= maxU && !used[idx + uExt] && mask[idx + uExt] == key) ++uExt;
+                int vExt = 1; bool ok = true;
+                while (v + vExt <= maxV && ok) {
+                    size_t row = static_cast<size_t>(v + vExt)*G + u;
+                    for (int uu = 0; uu < uExt; ++uu)
+                        if (used[row + uu] || !(mask[row + uu] == key)) { ok = false; break; }
+                    if (ok) ++vExt;
+                }
+                for (int vv = 0; vv < vExt; ++vv) {
+                    size_t row = static_cast<size_t>(v + vv)*G + u;
+                    for (int uu = 0; uu < uExt; ++uu) used[row + uu] = 1;
+                }
+                int gsx, gsy, gsz;  // origin global cell (min u,v; slice depth)
+                if (faceID == 0 || faceID == 1) { gsx = u; gsy = v; gsz = depth; }
+                else if (faceID == 2 || faceID == 3) { gsz = u; gsy = v; gsx = depth; }
+                else { gsx = u; gsz = v; gsy = depth; }
+                InstanceData inst;
+                inst.packedData = Phyxel::InstanceDataUtils::packSubcubeFaceData(
+                    gsx/3, gsy/3, gsz/3, uint32_t(faceID), gsx%3, gsy%3, gsz%3);
+                inst.textureIndex = key.tex;
+                inst.reserved = key.reserved;
+                inst.tint = key.tint;
+                inst.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(
+                                  key.lightSky, uint32_t(uExt), uint32_t(vExt));
+                inst.light2 = key.light23;
+                inst.light3 = key.light23;
+                faces.push_back(inst);
+            }
+            // Reset only the cells we touched, so the mask/used stay clean for the next slice.
+            for (int ci : idxs) {
+                int u, v; uvOf(cells[ci], u, v);
+                size_t idx = static_cast<size_t>(v)*G + u;
+                mask[idx].solid = false; used[idx] = 0;
             }
         }
     }

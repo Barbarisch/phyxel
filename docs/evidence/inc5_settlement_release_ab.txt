@@ -1,0 +1,15 @@
+# Increment 5 stress/scale — settlement A/B, 2026-07-07  (SUPERSEDED framing — see below)
+# StructGenTest flat world + engine settlement generator (POST /api/settlement/build seed 7),
+# 4 structures across 2 chunks. Overview pose (26,55,70) yaw-90 pitch-45.
+#
+# NOTE (corrected after solution-auditor): the FACE COUNTS below are the deterministic result
+# (171,944 -> 16,789 = 10.2x). The FPS figures on these lines are SINGLE-CAPTURE and NOT relied upon
+# as a validated win — repeat measurement showed the OFF->ON FPS sign is variance-dependent on lighter
+# scenes (see inc5_real_validations_release.txt: tavern Release +41% vs Debug -31%). The tavern "+64%"
+# line below in particular was a non-reproducible lucky run. Trust the face counts, not the FPS.
+## OFF (per-face): total_visible_faces=171944, fps 100.6 (single capture), cpuFrame 9.94ms
+## ON  (merged):   total_visible_faces=16789,  fps 159.0 (single capture), cpuFrame 6.29ms   (10.2x fewer faces)
+## Release tavern pose A: OFF 120.8 -> ON 197.8 fps  (NON-REPRODUCIBLE lucky run; superseded by the
+##   provenance-verified 86.1->121.3 Release / 124.6->85.9 Debug in inc5_real_validations_release.txt)
+## live ON stats:
+{"far_tiles_drawn":0,"far_tiles_resident":0,"far_triangles":0,"mirror_geom_draw_calls":0,"mirror_normal":{"x":0.0,"y":0.0,"z":0.0},"mirror_pass_ran":false,"mirror_plane":{"x":0.0,"y":0.0,"z":0.0},"reflected_cam":{"x":0.0,"y":0.0,"z":0.0},"reflection_draw_calls":0,"total_visible_faces":16789,"visible_chunk_count":2}

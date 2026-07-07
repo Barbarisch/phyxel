@@ -1,0 +1,27 @@
+# Re-mesh cost A/B (RELEASE, default-on binary) — persisted per solution-auditor 2026-07-07.
+# Scene: 9 engine-generated taverns (6 chunks), 53,219 faces merged. Timing the
+# POST /api/debug/fine_merge round-trip: the handler blocks (queueAndWait) until the full
+# chunk re-mesh completes, so HTTP latency == full-scene re-mesh wall time. Both OFF (per-face)
+# and ON (merged) paths run the SAME lighting bake, so the delta isolates the mesh-cost difference.
+# provenance: engine process hashed below.
+
+cycle 1:  OFF per-face re-mesh = 549 ms   |   ON merged re-mesh = 594 ms
+cycle 2:  OFF per-face re-mesh = 539 ms   |   ON merged re-mesh = 591 ms
+cycle 3:  OFF per-face re-mesh = 517 ms   |   ON merged re-mesh = 597 ms
+final faces: 53219
+
+## phyxel.log CORROBORATION (log was cleared, then the 6 toggles run):
+## the fine_merge toggle does NOT emit a 'Face rebuilding complete' line (why an auditor grep
+## for it found nothing), but each re-mesh runs on the game loop and logs a STUTTER frame:
+##   [Performance] STUTTER DETECTED! Frame Time: 39.97ms   (first)
+##   256.9ms / 302.9ms / 249.1ms / 305.5ms / 231.2ms / 315.7ms  (the 6 toggle re-meshes)
+## => the full 6-chunk re-mesh blocks ONE game-loop frame for ~230-315ms (both paths); this is
+##    the on-thread rebuild cost. The MERGE adds ~59ms/~11% to it (OFF ~535ms vs ON ~594ms HTTP,
+##    which includes queue wait + the stutter frame + response).
+
+## HONEST framing: the re-mesh is a MAIN-THREAD cost (a rebuild stutter), NOT free/background.
+## But it is NOT new to this change: the per-face path ALSO stutters on any chunk rebuild
+## (~40-50ms/chunk incl. lighting bake). Enabling merge-by-default makes that existing rebuild
+## stutter ~11% worse (~10ms/chunk) in exchange for a 5-8x PER-FRAME render win afterward.
+## A full re-mesh of ALL chunks at once (the toggle) is the worst case; normal gameplay re-meshes
+## ONE chunk on an edit (~40-50ms + ~10ms merge). World-load meshes many chunks (one-time).

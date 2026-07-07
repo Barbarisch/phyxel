@@ -1,0 +1,6 @@
+# Increment 4a cross-cube subcube face-count A/B — raw API capture 2026-07-07
+# StructGenTest + saved tavern, DEBUG. Both micro(within-cube)+sub(cross-cube) merges on.
+## OFF:
+{"far_tiles_drawn":0,"far_tiles_resident":0,"far_triangles":0,"mirror_geom_draw_calls":0,"mirror_normal":{"x":0.0,"y":0.0,"z":0.0},"mirror_pass_ran":false,"mirror_plane":{"x":0.0,"y":0.0,"z":0.0},"reflected_cam":{"x":0.0,"y":0.0,"z":0.0},"reflection_draw_calls":0,"total_visible_faces":68126,"visible_chunk_count":1}
+## ON (cross-cube):
+{"far_tiles_drawn":0,"far_tiles_resident":0,"far_triangles":0,"mirror_geom_draw_calls":0,"mirror_normal":{"x":0.0,"y":0.0,"z":0.0},"mirror_pass_ran":false,"mirror_plane":{"x":0.0,"y":0.0,"z":0.0},"reflected_cam":{"x":0.0,"y":0.0,"z":0.0},"reflection_draw_calls":0,"total_visible_faces":6024,"visible_chunk_count":1}

@@ -3,6 +3,8 @@
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index (unused)
+layout(location = 4) in uint inLight;           // per-instance: fine-face merge extents in bits 16-31
+                                                // (the pipeline supplies all 7 attributes; ShadowMap.cpp)
 
 layout(push_constant) uniform PushConstants {
     mat4 lightSpaceMatrix;
@@ -38,7 +40,17 @@ void main() {
     uint microcubeLocalX = microcubeEncoded % 3u;
     uint microcubeLocalY = (microcubeEncoded / 3u) % 3u;
     uint microcubeLocalZ = microcubeEncoded / 9u;
-    
+
+    // Merged FINE (sub/micro) faces carry extents in the light word bits 16-31 (see
+    // static_voxel.vert / BinaryGreedyMeshingPlan.md §4.1). MUST match static_voxel.vert or a
+    // merged fine caster throws a 1-cell-wide shadow. Unmerged faces write 0 => extent 1.
+    uint fineSizeU = ((inLight >> 16) & 0xFFu) + 1u;
+    uint fineSizeV = ((inLight >> 24) & 0xFFu) + 1u;
+    vec3 fineSizeVec;
+    if (faceID == 0u || faceID == 1u)      fineSizeVec = vec3(float(fineSizeU), float(fineSizeV), 1.0);
+    else if (faceID == 2u || faceID == 3u) fineSizeVec = vec3(1.0, float(fineSizeV), float(fineSizeU));
+    else                                   fineSizeVec = vec3(float(fineSizeU), 1.0, float(fineSizeV));
+
     // Calculate base position
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));
     vec3 basePos = pushConstants.chunkBaseOffset + chunkRelativePos;
@@ -72,13 +84,13 @@ void main() {
     } else if (scaleLevel == 1u) {
         const float SUBCUBE_SCALE = 1.0 / 3.0;
         vec3 subcubeOffset = vec3(float(subcubeLocalX), float(subcubeLocalY), float(subcubeLocalZ)) * SUBCUBE_SCALE;
-        worldPos = basePos + subcubeOffset + (faceOffset * SUBCUBE_SCALE);
+        worldPos = basePos + subcubeOffset + (faceOffset * fineSizeVec * SUBCUBE_SCALE);
     } else if (scaleLevel == 2u) {
         const float SUBCUBE_SCALE = 1.0 / 3.0;
         const float MICROCUBE_SCALE = 1.0 / 9.0;
         vec3 subcubeOffset = vec3(float(subcubeLocalX), float(subcubeLocalY), float(subcubeLocalZ)) * SUBCUBE_SCALE;
         vec3 microcubeOffset = vec3(float(microcubeLocalX), float(microcubeLocalY), float(microcubeLocalZ)) * MICROCUBE_SCALE;
-        worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * MICROCUBE_SCALE);
+        worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * fineSizeVec * MICROCUBE_SCALE);
     } else {
         worldPos = basePos + faceOffset;
     }
