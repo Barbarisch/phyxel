@@ -228,6 +228,55 @@ Shadow correctness for Increment 2's real merged geometry is covered only indire
 OFF-vs-ON diff above (which includes shadow receivers); a dedicated shadow-caster isolation is
 deferred. Cross-cube merging is Increment 4.
 
+## ✅ Increment 3 shipped (2026-07-06) — within-cube subcube merging (≥10× bar crossed)
+
+Branch `render-fine-greedy-mesh`. `rebuildSubcubeFacesMerged` — the Increment 2 algorithm at the 3×3
+subcube grid (3×3 masks, 3 depth slices), same appearance-key + per-cell `subCellSolid` visibility +
+per-(cube,face) light + billboarded-leaf foliage handling. No shader change (scaleLevel-1 extents +
+flip already shipped in Inc 1/2). Subcube walls dominate a v2 structure, so this is the biggest single
+cut.
+
+**Runtime (DEBUG, StructGenTest + saved tavern, BOTH micro + subcube merge on):**
+
+| metric | OFF | ON (both merges) |
+|--------|--:|--:|
+| `total_visible_faces` | 68,126 | **6,466 (10.5× fewer)** |
+| exterior FPS / cpuFrame | 113.9 / 8.78 ms | **189.4 / 5.28 ms (+66%)** |
+
+**≥10× face-count drop = the shipped-validation bar (`RenderOptimization.md` plan) is crossed** (micro
++ sub together; micro-only was 16,384). Clean same-session OFF-vs-ON pixel diff (grass/foliage off):
+interior subcube-wall close-up (`_213442_496` vs `_213459_193`) = **0.001% at >8/255, max 37/255**
+(uniform mip-LOD filtering, heat grid all-zero — no structural/UV error); exterior (`_213332_895` vs
+`_213354_292`) 0.057% at >8 but localized to the animated player character (max 190, bottom-centre),
+building surfaces 0.0%. Perceptually lossless.
+
+Face-count A/B raw API capture on disk: `docs/evidence/inc3_facecount_ab.txt` (68,126 → 6,466).
+
+**Unit tests (green):** `SubcubeMerge_TopFaceCollapsesPerCube` (9·N²→N²);
+`SubcubeMerge_CoverageMatchesPerFacePathWithHolesAndMixed` (per-face oracle, all 6 dirs, checkerboard
+holes + mixed tint); `SubcubeMerge_UVReplicaMatchesPerFaceEveryFace` (a UV-*formula* self-consistency
+check — it does NOT read real mesher output; see the geometry test below for the actual origin guard).
+
+**Geometry-truth guard (added after a 2nd solution-auditor FAIL that this arc earned).** The auditor
+proved the coverage + UV-replica tests could not catch a wrong ORIGIN: it injected a min-cell→max-cell
+origin bug into the shipped merger and all prior tests still passed (coverage sums extentU·extentV,
+invariant under an origin shift; the UV replica compares a hand oracle against itself with an *assumed*
+origin, never decoding real output). Fix: `Sub/MicrocubeMerge_EmittedGeometryMatchesPerFaceEvery
+Direction` decode the ACTUAL emitted `packedData` grid-origin bits + light-word extents, enumerate the
+world cells each merged quad covers (offset-solid-block configs → multi-cell runs at NON-corner
+origins), and assert the cell-centre multiset equals the per-face oracle's, per direction, plus an
+in-bounds guard. **Proven falsifiable by re-injecting the exact min→max origin bug into both
+`rebuildSubcubeFacesMerged` and `rebuildMicrocubeFacesMerged`, rebuilding, and observing ONLY these two
+tests go red** (via both the cell-centre mismatch and the cube-border in-bounds guard), then reverting
+to green. This guard retroactively covers Increment 2 (microcube) as well. All 11 `FineFaceMerge.*`
+pass; full suite green. Cross-cube merging (the `DISABLED_` across-slab target, still red) is
+Increment 4.
+
+**Lesson recorded:** "coverage/UV-formula tests pass" is NOT "the emitted geometry is correct" — a
+placer/mesher test must decode and check the real output's *positions*, not just counts or a formula's
+internal consistency. The UV-replica tests are kept as a cheap formula guard but are explicitly not
+the origin guard.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

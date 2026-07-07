@@ -760,6 +760,10 @@ void ChunkRenderManager::rebuildSubcubeFaces(
     // (m_foliageInstances is cleared in rebuildCubeFaces, which runs first via rebuildAllFaces, so
     // cube-leaf + subcube-leaf foliage instances accumulate into the same list.)
 
+    // Greedy-merged path (Increment 3): same algorithm as the microcube merger, at the 3x3 subcube
+    // grid. Falls back to the per-face path below when the toggle is off.
+    if (s_fineGreedyMerge) { rebuildSubcubeFacesMerged(subcubes, worldOrigin); return; }
+
     // Process subcubes (from subdivided cubes)
     for (const auto& subcube : subcubes) {
         // Skip broken or hidden subcubes
@@ -1208,6 +1212,151 @@ void ChunkRenderManager::rebuildMicrocubeFacesMerged(
                     inst.packedData = Phyxel::InstanceDataUtils::packMicrocubeFaceData(
                         pcx, pcy, pcz, uint32_t(faceID),
                         lx/3, ly/3, lz/3, lx%3, ly%3, lz%3);
+                    inst.textureIndex = key.tex;
+                    inst.reserved = key.reserved;
+                    inst.tint = key.tint;
+                    inst.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(
+                                      lightSky, uint32_t(uExt), uint32_t(vExt));
+                    inst.light2 = light23;
+                    inst.light3 = light23;
+                    faces.push_back(inst);
+                }
+            }
+        }
+    }
+}
+
+// Increment 3 — within-cube subcube greedy merge. Identical structure to the microcube merger at
+// the 3x3x3 subcube grid (3x3 masks, 3 depth slices). Subcube walls dominate a v2 structure's face
+// count, so this is the biggest single reduction after Increment 2. Billboarded-leaf subcubes emit a
+// foliage card (as in the per-face path) and are not merged. Cross-cube runs stop at the cube border.
+void ChunkRenderManager::rebuildSubcubeFacesMerged(
+    const std::vector<std::unique_ptr<Subcube>>& subcubes,
+    const glm::ivec3& worldOrigin)
+{
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
+
+    struct Key {
+        uint16_t tex = 0; uint16_t reserved = 0; uint32_t tint = 0; bool solid = false;
+        bool operator==(const Key& o) const {
+            return solid == o.solid && tex == o.tex && reserved == o.reserved && tint == o.tint;
+        }
+    };
+
+    static const int FDX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
+    static const int FDY[6] = {0, 0, 0, 0, 1, -1};
+    static const int FDZ[6] = {1, -1, 0, 0, 0, 0};
+
+    struct Cell { const Subcube* sc; uint8_t lx, ly, lz; };  // lx/ly/lz = 0..2 within the cube
+    std::unordered_map<uint32_t, std::vector<Cell>> byCube;
+    for (const auto& scp : subcubes) {
+        const Subcube* sc = scp.get();
+        if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+        glm::ivec3 pcp = sc->getPosition() - worldOrigin;
+        if (pcp.x < 0 || pcp.x >= 32 || pcp.y < 0 || pcp.y >= 32 || pcp.z < 0 || pcp.z >= 32) continue;
+        glm::ivec3 lp = sc->getLocalPosition();
+        if (lp.x < 0 || lp.x >= 3 || lp.y < 0 || lp.y >= 3 || lp.z < 0 || lp.z >= 3) continue;
+
+        if (s_foliageEnabled) {
+            const auto* md = reg.getMaterial(sc->getMaterialName());
+            if (md && md->billboarded) {
+                int gsx = pcp.x * 3 + lp.x, gsy = pcp.y * 3 + lp.y, gsz = pcp.z * 3 + lp.z;
+                bool exposed = false;
+                for (int f = 0; f < 6 && !exposed; ++f) {
+                    int nx = gsx + FDX[f], ny = gsy + FDY[f], nz = gsz + FDZ[f];
+                    if (nx < 0 || nx >= 96 || ny < 0 || ny >= 96 || nz < 0 || nz >= 96) exposed = true;
+                    else exposed = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
+                }
+                if (exposed) {
+                    uint8_t skyV = skyLightAt(pcp.x, pcp.y, pcp.z) & 0xF;
+                    uint8_t br = 0, bg = 0, bb = 0; blockLightAt(pcp.x, pcp.y, pcp.z, br, bg, bb);
+                    FoliageInstanceData fi;
+                    fi.packed = (uint32_t(pcp.x) & 0x1F) | ((uint32_t(pcp.y) & 0x1F) << 5)
+                              | ((uint32_t(pcp.z) & 0x1F) << 10) | ((uint32_t(lp.x) & 0x3) << 15)
+                              | ((uint32_t(lp.y) & 0x3) << 17) | ((uint32_t(lp.z) & 0x3) << 19)
+                              | ((uint32_t(skyV) & 0xF) << 21);
+                    uint16_t leafTex = reg.getTextureIndex(sc->getMaterialName(), 0);
+                    fi.tex = uint32_t(leafTex) | ((uint32_t(br) & 0xF) << 16)
+                           | ((uint32_t(bg) & 0xF) << 20) | ((uint32_t(bb) & 0xF) << 24);
+                    m_foliageInstances.push_back(fi);
+                }
+                continue;
+            }
+        }
+        uint32_t cubeIdx = uint32_t(pcp.z + pcp.y * 32 + pcp.x * 1024);
+        byCube[cubeIdx].push_back({ sc, uint8_t(lp.x), uint8_t(lp.y), uint8_t(lp.z) });
+    }
+
+    for (auto& kv : byCube) {
+        uint32_t cubeIdx = kv.first;
+        int pcx = int(cubeIdx / 1024); int rem = int(cubeIdx % 1024); int pcy = rem / 32; int pcz = rem % 32;
+
+        const Subcube* grid[3][3][3];
+        std::memset(grid, 0, sizeof(grid));
+        for (const Cell& c : kv.second) grid[c.lx][c.ly][c.lz] = c.sc;
+
+        auto keyOf = [&](const Subcube* sc, int faceID) -> Key {
+            Key k; k.solid = true;
+            uint8_t st = sc->getState();
+            const char* surf = (st == 1 || st == 2) ? "burning_wood" : sc->getMaterialName().c_str();
+            k.tex = reg.getTextureIndex(surf, faceID);
+            const auto* md = reg.getMaterial(sc->getMaterialName());
+            bool em = md && md->emissive, tr = md && md->alpha < 0.99f, mi = md && md->isMirror;
+            uint16_t qa = tr ? uint16_t(md->alpha * 255.0f) : 255u;
+            k.reserved = uint16_t((em?1u:0u) | (tr?2u:0u) | (qa << 2u) | (mi?(1u<<10):0u));
+            k.tint = (uint32_t(st) << 24) | (sc->getTint() & 0xFFFFFFu);
+            return k;
+        };
+
+        for (int faceID = 0; faceID < 6; ++faceID) {
+            int nbx = pcx + FDX[faceID], nby = pcy + FDY[faceID], nbz = pcz + FDZ[faceID];
+            uint8_t skyV = skyLightAt(nbx, nby, nbz) & 0xF;
+            uint8_t br = 0, bg = 0, bb = 0; blockLightAt(nbx, nby, nbz, br, bg, bb);
+            uint32_t rgb12 = (uint32_t(br & 0xF)) | (uint32_t(bg & 0xF) << 4) | (uint32_t(bb & 0xF) << 8);
+            uint32_t lightSky = uint32_t(skyV & 0xF) * 0x1111u;
+            uint32_t light23  = rgb12 | (rgb12 << 12);
+
+            for (int depth = 0; depth < 3; ++depth) {
+                Key mask[3][3];
+                for (int u = 0; u < 3; ++u) for (int v = 0; v < 3; ++v) {
+                    int lx, ly, lz;
+                    if (faceID == 0 || faceID == 1) { lx = u; ly = v; lz = depth; }
+                    else if (faceID == 2 || faceID == 3) { lz = u; ly = v; lx = depth; }
+                    else { lx = u; lz = v; ly = depth; }
+                    const Subcube* sc = grid[lx][ly][lz];
+                    if (!sc) continue;
+                    int gsx = pcx*3 + lx, gsy = pcy*3 + ly, gsz = pcz*3 + lz;
+                    int nx = gsx + FDX[faceID], ny = gsy + FDY[faceID], nz = gsz + FDZ[faceID];
+                    bool vis;
+                    if (nx < 0 || nx >= 96 || ny < 0 || ny >= 96 || nz < 0 || nz >= 96) vis = true;
+                    else vis = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
+                    if (!vis) continue;
+                    mask[u][v] = keyOf(sc, faceID);
+                }
+
+                bool used[3][3]; std::memset(used, 0, sizeof(used));
+                for (int v = 0; v < 3; ++v) for (int u = 0; u < 3; ++u) {
+                    if (used[u][v] || !mask[u][v].solid) continue;
+                    const Key key = mask[u][v];
+                    int uExt = 1;
+                    while (u + uExt < 3 && !used[u+uExt][v] && mask[u+uExt][v] == key) ++uExt;
+                    int vExt = 1; bool ok = true;
+                    while (v + vExt < 3 && ok) {
+                        for (int uu = u; uu < u + uExt; ++uu)
+                            if (used[uu][v+vExt] || !(mask[uu][v+vExt] == key)) { ok = false; break; }
+                        if (ok) ++vExt;
+                    }
+                    for (int vv = v; vv < v + vExt; ++vv)
+                        for (int uu = u; uu < u + uExt; ++uu) used[uu][vv] = true;
+
+                    int lx, ly, lz;  // origin cell (min-u, min-v)
+                    if (faceID == 0 || faceID == 1) { lx = u; ly = v; lz = depth; }
+                    else if (faceID == 2 || faceID == 3) { lz = u; ly = v; lx = depth; }
+                    else { lx = u; lz = v; ly = depth; }
+
+                    InstanceData inst;
+                    inst.packedData = Phyxel::InstanceDataUtils::packSubcubeFaceData(
+                        pcx, pcy, pcz, uint32_t(faceID), lx, ly, lz);
                     inst.textureIndex = key.tex;
                     inst.reserved = key.reserved;
                     inst.tint = key.tint;

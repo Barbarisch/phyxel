@@ -24,6 +24,8 @@
 #include <vector>
 #include <functional>
 #include <cmath>
+#include <set>
+#include <array>
 
 using namespace Phyxel;
 using namespace Phyxel::Graphics;
@@ -59,6 +61,58 @@ size_t coveredMicroCells(const std::vector<InstanceData>& faces, uint32_t faceID
     for (const auto& f : faces)
         if (faceIdOf(f) == faceID && scaleLevelOf(f) == 2u) n += extentU(f) * extentV(f);
     return n;
+}
+
+// ── Decode REAL emitted InstanceData geometry (origin bits + extents), for the geometry-truth test ──
+// This is the check that actually exercises the mesher's ORIGIN SELECTION: it reads the packedData
+// grid-position bits the mesher wrote (not an assumed origin) and enumerates the world cells the
+// merged quad covers, so a wrong origin/extent produces wrong cell positions and the set diverges
+// from the per-face oracle. Coordinates are returned in 1/18-of-a-cube integer units (1/3 = 6/18,
+// 1/9 = 2/18, so every sub- and micro-cell centre is an exact integer — no float compare).
+void faceAxes(int faceID, int& uAxis, int& vAxis, int& dAxis) {
+    if (faceID == 0 || faceID == 1) { uAxis = 0; vAxis = 1; dAxis = 2; }       // U=x V=y D=z
+    else if (faceID == 2 || faceID == 3) { uAxis = 2; vAxis = 1; dAxis = 0; }  // U=z V=y D=x
+    else { uAxis = 0; vAxis = 2; dAxis = 1; }                                  // U=x V=z D=y
+}
+
+// Multiset of covered cell centres (×18, integer) for faces of the given faceID at the given scale
+// level. Works for the per-face path (extents 1 → one cell) AND the merged path (extents>1 → the
+// uExt×vExt run enumerated from the DECODED origin). A wrong origin shifts these centres.
+std::multiset<std::array<int,3>> coveredCellCentres(
+    const std::vector<InstanceData>& faces, uint32_t faceID, uint32_t scaleLevel)
+{
+    std::multiset<std::array<int,3>> out;
+    for (const auto& f : faces) {
+        if (faceIdOf(f) != faceID || scaleLevelOf(f) != scaleLevel) continue;
+        int px = (f.packedData >> 0) & 0x1F;
+        int py = (f.packedData >> 5) & 0x1F;
+        int pz = (f.packedData >> 10) & 0x1F;
+        int subE = (f.packedData >> 20) & 0x3F;
+        int sx = subE % 3, sy = (subE / 3) % 3, sz = subE / 9;
+        int microE = (f.packedData >> 26) & 0x3F;
+        int mxi = microE % 3, myi = (microE / 3) % 3, mzi = microE / 9;
+        // Origin local coord (0..2 for sub, 0..8 for micro) per axis.
+        int loc[3];
+        if (scaleLevel == 1u) { loc[0] = sx; loc[1] = sy; loc[2] = sz; }
+        else                  { loc[0] = sx*3 + mxi; loc[1] = sy*3 + myi; loc[2] = sz*3 + mzi; }
+        int uAxis, vAxis, dAxis; faceAxes(faceID, uAxis, vAxis, dAxis);
+        int eu = extentU(f), ev = extentV(f);
+        const int span = (scaleLevel == 1u) ? 3 : 9;                 // per-axis cell count / cube
+        const int base18[3] = { px*18, py*18, pz*18 };
+        const int cellHalf  = (scaleLevel == 1u) ? 3 : 1;            // half-cell in 1/18 (1/6 or 1/18)
+        const int cellFull  = (scaleLevel == 1u) ? 6 : 2;            // full cell in 1/18
+        for (int i = 0; i < eu; ++i) for (int j = 0; j < ev; ++j) {
+            int c[3]; c[uAxis] = loc[uAxis] + i; c[vAxis] = loc[vAxis] + j; c[dAxis] = loc[dAxis];
+            // In-bounds guard: a max-origin overflow bug pushes a cell past the cube border.
+            for (int a = 0; a < 3; ++a) EXPECT_LT(c[a], span) << "cell out of parent-cube bounds";
+            std::array<int,3> centre = {
+                base18[0] + c[0]*cellFull + cellHalf,
+                base18[1] + c[1]*cellFull + cellHalf,
+                base18[2] + c[2]*cellFull + cellHalf };
+            out.insert(centre);
+        }
+    }
+    return out;
 }
 
 // RAII guard so a test's toggle change never leaks into sibling tests (the flag is global static).
@@ -105,6 +159,16 @@ std::vector<std::unique_ptr<Microcube>> buildMicrocubeCube(
             parentCube, glm::ivec3(x/3, y/3, z/3), glm::ivec3(x%3, y%3, z%3), material(x, y, z)));
     }
     return micros;
+}
+
+// Subcube analogue: N x N cubes at y=0, each fully packed with a 3x3x3 grid of subcubes (27/cube).
+std::vector<std::unique_ptr<Subcube>> buildSubcubeSlab(int N, const std::string& material) {
+    std::vector<std::unique_ptr<Subcube>> subs;
+    for (int cx = 0; cx < N; ++cx) for (int cz = 0; cz < N; ++cz)
+        for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz)
+            subs.push_back(std::make_unique<Subcube>(
+                glm::ivec3(cx, 0, cz), glm::ivec3(sx, sy, sz), material));
+    return subs;
 }
 
 std::vector<std::unique_ptr<Subcube>> emptySubs() { return {}; }
@@ -289,6 +353,30 @@ UV shaderMicroUV(int faceID, int sx, int sy, int sz, int mx, int my, int mz,
     return UV{ bu * extU * S9 + sgU * S3 + mgU * S9 + shU * S9,
               bv * extV * S9 + sgV * S3 + mgV * S9 + shV * S9 };
 }
+// Mirrors static_voxel.vert scaleLevel==1 (subcube): SUBCUBE_UV_SCALE=1/3, subcubeGridPos table,
+// same fineFlipU/fineUVOriginShift. No microcube term.
+UV shaderSubUV(int faceID, int sx, int sy, int sz, int extU, int extV, double s, double t) {
+    double bu, bv;
+    switch (faceID) {
+        case 1:  bu = 1 - s; bv = 1 - t; break;
+        case 4:  bu = 1 - s; bv = t;     break;
+        default: bu = s;     bv = 1 - t; break;
+    }
+    double sgU, sgV;
+    switch (faceID) {
+        case 0: case 1: sgU = sx;     sgV = 2 - sy; break;
+        case 2:         sgU = 2 - sz; sgV = 2 - sy; break;
+        case 3:         sgU = sz;     sgV = 2 - sy; break;
+        case 4:         sgU = 2 - sx; sgV = 2 - sz; break;
+        default:        sgU = sx;     sgV = 2 - sz; break;
+    }
+    const bool flipU = (faceID == 2 || faceID == 4);
+    const double shU = flipU ? -(extU - 1.0) : 0.0;
+    const double shV = -(extV - 1.0);
+    const double S3 = 1.0 / 3.0;
+    return UV{ bu * extU * S3 + sgU * S3 + shU * S3,
+              bv * extV * S3 + sgV * S3 + shV * S3 };
+}
 // Map (u,v,depth) local grid indices (0..8) to (lx,ly,lz) for a face direction — matches the mesher.
 void uvdToLocal(int faceID, int u, int v, int depth, int& lx, int& ly, int& lz) {
     if (faceID == 0 || faceID == 1) { lx = u; ly = v; lz = depth; }
@@ -331,6 +419,157 @@ TEST(FineFaceMerge, MicrocubeMerge_UVReplicaMatchesPerFaceEveryFace) {
                 << "face " << faceID << " cell (" << i << "," << j << ") V";
         }
     }
+}
+
+// ── Increment 3: within-cube subcube merging ─────────────────────────────────────────────────────
+// Each cube's top slice is a full 3x3 of one material → one merged rectangle per cube (N^2 total),
+// vs 9*N^2 unmerged.
+TEST(FineFaceMerge, SubcubeMerge_TopFaceCollapsesPerCube) {
+    const int N = 4;
+    auto subs = buildSubcubeSlab(N, "Stone");
+    auto micros = std::vector<std::unique_ptr<Microcube>>{};
+    auto cubes = emptyCubes();
+
+    // Unmerged reference (toggle off): 9 top faces per cube.
+    {
+        FineMergeScope off(false);
+        ChunkRenderManager crm;
+        auto s2 = buildSubcubeSlab(N, "Stone");
+        crm.rebuildAllFaces(cubes, s2, micros, glm::ivec3(0, 0, 0));
+        EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(9 * N * N));
+    }
+    // Merged (toggle on): one rectangle per cube.
+    {
+        FineMergeScope on(true);
+        ChunkRenderManager crm;
+        crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+        EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(N * N));
+    }
+}
+
+// Coverage invariant for subcubes: merged Σ(extentU*extentV) over subcube (scale level 1) faces ==
+// per-face subcube count, in all 6 directions. Holed (checkerboard) + mixed tint within cubes.
+TEST(FineFaceMerge, SubcubeMerge_CoverageMatchesPerFacePathWithHolesAndMixed) {
+    const glm::ivec3 pc(6, 6, 6);
+    auto build = [&]() {
+        std::vector<std::unique_ptr<Subcube>> v;
+        for (int x = 0; x < 3; ++x) for (int y = 0; y < 3; ++y) for (int z = 0; z < 3; ++z) {
+            if (((x + y + z) % 2) != 0) continue;  // checkerboard holes
+            auto sc = std::make_unique<Subcube>(pc, glm::ivec3(x, y, z), "Stone");
+            sc->setTint((x % 2 == 0) ? 0x112233u : 0x445566u);  // mixed keys within one cube
+            v.push_back(std::move(sc));
+        }
+        return v;
+    };
+    auto micros = std::vector<std::unique_ptr<Microcube>>{};
+    auto cubes = emptyCubes();
+
+    size_t perFace[6];
+    {
+        FineMergeScope off(false);
+        auto subs = build();
+        ChunkRenderManager crm;
+        crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+        for (uint32_t f = 0; f < 6; ++f) {
+            perFace[f] = 0;
+            for (const auto& fi : crm.getFaces())
+                if (faceIdOf(fi) == f && scaleLevelOf(fi) == 1u) ++perFace[f];
+        }
+    }
+    {
+        FineMergeScope on(true);
+        auto subs = build();
+        ChunkRenderManager crm;
+        crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+        for (uint32_t f = 0; f < 6; ++f) {
+            size_t covered = 0;
+            for (const auto& fi : crm.getFaces())
+                if (faceIdOf(fi) == f && scaleLevelOf(fi) == 1u) covered += extentU(fi) * extentV(fi);
+            EXPECT_EQ(covered, perFace[f]) << "subcube holed/mixed coverage mismatch on faceID " << f;
+        }
+    }
+    EXPECT_GT(perFace[FACE_PLUS_Y], static_cast<size_t>(0));
+}
+
+// UV correctness of the subcube merge + flip correction (scale level 1), all 6 faces, 3-wide run.
+TEST(FineFaceMerge, SubcubeMerge_UVReplicaMatchesPerFaceEveryFace) {
+    const int depth = 1;
+    const int EXT = 3;
+    for (int faceID = 0; faceID < 6; ++faceID) {
+        int ox, oy, oz; uvdToLocal(faceID, 0, 0, depth, ox, oy, oz);
+        for (int i = 0; i < EXT; ++i) for (int j = 0; j < EXT; ++j) {
+            int lx, ly, lz; uvdToLocal(faceID, i, j, depth, lx, ly, lz);
+            UV perFace = shaderSubUV(faceID, lx, ly, lz, 1, 1, 0.5, 0.5);
+            double s, t; cellCentreST(faceID, i, j, EXT, EXT, s, t);
+            UV merged  = shaderSubUV(faceID, ox, oy, oz, EXT, EXT, s, t);
+            EXPECT_NEAR(merged.u, perFace.u, 1e-9) << "sub face " << faceID << " cell (" << i << "," << j << ") U";
+            EXPECT_NEAR(merged.v, perFace.v, 1e-9) << "sub face " << faceID << " cell (" << i << "," << j << ") V";
+        }
+    }
+}
+
+// ── Geometry truth: the merged quads occupy the SAME world cells as the per-face path ─────────────
+// THE test the earlier UVReplica/coverage checks lacked: it decodes the ACTUAL origin bits + extents
+// the mesher emitted and enumerates the covered world cells, so a wrong ORIGIN (e.g. min-cell ->
+// max-cell) or wrong extent shifts the cells and diverges from the per-face oracle. Non-trivial
+// configs (checkerboard holes + mixed tint) put merged runs at NON-corner origins, and the multiset
+// compare + in-bounds guard catch both position errors and cube-border overflow. Falsifiability was
+// confirmed by injecting a min->max origin bug into rebuildSub/MicrocubeFacesMerged and watching
+// these tests (and only these) go red.
+TEST(FineFaceMerge, MicrocubeMerge_EmittedGeometryMatchesPerFaceEveryDirection) {
+    // OFFSET SOLID BLOCK (local 3..8 on each axis) — produces MULTI-cell runs (extent up to 6) whose
+    // origin is NOT at the cube corner, so a min->max origin bug shifts the covered cells (a
+    // checkerboard of 1x1 runs would hide it — extent-1 runs have identical min/max origin).
+    auto present  = [](int x, int y, int z) { return x >= 3 && y >= 3 && z >= 3; };
+    auto material = [](int, int, int) { return "Stone"; };
+    const glm::ivec3 pc(4, 7, 2);
+    auto cubes = emptyCubes();
+    std::multiset<std::array<int,3>> offC[6];
+    {
+        FineMergeScope off(false);
+        auto micros = buildMicrocubeCube(pc, present, material); auto subs = emptySubs();
+        ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f) offC[f] = coveredCellCentres(crm.getFaces(), f, 2u);
+    }
+    {
+        FineMergeScope on(true);
+        auto micros = buildMicrocubeCube(pc, present, material); auto subs = emptySubs();
+        ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f)
+            EXPECT_EQ(coveredCellCentres(crm.getFaces(), f, 2u), offC[f])
+                << "microcube emitted geometry mismatch on faceID " << f;
+    }
+    EXPECT_GT(offC[FACE_PLUS_Y].size(), static_cast<size_t>(0));
+}
+
+TEST(FineFaceMerge, SubcubeMerge_EmittedGeometryMatchesPerFaceEveryDirection) {
+    const glm::ivec3 pc(3, 8, 5);
+    // OFFSET SOLID BLOCK (local 1..2 on each axis) — 2x2 runs whose origin is at local 1, not the
+    // corner, so a min->max origin bug (origin 1 -> 2, extent 2 -> cells 2,3) is caught by the
+    // cell-centre set compare AND the in-bounds guard. A 1x1-run config would not expose it.
+    auto build = [&]() {
+        std::vector<std::unique_ptr<Subcube>> v;
+        for (int x = 1; x < 3; ++x) for (int y = 1; y < 3; ++y) for (int z = 1; z < 3; ++z) {
+            auto sc = std::make_unique<Subcube>(pc, glm::ivec3(x, y, z), "Stone");
+            v.push_back(std::move(sc));
+        }
+        return v;
+    };
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    std::multiset<std::array<int,3>> offC[6];
+    {
+        FineMergeScope off(false);
+        auto subs = build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f) offC[f] = coveredCellCentres(crm.getFaces(), f, 1u);
+    }
+    {
+        FineMergeScope on(true);
+        auto subs = build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f)
+            EXPECT_EQ(coveredCellCentres(crm.getFaces(), f, 1u), offC[f])
+                << "subcube emitted geometry mismatch on faceID " << f;
+    }
+    EXPECT_GT(offC[FACE_PLUS_Y].size(), static_cast<size_t>(0));
 }
 
 // ── Increment 4 target (DISABLED until cross-cube runs land) ──────────────────────────────────────

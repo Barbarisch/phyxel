@@ -114,6 +114,13 @@ public:
         const glm::ivec3& worldOrigin
     );
 
+    // Increment 3: greedy-merged subcube path (within-cube same-appearance rectangles), selected by
+    // s_fineGreedyMerge. Same algorithm as rebuildMicrocubeFacesMerged at the 3x3 subcube grid.
+    void rebuildSubcubeFacesMerged(
+        const std::vector<std::unique_ptr<Subcube>>& subcubes,
+        const glm::ivec3& worldOrigin
+    );
+
     void rebuildMicrocubeFaces(
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
         const glm::ivec3& worldOrigin

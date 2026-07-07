@@ -1,0 +1,8 @@
+# Increment 3 face-count A/B — raw API capture 2026-07-07T01:53:07Z
+# StructGenTest + saved tavern, DEBUG build, POST /api/debug/fine_merge
+## OFF (per-face):
+{"far_tiles_drawn":0,"far_tiles_resident":0,"far_triangles":0,"mirror_geom_draw_calls":0,"mirror_normal":{"x":0.0,"y":0.0,"z":0.0},"mirror_pass_ran":false,"mirror_plane":{"x":0.0,"y":0.0,"z":0.0},"reflected_cam":{"x":0.0,"y":0.0,"z":0.0},"reflection_draw_calls":0,"total_visible_faces":68126,"visible_chunk_count":1}
+## toggle ON:
+{"fine_merge":true,"success":true}
+## ON (micro+sub merged):
+{"far_tiles_drawn":0,"far_tiles_resident":0,"far_triangles":0,"mirror_geom_draw_calls":0,"mirror_normal":{"x":0.0,"y":0.0,"z":0.0},"mirror_pass_ran":false,"mirror_plane":{"x":0.0,"y":0.0,"z":0.0},"reflected_cam":{"x":0.0,"y":0.0,"z":0.0},"reflection_draw_calls":0,"total_visible_faces":6466,"visible_chunk_count":1}
