@@ -22,7 +22,11 @@ namespace Graphics {
 bool ChunkRenderManager::s_smoothLighting = true;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
-bool ChunkRenderManager::s_fineGreedyMerge = false;
+// Shipped ON by default (2026-07-07): greedy-merging sub/microcube faces recovers ~5-8x FPS on
+// face-bound dense scenes (docs/RenderOptimization.md "Heavy-scene FPS validation"). The per-face
+// path stays reachable via POST /api/debug/fine_merge {"enabled":false} for A/B. Re-mesh cost of the
+// merged path measured acceptable before flipping this default.
+bool ChunkRenderManager::s_fineGreedyMerge = true;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)

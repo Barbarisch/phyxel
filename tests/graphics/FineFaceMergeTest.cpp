@@ -121,9 +121,14 @@ std::multiset<std::array<int,3>> coveredCellCentres(
 }
 
 // RAII guard so a test's toggle change never leaks into sibling tests (the flag is global static).
+// Restores the PRIOR value (not a hardcoded false) — the shipped default is now true, so any test
+// relying on the default must see it restored, not clobbered to false.
 struct FineMergeScope {
-    explicit FineMergeScope(bool on) { ChunkRenderManager::setFineGreedyMerge(on); }
-    ~FineMergeScope() { ChunkRenderManager::setFineGreedyMerge(false); }
+    bool prev_;
+    explicit FineMergeScope(bool on) : prev_(ChunkRenderManager::getFineGreedyMerge()) {
+        ChunkRenderManager::setFineGreedyMerge(on);
+    }
+    ~FineMergeScope() { ChunkRenderManager::setFineGreedyMerge(prev_); }
 };
 
 // Build a flat, one-cube-thick slab of N x N cubes at y=0, each cube FULLY packed with a 9x9x9 grid

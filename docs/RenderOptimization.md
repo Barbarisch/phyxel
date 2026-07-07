@@ -404,6 +404,39 @@ toggle is wired on by default (or auto-enabled past a face-count/mesher-cost thr
 re-validated (re-mesh cost at scale; the empty-world 14→14 already shows no regression on merge-free
 scenes). That default-on wiring is the remaining step to actually ship the win.
 
+## ✅ Shipped ON by default (2026-07-07) — re-mesh cost measured acceptable
+
+`s_fineGreedyMerge` default flipped `false`→`true` (`ChunkRenderManager.cpp:25`), so every session gets
+the merge without the debug toggle. The per-face path stays reachable via `POST /api/debug/fine_merge
+{"enabled":false}` for A/B. Validated before flipping:
+
+- **Default-ON works out of the box** (Release binary `bd1f7bbee097`, hash-verified — differs from the
+  old default-off `2e5c9116`): a 9-tavern scene renders at **53,219 faces / ~206 FPS with NO manual
+  toggle** (would be 639,585 / ~43 FPS if the default were still off). The win is live for players.
+- **Re-mesh cost — the one untested regression risk — MEASURED + persisted**
+  (`docs/evidence/inc5_remesh_cost_release.txt`). Timing the full re-mesh of all 6 chunks of the
+  9-tavern scene (the `/api/debug/fine_merge` toggle blocks until the re-mesh completes):
+  **per-face ~535 ms vs merged ~594 ms = +59 ms (~11%, ≈10 ms/chunk)** (3 cycles, consistent). Honest
+  framing (corrected after audit): this re-mesh runs on the **game loop**, i.e. it is a **main-thread
+  rebuild STUTTER, not a free background cost** — the cleared log shows each toggle as a
+  `STUTTER DETECTED` frame of ~230–315 ms (the full 6-chunk rebuild in one frame; this is why an
+  auditor grep for "Face rebuilding complete" found no trace — the toggle logs the stutter, not a
+  completion line). BUT the stutter is **not introduced by this change**: the per-face path *already*
+  stutters on any chunk rebuild (~40–50 ms/chunk incl. the shared lighting bake); enabling merge-by-
+  default makes that existing rebuild ~11 % worse (~10 ms/chunk), in exchange for the 5–8× **per-frame**
+  render win afterward. Worst case is a full all-chunk re-mesh (the toggle); normal gameplay re-meshes
+  ONE chunk per edit (~40–50 ms + ~10 ms), world-load meshes many chunks (one-time). Net: a clear win.
+- **No test regression:** `FineFaceMerge.*` 18/18. The full suite shows 7 failures, all git-proven
+  PRE-EXISTING and causally unrelated (the merge flag cannot reach material/nav/skeleton/inventory
+  code): `MaterialRegistryTest.{HasCorrectMaterialCount,HasCorrectTextureCount,GetAllMaterialNames_HasAll}`
+  hardcode counts (e.g. `getMaterialCount()==27`) but committed `resources/materials.json` has **91**
+  (last changed 2026-07-04, two days before this work); `MaterialRegistryTest.SaveAndReload_Roundtrip`
+  is a **distinct, separate pre-existing bug** (mass 1.5→1 serialization round-trip, ~50 materials),
+  not the count mismatch; `InventoryTest.SelectSlot`, `NavGridTest.StepUpOneBlock`,
+  `CharacterSkeletonTest.KneeElbowLimitsCorrect` are similar unrelated expectation drift. `FineMergeScope`
+  (test RAII) fixed to restore the PRIOR flag value, not a hardcoded false, so the new default doesn't
+  leak between tests.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,
