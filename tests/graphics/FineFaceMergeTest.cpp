@@ -673,9 +673,81 @@ TEST(FineFaceMerge, SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes) {
     EXPECT_EQ(topSubCovered(), static_cast<size_t>(2 * 9));  // coverage exact (2 cubes * 9 top faces)
 }
 
-// ── Increment 4 target (DISABLED until cross-cube runs land) ──────────────────────────────────────
-// Cross-cube merging collapses the entire same-material slab top into a small constant number of
-// quads (extent-capped, so a 36-wide micro run may split — allow generous slack). Enabled at Inc 4.
+// ── Increment 5 stress: honest bounds + scale invariants ─────────────────────────────────────────
+// Count instances of (faceID, scaleLevel).
+size_t countFaces(const std::vector<InstanceData>& faces, uint32_t faceID, uint32_t scaleLevel) {
+    size_t n = 0;
+    for (const auto& f : faces) if (faceIdOf(f) == faceID && scaleLevelOf(f) == scaleLevel) ++n;
+    return n;
+}
+
+// Merge-DEFEATING checkerboard: alternating tint by (x+y+z) parity means every orthogonal neighbour
+// on any face plane differs → NOTHING can merge. The merged path must degrade EXACTLY to the per-face
+// path (same instance count per direction), never inventing a wrong merge or dropping a cell. This is
+// the honest "binary meshing buys nothing here by design" bound (BinaryGreedyMeshingPlan.md §5).
+TEST(FineFaceMerge, SubcubeMerge_CheckerboardDegradesToPerFaceExactly) {
+    auto build = []{
+        std::vector<std::unique_ptr<Subcube>> v;
+        for (int x=0;x<3;++x) for (int y=0;y<3;++y) for (int z=0;z<3;++z) {
+            auto sc = std::make_unique<Subcube>(glm::ivec3(4,4,4), glm::ivec3(x,y,z), "Stone");
+            sc->setTint(((x+y+z)%2) ? 0x111111u : 0x222222u);
+            v.push_back(std::move(sc));
+        }
+        return v;
+    };
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    size_t perFace[6];
+    { FineMergeScope off(false); auto s=build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes,s,micros,glm::ivec3(0,0,0));
+      for (uint32_t f=0;f<6;++f) perFace[f]=countFaces(crm.getFaces(),f,1u); }
+    { FineMergeScope on(true); auto s=build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes,s,micros,glm::ivec3(0,0,0));
+      for (uint32_t f=0;f<6;++f) EXPECT_EQ(countFaces(crm.getFaces(),f,1u), perFace[f])
+          << "checkerboard must not merge on faceID " << f; }
+    EXPECT_GT(perFace[FACE_PLUS_Y], static_cast<size_t>(1));  // there ARE faces (non-vacuous)
+}
+
+TEST(FineFaceMerge, MicrocubeMerge_CheckerboardDegradesToPerFaceExactly) {
+    // Alternate TINT (not material) by parity so keys differ without a loaded MaterialRegistry
+    // ("Stone"/"Wood" both map to the fallback texture in the unit env → same key → would merge).
+    const glm::ivec3 pc(4,4,4);
+    auto build = []{
+        std::vector<std::unique_ptr<Microcube>> v;
+        for (int x=0;x<9;++x) for (int y=0;y<9;++y) for (int z=0;z<9;++z) {
+            auto mc = std::make_unique<Microcube>(glm::ivec3(4,4,4), glm::ivec3(x/3,y/3,z/3), glm::ivec3(x%3,y%3,z%3), "Stone");
+            mc->setTint(((x+y+z)%2) ? 0x111111u : 0x222222u);
+            v.push_back(std::move(mc));
+        }
+        return v;
+    };
+    auto cubes = emptyCubes();
+    size_t perFace[6];
+    { FineMergeScope off(false); auto m=build(); auto s=emptySubs();
+      ChunkRenderManager crm; crm.rebuildAllFaces(cubes,s,m,glm::ivec3(0,0,0));
+      for (uint32_t f=0;f<6;++f) perFace[f]=countFaces(crm.getFaces(),f,2u); }
+    { FineMergeScope on(true); auto m=build(); auto s=emptySubs();
+      ChunkRenderManager crm; crm.rebuildAllFaces(cubes,s,m,glm::ivec3(0,0,0));
+      for (uint32_t f=0;f<6;++f) EXPECT_EQ(countFaces(crm.getFaces(),f,2u), perFace[f])
+          << "micro checkerboard must not merge on faceID " << f; }
+    EXPECT_GT(perFace[FACE_PLUS_Y], static_cast<size_t>(1));
+}
+
+// Scale: a large uniform subcube slab (10x10 cubes) still collapses its top to ONE cross-cube
+// rectangle (the cross-cube merger doesn't degrade with size), coverage exact. Extent 30 < 256 cap.
+TEST(FineFaceMerge, SubcubeMerge_LargeUniformSlabTopCollapsesToOne) {
+    FineMergeScope on(true);
+    const int N = 10;
+    auto subs = buildSubcubeSlab(N, "Stone");
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+    EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(1));
+    size_t covered = 0;
+    for (const auto& f : crm.getFaces())
+        if (faceIdOf(f) == FACE_PLUS_Y && scaleLevelOf(f) == 1u) covered += extentU(f) * extentV(f);
+    EXPECT_EQ(covered, static_cast<size_t>(9 * N * N));
+}
+
+// ── Increment 4b target (DISABLED until MICROcube cross-cube lands) ───────────────────────────────
+// Cross-cube merging collapses the entire same-material MICRO slab top into a small constant number
+// of quads (extent-capped, so a wide micro run may split). Enabled at Inc 4b.
 TEST(FineFaceMerge, DISABLED_MicrocubeMerge_TopFaceCollapsesAcrossSlab) {
     const int N = 4;
     auto micros = buildMicrocubeSlab(N, "Stone");

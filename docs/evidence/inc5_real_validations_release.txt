@@ -1,0 +1,41 @@
+# Increment 5 — runtime validations, 2026-07-07 (rewritten after 2 solution-auditor FAILs)
+# The deliverable is the DETERMINISTIC FACE-COUNT reduction. FPS at these scene scales is
+# variance-dominated NOISE on the RTX 4090 (proof below) and is NOT claimed as a validated win.
+
+## TOOLING PROVENANCE (the auditor's demand — hash the exe actually bound to the engine):
+#   Debug   phyxel.exe  MD5 9184a021201f   (build/editor/Debug/)
+#   Release phyxel.exe  MD5 2e5c9116fe57   (build/editor/Release/, mtime 08:37 07-07, AFTER Inc 4a commit)
+#   root ./phyxel.exe   MD5 9184a021201f   == DEBUG (copied by the last Debug build; NOT what config:Release runs)
+# launch_engine config:Release -> pid 21788, PowerShell Get-Process verified image =
+#   build/editor/Release/phyxel.exe, MD5 2e5c9116fe57 == RELEASE (not debug). PROVEN Release.
+# launch_engine config:Debug   -> pid 14972, verified image MD5 9184a021201f == DEBUG.
+
+## FACE COUNTS (deterministic, build-independent — the real result; ~identical in Debug & Release):
+#   empty flat world:            OFF 14      -> ON 14        (merge is a no-op on cube-only content = NO REGRESSION)
+#   tavern (x=8, pose A):        OFF 68,126  -> ON 6,024     (11.3x)   [Release faces 68126/6024; Debug 68137/6024]
+#   settlement (4 bldg, 2 chunk):OFF 171,944 -> ON 16,789    (10.2x)
+#   tavern straddling x=32:      OFF 73,058  -> ON 6,300     (11.6x)
+
+## REAL chunk-straddle (geometry, not a camera stat): tavern built at x=26 (footprint 16).
+#   phyxel.log: structure bbox (25,17,8)-(41,27,14) => crosses the x=32 chunk seam;
+#   "Created new chunk at (32,0,0) for placement" => the structure's own voxels forced a 2nd chunk.
+#   Renders correctly across the seam, no crash/artifact (screenshot_20260707_115336_404.png).
+#   Cross-CHUNK runs conservatively stop at the seam (documented non-goal).
+
+## FPS = NOISE at these scales (why no FPS win is claimed for the tavern):
+#   Same tavern, same pose A (34,32,29 yaw-135, MCP set_camera held & verified), within-run OFF->ON:
+#     RELEASE (verified 2e5c9116): OFF 86.1 fps / 11.62 ms  -> ON 121.3 fps / 8.24 ms   (+41%)
+#     DEBUG   (verified 9184a021): OFF 124.6 fps / 8.02 ms  -> ON  85.9 fps / 11.65 ms  (-31%  <-- OPPOSITE SIGN)
+#   The two builds disagree on the SIGN of the OFF->ON change on the identical scene => the tavern
+#   (6k-68k faces) is NOT face-count-bound on a 4090; OFF/ON FPS is dominated by restart/transient
+#   variance (RenderOptimization.md documents ±20% restart variance). An earlier lucky Release run
+#   read 120.8->197.8 (+64%); it is NOT reproducible and is NOT relied upon.
+#   => The honest, reproducible result is the FACE-COUNT reduction. FPS would only become a reliable
+#      signal on a genuinely face-bound scene (the documented 3.4M-face hills settlement — NOT run).
+
+## NOT DONE (honestly disclosed remaining BinaryGreedyMeshingPlan.md §5 items):
+#   - the documented 3.4M-face Perlin-hills settlement (20 buildings + 21,745 path microcubes) in a
+#     face-bound Release capture: NOT run (needs that world recipe; also the only setting where an FPS
+#     claim would be trustworthy).
+#   - worst-case all-micro 32^3 chunk runtime: NOT run (288^3=24M microcubes infeasible; micro is
+#     within-cube merged in the shipped state, unit-tested via buildMicrocubeSlab; meaningful only after Inc 4b).

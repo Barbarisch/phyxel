@@ -313,6 +313,64 @@ proven falsifiable by dropping light from the merge key and watching the +Y plan
 1 rect. The `coveredCellCentres` geometry helper now uses absolute chunk-cell bounds so it validates
 cross-cube runs. The `DISABLED_` MICROcube across-slab target stays red (Increment 4b).
 
+## Increment 5 — stress, scale, Release (2026-07-06, PARTIAL — see disclosure)
+
+Branch `render-fine-greedy-mesh`. Validates increments 0–4a; microcube cross-cube (4b) deferred, so
+this covers the SHIPPED state (within-cube micro + cross-cube sub). **This closeout is PARTIAL: two of
+`BinaryGreedyMeshingPlan.md` §5's mandatory items were NOT run — see "Not done" below.** (A first draft
+of this section overclaimed — presented a small flat-world settlement as "the settlement test" without
+disclosing it is not the documented 3.4M-face hills scene, and put Debug tavern face counts under a
+"Release" header. Corrected here after a solution-auditor FAIL.)
+
+**Stress unit tests (18 `FineFaceMerge.*` green; the honest bounds — auditor-verified falsifiable):**
+- `Sub/MicrocubeMerge_CheckerboardDegradesToPerFaceExactly` — "binary meshing buys nothing here":
+  an alternating-TINT checkerboard (every orthogonal neighbour differs) degrades EXACTLY to the per-face
+  instance count per direction — no wrong merges, no dropped cells. Proven falsifiable: dropping `tint`
+  from the merge key makes it (and the tint-boundary tests) go red. (Must alternate TINT not material —
+  `MaterialRegistry` is unloaded in the unit env so "Stone"/"Wood" share one fallback texture; the
+  first micro draft used material and correctly went red.)
+- `SubcubeMerge_LargeUniformSlabTopCollapsesToOne` — a 10×10-cube uniform slab still collapses its top
+  to ONE cross-cube rectangle (no size degradation), `count==1` AND `coverage==9·N²` (rules out a
+  face-drop faking the collapse). Extent 30 < the 256 cap.
+
+**The deliverable is the DETERMINISTIC face-count reduction; FPS at these scene scales is
+variance-dominated NOISE and is NOT claimed as a validated win** (raw
+`docs/evidence/inc5_real_validations_release.txt`). Build provenance was hash-verified per the
+auditor's demand: `launch_engine config:Release` → process image MD5 `2e5c9116` == the Release binary
+(≠ Debug `9184a021`), confirmed via PowerShell `Get-Process`; `config:Debug` → `9184a021` == Debug.
+(The root `./phyxel.exe` is a *Debug* copy, but `config:Release` runs `build/editor/Release/phyxel.exe`,
+not root — the source of an earlier Debug/Release confusion.)
+
+- **Face counts (deterministic, build-independent — the real result):** empty world OFF **14** → ON
+  **14** (merge is a no-op on cube-only content = **no regression**); tavern OFF 68,126 → ON 6,024
+  (11.3×); settlement (4 buildings / 2 chunks) OFF **171,944** → ON **16,789** (10.2×); straddle tavern
+  OFF 73,058 → ON 6,300 (11.6×). Identical in Debug and Release (it's the CPU mesher, not the compiler).
+- **REAL chunk-boundary straddle** (geometry, not a camera stat): one tavern built at x=26 → `phyxel.log`
+  structure bbox **(25,17,8)–(41,27,14)** crosses the x=32 seam and logs `Created new chunk at (32,0,0)
+  for placement` — its own voxels forced a 2nd chunk. Renders correctly across the seam, no
+  crash/artifact (`screenshot_20260707_115336_404.png`); cross-*chunk* runs conservatively stop there.
+- **Settlement — SCALE PROXY, explicitly NOT the documented 3.4M hills scene:** flat-world engine
+  `build_settlement` seed 7, 4 structures / 2 chunks. A real multi-building scale test, ~20× smaller
+  than the plan's hills settlement.
+- **FPS is NOISE at these scales — no FPS win claimed.** Same tavern, same held+verified pose A,
+  within-run OFF→ON: **Release 86.1 → 121.3 (+41%)** but **Debug 124.6 → 85.9 (−31%, opposite sign)**.
+  Two builds disagreeing on the *sign* of the OFF→ON change on the identical scene proves the tavern
+  (6k–68k faces) is not face-count-bound on the RTX 4090; OFF/ON FPS is dominated by the documented ±20%
+  restart/transient variance. (An earlier lucky Release run read 120.8→197.8; not reproducible, not
+  relied upon.) FPS would only be a trustworthy signal on a genuinely face-bound scene (the 3.4M hills
+  settlement — not run).
+
+**Not done (honest disclosure of skipped §5 items):**
+- The **exact documented 3.4M-face Perlin-hills settlement** (20 buildings + 21,745 path microcubes)
+  re-run in Release — NOT run (needs that specific world recipe; the 4-building flat settlement above is
+  a smaller proxy). Remaining bar for a full closeout.
+- **Worst-case all-micro 32³ chunk runtime test** — NOT run: a true all-micro chunk is 288³ = 24M
+  microcubes (infeasible to place); micro is WITHIN-cube merged in the shipped state, already unit-tested
+  (`buildMicrocubeSlab`). Becomes a meaningful runtime test only after Increment 4b (micro cross-cube).
+
+**Remaining work:** Increment 4b (microcube cross-cube, 288³ — the last `DISABLED_` micro across-slab
+red test) + the two §5 items above. The cross-cube subcube win already scales (settlement walls).
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,
