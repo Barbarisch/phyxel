@@ -97,18 +97,23 @@ std::multiset<std::array<int,3>> coveredCellCentres(
         else                  { loc[0] = sx*3 + mxi; loc[1] = sy*3 + myi; loc[2] = sz*3 + mzi; }
         int uAxis, vAxis, dAxis; faceAxes(faceID, uAxis, vAxis, dAxis);
         int eu = extentU(f), ev = extentV(f);
-        const int span = (scaleLevel == 1u) ? 3 : 9;                 // per-axis cell count / cube
-        const int base18[3] = { px*18, py*18, pz*18 };
+        const int pc3[3]    = { px, py, pz };
+        const int perCube   = (scaleLevel == 1u) ? 3 : 9;            // cells per cube per axis
+        const int chunkSpan = (scaleLevel == 1u) ? 96 : 288;        // cells per chunk per axis
         const int cellHalf  = (scaleLevel == 1u) ? 3 : 1;            // half-cell in 1/18 (1/6 or 1/18)
         const int cellFull  = (scaleLevel == 1u) ? 6 : 2;            // full cell in 1/18
         for (int i = 0; i < eu; ++i) for (int j = 0; j < ev; ++j) {
             int c[3]; c[uAxis] = loc[uAxis] + i; c[vAxis] = loc[vAxis] + j; c[dAxis] = loc[dAxis];
-            // In-bounds guard: a max-origin overflow bug pushes a cell past the cube border.
-            for (int a = 0; a < 3; ++a) EXPECT_LT(c[a], span) << "cell out of parent-cube bounds";
-            std::array<int,3> centre = {
-                base18[0] + c[0]*cellFull + cellHalf,
-                base18[1] + c[1]*cellFull + cellHalf,
-                base18[2] + c[2]*cellFull + cellHalf };
+            // Absolute chunk-cell coord (cross-cube runs legitimately exceed one cube). Guard against
+            // a max-origin overflow bug pushing a cell past the CHUNK border, and use the absolute
+            // coord for the centre so within- and cross-cube runs share one code path.
+            std::array<int,3> centre;
+            for (int a = 0; a < 3; ++a) {
+                int absolute = pc3[a] * perCube + c[a];
+                EXPECT_GE(absolute, 0) << "cell below chunk bounds";
+                EXPECT_LT(absolute, chunkSpan) << "cell out of chunk bounds";
+                centre[a] = absolute * cellFull + cellHalf;
+            }
             out.insert(centre);
         }
     }
@@ -421,12 +426,12 @@ TEST(FineFaceMerge, MicrocubeMerge_UVReplicaMatchesPerFaceEveryFace) {
     }
 }
 
-// ── Increment 3: within-cube subcube merging ─────────────────────────────────────────────────────
-// Each cube's top slice is a full 3x3 of one material → one merged rectangle per cube (N^2 total),
-// vs 9*N^2 unmerged.
-TEST(FineFaceMerge, SubcubeMerge_TopFaceCollapsesPerCube) {
+// ── Increment 3/4a: subcube merging (cross-cube) ───────────────────────────────────────────────────────────
+// A uniform N×N cube slab's top (+Y) is a 3N×3N same-material plane with uniform (open-sky) light →
+// cross-cube merging (Inc 4a) collapses it to ONE rectangle. Within-cube (Inc 3) would give N² (one
+// per cube); the per-face path gives 9·N². Coverage stays exact.
+TEST(FineFaceMerge, SubcubeMerge_TopFaceCollapsesAcrossSlab) {
     const int N = 4;
-    auto subs = buildSubcubeSlab(N, "Stone");
     auto micros = std::vector<std::unique_ptr<Microcube>>{};
     auto cubes = emptyCubes();
 
@@ -438,12 +443,17 @@ TEST(FineFaceMerge, SubcubeMerge_TopFaceCollapsesPerCube) {
         crm.rebuildAllFaces(cubes, s2, micros, glm::ivec3(0, 0, 0));
         EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(9 * N * N));
     }
-    // Merged (toggle on): one rectangle per cube.
+    // Merged (toggle on, cross-cube): the whole slab top is one rectangle; coverage still 9·N².
     {
         FineMergeScope on(true);
         ChunkRenderManager crm;
+        auto subs = buildSubcubeSlab(N, "Stone");
         crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
-        EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(N * N));
+        EXPECT_EQ(countFacesWithId(crm.getFaces(), FACE_PLUS_Y), static_cast<size_t>(1));
+        size_t covered = 0;
+        for (const auto& f : crm.getFaces())
+            if (faceIdOf(f) == FACE_PLUS_Y && scaleLevelOf(f) == 1u) covered += extentU(f) * extentV(f);
+        EXPECT_EQ(covered, static_cast<size_t>(9 * N * N));
     }
 }
 
@@ -570,6 +580,97 @@ TEST(FineFaceMerge, SubcubeMerge_EmittedGeometryMatchesPerFaceEveryDirection) {
                 << "subcube emitted geometry mismatch on faceID " << f;
     }
     EXPECT_GT(offC[FACE_PLUS_Y].size(), static_cast<size_t>(0));
+}
+
+// ── Increment 4a: cross-cube SUBCUBE merging ─────────────────────────────────────────────────────
+// A row of same-appearance cubes along X, each fully subcube-filled. The +Z exposed layer forms one
+// 12(x)×3(y) same-material plane spanning all 4 cubes with uniform light → cross-cube merging
+// collapses it to ONE rectangle. Within-cube merging (Inc 3) gives one per cube = 4. RED before Inc 4a.
+TEST(FineFaceMerge, SubcubeMerge_CrossCubeCollapsesAlongRow) {
+    FineMergeScope on(true);
+    const int N = 4;
+    std::vector<std::unique_ptr<Subcube>> subs;
+    for (int cx = 0; cx < N; ++cx)
+        for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz)
+            subs.push_back(std::make_unique<Subcube>(glm::ivec3(cx, 0, 0), glm::ivec3(sx, sy, sz), "Stone"));
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+    // The whole +Z plane (uniform appearance + light) is one rectangle across all 4 cubes.
+    EXPECT_LE(countFacesWithId(crm.getFaces(), 0u /*+Z*/), static_cast<size_t>(2))
+        << "cross-cube: +Z plane should collapse across the 4-cube row";
+    // Coverage still exact: 4 cubes * 9 (+Z) subcube faces.
+    EXPECT_EQ([&]{ size_t s=0; for (auto&f:crm.getFaces()) if(faceIdOf(f)==0u&&scaleLevelOf(f)==1u) s+=extentU(f)*extentV(f); return s; }(),
+              static_cast<size_t>(N * 9));
+}
+
+// Cross-cube geometry safety net: positions must stay correct across cube boundaries (decode REAL
+// emitted origin + extents; a cross-cube run's cells must equal the per-face oracle's, per direction).
+TEST(FineFaceMerge, SubcubeMerge_CrossCubeGeometryMatchesPerFace) {
+    // 2x1x1 cubes along X, offset from chunk origin, fully filled, one appearance → cross-cube runs.
+    auto build = [&]() {
+        std::vector<std::unique_ptr<Subcube>> v;
+        for (int cx = 5; cx <= 6; ++cx)
+            for (int sx=0;sx<3;++sx) for (int sy=0;sy<3;++sy) for (int sz=0;sz<3;++sz)
+                v.push_back(std::make_unique<Subcube>(glm::ivec3(cx, 4, 7), glm::ivec3(sx,sy,sz), "Stone"));
+        return v;
+    };
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    std::multiset<std::array<int,3>> offC[6];
+    {
+        FineMergeScope off(false);
+        auto subs = build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f) offC[f] = coveredCellCentres(crm.getFaces(), f, 1u);
+    }
+    {
+        FineMergeScope on(true);
+        auto subs = build(); ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0,0,0));
+        for (uint32_t f = 0; f < 6; ++f)
+            EXPECT_EQ(coveredCellCentres(crm.getFaces(), f, 1u), offC[f])
+                << "cross-cube subcube geometry mismatch on faceID " << f;
+    }
+    EXPECT_GT(offC[0].size(), static_cast<size_t>(0));
+}
+
+// A merge run must NOT cross a tint boundary BETWEEN cubes: left 2 cubes tint A, right 2 tint B →
+// the +Z plane keeps >=2 rectangles, coverage exact.
+TEST(FineFaceMerge, SubcubeMerge_CrossCubeSplitsOnTintBoundaryBetweenCubes) {
+    FineMergeScope on(true);
+    const int N = 4;
+    std::vector<std::unique_ptr<Subcube>> subs;
+    for (int cx = 0; cx < N; ++cx)
+        for (int sx=0;sx<3;++sx) for (int sy=0;sy<3;++sy) for (int sz=0;sz<3;++sz) {
+            auto sc = std::make_unique<Subcube>(glm::ivec3(cx, 0, 0), glm::ivec3(sx, sy, sz), "Stone");
+            sc->setTint(cx < 2 ? 0xAA1111u : 0x1111AAu);   // tint boundary between cube 1 and 2
+            subs.push_back(std::move(sc));
+        }
+    auto micros = std::vector<std::unique_ptr<Microcube>>{}; auto cubes = emptyCubes();
+    ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+    EXPECT_GE(countFacesWithId(crm.getFaces(), 0u), static_cast<size_t>(2))
+        << "cross-cube must split the +Z plane at the tint boundary";
+    EXPECT_EQ([&]{ size_t s=0; for (auto&f:crm.getFaces()) if(faceIdOf(f)==0u&&scaleLevelOf(f)==1u) s+=extentU(f)*extentV(f); return s; }(),
+              static_cast<size_t>(N * 9));
+}
+
+// A merge run must NOT cross a LIGHT boundary between cubes (the cross-cube merge key includes baked
+// light). Two same-material/same-tint subcube cubes along X; a solid blocker cube 2 above column 0
+// shades its +Y neighbour air cell (BFS skylight ~14) while column 1 stays open (15), so the two
+// cubes' +Y faces carry DIFFERENT light and must not fuse. This is the light analogue of the tint
+// split — the one that exercises the lightSky/light23 fields of the key on real baked output.
+TEST(FineFaceMerge, SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes) {
+    FineMergeScope on(true);
+    std::vector<std::unique_ptr<Subcube>> subs;
+    for (int cx = 0; cx <= 1; ++cx)
+        for (int sx=0;sx<3;++sx) for (int sy=0;sy<3;++sy) for (int sz=0;sz<3;++sz)
+            subs.push_back(std::make_unique<Subcube>(glm::ivec3(cx, 0, 0), glm::ivec3(sx, sy, sz), "Stone"));
+    std::vector<std::unique_ptr<Cube>> cubes;
+    cubes.push_back(std::make_unique<Cube>(glm::ivec3(0, 2, 0), "Stone"));  // blocker shading column 0
+    auto micros = std::vector<std::unique_ptr<Microcube>>{};
+    ChunkRenderManager crm; crm.rebuildAllFaces(cubes, subs, micros, glm::ivec3(0, 0, 0));
+
+    auto topSubFaces = [&]{ size_t n=0; for (auto&f:crm.getFaces()) if (faceIdOf(f)==FACE_PLUS_Y && scaleLevelOf(f)==1u) ++n; return n; };
+    auto topSubCovered = [&]{ size_t s=0; for (auto&f:crm.getFaces()) if (faceIdOf(f)==FACE_PLUS_Y && scaleLevelOf(f)==1u) s+=extentU(f)*extentV(f); return s; };
+    EXPECT_GE(topSubFaces(), static_cast<size_t>(2)) << "cross-cube must split +Y at the light boundary";
+    EXPECT_EQ(topSubCovered(), static_cast<size_t>(2 * 9));  // coverage exact (2 cubes * 9 top faces)
 }
 
 // ── Increment 4 target (DISABLED until cross-cube runs land) ──────────────────────────────────────

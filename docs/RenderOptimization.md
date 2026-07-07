@@ -277,6 +277,42 @@ placer/mesher test must decode and check the real output's *positions*, not just
 internal consistency. The UV-replica tests are kept as a cheap formula guard but are explicitly not
 the origin guard.
 
+## ✅ Increment 4a shipped (2026-07-06) — cross-cube SUBCUBE merging (UV-wrap at seams)
+
+Branch `render-fine-greedy-mesh`. `rebuildSubcubeFacesMerged` rewritten from per-cube grouping to
+**chunk-wide** merging: per face direction, buckets subcubes by depth slice, fills a reused 96×96
+plane mask, and greedy-merges coplanar same-key runs **across parent-cube boundaries**. The merge key
+now includes **baked light** (per cube-face), so runs split exactly at light gradients (matching the
+cube greedy path). A lone cube reduces to the Increment-3 within-cube result (no neighbours). **No
+shader change** — a run's extent simply spans multiple cubes and the REPEAT-wrap sampler restarts the
+tile at each cube (§4.2). Extents ≤ 96 < 256, no split. Cross-*chunk* merging still out of scope.
+**Microcube cross-cube (288³) deferred to Increment 4b** (perf-risk; micro detail already well-merged
+within-cube).
+
+**Runtime (StructGenTest tavern; raw JSON `docs/evidence/inc4a_facecount_ab.txt`):** 68,126 →
+**6,024** faces (11.3× from baseline; 6,466 → 6,024 vs within-cube — modest here because the tavern's
+walls are broken by windows/doors/corners/light; the cross-cube win scales with large uniform surfaces
+— long walls, paths, the settlement scene). Close pose FPS 86 → 128.
+
+**UV wrap at cube seams (the plan's highest visual risk) — MEASURED CLEAN.** Close-up of the long
+front wall spanning ~16 cubes merged into cross-cube runs, clean same-session OFF-vs-ON diff
+(grass/foliage off, `_223053_029` vs `_223121_936`): **2 pixels differ at >8/255, max channel diff 12**
+— even more subtle than the within-cube filtering. No seam artifacts, no texture discontinuity at cube
+boundaries. The REPEAT-wrap restart per tile is correct.
+
+**Tests (14 `FineFaceMerge.*` green):** `SubcubeMerge_TopFaceCollapsesAcrossSlab` (a uniform N×N slab
+top → ONE cross-cube rectangle, was N² within-cube; coverage exact); `SubcubeMerge_CrossCube
+CollapsesAlongRow`; `SubcubeMerge_CrossCubeGeometryMatchesPerFace` (decode REAL emitted origin+extents,
+cross-cube cells == per-face oracle — proven falsifiable by re-injecting the min→max origin bug into
+the cross-cube merger and watching it go red); `SubcubeMerge_CrossCubeSplitsOnTintBoundaryBetweenCubes`
+(runs split at a tint boundary between cubes); `SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetween
+Cubes` (added after a solution-auditor FAIL flagged the "splits at light gradients" claim as
+UNFALSIFIED — every prior test ran with constant light) — two same-appearance subcube cubes with a
+solid blocker cube shading one column's +Y neighbour (BFS skylight ~14 vs open 15) must NOT fuse;
+proven falsifiable by dropping light from the merge key and watching the +Y plane wrongly collapse to
+1 rect. The `coveredCellCentres` geometry helper now uses absolute chunk-cell bounds so it validates
+cross-cube runs. The `DISABLED_` MICROcube across-slab target stays red (Increment 4b).
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,
