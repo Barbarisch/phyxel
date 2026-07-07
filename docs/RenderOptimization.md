@@ -371,6 +371,39 @@ not root — the source of an earlier Debug/Release confusion.)
 **Remaining work:** Increment 4b (microcube cross-cube, 288³ — the last `DISABLED_` micro across-slab
 red test) + the two §5 items above. The cross-cube subcube win already scales (settlement walls).
 
+## Heavy-scene FPS validation (2026-07-07) — mechanism recovers FPS when face-bound
+
+The Increment-5 closeout could NOT show an FPS win because a single tavern (6k–68k faces) is not
+face-count-bound on an RTX 4090 (OFF/ON FPS was noise — Release +41% vs Debug −31%). The honest
+question — *does the face-count reduction recover FPS on a genuinely dense scene?* — is answered here
+on **flat, pathless, tavern-only grids** (engine-generated v2 taverns; a face-bound PROXY, explicitly
+NOT the documented 3.4M-face Perlin-hills settlement — which remains not run). Release binary
+hash-verified `2e5c9116` via `Get-Process`; camera held+verified via MCP `set_camera`; OFF→ON toggled
+live within one process (no restart); 3 reads/state; raw
+`docs/evidence/inc5_heavy_scene_fps_release.txt`:
+
+| scene | faces OFF → ON | FPS OFF → ON (avg of 3) | recovery (all 3 reads / excl. 1 flagged read) | cpuFrame |
+|-------|--:|--:|--:|--:|
+| 9 taverns (6 chunks) | 639,585 → 53,219 (12.0×) | 41.5 → 206.5 | **5.0×** / 5.5× (excl. a 161 settling read) | 23 → 4.4 ms |
+| 16 taverns (9 chunks) | 1,126,856 → 92,438 (12.2×) | 26.4 → 180.4 | **6.8×** / 7.7× (excl. a 134 transient dip) | 38 → 5 ms |
+
+Both ratios are shown (the flagged reads — a first-read settle after the toggle re-mesh, and one dip —
+are self-consistent with their cpuFrame, so they are real captures, not noise; excluded only to bound
+the steady-state). Either way the recovery is **~5–8×**, far outside the tavern's ±20% variance band,
+with a *consistent* OFF→ON sign (the tavern flipped sign = noise). cpuFrame tracks it (23→4.4 ms,
+38→5 ms), and the faces↔cpuFrame relation (68k~10 ms, 640k~23 ms, 1.1M~38 ms) confirms these scenes
+ARE face-bound while the tavern was not. Renders correctly merged at scale
+(`screenshots/screenshot_20260707_130014_053.png` [9], `_130255_370.png` [16]).
+
+**Conclusion (scoped honestly):** the greedy-mesh *mechanism* is proven to recover FPS (~5–8×) on
+face-bound sub/microcube scenes *when enabled*. **It is NOT yet fielded:** `s_fineGreedyMerge` defaults
+`false` and is reachable only via the debug route `POST /api/debug/fine_merge` (`grep -rn
+"setFineGreedyMerge(true)"` → nothing). So a normal/default game session gets no benefit yet — the
+original 49-FPS build-density cap is *resolvable* by this work but not *resolved* for players until the
+toggle is wired on by default (or auto-enabled past a face-count/mesher-cost threshold) and
+re-validated (re-mesh cost at scale; the empty-world 14→14 already shows no regression on merge-free
+scenes). That default-on wiring is the remaining step to actually ship the win.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

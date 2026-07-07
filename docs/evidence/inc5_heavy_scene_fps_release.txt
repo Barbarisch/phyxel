@@ -1,0 +1,38 @@
+# Heavy-scene FPS validation — the measurement that settles whether greedy meshing RECOVERS FPS
+# on a genuinely face-bound dense scene (the effort's actual goal; unmeasurable at tavern scale
+# because a 6k-68k-face tavern is not face-bound on an RTX 4090). 2026-07-07.
+
+## PROVENANCE (hash-verified): launch_engine config:Release -> pid 25732; PowerShell Get-Process
+## image = build/editor/Release/phyxel.exe, MD5 2e5c9116fe57 == RELEASE binary (!= Debug 9184a021).
+## Camera held via MCP set_camera and position VERIFIED in the same reads as timing (POST /api/camera
+## does NOT hold a free pose). fine_merge toggled via POST /api/debug/fine_merge. 3 reads per state.
+
+## SCENE: grid of engine-generated v2 taverns (POST /api/structure/build) on the flat StructGenTest
+## world, viewed from a high overview so the whole grid is in the frustum (genuinely face-bound).
+
+## 9 taverns (overview cam (30,110,95) yaw-90 pitch-55, 6 visible chunks):
+#   OFF (unmerged): 639,585 faces | fps 43.1 / 43.6 / 37.9 | cpuFrame ~23 ms
+#   ON  (merged):    53,219 faces | fps 161.2* / 228.9 / 229.3 | cpuFrame ~4.4 ms   (*first read still settling)
+#   => 12.0x fewer faces; ~43 -> ~229 fps (~5.3x); cpuFrame 23 -> 4.4 ms.
+
+## 16 taverns (overview cam (48,165,140) yaw-90 pitch-52, 9 visible chunks) — a heavier face-bound
+## PROXY (flat, pathless tavern grid; NOT the documented 3.4M hills settlement — see SCOPE below):
+#   OFF (unmerged): 1,126,856 faces | fps 26.3 / 25.9 / 27.1 | cpuFrame ~38 ms
+#   ON  (merged):      92,438 faces | fps 202.1 / 204.8 / 134.2* | cpuFrame ~5 ms   (*third read a transient dip)
+#   => 12.2x fewer faces; ~26 -> ~203 fps (~7.8x); cpuFrame 38 -> 5 ms.
+
+## RECOVERY RATIOS (both, honest — the flagged reads are real captures, cpuFrame-consistent):
+##   9 taverns:  OFF avg 41.5 -> ON avg 206.5 = 5.0x  (excl. the 161.2 settling read: 41.5->229 = 5.5x)
+##   16 taverns: OFF avg 26.4 -> ON avg 180.4 = 6.8x  (excl. the 134.2 dip:            26.4->203 = 7.7x)
+##
+## CONCLUSION: on a FACE-BOUND scene the face-count reduction translates directly to FPS (~5-8x).
+## The OFF->ON sign is CONSISTENT and the magnitude large (unlike the tavern, which flipped
+## Release +41% / Debug -31% = noise). faces<->cpuFrame (68k~10ms, 640k~23ms, 1.1M~38ms) confirms
+## these ARE face-bound, the tavern was not. Renders correctly merged (screenshots 130014_053 [9],
+## 130255_370 [16]).
+##
+## SCOPE (honest): this is a flat, pathless, tavern-only GRID = a face-bound PROXY, NOT the documented
+## 3.4M-face Perlin-hills settlement (still not run; its "~15 FPS" figure is a DIFFERENT scene).
+## NOT FIELDED: s_fineGreedyMerge defaults false, reachable only via POST /api/debug/fine_merge
+## (grep setFineGreedyMerge(true) = nothing). The MECHANISM is proven when enabled; wiring it on by
+## default (or a face-count-threshold auto-enable) + re-validation is the remaining step to ship it.
