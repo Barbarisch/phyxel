@@ -165,6 +165,69 @@ the toggle-on path emits one hand-forged 2×1 merged subcube +Z brick quad at wo
 - Unit suite green: 68/68 (`FineFaceMerge` guard, `InstanceData*`, `Types*`, `GridEncoding*`); the two
   DISABLED_ merge targets remain red pending Increments 2/4.
 
+## ✅ Increment 2 shipped (2026-07-06) — within-cube microcube merging
+
+Branch `render-fine-greedy-mesh`. `rebuildMicrocubeFacesMerged` (selected by `s_fineGreedyMerge`):
+per parent cube, per face direction, per depth slice, builds a 9×9 appearance-keyed mask and
+greedy-merges same-appearance runs into maximal rectangles, one `InstanceData` per rectangle with
+extents in the light word. Visibility is decided per-cell with the same `microCellSolid` oracle as
+the per-face path, so a rectangle only ever covers individually-visible cells. Light is constant per
+(cube, face) by construction → never splits a merge. Cross-cube runs stop at the parent-cube border
+(Increment 4). Shader gained a UV-flip correction (`static_voxel.vert`): merged runs on inverted
+texture axes (U on faces +X/+Y, V on all faces) slide the UV origin by −(extent−1) — a no-op when
+unmerged. The Increment 1 spike hook was removed (superseded).
+
+**Runtime (DEBUG, StructGenTest + saved tavern, `/api/debug/fine_merge` A/B):**
+
+| pose | metric | toggle OFF (per-face) | toggle ON (micro-merged) |
+|------|--------|--:|--:|
+| — | `total_visible_faces` | 68,126 | **16,384 (4.2× fewer)** |
+| A exterior | FPS / cpuFrame | 107.1 / 9.34 ms | **150.4 / 6.65 ms (+40%)** |
+| C interior | FPS | 74.4 | 73.5 (pose not face-bound — small room in frustum) |
+
+**Visual fidelity — MEASURED, not eyeballed (a first claim of "pixel-identical" was wrong and
+retracted).** Clean same-session OFF-vs-ON pixel diff at one interior pose, grass+foliage disabled so
+the scene is fully static (`tools`-free `PIL.ImageChops`, viewport crop (243,44)-(1197,672), OFF
+`_210020_862.png` vs ON `_210043_900.png`):
+
+| per-channel threshold | differing pixels | note |
+|---|--:|---|
+| > 0/255 (any) | 1.111% (max 37/255), spread **uniformly** across all textured cells | mip-LOD filtering on larger merged quads |
+| > 2/255 | 0.003% (15 px) | |
+| > 8/255 (perceptible) | **0.001% (8 px)** | effectively none |
+
+Conclusion: the merge is **perceptually lossless (>99.997% of pixels within 2/255), NOT
+framebuffer-identical** — the residual is sub-perceptual mip-LOD selection over larger merged
+primitives (the same tradeoff the shipped cube greedy-mesh already makes), uniform and structure-free.
+A UV/flip bug would be localized and high-magnitude; it is not present. The remaining 16,384 faces are
+dominated by the **subcube walls** (still per-face — Increment 3) + cubes.
+
+**Exterior clean diff** (same methodology, pose A, grass+foliage off, OFF `_212450_937.png` vs ON
+`_212509_759.png`): 0.274% at >0/255 (vs the original 3.44% — that figure was overwhelmingly animated
+grass), **0.030% at >8/255**, but the perceptible pixels are localized to the **bottom-centre** cell
+(max diff 191) = the idle-animating **player character** (a separate, merge-independent render path,
+not paused between the ~19s-apart captures); the building surfaces themselves show 0.0% at >8 —
+filtering-only, same as the interior. Exterior FPS re-confirmed 118→142 (grass/foliage off).
+
+**Unit tests (green, red-before-green; hardened after a solution-auditor FAIL):**
+`MicrocubeMerge_TopFaceCollapsesPerCube` 1296→N² (was red);
+`MicrocubeMerge_CoverageMatchesPerFacePathEveryDirection` and
+`…WithHolesAndMixedMaterials` — merged Σ(extentU·extentV) == per-face micro count in ALL 6 directions,
+on a uniform slab AND on a holed (checkerboard-occluded) mixed-material cube (the real
+window/door/footprint complexity class); `MicrocubeMerge_SplitsOnAppearanceBoundaryWithinOneCube` —
+two tints inside ONE 9×9 mask must not fuse (exercises the `Key`-equality boundary the per-cube
+grouping otherwise hides); `MicrocubeMerge_UVReplicaMatchesPerFaceEveryFace` — a CPU replica of the
+shader UV math asserts a merged 9×9 run samples each cell's exact per-face texel window on all 6
+faces incl. both flip axes (proves the `fineUVOriginShift` flip correction; this caught a bug in an
+earlier version of the *test's* own (s,t) mapping, confirming it is falsifiable). Toggle-off guard
+still 1296. The `DISABLED_` across-slab target stays red for Increment 4.
+
+**Known gaps (honest):** toggle-off "byte-identical" is proven by source (unmerged path writes light
+bits 16-31 as zero; the decode is a no-op) + a face-count match, NOT a `memcmp` regression test.
+Shadow correctness for Increment 2's real merged geometry is covered only indirectly by the full-frame
+OFF-vs-ON diff above (which includes shadow receivers); a dedicated shadow-caster isolation is
+deferred. Cross-cube merging is Increment 4.
+
 ## Root cause — greedy meshing covers cubes but NOT subcubes/microcubes
 
 The static chunk renderer (`ChunkRenderManager`) emits **one `InstanceData` (8 B) per visible face**,

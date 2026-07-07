@@ -119,6 +119,13 @@ public:
         const glm::ivec3& worldOrigin
     );
 
+    // Increment 2: greedy-merged microcube path (within-cube same-appearance rectangles), selected
+    // by s_fineGreedyMerge. See docs/BinaryGreedyMeshingPlan.md.
+    void rebuildMicrocubeFacesMerged(
+        const std::vector<std::unique_ptr<Microcube>>& microcubes,
+        const glm::ivec3& worldOrigin
+    );
+
     // Vulkan buffer management
     void createVulkanBuffer();
     void updateVulkanBuffer();
