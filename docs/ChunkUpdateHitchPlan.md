@@ -107,8 +107,9 @@ Measurement reframed its value:
 **Track outcome:** T0→B0→B1 established the render-perf problem is NOT meshing, NOT steady
 chunk-update, NOT a recurring buffer hitch. The one dominant recurring cost is **render density**
 (B0: ~99% of stutters were the steady ~32 ms/frame cost of 377k faces — the #1 issue). **B1 is kept
-as a committed correctness fix; the track pivots to render density.** B2 (suballocator) is deferred —
-its remaining motive is the `maxMemoryAllocationCount` crash ceiling, not perf.
+as a committed correctness fix; the track pivots to render density —
+[`docs/RenderDensityPlan.md`](RenderDensityPlan.md).** B2 (suballocator) is deferred — its remaining
+motive is the `maxMemoryAllocationCount` crash ceiling, not perf.
 
 ## 3. Increments (each buildable / verifiable / revertible)
 
