@@ -59,7 +59,7 @@ MaterialPalette MaterialPalette::fromJson(const nlohmann::json& j) {
     if (j.is_object()) {
         p.wall      = j.value("wall", "Stone");
         p.floor     = j.value("floor", "Wood");
-        p.roof      = j.value("roof", "Wood");
+        p.roof      = j.value("roof", "WoodShingle");
         p.door      = j.value("door", "");
         p.window    = j.value("window", "");
         p.stairs    = j.value("stairs", "Stone");
@@ -1161,7 +1161,7 @@ StructureResult StructureGenerator::generateTower(const glm::ivec3& pos, int rad
     // -- Detail pass --
     if (detail >= DetailLevel::Detailed) {
         // Door frame
-        auto frame = generateDoorFrame(doorBase, facing, 1, doorH, "Wood");
+        auto frame = generateDoorFrame(doorBase, facing, 1, doorH, "WoodPlanks");
         result.voxels.insert(result.voxels.end(), frame.voxels.begin(), frame.voxels.end());
 
         // Parapet / half-wall at the top of the tower

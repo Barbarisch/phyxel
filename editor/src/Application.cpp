@@ -6885,13 +6885,13 @@ static bool handlePlacedObjectCommand(
             rep.merge(Core::RealizedWorldValidator::checkFenceOverPath(fencePosts, hasMat));
             rep.merge(Core::RealizedWorldValidator::checkFenceAgainstRise(fencePosts, surfaceH));
 
-            // Chest facing: a chest should back onto its nearest wall. Wall = structural (Wood/
-            // StoneBricks/Stone) at two heights with NO Metal (excludes the chest/furniture itself).
+            // Chest facing: a chest should back onto its nearest wall. Wall = structural (WoodPlanks/
+            // Wood/StoneBricks/Stone) at two heights with NO Metal (excludes the chest/furniture itself).
             Core::WallAt wallAt = [&](int x, int y, int z) -> bool {
                 if (hasMat(x, y, z, "Metal") || hasMat(x, y + 1, z, "Metal")) return false;
                 auto structural = [&](int yy) {
-                    return hasMat(x, yy, z, "Wood") || hasMat(x, yy, z, "StoneBricks") ||
-                           hasMat(x, yy, z, "Stone");
+                    return hasMat(x, yy, z, "WoodPlanks") || hasMat(x, yy, z, "Wood") ||
+                           hasMat(x, yy, z, "StoneBricks") || hasMat(x, yy, z, "Stone");
                 };
                 return structural(y) && structural(y + 1);
             };

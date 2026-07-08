@@ -90,7 +90,7 @@ struct PlacementResult {
 struct MaterialPalette {
     std::string wall   = "Stone";
     std::string floor  = "Wood";
-    std::string roof   = "Wood";
+    std::string roof   = "WoodShingle";
     std::string door   = "";        ///< Empty = air (opening)
     std::string window = "";        ///< Empty = air (opening)
     std::string stairs = "Stone";

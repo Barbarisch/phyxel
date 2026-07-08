@@ -406,12 +406,19 @@ namespace {
 // gen_tree.py archetype table so procedural and pooled trees of the same type theme alike.
 struct TreeTypeInfo { const char* log; const char* leaf; int baseHeight; };
 TreeTypeInfo treeTypeInfo(const std::string& type) {
-    if (type == "birch")  return {"LogBirch",  "LeafBirch",  8};
-    if (type == "spruce") return {"LogSpruce", "LeafSpruce", 9};
-    if (type == "acacia") return {"Log",       "Leaf",       6};
-    if (type == "dead")   return {"LogSpruce", "",           6};
-    if (type == "bush")   return {"",          "Leaf",       2};  // height doubles as radius
-    if (type == "autumn") return {"Log",       "LeafAutumn", 7};
+    if (type == "birch")     return {"LogBirch",   "LeafBirch",  8};
+    if (type == "spruce")    return {"LogSpruce",  "LeafSpruce", 9};
+    if (type == "pine")      return {"LogPine",    "LeafSpruce", 12};
+    if (type == "fir")       return {"LogPine",    "LeafSpruce", 14};
+    if (type == "jungle")    return {"LogJungle",  "LeafJungle", 13};
+    if (type == "palm")      return {"LogPalm",    "LeafJungle", 8};
+    if (type == "willow")    return {"Log",        "Leaf",       8};
+    if (type == "redwood")   return {"LogRedwood", "Leaf",       48};  // megaflora
+    if (type == "elder_oak") return {"LogRedwood", "Leaf",       36};  // megaflora
+    if (type == "acacia")    return {"Log",        "Leaf",       6};
+    if (type == "dead")      return {"LogSpruce",  "",           6};
+    if (type == "bush")      return {"",           "Leaf",       2};  // height doubles as radius
+    if (type == "autumn")    return {"Log",        "LeafAutumn", 7};
     return {"Log", "Leaf", 7};  // oak / unknown
 }
 uint32_t posHash(int x, int z, uint32_t salt) {

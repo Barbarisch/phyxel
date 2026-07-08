@@ -319,12 +319,16 @@ VoxelTemplate ProceduralTree::generate(const std::string& type, int height, floa
                                        uint32_t seed, const std::string& log, const std::string& leaf) {
     Rng r(type + ":" + std::to_string(height) + ":" + std::to_string(fullness) + ":" + std::to_string(seed));
     SubTree t;
-    if (type == "spruce") genSpruce(t, r, height, 0, fullness, log, leaf);
-    else if (type == "acacia") genAcacia(t, r, height, 0, fullness, log, leaf);
+    // New species map to the nearest ported shape (materials come from the caller's archetype
+    // table): pine/fir -> conical conifer, palm -> kinked trunk + disc canopy, jungle/willow/
+    // redwood/elder_oak -> broad branched crown. Dedicated shapes live in gen_tree.py only.
+    if (type == "spruce" || type == "pine" || type == "fir")
+        genSpruce(t, r, height, 0, fullness, log, leaf);
+    else if (type == "acacia" || type == "palm") genAcacia(t, r, height, 0, fullness, log, leaf);
     else if (type == "dead") genDead(t, r, height, log);
     else if (type == "bush") genBush(t, r, height > 0 ? height : 2, fullness, leaf);
     else if (type == "birch") genBirch(t, r, height, 0, fullness, log, leaf);
-    else genOak(t, r, height, 0, fullness, log, leaf);  // oak/autumn/unknown
+    else genOak(t, r, height, 0, fullness, log, leaf);  // oak/autumn/jungle/willow/redwood/unknown
     pruneFloaters(t);
     return emitTemplate(t);
 }
