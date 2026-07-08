@@ -35,8 +35,8 @@ void GpuProfiler::init(Vulkan::VulkanDevice* device, uint32_t maxFramesInFlight)
     // D0 pipeline-statistics pools (docs/RenderDensityPlan.md) — only if the feature is enabled.
     pipelineStatsEnabled = device->pipelineStatsSupported();
     if (pipelineStatsEnabled) {
-        statsPools.resize(maxFrames);
-        statsPending.assign(maxFrames, false);
+        statsPools.resize(maxFrames * NUM_STATS_SLOTS);
+        statsPending.assign(maxFrames * NUM_STATS_SLOTS, false);
         VkQueryPoolCreateInfo si{};
         si.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
         si.queryType = VK_QUERY_TYPE_PIPELINE_STATISTICS;
@@ -46,7 +46,7 @@ void GpuProfiler::init(Vulkan::VulkanDevice* device, uint32_t maxFramesInFlight)
             VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
             VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT |
             VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT;
-        for (uint32_t i = 0; i < maxFrames; i++) {
+        for (uint32_t i = 0; i < statsPools.size(); i++) {
             if (vkCreateQueryPool(device->getDevice(), &si, nullptr, &statsPools[i]) != VK_SUCCESS) {
                 LOG_ERROR("GpuProfiler", "Failed to create pipeline-statistics pool!");
                 pipelineStatsEnabled = false;
@@ -112,20 +112,24 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
         }
     }
 
-    // D0: read back this frame-slot's pipeline-statistics from its previous (now-finished) use.
-    if (pipelineStatsEnabled && statsPending[currentFrame]) {
-        uint64_t s[NUM_PIPELINE_STATS] = {0};
-        VkResult sr = vkGetQueryPoolResults(
-            device->getDevice(), statsPools[currentFrame], 0, 1,
-            sizeof(s), s, sizeof(s), VK_QUERY_RESULT_64_BIT);
-        if (sr == VK_SUCCESS) {
-            lastPipelineStats.valid = true;
-            lastPipelineStats.inputPrimitives = s[0];
-            lastPipelineStats.vsInvocations   = s[1];
-            lastPipelineStats.clipInvocations = s[2];
-            lastPipelineStats.fragInvocations = s[3];
+    // D0/D1: read back this frame-slot's pipeline-statistics from its previous (now-finished) use.
+    if (pipelineStatsEnabled) {
+        for (uint32_t slot = 0; slot < NUM_STATS_SLOTS; ++slot) {
+            uint32_t idx = currentFrame * NUM_STATS_SLOTS + slot;
+            if (!statsPending[idx]) continue;
+            uint64_t s[NUM_PIPELINE_STATS] = {0};
+            VkResult sr = vkGetQueryPoolResults(
+                device->getDevice(), statsPools[idx], 0, 1,
+                sizeof(s), s, sizeof(s), VK_QUERY_RESULT_64_BIT);
+            if (sr == VK_SUCCESS) {
+                lastPipelineStats[slot].valid = true;
+                lastPipelineStats[slot].inputPrimitives = s[0];
+                lastPipelineStats[slot].vsInvocations   = s[1];
+                lastPipelineStats[slot].clipInvocations = s[2];
+                lastPipelineStats[slot].fragInvocations = s[3];
+            }
+            statsPending[idx] = false;
         }
-        statsPending[currentFrame] = false;
     }
 
     // Reset for new frame
@@ -135,7 +139,9 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
 
     vkCmdResetQueryPool(cmd, queryPools[currentFrame], 0, MAX_QUERIES_PER_FRAME);
     if (pipelineStatsEnabled) {
-        vkCmdResetQueryPool(cmd, statsPools[currentFrame], 0, 1);
+        for (uint32_t slot = 0; slot < NUM_STATS_SLOTS; ++slot) {
+            vkCmdResetQueryPool(cmd, statsPools[currentFrame * NUM_STATS_SLOTS + slot], 0, 1);
+        }
     }
 }
 
@@ -143,15 +149,16 @@ void GpuProfiler::endFrame() {
     // Nothing to do here, results are read at start of next cycle
 }
 
-void GpuProfiler::beginPipelineStats(VkCommandBuffer cmd) {
-    if (!pipelineStatsEnabled) return;
-    vkCmdBeginQuery(cmd, statsPools[currentFrame], 0, 0);
+void GpuProfiler::beginPipelineStats(VkCommandBuffer cmd, uint32_t slot) {
+    if (!pipelineStatsEnabled || slot >= NUM_STATS_SLOTS) return;
+    vkCmdBeginQuery(cmd, statsPools[currentFrame * NUM_STATS_SLOTS + slot], 0, 0);
 }
 
-void GpuProfiler::endPipelineStats(VkCommandBuffer cmd) {
-    if (!pipelineStatsEnabled) return;
-    vkCmdEndQuery(cmd, statsPools[currentFrame], 0);
-    statsPending[currentFrame] = true;
+void GpuProfiler::endPipelineStats(VkCommandBuffer cmd, uint32_t slot) {
+    if (!pipelineStatsEnabled || slot >= NUM_STATS_SLOTS) return;
+    uint32_t idx = currentFrame * NUM_STATS_SLOTS + slot;
+    vkCmdEndQuery(cmd, statsPools[idx], 0);
+    statsPending[idx] = true;
 }
 
 void GpuProfiler::startScope(VkCommandBuffer cmd, const std::string& name) {

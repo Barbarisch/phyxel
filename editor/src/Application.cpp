@@ -11565,16 +11565,26 @@ void Application::registerProfilingCommands() {
             auto* prof = renderCoordinator->getGpuProfiler();
             for (const auto& s : prof->getResults())
                 arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
-            // D0: Static Geometry pipeline statistics (overdraw counter).
-            const auto& ps = prof->getPipelineStats();
-            if (ps.valid) {
-                pstats = {
+            // D0/D1: pipeline statistics per slot (Static Geometry + Shadow pass).
+            auto psj = [](const Phyxel::GpuPipelineStats& ps) -> nlohmann::json {
+                if (!ps.valid) return nullptr;
+                return nlohmann::json{
                     {"input_primitives", ps.inputPrimitives},
                     {"vs_invocations",   ps.vsInvocations},
                     {"clip_invocations", ps.clipInvocations},
-                    {"frag_invocations", ps.fragInvocations}
-                };
-            }
+                    {"frag_invocations", ps.fragInvocations}};
+            };
+            pstats = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_STATIC));
+            nlohmann::json shadowps = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_SHADOW));
+            // shadow chunk/instance counts (culling-hypothesis test)
+            const auto& fs = renderCoordinator->getLastFrameStats();
+            r = {{"scopes", arr},
+                 {"static_geometry_pipeline_stats", pstats},
+                 {"shadow_pipeline_stats", shadowps},
+                 {"shadow_chunks_drawn", fs.shadowChunksDrawn},
+                 {"shadow_instances_drawn", fs.shadowInstancesDrawn},
+                 {"visible_chunks", fs.visibleChunkCount}};
+            return;
         }
         r = {{"scopes", arr}, {"static_geometry_pipeline_stats", pstats}};
     });

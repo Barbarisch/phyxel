@@ -98,8 +98,15 @@ hypotheses. Record to `docs/evidence/renderdensity_baseline.txt`: where the fram
 overdraw factor. **Choose D1's target from these numbers, not §2's hypothesis.**
 
 ### D1 — Cut the SHADOW PASS (the wall, per D0) — TOP LEVER, redirected by measurement
-First **diagnose it**: add a pipeline-stats/scope to the shadow pass (it has none) — how many chunks/
-instances does it draw vs the 20 the main pass draws? Then cut the dominant factor:
+**D1a diagnosis DONE (2026-07-08, evidence file):** the shadow pass draws **138 chunks vs 20 visible**
+(distance-cull only), **231,997 instances → 2,783,964 primitives (12 tris/face → the 36-index
+amplifier), frag_invocations = 0 (DEPTH-ONLY → purely primitive/vertex-bound)**. So the winning lever
+is clear: **the 6-index quad** (12→2 tris/face = 6× fewer primitives + VS) hits the exact bottleneck,
+no visual change, no caster-drop risk. Light-volume frustum culling (138→fewer) is a complementary
+second lever. **(NB: the pipeline-stats queries add sync overhead — gate them OFF before D1 A/B
+timing so they don't pollute the delta.)**
+
+Then cut the dominant factor:
 - **Frustum + (optionally) occlusion cull the shadow pass** — it currently distance-culls only
   (`RenderCoordinator.cpp:980-984`); if it's drawing far more chunks than are visible, this is the win.
 - **Shadow-map resolution / cascade / update-frequency** — if it's fill/resolution-bound, lower res

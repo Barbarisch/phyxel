@@ -122,6 +122,10 @@ public:
         int    farTilesResident      = 0;   // far-terrain LOD tiles resident on GPU
         int    farTilesDrawn         = 0;   // far-terrain tiles drawn last frame (post frustum cull)
         int    farTriangles          = 0;   // triangles across drawn far tiles
+        // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
+        // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
+        int    shadowChunksDrawn     = 0;
+        long long shadowInstancesDrawn = 0;   // face instances (each drawn with 36 indices)
         float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
         float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
@@ -254,6 +258,10 @@ private:
     std::unique_ptr<ShadowMap> shadowMap;
     std::unique_ptr<PostProcessor> postProcessor;
     std::unique_ptr<GpuProfiler> gpuProfiler;
+    // D1 shadow-pass diagnosis: chunks/instances drawn by the shadow pass this frame (stashed here
+    // because lastFrameStats is reset after the shadow pass runs). See docs/RenderDensityPlan.md.
+    int m_shadowChunksDrawn = 0;
+    long long m_shadowInstancesDrawn = 0;
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;

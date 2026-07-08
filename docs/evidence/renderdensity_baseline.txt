@@ -69,3 +69,35 @@ IMPLICATIONS FOR D1 (redirected by this measurement):
 2. The 6-index quad (old D1) now targets the shadow pass's primitive count primarily; measure its
    delta THERE.
 3. Main-pass overdraw is NOT the bottleneck — deprioritise.
+
+================================================================================
+D1a — SHADOW-PASS DIAGNOSIS (measured 2026-07-08) — same dense scene + camera
+================================================================================
+Added CPU chunk/instance counters + a 2nd pipeline-statistics slot around the shadow chunk draws.
+Counts are deterministic for the fixed camera and stable across reads:
+
+  shadow_chunks_drawn     = 138   vs   visible_chunks = 20   (6.9x more — distance-cull only, no frustum)
+  shadow_instances_drawn  = 231,997 faces
+  shadow input_primitives = 2,783,964  = 231,997 x 12  => the 36-index/12-tris-per-face AMPLIFIER, in
+                                                           the shadow pass too (exact multiple).
+  shadow vs_invocations   = 1,855,976
+  shadow frag_invocations = 0          => the shadow pass is DEPTH-ONLY -> PURELY PRIMITIVE/VERTEX-BOUND.
+  (main Static Geometry for contrast: input_primitives 451,512 = 37,626 x 12; frag 3.06M; fill-bound.)
+
+CAVEAT (instrumentation overhead): with the two pipeline-statistics queries active, shadow ms read
+33-48 and FPS 17 — INFLATED by the query sync (Static Geometry also rose 4.7->11.5 ms). The CLEAN
+timing is the D0 baseline (Shadow ~26 ms, FPS 31, no stats queries). The COUNTS above are exact and
+independent of that overhead. => Before any D1 A/B timing, gate the pipeline-stats queries OFF (they
+must not pollute the delta).
+
+DIAGNOSIS VERDICT — two levers, ranked:
+1. THE 6-INDEX QUAD (kill the 36-index amplifier) is the top lever for the shadow pass: it is
+   depth-only and primitive/vertex-bound, so 12->2 triangles/face = 6x fewer primitives
+   (2.78M -> ~464k) and ~6x fewer VS invocations (1.86M -> ~310k) hits the exact bottleneck. No
+   visual change, no risk of dropping casters. Also trims the main + reflection passes.
+2. LIGHT-VOLUME FRUSTUM CULL of the shadow pass (138 -> fewer chunks): complementary, but must cull
+   against the LIGHT frustum, NOT the camera frustum — a chunk behind the camera can cast a shadow
+   INTO view, so a naive camera-frustum cull would drop valid casters. More careful; do after (1).
+
+NEXT: D1 = implement the 6-index quad behind a toggle (+ gate pipeline-stats OFF by default), measure
+the shadow-pass ms A/B on the clean (no-stats) path, pixel-compare identical.

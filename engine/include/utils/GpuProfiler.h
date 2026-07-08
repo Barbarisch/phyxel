@@ -39,11 +39,15 @@ public:
     void startScope(VkCommandBuffer cmd, const std::string& name);
     void endScope(VkCommandBuffer cmd);
 
-    // D0: wrap ONE pass (Static Geometry) to count fragment invocations + primitives. No-op if the
-    // pipelineStatisticsQuery feature is unavailable. Begin/end must be inside a render pass.
-    void beginPipelineStats(VkCommandBuffer cmd);
-    void endPipelineStats(VkCommandBuffer cmd);
-    const GpuPipelineStats& getPipelineStats() const { return lastPipelineStats; }
+    // D0/D1: wrap a pass to count fragment invocations + primitives. Slot 0 = Static Geometry,
+    // slot 1 = Shadow pass. No-op if the pipelineStatisticsQuery feature is unavailable. Begin/end
+    // must be inside a render pass.
+    static const uint32_t STATS_SLOT_STATIC = 0;
+    static const uint32_t STATS_SLOT_SHADOW = 1;
+    static const uint32_t NUM_STATS_SLOTS   = 2;
+    void beginPipelineStats(VkCommandBuffer cmd, uint32_t slot);
+    void endPipelineStats(VkCommandBuffer cmd, uint32_t slot);
+    const GpuPipelineStats& getPipelineStats(uint32_t slot) const { return lastPipelineStats[slot < NUM_STATS_SLOTS ? slot : 0]; }
 
     const std::vector<GpuScopeResult>& getResults() const { return lastFrameResults; }
 
@@ -57,11 +61,12 @@ private:
 
     std::vector<VkQueryPool> queryPools;
 
-    // D0 pipeline-statistics pools (one per frame, one multi-counter query each).
+    // D0/D1 pipeline-statistics pools. Layout: statsPools[frame*NUM_STATS_SLOTS + slot], one
+    // multi-counter query each.
     bool pipelineStatsEnabled = false;
     std::vector<VkQueryPool> statsPools;
-    std::vector<bool> statsPending;   // per-frame: a stats query was recorded, read it back next cycle
-    GpuPipelineStats lastPipelineStats;
+    std::vector<bool> statsPending;   // per (frame,slot): a query was recorded, read it back next cycle
+    GpuPipelineStats lastPipelineStats[2];
     static const uint32_t NUM_PIPELINE_STATS = 4;  // input prims, VS inv, clip inv, frag inv
 
     struct ScopeData {

@@ -973,10 +973,15 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     vulkanDevice->bindIndexBuffer(currentFrame);
 
     // Iterate chunks and draw
+    // D1 diagnosis: count chunks/instances actually drawn (vs the frustum-culled main pass's
+    // visibleChunkCount) + pipeline stats for the shadow chunk draws. See docs/RenderDensityPlan.md.
+    int shadowChunks = 0;
+    long long shadowInstances = 0;
+    gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
     if (chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
              if (chunk->getNumInstances() == 0) continue;
-             
+
              // Simple distance culling for shadows
              glm::vec3 minBounds = chunk->getMinBounds();
              glm::vec3 maxBounds = chunk->getMaxBounds();
@@ -987,23 +992,30 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
              VkDeviceSize instanceOffsets[] = {0};
              vkCmdBindVertexBuffers(commandBuffer, 1, 1, instanceBuffers, instanceOffsets);
-             
+
              // Push constants
              struct ShadowPushConsts {
                  glm::mat4 lightSpaceMatrix;
                  glm::vec3 chunkBaseOffset;
              } pushConsts;
-             
+
              pushConsts.lightSpaceMatrix = lightSpaceMatrix;
              glm::ivec3 worldOrigin = chunk->getWorldOrigin();
              pushConsts.chunkBaseOffset = glm::vec3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
-             
+
              vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
-             
+
              // Draw
              vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
+             ++shadowChunks;
+             shadowInstances += chunk->getNumInstances();
         }
     }
+    gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+    // Stash in members — lastFrameStats is reset AFTER the shadow pass in drawFrame, so copy these
+    // into lastFrameStats there (see the visibleChunkCount block).
+    m_shadowChunksDrawn = shadowChunks;
+    m_shadowInstancesDrawn = shadowInstances;
 
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
@@ -1430,6 +1442,9 @@ void RenderCoordinator::drawFrame() {
     lastFrameStats.visibleChunkCount = static_cast<int>(visibleChunkIndices.size());
     if (chunkManager && !chunkManager->chunks.empty())
         lastFrameStats.totalVisibleFaces = static_cast<int>(chunkStats.totalVisibleFaces);
+    // D1 shadow-pass diagnosis (computed in renderShadowPass above, before this reset).
+    lastFrameStats.shadowChunksDrawn = m_shadowChunksDrawn;
+    lastFrameStats.shadowInstancesDrawn = m_shadowInstancesDrawn;
 
     hasMirrorVoxels = scanForMirrorVoxels();
     LOG_DEBUG("RenderCoordinator", "Frame: visibleChunks={} hasMirrorVoxels={}", visibleChunkIndices.size(), hasMirrorVoxels);
@@ -1490,9 +1505,9 @@ void RenderCoordinator::drawFrame() {
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
             // D0: count fragment invocations + primitives for the chunk pass (overdraw counter).
-            gpuProfiler->beginPipelineStats(cmd);
+            gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
             actuallyRenderedChunks = renderStaticGeometry();
-            gpuProfiler->endPipelineStats(cmd);
+            gpuProfiler->endPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
         }
 
         // Grass blades on grass-topped terrain (opaque cutout; reuses the just-computed visible set)
