@@ -13,7 +13,9 @@
 > 30 ms stutter threshold on any path. The ≥30 ms hitches are the bulk generate/whole-world job
 > (100s of ms, plan T5's domain) and intermittent GPU buffer (re)allocation. Full evidence + code
 > attribution: [`docs/evidence/offthread_baseline.txt`](evidence/offthread_baseline.txt).
-> **Do not start T1 until the plan is re-grounded** on the buffer-alloc path + the whole-world job.
+> **Do not start T1.** This direction is superseded by
+> [`docs/ChunkUpdateHitchPlan.md`](ChunkUpdateHitchPlan.md), which re-grounds the work on the actual
+> ≥30 ms culprits (buffer alloc/upload + physics rebuild, diagnosed by direct measurement first).
 > T0 instrumentation (mesh_timing in get_render_stats) is shipped and correct; keep it.
 
 > **Status: PLANNED.** Written 2026-07-08 on branch `render-offthread-mesh`. Goal: move per-chunk
