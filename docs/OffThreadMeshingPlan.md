@@ -124,6 +124,29 @@ geometry oracle style — decode emitted output, compare). This proves the snaps
 the mesh needs. This increment is where all the "what does the mesher actually read" risk lives; do it
 first, on one thread, provably identical.
 
+**GROUNDED SCOPE (code read 2026-07-08 — the mesher's cross-chunk reads are EXACTLY these three, all
+in `ChunkRenderManager.cpp`; nothing else leaves the chunk):**
+1. `getNeighborCube` (a `NeighborLookupFunc`) — used ONLY in cube-face culling `isCubeFaceVisible`
+   (`:475-476`) to test if the neighbour cube of a boundary face is solid, and in the `columnOpenAbove`
+   fallback (`:280-283`, already superseded by the `columnOpenMask`). Queried only at the 6 boundary
+   planes (one cell outside the chunk).
+2. `getNeighborLight` (a `NeighborLightFunc`, stored as member `m_neighborLight`) — used in `skyLightAt`
+   (`:102-104`), `blockLightAt` (`:118-120`), and the BFS cross-chunk seeds in `rebuildCubeFaces`
+   (`:303-308` sky, `:414-419` block). All queries are at boundary-adjacent cells (one cell outside).
+3. `columnOpenMask` (`const std::vector<uint8_t>*`, 32×32) — the roof mask; already plain data.
+   **The subcube/microcube meshers read NO neighbour state** — they treat chunk boundaries as exposed
+   (`rebuildSubcubeFaces`/`rebuildMicrocubeFaces`: `if (n<0||n>=96/288) faceVisible=true`). So only the
+   CUBE path + the light bake touch neighbours.
+
+**Therefore `MeshInput` = { own voxel-leaf refs; `columnOpen[32*32]`; 6 boundary planes (each 32×32) of
+neighbour CUBE occupancy (solid/visible bit — for culling); 6 boundary planes of neighbour BAKED LIGHT
+(sky+block, 4 bytes/cell — for bleed) }.** Total cross-chunk snapshot ≈ 6*1024*(1+4)+1024 ≈ 32 KB.
+Replace the two closures with lookups into these fixed arrays (out-of-range → the conservative default
+the closures already return: no neighbour cube / no neighbour light). Build the snapshot in
+`ChunkManager::rebuildChunkFacesWithCrosschunkCulling` (`:389`) where the neighbour chunks are already
+resolved for the closures — same place, just materialise the boundary planes instead of capturing live
+closures.
+
 ### T2 — Move the mesh to the JobSystem worker (behind `s_asyncMeshing`)
 Dispatch T1's snapshot-mesh via `JobSystem` (`backgroundWork` = mesh into job faces; `mainThreadFinalize`
 = version-gate + `updateVulkanBuffer`-equivalent memcpy/realloc). Decide copy-vs-lock for the chunk's
