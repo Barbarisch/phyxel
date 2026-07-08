@@ -46,6 +46,9 @@ FETCH_RES = "2k"          # download res; each material is written at its materi
 ASSETS = {
     # Large rough-hewn dressed blocks — the "ashlar" wall role (replaces ambientCG Bricks089).
     "StoneBricks":  {"asset": "medieval_blocks_03"},
+    # Lapped cabin/shed plank siding — the wall-wood role ("timber_frame", structure/cladding/
+    # trim in structure_styles.json). Distinct from Wood (WoodFloor007), which stays the FLOOR.
+    "WoodPlanks":   {"asset": "brown_planks_04"},
     # Roofs: courses per kept tile noted; each subcube roof step shows courses/3 of them.
     "Slate":        {"asset": "roof_slates_03",     "crop_px": (136, 1840)},  # 24 courses, drops flashing
     "StoneSlab":    {"asset": "grey_roof_tiles_02", "crop_px": (12, 1686)},   # 9 courses

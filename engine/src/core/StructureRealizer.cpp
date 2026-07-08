@@ -74,12 +74,13 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     AssemblyPlan& plan = res.plan;
 
     // ---- materials + thicknesses from the style ----
+    // Wall wood is WoodPlanks (lapped siding); Wood (plank flooring) is the FLOOR wood.
     const std::string matFloor = style.materialOf("floor", "Wood");
-    const std::string matExt   = style.materialOf("structure", "Wood");
-    const std::string matInt   = style.materialOf("structure", "Wood");
+    const std::string matExt   = style.materialOf("structure", "WoodPlanks");
+    const std::string matInt   = style.materialOf("structure", "WoodPlanks");
     const std::string matFound = style.materialOf("foundation", "Stone");
-    const std::string matRoof  = style.materialOf("roof", "Wood");
-    const std::string matCeil  = style.materialOf("structure", "Wood");
+    const std::string matRoof  = style.materialOf("roof", "WoodShingle");
+    const std::string matCeil  = style.materialOf("structure", "WoodPlanks");
 
     const int extT   = thicknessMicro(style.thicknessOf("exterior_wall", 0.333));
     const int intT   = thicknessMicro(style.thicknessOf("interior_wall", 0.222));
@@ -216,8 +217,8 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 // from the style ("trim" layer); fallback contrasts with the wall so frames
                 // read against the facade instead of vanishing into it.
                 if (p.kind == "door" || p.kind == "window") {
-                    const std::string matTrim =
-                        style.materialOf("trim", matExt == "Wood" ? "Log" : "Wood");
+                    const std::string matTrim = style.materialOf("trim",
+                        (matExt == "Wood" || matExt == "WoodPlanks") ? "Log" : "WoodPlanks");
                     const int kJamb = 1, kLintel = 2;
                     const int w = std::max(1, p.width);
                     const int jambTop = oyTop - kLintel;

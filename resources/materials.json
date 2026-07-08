@@ -2920,6 +2920,37 @@
         "bottom": "log_redwood_bottom.png"
       },
       "resolution": 1024
+    },
+    {
+      "name": "WoodPlanks",
+      "category": "material",
+      "description": "Rough lapped plank siding for building walls (Wood stays the floor material)",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.8,
+          0.6,
+          0.3
+        ],
+        "metallic": 0.0,
+        "roughness": 0.75
+      },
+      "textures": {
+        "side_n": "wood_planks_side_n.png",
+        "side_s": "wood_planks_side_s.png",
+        "side_e": "wood_planks_side_e.png",
+        "side_w": "wood_planks_side_w.png",
+        "top": "wood_planks_top.png",
+        "bottom": "wood_planks_bottom.png"
+      },
+      "resolution": 1024
     }
   ]
 }

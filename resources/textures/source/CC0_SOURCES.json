@@ -225,6 +225,14 @@
     "resolution": 1024,
     "source": "ambientCG"
   },
+  "WoodPlanks": {
+    "assets": {
+      "all": "brown_planks_04"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
+  },
   "WoodShingle": {
     "assets": {
       "all": "roof_slates_02"

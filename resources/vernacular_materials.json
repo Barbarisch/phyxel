@@ -13,7 +13,7 @@
       "description": "Wooded lowland clay vales — timber frame + earth infill, thatch or tile.",
       "walls": ["timber_frame_wattle_daub", "timber_frame_brick_nogging"],
       "roof": ["thatch_straw", "clay_tile"],
-      "engine_materials": { "timber_frame": "Wood", "wattle_daub_infill": "WANTED (plaster)", "brick_nogging": "Bricks", "thatch_straw": "Thatch", "clay_tile": "ClayTile" },
+      "engine_materials": { "timber_frame": "WoodPlanks", "wattle_daub_infill": "WANTED (plaster)", "brick_nogging": "Bricks", "thatch_straw": "Thatch", "clay_tile": "ClayTile" },
       "source": "timber-frame + wattle & daub lowland vernacular (Brunskill); exterior wall ~0.222 m (buildingconservation.com, cited in structure_styles timber_cottage)"
     },
     "chalk_cob": {
@@ -34,7 +34,7 @@
       "description": "Fen / marsh / reed-bed — reed thatch, timber, little stone.",
       "walls": ["timber_frame_wattle_daub"],
       "roof": ["thatch_reed"],
-      "engine_materials": { "timber_frame": "Wood", "thatch_reed": "Thatch" },
+      "engine_materials": { "timber_frame": "WoodPlanks", "thatch_reed": "Thatch" },
       "source": "reed thatch (Norfolk reed) in fen country; the longest-lived thatch"
     }
   },

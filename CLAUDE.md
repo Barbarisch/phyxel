@@ -151,7 +151,7 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
 
 ## Materials
 
-Data-driven from `resources/materials.json` (96 materials — the table below is the core subset;
+Data-driven from `resources/materials.json` (97 materials — the table below is the core subset;
 roofing/finish/state materials live in the JSON). Names are **case-sensitive**; an unknown name
 renders as a magenta missing-texture checkerboard. Confirm live with the `list_materials` MCP
 tool. (Cork and Rubber no longer exist.) CC0 photo sources + asset IDs:
@@ -175,7 +175,8 @@ where it breaks pattern continuity at voxel edges.
 | StoneTiles   | 6.0  | 0.8      | 0.05        | Smooth rectangular cut-stone floor tiles (interiors) |
 | Sand         | 1.5  | 0.5      | 0.1         | Light granular |
 | Gravel       | 2.5  | 0.7      | 0.1         | Loose gravel |
-| Wood         | 0.7  | 0.6      | 0.2         | Oak planks (1024px) |
+| Wood         | 0.7  | 0.6      | 0.2         | Oak planks — FLOOR wood (1024px) |
+| WoodPlanks   | 0.7  | 0.6      | 0.2         | Lapped plank siding — building-WALL wood (`timber_frame`, structure/cladding/trim; Poly Haven, 1024px) |
 | Log          | 0.7  | 0.6      | 0.2         | Oak bark (all faces — no ring caps yet) |
 | LogBirch     | 0.7  | 0.6      | 0.2         | White paper birch + lenticels (procedural, `gen_birch_bark.py`) |
 | LogSpruce    | 0.7  | 0.6      | 0.2         | Grey plated spruce bark |

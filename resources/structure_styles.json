@@ -14,9 +14,9 @@
         "ceiling": 0.111
       },
       "materials": {
-        "structure": "Wood",
-        "cladding": "Wood",
-        "trim": "Wood",
+        "structure": "WoodPlanks",
+        "cladding": "WoodPlanks",
+        "trim": "WoodPlanks",
         "floor": "Wood",
         "roof": "Thatch",
         "foundation": "Stone"
