@@ -19,7 +19,12 @@ measure *why each face is so expensive*. This plan finds and removes the per-fac
 
 ## 2. Ground truth (Explore audit + code read 2026-07-08 — cite before editing; lines drift)
 
-### The load-bearing finding — a ~3× rasterization amplifier on EVERY face
+### The load-bearing HYPOTHESIS — a suspected ~3× rasterization amplifier on EVERY face
+> **NOT YET MEASURED.** The code chain below is verified by reading, and the ~3× is arithmetically
+> consistent with it, but the actual overdraw factor and any FPS win are UNCONFIRMED until D0 runs the
+> `PIPELINE_STATISTICS` counter and D1 measures an A/B delta. Treat this as the top hypothesis to test
+> in D0, not a measured fact.
+
 Each visible face is one `InstanceData` (one `faceID`), but the draw is
 `vkCmdDrawIndexed(36, faceCount)` (`RenderCoordinator.cpp:404`, `VulkanDevice.cpp:1832`) — **36
 indices = a whole cube, 12 triangles** (`VulkanDevice.cpp:1074-1087`). The vertex shader positions
@@ -29,9 +34,9 @@ the instance's single face quad: **~36 VS invocations for a 4-corner quad, and ~
 rasterization of the identical quad at equal depth** (12 tris; back-facing half culled → ~6
 front-facing = 3× the 2 needed; early-Z can't help — same depth/plane). The index/vertex buffers date
 from a per-*cube*-instance design (`VulkanDevice.cpp:1831` comment still says "36 indices per cube")
-that became per-*face* without shrinking the draw. This multiplies a **heavy fragment shader**
-(below) ~3× on every face, at every density. **Prime suspect. Density-independent. No visual change to
-fix.**
+that became per-*face* without shrinking the draw. If the arithmetic holds at runtime this multiplies
+a **heavy fragment shader** (below) ~3× on every face, at every density. **Prime suspect (unmeasured —
+D0 confirms or refutes). Density-independent. No visual change to fix.**
 
 ### The fragment shader is genuinely heavy (`shaders/voxel.frag`, ~380 lines)
 Per opaque fragment: **2× `textureGrad`** array samples (albedo + normal/rough), doubling to a second

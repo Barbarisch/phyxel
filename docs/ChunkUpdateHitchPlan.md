@@ -100,9 +100,13 @@ Measurement reframed its value:
   generating 64 more chunks on the warmed device produced **no new stall** (create max 1.13 ms,
   realloc avg 0.49 ms). The 25–48 ms spikes are the OS/driver committing the first `VkDeviceMemory`
   pages — one-time, load-only. (Reconciles T0's "first edit after load" ~40 ms → cold first-touch.)
-- **B1 is therefore a CORRECTNESS fix (closes the in-flight-buffer use-after-free), not a perf fix.**
-  A deferred *free* cannot speed up a cold `vkAllocateMemory`. There is essentially no recurring
-  buffer stall to remove.
+- **B1 is therefore a CORRECTNESS fix, not a perf fix.** It targets an in-flight-buffer use-after-free
+  (inline `vkFreeMemory` of a buffer possibly bound in one of `MAX_FRAMES_IN_FLIGHT=2` in-flight frames)
+  — **established by code-reading, NOT yet validation-proven.** Release compiles validation layers out;
+  the mandatory red-before-green (Debug + `PHYXEL_VALIDATION=1`: a UAF VUID with `s_deferBufferFree`
+  false, clean with it true, under growth churn) is **still outstanding** (plan §4/§B_stress). A
+  deferred *free* cannot speed up a cold `vkAllocateMemory`, so there is no recurring buffer stall to
+  remove either.
 
 **Track outcome:** T0→B0→B1 established the render-perf problem is NOT meshing, NOT steady
 chunk-update, NOT a recurring buffer hitch. The one dominant recurring cost is **render density**
