@@ -414,7 +414,9 @@
       "WebFetch(domain:archaeology.co.uk)",
       "WebFetch(domain:web.archive.org)",
       "WebFetch(domain:nosasblog.wordpress.com)",
-      "WebFetch(domain:discoveringoldwelshhouses.co.uk)"
+      "WebFetch(domain:discoveringoldwelshhouses.co.uk)",
+      "Skill(artifact-design)",
+      "Artifact"
     ]
   },
   "enableAllProjectMcpServers": true,

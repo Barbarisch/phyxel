@@ -207,10 +207,15 @@ build_output.txt
 test_out.txt
 test_err.txt
 
-# World database files
+# World database files (incl. local .db.bak_* / "copy" backups)
 worlds/*.db
+worlds/*.db.*
 worlds/*.db-journal
 worlds/*.db-wal
+worlds/* - Copy.db
+
+# Shell crash dumps
+*.stackdump
 
 # Screenshots (runtime captures)
 screenshots/
