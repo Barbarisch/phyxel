@@ -4125,6 +4125,13 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_pipeline_stats", params).dump(), "application/json");
     });
 
+    // POST /api/debug/shadow_cull — D1c shadow light-frustum cull toggle. Body: { "enabled": bool }
+    srv.Post("/api/debug/shadow_cull", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_shadow_cull", params).dump(), "application/json");
+    });
+
     // POST /api/vfx/spawn — Spawn a lightweight particle VFX burst at a position
     srv.Post("/api/vfx/spawn", [this](const httplib::Request& req, httplib::Response& res) {
         try {

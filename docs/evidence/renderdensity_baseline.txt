@@ -162,3 +162,34 @@ DECISION: reverted 2048² → 4096² (modest gain, quality loss, wrong lever). T
 (committed 682eb4a; free, correct, ~34% off the main pass). NEXT = D1c: cull the shadow pass to the
 light volume (138 → fewer chunks) and measure whether the ~20 ms floor is draw-call-bound. If yes,
 tighter culling / cascade / fewer draws is the shadow fix — no quality loss.
+
+================================================================================
+D1c — SHADOW LIGHT-FRUSTUM CULL (measured 2026-07-08): cull can't help — chunks are in-volume
+================================================================================
+Added a correct light-frustum cull (AABB vs the fitted ortho lightSpaceMatrix). A/B on the dense scene:
+  shadow_cull ON  : shadow_chunks_drawn = 131,  Shadow ~26-28 ms
+  shadow_cull OFF : shadow_chunks_drawn = 138,  Shadow ~26-30 ms
+=> The tight light-frustum cull only drops 138→131 (~5%), NO measurable shadow-pass change. The fitted
+   shadow volume LEGITIMATELY contains ~131 chunks (it's fit to a large view frustum), so culling
+   cannot reduce the draw count meaningfully. Shadows visually intact with cull ON (loss-free). Kept
+   default ON (correct, tiny reduction) but it is NOT the fix.
+
+================================================================================
+SHADOW-PASS CHARACTERIZATION SUMMARY — three levers tested, ~27 ms wall persists
+================================================================================
+The dense-scene wall is the shadow pass ~26-28 ms (~75% of frame). Tested:
+  - primitives (D1 6-index quad, 6× fewer): NO effect.
+  - resolution (D1b 4096²→2048², 4× fewer texels): ~30% (28→20 ms).
+  - draw count (D1c light-frustum cull, 138→131): NO effect (chunks are in-volume).
+Decompose the 2048² datapoint (shadow = fixed + fill·texels): fixed ≈ 17 ms, fill ≈ 11 ms @ 4096².
+The ~17 ms FIXED component is immune to primitives, resolution, and (achievable) cull — most
+consistent with PER-DRAW GPU overhead across ~131 draws (each = vertex-buffer rebind + push constant
++ drawIndexed; ~0.13 ms/draw × 131 ≈ 17 ms), plus ~11 ms shadow-map depth-fill/clear.
+
+REMAINING SHADOW FIXES (structural — none a quick toggle; scope next):
+  1. BATCH the shadow chunk draws (merge into fewer draw calls / a shared instance buffer) → attacks
+     the ~17 ms per-draw floor. Biggest suspected win; biggest change.
+  2. UPDATE CADENCE — render the shadow map every N frames, reuse between (near-free ~2× amortized;
+     needs static-ish sun + care on camera motion).
+  3. SHORTER shadow distance / CASCADE — smaller fitted volume → fewer chunks + less fill (quality
+     tradeoff or cascade complexity).

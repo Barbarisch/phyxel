@@ -11284,6 +11284,14 @@ void Application::registerEffectsCommands() {
             renderCoordinator->getGpuProfiler()->setPipelineStatsActive(on);
         r = {{"success", true}, {"pipeline_stats_active", on}};
     });
+
+    // D1c shadow light-frustum cull toggle — live A/B for docs/RenderDensityPlan.md. ON culls the
+    // shadow pass to the fitted ortho shadow volume (138→fewer chunks). Default ON (loss-free).
+    reg.on("set_shadow_cull", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_shadowFrustumCull = cmd.params["enabled"].get<bool>();
+        r = {{"success", true}, {"shadow_frustum_cull", Graphics::RenderCoordinator::s_shadowFrustumCull}};
+    });
 }
 
 // Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.

@@ -121,11 +121,21 @@ primitives (quad: no effect) nor mostly texels. With 138 shadow draws vs 20 visi
 the floor points to **draw-call / per-chunk-bind count**. Reverted 2048²→4096² (modest gain, quality
 loss, wrong lever). → **D1c**.
 
-### D1c — cull the shadow pass to the light volume (the suspected real lever), measure next
-The shadow pass draws **138 chunks (distance-cull only, no frustum)** vs 20 visible. Cull it against
-the **light frustum** (NOT camera frustum — off-screen chunks cast into view) to cut draws, and/or
-cascade so only the near cascade is hi-res. Measure whether the ~20 ms floor is draw-call-bound (it
-should fall roughly with the chunk count if so). No quality loss if done as a correct light-volume cull.
+### D1c — light-frustum cull the shadow pass: DONE, can't help (chunks are in-volume)
+**Measured:** a correct AABB-vs-light-ortho cull (`s_shadowFrustumCull`, default ON) only drops
+**138→131 chunks (~5%)**, NO shadow-pass change. The fitted shadow volume legitimately contains ~131
+chunks, so culling can't reduce the draw count. Loss-free (shadows intact), kept ON, but not the fix.
+
+### Shadow characterization — three levers exhausted; the wall is structural
+primitives (D1: no effect) · resolution (D1b: ~30%) · cull (D1c: no effect). Decompose 2048²:
+**~17 ms FIXED + ~11 ms fill** @ 4096². The 17 ms fixed is most consistent with **per-draw GPU
+overhead across ~131 draws** (~0.13 ms/draw). Remaining fixes are structural, none a quick toggle:
+1. **Batch the shadow chunk draws** (merge → fewer draw calls) — attacks the ~17 ms floor; biggest
+   suspected win, biggest change.
+2. **Shadow update cadence** (render every N frames, reuse) — ~2× amortized, near-free; needs care on
+   sun/camera motion.
+3. **Shorter shadow distance / cascade** — smaller volume → fewer chunks + less fill; quality or
+   complexity tradeoff.
 
 Then cut the dominant factor:
 - **Frustum + (optionally) occlusion cull the shadow pass** — it currently distance-culls only

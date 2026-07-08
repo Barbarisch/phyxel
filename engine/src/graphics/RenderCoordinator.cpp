@@ -962,6 +962,8 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
     visibleChunkIndices.swap(kept);
 }
 
+bool RenderCoordinator::s_shadowFrustumCull = true;  // D1c: light-frustum cull the shadow pass
+
 void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                                          const glm::vec3& cullCenter, float cullRadius) {
     if (!shadowMap) return;
@@ -982,6 +984,11 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // visibleChunkCount) + pipeline stats for the shadow chunk draws. See docs/RenderDensityPlan.md.
     int shadowChunks = 0;
     long long shadowInstances = 0;
+    // D1c: light-frustum cull. lightSpaceMatrix is the fitted ortho shadow volume; a chunk whose AABB
+    // doesn't intersect it cannot write to the shadow map, so this is a correct (loss-free) tightening
+    // of the loose distance sphere. Cuts the 138-chunk draw count → the suspected draw-call floor.
+    Utils::Frustum lightFrustum;
+    if (s_shadowFrustumCull) lightFrustum.extractFromMatrix(lightSpaceMatrix);
     gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
     if (chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
@@ -992,6 +999,9 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              glm::vec3 maxBounds = chunk->getMaxBounds();
              glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
              if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue; // fitted sphere + chunk radius + caster margin
+
+             // D1c: tight light-frustum cull (skip chunks that can't project into the shadow map)
+             if (s_shadowFrustumCull && !lightFrustum.intersects(Utils::AABB(minBounds, maxBounds))) continue;
 
              // Bind chunk instance buffer
              VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};

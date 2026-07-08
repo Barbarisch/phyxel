@@ -131,7 +131,12 @@ public:
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
     };
     const RenderStats& getLastFrameStats() const { return lastFrameStats; }
-    
+
+    // D1c (docs/RenderDensityPlan.md): cull the shadow pass against the LIGHT frustum (the fitted
+    // ortho shadow volume in lightSpaceMatrix), not just the loose distance sphere. Correct — chunks
+    // outside the shadow-map volume can't write to it. Default ON; toggle for A/B (138→fewer draws).
+    static bool s_shadowFrustumCull;
+
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
     void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
