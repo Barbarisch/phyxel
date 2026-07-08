@@ -91,6 +91,25 @@ frees an in-flight buffer (a real **use-after-free**). A suballocator fixes the 
 alloc-count ceiling, and the UAF together. B1 (deferred-free) remains a cheap correctness+tail win.
 The dominant dense-scene frame cost (render density) is a **separate track** this plan does not own.
 
+## 2c. B1 RESULT (implemented + measured 2026-07-08)
+
+Deferred-free shipped (`DeferredBufferReclaim.h`; `reallocateBuffer` hands the old buffer to a
+per-frame-drained queue, retired after >MAX_FRAMES_IN_FLIGHT; toggle `s_deferBufferFree`, default ON).
+Measurement reframed its value:
+- **The buffer stall is ONE-TIME COLD FIRST-TOUCH at world-load, not recurring.** After load,
+  generating 64 more chunks on the warmed device produced **no new stall** (create max 1.13 ms,
+  realloc avg 0.49 ms). The 25–48 ms spikes are the OS/driver committing the first `VkDeviceMemory`
+  pages — one-time, load-only. (Reconciles T0's "first edit after load" ~40 ms → cold first-touch.)
+- **B1 is therefore a CORRECTNESS fix (closes the in-flight-buffer use-after-free), not a perf fix.**
+  A deferred *free* cannot speed up a cold `vkAllocateMemory`. There is essentially no recurring
+  buffer stall to remove.
+
+**Track outcome:** T0→B0→B1 established the render-perf problem is NOT meshing, NOT steady
+chunk-update, NOT a recurring buffer hitch. The one dominant recurring cost is **render density**
+(B0: ~99% of stutters were the steady ~32 ms/frame cost of 377k faces — the #1 issue). **B1 is kept
+as a committed correctness fix; the track pivots to render density.** B2 (suballocator) is deferred —
+its remaining motive is the `maxMemoryAllocationCount` crash ceiling, not perf.
+
 ## 3. Increments (each buildable / verifiable / revertible)
 
 ### B0 — Localize the hitch by DIRECT measurement (no behaviour change; the load-bearing step)

@@ -22,6 +22,11 @@ class ChunkRenderBuffer {
 public:
     static constexpr size_t DEFAULT_BUFFER_CAPACITY = 25000;
 
+    // B1 (docs/ChunkUpdateHitchPlan.md): when true (default), reallocateBuffer defers freeing the old
+    // buffer/memory by > MAX_FRAMES_IN_FLIGHT frames (fixes the in-flight use-after-free + realloc
+    // stall). OFF reproduces the old inline free for A/B. Toggled at runtime via the debug API.
+    static bool s_deferBufferFree;
+
     /**
      * @brief Construct render buffer with Vulkan device handles
      * @param device Vulkan logical device

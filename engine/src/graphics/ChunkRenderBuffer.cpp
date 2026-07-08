@@ -1,5 +1,6 @@
 #include "graphics/ChunkRenderBuffer.h"
-#include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
+#include "graphics/ChunkUpdatePerf.h"        // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
+#include "graphics/DeferredBufferReclaim.h"  // B1 deferred free (docs/ChunkUpdateHitchPlan.md)
 #include "core/Types.h"
 #include <stdexcept>
 #include <cstring>
@@ -8,6 +9,11 @@
 
 namespace Phyxel {
 namespace Graphics {
+
+// B1 toggle: when true (default), reallocateBuffer defers the old buffer/memory free by
+// > MAX_FRAMES_IN_FLIGHT frames instead of freeing inline — fixes the in-flight use-after-free and
+// the realloc stall. OFF reproduces the old inline-free behaviour byte-for-byte for A/B.
+bool ChunkRenderBuffer::s_deferBufferFree = true;
 
 ChunkRenderBuffer::ChunkRenderBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
     : device(device)
@@ -124,21 +130,31 @@ void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
     ScopedChunkPerf _perf(ChunkPerfPhase::BufferRealloc);  // B0: time the growth realloc
     // Calculate new capacity with headroom (50% extra)
     size_t newCapacity = static_cast<size_t>(requiredInstances * 1.5f);
-    
-    // Clean up existing buffer
-    if (mappedMemory) {
-        vkUnmapMemory(device, instanceMemory);
-        mappedMemory = nullptr;
-    }
-    if (instanceBuffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(device, instanceBuffer, nullptr);
+
+    // Release the OLD buffer. The old buffer may still be bound as a vertex buffer in a frame the
+    // GPU has not finished (MAX_FRAMES_IN_FLIGHT); freeing it inline is a use-after-free and stalls
+    // the driver. B1: hand it to the deferred-reclaim queue (freed after > frames-in-flight). OFF =
+    // the old inline free.
+    if (s_deferBufferFree) {
+        deferBufferFree(device, instanceBuffer, instanceMemory, mappedMemory);
         instanceBuffer = VK_NULL_HANDLE;
-    }
-    if (instanceMemory != VK_NULL_HANDLE) {
-        vkFreeMemory(device, instanceMemory, nullptr);
         instanceMemory = VK_NULL_HANDLE;
+        mappedMemory   = nullptr;
+    } else {
+        if (mappedMemory) {
+            vkUnmapMemory(device, instanceMemory);
+            mappedMemory = nullptr;
+        }
+        if (instanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, instanceBuffer, nullptr);
+            instanceBuffer = VK_NULL_HANDLE;
+        }
+        if (instanceMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, instanceMemory, nullptr);
+            instanceMemory = VK_NULL_HANDLE;
+        }
     }
-    
+
     // Create new larger buffer
     VkDeviceSize bufferSize = elementSize * newCapacity;
     bufferCapacity = newCapacity;

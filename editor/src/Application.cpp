@@ -13,6 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include "graphics/FarTerrainManager.h"
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
+#include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "core/MaterialRegistry.h"
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
@@ -2483,6 +2484,8 @@ void Application::applyProjectSelection(const std::string& projectPath) {
     if (chunkManager && vulkanDevice) {
         // Wait for any in-flight GPU work to finish before destroying chunk buffers
         vkDeviceWaitIdle(vulkanDevice->getDevice());
+        // B1: GPU is idle → free any deferred (already-replaced) chunk buffers now.
+        Graphics::flushDeferredBufferReclaim();
 
         // Drop all currently loaded chunks (clears the chunks + chunkMap vectors)
         chunkManager->cleanup();
@@ -2910,7 +2913,11 @@ void Application::run() {
             renderCoordinator->setFrameStartTime(frameStartTime);
             render();
         }
-        
+
+        // B1: advance the deferred buffer-reclaim tick and free any old chunk buffers now past
+        // MAX_FRAMES_IN_FLIGHT (safe: the frame that may reference them was submitted in render()).
+        Graphics::tickDeferredBufferReclaim();
+
         // End frame profiling
         performanceProfiler->endFrame();
         
@@ -3016,6 +3023,13 @@ void Application::cleanup() {
     entities.clear();
 
     animatedCharacter = nullptr;
+
+    // B1: free any deferred chunk buffers before the device is destroyed (runtime->shutdown() below),
+    // else they leak / trip validation at teardown. Idle the GPU first so the queue is safe to drain.
+    if (vulkanDevice) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        Graphics::flushDeferredBufferReclaim();
+    }
 
     // Clear NPC / story / dialogue subsystems
     npcManager.reset();
@@ -11245,6 +11259,14 @@ void Application::registerEffectsCommands() {
         if (chunkManager) chunkManager->rebuildAllChunkLighting();
         r = {{"success", true}, {"fine_merge", Graphics::ChunkRenderManager::getFineGreedyMerge()}};
     });
+
+    // B1 deferred buffer-free toggle — live A/B for docs/ChunkUpdateHitchPlan.md. OFF = the old
+    // inline free (the in-flight use-after-free + realloc stall). Affects future reallocs only.
+    reg.on("set_defer_buffer_free", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::ChunkRenderBuffer::s_deferBufferFree = cmd.params["enabled"].get<bool>();
+        r = {{"success", true}, {"defer_buffer_free", Graphics::ChunkRenderBuffer::s_deferBufferFree}};
+    });
 }
 
 // Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.
@@ -15230,6 +15252,8 @@ void Application::resetEditorScene() {
     // ---- GPU sync then chunk teardown ----
     // Wait for GPU before destroying chunk Vulkan buffers.
     if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
+    // B1: GPU is idle → free any deferred (already-replaced) chunk buffers now.
+    Graphics::flushDeferredBufferReclaim();
 
     // Clean up chunk data (destroys ChunkPhysicsManager → unregisters grids)
     if (chunkManager) chunkManager->cleanup();

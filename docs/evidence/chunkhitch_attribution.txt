@@ -74,3 +74,28 @@ IMPLICATIONS FOR B1/B2 (re-prioritised, honestly):
    inline free of an in-flight buffer in reallocateBuffer is a real use-after-free (correctness).
    A suballocator fixes the hitch tail, the alloc-count ceiling, AND the UAF in one structural change.
 3. On dense scenes the bigger fish is render density (#1), which this plan does NOT address.
+
+================================================================================
+B1 FOLLOW-UP FINDING — the buffer stall is ONE-TIME COLD FIRST-TOUCH, not recurring
+================================================================================
+After adding the B1 deferred-free (default ON), a fresh Release run:
+  - initial 222-chunk DB load: buffer_realloc MAX 47.95 ms, buffer_create MAX 1.13 ms (one cold spike)
+  - then generated 64 MORE chunks on the now-WARMED device (72 new creates, 125 new reallocs):
+      buffer_create  max UNCHANGED 1.13 ms   (all 72 new creates fast)
+      buffer_realloc max UNCHANGED 47.95 ms  (all 125 new reallocs faster than the load spike)
+      buffer_realloc avg 0.49 ms
+  => The 25-48 ms buffer alloc/realloc stalls are ONE-TIME COLD FIRST-TOUCH device-allocation costs
+     concentrated at the initial world-load (driver/OS committing the first VkDeviceMemory pages).
+     They DO NOT recur once the heap is warm; post-warmup creates/reallocs are sub-2 ms.
+
+Reconciles T0: the ~40 ms "first edit after load" stutter was this same cold first-touch (first
+realloc/create warming the path); later edits were smooth.
+
+CONSEQUENCE for B1:
+  - Deferred-free (B1) fixes a genuine USE-AFTER-FREE (reallocateBuffer freeing a buffer still bound
+    in an in-flight frame; MAX_FRAMES_IN_FLIGHT=2) — a real correctness bug, worth fixing.
+  - But it does NOT remove the cold-first-touch stall (that is alloc-side, one-time, load-only; a
+    deferred FREE cannot help a fresh vkAllocateMemory warmup). B1 is a CORRECTNESS fix, not a perf
+    fix. There is essentially no recurring buffer stall to remove.
+  - The higher-value latent issue remains B2's alloc-count ceiling (~1-1.6k chunks x up to 3 raw
+    vkAllocateMemory -> ~4096), a crash/scaling risk independent of frame timing.
