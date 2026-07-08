@@ -4,6 +4,7 @@
 #include "core/WorldRecipe.h"
 #include "core/WorldStorage.h"
 #include "core/StructureGenerator.h"
+#include "core/StructureBuildService.h"
 #include "core/NPCManager.h"
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
@@ -483,11 +484,41 @@ void GameDefinitionLoader::loadStructures(const json& structures, GameSubsystems
                 LOG_WARN("GameDefinitionLoader", "Failed to spawn template: " + templateName);
             }
 
-        } else if (stype == "house" || stype == "tavern" || stype == "tower" ||
-                   stype == "wall" || stype == "room" || stype == "box" ||
+        } else if (stype == "house" || stype == "tavern") {
+            // Generated buildings run the SAME engine pipeline as the API command
+            // (Structure Generation v2 via StructureBuildService) — the legacy v1
+            // composites were removed. Legacy params (width/depth/int stories) alias
+            // onto a v2 typology; materials come from the style, not a palette.
+            StructureBuildService::Deps deps;
+            deps.chunkManager  = sub.chunkManager;
+            deps.placedObjects = sub.placedObjectManager;
+            deps.templates     = sub.templateManager;
+            deps.locations     = sub.locationRegistry;
+            deps.npcs          = sub.npcManager;
+            nlohmann::json v2p = s.value("schema", std::string()) == "v2"
+                ? s : StructureBuildService::aliasLegacyParams(s);
+            nlohmann::json resp = StructureBuildService::buildV2(v2p, deps);
+            if (resp.value("success", false)) {
+                result.structuresPlaced++;
+                LOG_INFO("GameDefinitionLoader", stype + " (v2): placed " +
+                         std::to_string(resp.value("placed", 0)) + " voxels, " +
+                         std::to_string(resp.value("fixtures_spawned", 0)) + " fixtures");
+                if (resp.contains("locations"))
+                    result.locationsRegistered += static_cast<int>(resp["locations"].size());
+            } else {
+                LOG_WARN("GameDefinitionLoader", "Failed to build " + stype + " (v2): " +
+                         resp.value("error", std::string("unknown error")));
+            }
+
+        } else if (stype == "tower") {
+            LOG_WARN("GameDefinitionLoader", "'tower' was removed with the v1 composite "
+                     "generators (no v2 typology yet) — build it from primitives (wall/"
+                     "staircase) or a template instead. Skipped.");
+
+        } else if (stype == "wall" || stype == "room" || stype == "box" ||
                    stype == "staircase" || stype == "table" || stype == "chair" ||
                    stype == "counter" || stype == "bed") {
-            // Procedural structure types — delegate to StructureGenerator
+            // Primitive placements — deterministic StructureGenerator primitives
             auto structure = StructureGenerator::generateFromJson(s);
             auto placement = StructureGenerator::place(sub.chunkManager, structure);
 

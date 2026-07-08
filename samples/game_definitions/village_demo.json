@@ -34,58 +34,27 @@
     {
       "type": "tavern",
       "position": { "x": 8, "y": 17, "z": 24 },
-      "width": 14,
-      "depth": 16,
-      "stories": 2,
-      "facing": "south",
-      "materials": {
-        "wall": "Stone",
-        "floor": "Wood",
-        "roof": "Wood",
-        "stairs": "Stone",
-        "furniture": "Wood"
-      },
-      "furnished": true
+      "width": 10,
+      "depth": 8,
+      "stories": 1,
+      "style": "timber_cottage",
+      "_comment": "Built by Structure Generation v2 (tavern typology, engine-furnished)"
     },
     {
       "type": "house",
       "position": { "x": 26, "y": 17, "z": 24 },
-      "width": 8,
-      "depth": 10,
-      "height": 5,
-      "facing": "south",
-      "materials": {
-        "wall": "Stone",
-        "floor": "Wood",
-        "roof": "Wood",
-        "furniture": "Wood"
-      },
-      "windows": 2,
-      "furnished": true
+      "width": 9,
+      "depth": 7,
+      "style": "stone_manor",
+      "_comment": "v2 hall_house typology; materials come from the style"
     },
     {
       "type": "house",
       "position": { "x": 36, "y": 17, "z": 24 },
       "width": 7,
-      "depth": 8,
-      "height": 4,
-      "facing": "west",
-      "materials": {
-        "wall": "Wood",
-        "floor": "Wood",
-        "roof": "Wood",
-        "furniture": "Wood"
-      },
-      "windows": 1,
-      "furnished": true
-    },
-    {
-      "type": "tower",
-      "position": { "x": 4, "y": 17, "z": 4 },
-      "radius": 3,
-      "height": 10,
-      "material": "Stone",
-      "facing": "east"
+      "depth": 6,
+      "style": "timber_cottage",
+      "_comment": "v2 croft typology"
     },
     {
       "type": "wall",

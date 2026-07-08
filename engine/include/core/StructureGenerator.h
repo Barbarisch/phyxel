@@ -44,36 +44,10 @@ struct LocationMarker {
 /// Cardinal facing direction for structures.
 enum class Facing { North, East, South, West };
 
-/// A request to place + register a functional (swinging, optionally lockable) door.
-/// Emitted by generateFromSpec for each door portal; consumed by the build_structure
-/// command handler where PlacedObjectManager/DoorManager are available.
-struct DoorRequest {
-    glm::vec3   hingePos{0.0f};     ///< World position of the hinge edge (door template origin)
-    int         width  = 2;        ///< Opening width in cubes
-    int         height = 3;        ///< Opening height in cubes
-    int         baseRotation = 0;   ///< Leaf orientation (0/90/180/270) derived from wall axis
-    bool        lockable = false;
-    std::string key;                ///< Required item id to unlock (empty = no key)
-    float       swing = 90.0f;      ///< Open angle (degrees)
-};
-
-/// A request to place a subcube-detailed furniture template inside a building.
-/// Emitted by generateFromSpec for each spec fixture; consumed by the build_structure
-/// handler (which has ObjectTemplateManager/PlacedObjectManager to spawn the template).
-/// Furniture is authored as proper subcube templates (chair_wood, table_wood, ...) — NOT
-/// generated as full cubes.
-struct FixtureRequest {
-    std::string templateName;       ///< Subcube furniture template (e.g. "chair_wood")
-    glm::ivec3  worldPos{0};        ///< World position (template origin) on the floor
-    int         rotation = 0;        ///< Y rotation 0/90/180/270 from the fixture facing
-};
-
 /// Result of a structure generation.
 struct StructureResult {
     std::vector<VoxelPlacement>  voxels;
     std::vector<LocationMarker>  locations;
-    std::vector<DoorRequest>     doors;     ///< Functional doors to place + register (spec path)
-    std::vector<FixtureRequest>  fixtures;  ///< Furniture templates to spawn (spec path)
 };
 
 /// Result of placing a structure into the world.
@@ -203,45 +177,22 @@ public:
     static StructureResult generateBed(const glm::ivec3& pos, Facing facing,
                                        const std::string& material = "Wood");
 
-    // =======================================================================
-    // Composites — high-level structure generators
-    // =======================================================================
-
-    /// House with optional multi-story support, stairwells, and bedroom partitions.
-    static StructureResult generateHouse(const glm::ivec3& pos, int width, int depth, int height,
-                                         const MaterialPalette& materials, Facing facing = Facing::South,
-                                         int windows = 2, bool furnished = true,
-                                         DetailLevel detail = DetailLevel::Detailed,
-                                         int stories = 1, int bedrooms = 0);
-
-    /// Multi-room tavern: main hall + bar + tables + optional upper floor.
-    /// tables/beds = -1 means auto-calculate from dimensions.
-    static StructureResult generateTavern(const glm::ivec3& pos, int width, int depth, int stories,
-                                          const MaterialPalette& materials, Facing facing = Facing::South,
-                                          bool furnished = true,
-                                          DetailLevel detail = DetailLevel::Detailed,
-                                          int tables = -1, int beds = -1);
-
     /// Freestanding wall segment between two points.
+    /// NOTE: the v1 COMPOSITE building generators (house/tavern/tower, BuildingSpec)
+    /// were REMOVED — generated buildings come from Structure Generation v2
+    /// (StructureBuildService: BuildingProgram + StyleProfile -> StructureRealizer).
+    /// This class keeps the deterministic PRIMITIVES + placement utilities only.
     static StructureResult generateWallSegment(const glm::ivec3& start, const glm::ivec3& end,
                                                int height, const std::string& material, int thickness = 1);
 
-    /// Cylindrical/octagonal tower with door + internal staircase.
-    static StructureResult generateTower(const glm::ivec3& pos, int radius, int height,
-                                         const std::string& material, Facing facing = Facing::South,
-                                         DetailLevel detail = DetailLevel::Detailed);
-
     // =======================================================================
-    // JSON-driven generation
+    // JSON-driven generation (primitives only)
     // =======================================================================
 
-    /// Parse a structure definition from JSON and generate voxels.
+    /// Parse a PRIMITIVE structure definition from JSON and generate voxels
+    /// (wall/room/box/staircase/furniture/frames/pitched_roof...). Composite
+    /// building types are handled by StructureBuildService (v2).
     static StructureResult generateFromJson(const nlohmann::json& def);
-
-    /// Realize a functional BuildingSpec (rooms/portals/stairs/fixtures) into voxels +
-    /// door requests. See docs/structure-generation/StructureGenerationPipeline.md and tools/structure_pipeline.
-    /// Built in the spec's local frame, offset by spec["position"] (no rotation in P1).
-    static StructureResult generateFromSpec(const nlohmann::json& spec);
 
     /// Get descriptions of all available structure types and their parameters.
     static nlohmann::json getStructureTypes();

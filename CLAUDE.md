@@ -309,7 +309,11 @@ python tools/blocksmith_generate.py --list
 
 Key params: `--size` (furniture: 2-3, buildings: 8-15), `--material`, `--model` (anthropic/claude-sonnet-4-20250514, gemini/gemini-2.5-pro, openai/gpt-4o)
 Templates cached permanently in `resources/templates/`. Catalog: `resources/templates/template_catalog.json`.
-**MCP tools**: `generate_template`, `build_building`, `search_templates`, `list_generated_templates`
+**MCP tools**: `generate_template`, `search_templates`, `list_generated_templates`
+(`build_building` was REMOVED 2026-07-08 — generated buildings come from the engine's
+procedural pipeline only: `build_structure` schema v2 / `build_settlement`, never an LLM.
+The v1 composite generators (house/tavern/tower, BuildingSpec) were removed the same day;
+plain `build_structure type:house|tavern` aliases onto v2 typologies.)
 
 ## Animation Files
 

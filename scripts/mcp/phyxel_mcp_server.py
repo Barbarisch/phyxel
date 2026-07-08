@@ -478,30 +478,29 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="build_structure",
-            description="Build a procedural structure (house, tavern, tower, wall, staircase, furniture). Returns placed voxel count and auto-registered locations.",
+            description="Build a procedural structure via the engine's generators. Buildings (house/tavern, "
+                        "or any schema:'v2' BuildingProgram) run Structure Generation v2: typology room "
+                        "programs, style-driven materials, engine-decided furniture, persisted assembly_plan "
+                        "metadata. Primitives (wall/staircase/table/...) place deterministic shapes. The v1 "
+                        "composites were removed ('tower' has no v2 typology yet and errors).",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "type": {"type": "string", "description": "Structure type: house, tavern, tower, wall, room, box, staircase, subcube_staircase, table, chair, counter, bed, window_frame, door_frame, railing, half_wall, pitched_roof"},
+                    "type": {"type": "string", "description": "Structure type. Buildings: house, tavern (aliased onto v2 typologies). Primitives: wall, room, box, staircase, subcube_staircase, table, chair, counter, bed, window_frame, door_frame, railing, half_wall, pitched_roof"},
+                    "schema": {"type": "string", "description": "Set 'v2' to pass a full BuildingProgram (footprint/stories/typology/style/substructure...)"},
                     "position": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}, "required": ["x", "y", "z"]},
-                    "width": {"type": "integer", "description": "Width (X axis)"},
-                    "depth": {"type": "integer", "description": "Depth (Z axis)"},
-                    "height": {"type": "integer", "description": "Height (Y axis)"},
-                    "stories": {"type": "integer", "description": "Number of stories (tavern)"},
-                    "radius": {"type": "integer", "description": "Radius (tower)"},
+                    "width": {"type": "integer", "description": "Width (X axis; buildings: footprint width)"},
+                    "depth": {"type": "integer", "description": "Depth (Z axis; buildings: footprint depth)"},
+                    "height": {"type": "integer", "description": "Height (Y axis; primitives)"},
+                    "stories": {"type": "integer", "description": "Number of stories (house/tavern)"},
+                    "typology": {"type": "string", "description": "v2 room-program typology override (croft, longhouse, hall_house, tavern, blacksmith, shop, bakery, apothecary, ...)"},
+                    "style": {"type": "string", "description": "v2 style profile (timber_cottage, stone_manor, stone_keep)", "default": "timber_cottage"},
                     "length": {"type": "integer", "description": "Length (counter, railing, half_wall)"},
-                    "material": {"type": "string", "description": "Single material name"},
-                    "materials": {"type": "object", "description": "Material palette: {wall, floor, roof, stairs, furniture}", "properties": {
-                        "wall": {"type": "string"}, "floor": {"type": "string"}, "roof": {"type": "string"},
-                        "stairs": {"type": "string"}, "furniture": {"type": "string"}
-                    }},
-                    "facing": {"type": "string", "description": "Door direction: north, east, south, west", "default": "south"},
-                    "windows": {"type": "integer", "description": "Number of windows per wall (house)"},
-                    "furnished": {"type": "boolean", "description": "Include furniture (house/tavern)", "default": True},
+                    "material": {"type": "string", "description": "Single material name (primitives)"},
+                    "facing": {"type": "string", "description": "Facing direction for primitives: north, east, south, west", "default": "south"},
                     "hollow": {"type": "boolean", "description": "Hollow box", "default": False},
                     "end": {"type": "object", "description": "End point for wall segment", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}}},
                     "thickness": {"type": "integer", "description": "Wall thickness"},
-                    "detail_level": {"type": "string", "description": "Detail level: rough (cube-only), detailed (cube+subcube trim), fine (future). Default: detailed", "default": "detailed", "enum": ["rough", "detailed", "fine"]},
                     "parent_id": {"type": "string", "description": "Optional parent placed object ID to establish ownership hierarchy"}
                 },
                 "required": ["type", "position"]
@@ -1556,47 +1555,9 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
-        Tool(
-            name="build_building",
-            description="Generate an LLM-designed building using BlockSmith and spawn it in the world. "
-                        "Produces multi-material structures (different materials for walls, floor, roof) with "
-                        "door/window openings. Much higher visual quality than build_structure for buildings. "
-                        "Buildings are cached — identical parameters return the cached template instantly. "
-                        "Requires ANTHROPIC_API_KEY or PHYXEL_AI_API_KEY.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Template name for caching (e.g. 'tavern_medieval')"},
-                    "position": {
-                        "type": "object",
-                        "description": "World position to place the building",
-                        "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}},
-                        "required": ["x", "y", "z"]
-                    },
-                    "building_type": {"type": "string", "description": "Building type: house, tavern, tower, shop, temple, barn", "default": "house"},
-                    "style": {"type": "string", "description": "Architectural style (medieval, elven, dwarven, gothic, rustic)", "default": "medieval"},
-                    "width": {"type": "integer", "description": "Width in blocks (X axis)", "default": 10},
-                    "depth": {"type": "integer", "description": "Depth in blocks (Z axis)", "default": 12},
-                    "height": {"type": "integer", "description": "Interior height per story in blocks", "default": 4},
-                    "stories": {"type": "integer", "description": "Number of stories", "default": 1},
-                    "door_facing": {"type": "string", "description": "Which wall has the door: front, back, left, right", "default": "front"},
-                    "windows": {"type": "integer", "description": "Windows per side wall per story", "default": 2},
-                    "materials": {
-                        "type": "object",
-                        "description": "Material palette: {wall, floor, roof, trim, accent}",
-                        "properties": {
-                            "wall": {"type": "string"}, "floor": {"type": "string"},
-                            "roof": {"type": "string"}, "trim": {"type": "string"},
-                            "accent": {"type": "string"}
-                        }
-                    },
-                    "rotation": {"type": "integer", "description": "Y-axis rotation: 0, 90, 180, 270", "default": 0, "enum": [0, 90, 180, 270]},
-                    "extra_notes": {"type": "string", "description": "Additional creative direction for the LLM"},
-                    "force": {"type": "boolean", "description": "Force regeneration of cached template", "default": False},
-                },
-                "required": ["name", "position"]
-            }
-        ),
+        # build_building (BlockSmith LLM-designed buildings) was REMOVED — generated
+        # structures must come from the engine's procedural pipeline (build_structure
+        # schema v2 / build_settlement), never from an LLM. See docs/ForgePattern.md.
 
         # ================================================================
         # Template Creation
@@ -4958,65 +4919,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         templates = [{"name": k, **v} for k, v in catalog.items()]
         return {"templates": templates, "count": len(templates)}
 
-    elif name == "build_building":
-        import subprocess as _sp
-        # Step 1: Generate building template via blocksmith_generate.py --building
-        tools_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "tools")
-        cmd = [
-            sys.executable,
-            os.path.join(tools_dir, "blocksmith_generate.py"),
-            args.get("extra_notes", ""),
-            "--name", args["name"],
-            "--building",
-            "--building-type", args.get("building_type", "house"),
-            "--style", args.get("style", "medieval"),
-            "--width", str(args.get("width", 10)),
-            "--depth", str(args.get("depth", 12)),
-            "--height", str(args.get("height", 4)),
-            "--stories", str(args.get("stories", 1)),
-            "--door-facing", args.get("door_facing", "front"),
-            "--windows", str(args.get("windows", 2)),
-            "--json",
-        ]
-        if args.get("materials"):
-            cmd.extend(["--materials", json.dumps(args["materials"])])
-        if args.get("force", False):
-            cmd.append("--force")
-
-        gen_result = _sp.run(cmd, capture_output=True, text=True, timeout=180)
-        if gen_result.returncode != 0:
-            return {"success": False, "error": gen_result.stderr.strip() or "Building generation failed"}
-        try:
-            gen_info = json.loads(gen_result.stdout.strip().split("\n")[-1])
-        except json.JSONDecodeError:
-            return {"success": False, "error": f"Failed to parse output: {gen_result.stdout}"}
-        if not gen_info.get("success"):
-            return gen_info
-
-        # Step 2: Spawn the template in the world
-        pos = args["position"]
-        rotation = args.get("rotation", 0)
-        spawn_body = {
-            "name": args["name"],
-            "x": pos["x"],
-            "y": pos["y"],
-            "z": pos["z"],
-            "dynamic": False,
-        }
-        if rotation:
-            spawn_body["rotation"] = rotation
-        spawn_result = await api_post("/api/world/template", spawn_body)
-
-        return {
-            "success": True,
-            "template": gen_info,
-            "spawn": spawn_result,
-            "building_type": args.get("building_type", "house"),
-            "style": args.get("style", "medieval"),
-            "position": pos,
-            "rotation": rotation,
-            "cached": gen_info.get("cached", False),
-        }
+    # build_building (BlockSmith LLM buildings) was REMOVED — use build_structure
+    # (schema v2) / build_settlement: the engine's procedural generators, not an LLM.
 
     # --- Template Save ---
     elif name == "save_template":

@@ -31,10 +31,9 @@
           {
             "type": "house",
             "position": { "x": 20, "y": 16, "z": 20 },
-            "width": 8, "depth": 10, "height": 5,
-            "facing": "south",
-            "materials": { "wall": "Stone", "floor": "Wood" },
-            "windows": 2
+            "width": 8, "depth": 7,
+            "style": "timber_cottage",
+            "_comment": "Built by Structure Generation v2 (typology by footprint; style-driven materials)"
           }
         ],
         "npcs": [

@@ -127,108 +127,6 @@ TEST(StructureDetailTest, DoorFrameHasLintelAndJambs) {
 }
 
 // ============================================================================
-// Rough vs Detailed: composites have different voxel counts
-// ============================================================================
-
-TEST(StructureDetailTest, HouseRoughHasNoSubcubes) {
-    MaterialPalette mat;
-    auto result = StructureGenerator::generateHouse({0, 0, 0}, 8, 10, 5, mat, Facing::South, 2, true,
-                                                     DetailLevel::Rough);
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, HouseDetailedHasSubcubes) {
-    MaterialPalette mat;
-    auto result = StructureGenerator::generateHouse({0, 0, 0}, 8, 10, 5, mat, Facing::South, 2, true,
-                                                     DetailLevel::Detailed);
-    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, HouseDetailedHasMoreVoxelsThanRough) {
-    MaterialPalette mat;
-    auto rough    = StructureGenerator::generateHouse({0, 0, 0}, 8, 10, 5, mat, Facing::South, 2, true,
-                                                       DetailLevel::Rough);
-    auto detailed = StructureGenerator::generateHouse({0, 0, 0}, 8, 10, 5, mat, Facing::South, 2, true,
-                                                       DetailLevel::Detailed);
-    EXPECT_GT(detailed.voxels.size(), rough.voxels.size());
-}
-
-TEST(StructureDetailTest, TavernRoughHasNoSubcubeDetails) {
-    MaterialPalette mat;
-    // Note: tavern always has subcube stairs when stories > 1, so we use 1 story for this test
-    auto result = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 1, mat, Facing::South, true,
-                                                      DetailLevel::Rough);
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, TavernDetailedHasSubcubes) {
-    MaterialPalette mat;
-    auto result = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 1, mat, Facing::South, true,
-                                                      DetailLevel::Detailed);
-    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, TavernDetailedHasMoreVoxelsThanRough) {
-    MaterialPalette mat;
-    auto rough    = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 2, mat, Facing::South, true,
-                                                        DetailLevel::Rough);
-    auto detailed = StructureGenerator::generateTavern({0, 0, 0}, 14, 18, 2, mat, Facing::South, true,
-                                                        DetailLevel::Detailed);
-    EXPECT_GT(detailed.voxels.size(), rough.voxels.size());
-}
-
-TEST(StructureDetailTest, TowerRoughHasNoSubcubes) {
-    auto result = StructureGenerator::generateTower({0, 0, 0}, 4, 12, "Stone", Facing::South,
-                                                     DetailLevel::Rough);
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, TowerDetailedHasSubcubes) {
-    auto result = StructureGenerator::generateTower({0, 0, 0}, 4, 12, "Stone", Facing::South,
-                                                     DetailLevel::Detailed);
-    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-// ============================================================================
-// JSON routing with detail_level
-// ============================================================================
-
-TEST(StructureDetailTest, JsonHouseDefaultIsDetailed) {
-    json def = {{"type", "house"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                {"width", 8}, {"depth", 10}, {"height", 5}};
-    auto result = StructureGenerator::generateFromJson(def);
-    // Default detail_level = detailed, should have subcubes
-    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, JsonHouseRoughNoSubcubes) {
-    json def = {{"type", "house"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                {"width", 8}, {"depth", 10}, {"height", 5}, {"detail_level", "rough"}};
-    auto result = StructureGenerator::generateFromJson(def);
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-TEST(StructureDetailTest, JsonTavernDetailLevel) {
-    json rough = {{"type", "tavern"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                  {"width", 14}, {"depth", 18}, {"stories", 2}, {"detail_level", "rough"}};
-    json detailed = {{"type", "tavern"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                     {"width", 14}, {"depth", 18}, {"stories", 2}, {"detail_level", "detailed"}};
-    auto rr = StructureGenerator::generateFromJson(rough);
-    auto dr = StructureGenerator::generateFromJson(detailed);
-    EXPECT_GT(dr.voxels.size(), rr.voxels.size());
-}
-
-TEST(StructureDetailTest, JsonTowerDetailLevel) {
-    json rough = {{"type", "tower"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                  {"radius", 4}, {"height", 12}, {"detail_level", "rough"}};
-    json detailed = {{"type", "tower"}, {"position", {{"x", 0}, {"y", 0}, {"z", 0}}},
-                     {"radius", 4}, {"height", 12}, {"detail_level", "detailed"}};
-    auto rr = StructureGenerator::generateFromJson(rough);
-    auto dr = StructureGenerator::generateFromJson(detailed);
-    EXPECT_GT(dr.voxels.size(), rr.voxels.size());
-}
-
-// ============================================================================
 // New primitives routed via JSON
 // ============================================================================
 
@@ -256,23 +154,6 @@ TEST(StructureDetailTest, JsonPitchedRoof) {
     // The wedge is solid: full-cube core + subcube-stepped surface (see
     // PitchedRoofIsContinuousSolidWedge for the continuity invariant).
     EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
-}
-
-// ============================================================================
-// getStructureTypes includes detail_level for composites
-// ============================================================================
-
-TEST(StructureDetailTest, StructureTypesIncludeDetailLevel) {
-    auto types = StructureGenerator::getStructureTypes();
-    bool houseHasDetail = false, tavernHasDetail = false, towerHasDetail = false;
-    for (const auto& t : types) {
-        if (t["type"] == "house" && t["params"].contains("detail_level")) houseHasDetail = true;
-        if (t["type"] == "tavern" && t["params"].contains("detail_level")) tavernHasDetail = true;
-        if (t["type"] == "tower" && t["params"].contains("detail_level")) towerHasDetail = true;
-    }
-    EXPECT_TRUE(houseHasDetail);
-    EXPECT_TRUE(tavernHasDetail);
-    EXPECT_TRUE(towerHasDetail);
 }
 
 TEST(StructureDetailTest, StructureTypesIncludeNewPrimitives) {
