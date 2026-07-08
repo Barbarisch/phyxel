@@ -11560,11 +11560,23 @@ void Application::registerProfilingCommands() {
     });
     reg.on("get_gpu_scopes", [this](const Core::APICommand&, nlohmann::json& r) {
         nlohmann::json arr = nlohmann::json::array();
+        nlohmann::json pstats = nullptr;
         if (renderCoordinator && renderCoordinator->getGpuProfiler()) {
-            for (const auto& s : renderCoordinator->getGpuProfiler()->getResults())
+            auto* prof = renderCoordinator->getGpuProfiler();
+            for (const auto& s : prof->getResults())
                 arr.push_back({{"name", s.name}, {"ms", s.durationMs}, {"depth", s.depth}});
+            // D0: Static Geometry pipeline statistics (overdraw counter).
+            const auto& ps = prof->getPipelineStats();
+            if (ps.valid) {
+                pstats = {
+                    {"input_primitives", ps.inputPrimitives},
+                    {"vs_invocations",   ps.vsInvocations},
+                    {"clip_invocations", ps.clipInvocations},
+                    {"frag_invocations", ps.fragInvocations}
+                };
+            }
         }
-        r = {{"scopes", arr}};
+        r = {{"scopes", arr}, {"static_geometry_pipeline_stats", pstats}};
     });
 }
 

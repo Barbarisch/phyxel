@@ -31,6 +31,28 @@ void GpuProfiler::init(Vulkan::VulkanDevice* device, uint32_t maxFramesInFlight)
             LOG_ERROR("GpuProfiler", "Failed to create query pool!");
         }
     }
+
+    // D0 pipeline-statistics pools (docs/RenderDensityPlan.md) — only if the feature is enabled.
+    pipelineStatsEnabled = device->pipelineStatsSupported();
+    if (pipelineStatsEnabled) {
+        statsPools.resize(maxFrames);
+        statsPending.assign(maxFrames, false);
+        VkQueryPoolCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        si.queryType = VK_QUERY_TYPE_PIPELINE_STATISTICS;
+        si.queryCount = 1;
+        si.pipelineStatistics =
+            VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
+            VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
+            VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT |
+            VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT;
+        for (uint32_t i = 0; i < maxFrames; i++) {
+            if (vkCreateQueryPool(device->getDevice(), &si, nullptr, &statsPools[i]) != VK_SUCCESS) {
+                LOG_ERROR("GpuProfiler", "Failed to create pipeline-statistics pool!");
+                pipelineStatsEnabled = false;
+            }
+        }
+    }
 }
 
 void GpuProfiler::cleanup() {
@@ -41,6 +63,12 @@ void GpuProfiler::cleanup() {
             }
         }
         queryPools.clear();
+        for (auto pool : statsPools) {
+            if (pool != VK_NULL_HANDLE) {
+                vkDestroyQueryPool(device->getDevice(), pool, nullptr);
+            }
+        }
+        statsPools.clear();
     }
 }
 
@@ -84,16 +112,46 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
         }
     }
 
+    // D0: read back this frame-slot's pipeline-statistics from its previous (now-finished) use.
+    if (pipelineStatsEnabled && statsPending[currentFrame]) {
+        uint64_t s[NUM_PIPELINE_STATS] = {0};
+        VkResult sr = vkGetQueryPoolResults(
+            device->getDevice(), statsPools[currentFrame], 0, 1,
+            sizeof(s), s, sizeof(s), VK_QUERY_RESULT_64_BIT);
+        if (sr == VK_SUCCESS) {
+            lastPipelineStats.valid = true;
+            lastPipelineStats.inputPrimitives = s[0];
+            lastPipelineStats.vsInvocations   = s[1];
+            lastPipelineStats.clipInvocations = s[2];
+            lastPipelineStats.fragInvocations = s[3];
+        }
+        statsPending[currentFrame] = false;
+    }
+
     // Reset for new frame
     frame.completedScopes.clear();
     frame.activeScopes.clear();
     frame.queryCount = 0;
-    
+
     vkCmdResetQueryPool(cmd, queryPools[currentFrame], 0, MAX_QUERIES_PER_FRAME);
+    if (pipelineStatsEnabled) {
+        vkCmdResetQueryPool(cmd, statsPools[currentFrame], 0, 1);
+    }
 }
 
 void GpuProfiler::endFrame() {
     // Nothing to do here, results are read at start of next cycle
+}
+
+void GpuProfiler::beginPipelineStats(VkCommandBuffer cmd) {
+    if (!pipelineStatsEnabled) return;
+    vkCmdBeginQuery(cmd, statsPools[currentFrame], 0, 0);
+}
+
+void GpuProfiler::endPipelineStats(VkCommandBuffer cmd) {
+    if (!pipelineStatsEnabled) return;
+    vkCmdEndQuery(cmd, statsPools[currentFrame], 0);
+    statsPending[currentFrame] = true;
 }
 
 void GpuProfiler::startScope(VkCommandBuffer cmd, const std::string& name) {

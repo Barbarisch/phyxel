@@ -1436,6 +1436,7 @@ void RenderCoordinator::drawFrame() {
 
     // Mirror reflection pass: render scene from reflected camera before the main scene pass.
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Reflection Pass");  // D0: was untimed
         renderReflectionPass(currentFrame);
     }
 
@@ -1488,7 +1489,10 @@ void RenderCoordinator::drawFrame() {
         size_t actuallyRenderedChunks = 0;
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            // D0: count fragment invocations + primitives for the chunk pass (overdraw counter).
+            gpuProfiler->beginPipelineStats(cmd);
             actuallyRenderedChunks = renderStaticGeometry();
+            gpuProfiler->endPipelineStats(cmd);
         }
 
         // Grass blades on grass-topped terrain (opaque cutout; reuses the just-computed visible set)

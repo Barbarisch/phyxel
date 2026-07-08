@@ -1,0 +1,71 @@
+# D0 — Render-density baseline / hitch attribution (docs/RenderDensityPlan.md Increment D0)
+# Direct GPU-pass timing (GpuProfiler timestamp scopes) + a VK_QUERY_TYPE_PIPELINE_STATISTICS
+# overdraw counter around the Static Geometry pass, on the dense scene. Measure the wall BEFORE
+# building D1. Falsifiable: per-pass GPU ms via GET /api/debug/gpu_scopes; FPS via
+# GET /api/debug/engine_timing; face count via GET /api/render/stats.
+#
+# provenance:
+#   branch : render-offthread-mesh, commit 07d352c + uncommitted D0 instrumentation
+#   binary : phyxel.exe RELEASE (rebuilt with GpuProfiler pipeline-stats + reflection-pass scope)
+#   scene  : PhyxelProjects/StructGenTest default.db = saved ~222-chunk dense Mountains world.
+#            Camera free (40,60,40) yaw -135 pitch -35. 377,546 total_visible_faces, 20 draw calls,
+#            no mirror in view. Settled, 3 stable reads.
+
+================================================================================
+GPU PASS SPLIT (GpuProfiler timestamps; 3 reads, stable) — THE WALL IS THE SHADOW PASS
+================================================================================
+  Shadow Pass        24.3 - 26.4 ms   <==== ~75% of the frame
+  Scene Pass (total)  6.5 - 6.7 ms
+    - Static Geometry 4.70 ms         (the 377k-face main chunk pass — NOT the wall)
+    - Grass           1.48 ms
+    - Foliage         0.22 ms
+    - everything else ~0
+  Post Process        0.22 ms
+  ImGui               1.13 ms
+  SSAO / OIT / FarTerrain / DynamicSubcubes ~0
+
+Frame (GET /api/debug/engine_timing): fps 30.97, totalFrameTime 34.78 ms, cpuFrameTime 32.29 ms,
+drawCalls 20, commandRecordTime 0.96 ms. => GPU-bound, and the GPU cost IS the shadow pass.
+
+================================================================================
+STATIC-GEOMETRY PIPELINE STATISTICS (the main chunk pass) — amplifier real, but NOT fill-bound
+================================================================================
+  input_primitives   451,512   (triangles submitted)
+  vs_invocations      301,008
+  clip_invocations    451,512
+  frag_invocations  3,063,316   (fragment-shader invocations = the fill cost)
+
+READING:
+- 451,512 triangles / 12 (a full cube's 36 indices = 12 tris per face instance) = ~37,626 faces
+  actually DRAWN in the 20 frustum-visible chunks. (total_visible_faces=377,546 is the ChunkManager
+  sum over a broader visible set, not the frustum-culled draw set — the two are different denominators.)
+  => The 36-index / 12-triangles-per-face AMPLIFIER IS REAL and confirmed at runtime.
+- BUT frag_invocations 3.06M ~= a single 2560x1440 screen (3.7M px). The main pass is NOT drowning in
+  overdraw — the ~3x redundant coplanar quads are mostly back-face-culled / degenerate, so the fill
+  cost is ~1 screen, and the whole Static Geometry pass is only 4.70 ms. **The main-pass overdraw
+  hypothesis (RenderDensityPlan §2 "top lever") is REFUTED as the dominant cost.**
+
+================================================================================
+D0 VERDICT — the plan's top-lever hypothesis was WRONG; the wall is the shadow pass
+================================================================================
+The ~32 ms dense-scene frame is ~75% SHADOW PASS (24-26 ms), not the 377k-face main geometry pass
+(4.7 ms). Both the RenderDensityPlan §2 "load-bearing hypothesis" (main-pass 3x overdraw amplifier)
+and B0's framing (the 32ms is the "377k-face render cost") MIS-ATTRIBUTED the cost to the visible
+chunk pass. Direct measurement moves the target to the shadow pass.
+
+Why the shadow pass is so expensive (code, RenderCoordinator.cpp:960-1006): it re-renders chunks in
+the fitted shadow sphere every frame, **distance-culled ONLY (no frustum, no occlusion cull)**, with
+the same 36-index amplifier (12 tris/face). So it almost certainly draws FAR more chunks than the 20
+the frustum-culled main pass draws — a geometry/primitive-bound pass. Not yet measured: the shadow
+pass's own instance/chunk count (no pipeline-stats counter on it — the D1 first step).
+
+The 36-index amplifier is still real and worth removing (D1), but its payoff is now expected in the
+GEOMETRY-BOUND SHADOW PASS (12->2 tris/face = 6x fewer primitives), NOT in main-pass fill.
+
+IMPLICATIONS FOR D1 (redirected by this measurement):
+1. TOP LEVER = the shadow pass. First diagnose it (add a pipeline-stats/scope: how many chunks/
+   instances does it draw vs the 20 visible?), then cut it: frustum + occlusion cull the shadow pass
+   (currently distance-only), and/or lower shadow-map resolution / cascade / update-frequency.
+2. The 6-index quad (old D1) now targets the shadow pass's primitive count primarily; measure its
+   delta THERE.
+3. Main-pass overdraw is NOT the bottleneck — deprioritise.

@@ -451,6 +451,13 @@ bool VulkanDevice::createLogicalDevice() {
     } else {
         LOG_WARN("Vulkan", "Device lacks textureCompressionBC; voxel textures will stay uncompressed RGBA");
     }
+    // D0 (docs/RenderDensityPlan.md): pipeline-statistics queries for the overdraw counter.
+    if (supportedFeatures.pipelineStatisticsQuery) {
+        deviceFeatures.pipelineStatisticsQuery = VK_TRUE;
+        pipelineStatsSupported_ = true;
+    } else {
+        LOG_WARN("Vulkan", "Device lacks pipelineStatisticsQuery; D0 overdraw counter disabled");
+    }
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

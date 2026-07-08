@@ -14,6 +14,17 @@ struct GpuScopeResult {
     uint32_t depth;
 };
 
+// D0 overdraw counter (docs/RenderDensityPlan.md). Pipeline statistics for one wrapped pass
+// (the Static Geometry pass). fragInvocations is the fill/overdraw cost; inputPrimitives ÷ face
+// count exposes the 36-index geometry amplification (should be ~12 tris/face today).
+struct GpuPipelineStats {
+    bool     valid = false;
+    uint64_t inputPrimitives = 0;   // triangles submitted (INPUT_ASSEMBLY_PRIMITIVES)
+    uint64_t vsInvocations   = 0;   // vertex-shader invocations
+    uint64_t clipInvocations = 0;   // primitives entering clipping
+    uint64_t fragInvocations = 0;   // FRAGMENT_SHADER_INVOCATIONS — the fill cost
+};
+
 class GpuProfiler {
 public:
     GpuProfiler();
@@ -28,6 +39,12 @@ public:
     void startScope(VkCommandBuffer cmd, const std::string& name);
     void endScope(VkCommandBuffer cmd);
 
+    // D0: wrap ONE pass (Static Geometry) to count fragment invocations + primitives. No-op if the
+    // pipelineStatisticsQuery feature is unavailable. Begin/end must be inside a render pass.
+    void beginPipelineStats(VkCommandBuffer cmd);
+    void endPipelineStats(VkCommandBuffer cmd);
+    const GpuPipelineStats& getPipelineStats() const { return lastPipelineStats; }
+
     const std::vector<GpuScopeResult>& getResults() const { return lastFrameResults; }
 
 private:
@@ -39,7 +56,14 @@ private:
     static const uint32_t MAX_QUERIES_PER_FRAME = 128; 
 
     std::vector<VkQueryPool> queryPools;
-    
+
+    // D0 pipeline-statistics pools (one per frame, one multi-counter query each).
+    bool pipelineStatsEnabled = false;
+    std::vector<VkQueryPool> statsPools;
+    std::vector<bool> statsPending;   // per-frame: a stats query was recorded, read it back next cycle
+    GpuPipelineStats lastPipelineStats;
+    static const uint32_t NUM_PIPELINE_STATS = 4;  // input prims, VS inv, clip inv, frag inv
+
     struct ScopeData {
         std::string name;
         uint32_t startIndex;

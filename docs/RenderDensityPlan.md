@@ -70,9 +70,25 @@ quads, the pass is fill-bound.
   **Gap:** the reflection pass has **no scope**; there is **no `VK_QUERY_TYPE_PIPELINE_STATISTICS`**
   anywhere → fragment-invocation / overdraw is not measurable in-engine yet.
 
+## 2d. D0 RESULT (measured 2026-07-08 — [`docs/evidence/renderdensity_baseline.txt`](evidence/renderdensity_baseline.txt))
+
+**The §2 "load-bearing hypothesis" (main-pass 3× overdraw) is REFUTED as the dominant cost. The wall
+is the SHADOW PASS.** On the dense 377k-face scene (Release, GpuProfiler timestamps, 3 stable reads,
+FPS 30.97 / frame 34.8 ms):
+- **Shadow Pass 24–26 ms (~75% of the frame).**
+- Scene Pass 6.5 ms total — **Static Geometry (the 377k-face main pass) only 4.70 ms**, Grass 1.48.
+- Static-Geometry pipeline stats: `input_primitives` 451,512 = **~12 triangles/drawn-face → the
+  36-index amplifier IS real at runtime**; but `frag_invocations` 3.06M ≈ one 1440p screen → the main
+  pass is **NOT overdraw-bound** (the ~3× coplanar quads are mostly back-face-culled/degenerate).
+
+So the main-pass amplifier is a minor cost; the shadow pass (a second full chunk traversal every
+frame, **distance-culled only — no frustum/occlusion**, `RenderCoordinator.cpp:960-1006`, same 36-index
+draw) dominates. It almost certainly draws far more chunks than the 20 the frustum-culled main pass
+draws. **D1 is redirected to the shadow pass (below).**
+
 ## 3. Increments (each buildable / verifiable / revertible behind a toggle)
 
-### D0 — Measure the wall (no behaviour change; the load-bearing step)
+### D0 — Measure the wall (no behaviour change; the load-bearing step) — ✅ DONE (see §2d)
 Split the ~32 ms across passes with the existing `GpuProfiler` timestamps, on the dense 377k-face
 scene: Shadow vs Scene(Static Geometry) vs SSAO vs OIT vs Post vs UI — and **add a profiler scope
 around the reflection pass** so a mirror's cost is visible. Add a **`VK_QUERY_TYPE_PIPELINE_STATISTICS`
@@ -81,19 +97,24 @@ query** (fragment-shader-invocations + primitives) around the Static Geometry dr
 hypotheses. Record to `docs/evidence/renderdensity_baseline.txt`: where the frame time goes, and the
 overdraw factor. **Choose D1's target from these numbers, not §2's hypothesis.**
 
-### D1 — Kill the 36-index amplifier (top lever; density-independent, no visual change)
-Draw each face instance with a **single quad**: vertex buffer = 4 corner ids `{0,1,2,3}`, index buffer
-= 6 indices `{0,1,2, 1,3,2}` (winding matching the current front-face convention), draw
-`drawIndexed(6, faceCount)`. The shader already builds the quad from `faceID` + `vertexID` bits 0-1, so
-no shader change beyond ensuring winding parity across all 6 faceIDs. Behind a toggle (`s_quadDraw`,
-A/B). **Red-before-green:** the D0 overdraw counter drops ~3×, FPS rises on the dense scene, and
-pixel-compare vs OFF is identical (same quads, drawn once). Applies to the shadow + reflection passes
-too (same draw). Expected the **largest single win**.
+### D1 — Cut the SHADOW PASS (the wall, per D0) — TOP LEVER, redirected by measurement
+First **diagnose it**: add a pipeline-stats/scope to the shadow pass (it has none) — how many chunks/
+instances does it draw vs the 20 the main pass draws? Then cut the dominant factor:
+- **Frustum + (optionally) occlusion cull the shadow pass** — it currently distance-culls only
+  (`RenderCoordinator.cpp:980-984`); if it's drawing far more chunks than are visible, this is the win.
+- **Shadow-map resolution / cascade / update-frequency** — if it's fill/resolution-bound, lower res
+  or update shadows every N frames.
+- **The 6-index quad (old D1, now folded here):** draw each face as one quad (vtx `{0,1,2,3}`, indices
+  `{0,1,2,1,3,2}`, `drawIndexed(6, faceCount)`) — D0 confirmed the 36-index/12-tri amplifier is real,
+  and the shadow pass is **geometry/primitive-bound**, so 12→2 tris/face = 6× fewer primitives should
+  help it most. Also speeds the main + reflection passes (same draw). Behind a toggle; pixel-compare
+  identical (same quads).
+Each sub-lever behind a toggle, measured A/B on the dense scene (target: the ~25 ms shadow pass down).
 
-### D2 — Turn on the free culling already implemented
-Enable occlusion culling by default (or verify why not) and extend the **shadow pass** to frustum +
-occlusion cull (it distance-culls only). Measure the visible-chunk / draw reduction and FPS on an
-interior/dense scene. Cheap, no new code for occlusion (exists).
+### D2 — Main-pass polish (deprioritised by D0 — it's only 4.7 ms)
+Occlusion culling for the main pass (implemented, OFF by default) is a smaller win now that the main
+pass is cheap; still worth enabling for interior scenes. The 6-index quad's main-pass benefit is minor
+(main pass isn't fill-bound). Sequence after D1.
 
 ### D3 — Reduce per-fragment cost where free
 From D0's fragment-cost signal: skip the point/spot-light loops when the scene has 0 dynamic lights

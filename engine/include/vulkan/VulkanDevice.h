@@ -227,6 +227,9 @@ public:
     /// the uncompressed uploadTextureArray() path.
     bool bc7Supported() const { return bc7Supported_; }
 
+    /// Whether the pipelineStatisticsQuery feature was enabled (for the D0 overdraw counter).
+    bool pipelineStatsSupported() const { return pipelineStatsSupported_; }
+
     /// Upload a pre-compressed BC7 texture array for resolution class `target` (0/1). `data`
     /// holds all mip levels tightly packed in level-major / layer-minor order (level 0 first;
     /// within a level, layer 0..N-1, each layer = ceil(w/4)*ceil(h/4)*16 bytes).
@@ -407,6 +410,7 @@ private:
     VkDeviceMemory textureNormal1024ImageMemory = VK_NULL_HANDLE;
     VkImageView textureNormal1024ImageView = VK_NULL_HANDLE;
     bool bc7Supported_ = false;  // set during logical-device creation
+    bool pipelineStatsSupported_ = false;  // pipelineStatisticsQuery feature (D0 overdraw counter)
 
     // ImGui texture cache (for menu images, logos, etc.)
     struct ImGuiTextureEntry {
