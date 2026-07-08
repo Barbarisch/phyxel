@@ -1,5 +1,6 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
+#include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include <chrono>
 #include "core/WorldStorage.h"
 #include "core/GpuParticlePhysics.h"
@@ -360,7 +361,14 @@ void ChunkManager::updateDirtyChunks() {
 }
 
 void ChunkManager::updateDirtyChunks(double budgetMs) {
-    m_dirtyChunkTracker.updateDirtyChunks(budgetMs);
+    // B0: time the whole per-frame chunk-update phase ONLY when it actually does work, so avg/max
+    // reflect real update frames (not the mostly-idle frames). See docs/ChunkUpdateHitchPlan.md.
+    if (m_dirtyChunkTracker.hasDirty()) {
+        Graphics::ScopedChunkPerf _perf(Graphics::ChunkPerfPhase::DirtyUpdateTotal);
+        m_dirtyChunkTracker.updateDirtyChunks(budgetMs);
+    } else {
+        m_dirtyChunkTracker.updateDirtyChunks(budgetMs);
+    }
 }
 
 void ChunkManager::updateAllChunks() {

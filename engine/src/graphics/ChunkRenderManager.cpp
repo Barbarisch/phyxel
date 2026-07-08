@@ -1,4 +1,5 @@
 #include "graphics/ChunkRenderManager.h"
+#include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
@@ -1448,6 +1449,7 @@ void ChunkRenderManager::rebuildSubcubeFacesMerged(
 }
 
 void ChunkRenderManager::updateVulkanBuffer() {
+    ScopedChunkPerf _perf(ChunkPerfPhase::BufferUpload);  // B0: ensureCapacity(+realloc) + memcpy, all 3 buffers
     // Face buffer (cube/sub/micro). A chunk may legitimately have no solid faces but still have
     // foliage/grass (e.g. a leaf-only bush, whose billboarded leaves emit no faces), so the grass
     // and foliage uploads below are NOT gated on faces being non-empty.
@@ -1608,6 +1610,7 @@ void ChunkRenderManager::updateSingleSubcubeColor(
 }
 
 void ChunkRenderManager::createVulkanBuffer() {
+    ScopedChunkPerf _perf(ChunkPerfPhase::BufferCreate);  // B0: first-time per-chunk alloc (all 3 buffers)
     if (device == VK_NULL_HANDLE || physicalDevice == VK_NULL_HANDLE) {
         throw std::runtime_error("ChunkRenderManager::createVulkanBuffer() called before initialize()!");
     }

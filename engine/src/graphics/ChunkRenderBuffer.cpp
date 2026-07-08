@@ -1,4 +1,5 @@
 #include "graphics/ChunkRenderBuffer.h"
+#include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Types.h"
 #include <stdexcept>
 #include <cstring>
@@ -120,6 +121,7 @@ void ChunkRenderBuffer::createBufferRaw(const void* initialData, size_t count, s
 }
 
 void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
+    ScopedChunkPerf _perf(ChunkPerfPhase::BufferRealloc);  // B0: time the growth realloc
     // Calculate new capacity with headroom (50% extra)
     size_t newCapacity = static_cast<size_t>(requiredInstances * 1.5f);
     

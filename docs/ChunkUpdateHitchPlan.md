@@ -70,6 +70,27 @@ realloc guess.
   slowdowns near the limit, and an eventual hard failure. **A suballocator (B2) fixes both the hitch
   frequency and this ceiling.**
 
+## 2b. B0 RESULT (measured 2026-07-08 — [`docs/evidence/chunkhitch_attribution.txt`](evidence/chunkhitch_attribution.txt))
+
+Direct per-operation timers (Release, dense 377k-face scene) attribute the hitch:
+- **mesh ≤12.8 ms, steady per-frame chunk-update ≤11.8 ms** — neither is the hitch (confirms T0).
+- **The hitch is a single GPU buffer alloc/realloc stall:** `buffer_create` ≤25.6 ms,
+  `buffer_realloc` ≤32.2 ms — a **rare tail** (avg sub-millisecond), concentrated in allocation
+  **bursts** (DB world-load; would recur on heavy streaming / buffer growth), partly first-touch.
+- **Crucial disentangling:** ~99% of "STUTTER DETECTED" frames were ~32 ms **steady render cost of
+  face density** (~30 FPS, the #1 issue — docs/RenderOptimization.md #40), NOT a chunk-update hitch.
+  Only 12 of 4540 frames exceeded 45 ms (the alloc stall stacked on a render frame). Two 586/1604 ms
+  frames were the bulk-gen job (OffThread T5). **On dense scenes the alloc hitch is largely masked by
+  render density; it is most user-visible on light scenes (T0's ~40 ms flat-world edit) and load/
+  streaming bursts.**
+
+**Re-prioritisation:** the alloc hitch is real but **modest/rare** — smaller than assumed. **B2's
+motive is now the strongest:** ~1–1.6k resident chunks × up to 3 raw `vkAllocateMemory` approaches
+the ~4096 `maxMemoryAllocationCount` ceiling (a latent **crash/scaling bug**), and `reallocateBuffer`
+frees an in-flight buffer (a real **use-after-free**). A suballocator fixes the hitch tail, the
+alloc-count ceiling, and the UAF together. B1 (deferred-free) remains a cheap correctness+tail win.
+The dominant dense-scene frame cost (render density) is a **separate track** this plan does not own.
+
 ## 3. Increments (each buildable / verifiable / revertible)
 
 ### B0 — Localize the hitch by DIRECT measurement (no behaviour change; the load-bearing step)

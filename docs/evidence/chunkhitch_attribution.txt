@@ -1,0 +1,76 @@
+# B0 — Chunk-update hitch ATTRIBUTION (docs/ChunkUpdateHitchPlan.md Increment B0)
+# Direct sub-cost instrumentation of the chunk-update path, to localize the >=30 ms frame hitch
+# BEFORE designing a fix. Falsifiable: each cost is a scoped wall-time timer around exactly one
+# operation, reported (count/last/max/avg ms) under get_render_stats {mesh_timing, chunk_update_timing}.
+#
+# provenance:
+#   branch : render-offthread-mesh, commit 271858f + uncommitted B0 timers
+#   binary : phyxel.exe RELEASE (rebuilt with ChunkUpdatePerf.h timers)
+#   scene  : PhyxelProjects/StructGenTest, whose default.db now holds a saved ~222-chunk dense
+#            Mountains world (from the T0b session) + a fresh 64-chunk Mountains gen this session.
+#            377k+ visible faces => a genuinely DENSE scene.
+#   timers : BufferCreate (createVulkanBuffer, first per-chunk alloc of face+grass+foliage),
+#            BufferRealloc (ChunkRenderBuffer::reallocateBuffer, growth), BufferUpload
+#            (updateVulkanBuffer = ensureCapacity[+realloc]+memcpy), DirtyUpdateTotal
+#            (ChunkManager::updateDirtyChunks per frame, only when hasDirty), Mesh (T0).
+
+================================================================================
+DIRECT PER-OPERATION WALL TIME (isolated by the scoped timer — independent of render cost)
+================================================================================
+                       count     avg        MAX
+  mesh (rebuildAllFaces) 1108   3.1 ms    12.77 ms
+  buffer_create           298   0.47 ms   25.55 ms   <- first-time per-chunk vkAllocateMemory (x3 bufs)
+  buffer_realloc          450   0.33 ms   32.20 ms   <- destroy+free+create+alloc+map on growth
+  buffer_upload          1032   0.15 ms   32.34 ms   <- dominated by the realloc it contains
+  dirty_update_total       33   9.17 ms   11.76 ms   <- WHOLE per-frame chunk-update phase (steady gen)
+
+READING:
+- The mesh never exceeds ~13 ms. CONFIRMED not the hitch (matches T0).
+- A single buffer_create stalls up to 25.6 ms; a single buffer_realloc up to 32.2 ms. avg is
+  sub-millisecond => these are RARE TAIL OUTLIERS, concentrated in the initial ~222-chunk DB
+  world-load allocation burst (the fresh 64-chunk gen did 120 more reallocs and beat NONE of these
+  maxes, and avg fell — i.e. the big stalls are early / first-touch, not per-realloc-recurring).
+- The steady per-frame chunk-update (dirty_update_total) is <=11.8 ms while actively generating —
+  UNDER budget. Streaming/generation chunk-update is NOT the hitch.
+
+================================================================================
+FRAME-TIME DISTRIBUTION — the crucial disentangling (render density vs the alloc hitch)
+================================================================================
+STUTTER DETECTED frames during the dense-scene load+gen (n=4540, phyxel.log):
+   min 30.1 | MEDIAN 32.0 | p90 33.3 | p99 37.0 | max 1604.9   (ms)
+   frames > 45 ms: only 12 of 4540  -> 47.9, 48.6, 49.0, 57.6, 57.8, 59.6, 60.4, 60.7, 68.2, 74.5,
+                                        586.4, 1604.9
+
+READING:
+- ~99% of "stutters" cluster at ~32 ms (median 32.0, p90 33.3). That is the STEADY RENDER COST of
+  377k+ visible faces (~30 FPS) — the pre-existing #1 density issue (docs/RenderOptimization.md #40),
+  tripping the 30 ms detector every frame. It is NOT a chunk-update hitch and must not be conflated
+  with one.
+- The buffer-alloc hitch shows as the 12 outlier frames 47-74 ms (a 25-32 ms buffer op stacked on a
+  ~32 ms render frame) — rare, and on a dense scene largely MASKED by render cost.
+- 586 / 1604 ms: the bulk generate_world JOB on the main thread (matches T0b 568/1627 ms) — the
+  whole-world path, a separate concern (OffThreadMeshingPlan T5), NOT the per-chunk hitch.
+
+================================================================================
+ATTRIBUTION VERDICT
+================================================================================
+The >=30 ms chunk-update HITCH (as distinct from render density and the bulk-gen job) is a single
+GPU BUFFER ALLOCATION/REALLOCATION stall: buffer_create up to 25.6 ms, buffer_realloc up to 32.2 ms,
+directly measured. It is a RARE TAIL, concentrated in allocation bursts (DB world-load; would recur
+on a heavy streaming influx and on buffer growth), and appears partly first-touch/driver-warmup.
+The mesh (<=13 ms) and steady per-frame chunk-update (<=12 ms) are NOT the hitch.
+
+Scene-dependence (reconciles T0):
+- LIGHT scene (T0 flat StructGenTest, render <16 ms): a buffer alloc/realloc stall IS a visible
+  ~40 ms edit hitch (T0's first-edit + growth-edit stutters).
+- DENSE scene (this session, render ~32 ms): the same stall is masked; the dominant frame cost is
+  render density (#1 issue), a SEPARATE track from this plan.
+
+IMPLICATIONS FOR B1/B2 (re-prioritised, honestly):
+1. The buffer-alloc hitch is real but MODEST and RARE relative to what was assumed; its user-visible
+   impact is largest on light scenes / edit-heavy sessions and during load/streaming bursts.
+2. B2's motive is stronger than B1's frame-timing motive: ~1-1.6k resident chunks x up to 3 raw
+   vkAllocateMemory approaches maxMemoryAllocationCount (~4096) = a latent CRASH/scaling bug, and the
+   inline free of an in-flight buffer in reallocateBuffer is a real use-after-free (correctness).
+   A suballocator fixes the hitch tail, the alloc-count ceiling, AND the UAF in one structural change.
+3. On dense scenes the bigger fish is render density (#1), which this plan does NOT address.

@@ -12,6 +12,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "graphics/FarTerrainManager.h"
+#include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/MaterialRegistry.h"
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
@@ -7399,6 +7400,19 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"max_ms",  mt.maxMs},
                     {"avg_ms",  mt.avgMs}
                 }},
+                // B0: distinct chunk-update sub-costs, to localize the ~40ms hitch (mesh vs buffer).
+                {"chunk_update_timing", [](){
+                    using Phyxel::Graphics::getChunkPerf;
+                    using Phyxel::Graphics::ChunkPerfPhase;
+                    auto j = [](Phyxel::Graphics::ChunkPerfStat s){
+                        return nlohmann::json{{"count",s.count},{"last_ms",s.lastMs},{"max_ms",s.maxMs},{"avg_ms",s.avgMs}}; };
+                    return nlohmann::json{
+                        {"buffer_create",  j(getChunkPerf(ChunkPerfPhase::BufferCreate))},
+                        {"buffer_realloc", j(getChunkPerf(ChunkPerfPhase::BufferRealloc))},
+                        {"buffer_upload",  j(getChunkPerf(ChunkPerfPhase::BufferUpload))},
+                        {"dirty_update_total", j(getChunkPerf(ChunkPerfPhase::DirtyUpdateTotal))}
+                    };
+                }()},
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
                 {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
                 {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}
@@ -7407,8 +7421,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         return true;
 
     } else if (action == "reset_mesh_timing") {
-        // T0: zero the mesh-cost accumulator so a measurement window starts clean.
+        // T0/B0: zero the mesh-cost + chunk-update accumulators so a measurement window starts clean.
         Graphics::ChunkRenderManager::resetMeshTimingStats();
+        Graphics::resetChunkPerf();
         response = {{"success", true}};
         return true;
 
