@@ -401,7 +401,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             
             // Draw this chunk's static geometry
             // LEVEL 3: Face culling already applied (only visible faces in buffer)
-            vulkanDevice->drawIndexed(currentFrame, 36, chunk->getNumInstances());
+            vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
             renderedChunks++;
         }
     }
@@ -610,7 +610,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
 
-        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
     }
 }
 
@@ -754,7 +754,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
-        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
         lastFrameStats.reflectionDrawCalls++;
     }
 
@@ -813,7 +813,7 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
-        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
         lastFrameStats.mirrorGeomDrawCalls++;
     }
     LOG_DEBUG("RenderCoordinator", "Mirror geometry pass: {} chunks drawn", lastFrameStats.mirrorGeomDrawCalls);
@@ -1006,7 +1006,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
 
              // Draw
-             vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
+             vkCmdDrawIndexed(commandBuffer, vulkanDevice->chunkIndexCount(), chunk->getNumInstances(), 0, 0, 0);
              ++shadowChunks;
              shadowInstances += chunk->getNumInstances();
         }

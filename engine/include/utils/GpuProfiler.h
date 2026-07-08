@@ -48,6 +48,10 @@ public:
     void beginPipelineStats(VkCommandBuffer cmd, uint32_t slot);
     void endPipelineStats(VkCommandBuffer cmd, uint32_t slot);
     const GpuPipelineStats& getPipelineStats(uint32_t slot) const { return lastPipelineStats[slot < NUM_STATS_SLOTS ? slot : 0]; }
+    // The pipeline-statistics queries add GPU-sync overhead, so they are OFF by default and must be
+    // switched on only for a counting session (never during a perf A/B). See docs/RenderDensityPlan.md.
+    void setPipelineStatsActive(bool on) { pipelineStatsActive = on; }
+    bool getPipelineStatsActive() const { return pipelineStatsActive; }
 
     const std::vector<GpuScopeResult>& getResults() const { return lastFrameResults; }
 
@@ -63,7 +67,8 @@ private:
 
     // D0/D1 pipeline-statistics pools. Layout: statsPools[frame*NUM_STATS_SLOTS + slot], one
     // multi-counter query each.
-    bool pipelineStatsEnabled = false;
+    bool pipelineStatsEnabled = false;   // feature available + pools created
+    bool pipelineStatsActive  = false;   // runtime gate (OFF by default — avoids sync overhead)
     std::vector<VkQueryPool> statsPools;
     std::vector<bool> statsPending;   // per (frame,slot): a query was recorded, read it back next cycle
     GpuPipelineStats lastPipelineStats[2];

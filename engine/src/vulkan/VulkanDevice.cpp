@@ -1075,6 +1075,8 @@ bool VulkanDevice::createVertexBuffer() {
     return true;
 }
 
+bool VulkanDevice::s_quadDraw = false;  // D1: 6-index quad draw toggle (docs/RenderDensityPlan.md)
+
 bool VulkanDevice::createIndexBuffer() {
     // Define indices for the 6 faces of the cube (each face has 2 triangles = 6 indices)
     // These match the original main.cpp.bak face definitions
@@ -1835,8 +1837,8 @@ void VulkanDevice::drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayou
     // Bind instance buffer at the correct offset for this chunk
     bindInstanceBufferWithOffset(frameIndex, instanceOffset);
     
-    // Draw all cubes in this chunk (36 indices per cube)
-    vkCmdDrawIndexed(commandBuffers[frameIndex], 36, instanceCount, 0, 0, 0);
+    // Draw all cubes in this chunk (36-index cube, or 6-index quad when s_quadDraw — D1)
+    vkCmdDrawIndexed(commandBuffers[frameIndex], chunkIndexCount(), instanceCount, 0, 0, 0);
 }
 
 void VulkanDevice::drawChunks(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 

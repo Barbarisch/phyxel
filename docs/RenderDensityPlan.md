@@ -106,6 +106,20 @@ no visual change, no caster-drop risk. Light-volume frustum culling (138→fewer
 second lever. **(NB: the pipeline-stats queries add sync overhead — gate them OFF before D1 A/B
 timing so they don't pollute the delta.)**
 
+**D1 6-index quad RESULT (measured 2026-07-08, evidence file):** implemented behind `s_quadDraw`
+(`POST /api/debug/quad_draw`); pipeline-stats now gated OFF by default. **Pixel-identical ON vs OFF**
+(winding correct for all faces), **primitives cut exactly 6×** (shadow 2.78M→464k, static 451k→75k).
+Main pass **4.7→3.1 ms** (fragment work 3.06M→1.9M). BUT the **shadow pass did NOT change** (~28 ms) —
+refuting D1a's projection. `frag=0` meant depth-only, but the shadow cost is **depth-FILL** (invisible
+to that counter) and 6× fewer coplanar tris don't reduce shadow-map texel coverage. So the quad is a
+correct, keep-it win for the main pass, but **not** the shadow fix. → **D1b below.**
+
+### D1b — the real shadow lever (shadow-map fill), measured next
+Inference (untested): the shadow map is **4096² = 16.7M texels** (`RenderCoordinator.cpp:87`); the
+depth pass filling it every frame is the suspected wall. Test: 2048² (4× fewer texels) → if the
+shadow pass falls ~4×, it's resolution/fill-bound. Real fixes then: cascaded shadow maps (near cascade
+hi-res only), tighter frustum fit, or update shadows every N frames. Measure before choosing.
+
 Then cut the dominant factor:
 - **Frustum + (optionally) occlusion cull the shadow pass** — it currently distance-culls only
   (`RenderCoordinator.cpp:980-984`); if it's drawing far more chunks than are visible, this is the win.

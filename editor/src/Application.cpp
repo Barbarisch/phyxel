@@ -11267,6 +11267,23 @@ void Application::registerEffectsCommands() {
             Graphics::ChunkRenderBuffer::s_deferBufferFree = cmd.params["enabled"].get<bool>();
         r = {{"success", true}, {"defer_buffer_free", Graphics::ChunkRenderBuffer::s_deferBufferFree}};
     });
+
+    // D1 6-index quad-draw toggle — live A/B for docs/RenderDensityPlan.md. ON = draw each chunk
+    // face as one 6-index quad instead of the 36-index cube (6x fewer primitives, esp. shadow pass).
+    reg.on("set_quad_draw", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Vulkan::VulkanDevice::s_quadDraw = cmd.params["enabled"].get<bool>();
+        r = {{"success", true}, {"quad_draw", Vulkan::VulkanDevice::s_quadDraw}};
+    });
+
+    // D0/D1 pipeline-statistics gate — ON to read overdraw/primitive counts (adds GPU-sync overhead;
+    // keep OFF during perf A/B). docs/RenderDensityPlan.md.
+    reg.on("set_pipeline_stats", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        bool on = cmd.params.value("enabled", true);
+        if (renderCoordinator && renderCoordinator->getGpuProfiler())
+            renderCoordinator->getGpuProfiler()->setPipelineStatsActive(on);
+        r = {{"success", true}, {"pipeline_stats_active", on}};
+    });
 }
 
 // Story-engine commands, migrated from the processAPICommands if-chain. All guarded on storyEngine.

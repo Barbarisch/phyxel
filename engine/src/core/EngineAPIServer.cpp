@@ -4111,6 +4111,20 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/debug/quad_draw — D1 6-index quad-draw toggle. Body: { "enabled": bool }
+    srv.Post("/api/debug/quad_draw", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_quad_draw", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/pipeline_stats — D0/D1 pipeline-statistics gate. Body: { "enabled": bool }
+    srv.Post("/api/debug/pipeline_stats", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_pipeline_stats", params).dump(), "application/json");
+    });
+
     // POST /api/vfx/spawn — Spawn a lightweight particle VFX burst at a position
     srv.Post("/api/vfx/spawn", [this](const httplib::Request& req, httplib::Response& res) {
         try {

@@ -150,12 +150,12 @@ void GpuProfiler::endFrame() {
 }
 
 void GpuProfiler::beginPipelineStats(VkCommandBuffer cmd, uint32_t slot) {
-    if (!pipelineStatsEnabled || slot >= NUM_STATS_SLOTS) return;
+    if (!pipelineStatsEnabled || !pipelineStatsActive || slot >= NUM_STATS_SLOTS) return;
     vkCmdBeginQuery(cmd, statsPools[currentFrame * NUM_STATS_SLOTS + slot], 0, 0);
 }
 
 void GpuProfiler::endPipelineStats(VkCommandBuffer cmd, uint32_t slot) {
-    if (!pipelineStatsEnabled || slot >= NUM_STATS_SLOTS) return;
+    if (!pipelineStatsEnabled || !pipelineStatsActive || slot >= NUM_STATS_SLOTS) return;
     uint32_t idx = currentFrame * NUM_STATS_SLOTS + slot;
     vkCmdEndQuery(cmd, statsPools[idx], 0);
     statsPending[idx] = true;

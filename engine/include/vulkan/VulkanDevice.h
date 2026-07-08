@@ -274,7 +274,16 @@ public:
         void bindIndexBuffer(uint32_t frameIndex);
         void bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipelineLayout);
         void drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount);
-        
+
+        // D1 (docs/RenderDensityPlan.md): each chunk face-instance is drawn with the cube's 36
+        // indices, but the shader collapses them onto the instance's single face quad → ~12
+        // triangles/face (6× the 2 a quad needs). s_quadDraw ON draws only the first 6 indices
+        // (the +Z front quad {4,6,5,6,7,5}), which the shader repositions per faceID → one quad/face.
+        // Density-independent primitive cut; biggest win in the depth-only, primitive-bound shadow
+        // pass. Default OFF (36-index, current behaviour) for A/B; flip after visual + perf verify.
+        static bool s_quadDraw;
+        static uint32_t chunkIndexCount() { return s_quadDraw ? 6u : 36u; }
+
         // Push constants and chunk rendering
         void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset);
         void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode);

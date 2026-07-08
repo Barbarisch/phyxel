@@ -101,3 +101,38 @@ DIAGNOSIS VERDICT — two levers, ranked:
 
 NEXT: D1 = implement the 6-index quad behind a toggle (+ gate pipeline-stats OFF by default), measure
 the shadow-pass ms A/B on the clean (no-stats) path, pixel-compare identical.
+
+================================================================================
+D1 — 6-INDEX QUAD DRAW: A/B RESULT (measured 2026-07-08) — quad correct, but shadow NOT primitive-bound
+================================================================================
+s_quadDraw ON draws each face as one 6-index quad (first 6 of the cube index buffer) instead of 36.
+Toggle POST /api/debug/quad_draw. Pipeline-stats now gated OFF by default (POST /api/debug/
+pipeline_stats to enable) so they don't pollute A/B timing.
+
+VERIFIED CORRECT:
+- Pixel-identical ON vs OFF (two screenshots of the dense Mountains scene, indistinguishable — all
+  face orientations solid, grass/shading identical). No winding bug; the shader's per-face flips make
+  the single {4,6,5,6,7,5} winding front-facing for all 6 faces.
+- Primitives cut exactly 6x (pipeline stats): shadow 2,783,964 -> 463,994; static 451,512 -> 75,252.
+  Static fragment invocations 3,063,428 -> 1,899,268 (the ~3x coplanar overdraw removed in the main
+  pass). VS invocations halved (8 -> 4 unique verts/face).
+
+TIMING A/B (clean, pipeline-stats OFF; ±20% run variance, 3 reads each):
+  Static Geometry:  4.7 ms (OFF)  ->  3.1 ms (ON)   ~34% faster  (main pass IS partly fill-bound; the
+                                                                  removed 3x coplanar overdraw helped)
+  Shadow Pass:      ~28-31 ms (OFF) -> ~26-33 ms (ON)  NO CHANGE (within noise)
+  Frame/FPS:        ~34-39 ms / 22-29 fps, both — dominated by the unchanged shadow pass.
+
+VERDICT: the 6-index quad is CORRECT and a real, no-downside win for the MAIN pass (~1.6 ms) and any
+vertex-bound path — worth keeping. But it does NOT fix the frame, because the SHADOW PASS is NOT
+primitive/vertex-bound. D1a's projection ("frag=0 => primitive-bound => 6x primitives will cut it")
+was WRONG: frag_invocations=0 means depth-only, but DEPTH-FILL / rasterization to the shadow map is
+the cost, and that is (a) invisible to frag_invocations and (b) unchanged by 6x fewer coplanar/
+degenerate triangles (they were depth-rejected cheaply; the covered shadow-map texel area is the same).
+The A/B measurement refuted the projection — as intended.
+
+LIKELY REAL SHADOW LEVER (INFERENCE, not yet measured): the shadow map is 4096x4096 = 16.7M texels
+(RenderCoordinator.cpp:87), fit over a large frustum. A depth pass filling 16.7M texels every frame is
+the suspected wall. TEST (D1b): drop to 2048x2048 (4x fewer texels) — if the shadow pass falls ~4x,
+it is resolution/fill-bound. Other levers: tighter frustum fit, cascaded shadow maps, update shadows
+every N frames. NONE measured yet.
