@@ -345,17 +345,17 @@ PRESETS = {
     # jungle canopy tree: tall bare bole, high broad crown, heavy buttress flare
     "jungle": {"envelope": "dome", "up_tropism": 0.3, "jitter": 0.35, "crook": 0.25,
                "crown_y_frac": 0.8, "canopy_h_mult": 0.75, "canopy_r_mult": 1.05,
-               "leaf_mat": "LeafJungle", "root_flare": 2.0},
+               "leaf_mat": "LeafJungle", "log_mat": "LogJungle", "root_flare": 2.0},
     # ---- conifers (natural/organic cones — crisp whorls intentionally NOT a goal, user 2026-07-05) ----
     "pine":   {"envelope": "cone", "up_tropism": 0.62, "jitter": 0.15, "crook": 0.1,
                "canopy_r_mult": 0.62, "canopy_h_mult": 1.25, "leaf_r_mult": 0.8,
-               "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
+               "leaf_mat": "LeafSpruce", "log_mat": "LogPine"},
     "spruce": {"envelope": "cone", "up_tropism": 0.55, "jitter": 0.18, "crook": 0.12,
                "canopy_r_mult": 0.55, "canopy_h_mult": 1.35, "crown_y_frac": 0.58,
                "leaf_r_mult": 0.75, "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
     "fir":    {"envelope": "cone", "up_tropism": 0.7, "jitter": 0.12, "crook": 0.08,
                "canopy_r_mult": 0.42, "canopy_h_mult": 1.5, "crown_y_frac": 0.55,
-               "leaf_r_mult": 0.7, "leaf_mat": "LeafSpruce", "log_mat": "LogSpruce"},
+               "leaf_r_mult": 0.7, "leaf_mat": "LeafSpruce", "log_mat": "LogPine"},
     # ---- special growth habits ----
     # acacia: umbrella slab crown on up-and-out limbs; tight leaf_below_r keeps the bole bare
     "acacia": {"envelope": "umbrella", "up_tropism": 0.45, "jitter": 0.3, "crook": 0.28,
@@ -367,7 +367,7 @@ PRESETS = {
                "leaf_density": 1.0, "leaf_below_r": 0.38},
     # palm: bare crooked trunk + frond crown; fronds ARE the foliage (leaf_mat off)
     "palm":   {"envelope": "sphere", "attractors_mult": 0.0, "crook": 0.18, "trunk_r": 0.55,
-               "crown_y_frac": 0.92, "canopy_h_mult": 0.4, "leaf_mat": "",
+               "crown_y_frac": 0.92, "canopy_h_mult": 0.4, "leaf_mat": "", "log_mat": "LogPalm",
                "fronds": (7, 11), "root_flare": 1.3},
     # dead: gnarled bare branches, no foliage at all
     "dead":   {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.5, "crook": 0.5,
@@ -380,8 +380,11 @@ PRESETS = {
                "leaf_density": 1.0, "attractors_mult": 2.0},
     # ---- giants ----
     "redwood": {"envelope": "column", "up_tropism": 0.6, "jitter": 0.15, "crook": 0.12,
-                "canopy_r_mult": 0.7, "canopy_h_mult": 1.15},
-    "elder_oak": {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.45, "crook": 0.4},
+                "canopy_r_mult": 0.7, "canopy_h_mult": 1.15, "log_mat": "LogRedwood"},
+    # elder_oak shares LogRedwood: at giant scale the deep warm furrows read "ancient", and
+    # plain oak bark (Bark007) is too fine-grained to sell a 36-cube trunk.
+    "elder_oak": {"envelope": "dome", "up_tropism": 0.15, "jitter": 0.45, "crook": 0.4,
+                  "log_mat": "LogRedwood"},
     # enchanted-forest giant: ancient gnarled world-tree with a glowing-crack trunk (masked-emissive
     # enchanted_log material — docs/MaskedEmissiveSpec.md).
     "enchanted_oak": {"envelope": "dome", "up_tropism": 0.14, "jitter": 0.45, "crook": 0.45,

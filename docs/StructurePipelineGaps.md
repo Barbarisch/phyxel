@@ -17,3 +17,18 @@ what the engine did instead, the workaround used, and what a real fix looks like
   timeout (5s) is shorter than a large template's stamp time, so callers get "Request timed
   out waiting for game loop" for reloads that actually succeed — return an async job id or
   raise the timeout.
+
+## 2026-07-07 — fill_region silently fails above the y=31→32 vertical-chunk seam
+
+- **What happened:** during material-swap verification in the CharacterTestbed world,
+  `fill_region` calls spanning y=30..33 placed exactly the y=30–31 half and reported the
+  y=32–33 half as `failed: 8` — on all 10 fills, uniformly. `query_voxel` confirmed the
+  "failed" cells were EMPTY AIR, not occupied: the failure is placement into the vertical
+  chunk (cy=1) above the seam, not an occupancy skip. Same family as the vertical-chunk
+  placement gap the 10-story-tower stress test surfaced for structures — apparently still
+  present in the `fill_region` path (the target chunk may not be created/loaded on demand).
+- **Workaround:** kept the test fixtures below y=32.
+- **Real fix:** `fill_region` (and any direct placement route) must create/load the target
+  chunk the way the structure placer now does, and the response should distinguish
+  "occupied, skipped" from "placement failed" so seam bugs can't hide inside the failed
+  count. Red test: fill a 2×4×2 box straddling y=31/32 in a fresh world, assert 16/16 placed.

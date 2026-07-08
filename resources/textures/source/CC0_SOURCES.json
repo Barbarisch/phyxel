@@ -7,9 +7,21 @@
     "resolution": 1024,
     "source": "ambientCG"
   },
+  "ClayTile": {
+    "assets": {
+      "all": "ceramic_roof_01"
+    },
+    "crop_px": [
+      55,
+      1567
+    ],
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
+  },
   "Cobblestone": {
     "assets": {
-      "all": "PavingStones128"
+      "all": "PavingStones070"
     },
     "license": "CC0",
     "resolution": 1024,
@@ -85,6 +97,38 @@
     "resolution": 1024,
     "source": "ambientCG"
   },
+  "LogJungle": {
+    "assets": {
+      "all": "Bark005"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "LogPalm": {
+    "assets": {
+      "all": "Bark002"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "LogPine": {
+    "assets": {
+      "all": "Bark004"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "LogRedwood": {
+    "assets": {
+      "all": "Bark012"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
   "LogSpruce": {
     "assets": {
       "all": "Bark006"
@@ -117,6 +161,18 @@
     "resolution": 1024,
     "source": "ambientCG"
   },
+  "Slate": {
+    "assets": {
+      "all": "roof_slates_03"
+    },
+    "crop_px": [
+      136,
+      1840
+    ],
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
+  },
   "Stone": {
     "assets": {
       "all": "Rock030"
@@ -127,11 +183,39 @@
   },
   "StoneBricks": {
     "assets": {
-      "all": "PavingStones070"
+      "all": "medieval_blocks_03"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
+  },
+  "StoneSlab": {
+    "assets": {
+      "all": "grey_roof_tiles_02"
+    },
+    "crop_px": [
+      12,
+      1686
+    ],
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
+  },
+  "StoneTiles": {
+    "assets": {
+      "all": "PavingStones128"
     },
     "license": "CC0",
     "resolution": 1024,
     "source": "ambientCG"
+  },
+  "Thatch": {
+    "assets": {
+      "all": "thatch_roof_angled"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
   },
   "Wood": {
     "assets": {
@@ -140,6 +224,18 @@
     "license": "CC0",
     "resolution": 1024,
     "source": "ambientCG"
+  },
+  "WoodShingle": {
+    "assets": {
+      "all": "roof_slates_02"
+    },
+    "crop_px": [
+      3,
+      1875
+    ],
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "Poly Haven"
   },
   "WoodWalnut": {
     "assets": {

@@ -151,9 +151,16 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
 
 ## Materials
 
-Data-driven from `resources/materials.json` (29 materials). Names are **case-sensitive**;
-an unknown name renders as a magenta missing-texture checkerboard. Confirm live with the
-`list_materials` MCP tool. (Cork and Rubber no longer exist.)
+Data-driven from `resources/materials.json` (96 materials — the table below is the core subset;
+roofing/finish/state materials live in the JSON). Names are **case-sensitive**; an unknown name
+renders as a magenta missing-texture checkerboard. Confirm live with the `list_materials` MCP
+tool. (Cork and Rubber no longer exist.) CC0 photo sources + asset IDs:
+`tools/fetch_cc0_textures.py` (ambientCG) and `tools/fetch_polyhaven.py` (Poly Haven; StoneBricks +
+the roof family, with measured course-crops so roof courses land on the ⅓-voxel subcube-step grid) —
+provenance in `resources/textures/source/CC0_SOURCES.json`. LogBirch is procedural on top of the
+fetched base: re-run `tools/gen_birch_bark.py` after any LogBirch re-fetch. `varied` (per-voxel hash
+rotation) is for soft isotropic naturals ONLY — never on coursed/blocky patterns (masonry, layers),
+where it breaks pattern continuity at voxel edges.
 
 | Name         | Mass | Friction | Restitution | Notes |
 |--------------|------|----------|-------------|-------|
@@ -163,14 +170,19 @@ an unknown name renders as a magenta missing-texture checkerboard. Confirm live 
 | GrassForest  | 1.8  | 0.7      | 0.1         | Deep forest grass (biome variant) |
 | GrassSavanna | 1.8  | 0.7      | 0.1         | Dry golden savanna grass (biome variant) |
 | Stone        | 6.0  | 0.8      | 0.05        | Dense smooth stone |
-| Cobblestone  | 5.0  | 0.9      | 0.05        | Rough quarried stone |
-| StoneBricks  | 6.0  | 0.8      | 0.05        | Cut stone blocks with mortar (1024px) |
+| Cobblestone  | 5.0  | 0.9      | 0.05        | Rounded street setts, grassy joints (settlement `dry_stone`) |
+| StoneBricks  | 6.0  | 0.8      | 0.05        | Rough-hewn dressed blocks (settlement `ashlar`, Poly Haven, 1024px) |
+| StoneTiles   | 6.0  | 0.8      | 0.05        | Smooth rectangular cut-stone floor tiles (interiors) |
 | Sand         | 1.5  | 0.5      | 0.1         | Light granular |
 | Gravel       | 2.5  | 0.7      | 0.1         | Loose gravel |
 | Wood         | 0.7  | 0.6      | 0.2         | Oak planks (1024px) |
-| Log          | 0.7  | 0.6      | 0.2         | Oak log, bark sides + ring caps |
-| LogBirch     | 0.7  | 0.6      | 0.2         | Pale birch log (biome variant) |
-| LogSpruce    | 0.7  | 0.6      | 0.2         | Dark spruce log (biome variant) |
+| Log          | 0.7  | 0.6      | 0.2         | Oak bark (all faces — no ring caps yet) |
+| LogBirch     | 0.7  | 0.6      | 0.2         | White paper birch + lenticels (procedural, `gen_birch_bark.py`) |
+| LogSpruce    | 0.7  | 0.6      | 0.2         | Grey plated spruce bark |
+| LogPine      | 0.7  | 0.6      | 0.2         | Scaly-plate pine bark (pine + fir presets) |
+| LogJungle    | 0.7  | 0.6      | 0.2         | Smooth green-grey tropical bole |
+| LogPalm      | 0.7  | 0.6      | 0.2         | Pale fibrous palm trunk |
+| LogRedwood   | 0.7  | 0.6      | 0.2         | Deep-furrowed warm bark (redwood + elder_oak megaflora) |
 | Bricks       | 4.0  | 0.8      | 0.05        | Red clay bricks (1024px) |
 | Sandstone    | 3.0  | 0.7      | 0.1         | Layered sandstone |
 | Glass        | 1.5  | 0.2      | 0.6         | Brittle, transparent |

@@ -51,8 +51,12 @@ ASSETS = {
     "Dirt":         {"all": "Ground003"},
     "Grass":        {"top": "Grass004", "side": "Ground003", "bottom": "Ground003"},
     "Stone":        {"all": "Rock030"},
-    "Cobblestone":  {"all": "PavingStones128"},
-    "StoneBricks":  {"all": "PavingStones070"},
+    # Rounded street setts with grassy joints — reads as cobbles (was misassigned to StoneBricks
+    # until 2026-07-07; PavingStones128's smooth cut tiles now live on StoneTiles).
+    "Cobblestone":  {"all": "PavingStones070"},
+    # StoneBricks moved to Poly Haven (medieval_blocks_03) — see tools/fetch_polyhaven.py.
+    # Smooth rectangular cut-stone tiles — interior floors (finish_forge).
+    "StoneTiles":   {"all": "PavingStones128"},
     "Sand":         {"all": "Ground027"},
     "Gravel":       {"all": "Gravel022"},
     "Wood":         {"all": "WoodFloor007"},
@@ -66,8 +70,15 @@ ASSETS = {
     "Ice":          {"all": "Ice001"},
     # Logs -> CC0 bark (sides + caps share the bark tile; distinct assets differentiate species).
     "Log":          {"all": "Bark007"},
+    # LogBirch: Bark011 is only the structural base — no true birch bark exists on ambientCG.
+    # tools/gen_birch_bark.py post-processes the fetched faces into white paper bark with
+    # lenticel bands. Re-run it after re-fetching LogBirch or the bark reverts to grey-green.
     "LogBirch":     {"all": "Bark011"},
     "LogSpruce":    {"all": "Bark006"},
+    "LogPine":      {"all": "Bark004"},
+    "LogJungle":    {"all": "Bark005"},
+    "LogPalm":      {"all": "Bark002"},
+    "LogRedwood":   {"all": "Bark012"},
     # Biome grass variants: same layout as Grass (shader currently ignores colorTint, so
     # these share the base grass/dirt tiles to stay sharp rather than upscaled-blurry).
     "GrassForest":  {"top": "Grass004", "side": "Ground003", "bottom": "Ground003"},

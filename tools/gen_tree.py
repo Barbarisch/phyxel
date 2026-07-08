@@ -62,17 +62,17 @@ ARCHETYPES = {
     "autumn": {"log": "Log",       "leaf": "LeafAutumn", "height": 7},
     "birch":  {"log": "LogBirch",  "leaf": "LeafBirch",  "height": 8},
     "spruce": {"log": "LogSpruce", "leaf": "LeafSpruce", "height": 9},
-    "pine":   {"log": "Log",       "leaf": "LeafSpruce", "height": 12},
-    "fir":    {"log": "LogSpruce", "leaf": "LeafSpruce", "height": 14},
-    "jungle": {"log": "Log",       "leaf": "LeafJungle", "height": 13},
+    "pine":   {"log": "LogPine",   "leaf": "LeafSpruce", "height": 12},
+    "fir":    {"log": "LogPine",   "leaf": "LeafSpruce", "height": 14},
+    "jungle": {"log": "LogJungle", "leaf": "LeafJungle", "height": 13},
     "acacia": {"log": "Log",       "leaf": "Leaf",       "height": 6},
-    "palm":   {"log": "Log",       "leaf": "LeafJungle", "height": 8},
+    "palm":   {"log": "LogPalm",   "leaf": "LeafJungle", "height": 8},
     "willow": {"log": "Log",       "leaf": "Leaf",       "height": 8},
     "dead":   {"log": "LogSpruce", "leaf": None,         "height": 6},
     "bush":   {"log": None,        "leaf": "Leaf",       "height": 2},
     # Megaflora (Increment B): wide + short broad-canopy world-trees (heights in cubes = metres).
-    "redwood":   {"log": "Log", "leaf": "Leaf", "height": 48},
-    "elder_oak": {"log": "Log", "leaf": "Leaf", "height": 36},
+    "redwood":   {"log": "LogRedwood", "leaf": "Leaf", "height": 48},
+    "elder_oak": {"log": "LogRedwood", "leaf": "Leaf", "height": 36},
 }
 
 # Shell band: subs with normalized canopy distance <= SOLID are always kept

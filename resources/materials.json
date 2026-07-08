@@ -159,8 +159,7 @@
         "top": "cobblestone_top.png",
         "bottom": "cobblestone_bottom.png"
       },
-      "resolution": 1024,
-      "varied": true
+      "resolution": 1024
     },
     {
       "name": "StoneBricks",
@@ -191,8 +190,7 @@
         "side_w": "stonebricks_side_w.png",
         "top": "stonebricks_top.png",
         "bottom": "stonebricks_bottom.png"
-      },
-      "varied": true
+      }
     },
     {
       "name": "Sand",
@@ -290,7 +288,7 @@
     {
       "name": "Log",
       "category": "material",
-      "description": "Oak log with bark sides and growth ring end caps",
+      "description": "Oak log bark (all faces)",
       "physics": {
         "mass": 0.7,
         "friction": 0.6,
@@ -378,8 +376,7 @@
         "top": "sandstone_top.png",
         "bottom": "sandstone_bottom.png"
       },
-      "resolution": 1024,
-      "varied": true
+      "resolution": 1024
     },
     {
       "name": "Glass",
@@ -927,7 +924,8 @@
         "side_w": "thatch_side_w.png",
         "top": "thatch_top.png",
         "bottom": "thatch_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "ClayTile",
@@ -957,7 +955,8 @@
         "side_w": "clay_tile_side_w.png",
         "top": "clay_tile_top.png",
         "bottom": "clay_tile_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "WoodShingle",
@@ -987,7 +986,8 @@
         "side_w": "wood_shingle_side_w.png",
         "top": "wood_shingle_top.png",
         "bottom": "wood_shingle_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "Slate",
@@ -1017,7 +1017,8 @@
         "side_w": "slate_side_w.png",
         "top": "slate_top.png",
         "bottom": "slate_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "StoneSlab",
@@ -1047,7 +1048,8 @@
         "side_w": "stone_slab_side_w.png",
         "top": "stone_slab_top.png",
         "bottom": "stone_slab_bottom.png"
-      }
+      },
+      "resolution": 1024
     },
     {
       "name": "vox_00",
@@ -2717,7 +2719,7 @@
         "colorTint": [
           0.45,
           0.25,
-          0.10
+          0.1
         ],
         "metallic": 0.0,
         "roughness": 0.6
@@ -2747,7 +2749,11 @@
         "breakForceMultiplier": 0.8,
         "bondStrength": 0.6,
         "angularVelocityScale": 1.2,
-        "colorTint": [0.35, 1.0, 0.45],
+        "colorTint": [
+          0.35,
+          1.0,
+          0.45
+        ],
         "metallic": 0.0,
         "roughness": 0.85
       },
@@ -2759,6 +2765,161 @@
         "top": "enchanted_log_top.png",
         "bottom": "enchanted_log_bottom.png"
       }
+    },
+    {
+      "name": "StoneTiles",
+      "category": "material",
+      "description": "Smooth rectangular cut-stone floor tiles",
+      "resolution": 1024,
+      "physics": {
+        "mass": 6.0,
+        "friction": 0.8,
+        "restitution": 0.05,
+        "linearDamping": 0.1,
+        "angularDamping": 0.2,
+        "breakForceMultiplier": 2.0,
+        "bondStrength": 0.9,
+        "angularVelocityScale": 0.4,
+        "colorTint": [
+          0.62,
+          0.6,
+          0.56
+        ],
+        "metallic": 0.0,
+        "roughness": 0.55
+      },
+      "textures": {
+        "side_n": "stone_tiles_side_n.png",
+        "side_s": "stone_tiles_side_s.png",
+        "side_e": "stone_tiles_side_e.png",
+        "side_w": "stone_tiles_side_w.png",
+        "top": "stone_tiles_top.png",
+        "bottom": "stone_tiles_bottom.png"
+      }
+    },
+    {
+      "name": "LogPine",
+      "category": "material",
+      "description": "Scaly-plate pine bark",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.6,
+          0.45,
+          0.35
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_pine_side_n.png",
+        "side_s": "log_pine_side_s.png",
+        "side_e": "log_pine_side_e.png",
+        "side_w": "log_pine_side_w.png",
+        "top": "log_pine_top.png",
+        "bottom": "log_pine_bottom.png"
+      },
+      "resolution": 1024
+    },
+    {
+      "name": "LogJungle",
+      "category": "material",
+      "description": "Smooth green-grey tropical bole",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.55,
+          0.55,
+          0.45
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_jungle_side_n.png",
+        "side_s": "log_jungle_side_s.png",
+        "side_e": "log_jungle_side_e.png",
+        "side_w": "log_jungle_side_w.png",
+        "top": "log_jungle_top.png",
+        "bottom": "log_jungle_bottom.png"
+      },
+      "resolution": 1024
+    },
+    {
+      "name": "LogPalm",
+      "category": "material",
+      "description": "Pale fibrous palm trunk",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.72,
+          0.65,
+          0.5
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_palm_side_n.png",
+        "side_s": "log_palm_side_s.png",
+        "side_e": "log_palm_side_e.png",
+        "side_w": "log_palm_side_w.png",
+        "top": "log_palm_top.png",
+        "bottom": "log_palm_bottom.png"
+      },
+      "resolution": 1024
+    },
+    {
+      "name": "LogRedwood",
+      "category": "material",
+      "description": "Deep-furrowed warm redwood bark",
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.55,
+          0.35,
+          0.22
+        ],
+        "metallic": 0.0,
+        "roughness": 0.85
+      },
+      "textures": {
+        "side_n": "log_redwood_side_n.png",
+        "side_s": "log_redwood_side_s.png",
+        "side_e": "log_redwood_side_e.png",
+        "side_w": "log_redwood_side_w.png",
+        "top": "log_redwood_top.png",
+        "bottom": "log_redwood_bottom.png"
+      },
+      "resolution": 1024
     }
   ]
 }
