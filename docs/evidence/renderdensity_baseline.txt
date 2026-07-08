@@ -136,3 +136,29 @@ LIKELY REAL SHADOW LEVER (INFERENCE, not yet measured): the shadow map is 4096x4
 the suspected wall. TEST (D1b): drop to 2048x2048 (4x fewer texels) — if the shadow pass falls ~4x,
 it is resolution/fill-bound. Other levers: tighter frustum fit, cascaded shadow maps, update shadows
 every N frames. NONE measured yet.
+
+================================================================================
+D1b — SHADOW-MAP RESOLUTION TEST (measured 2026-07-08): resolution is only a PARTIAL lever
+================================================================================
+Changed the shadow map 4096² → 2048² (4× fewer texels), same dense scene + camera. Then also toggled
+the D1 quad ON at 2048². (36-index unless noted; ±20% run variance, 4 reads each.)
+
+  config                         Shadow ms   StaticGeom   frame / fps
+  4096² + 36-index (baseline)     ~28         4.7          ~38 ms / ~26 fps
+  2048² + 36-index                ~19.5       4.7          ~32 ms / ~28 fps
+  2048² + 6-index quad            ~20         3.1          ~26 ms / ~35 fps
+
+FINDINGS:
+- 4× fewer shadow texels cut the shadow pass only ~30% (28→20 ms), NOT ~4×. So the shadow pass is only
+  PARTIALLY fill/resolution-bound (~30%); a ~19-20 ms floor remains.
+- That floor is NOT primitives (the 6-index quad left the shadow pass unchanged at both resolutions)
+  and NOT mostly texels. With 138 shadow draws vs the main pass's 20 draws at ~0.24 ms/draw, the
+  floor is most consistent with DRAW-CALL / per-chunk-bind COUNT (138 chunks, distance-culled only) —
+  i.e. the culling lever from D1a. NOT YET CONFIRMED (needs a cull-count A/B).
+- Combined 2048² + quad reached ~35 fps / ~26 ms (vs ~26 fps / ~38 ms baseline) — a real ~35% win, but
+  the 2048² half costs shadow quality and is the wrong lever.
+
+DECISION: reverted 2048² → 4096² (modest gain, quality loss, wrong lever). The quad (D1) is kept
+(committed 682eb4a; free, correct, ~34% off the main pass). NEXT = D1c: cull the shadow pass to the
+light volume (138 → fewer chunks) and measure whether the ~20 ms floor is draw-call-bound. If yes,
+tighter culling / cascade / fewer draws is the shadow fix — no quality loss.

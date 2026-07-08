@@ -84,6 +84,11 @@ RenderCoordinator::RenderCoordinator(
 
     // 4096² shadow map: with the view-frustum-fit covering a large shadow distance (see drawFrame),
     // the higher resolution keeps shadows crisp over that bigger area.
+    // D1b MEASURED (docs/evidence/renderdensity_baseline.txt): 2048² only cut the shadow pass ~30%
+    // (28→20 ms), NOT ~4× — so it is only partially fill-bound. The ~20 ms floor is not primitives
+    // (D1 quad: no effect) nor mostly texels → suspected draw-call/per-chunk-bind bound (138 draws vs
+    // 20 visible). The real lever is culling (D1c), not lower resolution (which also costs quality).
+    // Kept at 4096² (2048² reverted — modest gain, quality loss, wrong lever).
     shadowMap = std::make_unique<ShadowMap>(vulkanDevice, 4096, 4096);
     shadowMap->initialize();
     

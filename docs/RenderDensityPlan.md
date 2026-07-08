@@ -114,11 +114,18 @@ refuting D1a's projection. `frag=0` meant depth-only, but the shadow cost is **d
 to that counter) and 6× fewer coplanar tris don't reduce shadow-map texel coverage. So the quad is a
 correct, keep-it win for the main pass, but **not** the shadow fix. → **D1b below.**
 
-### D1b — the real shadow lever (shadow-map fill), measured next
-Inference (untested): the shadow map is **4096² = 16.7M texels** (`RenderCoordinator.cpp:87`); the
-depth pass filling it every frame is the suspected wall. Test: 2048² (4× fewer texels) → if the
-shadow pass falls ~4×, it's resolution/fill-bound. Real fixes then: cascaded shadow maps (near cascade
-hi-res only), tighter frustum fit, or update shadows every N frames. Measure before choosing.
+### D1b — shadow-map resolution test: DONE, resolution is only a PARTIAL lever
+**Measured (evidence file):** 4096²→2048² (4× fewer texels) cut the shadow pass only **~30%**
+(28→20 ms), not ~4×. So it's only partially fill-bound; a **~20 ms floor** remains that is neither
+primitives (quad: no effect) nor mostly texels. With 138 shadow draws vs 20 visible (~0.24 ms/draw),
+the floor points to **draw-call / per-chunk-bind count**. Reverted 2048²→4096² (modest gain, quality
+loss, wrong lever). → **D1c**.
+
+### D1c — cull the shadow pass to the light volume (the suspected real lever), measure next
+The shadow pass draws **138 chunks (distance-cull only, no frustum)** vs 20 visible. Cull it against
+the **light frustum** (NOT camera frustum — off-screen chunks cast into view) to cut draws, and/or
+cascade so only the near cascade is hi-res. Measure whether the ~20 ms floor is draw-call-bound (it
+should fall roughly with the chunk count if so). No quality loss if done as a correct light-volume cull.
 
 Then cut the dominant factor:
 - **Frustum + (optionally) occlusion cull the shadow pass** — it currently distance-culls only
