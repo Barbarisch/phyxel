@@ -1,0 +1,120 @@
+# T0 — Off-thread meshing RED baseline (docs/OffThreadMeshingPlan.md §T0)
+# Purpose: DIRECTLY measure the per-call cost of ChunkRenderManager::rebuildAllFaces (the op the
+# plan proposes to move off-thread) and the edit-frame stutter it is assumed to cause, BEFORE any
+# threading change. Red-before-green.
+#
+# provenance:
+#   branch : render-offthread-mesh
+#   commit : dc86b05cec12e00fbca53938051c5b5ad95042f5  (+ uncommitted T0 instrumentation)
+#   binary : phyxel.exe SHA256 5ff7a26d0b346654776eb8f03c058272a011385190a1e36d5bae9fb7325604e8 (RELEASE)
+#   scene  : PhyxelProjects/StructGenTest (flat), one engine-built furnished tavern
+#            (build_structure type=tavern furnished=true detailed) at (38,16,38); 2146 voxels placed.
+#   config : greedy-merge ON (s_fineGreedyMerge=true, the shipped default), smooth lighting ON.
+#   method : new instrumentation times rebuildAllFaces per call (scoped timer → atomics), exposed
+#            via GET /api/render/stats .mesh_timing {count,last_ms,max_ms,avg_ms}. Edit isolation
+#            verified by count delta == 1 (interior voxel dirties exactly its own chunk). Stutter
+#            frames read from phyxel.log [Performance] STUTTER DETECTED (threshold 30ms).
+
+================================================================================
+DIRECT MEASUREMENT — rebuildAllFaces per-call wall time (the thing being moved off-thread)
+================================================================================
+world-load meshes (flat StructGenTest, 4 chunks) : avg 1.62 ms, max 1.96 ms
+after tavern build (8 chunks total meshed)        : avg 2.00 ms, max 4.43 ms
+13 calls after several dense-chunk edits          : avg 2.27 ms, max 4.43 ms
+
+Single-chunk INTERIOR edit on the dense tavern chunk (count delta = 1, isolated):
+  edit 1  place (45,19,45) Stone : last_ms = 2.774 ms
+  edit 2  place (46,19,45) Stone : last_ms = 2.938 ms
+  edit 3+ (3-voxel batch)        : last_ms = 2.428 ms   (max across run still 4.43 ms)
+
+=> The actual per-call rebuildAllFaces cost on a furnished-tavern chunk is 2-4.4 ms in RELEASE
+   with the shipped greedy-merge ON. It is NOT ~40-50 ms.
+
+================================================================================
+THE PLAN'S "~40-50 ms/chunk" FIGURE IS A DERIVED ARTIFACT, NOT A PER-CALL MEASUREMENT
+================================================================================
+The 40-50 ms number (OffThreadMeshingPlan §1; docs/evidence/inc5_remesh_cost_release.txt) was
+computed as: a whole-world fine_merge TOGGLE re-mesh of a 9-tavern / 6-chunk scene blocks one
+game-loop frame for ~230-315 ms, then 300 ms / 6 chunks ~= 50 ms/chunk. That path re-meshes every
+chunk with UNLIMITED budget over up to 4 light-convergence PASSES (rebuildAllChunkLighting), so the
+per-chunk-per-frame figure conflates 4 passes + all chunks into one blocked frame. It was never a
+single rebuildAllFaces call. Direct per-call measurement (this file) = 2-4.4 ms.
+
+================================================================================
+THE EDIT STUTTER IS REAL (~40-45 ms) BUT IS NOT THE MESH
+================================================================================
+STUTTER DETECTED frames observed on edits (phyxel.log [Performance]):
+  first edit after load : Frame 38.95 ms (Input Latency 41.1 ms), then 41.22 ms
+  a later growth edit   : Frame 45.36 ms (Input Latency 1.73 ms)   <- not the HTTP round-trip
+Frame profile dumps for those stutter frames:  input 0.004 ms | update 0.157-0.651 ms |
+  render 0.301-0.315 ms  ==>  only ~0.5 ms of the ~40 ms is inside the profiled sections.
+
+Attribution (code-read, this branch):
+  * The mesh + GPU buffer commit run in Application.cpp:3633 chunkManager->updateDirtyChunks(...),
+    an UNPROFILED phase (its own code comment: "streamed worlds hitch in this block; the profiler
+    doesn't cover it").
+  * rebuildAllFaces inside it = 2-4 ms (measured). The remaining ~37 ms is the GPU buffer commit:
+    ChunkRenderManager::updateVulkanBuffer -> ensureBufferCapacity -> ChunkRenderBuffer::
+    reallocateBuffer = vkDestroyBuffer + vkFreeMemory + vkCreateBuffer + vkAllocateMemory + remap
+    (a fresh device allocation, freeing a possibly GPU-in-flight buffer).
+  * The stutter is INTERMITTENT and correlates with buffer GROWTH: reallocateBuffer grows with 1.5x
+    headroom, so most edits are a bare memcpy into the persistently-mapped buffer (no hitch) and only
+    the growth edits realloc (~40 ms). Steady-state edits with spare capacity did NOT stutter at all.
+
+================================================================================
+CONSEQUENCE FOR THE PLAN  (surface before T1)
+================================================================================
+OffThreadMeshingPlan moves rebuildAllFaces (2-4 ms) to a worker but by design keeps the buffer
+realloc/alloc on the main thread (§2/§3: "Realloc/free/create stay main-thread + frame-synced").
+Since the buffer realloc is ~90% of the ~40 ms hitch and the mesh is ~10%, moving ONLY the mesh
+off-thread would remove ~2-4 ms of a ~40 ms stutter — it does NOT fix the edit hitch.
+
+The real target is the GPU buffer growth/upload path (amortize/pre-size the buffer, ring or pooled
+allocation, deferred free — the streaming path already defers buffer frees a full pump). The mesh
+is not the bottleneck for interactive edits at current density with greedy-merge ON.
+
+NOT YET MEASURED (flat tester has no streaming): the streaming path (fly-into-new-terrain), where
+many chunks mesh + allocate fresh buffers per frame — that is the scenario the mesh cost could still
+matter for. Worth a dedicated streaming measurement before deciding the plan's fate.
+
+================================================================================
+T0b — STREAMING / GENERATION-INFLUX MEASUREMENT (added 2026-07-08, user-requested)
+================================================================================
+Goal: the flat edit case has no streaming; measure whether the mesh dominates when MANY chunks
+mesh in a burst (the fly-into-terrain / world-gen influx) — the one path where mesh cost could
+still justify the off-thread plan.
+
+Bulk generation influx (generate_world Mountains, dense multi-octave terrain):
+  64 dense chunks  -> 816 mesh calls  (light-convergence re-meshes each chunk ~12x), avg 2.40 ms, MAX 7.22 ms
+  192 dense chunks -> 2022 mesh calls,                                              avg 2.41 ms, MAX 13.01 ms
+  => even the single densest Mountains chunk meshes in 13 ms. The per-call mesh cost is intrinsic
+     to chunk content and never approaches 30 ms, let alone 40-50 ms.
+
+Stutter frames during the 64-chunk generation (phyxel.log [Performance]):
+  568.8 ms and 1627.7 ms  at generation START  (the bulk generate_world JOB itself on the main
+                                                 thread — the whole-world path, plan Increment T5)
+  then a tail of 30-48 ms frames as the remaining chunks mesh + light-converge.
+  A 48 ms tail frame vs a <=7 ms mesh call => the mesh is a MINORITY of the stutter; the majority
+  is per-chunk first-time Vulkan buffer ALLOCATION (createVulkanBuffer / ensureBufferCapacity)
+  plus the bulk job. Same conclusion as the edit case.
+
+Camera-driven DB streaming (eviction/reload) could NOT be forced in this project:
+  Generated a 192-chunk strip (x -128..639), saved to DB, flew the free camera W->E->W across the
+  full 640-unit span in 2-unit-settle hops. Mesh count stayed FROZEN at 2022 the entire flythrough
+  (zero re-mesh); only ONE minor 31 ms stutter (Input Latency 27.8 ms => the HTTP camera command,
+  not meshing). This project keeps generated chunks resident (residency radius exceeds the strip),
+  so the "mesh brand-new DB chunks per frame" path was not reproduced here. HONEST GAP: that
+  specific path is unmeasured. But rebuildAllFaces runs the identical op on identical chunk data
+  regardless of trigger (edit / gen / DB-load), and its worst case across ALL measured paths is
+  13.01 ms. The streaming-SPECIFIC extra cost is first-time buffer allocation — the alloc path,
+  not the mesh — which reinforces the same verdict.
+
+================================================================================
+OVERALL T0 VERDICT
+================================================================================
+Worst single rebuildAllFaces observed across every path (edit, world-load, 192-chunk dense gen):
+  13.01 ms  (densest Mountains chunk).  Typical 2-4 ms.  NEVER >=30 ms.
+The >=30 ms hitches are: (1) the bulk generate/whole-world job on the main thread (100s of ms,
+plan T5's domain), and (2) intermittent GPU buffer (re)allocation on chunk growth / first residency.
+Moving rebuildAllFaces off-thread addresses neither. Re-ground the plan on the buffer-alloc path
+and the whole-world job before any T1 threading work.

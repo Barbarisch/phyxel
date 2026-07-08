@@ -61,6 +61,21 @@ public:
     static bool getSmoothLighting()        { return s_smoothLighting; }
     static int  getMergeTolerance()        { return s_mergeTolerance; }
 
+    // --- T0: mesh-cost instrumentation (docs/OffThreadMeshingPlan.md) ---
+    // Process-wide wall-clock cost of rebuildAllFaces, the per-chunk mesh op. Aggregated with
+    // atomics so the numbers stay correct if meshing ever runs on a worker. Read via the
+    // get_render_stats MCP tool. T0 baseline (docs/evidence/offthread_baseline.txt): 2-4 ms typical,
+    // 13 ms worst on the densest Mountains chunk — NOT the ~40-50 ms the off-thread plan assumed;
+    // the real edit/stream hitch is GPU buffer (re)allocation, not this mesh.
+    struct MeshTimingStats {
+        uint64_t count  = 0;   // rebuildAllFaces calls measured since last reset
+        double   lastMs = 0.0; // most recent call
+        double   maxMs  = 0.0; // slowest call seen
+        double   avgMs  = 0.0; // running mean over `count`
+    };
+    static MeshTimingStats getMeshTimingStats();
+    static void            resetMeshTimingStats();
+
     ChunkRenderManager();
     ~ChunkRenderManager();
 

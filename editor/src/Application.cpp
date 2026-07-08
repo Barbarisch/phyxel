@@ -7382,6 +7382,8 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             response = {{"error", "RenderCoordinator not available"}};
         } else {
             const auto& s = renderCoordinator->getLastFrameStats();
+            // T0: per-chunk mesh (rebuildAllFaces) cost — the op we're moving off-thread.
+            const auto mt = Graphics::ChunkRenderManager::getMeshTimingStats();
             response = {
                 {"mirror_pass_ran",          s.mirrorPassRan},
                 {"reflection_draw_calls",    s.reflectionDrawCalls},
@@ -7391,11 +7393,23 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"far_tiles_resident",       s.farTilesResident},
                 {"far_tiles_drawn",          s.farTilesDrawn},
                 {"far_triangles",            s.farTriangles},
+                {"mesh_timing", {
+                    {"count",   mt.count},
+                    {"last_ms", mt.lastMs},
+                    {"max_ms",  mt.maxMs},
+                    {"avg_ms",  mt.avgMs}
+                }},
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},
                 {"mirror_normal", {{"x", s.mirrorNormalX}, {"y", s.mirrorNormalY}, {"z", s.mirrorNormalZ}}},
                 {"reflected_cam", {{"x", s.reflCamX}, {"y", s.reflCamY}, {"z", s.reflCamZ}}}
             };
         }
+        return true;
+
+    } else if (action == "reset_mesh_timing") {
+        // T0: zero the mesh-cost accumulator so a measurement window starts clean.
+        Graphics::ChunkRenderManager::resetMeshTimingStats();
+        response = {{"success", true}};
         return true;
 
     } else if (action == "set_log_level") {

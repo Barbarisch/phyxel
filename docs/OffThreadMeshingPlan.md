@@ -1,5 +1,21 @@
 # Off-Thread Chunk Meshing — Implementation Plan
 
+> **⚠️ T0 RED MEASUREMENT INVALIDATES THE PREMISE (2026-07-08 — read before proceeding to T1).**
+> Direct instrumentation of `rebuildAllFaces` (Release, greedy-merge ON) measures **2–4.4 ms per
+> call** on a furnished-tavern chunk — NOT the ~40–50 ms this plan assumes. The "40–50 ms/chunk"
+> figure was a *derived artifact* (a whole-world 6-chunk × 4-pass toggle re-mesh of ~230–315 ms ÷ 6),
+> never a per-call measurement. The real ~40 ms edit hitch is **intermittent** and lives in the GPU
+> buffer **realloc** (`ChunkRenderBuffer::reallocateBuffer` = vkDestroy/Free/Create/Allocate/Map),
+> which fires only on buffer growth — the mesh is ~10% of the stutter, the realloc ~90%. Since §2/§3
+> keep the realloc main-thread by design, **moving only the mesh off-thread would not fix the edit
+> stutter.** The generation-influx case was also measured (T0b): a 192-chunk dense-Mountains world
+> triggered 2022 mesh calls with a **worst single call of 13.01 ms** — the mesh never reaches the
+> 30 ms stutter threshold on any path. The ≥30 ms hitches are the bulk generate/whole-world job
+> (100s of ms, plan T5's domain) and intermittent GPU buffer (re)allocation. Full evidence + code
+> attribution: [`docs/evidence/offthread_baseline.txt`](evidence/offthread_baseline.txt).
+> **Do not start T1 until the plan is re-grounded** on the buffer-alloc path + the whole-world job.
+> T0 instrumentation (mesh_timing in get_render_stats) is shipped and correct; keep it.
+
 > **Status: PLANNED.** Written 2026-07-08 on branch `render-offthread-mesh`. Goal: move per-chunk
 > `ChunkRenderManager::rebuildAllFaces` off the main/game-loop thread so a chunk re-mesh no longer
 > hitches the frame. Prerequisite-de-risker for **Increment 4b** (microcube cross-cube, whose bigger

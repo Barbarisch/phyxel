@@ -12,9 +12,39 @@
 #include <unordered_map>
 #include <algorithm>
 #include <deque>
+#include <atomic>
+#include <chrono>
 
 namespace Phyxel {
 namespace Graphics {
+
+// --- T0: mesh-cost instrumentation (docs/OffThreadMeshingPlan.md) ---
+// Aggregated wall time of rebuildAllFaces. Stored as integer microseconds in atomics so it's
+// lock-free and stays correct when the mesh moves to a worker thread (T2+). getMeshTimingStats()
+// converts to milliseconds for reporting.
+namespace {
+    std::atomic<uint64_t> g_meshCount{0};        // calls measured since last reset
+    std::atomic<uint64_t> g_meshLastMicros{0};   // most recent call
+    std::atomic<uint64_t> g_meshMaxMicros{0};    // slowest call seen
+    std::atomic<uint64_t> g_meshTotalMicros{0};  // sum, for the running mean
+}
+
+ChunkRenderManager::MeshTimingStats ChunkRenderManager::getMeshTimingStats() {
+    MeshTimingStats s;
+    s.count  = g_meshCount.load(std::memory_order_relaxed);
+    s.lastMs = g_meshLastMicros.load(std::memory_order_relaxed) / 1000.0;
+    s.maxMs  = g_meshMaxMicros.load(std::memory_order_relaxed) / 1000.0;
+    uint64_t total = g_meshTotalMicros.load(std::memory_order_relaxed);
+    s.avgMs = s.count ? (double(total) / double(s.count)) / 1000.0 : 0.0;
+    return s;
+}
+
+void ChunkRenderManager::resetMeshTimingStats() {
+    g_meshCount.store(0, std::memory_order_relaxed);
+    g_meshLastMicros.store(0, std::memory_order_relaxed);
+    g_meshMaxMicros.store(0, std::memory_order_relaxed);
+    g_meshTotalMicros.store(0, std::memory_order_relaxed);
+}
 
 // Smooth-lighting globals (see header). Default: smooth ON, tolerance 0 (pure smooth — no snapping,
 // so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
@@ -139,6 +169,24 @@ void ChunkRenderManager::rebuildAllFaces(
     const NeighborLightFunc& getNeighborLight,
     const std::vector<uint8_t>* columnOpenMask)
 {
+    // T0 instrumentation: time the whole mesh op (greedy mesh + light bake). Records on scope exit
+    // so every return path is covered. See docs/OffThreadMeshingPlan.md.
+    const auto t_meshStart = std::chrono::high_resolution_clock::now();
+    struct MeshTimerGuard {
+        std::chrono::high_resolution_clock::time_point start;
+        ~MeshTimerGuard() {
+            const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::high_resolution_clock::now() - start).count();
+            const uint64_t u = static_cast<uint64_t>(micros < 0 ? 0 : micros);
+            g_meshLastMicros.store(u, std::memory_order_relaxed);
+            g_meshTotalMicros.fetch_add(u, std::memory_order_relaxed);
+            g_meshCount.fetch_add(1, std::memory_order_relaxed);
+            uint64_t prevMax = g_meshMaxMicros.load(std::memory_order_relaxed);
+            while (u > prevMax &&
+                   !g_meshMaxMicros.compare_exchange_weak(prevMax, u, std::memory_order_relaxed)) {}
+        }
+    } meshTimerGuard{t_meshStart};
+
     faces.clear();
 
     // Make the cross-chunk light lookup available to skyLightAt/blockLightAt + the BFS seeding.
