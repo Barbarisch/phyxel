@@ -157,12 +157,12 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         floorBaseByStory.push_back(fBase);
         floorTopByStory.push_back(wBase);
 
-        // finish floor over the footprint
+        // finish floor over the footprint (recorded per story — an intermediate floor
+        // is also the ceiling of the story below; the plan is the feature-query source)
         for (const auto& [cx, cz] : footprint)
             c.fillMicroBox(cx * 9, fBase, cz * 9, 9, floorT, 9, matFloor);
-        if (si == 0)
-            plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, yCubes,
-                                   style.thicknessOf("floor", 0.333), matFloor, "floor"});
+        plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, yCubes,
+                               style.thicknessOf("floor", 0.333), matFloor, "floor"});
 
         // exterior walls (perimeter edges of the shared footprint)
         for (const auto& [cx, cz] : footprint)
@@ -189,8 +189,14 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     int gz = s.coord * 9 - half;
                     c.fillMicroBox(s.lo * 9, wBase, gz, (s.hi - s.lo) * 9, wTop - wBase, intT, matInt);
                 }
-                plan.walls.push_back({0, 0, 0, 0, yCubes, st.height,
-                                      style.thicknessOf("interior_wall", 0.222), matInt, "interior"});
+                // Record the REAL partition line (featureAt queries this): the wall plane
+                // sits on the cube boundary at `coord`, spanning [lo, hi) along its run axis.
+                if (s.axis == 'x')
+                    plan.walls.push_back({s.coord, s.lo, s.coord, s.hi, yCubes, st.height,
+                                          style.thicknessOf("interior_wall", 0.222), matInt, "interior"});
+                else
+                    plan.walls.push_back({s.lo, s.coord, s.hi, s.coord, yCubes, st.height,
+                                          style.thicknessOf("interior_wall", 0.222), matInt, "interior"});
             }
 
         // carve this story's door/window/arch openings through its wall band
@@ -321,6 +327,8 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // ---- pass 4: ceiling slab over the footprint ----
     for (const auto& [cx, cz] : footprint)
         c.fillMicroBox(cx * 9, wallTopMicro, cz * 9, 9, ceilT, 9, matCeil);
+    plan.floors.push_back({bx0, bz0, bx1 - bx0, bz1 - bz0, wallTopMicro / 9,
+                           style.thicknessOf("ceiling", 0.222), matCeil, "ceiling"});
 
     // ---- pass 4.5: corner QUOINS (P2 place_trim increment A; TrimForgeTest) ----
     // Styles with flags.quoins get alternating dressed-stone corner blocks proud of both

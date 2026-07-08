@@ -1,5 +1,7 @@
 #include "core/AssemblyPlan.h"
 
+#include <algorithm>
+
 namespace Phyxel {
 namespace Core {
 
@@ -105,6 +107,45 @@ LightPlacement LightPlacement::fromJson(const nlohmann::json& j) {
 nlohmann::json LightPlacement::toJson() const {
     return {{"pos", {pos.x, pos.y, pos.z}}, {"color", {color.r, color.g, color.b}},
             {"radius", radius}};
+}
+
+std::string AssemblyPlan::featureAt(const glm::ivec3& p) const {
+    // Walls first — the load-bearing answer consumers usually want ("does a chest
+    // back onto this cell?"). Exterior segments are per-edge-cell: the wall band
+    // lives in cube (x0,z0); (x1,z1) is the outside neighbor. Interior segments are
+    // a partition PLANE on the cube boundary at coord, straddling both adjacent cubes.
+    for (const auto& w : walls) {
+        if (p.y < w.baseY || p.y >= w.baseY + w.height) continue;
+        if (w.type == "interior") {
+            if (w.x0 == w.x1) {          // plane along Z at x = x0
+                if ((p.x == w.x0 - 1 || p.x == w.x0) &&
+                    p.z >= std::min(w.z0, w.z1) && p.z < std::max(w.z0, w.z1))
+                    return "wall";
+            } else {                     // plane along X at z = z0
+                if ((p.z == w.z0 - 1 || p.z == w.z0) &&
+                    p.x >= std::min(w.x0, w.x1) && p.x < std::max(w.x0, w.x1))
+                    return "wall";
+            }
+        } else if (p.x == w.x0 && p.z == w.z0) {
+            return "wall";
+        }
+    }
+    for (const auto& f : floors) {
+        if (p.y == f.y && p.x >= f.x && p.x < f.x + f.w && p.z >= f.z && p.z < f.z + f.d)
+            return f.role == "ceiling" ? "ceiling" : "floor";
+    }
+    for (const auto& fc : foundation) {
+        if (p.x == fc.x && p.z == fc.z && p.y >= fc.bearingY && p.y < fc.topY)
+            return "foundation";
+    }
+    for (const auto& r : roof) {
+        // Coarse: anything at/above the eave within the panel extent (+1 cube of
+        // overhang) is roof. The slope profile is a refinement, not a correctness need.
+        if (p.y >= r.eaveY && p.x >= r.x0 - 1 && p.x <= r.x1 + 1 &&
+            p.z >= r.z0 - 1 && p.z <= r.z1 + 1)
+            return "roof";
+    }
+    return "";
 }
 
 AssemblyPlan AssemblyPlan::fromJson(const nlohmann::json& j) {

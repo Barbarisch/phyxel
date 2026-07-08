@@ -457,29 +457,36 @@ StructureResult StructureGenerator::generatePitchedRoof(const glm::ivec3& pos, F
                                                          int width, int depth,
                                                          const std::string& material) {
     // Gable roof along local X. Ridge at center Z, slopes down to edges.
-    // Uses subcubes for smooth stepping: 3 subcube steps per cube height.
+    // Each z-row toward the ridge rises 1 subcube; every cell is a SOLID wedge column
+    // (full cubes below + a partial subcube layer on top), so rows share faces and the
+    // roof reads as one continuous slope — never detached floating strips.
     StructureResult result;
-
-    int halfDepth = depth / 2;
-    // Each row moving from the edge toward the center rises 1 subcube
-    // So total rise = halfDepth * 1 subcube = halfDepth/3 cubes worth of height
 
     for (int x = 0; x < width; ++x) {
         for (int z = 0; z < depth; ++z) {
-            // Distance from nearest edge
+            // Surface height in subcube steps above the eave (0 at the edges).
             int distFromEdge = std::min(z, depth - 1 - z);
-            // subcube rise = distFromEdge steps
-            int cubeY = distFromEdge / 3;
-            int subcubeY = distFromEdge % 3;
+            int fullCubes = distFromEdge / 3;
+            int topSubY   = distFromEdge % 3;
 
-            // Place a subcube slab (all 3 X subcubes, single Z row)
-            for (int sx = 0; sx < 3; ++sx) {
+            for (int cy = 0; cy < fullCubes; ++cy) {
                 VoxelPlacement vp;
-                vp.position = glm::ivec3(x, cubeY, z);
+                vp.position = glm::ivec3(x, cy, z);
                 vp.material = material;
-                vp.level = VoxelLevel::Subcube;
-                vp.subcubePos = glm::ivec3(sx, subcubeY, 1);
+                vp.level = VoxelLevel::Cube;
                 result.voxels.push_back(vp);
+            }
+            for (int sy = 0; sy <= topSubY; ++sy) {
+                for (int sx = 0; sx < 3; ++sx) {
+                    for (int sz = 0; sz < 3; ++sz) {
+                        VoxelPlacement vp;
+                        vp.position = glm::ivec3(x, fullCubes, z);
+                        vp.material = material;
+                        vp.level = VoxelLevel::Subcube;
+                        vp.subcubePos = glm::ivec3(sx, sy, sz);
+                        result.voxels.push_back(vp);
+                    }
+                }
             }
         }
     }

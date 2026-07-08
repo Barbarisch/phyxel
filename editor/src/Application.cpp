@@ -6885,9 +6885,32 @@ static bool handlePlacedObjectCommand(
             rep.merge(Core::RealizedWorldValidator::checkFenceOverPath(fencePosts, hasMat));
             rep.merge(Core::RealizedWorldValidator::checkFenceAgainstRise(fencePosts, surfaceH));
 
-            // Chest facing: a chest should back onto its nearest wall. Wall = structural (WoodPlanks/
-            // Wood/StoneBricks/Stone) at two heights with NO Metal (excludes the chest/furniture itself).
-            Core::WallAt wallAt = [&](int x, int y, int z) -> bool {
+            // Chest facing: a chest should back onto its nearest wall. Ask the building's
+            // ANATOMY first: v2 structures persist their AssemblyPlan (metadata.assembly_plan)
+            // and featureAt classifies the cell structurally — no material sniffing, so it
+            // keeps working whatever the style palette names. Structures without a plan
+            // (v1 composites, hand-built) fall back to the material heuristic.
+            std::vector<std::pair<glm::ivec3, Core::AssemblyPlan>> planStructs;  // origin -> plan
+            std::vector<std::pair<glm::ivec3, glm::ivec3>> planBounds;           // matching AABBs
+            for (const auto& o : placedObjectManager->list()) {
+                if (o.category != "structure" || !o.metadata.contains("assembly_plan")) continue;
+                const auto& m = o.metadata["assembly_plan"];
+                if (!m.contains("origin") || !m.contains("plan")) continue;
+                glm::ivec3 org(m["origin"][0].get<int>(), m["origin"][1].get<int>(),
+                               m["origin"][2].get<int>());
+                planStructs.push_back({org, Core::AssemblyPlan::fromJson(m["plan"])});
+                planBounds.push_back({o.boundingMin, o.boundingMax});
+            }
+            Core::WallAt wallAt = [&, planStructs, planBounds](int x, int y, int z) -> bool {
+                for (size_t i = 0; i < planStructs.size(); ++i) {
+                    const auto& [bmin, bmax] = planBounds[i];
+                    if (x < bmin.x || x > bmax.x || y < bmin.y || y > bmax.y ||
+                        z < bmin.z || z > bmax.z) continue;
+                    const glm::ivec3 local = glm::ivec3(x, y, z) - planStructs[i].first;
+                    const std::string f = planStructs[i].second.featureAt(local);
+                    return f == "wall";   // the plan is authoritative inside its structure
+                }
+                // material-heuristic fallback (v1 / hand-built): structural at two heights, no Metal
                 if (hasMat(x, y, z, "Metal") || hasMat(x, y + 1, z, "Metal")) return false;
                 auto structural = [&](int yy) {
                     return hasMat(x, yy, z, "WoodPlanks") || hasMat(x, yy, z, "Wood") ||
@@ -12879,6 +12902,7 @@ void Application::processAPICommands() {
                     const bool specMode = !v2Mode && cmd.params.contains("stories");
                     Core::StructureResult structure;
                     Core::BuildingProgram v2Program;   // kept for the post-registration fixture pass
+                    nlohmann::json v2PlanMeta;         // {origin, plan}: the queryable structural anatomy
                     bool v2HasFixtures = false;
                     int  v2FloorY = 0;                 // world Y of the walkable floor (fixtures sit here)
                     std::vector<int> v2FloorYByStory;  // per-story walkable Y (KI-2: furniture per floor)
@@ -13059,6 +13083,10 @@ void Application::processAPICommands() {
                             }
                         }
                         structure = Core::StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));
+                        // Persist the assembly plan with its placement origin: featureAt(local) +
+                        // origin = a post-build structural-feature query (wall/floor/ceiling/...)
+                        // that no consumer has to re-derive from voxel materials.
+                        v2PlanMeta = {{"origin", {ox, oy, oz}}, {"plan", shell.plan.toJson()}};
                         // Hand off to the post-registration fixture pass: the floor sits one cube
                         // above the foundation top (foundation rows [oy, oy+crawl), floor at oy+crawl).
                         v2Program = program;
@@ -13176,6 +13204,8 @@ void Application::processAPICommands() {
                                 cmd.params.value("type", "structure"),
                                 glm::ivec3(posX, posY, posZ), 0, smin, smax, parentId);
                             response["object_id"] = objectId;
+                            if (!objectId.empty() && !v2PlanMeta.is_null())
+                                placedObjectManager->setMetadata(objectId, "assembly_plan", v2PlanMeta);
                             // Immediately persist so the structure record survives restarts
                             if (!objectId.empty() && chunkManager) {
                                 auto* ws = chunkManager->m_streamingManager.getWorldStorage();

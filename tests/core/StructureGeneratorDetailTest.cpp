@@ -66,10 +66,48 @@ TEST(StructureDetailTest, HalfWallAllSubcube) {
     EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), result.voxels.size());
 }
 
-TEST(StructureDetailTest, PitchedRoofAllSubcube) {
+TEST(StructureDetailTest, PitchedRoofHasSubcubeStepping) {
     auto result = StructureGenerator::generatePitchedRoof({0, 0, 0}, Facing::North, 8, 10, "Wood");
     ASSERT_FALSE(result.voxels.empty());
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), result.voxels.size());
+    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
+}
+
+// The roof must be one CONTINUOUS slope: every micro column of the footprint is covered
+// in plan view (no see-through gaps), and the surface rises exactly 1 subcube per z-row
+// toward the ridge. The original implementation emitted only the middle z-third of each
+// row (a floating 1-subcube strip with air on both sides) — this test fails on it.
+TEST(StructureDetailTest, PitchedRoofIsContinuousSolidWedge) {
+    const int W = 8, D = 10;
+    auto result = StructureGenerator::generatePitchedRoof({0, 0, 0}, Facing::North, W, D, "Wood");
+
+    // covered[microX][microZ] -> highest covered micro-Y (or -1)
+    std::vector<std::vector<int>> top(W * 3, std::vector<int>(D * 3, -1));
+    for (const auto& v : result.voxels) {
+        const int cx = v.position.x, cy = v.position.y, cz = v.position.z;
+        if (v.level == VoxelLevel::Cube) {
+            for (int sx = 0; sx < 3; ++sx)
+                for (int sz = 0; sz < 3; ++sz)
+                    for (int sy = 0; sy < 3; ++sy)
+                        top[cx * 3 + sx][cz * 3 + sz] =
+                            std::max(top[cx * 3 + sx][cz * 3 + sz], cy * 3 + sy);
+        } else if (v.level == VoxelLevel::Subcube) {
+            top[cx * 3 + v.subcubePos.x][cz * 3 + v.subcubePos.z] =
+                std::max(top[cx * 3 + v.subcubePos.x][cz * 3 + v.subcubePos.z],
+                         cy * 3 + v.subcubePos.y);
+        }
+    }
+
+    for (int mx = 0; mx < W * 3; ++mx) {
+        for (int mz = 0; mz < D * 3; ++mz) {
+            // 1) full plan-view coverage — a roof with holes leaks sky
+            ASSERT_GE(top[mx][mz], 0) << "uncovered micro column (" << mx << "," << mz << ")";
+            // 2) the surface follows the gable profile: rise = distance from the nearer eave
+            const int z = mz / 3;
+            const int expected = std::min(z, D - 1 - z);
+            EXPECT_EQ(top[mx][mz], expected)
+                << "surface height off-profile at micro (" << mx << "," << mz << ")";
+        }
+    }
 }
 
 // ============================================================================
@@ -215,7 +253,9 @@ TEST(StructureDetailTest, JsonPitchedRoof) {
                 {"width", 8}, {"depth", 10}, {"material", "Wood"}};
     auto result = StructureGenerator::generateFromJson(def);
     ASSERT_FALSE(result.voxels.empty());
-    EXPECT_EQ(countByLevel(result.voxels, VoxelLevel::Subcube), result.voxels.size());
+    // The wedge is solid: full-cube core + subcube-stepped surface (see
+    // PitchedRoofIsContinuousSolidWedge for the continuity invariant).
+    EXPECT_GT(countByLevel(result.voxels, VoxelLevel::Subcube), 0u);
 }
 
 // ============================================================================

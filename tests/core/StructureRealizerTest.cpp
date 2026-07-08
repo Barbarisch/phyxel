@@ -109,6 +109,34 @@ TEST(StructureRealizerTest, WallsAreThinNotFullCube) {
     EXPECT_LT(rep.cubes * 5, rep.subcubes) << rep.summary();
 }
 
+// The plan is the queryable ANATOMY of the building: featureAt answers "what
+// structural feature is this cell" (wall/floor/ceiling/foundation/roof) so
+// consumers never have to sniff voxel materials. Regression teeth: interior
+// wall entries used to be degenerate {0,0,0,0}, floors were story-0 only, and
+// the ceiling slab was never recorded — all three made featureAt impossible.
+TEST(StructureRealizerTest, PlanFeatureClassifierMatchesAnatomy) {
+    auto r = build();
+    ASSERT_TRUE(r.ok) << r.error;
+    const AssemblyPlan& plan = r.plan;
+
+    EXPECT_EQ(plan.featureAt({0, 2, 4}), "wall")        << "west perimeter wall cell";
+    EXPECT_EQ(plan.featureAt({4, 2, 4}), "wall")        << "hall/kitchen partition plane";
+    EXPECT_EQ(plan.featureAt({2, 2, 4}), "")            << "open hall air is no feature";
+    EXPECT_EQ(plan.featureAt({2, 1, 4}), "floor")       << "ground-floor slab";
+    EXPECT_EQ(plan.featureAt({2, 4, 4}), "ceiling")     << "top-story ceiling slab";
+    EXPECT_EQ(plan.featureAt({0, 0, 4}), "foundation")  << "crawlspace ring";
+
+    bool realInterior = false;
+    for (const auto& w : plan.walls)
+        if (w.type == "interior" && (w.x0 != w.x1 || w.z0 != w.z1)) realInterior = true;
+    EXPECT_TRUE(realInterior) << "interior wall entries are degenerate again";
+
+    int floorsN = 0, ceilingsN = 0;
+    for (const auto& f : plan.floors) (f.role == "ceiling" ? ceilingsN : floorsN)++;
+    EXPECT_GE(floorsN, 1);
+    EXPECT_EQ(ceilingsN, 1) << "the pass-4 ceiling slab must be recorded in the plan";
+}
+
 TEST(StructureRealizerTest, FloorIsContinuousOverFootprint) {
     auto r = build();
     // The walkable floor surface is just below floorTopMicro; sample the cube row's floor band.

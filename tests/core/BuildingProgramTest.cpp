@@ -100,3 +100,43 @@ TEST(AssemblyPlanTest, RoundTripsThroughJson) {
     EXPECT_EQ(p.fixtures[0].rotation, 90);
     ASSERT_EQ(p.lights.size(), 1u);
 }
+
+// ============================================================================
+// featureAt — the structural-feature classifier. Consumers ask the building's
+// anatomy ("is this cell a wall / floor / ceiling?") instead of sniffing voxel
+// materials, so queries keep working whatever the style palette names.
+// ============================================================================
+
+TEST(AssemblyPlanTest, FeatureAtClassifiesExteriorWall) {
+    AssemblyPlan plan;
+    // per-edge-cell exterior segment: wall band in cube (0,4), outside neighbor (-1,4)
+    plan.walls.push_back({0, 4, -1, 4, 2, 3, 0.333, "WoodPlanks", "exterior"});
+    EXPECT_EQ(plan.featureAt({0, 2, 4}), "wall");   // base course
+    EXPECT_EQ(plan.featureAt({0, 4, 4}), "wall");   // top course
+    EXPECT_EQ(plan.featureAt({0, 5, 4}), "");       // above the wall
+    EXPECT_EQ(plan.featureAt({1, 3, 4}), "");       // interior cell beside it
+    EXPECT_EQ(plan.featureAt({-1, 3, 4}), "");      // outside neighbor is NOT the wall
+}
+
+TEST(AssemblyPlanTest, FeatureAtClassifiesInteriorPartition) {
+    AssemblyPlan plan;
+    // partition plane on the cube boundary at x=3, spanning z in [1,5)
+    plan.walls.push_back({3, 1, 3, 5, 2, 3, 0.222, "WoodPlanks", "interior"});
+    EXPECT_EQ(plan.featureAt({2, 3, 2}), "wall");   // straddles both adjacent cubes
+    EXPECT_EQ(plan.featureAt({3, 3, 2}), "wall");
+    EXPECT_EQ(plan.featureAt({4, 3, 2}), "");       // one cube further is open room
+    EXPECT_EQ(plan.featureAt({3, 3, 5}), "");       // past the segment's z-run
+}
+
+TEST(AssemblyPlanTest, FeatureAtClassifiesFloorCeilingFoundationRoof) {
+    AssemblyPlan plan;
+    plan.floors.push_back({0, 0, 6, 5, 2, 0.333, "Wood", "floor"});
+    plan.floors.push_back({0, 0, 6, 5, 6, 0.222, "WoodPlanks", "ceiling"});
+    plan.foundation.push_back({0, 0, 0, 2, "Stone"});
+    plan.roof.push_back({0, 0, 6, 5, 7, 50.0, "gable", "Thatch"});
+    EXPECT_EQ(plan.featureAt({3, 2, 2}), "floor");
+    EXPECT_EQ(plan.featureAt({3, 6, 2}), "ceiling");
+    EXPECT_EQ(plan.featureAt({0, 1, 0}), "foundation");
+    EXPECT_EQ(plan.featureAt({3, 8, 2}), "roof");
+    EXPECT_EQ(plan.featureAt({3, 4, 2}), "");       // open room air between floor and ceiling
+}

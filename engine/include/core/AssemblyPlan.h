@@ -112,6 +112,13 @@ struct AssemblyPlan {
     std::vector<FixturePlacement> fixtures;
     std::vector<LightPlacement>   lights;
 
+    /// Structural-feature classifier: what part of the building occupies a LOCAL cube
+    /// cell (plan coords are footprint-local cubes; callers subtract the placed world
+    /// origin first). Returns "wall" | "floor" | "ceiling" | "foundation" | "roof" | ""
+    /// (open interior/exterior space). Consumers should ask the anatomy — never sniff
+    /// voxel materials — so "is this a wall?" keeps working whatever the style palette.
+    std::string featureAt(const glm::ivec3& cubePos) const;
+
     static AssemblyPlan fromJson(const nlohmann::json& j);
     nlohmann::json toJson() const;
 };
