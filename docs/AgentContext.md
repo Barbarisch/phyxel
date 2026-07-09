@@ -126,6 +126,37 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **STRUCTURE-GEN CONSOLIDATION SESSION — SHIPPED 2026-07-07/08 (commits 2750983, e2e586a,
+  c49469d, b708372 on main).** Four arcs, each red-before-green + runtime-verified:
+  1. **WoodPlanks wall/floor wood split** (2750983): NEW `WoodPlanks` material (Poly Haven
+     brown_planks_04 lapped siding @1024) owns every wall-wood role (structure_styles
+     timber_cottage structure/cladding/trim, vernacular timber_frame, realizer styleless
+     fallbacks); `Wood` (WoodFloor007) is FLOORS only. 97 materials now.
+  2. **Generator material audit** (e2e586a): C++ `treeTypeInfo` mirrors gen_tree.py's new
+     species (pine/fir/jungle/palm/redwood/elder_oak — procedural flora mode is dormant, all
+     biomes pool-mode); v1 palette default roof→WoodShingle (GOTCHA: the MaterialPalette STRUCT
+     member default applies when no "materials" key, not just the fromJson fallback).
+  3. **featureAt anatomy classifier + solid v1 gables** (c49469d): `AssemblyPlan::featureAt`
+     (wall/floor/ceiling/foundation/roof) + realizer plan-fidelity fixes (interior partitions
+     had degenerate {0,0,0,0} geometry, floors story-0-only, no ceiling record); every v2 build
+     persists `metadata.assembly_plan = {origin, plan}` (SQLite). **STANDING RULE: consumers
+     query the anatomy, never sniff voxel materials** (chest-facing wallAt migrated; fence-post
+     Log-counting + world-validator checks are next). v1 pitched roofs were detached floating
+     strips (only sz=1, 1-subcube thin) — now a solid wedge; `PitchedRoofIsContinuousSolidWedge`
+     guards it (confirmed red on the old impl).
+  4. **v1 REMOVAL** (b708372, user-directed "get rid of v1 entirely"): generateHouse/Tavern/
+     Tower + generateFromSpec (the LLM-architect BuildingSpec path) DELETED (−1126 lines net).
+     NEW `Core::StructureBuildService` = the v2 orchestration extracted from Application's
+     770-line handler; API command, GameDefinitionLoader (game.json house/tavern), and
+     settlements all build through it. `build_structure type:house|tavern` (no schema) ALIASES
+     onto v2 (croft/hall_house by footprint, tavern typology; int stories→story array).
+     `tower` ERRORS — no v2 typology yet (**candidate next typology**). `build_building`
+     (BlockSmith LLM buildings) MCP tool removed. **HARD RULE (user): buildings are NEVER
+     LLM-generated — engine procedural pipeline only.** StructureGenerator keeps primitives +
+     place/removeVoxels/planPadLevel only.
+  **Follow-ups queued:** v2 tower typology; featureAt refinements (roof slope profile, opening
+  classification); migrate remaining material-sniffing consumers; BlockSmith full removal.
+
 - **FINISH_FORGE ARC — 6 increments SHIPPED 2026-07-06 (commits fc852f1, 83dcf14, c338baf on
   main; every one red-before-green + independent solution-auditor pass).** The tree-forge
   lessons applied to structures, per `docs/structure-generation/FinishDetailPlan.md` (the
