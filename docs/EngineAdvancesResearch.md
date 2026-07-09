@@ -128,9 +128,11 @@ hatch — a whole-renderer bet, plausibly prototype-able for sub/micro detail on
 cubes, trace fine detail inside them, i.e. exactly Teardown's OBB trick applied to microcube
 regions).
 
-**Cost:** very high (parallel renderer). **Verdict: not actionable now, but keep on the map; if
-greedy-mesh + GPU-driven still can't hold 60 FPS at target density, this is the fork in the road.
-The hybrid form (trace only micro-detail volumes) is the realistic entry point.**
+**Cost:** very high (parallel renderer). **Verdict (superseded 2026-07-09): promoted from "hold"
+to a slated workstream — see [`RayTracingPlan.md`](RayTracingPlan.md) for the researched, phased
+plan (micro-detail trace prototype → HW-RT shadows/AO → RT reflections → GI). The hybrid form
+(trace only micro-detail volumes) remains the entry point (its Phase 1); greedy meshing still
+lands first.**
 
 ## 7. Small, opportunistic wins
 
@@ -152,4 +154,6 @@ The hybrid form (trace only micro-detail volumes) is the realistic entry point.*
    (`AvbdSolverAudit.md`); its R1 (fix two silent-failure defects) is now an actionable item.
 4. **After meshing lands:** GPU frustum culling → occlusion culling (#2).
 5. **Visual-quality leap, after perf headroom exists:** radiance cascades (#4).
-6. **Hold:** render graph (#5) until pass count forces it; voxel ray tracing (#6) as the strategic fallback.
+6. **Hold:** render graph (#5) until pass count forces it.
+7. **Slated (2026-07-09):** ray tracing (#6) — plan in `RayTracingPlan.md`; vegetation wind
+   realism — plan in `VegetationWindPlan.md`.
