@@ -71,6 +71,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
 #include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
+#include "core/StreetPaver.h"         // build_settlement: planStreetPaving (streets as real geometry)
 #include "core/FenceBuilder.h"        // build_settlement: thin grounded typed fences (picket/privacy)
 #include "core/DimensionCanon.h"      // build_settlement: grounded fence dims (object_dimensions.json)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
@@ -10507,6 +10508,25 @@ void Application::registerSettlementCommands() {
                 if (chunkManager->hasVoxelAt(glm::ivec3(wx, wy, wz))) return wy;
             return oy;
         };
+        // FLORA-BLIND ground: biome flat/hill terrain carries TREES, and a canopy top read as
+        // "ground" grades streets over phantom hills, seats houses on treetops, and reads trunks
+        // as cliffs (L4 find 2026-07-09; same family as the ghost-validator flora fix 523e4d2).
+        // All ELEVATION decisions (grading, seating, terrace targets, buildability, fences) use
+        // this; groundTopAt stays raw for "what physically occupies the column" (clearing).
+        auto isFloraMat = [](const std::string& m) {
+            return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+        };
+        auto terrainTopAt = [&](int wx, int wz) -> int {
+            if (!chunkManager) return oy;
+            const int top = oy + 96;
+            for (int wy = top; wy >= 0 && wy >= top - 200; --wy)
+                if (chunkManager->hasVoxelAt(glm::ivec3(wx, wy, wz))) {
+                    if (const auto* c = chunkManager->getCubeAt(glm::ivec3(wx, wy, wz)))
+                        if (isFloraMat(c->getMaterialName())) continue;   // skip trunk/canopy
+                    return wy;
+                }
+            return oy;
+        };
 
         // TERRAIN MODE: analyse the live world's buildability and place plots on the buildable cells
         // (flat valleys + hilltops), skipping cliffs/steep. Else: the flat-plane grid.
@@ -10522,7 +10542,7 @@ void Application::registerSettlementCommands() {
             const int window    = std::max(1, plotSize / 2);
             const Core::BuildabilityMap site =
                 Core::analyzeSite(W, D, maxRelief,
-                                  [&](int x, int z) { return groundTopAt(ox + x, oz + z); },
+                                  [&](int x, int z) { return terrainTopAt(ox + x, oz + z); },
                                   {}, 1, window);
             if (mainStreetMode) {
                 // The spine picks the FLATTEST straight alignment over the site, then plots whose
@@ -10619,7 +10639,7 @@ void Application::registerSettlementCommands() {
                 if (pw < 2 || pd < 2) continue;
                 std::vector<int> tops;
                 for (int x = px0; x < px0 + pw; ++x)
-                    for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(groundTopAt(x, z));
+                    for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(terrainTopAt(x, z));
                 std::sort(tops.begin(), tops.end());
                 const int grade = tops[tops.size() / 2];          // median plot grade
                 std::vector<glm::ivec3> tcut;
@@ -10638,10 +10658,12 @@ void Application::registerSettlementCommands() {
                             const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
                             const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
                             const int dist = std::max(dx, dz);     // Chebyshev distance outside the plot
-                            const int nat = groundTopAt(x, z);
+                            const int nat = terrainTopAt(x, z);
                             target = (nat > grade) ? std::min(nat, grade + dist)
                                                    : std::max(nat, grade - dist);
                         }
+                        // cur stays RAW (flora-inclusive): everything above the graded target —
+                        // including a tree standing on the parcel — is cleared by the cut loop.
                         const int cur = groundTopAt(x, z);
                         if (target == cur) continue;               // already at target (flat / skirt tail)
                         for (int y = target + 1; y <= cur; ++y) { tcut.push_back(glm::ivec3(x, y, z)); ++tCut; }
@@ -10696,7 +10718,7 @@ void Application::registerSettlementCommands() {
             const int bx = plotX + (plotW - bw) / 2;   // centre the building in its plot
             const int bz = plotZ + (plotD - bd) / 2;
             const int by = (terrain && !seatFlat)
-                ? groundTopAt(bx + bw / 2, bz + bd / 2)
+                ? terrainTopAt(bx + bw / 2, bz + bd / 2)
                 : oy;
             // Street-facing front hint (OpeningsLayoutTest.FrontHint*): the entrance wall faces
             // the plot's street side. The building rect is axis-aligned in settlement coords, so
@@ -10735,40 +10757,120 @@ void Application::registerSettlementCommands() {
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
 
-        // PATH NETWORK (3c): connect the buildings into a walkable graded network over the live terrain.
-        // Anchors are each building's footprint-centre at its seated ground (micro = cube*9). The planner
-        // (MST + grade each edge to <= step-up risers) decides the routes; edges too steep for a straight
-        // ramp are reported, not dropped. (Voxel stamping of the surfaces: sub-slice 2.)
+        // CIRCULATION: main-street settlements pave the STREET NETWORK as real geometry (StreetPaver
+        // #39 slice 2 — full-width graded streets + a spur per front door, tier material, CUT columns
+        // honored); cluster/legacy terrain settlements keep the door-to-door MST ribbon (3c).
         nlohmann::json pathsJson = nlohmann::json::object();
-        if (terrain && chunkManager && doorCenters.size() >= 2) {
-            // Walkable surface micro = top FACE of the highest solid cube = (cube+1)*9.
-            auto surfMicro = [&](int wx, int wz) { return (groundTopAt(wx, wz) + 1) * 9; };
+        const Core::AgentBox abox;  // defaults match the engine character (step-up 4 micro)
+        // micro <-> cube helpers + the microcube stamper, shared by street paving, the MST ribbon,
+        // and the fences. Walkable surface micro = top FACE of the highest solid cube = (cube+1)*9.
+        auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
+        auto rem9 = [](int v) { int r = v % 9; return r < 0 ? r + 9 : r; };
+        auto surfMicro = [&](int wx, int wz) { return (terrainTopAt(wx, wz) + 1) * 9; };
+        auto groundMicro = [&](int mx, int mz) { return surfMicro(fl9(mx), fl9(mz)); };
+        std::string paveMat = "Cobblestone";
+        auto stampMicro = [&](int mx, int my, int mz) -> bool {
+            const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
+            const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
+            chunkManager->ensureChunkAt(cube);
+            return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
+                cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), paveMat);
+        };
+        std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED — fences gap here (V1)
+
+        if (mainStreetMode && chunkManager) {
+            // STREET PAVING (Phase 2): grade + pave the full street width end to end in the tier's
+            // material, plus a spur from every building's front-wall midpoint. CUT columns are
+            // honored — terrain cubes above the graded surface are REMOVED, then capped — so the
+            // road stays walkable across hill transitions (the old cut_cells_unpaved gap -> 0).
+            paveMat = tierP->street.material;
+            std::vector<Core::DoorAnchor> doors;
+            for (const auto& ap : msl.assigned) {
+                const int fx = ox + ap.footprint.x, fz = oz + ap.footprint.z;
+                const int fw = ap.footprint.w, fdp = ap.footprint.d;
+                int dxm = 0, dzm = 0;   // micro, just OUTSIDE the front wall's midpoint
+                switch (ap.streetSide) {
+                    case 'S': dxm = (fx + fw / 2) * 9 + 4; dzm = fz * 9 - 5; break;
+                    case 'N': dxm = (fx + fw / 2) * 9 + 4; dzm = (fz + fdp) * 9 + 4; break;
+                    case 'W': dxm = fx * 9 - 5; dzm = (fz + fdp / 2) * 9 + 4; break;
+                    default:  dxm = (fx + fw) * 9 + 4; dzm = (fz + fdp / 2) * 9 + 4; break;  // 'E'
+                }
+                doors.push_back({dxm, dzm, groundMicro(dxm, dzm)});
+            }
+            const Core::PavingPlan pave = Core::planStreetPaving(
+                layout.streets, glm::ivec2(ox, oz), doors, bFoot, groundMicro, abox, paveMat);
+            const double t0 = glfwGetTime();
+            // Pass A (read): stamp-start row per column against the ORIGINAL terrain.
+            std::vector<int> startRow(pave.columns.size());
+            for (size_t i = 0; i < pave.columns.size(); ++i) {
+                const auto& c = pave.columns[i];
+                startRow[i] = c.cut ? (c.surface / 9) * 9 : groundMicro(c.x, c.z);
+            }
+            // Pass B: remove the terrain cubes whose top face exceeds a cut column's surface,
+            // AND clear the road corridor of FLORA — a tree standing in the roadway (biome flora)
+            // is felled per cube column (Log*/Leaf* above the road surface), like a real road.
+            std::set<std::tuple<int, int, int>> cutCubes;
+            std::set<std::pair<int, int>> clearedCols;
+            for (const auto& c : pave.columns) {
+                const int cbx = fl9(c.x), cbz = fl9(c.z);
+                if (c.cut) {
+                    const int top = groundTopAt(cbx, cbz);
+                    for (int y = c.surface / 9; y <= top; ++y) cutCubes.insert({cbx, y, cbz});
+                }
+                if (clearedCols.insert({cbx, cbz}).second) {
+                    const int rawTop = groundTopAt(cbx, cbz);
+                    for (int y = c.surface / 9; y <= rawTop; ++y)
+                        if (const auto* cu = chunkManager->getCubeAt(glm::ivec3(cbx, y, cbz)))
+                            if (isFloraMat(cu->getMaterialName())) cutCubes.insert({cbx, y, cbz});
+                }
+            }
+            if (!cutCubes.empty()) {
+                std::vector<glm::ivec3> cuts;
+                cuts.reserve(cutCubes.size());
+                for (const auto& t : cutCubes)
+                    cuts.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t)});
+                Core::StructureGenerator::removeVoxels(chunkManager, cuts);
+            }
+            // Pass C (read, post-removal, pre-stamp): a removed cube may sit under a NEIGHBOUR
+            // column's paving (same cube column, different micro surface) — extend that column's
+            // stamp down to the new ground so no paving edge floats over a void.
+            for (size_t i = 0; i < pave.columns.size(); ++i)
+                startRow[i] = std::min(startRow[i], groundMicro(pave.columns[i].x, pave.columns[i].z));
+            // Pass D (write): stamp every column [startRow .. surface] in the tier material.
+            long placedMicros = 0;
+            for (size_t i = 0; i < pave.columns.size(); ++i) {
+                const auto& c = pave.columns[i];
+                pavedCols.insert({fl9(c.x), fl9(c.z)});
+                for (int my = startRow[i]; my <= c.surface; ++my)
+                    if (stampMicro(c.x, my, c.z)) ++placedMicros;
+            }
+            chunkManager->rebuildOccupancyFromChunks();
+            const double stampMs = (glfwGetTime() - t0) * 1000.0;
+            LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
+                         << pave.columns.size() << " columns (" << pave.levelCols << " level, "
+                         << pave.fillCols << " fill, " << pave.cutCols << " cut honored, "
+                         << cutCubes.size() << " cubes removed), spurs " << pave.spursPlanned
+                         << " ok / " << pave.spursFailed << " too steep, " << paveMat << ", "
+                         << static_cast<long>(stampMs) << " ms");
+            pathsJson = {{"paved_columns", static_cast<long>(pave.columns.size())},
+                         {"paved_microcubes", placedMicros},
+                         {"level_cols", pave.levelCols}, {"fill_cols", pave.fillCols},
+                         {"cut_cols_honored", pave.cutCols},
+                         {"cut_cubes_removed", static_cast<long>(cutCubes.size())},
+                         {"cut_cells_unpaved", 0},
+                         {"spurs", pave.spursPlanned}, {"spurs_too_steep", pave.spursFailed},
+                         {"material", paveMat}, {"stamp_ms", static_cast<long>(stampMs)}};
+        } else if (terrain && chunkManager && doorCenters.size() >= 2) {
             std::vector<Core::DoorAnchor> doors;
             for (const auto& d : doorCenters) doors.push_back({d.x * 9, d.z * 9, (d.y + 1) * 9});
-            const Core::AgentBox abox;  // defaults match the engine character (step-up 4 micro)
-            auto groundMicro = [&](int mx, int mz) { return surfMicro(mx / 9, mz / 9); };
             const Core::SettlementPaths net = Core::planSettlementPaths(doors, groundMicro, abox);
             LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
                          << " edges graded, " << net.failedEdges.size() << " too steep");
 
             // STAMP the graded path surfaces as voxels (sub-slice 2): a Cobblestone paving ribbon carved
-            // PERPENDICULAR to travel (±halfWidth). HONEST SCOPE — this stamps ONLY the FILL portion (where
-            // the graded surface S rises ABOVE the terrain): those microcubes sit in open air and place
-            // cleanly, forming the raised causeways. On LEVEL cells the terrain surface already is the
-            // walkable top (no voxel needed). On CUT cells (S below terrain) a microcube can't be added
-            // where a terrain CUBE already sits, and the terrain above S is NOT removed — so cut sections
-            // are NOT yet paved/walkable. Faithful level-replace + cut-removal (micro-subdividing terrain)
-            // is owed (Phase 4). micro -> (cube, subcube, microcube): 1 cube = 9 micro = 3 sub x 3 micro.
-            const std::string pave = "Cobblestone";
-            auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
-            auto rem9 = [](int v) { int r = v % 9; return r < 0 ? r + 9 : r; };
-            auto stampMicro = [&](int mx, int my, int mz) -> bool {
-                const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
-                const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
-                chunkManager->ensureChunkAt(cube);
-                return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                    cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), pave);
-            };
+            // PERPENDICULAR to travel (±halfWidth). HONEST SCOPE — this stamps ONLY the FILL portion
+            // (where the graded surface S rises ABOVE the terrain); CUT cells stay unpaved on the MST
+            // ribbon (main-street settlements route through StreetPaver above, which honors cuts).
             // READ PASS: collect the unique corridor cells (perpendicular carve, deduped) with their target
             // surface S and the ORIGINAL terrain — BEFORE any stamping, so the paving we add doesn't raise
             // the terrain we measure against for later cells.
@@ -10792,7 +10894,6 @@ void Application::registerSettlementCommands() {
             // WRITE PASS: pave each cell. FILL/LEVEL (S>=terr) place a Cobblestone ribbon from the terrain
             // up to S — the top microcube sits in open air (no terrain cube to subdivide), so it is cheap.
             long placedFill = 0, levelPaved = 0, cut = 0;
-            std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED (Cobblestone) — fences gap here (V1)
             // V7: a path must route AROUND buildings — never pave the footprint INTERIOR (inset 1 from the
             // walls so a path meeting the door at the perimeter is fine, matching the V7 detector).
             auto insideFootprint = [&](int cbx, int cbz) {
@@ -10822,11 +10923,14 @@ void Application::registerSettlementCommands() {
                          {"paved_microcubes", placedFill + levelPaved}, {"level_caps", levelPaved},
                          {"fill_microcubes", placedFill}, {"cut_cells_unpaved", cut},
                          {"stamp_ms", static_cast<long>(stampMs)}};
+        }
 
-            // FENCES + YARDS (#39, GROUNDED): a THIN typed fence (not a 1 m cube wall) along each parcel
-            // edge, built from the dimension canon (object_dimensions.json: fence_picket height 0.9 m,
-            // post_spacing 1.8 m, 2 rails) as posts + rails + pickets at MICROCUBE resolution (~0.11 m
-            // thick). Gate (a gap) faces the settlement centre / path network.
+        // FENCES + YARDS (#39, GROUNDED): a THIN typed fence (not a 1 m cube wall) along each parcel
+        // edge, built from the dimension canon (object_dimensions.json: fence_picket height 0.9 m,
+        // post_spacing 1.8 m, 2 rails) as posts + rails + pickets at MICROCUBE resolution (~0.11 m
+        // thick). Gate (a gap): main-street parcels open onto THEIR STREET; scatter parcels face the
+        // settlement centre / path network. Runs for terrain scatter AND any main-street settlement.
+        if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             Core::DimensionCanonRegistry fenceCanon;
             fenceCanon.loadFromFile("resources/object_dimensions.json");
             const Core::FenceType fenceType = Core::FenceType::Picket;
@@ -10843,7 +10947,7 @@ void Application::registerSettlementCommands() {
                 const long long k = (static_cast<long long>(cx) << 32) ^ (cz & 0xffffffffLL);
                 auto it = gtMemo.find(k);
                 if (it != gtMemo.end()) return it->second;
-                const int v = groundTopAt(cx, cz); gtMemo[k] = v; return v;
+                const int v = terrainTopAt(cx, cz); gtMemo[k] = v; return v;
             };
             auto fenceMicro = [&](int mx, int my, int mz) {
                 const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
@@ -10853,12 +10957,20 @@ void Application::registerSettlementCommands() {
                     cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), "Log");
             };
             long fenceMicros = 0; int parcels = 0;
-            for (const auto& pl : layout.plots) {
+            for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
+                const auto& pl = layout.plots[pi];
                 const Core::Rect& pr = pl.rect;
                 if (pr.w < 2 || pr.d < 2) continue;
-                const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
-                const char gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
-                                                                              : (scz > pcz ? 'N' : 'S');
+                // Gate side: a main-street parcel opens onto ITS street (the burgage frontage);
+                // a scatter parcel faces the settlement centroid / path network.
+                char gate;
+                if (mainStreetMode && pi < msl.assigned.size()) {
+                    gate = msl.assigned[pi].streetSide;
+                } else {
+                    const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
+                    gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
+                                                                       : (scz > pcz ? 'N' : 'S');
+                }
                 ++parcels;
                 // stamp one parcel edge: run along an axis at a fixed boundary cube row; leave the gate gap.
                 const int NDX[4] = {1, -1, 0, 0}, NDZ[4] = {0, 0, 1, -1};

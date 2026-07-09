@@ -126,7 +126,27 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **SETTLEMENT MORPHOLOGY v2 — PHASE 1 SHIPPED 2026-07-09 (uncommitted, working tree).** The
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 2 (STREET PAVING) SHIPPED 2026-07-09.** Streets are REAL
+  geometry: NEW `StreetPaver.{h,cpp}` — pure `planStreetPaving` grades each street centerline
+  (`planTerrainPath`), broadcasts a LEVEL cross-section across the full width, spurs every front
+  door to the street; **CUT columns honored** (applier removes terrain cubes above the graded
+  surface, then caps — closes the old `cut_cells_unpaved` ~6% gap for street morphologies; MST
+  ribbon keeps it for cluster). Tier material (village=Gravel). Red-first: `StreetPaverTest` 6
+  tests, coverage + end-to-end TraversalProbe walk red vs a fill/level-only stub. Fence gates
+  open onto the parcel's street. **L4 caught two real bugs (both fixed red-first):**
+  `chooseStreetAxis` short-axis bias + edge offsets (per-cell scoring + `minPlotDepth`), and
+  **flora-as-terrain** — biome trees graded as hills/cliffs (3 spurs "too steep" on FLAT ground,
+  236 s stamp); fixed via flora-blind `terrainTopAt` for ALL elevation decisions + road-corridor
+  felling (Log*/Leaf* above road surface), family of 523e4d2. L4: flat+flora village 49k Gravel
+  columns 11/11 spurs 0 unpaved (street-level screenshot: level road, fenced frontages, 61 FPS);
+  hills 2673 cuts honored 0 unpaved. **Follow-ups:** grass blades poke through the thin paving
+  cap (blade layer reads the Grass cube under the road — cosmetic); stamp perf ~10-30 s Debug
+  (per-stamp cost in populated chunks); terrain villages on hostile Perlin degrade to 1-2 plots
+  (honest, but wants #38 site SELECTION); runtime walkability probe over live chunks owed.
+  Test world: SettlementTest (NOW saved — flat+flora at z 256-351 w/ paved village at z=280,
+  Perlin hills + 1-building terrain village at x 192-352 / z 256-351).
+
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 1 SHIPPED 2026-07-09 (committed 96dae68).** The
   7-phase roadmap lives at `C:\Users\jack\.claude\plans\keen-twirling-dove.md` (era-as-data →
   main street → paving → structure defects → market town → semi-organic city → furniture
   quality A/B); user decisions: era is a DATA field from day one (medieval only implemented),

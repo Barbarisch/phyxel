@@ -101,7 +101,7 @@ floor scan, paths…).
 | 21 | zone_parcel | M | L2 | **L2** (parcel = plot; yard = plot − building; non-overlap from selectBuildablePlots spacing) | 1/1/1 = **3** | ✅ met-ish via plots; explicit yard region is implicit (the setback ring) |
 | 22 | place_fence | M | L2 | **L2+L3 + GROUNDED** ✅ (`planParcelFence`+`ParcelFenceTest`: encloses, gate-only entry, sealed→unreachable teeth. **`planFenceProfile`+`FenceProfileTest`: THIN grounded typed fence from the canon — picket ~0.11 m thick (NOT a 1 m cube wall), 0.9 m tall, posts @1.8 m; picket gaps / privacy solid / post-rail open**, red-before-green; **thinness MEASURED from emitted cell `w`-extent, not the echoed `thickMicro` field** — `ThickProfileMeasuresThick` teeth: a `thickMicro=9` profile measures 9 (>2), so the ≤2 bar is falsifiable; auditor PASS) | 1/1/1 = **3** | ✅ fences are now real: thin picket built from `object_dimensions.json` (fence_picket/privacy/post_rail) as posts+rails+pickets at MICROCUBE res, gate faces the path; wired into `build_settlement` (runtime 12 parcels / 24960 picket µcubes / 8-micro tall, screenshot). Owed: per-parcel type (croft→paling, manor→post-rail); gate precisely on the path edge; fence µcubes add to the render-density (TODO #40). **Fence-post COLLECTOR fix (2026-07-02, solution-auditor PASS): the `validate_world` handler counted Log micros in the FR ring around each structure as fence posts, but a hearth's Log fire-bed INSIDE a building (fireplace_1 11 micros, fireplace_4 14 micros — both ≥ the 10-micro bar) got mis-counted → false-flagged `fence_along_cliff` against the building's OWN wall (checkFenceAgainstRise reads the full-cube wall as a rise vs the interior column). Fix: skip cells inside any structure footprint when collecting fence posts (`insideAnyStruct`) — a fence never runs inside a building. Settlement → `ok:true`, 0 issues; scanned_fence_posts 235→233 (exactly the 2 furniture false-positives; real plot-edge fences Log 42-54 outside all bboxes untouched). CAVEAT (forward): the whole-footprint skip assumes single-envelope typologies — a courtyard/atrium/compound where a fence legitimately sits inside the footprint would need a real-fence-vs-furniture discriminator instead.** |
 | 23 | place_boundary_wall | M | L2 | L0 | 0/1/1 = **2** | L0→L2 |
-| 24 | place_path | M | **L3** | 🟡 **L3 proven; L4 visible+mostly-walkable** | 2/2/1 = **5** | `planStraightRamp`/`planSwitchback`/`planSettlementPaths`/**`planTerrainPath`** L3-proven (`PathPlannerTest`+`SettlementPathsTest`; `TerrainPathHugsHillWhereStraightTunnels` tf cut ≤9 vs linear ≥30; teeth+negatives, red-before-green). **`build_settlement` terrain-following grader + LEVEL/FILL paving:** live hills 19/19 edges, **21745 Cobblestone microcubes paved (15758 level caps + 5987 fill), 1454 cut cells (~6%) owed**, stamp 1309 ms — network VISIBLE (screenshot), level/fill cells walkable. **Microcube perf (DEBUG, first density datapoint):** placement ~60 µs/µcube; render ~61 ms/frame (~15 FPS, STUTTER) at 20 subcube buildings + 21745 path µcubes + terrain (10 visible chunks) — RENDER is the bottleneck. Owed: cut removal at the 6% transitions (removeMicrocube); runtime walkability probe over stamped chunks; Release perf + render opt (greedy-merge) before pushing density. |
+| 24 | place_path | M | **L3** | 🟡 **L3 proven; L4 visible+mostly-walkable; ✅ CUT CELLS CLOSED for street morphologies (2026-07-09)** | 2/2/1 = **5** | `planStraightRamp`/`planSwitchback`/`planSettlementPaths`/**`planTerrainPath`** L3-proven (`PathPlannerTest`+`SettlementPathsTest`; `TerrainPathHugsHillWhereStraightTunnels` tf cut ≤9 vs linear ≥30; teeth+negatives, red-before-green). **`build_settlement` terrain-following grader + LEVEL/FILL paving:** live hills 19/19 edges, **21745 Cobblestone microcubes paved (15758 level caps + 5987 fill), 1454 cut cells (~6%) owed**, stamp 1309 ms — network VISIBLE (screenshot), level/fill cells walkable. **2026-07-09 — `StreetPaver` closes the cut gap on the main-street path:** the applier REMOVES the terrain cubes above a cut column's graded surface then caps (`cut_cells_unpaved` → 0); live hills 17845 columns = 9268 level + 5904 fill + **2673 cut HONORED (49 cubes removed), 0 unpaved**. The MST ribbon (cluster/legacy) still skips cuts — owed there only. Owed: runtime walkability probe over stamped chunks; stamp perf (49k columns ≈ 10 s Debug, and ~30 s on hills — per-stamp cost in populated chunks noted). |
 | 25 | place_garden | M | L1 | L0 | 0/0/1 = **1** | L0→L1 |
 | 26 | place_farm | M | L2 | L0 | 1/0/1 = **2** | L0→L2: plots fit, don't overlap structures |
 | 27 | place_outbuildings | M | L2 | L0 | 1/1/1 = **3** | L0→L2 (recurse the building gates per outbuilding) |
@@ -131,12 +131,26 @@ Validate when each lands; required layer noted so the plan is set up front.
   era/tier PROGRAM path, `resources/settlement_program.json` + `SettlementProgramRegistry`: main-street
   burgage morphology, plots on BOTH sides sized FROM their pre-assigned typology (frontage = building
   frontage + 2×setback; "long_wall" dwellings long-wall-to-street, shops/tavern gable-to-street),
-  deterministic in seed. `MainStreetLayoutTest` 8 tests — the frontage-from-typology + natural-size/
+  deterministic in seed. `MainStreetLayoutTest` 10 tests — the frontage-from-typology + natural-size/
   orientation invariants proven **red-before-green against the uniform-frontage stub** (the old grid
   defect transplanted: 1 frontage vs varied, 10×17 stretched footprints vs 8×6 croft naturals);
   `SettlementProgramTest` 5 data gates: era/tier resolution, unknown-era REJECTED (no silent default),
-  tier-palette referential integrity vs room_program.json, per-tier sources present. **L3 owed Phase 2:**
-  TraversalProbe walks the PAVED main street end-to-end + into every front door), `place_bridges` 44,
+  tier-palette referential integrity vs room_program.json, per-tier sources present.
+  **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
+  each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
+  and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);
+  CUT columns included. `StreetPaverTest` 6 tests, **coverage + end-to-end TraversalProbe walk proven
+  red against a fill/level-only stub** (the old ribbon behavior: ridge cut columns skipped → probe
+  blocked) then green. **L4:** flat village = 49k Gravel columns, 11/11 spurs, `cut_cells_unpaved: 0`,
+  street-level screenshots; hills = 2673 cut columns honored/0 unpaved. **L4 caught TWO real bugs,
+  both fixed red-first:** (a) `chooseStreetAxis` total-relief scoring biased to the SHORT axis + edge
+  offsets left no plot room (per-cell scoring + `minPlotDepth` restriction); (b) **flora read as
+  terrain** — canopy tops graded as hills, trunks as cliffs (3/11 spurs "too steep" on flat ground!);
+  fixed with the flora-blind `terrainTopAt` sampler (elevation decisions: grading/seating/terrace
+  targets/buildability/fences) + road-corridor felling (Log*/Leaf* removed above the road surface),
+  same family as ghost-validator 523e4d2. Fence gates now open onto the parcel's street. Owed:
+  runtime probe over live stamped chunks; grass blades poke through the thin paving cap (cosmetic);
+  MST-ribbon cut cells (cluster morphology only)), `place_bridges` 44,
   `link_subterranean` 49. **Inter-building walkability — ✅ L3**
   (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
   composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
