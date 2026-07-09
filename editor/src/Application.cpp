@@ -10455,6 +10455,49 @@ void Application::registerSettlementCommands() {
             ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
         }
 
+        // PROGRAM MODE (era + tier — resources/settlement_program.json): morphology, typology
+        // weights and plot sizing become tier DATA (the era key is the extension hook: only
+        // `medieval` ships; an unknown era/tier is a SURFACED error, never a silent default).
+        // Legacy calls (no era/tier param) take exactly the pre-program code paths.
+        const bool programMode = p.contains("tier") || p.contains("era");
+        const std::string era = p.value("era", std::string("medieval"));
+        const std::string tierName = p.value("tier", std::string("village"));
+        const unsigned seed = static_cast<unsigned>(p.value("seed", static_cast<int>(varietySeed)));
+        Core::SettlementProgramRegistry programReg;
+        const Core::SettlementTierPreset* tierP = nullptr;
+        if (programMode) {
+            if (!programReg.loadFromFile("resources/settlement_program.json")) {
+                r = {{"error", "settlement_program.json failed to load"}};
+                return;
+            }
+            tierP = programReg.get(era, tierName);
+            if (!tierP) {
+                r = {{"error", "unknown era/tier: " + era + "/" + tierName},
+                     {"known_eras", programReg.eras()}, {"known_tiers", programReg.tiers(era)}};
+                return;
+            }
+            if (tierP->morphology == "semi_organic") {
+                r = {{"error", "morphology_not_implemented"},
+                     {"detail", era + "/" + tierName + " uses 'semi_organic' (Phase 5); "
+                                "implemented morphologies: cluster, main_street"}};
+                return;
+            }
+            if (tierP->morphology == "cluster") {
+                // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
+                // palette (weight-EXPANDED so pickBuildingVariant's uniform cycle honors the weights).
+                mix.clear();
+                for (const auto& [typ, wgt] : tierP->typologyWeights)
+                    for (int k = 0; k < wgt; ++k) mix.push_back(typ);
+                if (mix.empty()) mix = {"croft"};
+            }
+        }
+        const bool mainStreetMode = tierP && tierP->morphology == "main_street";
+        // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
+        // hall) — main-street mode sizes the PLOT from the typology up front (the burgage principle);
+        // legacy mode centres the natural footprint in its uniform plot below.
+        Core::RoomProgramRegistry roomReg;
+        roomReg.loadFromFile("resources/room_program.json");
+
         // ground top at a WORLD column = the top solid voxel (the seatStructure primitive). Shared by
         // the terrain buildability scan AND per-building seating.
         auto groundTopAt = [&](int wx, int wz) -> int {
@@ -10469,6 +10512,8 @@ void Application::registerSettlementCommands() {
         // (flat valleys + hilltops), skipping cliffs/steep. Else: the flat-plane grid.
         const bool terrain = p.value("terrain", false);
         Core::SettlementLayout layout;
+        Core::MainStreetLayout msl;   // program main-street plan (used when mainStreetMode)
+        int droppedPlots = 0;         // main-street plots dropped on unbuildable terrain (surfaced)
         if (terrain) {
             if (!chunkManager) { r = {{"error", "terrain mode needs a loaded world (no ChunkManager)"}}; return; }
             const int plotSize  = p.value("plot_size", 12);
@@ -10479,14 +10524,58 @@ void Application::registerSettlementCommands() {
                 Core::analyzeSite(W, D, maxRelief,
                                   [&](int x, int z) { return groundTopAt(ox + x, oz + z); },
                                   {}, 1, window);
-            layout.plots = Core::selectBuildablePlots(site, plotSize, streetWidth, maxPlots);
-            LOG_INFO_FMT("Settlement", "terrain analyse " << W << "x" << D << ": buildable="
-                         << site.buildableFraction() << " -> " << layout.plots.size() << " plots");
-            if (layout.plots.empty()) {
-                r = {{"error", "terrain too steep — no buildable plots"},
-                     {"buildable_fraction", site.buildableFraction()}};
+            if (mainStreetMode) {
+                // The spine picks the FLATTEST straight alignment over the site, then plots whose
+                // footprint touches an unbuildable cell are dropped with a surfaced count
+                // (graceful degradation, TerrainAwareSettlement.md).
+                const Core::StreetAxisChoice pick =
+                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin);
+                msl = Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,
+                                                 pick.axis, pick.crossOffset);
+                std::vector<Core::AssignedPlot> keep;
+                for (const auto& ap : msl.assigned) {
+                    bool buildable = true;
+                    const Core::Rect& pr = ap.plot.rect;
+                    for (int z = pr.z; z < pr.z1() && buildable; ++z)
+                        for (int x = pr.x; x < pr.x1(); ++x) {
+                            if (x < 0 || z < 0 || x >= site.W || z >= site.D) { buildable = false; break; }
+                            const auto cls = site.at(x, z).cls;
+                            if (cls == Core::Buildability::TooSteep ||
+                                cls == Core::Buildability::Water) { buildable = false; break; }
+                        }
+                    if (buildable) keep.push_back(ap); else ++droppedPlots;
+                }
+                msl.assigned = std::move(keep);
+                msl.base.plots.clear();
+                for (const auto& ap : msl.assigned) msl.base.plots.push_back(ap.plot);
+                layout = msl.base;
+                LOG_INFO_FMT("Settlement", "main_street terrain: axis " << pick.axis << " offset "
+                             << pick.crossOffset << ", " << msl.assigned.size() << " plots ("
+                             << droppedPlots << " dropped unbuildable)");
+                if (msl.assigned.empty()) {
+                    r = {{"error", "terrain too steep — no buildable main-street plots"},
+                         {"buildable_fraction", site.buildableFraction()},
+                         {"dropped_plots", droppedPlots}};
+                    return;
+                }
+            } else {
+                layout.plots = Core::selectBuildablePlots(site, plotSize, streetWidth, maxPlots);
+                LOG_INFO_FMT("Settlement", "terrain analyse " << W << "x" << D << ": buildable="
+                             << site.buildableFraction() << " -> " << layout.plots.size() << " plots");
+                if (layout.plots.empty()) {
+                    r = {{"error", "terrain too steep — no buildable plots"},
+                         {"buildable_fraction", site.buildableFraction()}};
+                    return;
+                }
+            }
+        } else if (mainStreetMode) {
+            msl = Core::planMainStreetLayout(*tierP, W, D, roomReg, seed);
+            if (!msl.ok) {
+                r = {{"error", "settlement footprint too small for a main street at tier '"
+                                + tierName + "'"}};
                 return;
             }
+            layout = msl.base;
         } else {
             layout = Core::subdividePlots(W, D, cols, rows, streetWidth, minBuilding);
             if (layout.plots.empty()) {
@@ -10494,17 +10583,25 @@ void Application::registerSettlementCommands() {
                 return;
             }
         }
-        const auto buildings = Core::populatePlots(layout, setback, minBuilding, typology);
+        // Buildings: main-street mode already assigned + sized every building from its typology
+        // (footprint = natural size, front at the drawn setback); legacy mode sites one per plot
+        // and sizes it in the queue loop below.
+        std::vector<Core::PlacedBuilding> buildings;
+        if (mainStreetMode) {
+            for (size_t i = 0; i < msl.assigned.size(); ++i) {
+                Core::PlacedBuilding b;
+                b.plotIndex = static_cast<int>(i);
+                b.footprint = msl.assigned[i].footprint;
+                b.typology = msl.assigned[i].typology;
+                buildings.push_back(b);
+            }
+        } else {
+            buildings = Core::populatePlots(layout, setback, minBuilding, typology);
+        }
         if (buildings.empty()) {
             r = {{"error", "no buildable plots (setback too large for the plots)"}};
             return;
         }
-
-        // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
-        // hall), then centred in its plot — NOT stretched to fill the plot (that made 18-wide crofts /
-        // 169k-voxel mega-boxes that failed the typology width gate).
-        Core::RoomProgramRegistry roomReg;
-        roomReg.loadFromFile("resources/room_program.json");
 
         // TERRACE (settlement pre-pass, terrain mode): treat each parcel (structure + its yard) as ONE
         // unit and grade it into the terrain BEFORE any building seats — so the yard is flat, the floor
@@ -10574,19 +10671,27 @@ void Application::registerSettlementCommands() {
             // terrain-BLIND red baseline for the seating invariant is REPRODUCIBLE (verify_terrain_seating.py
             // --seat-flat). This isolates the seating variable: same buildable plots, only `by` changes.
             // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
-            const Core::BuildingVariant var =
-                Core::pickBuildingVariant(static_cast<int>(i), mix, styles, varietySeed);
+            // Main-street mode pins the ASSIGNED typology (the plot was sized from it); style/shape
+            // still vary per plot.
+            const Core::BuildingVariant var = Core::pickBuildingVariant(
+                static_cast<int>(i),
+                mainStreetMode ? std::vector<std::string>{b.typology} : mix,
+                styles, varietySeed);
             // Natural footprint from the typology canon: long axis = bays * bay_length, short axis =
             // width_max; oriented along the plot's longer side, clamped to the plot, then CENTRED.
+            // (Main-street mode: b.footprint IS the natural, street-oriented footprint already —
+            // planMainStreetLayout sized the plot from the typology, so no resize here.)
             int bw = plotW, bd = plotD;
-            if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
-                const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                   : rp->widthMin));
-                if (plotW >= plotD) { bw = natLong; bd = natShort; }
-                else                { bw = natShort; bd = natLong; }
-                bw = std::min(std::max(1, bw), plotW);
-                bd = std::min(std::max(1, bd), plotD);
+            if (!mainStreetMode) {
+                if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
+                    const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                    const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                       : rp->widthMin));
+                    if (plotW >= plotD) { bw = natLong; bd = natShort; }
+                    else                { bw = natShort; bd = natLong; }
+                    bw = std::min(std::max(1, bw), plotW);
+                    bd = std::min(std::max(1, bd), plotD);
+                }
             }
             const int bx = plotX + (plotW - bw) / 2;   // centre the building in its plot
             const int bz = plotZ + (plotD - bd) / 2;
@@ -10597,14 +10702,17 @@ void Application::registerSettlementCommands() {
             // the plot's street side. The building rect is axis-aligned in settlement coords, so
             // 'S' (street at -z) = its local z0 wall, etc. No street (terrain mode) = no hint.
             std::string front;
-            if (b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size()) {
-                switch (Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)) {
-                    case 'S': front = "z0"; break;
-                    case 'N': front = "z1"; break;
-                    case 'W': front = "x0"; break;
-                    case 'E': front = "x1"; break;
-                    default: break;
-                }
+            const char fside = mainStreetMode
+                ? msl.assigned[i].streetSide   // explicit: the side this plot ABUTS the main street
+                : ((b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size())
+                       ? Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)
+                       : (char)0);
+            switch (fside) {
+                case 'S': front = "z0"; break;
+                case 'N': front = "z1"; break;
+                case 'W': front = "x0"; break;
+                case 'E': front = "x1"; break;
+                default: break;
             }
             nlohmann::json bp = {
                 {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
@@ -10794,9 +10902,23 @@ void Application::registerSettlementCommands() {
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
         }
 
+        nlohmann::json programJson = nlohmann::json::object();
+        if (programMode && tierP) {
+            // Echo {era, tier, seed} so a live build is exactly reproducible (determinism contract).
+            programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
+                           {"morphology", tierP->morphology}};
+            if (mainStreetMode) {
+                programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
+                                              {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};
+                programJson["dropped_plots"] = droppedPlots;
+                if ((int)buildings.size() < tierP->buildingsMin)
+                    programJson["below_tier_min"] = tierP->buildingsMin;   // surfaced, not silent
+            }
+        }
         r = {{"success", true},
              {"settlement", {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
                              {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}}},
+             {"program", programJson},
              {"paths", pathsJson},
              {"queued_builds", queued}};
     });

@@ -1,0 +1,86 @@
+{
+  "_comment": "Settlement Program canon — period-grounded settlement morphology for build_settlement. The settlement-tier analog of room_program.json: eras -> tiers (hamlet/village/town/city), each tier one preset of ONE layout algorithm family (Forge rule: one algorithm, many data presets). Units = CUBES (1 cube = 1 m). Every value carries a `sources` entry (the grounding rule); values without a real citation are flagged REASONED or NEEDS-RESEARCH inline — never silently invented.",
+  "_units": "cubes (metres). street.main_width / lane_width are paved widths; plot.depth_* is the toft depth back from the street; setback is the yard between street edge and building front.",
+  "_era_hook": "Top-level `eras` map is the extension point: a future era (e.g. iron_age, renaissance) adds its own tiers WITHOUT C++ changes. Only `medieval` ships; the loader must surface an unknown era as an ERROR, never silently default.",
+  "eras": {
+    "medieval": {
+      "tiers": {
+        "hamlet": {
+          "description": "A loose farming cluster — a handful of dwellings with no formal street; paths connect the crofts.",
+          "morphology": "cluster",
+          "buildings": { "min": 3, "max": 6 },
+          "street": { "main_width": 0, "lane_width": 0, "material": "Dirt" },
+          "plot": { "frontage": "from_typology", "depth_min": 10, "depth_max": 14, "side_gap": 1 },
+          "setback": { "min": 1, "max": 3 },
+          "typology_weights": { "croft": 4, "longhouse": 3, "hall_house": 1 },
+          "public": {},
+          "sources": {
+            "morphology": "dispersed hamlet / farm-cluster settlement form: Roberts, Rural Settlement in Britain (1977) — 'hamlet' = a cluster lacking the row/green plan-form of a village; matches the shipped terrain-scatter placement",
+            "buildings": "REASONED: 'a few households' — no hard count in the sources consulted; 3-6 chosen so a hamlet reads smaller than the smallest row village. NEEDS-RESEARCH (Roberts & Wrathmell, An Atlas of Rural Settlement in England, 2000)",
+            "typology_weights": "peasant-dominated mix: crofts + longhouses are the excavated dwelling stock at Wharram Percy (Beresford & Hurst); a lone hall_house = the yeoman holding. Ratio REASONED, not counted from a specific site plan",
+            "plot.depth": "toft (house-yard) depths 'tens of metres', scale-compressed to the settlement footprint — DESIGN DECISION disclosed; burgage/toft depth cite: Tait, PSAS 138 (2009) via room_program.json shop entries",
+            "street.material": "unpaved rural tracks — paving in rural hamlets is unattested; Dirt is the honest surface (REASONED)"
+          }
+        },
+        "village": {
+          "description": "A row/street village — dwellings front a single main street on both sides (toft-and-croft rows), with the tavern and smith among them.",
+          "morphology": "main_street",
+          "buildings": { "min": 6, "max": 14 },
+          "street": { "main_width": 5, "lane_width": 3, "material": "Gravel" },
+          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 20, "side_gap": 1 },
+          "setback": { "min": 1, "max": 2 },
+          "typology_weights": { "croft": 3, "longhouse": 2, "hall_house": 2, "tavern": 1, "blacksmith": 1 },
+          "public": { "well": true },
+          "sources": {
+            "morphology": "row/street village plan-form: Wharram Percy itself is a two-row village of tofts fronting a street (Beresford & Hurst, Wharram Percy: Deserted Medieval Village) — the same source that grounds the croft/longhouse typologies",
+            "buildings": "REASONED band between hamlet and market town; Wharram Percy's rows held ~30 tofts at peak, scale-compressed here. NEEDS-RESEARCH for a small-village count (Roberts & Wrathmell 2000)",
+            "street.main_width": "NEEDS-RESEARCH: no measured medieval village street width sourced yet. 5 m ≈ 'two carts can pass' convention cited for town royal-road widths (candidate: Salzman, Building in England; Schofield & Vince, Medieval Towns) — shipped FLAGGED, cite or record in GroundingGaps.md before phase close",
+            "street.lane_width": "NEEDS-RESEARCH: single-cart lane ~3 m REASONED from cart gauge ~1.5 m + clearance; same candidate sources as main_width",
+            "street.material": "REASONED: village streets were commonly unmade/gravelled; full stone paving is a town/burgage-era feature (Schofield & Vince note paving grants in TOWNS). Gravel = the modest middle",
+            "plot.frontage": "from_typology = burgage principle: plot width set by the building's frame width; frontage grounding rides on room_program.json width_max cites (Tait, PSAS 138 (2009): burgage frontages c. 5-17 m, modal 8 m)",
+            "plot.depth": "tofts extend back from the street row into crofts (Wharram Percy plan); 12-20 m is scale-compressed — DESIGN DECISION disclosed",
+            "typology_weights": "one tavern + one smith per small village is the classic service minimum (Medievalists.net inn record via room_program tavern entry; smith ubiquity REASONED); dwelling mix as hamlet. Weights REASONED, not censused",
+            "public.well": "shared village water source (well/spring) — common-provision REASONED; asset + placement land in Phase 3/4"
+          }
+        },
+        "town": {
+          "description": "A market town — cobbled main street widening into a market square, burgage rows with back lanes, shops among the dwellings.",
+          "morphology": "main_street",
+          "buildings": { "min": 15, "max": 30 },
+          "street": { "main_width": 6, "lane_width": 3, "material": "Cobblestone", "back_lanes": true },
+          "plot": { "frontage": "from_typology", "depth_min": 14, "depth_max": 24, "side_gap": 0 },
+          "setback": { "min": 0, "max": 1 },
+          "typology_weights": { "hall_house": 2, "croft": 2, "tavern": 1, "blacksmith": 1, "general_store": 1, "bakery": 1, "apothecary": 1, "butcher": 1 },
+          "public": { "well": true, "market_square": { "w": 12, "d": 12 } },
+          "sources": {
+            "morphology": "market town = main street + market place, burgage series with back lanes: Tait, PSAS 138 (2009) burgage-plot morphology; market places commonly a WIDENED main street (Schofield & Vince, Medieval Towns) — the Phase-4 square straddles the street per that form",
+            "street.material": "town-street paving is attested (murage/pavage grants, Schofield & Vince) — Cobblestone is the settlement `dry_stone` sett material already in materials.json",
+            "street.main_width": "NEEDS-RESEARCH — same as village; town main streets wider than village (two carts + stalls)",
+            "plot.side_gap": "0 = contiguous burgage series (party boundaries), per the burgage-row form (Tait 2009)",
+            "setback": "urban row-houses build to the street frontage line (setback 0-1): burgage frontage occupation, Tait 2009",
+            "buildings": "REASONED band; smallest boroughs were a few dozen burgages (Beresford, New Towns of the Middle Ages — NEEDS-RESEARCH for a specific count)",
+            "public.market_square": "12x12 REASONED placeholder — Phase 4 grounds the square dims before building it",
+            "typology_weights": "full shop set appears at market-town tier (market function = the town's raison d'être); ratios REASONED"
+          }
+        },
+        "city": {
+          "description": "A walled-city quarter — crossroads axes meeting at a market square, jittered secondary lanes, contiguous irregular plots. Slightly organized, a little chaotic.",
+          "morphology": "semi_organic",
+          "buildings": { "min": 30, "max": 60 },
+          "street": { "main_width": 7, "lane_width": 3, "material": "Cobblestone", "back_lanes": true },
+          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 20, "side_gap": 0 },
+          "setback": { "min": 0, "max": 1 },
+          "typology_weights": { "hall_house": 3, "croft": 2, "tavern": 1, "blacksmith": 1, "general_store": 1, "bakery": 1, "apothecary": 1, "butcher": 1, "manor_hall": 1 },
+          "public": { "well": true, "market_square": { "w": 16, "d": 16 } },
+          "sources": {
+            "morphology": "organic-accretion city form (pre-planned medieval growth): Schofield & Vince, Medieval Towns — street networks accreted from axes + infill, not surveyed grids. Implementation (Phase 5): bounded jitter over crossroads axes — DESIGN DECISION disclosed",
+            "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
+            "street.main_width": "NEEDS-RESEARCH — principal city streets carried through-traffic + encroachment; wider than town main streets",
+            "typology_weights": "denser dwelling mix + full trades + a manor_hall (urban magnate house); ratios REASONED"
+          },
+          "_status": "DATA ONLY — semi_organic morphology is Phase 5; the loader accepts this tier, the builder surfaces `morphology_not_implemented` until then."
+        }
+      }
+    }
+  }
+}

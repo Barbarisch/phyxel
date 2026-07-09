@@ -120,12 +120,24 @@ floor scan, paths…).
 
 Validate when each lands; required layer noted so the plan is set up front.
 
-- **Settlement (38–49):** layout placers → **L2** (no overlap, fit): `site_settlement` 38,
-  **`subdivide_plots` 40 — ✅ L2** (`SettlementLayoutTest`: plots no-overlap + street-gap + fit + min;
+- **Settlement (38–49):** layout placers → **L2** (no overlap, fit): **`site_settlement` 38 — 🟡 partial**
+  (2026-07-09: `chooseStreetAxis` picks the flattest straight spine alignment over a `BuildabilityMap` —
+  `MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley`; "why-here" site JUSTIFICATION + growth
+  seed still M), **`subdivide_plots` 40 — ✅ L2** (`SettlementLayoutTest`: plots no-overlap + street-gap + fit + min;
   street[] artifact tested; auditor PASS), `zone_districts` 41, `place_town_wall` 42, `place_public_spaces`
   43, **`populate_plots` 45 — ✅ L2** (one building/plot inset by yard, composed-world non-overlap, setback=0
   boundary; auditor PASS), `compose_compound` 46. Circulation → **L3** (traversable/connected):
-  `lay_street_network` 39, `place_bridges` 44, `link_subterranean` 49. **Inter-building walkability — ✅ L3**
+  **`lay_street_network` 39 — ✅ L2 (layout), L3 owed at paving** (2026-07-09 `planMainStreetLayout` — the
+  era/tier PROGRAM path, `resources/settlement_program.json` + `SettlementProgramRegistry`: main-street
+  burgage morphology, plots on BOTH sides sized FROM their pre-assigned typology (frontage = building
+  frontage + 2×setback; "long_wall" dwellings long-wall-to-street, shops/tavern gable-to-street),
+  deterministic in seed. `MainStreetLayoutTest` 8 tests — the frontage-from-typology + natural-size/
+  orientation invariants proven **red-before-green against the uniform-frontage stub** (the old grid
+  defect transplanted: 1 frontage vs varied, 10×17 stretched footprints vs 8×6 croft naturals);
+  `SettlementProgramTest` 5 data gates: era/tier resolution, unknown-era REJECTED (no silent default),
+  tier-palette referential integrity vs room_program.json, per-tier sources present. **L3 owed Phase 2:**
+  TraversalProbe walks the PAVED main street end-to-end + into every front door), `place_bridges` 44,
+  `link_subterranean` 49. **Inter-building walkability — ✅ L3**
   (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
   composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
   just non-overlapping. Dressing → **`place_signage` 47 — ✅ L2+L4** (a `hanging_sign` projecting trade

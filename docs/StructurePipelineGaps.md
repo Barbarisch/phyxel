@@ -32,3 +32,20 @@ what the engine did instead, the workaround used, and what a real fix looks like
   chunk the way the structure placer now does, and the response should distinguish
   "occupied, skipped" from "placement failed" so seam bugs can't hide inside the failed
   count. Red test: fill a 2×4×2 box straddling y=31/32 in a fresh world, assert 16/16 placed.
+
+## 2026-07-09 — build_settlement responses lost to the 5s queueAndWait timeout
+
+- **What happened:** terrain-mode `POST /api/settlement/build` (era/tier village on Perlin
+  hills) runs site analysis + per-parcel terracing + the MST path network on the game loop —
+  well over the API's 5 s `queueAndWait` window. The caller gets `Request timed out waiting
+  for game loop` while the settlement builds FINE seconds later; the response JSON (the
+  program echo {era,tier,seed}, dropped_plots, below_tier_min, path stats) is simply lost, so
+  callers must scrape phyxel.log for what the build reported. Flat-mode villages fit the
+  window; terrain mode reliably does not. Same family as the asset-editor reload timeout
+  (2026-07-05 entry). `generate_world` right after project load hits it too.
+- **Workaround:** poll phyxel.log for `main_street terrain:` / `build_settlement:` lines.
+- **Real fix:** route long-running composite commands (`build_settlement`, large
+  `build_structure`) through the async job system (submit → job id → status returns the full
+  response JSON), or raise/parameterize the queueAndWait window. The response payload matters
+  here: it carries the determinism echo and the honest-degradation counts the discipline
+  depends on.

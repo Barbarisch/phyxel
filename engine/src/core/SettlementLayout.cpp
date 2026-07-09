@@ -1,6 +1,7 @@
 #include "core/SettlementLayout.h"
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 
 namespace Phyxel {
@@ -186,6 +187,151 @@ FencePlan planParcelFence(const Rect& parcel, char gateSide, int gateWidth) {
     for (const auto& c : perim) if (!gate.count(c)) f.posts.push_back(c);   // fence everything but the gate
     f.ok = true;
     return f;
+}
+
+std::string drawTypology(const std::map<std::string, int>& weights, int plotIndex, unsigned seed,
+                         unsigned salt) {
+    long total = 0;
+    for (const auto& [_, w] : weights) total += std::max(0, w);
+    if (total <= 0) return "hall_house";
+    // Same avalanche mix as pickBuildingVariant, salted so a caller can redraw deterministically.
+    unsigned x = static_cast<unsigned>(plotIndex) * 2654435761u + seed * 2246822519u
+               + (salt + 7u) * 40503u;
+    x ^= x >> 16; x *= 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16;
+    long pick = static_cast<long>(x % static_cast<unsigned>(total));
+    for (const auto& [name, w] : weights) {           // std::map iteration order is stable (sorted)
+        pick -= std::max(0, w);
+        if (pick < 0) return name;
+    }
+    return weights.begin()->first;                    // unreachable
+}
+
+MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, int D,
+                                      const RoomProgramRegistry& rooms, unsigned seed,
+                                      char axis, int crossOffset) {
+    MainStreetLayout out;
+    if (W <= 0 || D <= 0 || tier.street.mainWidth <= 0) return out;
+    // Work in street-local coords: U = along the spine (length L), V = across it (extent C);
+    // mkRect maps back to settlement X/Z. Keeps the allocator single-axis.
+    const bool alongX = axis ? (axis == 'X') : (W >= D);
+    const int L = alongX ? W : D, C = alongX ? D : W;
+    const int sw = tier.street.mainWidth;
+    const int v0 = (crossOffset >= 0) ? crossOffset : (C - sw) / 2;
+    if (v0 < 0 || v0 + sw > C) return out;
+
+    auto mkRect = [&](int u, int v, int du, int dv) {
+        return alongX ? Rect{u, v, du, dv} : Rect{v, u, dv, du};
+    };
+    out.mainStreet = mkRect(0, v0, L, sw);
+    out.base.streets.push_back(out.mainStreet);
+
+    // Per-plot deterministic scalar draw (same avalanche family as drawTypology, distinct salts).
+    auto drawIn = [&](int idx, unsigned salt, int lo, int hi) {
+        if (hi <= lo) return lo;
+        unsigned x = static_cast<unsigned>(idx) * 2654435761u + seed * 2246822519u
+                   + (salt + 3u) * 40503u;
+        x ^= x >> 16; x *= 2246822519u; x ^= x >> 13; x *= 3266489917u; x ^= x >> 16;
+        return lo + static_cast<int>(x % static_cast<unsigned>(hi - lo + 1));
+    };
+
+    // Allocate frontage-by-frontage, ALTERNATING sides (side 0 = across the street at +v, side 1
+    // at -v) so both rows fill evenly. Each plot: draw the typology FIRST, size the plot FROM it
+    // (the burgage principle — frontage = building frontage + 2*setback), orient per the
+    // typology's entrance rule: "long_wall" dwellings present the LONG wall to the street,
+    // gable/shop typologies the GABLE (narrow burgage frontage). A draw whose depth can't fit
+    // its side is redrawn (salted) up to the palette size, then the side stops.
+    const int endMargin = std::max(1, tier.street.laneWidth);   // clear run-off at the street ends
+    int cursors[2] = {endMargin, endMargin};
+    bool open[2] = {true, true};
+    int count = 0;
+    while ((open[0] || open[1]) && count < tier.buildingsMax) {
+        bool placedThisRound = false;
+        for (int side = 0; side < 2 && count < tier.buildingsMax; ++side) {
+            if (!open[side]) continue;
+            const int availDepth = (side == 0) ? (C - (v0 + sw)) : v0;
+            const int redraws = static_cast<int>(std::max<size_t>(1, tier.typologyWeights.size()));
+            bool fit = false;
+            for (int t = 0; t < redraws && !fit; ++t) {
+                const std::string typ = drawTypology(tier.typologyWeights, count, seed,
+                                                     static_cast<unsigned>(t));
+                const RoomProgram* rp = rooms.get(typ);
+                if (!rp) continue;                              // unknown typology: skip this draw
+                const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                   : rp->widthMin));
+                const bool longToStreet = (rp->entrance == "long_wall");
+                const int fDim = longToStreet ? natLong : natShort;   // along the street
+                const int dDim = longToStreet ? natShort : natLong;   // back from the street
+                const int setb = drawIn(count, 11, tier.setback.min, tier.setback.max);
+                const int frontage = fDim + 2 * setb;
+                const int minDepth = dDim + setb + 1;           // front yard + >=1 cube rear toft
+                if (minDepth > availDepth) continue;            // too deep for this side — redraw
+                if (cursors[side] + frontage > L - endMargin) continue;  // run full — redraw smaller
+                const int depth = std::clamp(drawIn(count, 12, tier.plot.depthMin, tier.plot.depthMax),
+                                             minDepth, availDepth);
+                const int u = cursors[side];
+                const int v = (side == 0) ? v0 + sw : v0 - depth;
+                AssignedPlot ap;
+                ap.plot.rect = mkRect(u, v, frontage, depth);
+                ap.plot.row = side;
+                ap.plot.col = count;
+                ap.typology = typ;
+                ap.streetSide = alongX ? (side == 0 ? 'S' : 'N') : (side == 0 ? 'W' : 'E');
+                ap.setback = setb;
+                // Footprint: NATURAL size, front wall `setb` in from the street edge, side margins
+                // exactly `setb` (frontage = fDim + 2*setb by construction); the rest = rear toft.
+                const int fu = u + setb;
+                const int fv = (side == 0) ? v + setb : v + depth - setb - dDim;
+                ap.footprint = mkRect(fu, fv, fDim, dDim);
+                out.base.plots.push_back(ap.plot);
+                out.assigned.push_back(ap);
+                cursors[side] = u + frontage + tier.plot.sideGap;
+                ++count;
+                fit = true;
+                placedThisRound = true;
+            }
+            if (!fit) open[side] = false;                       // nothing in the palette fits — stop this row
+        }
+        if (!placedThisRound) break;
+    }
+    out.ok = !out.assigned.empty();
+    return out;
+}
+
+StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth) {
+    StreetAxisChoice best;
+    best.score = -1;
+    // Score is PER-CELL (x1000 for integer precision) — comparing band TOTALS handed the SHORT
+    // axis a systematic cell-count advantage on any noisy terrain (found live: an 80x44 village
+    // picked the 44-long axis). Penalty per unbuildable cell dominates relief so the spine avoids
+    // water/cliffs first.
+    const double PEN = 100000.0;
+    auto evalBand = [&](char ax, int off) {
+        double s = 0;
+        const int len = (ax == 'X') ? site.W : site.D;
+        for (int u = 0; u < len; ++u)
+            for (int dv = 0; dv < mainWidth; ++dv) {
+                const SiteCell& c = (ax == 'X') ? site.at(u, off + dv) : site.at(off + dv, u);
+                s += c.relief;
+                if (c.cls == Buildability::TooSteep || c.cls == Buildability::Water) s += PEN;
+            }
+        const long cells = static_cast<long>(len) * mainWidth;
+        return static_cast<long>(s * 1000.0 / std::max(1L, cells));
+    };
+    // Tiebreak: the LONGER axis first (a longer street hosts more plots), then lower offset.
+    const char first = (site.W >= site.D) ? 'X' : 'Z';
+    for (char ax : {first, first == 'X' ? 'Z' : 'X'}) {
+        const int cross = (ax == 'X') ? site.D : site.W;
+        // Keep >= minPlotDepth of plot room on BOTH sides of the band (found live: offset 0 pinned
+        // the street to the site edge -> a one-sided village). Clamped so small sites still search.
+        const int room = std::min(minPlotDepth, std::max(0, (cross - mainWidth) / 2));
+        for (int off = room; off + mainWidth <= cross - room; ++off) {
+            const long s = evalBand(ax, off);
+            if (best.score < 0 || s < best.score) { best = {ax, off, s}; }
+        }
+    }
+    if (best.score < 0) best.score = 0;   // site too small for any band: default X/0
+    return best;
 }
 
 } // namespace Core

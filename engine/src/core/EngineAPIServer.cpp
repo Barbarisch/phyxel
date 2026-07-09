@@ -1133,8 +1133,12 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // POST /api/settlement/build — Compose a whole settlement (the engine drives
-    // subdivide_plots + populate_plots, then queues one building build per plot).
-    // Body: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
+    // the layout, then queues one building build per plot).
+    // PROGRAM MODE (preferred): { "era":"medieval", "tier":"hamlet|village|town|city",
+    //         "seed":3, "position":{...}, "width":80, "depth":40, "terrain":bool }
+    //   — morphology/palette/plot sizing come from resources/settlement_program.json
+    //     (village = main-street burgage rows; unknown era/tier is a surfaced error).
+    // LEGACY: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
     //         "street_width":4, "setback":2, "min_building":8, "typology":"hall_house" }
     // ====================================================================
     srv.Post("/api/settlement/build", [this](const httplib::Request& req, httplib::Response& res) {

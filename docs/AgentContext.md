@@ -126,6 +126,37 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 1 SHIPPED 2026-07-09 (uncommitted, working tree).** The
+  7-phase roadmap lives at `C:\Users\jack\.claude\plans\keen-twirling-dove.md` (era-as-data →
+  main street → paving → structure defects → market town → semi-organic city → furniture
+  quality A/B); user decisions: era is a DATA field from day one (medieval only implemented),
+  streets become REAL paved geometry (Phase 2), furniture direction = QUALITY (key rooms).
+  **Phase 1 shipped:** NEW `resources/settlement_program.json` (eras.medieval.tiers hamlet/
+  village/town/city — morphology, weighted typology palettes, street widths NEEDS-RESEARCH-
+  flagged, burgage plot rules; Tait/Wharram Percy grounding) + `SettlementProgramRegistry`
+  (`SettlementProgram.{h,cpp}`, unknown era/tier = surfaced error, never silent) +
+  `planMainStreetLayout`/`drawTypology`/`chooseStreetAxis` in `SettlementLayout.{h,cpp}` —
+  burgage morphology: typology assigned FIRST (weighted deterministic), plot sized FROM its
+  grounded width (frontage = building frontage + 2×setback), "long_wall" dwellings long-wall-
+  to-street, shops/tavern GABLE-to-street; buildings natural size, never stretched. Wired into
+  `build_settlement` (`{era,tier,seed}` program mode; legacy params bit-compatible; response
+  echoes the determinism triple). **Red-before-green:** frontage/orientation invariants proven
+  red against a uniform-frontage stub (`MainStreetLayoutTest`, 10 tests) + `SettlementProgramTest`
+  (5 data gates incl. tier-palette referential integrity). **L4 verified:** flat 120×44 seed-3
+  village = 14 buildings both sides of the street, tavern+blacksmith in the palette (closes
+  that AgentContext open thread), 0 footprint-gate warnings, 0 fixtures skipped, street-level
+  + top screenshots good; whole furnished village = **60.7k visible faces** (greedy-mesh era —
+  a single tavern was 412k before). **Live L4 caught a real bug:** `chooseStreetAxis` compared
+  TOTAL band relief (short-axis bias) and allowed edge offsets (one-sided village) — fixed
+  per-cell scoring + `minPlotDepth` offset restriction, red tests pinned. **Known gaps:** the
+  5s queueAndWait window loses terrain-mode responses (logged in StructurePipelineGaps.md);
+  terrain villages on rough Perlin degrade to few plots (honest dropped_plots count); streets
+  are still UNPAVED (Phase 2: StreetPaver extraction, full-width paving, cut-cell fix, door
+  spurs replace MST in street morphologies, L3 end-to-end street walk). Test project:
+  `PhyxelProjects/SettlementTest`. 12 pre-existing unit failures (MaterialRegistry counts,
+  NavGrid/AStar step-up, FurnitureConformance audit, etc.) are UNRELATED to this diff —
+  settlement suites all green.
+
 - **STRUCTURE-GEN CONSOLIDATION SESSION — SHIPPED 2026-07-07/08 (commits 2750983, e2e586a,
   c49469d, b708372 on main).** Four arcs, each red-before-green + runtime-verified:
   1. **WoodPlanks wall/floor wood split** (2750983): NEW `WoodPlanks` material (Poly Haven
