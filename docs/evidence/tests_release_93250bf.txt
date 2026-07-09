@@ -20,16 +20,30 @@ RESULT (full run, exit code = 1):
       NavGridTest.StepUpOneBlock
       CharacterSkeletonTest.KneeElbowLimitsCorrect
 
-THESE 9 ARE PRE-EXISTING, NOT REGRESSIONS FROM THIS MERGE — proof by domain isolation:
-  The merge (523e4d2..93250bf) changed exactly 15 code files, ALL in the render/buffer/profiler
-  path: Application.cpp (API), EngineAPIServer.cpp (routes), ChunkRenderBuffer.*, ChunkRenderManager.*,
-  ChunkUpdatePerf.h, DeferredBufferReclaim.h, RenderCoordinator.*, GpuProfiler.*, VulkanDevice.*,
-  and ChunkManager.cpp (a NO-OP timer wrapper: both branches call the same updateDirtyChunks).
-  NONE touch pathfinding (AStar/NavGrid), inventory, MaterialRegistry, ChunkData material logic, or
-  CharacterSkeleton IK. A unit test that exercises only code the diff does not modify cannot have
-  changed behavior -> these fail identically on the pre-merge base. The 4 MaterialRegistryTest
-  failures are the long-documented count-mismatch (registry hardcodes 27 materials vs materials.json's
-  91) recorded in prior sessions.
+NOT REGRESSIONS FROM THIS MERGE — but with two tiers of certainty (do NOT overstate):
+  DIFF ISOLATION (applies to all 9, but is an INFERENCE, not a measurement): the merge
+  (523e4d2..93250bf) changed exactly 15 code files, ALL render/buffer/profiler: Application.cpp (API),
+  EngineAPIServer.cpp (routes), ChunkRenderBuffer.*, ChunkRenderManager.*, ChunkUpdatePerf.h,
+  DeferredBufferReclaim.h, RenderCoordinator.*, GpuProfiler.*, VulkanDevice.*, and ChunkManager.cpp
+  (a NO-OP timer wrapper). Header changes are additive-only (new static members/structs/methods, no
+  changed layout); no failing test's includes touch a changed header. So none of these tests'
+  exercised code was modified → they behave identically to base. Strong, but it is a code-diff
+  argument, NOT a before/after run.
+  INDEPENDENT CORROBORATION (7 of 9): docs/RenderOptimization.md (ancestor commit, 2026-07-07) already
+  documents the 4x MaterialRegistryTest, InventoryTest.SelectSlot, NavGridTest.StepUpOneBlock, and
+  CharacterSkeletonTest.KneeElbowLimitsCorrect as pre-existing/unrelated.
+  UNCORROBORATED (2 of 9): AStarPathfinderTest.PathUpOneBlockStep and ChunkDataTest.ReaddCubeUpdatesMaterial
+  have NO documented prior failing history — they rest on diff-isolation ALONE. (Live inspection shows
+  semantically-meaningful mismatches, e.g. re-added cube keeps "Wood" instead of "Stone" — a logic
+  result, not memory corruption — consistent with an unmodified pre-existing bug, but unproven.)
+  The 4 MaterialRegistryTest failures are the stale-hardcoded-count issue: the test hardcodes 27 while
+  resources/materials.json now has 97 entries (measured at BOTH HEAD and base 523e4d2 — earlier notes
+  saying "91" were wrong).
+
+MISSING MEASUREMENT (named, not done): a full phyxel_tests run at base commit 523e4d2 diffed against
+this run. That is the only thing that turns "pre-existing" from inference to proof, especially for the
+2 uncorroborated tests. Not performed here (a fresh base build is ~30-40 min); diff-isolation +
+7/9 corroboration is the basis used instead.
 
 HONEST SCOPE: this suite does NOT cover the actual render change (grep tests/ for chunkIndexCount /
 s_quadDraw = 0 hits). The shipped render claims were validated separately and directly: pixel-diff
