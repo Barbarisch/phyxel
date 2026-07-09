@@ -1286,6 +1286,19 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="validate_placed_objects",
+            description="Ghost detection for placed-structure records: flags structure records whose "
+                        "bounding box holds ZERO voxels (a record persisted without its voxels — the old "
+                        "eager-save bug). Records in non-resident chunks are reported 'unverifiable', "
+                        "never treated as ghosts. Pass repair=true to delete the ghost records.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repair": {"type": "boolean", "description": "Remove detected ghost records", "default": False}
+                }
+            }
+        ),
+        Tool(
             name="move_placed_object",
             description="Move a placed object to a new position. Clears voxels at old location and re-places the template at the new position. Only works for template-based objects (not structures).",
             inputSchema={
@@ -4747,6 +4760,9 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "remove_placed_object":
         return await api_post("/api/placed_object/remove", {"id": args["id"]})
+
+    elif name == "validate_placed_objects":
+        return await api_post("/api/placed_objects/validate", {"repair": args.get("repair", False)})
 
     elif name == "move_placed_object":
         return await api_post("/api/placed_object/move", {

@@ -4,6 +4,8 @@
 #include "core/EntityRegistry.h"
 #include "core/LocationRegistry.h"
 #include "core/GameEventLog.h"
+#include "core/PlacedObjectManager.h"
+#include "core/WorldStorage.h"
 #include "graphics/Camera.h"
 #include "physics/PhysicsWorld.h"
 #include "utils/Logger.h"
@@ -260,9 +262,17 @@ void SceneManager::executeLoad() {
     }
 
     // ── World path ──────────────────────────────────────────────────────────
-    // 1. Save dirty chunks from previous scene and switch world database
+    // 1. Save dirty chunks from previous scene and switch world database.
+    // Placed-object RECORDS save/load WITH the chunks (the ghost-record rule:
+    // a record persisted without its voxels is a ghost on the next load), and
+    // the registry is per-scene — carry-over records would point into the new
+    // scene's terrain.
     if (subsystems_->chunkManager) {
         auto* cm = subsystems_->chunkManager;
+        if (subsystems_->placedObjectManager) {
+            auto* ws = cm->m_streamingManager.getWorldStorage();
+            if (ws) subsystems_->placedObjectManager->saveToDb(ws->getDb());
+        }
         cm->saveDirtyChunks();
 
         // Clear dynamic physics objects before destroying chunks
@@ -272,6 +282,7 @@ void SceneManager::executeLoad() {
 
         cm->cleanup();             // Clear all chunk data from memory
         cm->disconnectWorldStorage();
+        if (subsystems_->placedObjectManager) subsystems_->placedObjectManager->clear();
 
         // Initialize storage with the new scene's DB
         if (!scene->resolvedWorldPath.empty()) {
@@ -290,6 +301,11 @@ void SceneManager::executeLoad() {
                 // or characters fall through the world after a scene transition (same
                 // footgun the editor open_project path had).
                 cm->buildAllChunkPhysics();
+            }
+            // Restore the new scene's placed-object records alongside its chunks.
+            if (subsystems_->placedObjectManager) {
+                auto* ws = cm->m_streamingManager.getWorldStorage();
+                if (ws) subsystems_->placedObjectManager->loadFromDb(ws->getDb());
             }
         }
     }

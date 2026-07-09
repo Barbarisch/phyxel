@@ -2068,6 +2068,23 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/placed_objects/validate — Ghost detection: structure records whose
+    // bounding box holds ZERO voxels (record persisted without its voxels — the old
+    // eager-save bug). Body: { "repair": true } removes the ghosts.
+    // ====================================================================
+    srv.Post("/api/placed_objects/validate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("validate_placed_objects", params, 60000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/placed_object/move — Move a placed object to a new position
     // Body: { "id": "test_chair_1", "position": {"x":10,"y":17,"z":20} }
     // ====================================================================

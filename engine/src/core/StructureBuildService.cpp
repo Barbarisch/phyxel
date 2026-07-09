@@ -24,7 +24,6 @@
 #include "core/StructureGenerator.h"
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
-#include "core/WorldStorage.h"
 #include "utils/Logger.h"
 
 namespace fs = std::filesystem;
@@ -136,11 +135,9 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         out.response["object_id"] = out.objectId;
         if (!out.objectId.empty() && !planMeta.is_null())
             placedObjectManager->setMetadata(out.objectId, "assembly_plan", planMeta);
-        // Immediately persist so the structure record survives restarts
-        if (!out.objectId.empty() && chunkManager) {
-            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-            if (ws) placedObjectManager->saveToDb(ws->getDb());
-        }
+        // NOT persisted here: records save WITH the chunks (save_world / scene save),
+        // never eagerly — an eagerly-saved record whose voxels were never saved is a
+        // GHOST on the next load (bbox + metadata pointing at empty terrain).
 
         // Clear grass under the whole footprint (V10 grass_under_house). prepare_pad
         // works on the program footprint and can miss perimeter/wall columns; sweep
@@ -764,11 +761,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             }
             response["fixtures_unplaced"] = unfit;
         }
-        // Persist the metadata tags (same path as move/rotate).
-        {
-            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-            if (ws) placedObjectManager->saveToDb(ws->getDb());
-        }
+        // Metadata tags persist with the next world save (atomic with the voxels).
         LOG_INFO_FMT("StructureBuild", "FurniturePlacer: engine placed " << fxSpawned
                      << " fixtures (" << fxSkipped << " skipped) into '" << objectId << "'");
     }

@@ -2237,13 +2237,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
                                                int rotation) -> std::string {
         if (!placedObjectManager) return "";
-        std::string objId = placedObjectManager->placeTemplate(name, pos, rotation, "");
-        // Persist to DB so objects survive engine restart
-        if (chunkManager) {
-            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-            if (ws) placedObjectManager->saveToDb(ws->getDb());
-        }
-        return objId;
+        // Records persist WITH the chunks on save_world — never eagerly (ghost-record rule).
+        return placedObjectManager->placeTemplate(name, pos, rotation, "");
     };
 
     // --- Scene management callbacks ---
@@ -4127,11 +4122,7 @@ void Application::renderTemplateSpawner() {
             std::string objId = placedObjectManager->placeTemplate(name, pos, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Placed '" << name << "' as '" << objId << "' at ("
                          << pos.x << "," << pos.y << "," << pos.z << ") rot=" << spawnerRotation);
-            // Persist to DB so objects survive engine restart
-            if (chunkManager) {
-                auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                if (ws) placedObjectManager->saveToDb(ws->getDb());
-            }
+            // Record persists WITH the chunks on save_world — never eagerly (ghost-record rule).
         } else {
             objectTemplateManager->spawnTemplate(name, glm::vec3(pos), true, spawnerRotation);
             LOG_INFO_FMT("TemplateSpawner", "Spawned '" << name << "' (untracked) at ("
@@ -7021,12 +7012,57 @@ static bool handlePlacedObjectCommand(
                                      "remove_placed_object:" + id);
                 }
                 bool ok = placedObjectManager->remove(id);
-                if (ok && chunkManager) {
-                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                    if (ws) placedObjectManager->saveToDb(ws->getDb());
-                }
+                // Record removal persists WITH the chunks on save_world (ghost-record rule).
                 response = {{"success", ok}, {"id", id}};
             }
+        }
+        return true;
+
+    } else if (cmd.action == "validate_placed_objects") {
+        // GHOST detection: a structure record whose bounding box holds ZERO voxels is a
+        // leftover from the old eager-record-save bug (record persisted, voxels never
+        // saved). Only STRUCTURE records are validated — kinematic objects (item props,
+        // doors) legitimately own their geometry outside the chunks. Records whose
+        // chunks aren't resident are reported "unverifiable", never treated as ghosts
+        // (streaming worlds load chunks lazily). {"repair": true} removes the ghosts.
+        if (!placedObjectManager || !chunkManager) {
+            response = {{"error", "PlacedObjectManager/ChunkManager not available"}};
+        } else {
+            const bool repair = cmd.params.value("repair", false);
+            nlohmann::json ghosts = nlohmann::json::array();
+            nlohmann::json unverifiable = nlohmann::json::array();
+            int checked = 0;
+            std::vector<std::string> toRemove;
+            for (const auto& o : placedObjectManager->list()) {
+                if (o.category != "structure") continue;
+                ++checked;
+                auto fdiv32 = [](int a) { return a >= 0 ? a / 32 : (a - 31) / 32; };
+                bool resident = true;
+                for (int cx = fdiv32(o.boundingMin.x); cx <= fdiv32(o.boundingMax.x) && resident; ++cx)
+                    for (int cy = fdiv32(o.boundingMin.y); cy <= fdiv32(o.boundingMax.y) && resident; ++cy)
+                        for (int cz = fdiv32(o.boundingMin.z); cz <= fdiv32(o.boundingMax.z) && resident; ++cz)
+                            if (!chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
+                                resident = false;
+                if (!resident) { unverifiable.push_back(o.id); continue; }
+                bool anyVoxel = false;
+                for (int x = o.boundingMin.x; x <= o.boundingMax.x && !anyVoxel; ++x)
+                    for (int y = o.boundingMin.y; y <= o.boundingMax.y && !anyVoxel; ++y)
+                        for (int z = o.boundingMin.z; z <= o.boundingMax.z && !anyVoxel; ++z)
+                            if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) anyVoxel = true;
+                if (!anyVoxel) {
+                    ghosts.push_back({{"id", o.id}, {"template", o.templateName},
+                                      {"position", {{"x", o.position.x}, {"y", o.position.y},
+                                                    {"z", o.position.z}}}});
+                    if (repair) toRemove.push_back(o.id);
+                }
+            }
+            for (const auto& gid : toRemove) {
+                placedObjectManager->remove(gid);
+                LOG_INFO_FMT("PlacedObjects", "validate: removed ghost record '" << gid << "'");
+            }
+            response = {{"structures_checked", checked}, {"ghosts", ghosts},
+                        {"ghosts_removed", (int)toRemove.size()},
+                        {"unverifiable_not_resident", unverifiable}};
         }
         return true;
 
@@ -7050,10 +7086,7 @@ static bool handlePlacedObjectCommand(
                 }
 
                 bool ok = placedObjectManager->move(id, glm::ivec3(nx, ny, nz));
-                if (ok && chunkManager) {
-                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                    if (ws) placedObjectManager->saveToDb(ws->getDb());
-                }
+                // Moved record persists WITH the chunks on save_world (ghost-record rule).
                 response = {{"success", ok}, {"id", id},
                             {"position", {{"x", nx}, {"y", ny}, {"z", nz}}}};
             }
@@ -7076,10 +7109,7 @@ static bool handlePlacedObjectCommand(
                                      "rotate_placed_object:" + id);
                 }
                 bool ok = placedObjectManager->rotate(id, newRotation);
-                if (ok && chunkManager) {
-                    auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                    if (ws) placedObjectManager->saveToDb(ws->getDb());
-                }
+                // Rotated record persists WITH the chunks on save_world (ghost-record rule).
                 response = {{"success", ok}, {"id", id}, {"rotation", newRotation}};
             }
         }
@@ -12834,12 +12864,9 @@ void Application::processAPICommands() {
                         std::string parentId = cmd.params.value("parent_id", "");
                         std::string objectId = placedObjectManager->placeTemplate(name, pos, rotation, parentId, snapToGround);
                         bool ok = !objectId.empty();
-                        // Immediately persist placed_objects so the record survives engine restarts
-                        // without requiring a separate save_world call
-                        if (ok && chunkManager) {
-                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
-                            if (ws) placedObjectManager->saveToDb(ws->getDb());
-                        }
+                        // Record persists WITH the chunks on save_world — never eagerly. An
+                        // eagerly-saved record whose voxels were never saved is a GHOST on
+                        // the next load (bbox + metadata pointing at empty terrain).
                         response = {{"success", ok}, {"template", name},
                                     {"object_id", objectId},
                                     {"position", {{"x", x}, {"y", y}, {"z", z}}},
@@ -14500,6 +14527,8 @@ void Application::processAPICommands() {
                         bool dirtyOnly = jobParams.value("dirty_only", true);
                         ChunkManager* cmSave = chunkManager;
                         Core::GameEventLog* evSave = gameEventLog.get();
+                        Core::PlacedObjectManager* pomSave =
+                            placedObjectManager ? &*placedObjectManager : nullptr;
                         desc.backgroundWork = [cmSave, dirtyOnly](Core::JobContext& ctx) -> nlohmann::json {
                             ctx.setProgress(0.0f, "Saving world...");
                             auto lock = cmSave->acquireReadLock();
@@ -14507,7 +14536,14 @@ void Application::processAPICommands() {
                             ctx.setProgress(1.0f, "Save complete");
                             return {{"success", ok}, {"dirty_only", dirtyOnly}};
                         };
-                        desc.mainThreadFinalize = [evSave](nlohmann::json& result) {
+                        desc.mainThreadFinalize = [evSave, cmSave, pomSave](nlohmann::json& result) {
+                            // Placed-object records save WITH the chunks (atomic world save —
+                            // the ghost-record rule). Main thread: the registry isn't locked
+                            // for the background chunk write.
+                            if (pomSave && cmSave && result.value("success", false)) {
+                                auto* ws = cmSave->m_streamingManager.getWorldStorage();
+                                if (ws) pomSave->saveToDb(ws->getDb());
+                            }
                             if (evSave) {
                                 evSave->emit("world_saved", {{"async", true}});
                             }
