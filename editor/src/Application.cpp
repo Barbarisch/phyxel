@@ -11036,10 +11036,16 @@ void Application::registerSettlementCommands() {
                     (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
                                                                            : ++propsSkipped);
             if (tierP->pub.well) {
-                const Core::Rect& ms = msl.mainStreet;
-                const bool msAlongX = ms.w >= ms.d;
-                const int wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
-                const int wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
+                int wcx, wcz;
+                if (msl.hasSquare) {                  // the town well anchors the market square
+                    wcx = ox + msl.marketSquare.x + msl.marketSquare.w / 2;
+                    wcz = oz + msl.marketSquare.z + msl.marketSquare.d / 2;
+                } else {                              // village: the main street's verge, mid-length
+                    const Core::Rect& ms = msl.mainStreet;
+                    const bool msAlongX = ms.w >= ms.d;
+                    wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                    wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
+                }
                 (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
             }
             LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "

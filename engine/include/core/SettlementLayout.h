@@ -122,6 +122,10 @@ struct AssignedPlot {
 struct MainStreetLayout {
     SettlementLayout base;   ///< plots + street rects — legacy consumers (terrace/fence/path) iterate these
     Rect mainStreet;         ///< the spine (distinguished for paving + the L3 end-to-end walk)
+    Rect marketSquare;       ///< the market place (town tier) — a WIDENED-main-street square at
+                             ///< mid-length (the common English market form); paved as a plaza,
+                             ///< building-free, the tier well's anchor. Valid iff hasSquare.
+    bool hasSquare = false;
     std::vector<AssignedPlot> assigned;
     bool ok = false;         ///< false = the footprint can't host a main street at this tier
 };

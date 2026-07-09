@@ -126,6 +126,18 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 4 (MARKET TOWN TIER) SHIPPED 2026-07-09.** `tier:"town"`
+  is live end-to-end: the main street WIDENS into a building-free market square at mid-length
+  (widened-street market form; paved plaza; the tier well anchors its centre), and each burgage
+  row gets a BACK LANE + end connectors — one connected paved circuit (the allocator RESERVES
+  the lane band in availDepth). `MarketTownLayoutTest` 5 tests red-first vs the village-only
+  planner (incl. an L3 probe walking street → square → back lane over the paving plan). Live
+  find fixed red-pinned: flush setback-0 doors read as failed "too steep" spurs (11/21) — now
+  trivially connected. L4: 140×60 seed-3 town = 21 buildings / 8 street rects / square + well +
+  lane circuit, top view + square close-up verified. NEXT per roadmap: Phase 6/7 furniture
+  quality (cloth materials + gen_bed → V4 green; mounting + data recipes + wealth tiers) or
+  Phase 5 semi-organic city (most aesthetic-iteration-heavy — plan says either order works).
+
 - **SETTLEMENT MORPHOLOGY v2 — PHASE 3 (TOWN-READ DEFECTS) SHIPPED 2026-07-09.** Three slices:
   (1) **KI-1 roof hover was ALREADY FIXED** (eaveSub floor-div, V1 green) — BuildKnownIssues.md
   was stale; corrected. (2) **WINDOW INFILL** — open-air window holes gone: `WindowSpec.infill`

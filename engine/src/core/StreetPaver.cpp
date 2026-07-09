@@ -75,6 +75,14 @@ PavingPlan planStreetPaving(const std::vector<Rect>& streets, glm::ivec2 originC
             if (bestDist < 0 || dist < bestDist) { bestDist = dist; gx = px; gz = pz; }
         }
         if (bestDist < 0) continue;
+        // A door AT (or hard against) the street is trivially connected — an urban setback-0 row
+        // house opens straight onto the paving; a zero-length "spur" is not a failure (live find:
+        // 11/21 flush town doors read as "too steep" on flat ground).
+        if (bestDist <= box.halfWidthMicro + 1 || cols.count(colKey(d.x, d.z))) {
+            cols.emplace(colKey(d.x, d.z), groundMicroAt(d.x, d.z));   // pave the threshold cell
+            ++plan.spursPlanned;
+            continue;
+        }
         auto it = cols.find(colKey(gx, gz));
         const int gS = (it != cols.end()) ? it->second : groundMicroAt(gx, gz);
         const PathPlan spur =

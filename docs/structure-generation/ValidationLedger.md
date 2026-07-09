@@ -136,6 +136,16 @@ Validate when each lands; required layer noted so the plan is set up front.
   defect transplanted: 1 frontage vs varied, 10×17 stretched footprints vs 8×6 croft naturals);
   `SettlementProgramTest` 5 data gates: era/tier resolution, unknown-era REJECTED (no silent default),
   tier-palette referential integrity vs room_program.json, per-tier sources present.
+  **✅ SLICE 3 — MARKET TOWN TIER (2026-07-09, `place_public_spaces` #43 → L2+L3):** the `town`
+  tier's main street WIDENS into a building-free MARKET SQUARE at mid-length (the common English
+  widened-street market form; paved as a plaza, tier well at its centre), and each burgage row
+  gets a BACK LANE behind it joined to the main street by end connectors — one connected paved
+  circuit. The allocator RESERVES the lane band in its available depth (the form plans the lane).
+  `MarketTownLayoutTest` 5 tests — square-straddles-street / building-free / connected-network /
+  **L3 probe walks street → square → back lane over the paving plan** — all proven RED against
+  the village-only planner first. Flush setback-0 doors count as trivially connected spurs (live
+  find: 11/21 read "too steep" on flat ground; `DoorOnTheStreetEdgeCountsAsConnected` pins it).
+  L4: 140×60 seed-3 town = 21 buildings, 8 street rects, square+well+lane circuit all visible.
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);

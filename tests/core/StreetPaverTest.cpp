@@ -137,6 +137,17 @@ TEST(StreetPaverTest, ProbeWalksThePavedStreetEndToEnd) {
         << "the paved main street must be walkable end to end (cut columns owed?)";
 }
 
+// A door AT the street edge (urban setback-0 row houses open straight onto the street) is
+// trivially CONNECTED — not a failed spur. RED (live find, town tier 2026-07-09: 11/21 flush
+// doors reported "too steep" on flat ground — planTerrainPath rejects the zero-length run).
+TEST(StreetPaverTest, DoorOnTheStreetEdgeCountsAsConnected) {
+    DoorAnchor door{10 * 9 + 4, 10 * 9 + 4, (16 + 1) * 9};   // inside the street band itself
+    const auto plan = planIt({door});
+    ASSERT_TRUE(plan.ok);
+    EXPECT_EQ(plan.spursFailed, 0) << "a flush door must not read as a failed spur";
+    EXPECT_EQ(plan.spursPlanned, 1);
+}
+
 // Degenerate inputs stay honest.
 TEST(StreetPaverTest, EmptyStreetsReturnNotOk) {
     const auto plan = planStreetPaving({}, {0, 0}, {}, {}, groundMicro, AgentBox{}, "Gravel");

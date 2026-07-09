@@ -1,6 +1,7 @@
 #include "core/SettlementLayout.h"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <set>
 
@@ -234,13 +235,31 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
         return lo + static_cast<int>(x % static_cast<unsigned>(hi - lo + 1));
     };
 
+    const int endMargin = std::max(1, tier.street.laneWidth);   // clear run-off at the street ends
+
+    // MARKET SQUARE (town tier): the main street WIDENS at mid-length into a building-free paved
+    // place — the common English market form (a widened street, not a detached plaza). Reserved
+    // BEFORE plot allocation; the allocator jumps its run on both sides. Pushed into base.streets
+    // so the paver paves it as a plaza and the L3 walk can prove it.
+    int sqU0 = 0, sqU1 = 0;
+    if (tier.pub.marketW > 0 && tier.pub.marketD > 0 && L > 2 * endMargin + 4) {
+        const int sqW = std::min(tier.pub.marketW, L - 2 * endMargin);
+        const int over = std::max(0, tier.pub.marketD - sw);   // bulge past the street band
+        const int vLo = std::max(0, v0 - over / 2);
+        const int vHi = std::min(C, v0 + sw + (over - over / 2));
+        sqU0 = (L - sqW) / 2;
+        sqU1 = sqU0 + sqW;
+        out.marketSquare = mkRect(sqU0, vLo, sqW, vHi - vLo);
+        out.hasSquare = true;
+        out.base.streets.push_back(out.marketSquare);
+    }
+
     // Allocate frontage-by-frontage, ALTERNATING sides (side 0 = across the street at +v, side 1
     // at -v) so both rows fill evenly. Each plot: draw the typology FIRST, size the plot FROM it
     // (the burgage principle — frontage = building frontage + 2*setback), orient per the
     // typology's entrance rule: "long_wall" dwellings present the LONG wall to the street,
     // gable/shop typologies the GABLE (narrow burgage frontage). A draw whose depth can't fit
     // its side is redrawn (salted) up to the palette size, then the side stops.
-    const int endMargin = std::max(1, tier.street.laneWidth);   // clear run-off at the street ends
     int cursors[2] = {endMargin, endMargin};
     bool open[2] = {true, true};
     int count = 0;
@@ -248,7 +267,11 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
         bool placedThisRound = false;
         for (int side = 0; side < 2 && count < tier.buildingsMax; ++side) {
             if (!open[side]) continue;
-            const int availDepth = (side == 0) ? (C - (v0 + sw)) : v0;
+            // back-lane tiers RESERVE the lane band behind the row (the burgage form PLANS the
+            // lane; it doesn't squeeze it in after) — plots may not fill the whole cross extent.
+            const int laneReserve = (tier.street.backLanes && tier.street.laneWidth > 0)
+                                        ? tier.street.laneWidth : 0;
+            const int availDepth = ((side == 0) ? (C - (v0 + sw)) : v0) - laneReserve;
             const int redraws = static_cast<int>(std::max<size_t>(1, tier.typologyWeights.size()));
             bool fit = false;
             for (int t = 0; t < redraws && !fit; ++t) {
@@ -266,6 +289,10 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                 const int frontage = fDim + 2 * setb;
                 const int minDepth = dDim + setb + 1;           // front yard + >=1 cube rear toft
                 if (minDepth > availDepth) continue;            // too deep for this side — redraw
+                // jump the market square's reserved run (both sides keep clear of the place)
+                if (out.hasSquare && cursors[side] < sqU1 + tier.plot.sideGap &&
+                    cursors[side] + frontage > sqU0 - tier.plot.sideGap)
+                    cursors[side] = sqU1 + tier.plot.sideGap;
                 if (cursors[side] + frontage > L - endMargin) continue;  // run full — redraw smaller
                 const int depth = std::clamp(drawIn(count, 12, tier.plot.depthMin, tier.plot.depthMax),
                                              minDepth, availDepth);
@@ -294,6 +321,35 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
         }
         if (!placedThisRound) break;
     }
+
+    // BACK LANES (town tier): a service lane parallel to the spine BEHIND each plot row, joined
+    // to the main street by end connectors that run THROUGH the lane band — the burgage back-lane
+    // circuit (Tait plan-form). Lanes/connectors are street rects: the paver paves them and the
+    // L3 walk proves them; rows/sides without room skip honestly.
+    if (tier.street.backLanes && tier.street.laneWidth > 0 && !out.assigned.empty()) {
+        const int lw = tier.street.laneWidth;
+        for (int side = 0; side < 2; ++side) {
+            int maxDepth = 0, uLo = INT_MAX, uHi = INT_MIN;
+            for (const auto& ap : out.assigned) {
+                if (ap.plot.row != side) continue;
+                const Rect& r = ap.plot.rect;
+                maxDepth = std::max(maxDepth, alongX ? r.d : r.w);
+                uLo = std::min(uLo, alongX ? r.x : r.z);
+                uHi = std::max(uHi, alongX ? r.x1() : r.z1());
+            }
+            if (maxDepth == 0) continue;                       // empty row
+            const int vLane = (side == 0) ? v0 + sw + maxDepth : v0 - maxDepth - lw;
+            if (vLane < 0 || vLane + lw > C) continue;         // no room behind this row (honest)
+            out.base.streets.push_back(mkRect(uLo, vLane, uHi - uLo, lw));
+            // end connectors OUTSIDE the plot runs (uLo-lw / uHi), spanning street edge -> through
+            // the lane band so the rects share an EDGE with both (one connected network).
+            const int vc0 = (side == 0) ? v0 + sw : vLane;
+            const int vcd = maxDepth + lw;
+            if (uLo - lw >= 0)     out.base.streets.push_back(mkRect(uLo - lw, vc0, lw, vcd));
+            if (uHi + lw <= L)     out.base.streets.push_back(mkRect(uHi, vc0, lw, vcd));
+        }
+    }
+
     out.ok = !out.assigned.empty();
     return out;
 }
