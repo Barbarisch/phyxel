@@ -7044,12 +7044,40 @@ static bool handlePlacedObjectCommand(
                             if (!chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz)))
                                 resident = false;
                 if (!resident) { unverifiable.push_back(o.id); continue; }
-                bool anyVoxel = false;
-                for (int x = o.boundingMin.x; x <= o.boundingMax.x && !anyVoxel; ++x)
-                    for (int y = o.boundingMin.y; y <= o.boundingMax.y && !anyVoxel; ++y)
-                        for (int z = o.boundingMin.z; z <= o.boundingMax.z && !anyVoxel; ++z)
-                            if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) anyVoxel = true;
-                if (!anyVoxel) {
+                bool isGhost;
+                if (o.metadata.contains("assembly_plan") &&
+                    o.metadata["assembly_plan"].contains("origin") &&
+                    o.metadata["assembly_plan"].contains("plan")) {
+                    // v2 structure: probe where the ANATOMY says walls must be — precise,
+                    // immune to unrelated content (trees/terrain) inside the bbox.
+                    const auto& m = o.metadata["assembly_plan"];
+                    const glm::ivec3 org(m["origin"][0].get<int>(), m["origin"][1].get<int>(),
+                                         m["origin"][2].get<int>());
+                    const Core::AssemblyPlan plan = Core::AssemblyPlan::fromJson(m["plan"]);
+                    int wallCells = 0, wallHits = 0;
+                    for (const auto& w : plan.walls) {
+                        if (w.type != "exterior") continue;
+                        const glm::ivec3 cell = org + glm::ivec3(w.x0, w.baseY, w.z0);
+                        ++wallCells;
+                        if (chunkManager->hasVoxelAt(cell)) ++wallHits;
+                    }
+                    isGhost = (wallCells > 0 && wallHits == 0);
+                } else {
+                    // Legacy record (no plan): count NON-FLORA voxels in the bbox. A lone
+                    // tree trunk / canopy overlapping the box must not read as a building
+                    // (house_1 false-negative: 19 hero-oak Log voxels in a 567-cell bbox).
+                    auto isFlora = [](const std::string& mat) {
+                        return mat.rfind("Log", 0) == 0 || mat.rfind("Leaf", 0) == 0;
+                    };
+                    int evidence = 0;
+                    for (int x = o.boundingMin.x; x <= o.boundingMax.x && evidence < 8; ++x)
+                        for (int y = o.boundingMin.y; y <= o.boundingMax.y && evidence < 8; ++y)
+                            for (int z = o.boundingMin.z; z <= o.boundingMax.z && evidence < 8; ++z)
+                                if (const auto* c = chunkManager->getCubeAt(glm::ivec3(x, y, z)))
+                                    if (!isFlora(c->getMaterialName())) ++evidence;
+                    isGhost = (evidence < 8);
+                }
+                if (isGhost) {
                     ghosts.push_back({{"id", o.id}, {"template", o.templateName},
                                       {"position", {{"x", o.position.x}, {"y", o.position.y},
                                                     {"z", o.position.z}}}});
