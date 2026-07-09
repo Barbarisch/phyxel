@@ -100,13 +100,16 @@ Measurement reframed its value:
   generating 64 more chunks on the warmed device produced **no new stall** (create max 1.13 ms,
   realloc avg 0.49 ms). The 25–48 ms spikes are the OS/driver committing the first `VkDeviceMemory`
   pages — one-time, load-only. (Reconciles T0's "first edit after load" ~40 ms → cold first-touch.)
-- **B1 is therefore a CORRECTNESS fix, not a perf fix.** It targets an in-flight-buffer use-after-free
-  (inline `vkFreeMemory` of a buffer possibly bound in one of `MAX_FRAMES_IN_FLIGHT=2` in-flight frames)
-  — **established by code-reading, NOT yet validation-proven.** Release compiles validation layers out;
-  the mandatory red-before-green (Debug + `PHYXEL_VALIDATION=1`: a UAF VUID with `s_deferBufferFree`
-  false, clean with it true, under growth churn) is **still outstanding** (plan §4/§B_stress). A
-  deferred *free* cannot speed up a cold `vkAllocateMemory`, so there is no recurring buffer stall to
-  remove either.
+- **B1 is DEFENSIVE HARDENING, not a proven fix.** It targets an in-flight-buffer use-after-free
+  (inline `vkFreeMemory` of a buffer possibly bound in one of `MAX_FRAMES_IN_FLIGHT=2` in-flight
+  frames). **The validation red-before-green was RUN (2026-07-09, Debug + `PHYXEL_VALIDATION=1`) and
+  came back NEGATIVE: 346 inline-free reallocs (defer OFF) produced 0 in-use `vkFreeMemory`/
+  `vkDestroyBuffer` VUIDs.** The engine's frame pacing (fence waits before the mesh/realloc phase)
+  means the freed buffer is already GPU-complete, so the UAF is real by inspection but **latent — it
+  does not manifest**. B1 is shipped default ON as strictly-safer hardening (near-zero cost, matches
+  the streaming-eviction deferral pattern, future-proofs off-thread meshing where the fence guarantee
+  wouldn't hold) — NOT because an observable bug was fixed. A deferred *free* also cannot speed up a
+  cold `vkAllocateMemory`, so there is no recurring buffer stall to remove either.
 
 **Track outcome:** T0→B0→B1 established the render-perf problem is NOT meshing, NOT steady
 chunk-update, NOT a recurring buffer hitch. The one dominant recurring cost is **render density**

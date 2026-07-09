@@ -99,3 +99,22 @@ CONSEQUENCE for B1:
     fix. There is essentially no recurring buffer stall to remove.
   - The higher-value latent issue remains B2's alloc-count ceiling (~1-1.6k chunks x up to 3 raw
     vkAllocateMemory -> ~4096), a crash/scaling risk independent of frame timing.
+
+================================================================================
+B1 VALIDATION RESULT (2026-07-09, Debug + PHYXEL_VALIDATION=1) — the UAF does NOT manifest
+================================================================================
+Red-before-green attempt for the "reallocateBuffer use-after-free": ran the Debug build with Vulkan
+validation layers active, toggled s_deferBufferFree OFF (inline free), and forced reallocs (dense
+furnished-tavern build + 40 edits) while the scene rendered (main + 131-chunk shadow pass).
+  reallocs performed (defer OFF): 346  (buffer_realloc.count)
+  in-use vkFreeMemory / vkDestroyBuffer VUIDs: 0
+  (validation WAS reporting other issues — a swapchain-semaphore-reuse VUID + the pre-existing
+   reflection descriptor-pool + a shader-interface warning — so the layer was live and working.)
+
+CONCLUSION: the inline free never freed a buffer that validation considered in-use — the engine's
+frame pacing (fence waits before the update/mesh/realloc phase) means the freed buffer is already
+GPU-complete by free time. The use-after-free is REAL BY CODE INSPECTION but LATENT — it does not
+manifest under the current frame structure. So B1 is DEFENSIVE HARDENING (removes a latent risk +
+future-proofs off-thread meshing, where the fence guarantee would not hold), NOT a proven bug fix.
+The earlier commit's "closes a use-after-free" OVERSTATED it; corrected here and in the plan.
+Shipped default ON (strictly safer, near-zero cost, matches the streaming-eviction deferral pattern).

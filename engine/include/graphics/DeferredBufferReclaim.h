@@ -3,9 +3,12 @@
 // --- B1: deferred buffer reclaim (docs/ChunkUpdateHitchPlan.md) ---
 // ChunkRenderBuffer::reallocateBuffer used to free the old VkBuffer/VkDeviceMemory INLINE, even
 // though that buffer may still be bound as a vertex buffer in a frame the GPU has not finished
-// (MAX_FRAMES_IN_FLIGHT = 2). That is a use-after-free AND the source of the intermittent multi-ms
-// realloc stall (the driver serialises a free of in-flight memory). This queue defers the free by
-// > MAX_FRAMES_IN_FLIGHT rendered frames, so by drain time the GPU can no longer reference it.
+// (MAX_FRAMES_IN_FLIGHT = 2) — a use-after-free BY INSPECTION. NOTE (measured 2026-07-09, Debug +
+// PHYXEL_VALIDATION): 346 inline-free reallocs produced 0 in-use VUIDs, so the UAF is LATENT under
+// the current frame pacing (fence waits before the mesh/realloc phase → the buffer is GPU-complete by
+// free time). This queue is therefore DEFENSIVE HARDENING (+ future-proofs off-thread meshing, where
+// that fence guarantee would not hold): it defers the free by > MAX_FRAMES_IN_FLIGHT rendered frames,
+// so by drain time the GPU can no longer reference the buffer.
 //
 // The streaming eviction path already uses this pattern at whole-Chunk granularity
 // (ChunkStreamingManager m_pendingDeletion, one pump >= frames-in-flight). This is the same idea at
