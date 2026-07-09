@@ -249,7 +249,19 @@ ranges, sea level, cave dimensions) before shipping.
 > treeless. (3) No GrassJungle / Snow / Mud materials yet (Jungle reuses GrassForest, caps use Ice).
 > (4) `kRidgedNorm=1.35` is an empirical normalization (validated by peak-relief bounds, not derived).
 > (5) Treeline == snowline for now (no separate alpine-meadow band below permanent snow).
-> **Increment 3 (next): density-function / nested-spline evaluator refactor** (art-direction, 2a).
+> **Increment 3 ✅ IMPLEMENTED (2026-07-09, uncommitted, pending auditor): spline evaluator +
+> recipe-driven terrain shaping.** New `Spline` primitive (`engine/{include,src}/core/Spline.*`) —
+> a piecewise smoothstep curve over control points, the "how tall" art-direction knob (Minecraft-
+> style). The continentalness → base-elevation composition now runs through
+> `WorldGenerator::m_continentalHeightSpline`; the default 2-point ramp is **byte-identical** to the
+> old hardcoded `continentalBase` (behavior-preserving — relief 364 / biome counts unchanged). The
+> spline is **recipe-overridable** (`WorldRecipe::heightSpline`) and round-trips through `world.db`
+> JSON, so a world can reshape its coastline/plateau profile without recompiling — the first concrete
+> art-direction control and the groundwork for drawn-map height fields (P4). Captured by value into
+> the coarse-model pure source (worker-copy-safe). Tests: `SplineTest` (8), `TerrainRecipeTest` (2,
+> incl. override-reshapes-terrain + JSON round-trip). Full suite 0 failures.
+> **Follow-on (not this increment):** nested splines (continentalness→erosion→peaks-valleys, the full
+> Minecraft router), an `erosion` noise field for terrain variety, and mountain-amplitude as a spline.
 
 - Replace the ad-hoc height formula with the **density/spline node graph** (2a). Model
   continentalness → erosion → peaks-valleys as nested splines.

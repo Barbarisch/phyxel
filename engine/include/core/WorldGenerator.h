@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/CoarseWorldModel.h"
+#include "core/Spline.h"
 
 namespace Phyxel {
 
@@ -182,6 +183,14 @@ private:
     // or generation params change (ctor + applyRecipe).
     std::shared_ptr<CoarseWorldModel> m_coarse;
     void rebuildCoarseModel();
+
+    // The continentalness → base-elevation shaping spline (docs/TerrainGenerationV2.md §2a): the
+    // "how tall" art-direction curve, decoupled from the "how mountainous" noise. Default is a
+    // smoothstep ramp from the ocean/shelf floor to the high-interior plateau (behavior-identical to
+    // the old hardcoded continentalBase); a world recipe may override the control points to reshape
+    // coastlines/plateaus without recompiling. Captured BY VALUE into the coarse-model source, so it
+    // is safe under the streaming worker's generator copy.
+    Spline m_continentalHeightSpline;
 
     // Generation implementations
     bool generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);

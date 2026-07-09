@@ -138,13 +138,13 @@ float smoothstep01(float edge0, float edge1, float x) {
 constexpr float kClimateContrast = 1.9f;
 float expandContrast(float v) { return clamp01((v - 0.5f) * kClimateContrast + 0.5f); }
 
-// Continental base elevation from continentalness [0,1] → world Y. A cubic "amplification
-// spline": flat lowlands/shelf near sea level, exaggerated interior highlands. This is the
-// Layer-0 low-frequency landmass; dramatic peaks come from the Layer-1 ridged detail on top.
-float continentalBase(float cont) {
-    float t = clamp01(cont);
-    float shaped = t * t * (3.0f - 2.0f * t);   // smoothstep redistribution (flat low, steep high)
-    return kSeaLevelY + kContinentalMin + (kContinentalMax - kContinentalMin) * shaped;
+// Default continentalness → base-elevation shaping spline: a smoothstep ramp from the ocean/shelf
+// floor (kSeaLevelY+kContinentalMin) to the high interior plateau (kSeaLevelY+kContinentalMax).
+// Because Spline interpolates with smoothstep, this 2-point ramp is byte-identical to the old
+// hardcoded continentalBase (flat lowlands/shelf, exaggerated interior); the Layer-1 ridged detail
+// supplies the dramatic peaks on top. A world recipe may swap in a richer curve.
+Spline defaultContinentalHeightSpline() {
+    return Spline::ramp(0.0f, kSeaLevelY + kContinentalMin, 1.0f, kSeaLevelY + kContinentalMax);
 }
 
 // Ridged multifractal (Musgrave). Returns ~[0, ~1.4]; peaks sharp (rough), valleys smooth,
@@ -176,6 +176,7 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
     // Best-effort override from resources/biomes.json (CWD-relative, like materials.json).
     // Keeps the built-in defaults if the file is missing or invalid.
     loadBiomes("resources/biomes.json");
+    m_continentalHeightSpline = defaultContinentalHeightSpline();
     rebuildCoarseModel();
 }
 
@@ -187,16 +188,19 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
 void WorldGenerator::rebuildCoarseModel() {
     const uint32_t s = seed;
     const float contF = terrainParams.climateFrequency * 0.42f;  // continents larger than biomes
+    // Capture the height spline BY VALUE so the coarse source stays pure (safe under the worker's
+    // generator copy). Reshaping the spline (default vs recipe) changes the coastline/plateau profile.
+    const Spline hspline = m_continentalHeightSpline;
     m_coarse = std::make_shared<CoarseWorldModel>(
-        [s, contF](float x, float z) {
+        [s, contF, hspline](float x, float z) {
             CoarseSample cs;
             auto to01 = [](float n) { return n < -1.0f ? 0.0f : (n > 1.0f ? 1.0f : (n + 1.0f) * 0.5f); };
             // Expand contrast so continents genuinely reach ocean (low) and mountainous-interior
             // (high) extremes instead of grey mush (see expandContrast).
             cs.continentalness = expandContrast(to01(tnFbm(x * contF, 300.0f, z * contF, 2, 0.5f, 2.0f, s)));
-            cs.baseHeight = continentalBase(cs.continentalness);
-            // temperature/moisture left at defaults for P0 (unused; sampleColumn computes them
-            // per-column for biome selection). Filled in P1.
+            cs.baseHeight = hspline.eval(cs.continentalness);   // Layer-0 base via the shaping spline
+            // temperature/moisture left at defaults here (sampleColumn computes them per-column for
+            // biome selection).
             return cs;
         },
         32.0f);
@@ -563,6 +567,9 @@ WorldRecipe WorldGenerator::makeRecipe() const {
         }
         r.biomes.push_back(std::move(bt));
     }
+    // Snapshot the continental height spline so the world round-trips its terrain shape.
+    for (const auto& p : m_continentalHeightSpline.points())
+        r.heightSpline.push_back({p.x, p.y});
     return r;
 }
 
@@ -591,7 +598,15 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
             break;
         }
     }
-    // climateFrequency changed → the coarse model's continentalness frequency changed. Rebuild
+    // A recipe may reshape the continentalness → base-elevation spline (coastline/plateau profile).
+    // Empty → keep the current (default) spline so existing worlds are unaffected.
+    if (!recipe.heightSpline.empty()) {
+        std::vector<Spline::Point> pts;
+        pts.reserve(recipe.heightSpline.size());
+        for (const auto& p : recipe.heightSpline) pts.push_back({p.x, p.y});
+        m_continentalHeightSpline = Spline(std::move(pts));
+    }
+    // climateFrequency and/or the height spline changed → the coarse model's inputs changed. Rebuild
     // it now so the worker snapshot (taken after applyRecipe) copies an up-to-date Layer 0.
     rebuildCoarseModel();
     LOG_INFO_FMT("WorldGenerator", "Applied world recipe (climateFreq=" << recipe.climateFrequency

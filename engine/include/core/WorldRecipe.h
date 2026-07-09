@@ -37,11 +37,20 @@ struct WorldRecipe {
         std::vector<FloraLayerTune> extraLayers; // additional bands
     };
 
+    // A control point of the continentalness → base-elevation shaping spline (the "how tall"
+    // art-direction curve; see WorldGenerator::m_continentalHeightSpline). x = continentalness [0,1],
+    // y = base world-Y. Empty heightSpline → the engine's default ramp.
+    struct SplinePoint {
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
     int version = 1;
     uint32_t seed = 0;
     std::string type = "Perlin";
     float climateFrequency = 0.002f;       // biome size (lower = bigger biomes)
     std::vector<BiomeTune> biomes;
+    std::vector<SplinePoint> heightSpline; // continentalness → base elevation; empty = engine default
 
     std::string toJson() const {
         nlohmann::json root;
@@ -73,6 +82,11 @@ struct WorldRecipe {
             });
         }
         root["biomes"] = barr;
+        if (!heightSpline.empty()) {
+            nlohmann::json sp = nlohmann::json::array();
+            for (const auto& p : heightSpline) sp.push_back({{"x", p.x}, {"y", p.y}});
+            root["heightSpline"] = sp;
+        }
         return root.dump(2);
     }
 
@@ -116,6 +130,9 @@ struct WorldRecipe {
                     r.biomes.push_back(std::move(bt));
                 }
             }
+            if (root.contains("heightSpline") && root["heightSpline"].is_array())
+                for (const auto& p : root["heightSpline"])
+                    r.heightSpline.push_back({p.value("x", 0.0f), p.value("y", 0.0f)});
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }
