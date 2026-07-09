@@ -126,9 +126,10 @@ the floor points to **draw-call / per-chunk-bind count**. Reverted 2048²→4096
 loss, wrong lever). → **D1c**.
 
 ### D1c — light-frustum cull the shadow pass: DONE, can't help (chunks are in-volume)
-**Measured:** a correct AABB-vs-light-ortho cull (`s_shadowFrustumCull`, default ON) only drops
-**138→131 chunks (~5%)**, NO shadow-pass change. The fitted shadow volume legitimately contains ~131
-chunks, so culling can't reduce the draw count. Loss-free (shadows intact), kept ON, but not the fix.
+**Measured:** a correct AABB-vs-light-ortho cull (`s_shadowFrustumCull`) only drops **138→131 chunks
+(~5%)**, NO shadow-pass change. The fitted shadow volume legitimately contains ~131 chunks, so culling
+can't reduce the draw count. Loss-free (shadows intact), but not the fix — **shipped default OFF** (no
+perf win), kept as an opt-in for future cascade work.
 
 ### Shadow characterization — three levers exhausted; the wall is structural
 primitives (D1: no effect) · resolution (D1b: ~30%) · cull (D1c: no effect). Decompose 2048²:

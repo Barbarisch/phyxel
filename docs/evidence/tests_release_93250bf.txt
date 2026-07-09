@@ -1,0 +1,28 @@
+# Unit test run against merged main 93250bfe17ff5f5df0683d2e68e6ca3125afa886
+# binary: build/tests/Release/phyxel_tests.exe (rebuilt after D1-fix + B1-relabel)
+
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
+[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
+[32m[10:21:46.638] [INFO] [WindowManager] Initializing GLFW window system[0m
+[32m[10:21:46.640] [INFO] [WindowManager] Window created: 800x600 'Headless Test'[0m
+[32m[10:21:46.640] [INFO] [WindowManager] Destroying window[0m
+[==========] 2612 tests from 270 test suites ran. (58111 ms total)
+[  PASSED  ] 2599 tests.
+[  SKIPPED ] 4 tests.
+  YOU HAVE 1 DISABLED TEST
+
