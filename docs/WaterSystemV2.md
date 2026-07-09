@@ -55,6 +55,9 @@ The blocker is the scale architecture, not the CA rules. Each item below is evid
 4. **Two render models that don't reconcile.** The flat plane assumes *one* global sea Y (can't
    draw a mountain lake at a different height); the per-cell renderer only draws inside the fixed
    box. No far/near LOD handoff. → `RenderCoordinator.cpp:1651` (plane) vs `:1666` (cells).
+   Sea level is also **duplicated state**: `RenderCoordinator::m_seaLevel` (render plane) and
+   `WaterManager::m_seaLevel` (sim) are set independently from the same `game.json` key and can
+   drift (`Application.cpp:5404` vs `:5498`).
 
 5. **Persistence is authoring-seeds only, to `game.json`.** The field re-derives from seeds each
    load; there is **no per-voxel water field in `world.db`**, so a generated continental hydrology
@@ -64,8 +67,11 @@ The blocker is the scale architecture, not the CA rules. Each item below is evid
    all-solid/all-empty — wrong for the engine's mixed-resolution identity.
    → `WaterSystem.md` "Sub-voxel terrain" note.
 
-7. **GPU path round-trips masks+field every step → "NOT yet a perf win," off by default.**
-   → `WaterManager.h` GPU-backend comments.
+7. **GPU path is synchronous and round-trips everything each step — "NOT yet a perf win," off by
+   default.** `stepGpu()` uploads the full field + all masks, submits a single-time command buffer
+   and **waits** for it, then reads the whole field back — every tick.
+   → `WaterManager.cpp:348` (`stepGpu`, per-step submit+wait+readback); quote from
+   `docs/AgentContext.md` water entry.
 
 **Net:** *oceans* = cosmetic flat plane + box-bounded flood only; *lakes* = correct but only inside
 the box and only if hand-placed; *rivers* = right primitives, no routing, can't cross box or chunks.
@@ -106,13 +112,20 @@ green + solution-auditor on every "works" claim, stress-test phase, per-placer v
 
 ### Phase A — Free the sim from the fixed box  ← START HERE
 Foundation, no new visible features; unblocks everything.
-- Replace the hardcoded 64³ `WaterManager` with a **player-following active region** that
+- Replace the hardcoded 64×32×64 `WaterManager` box with a **player-following active region** that
   re-centers / streams as the camera moves, carrying mass across recenters and re-syncing solidity
   on the moving frontier. ⚑GROUND active-region radius (vs. view distance + sim cost).
 - Implement the **active-set / sleep** the design already specifies: track dirty cells, skip
   settled columns, wake on disturbance (the voxel-edit occupancy callback at
   `Application.cpp:366` already exists → feed it a wake list). Turns the O(all cells) sweep into
   O(active).
+- **Re-apply authored features as the region slides.** Today everything is silently box-local:
+  ocean seeds convert world→local and flood only inside the box (`rebuildOcean`,
+  `WaterManager.cpp:245`), and springs/channels no-op when out of bounds (`applySprings`,
+  `setChannelWorld`). Under a moving region: (a) ocean seeding must generalize from *point seeds*
+  to a **boundary condition** — any region-frontier cell at/below sea level that is open toward
+  baked ocean water acts as a seed — else walking away from the seed point makes the ocean vanish;
+  (b) springs and channel tags must (re-)pin whenever the region slides over their world cells.
 - **Validation L2 + L4:** mass conserved across a recenter (no gain/loss at the seam); a fully
   settled lake steps ~0 active cells; water visually continuous as the region slides.
 - **Stress:** walk the player a long distance so the region recenters many times over a standing
@@ -137,7 +150,9 @@ This is where the water system joins the **procedural terrain system**.
   riverbeds**; set the **ocean-seam** boundary. Generalize `fillOcean()` from box-local seeds to
   baked basin/level data.
 - ⚑GROUND: river width & depth by Strahler order (real-world), lake min-volume threshold
-  (discard micro-puddles), sea-level baseline.
+  (discard micro-puddles). Sea-level baseline is already declared: **`kSeaLevelY = 16`**
+  (terrain-v2 P0 grounded-values table — an engineering-continuity decision, not a geographic
+  figure; water must consume that constant, not re-declare its own).
 - **Validation L3** (design-required, silent-failure-prone): every river is **continuously
   downhill to a lake or sea** (walk the graph); every lake surface is **flat and contained**
   (single spill level); **no water on a slope**; **no chunk-border level mismatch**.
@@ -177,8 +192,10 @@ swimming, resident-GPU CA.
   `buildAllChunkPhysics()`" rule; water solidity re-sync must ride the same churn.
 - **Per-region levels vs. one plane** — the renderer must handle N distinct water heights visible
   at once (sea + several lakes) without z-fighting.
-- **Coarse-grid dependency** — Phase C can't land before the terrain-v2 CoarseWorldModel +
-  priority-flood exist; A and B are independent of it and can proceed now.
+- **Coarse-grid dependency** — the `CoarseWorldModel` scaffold **already exists** (terrain-v2 P0
+  implemented + audited 2026-07-09, `engine/{include,src}/core/CoarseWorldModel.*`), but Phase C
+  still waits on the **priority-flood hydrology bake** (terrain-v2 P2) to populate it with
+  sea/lake/river data. A and B are independent of both and can proceed now.
 - **Render density** — the engine's standing #1 issue; watch per-cell water face counts as bodies
   grow (the cell renderer caps at 100k instances).
 
