@@ -48,6 +48,7 @@ ProgPortal ProgPortal::fromJson(const nlohmann::json& j) {
     p.width = jint(j, "width", 2);
     p.height = jint(j, "height", 3);
     p.kind = jstr(j, "kind", "door");
+    p.infill = jstr(j, "infill", "open");
     if (j.contains("door") && j["door"].is_object()) {
         const auto& d = j["door"];
         p.lockable = d.value("lockable", false);
@@ -58,6 +59,7 @@ ProgPortal ProgPortal::fromJson(const nlohmann::json& j) {
 nlohmann::json ProgPortal::toJson() const {
     nlohmann::json j = {{"between", {a, b}}, {"pos", {px, pz}},
                         {"width", width}, {"height", height}, {"kind", kind}};
+    if (kind == "window" && infill != "open") j["infill"] = infill;
     if (kind == "door") j["door"] = {{"lockable", lockable}, {"key", key}};
     return j;
 }

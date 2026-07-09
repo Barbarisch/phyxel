@@ -5,13 +5,19 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
 
 ## Open
 
-### KI-1 — Roof hovers above the walls
-- **Symptom:** a visible gap between the top of the walls and the underside of the roof (the roof appears to float).
-- **Where:** `StructureRealizer::realizeShell` **pass 5** (`place_roof` / #13) — the `eaveSub` (roof eave subcube row) vs. the wall-top / ceiling-slab alignment. Likely the eave doesn't meet the wall top flush, or the gable-end band leaves a gap on the long (eave) sides.
-- **Severity:** cosmetic/structural-lie (the roof should rest on the walls).
-- **Fix sketch:** align the roof eave row to the ceiling/wall top; verify the eave course is continuous around the perimeter; check the gable-end fill meets the eave. Add a realizer unit test (`microBounds` continuity between wall top and roof base).
+*(none currently)*
 
 ## Resolved
+
+### KI-1 — Roof hovers above the walls (resolved; doc was stale)
+- **Was:** a 1-micro air row between the wall/ceiling top and the roof's lowest course — the
+  `eaveSub = ceil(ceilTopMicro/3)` rounding in `realizeShell` pass 5.
+- **Fixed:** `eaveSub = ceilTopMicro / 3` (FLOOR-divide) — the eave rests ON the ceiling top
+  (`StructureRealizer.cpp` ~line 377, comment documents the alignment arithmetic). Gated green by
+  the V1 roof-eave-flush detector (`RealizedStructureValidatorTest`, `maxGapMicro=0`), which was
+  proven RED on the hovering output first; the test's comment records the revert-repro
+  (`ceilTopMicro/3` → `(ceilTopMicro+2)/3` re-fails it). This entry stayed "Open" after the fix
+  landed — corrected 2026-07-09.
 
 ### KI-2 — Overlapping furniture across stories (resolved, audited)
 - **Was:** the v2 build handler (`editor/src/Application.cpp`) called

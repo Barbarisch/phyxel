@@ -860,6 +860,100 @@ def gen_hanging_sign():
     write("hanging_sign", header, m.emit_lines([]), m)
 
 
+def gen_well():
+    # well: a round masonry well-head (yard/square water source). Grounded (object_dimensions
+    # 'well', INFERRED-flagged): head wall ~0.9 m tall (8 micro), ~1.2 m outer diameter (11 micro).
+    # A Cobblestone ring, ~2 micro thick, hollow dark shaft (open air over a Stone bottom course) —
+    # NO windlass/posts: no grounded dims for them, and the head-wall canon caps height at ~1.1 m.
+    D, H = 11, 8
+    cx = cz = (D - 1) / 2.0
+    m = Model()
+    for x in range(D):
+        for z in range(D):
+            r = ((x - cx) ** 2 + (z - cz) ** 2) ** 0.5
+            if 3.4 <= r <= 5.2:
+                for y in range(H):
+                    m.cells[(x, y, z)] = "Cobblestone"
+            elif r < 3.4:
+                m.cells[(x, 0, z)] = "Stone"      # shaft bottom course (reads as a dark hole)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         well\n"
+        "# display_name: Well (Well-Head)\n"
+        "# description:  A round masonry well-head — the shared village/yard water source.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         well, water, yard, village, square, common\n"
+        "# materials:    Cobblestone, Stone\n"
+        "# facing:       +Z (radially symmetric)\n"
+        "# bounds:       1.22W x 0.89H x 1.22D m (grounded object_dimensions 'well' 1.2 dia x 0.9 h)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("well", header, m.emit_lines([]), m)
+
+
+def gen_woodpile():
+    # woodpile: stacked firewood against a yard fence/wall. Grounded (object_dimensions 'woodpile',
+    # INFERRED-flagged): ~1.0 m tall stack (9 micro); width/depth unconstrained — 1.8 x 0.55 m reads
+    # as a household stack. Horizontal Log courses along X with a slight top taper, a couple of
+    # LogBirch sticks mixed in for read.
+    W, H, D = 16, 9, 5
+    m = Model()
+    for y in range(H):
+        inset = (H - 1 - y) // 4                   # top courses slightly narrower (stack taper)
+        for x in range(inset, W - inset):
+            for z in range(D):
+                mat = "LogBirch" if (x * 7 + y * 3 + z) % 11 == 0 else "Log"
+                m.cells[(x, y, z)] = mat
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         woodpile\n"
+        "# display_name: Woodpile (Firewood Stack)\n"
+        "# description:  Stacked firewood — a household fuel stack for the rear yard.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         woodpile, firewood, logs, yard, fuel, common\n"
+        "# materials:    Log, LogBirch\n"
+        "# facing:       +Z (long side to the viewer)\n"
+        "# bounds:       1.78W x 1.0H x 0.56D m (grounded object_dimensions 'woodpile' ~1 m stack)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("woodpile", header, m.emit_lines([]), m)
+
+
+def gen_garden_bed():
+    # garden_bed: a raised planting bed for the rear toft (kitchen-garden read). Grounded
+    # (object_dimensions 'garden_bed', INFERRED-flagged): ~0.3 m tall frame (3 micro); 2 x 1 m
+    # plan. Wood board frame, Dirt fill, a sparse row of Leaf sprigs (young plants) on top.
+    W, H, D = 18, 3, 9
+    m = Model()
+    m.box_shell(0, W - 1, 0, H - 1, 0, D - 1, "Wood", faces=("x", "z"))   # board frame
+    m.fill(1, W - 2, 0, H - 2, 1, D - 2, "Dirt")                          # soil fill
+    for x in range(2, W - 2, 4):                                          # planting rows
+        for z in (2, D - 3):
+            m.cells[(x, H - 1, z)] = "Leaf"
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         garden_bed\n"
+        "# display_name: Garden Bed (Raised Bed)\n"
+        "# description:  A raised kitchen-garden bed — board frame, soil, young plantings.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         garden, bed, planting, yard, toft, kitchen-garden, common\n"
+        "# materials:    Wood, Dirt, Leaf\n"
+        "# facing:       +Z (long side to the viewer)\n"
+        "# bounds:       2.0W x 0.33H x 1.0D m (grounded object_dimensions 'garden_bed' ~0.3 m raised bed)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("garden_bed", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -884,3 +978,6 @@ if __name__ == "__main__":
     gen_chopping_block()
     gen_meat_rail()
     gen_hanging_sign()
+    gen_well()
+    gen_woodpile()
+    gen_garden_bed()

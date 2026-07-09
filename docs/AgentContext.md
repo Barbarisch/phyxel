@@ -126,6 +126,25 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 3 (TOWN-READ DEFECTS) SHIPPED 2026-07-09.** Three slices:
+  (1) **KI-1 roof hover was ALREADY FIXED** (eaveSub floor-div, V1 green) — BuildKnownIssues.md
+  was stale; corrected. (2) **WINDOW INFILL** — open-air window holes gone: `WindowSpec.infill`
+  (grounded default "shuttered" — no glazing pre-1558; "glass" mechanism proven via synthetic
+  program, real content waits on a GROUNDED manor_hall windows spec) threads WindowSpec →
+  ProgPortal → realizer → assembly_plan; realizer paints plank leaves (JOINERY wood on any wall):
+  closed leaf in the reveal / open panels folded back on the facade, deterministic per-opening
+  hash. `WindowInfillTest` red via stash-repro of the pre-infill realizer. (3) **YARD PROPS** —
+  NEW deterministic assets `well`/`woodpile`/`garden_bed` (regen_furniture.py, canon
+  INFERRED-flagged, conformance ok; the old un-grounded "Stone Well" template was REPLACED);
+  pure `planYardProps` furnishes the rear toft (woodpile at the rear wall, garden bed in the
+  open toft; inset-1/outside-building/rear-side/non-overlap invariants, `YardPropsTest`
+  red-first); tier `public.well` puts the well on the main street's verge at mid-length.
+  L4: seed-3 village = 22 props 0 skipped, shutters visible street-level (closed + open mix),
+  well on the verge, roofs flush. **Follow-ups:** woodpile/fence Log MICRO-sampling reads
+  washed-white (texture sub-tiling at micro scale — asset/render follow-up); grounded window
+  size still owed (#10). ⚠ origin/main has diverged (22 remote commits vs 3 local) — needs a
+  pull/rebase decision next session.
+
 - **SETTLEMENT MORPHOLOGY v2 — PHASE 2 (STREET PAVING) SHIPPED 2026-07-09.** Streets are REAL
   geometry: NEW `StreetPaver.{h,cpp}` — pure `planStreetPaving` grades each street centerline
   (`planTerrainPath`), broadcasts a LEVEL cross-section across the full width, spurs every front

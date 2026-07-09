@@ -142,6 +142,22 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                                       const RoomProgramRegistry& rooms, unsigned seed,
                                       char axis = 0, int crossOffset = -1);
 
+/// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
+struct YardProp {
+    std::string type;    ///< FurnitureCatalog type ("woodpile" | "garden_bed")
+    int cx = 0, cz = 0;  ///< min-corner cube position, settlement-local
+    int w = 1, d = 1;    ///< cube footprint (long axis along the rotated width)
+    int rotDeg = 0;      ///< 0 = long axis along X | 90 = along Z
+};
+
+/// Furnish an assigned plot's REAR TOFT (the yard behind the building, opposite the street):
+/// a woodpile near the building's rear wall + a kitchen-garden bed in the open toft.
+/// Invariants (YardPropsTest): every prop inside the plot INSET 1 cube (clear of the fence
+/// line), outside the building footprint, on the rear side (farther from the street than the
+/// building's rear wall), non-overlapping. A rear toft too small gets fewer/no props (honest
+/// degradation). Deterministic in (plot, seed).
+std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed);
+
 /// The flattest straight spine alignment for a main street over `site`: evaluates every axis-aligned
 /// band of `mainWidth` cells (both axes, every cross offset) by PER-CELL relief + unbuildable-cell
 /// penalty (per-cell, so the short axis gets no cell-count advantage), returns the minimum (stable

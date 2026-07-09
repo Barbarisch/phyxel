@@ -72,6 +72,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
 #include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
 #include "core/StreetPaver.h"         // build_settlement: planStreetPaving (streets as real geometry)
+#include "core/FurnitureCatalog.h"    // build_settlement: yard-prop type -> template resolution
 #include "core/FenceBuilder.h"        // build_settlement: thin grounded typed fences (picket/privacy)
 #include "core/DimensionCanon.h"      // build_settlement: grounded fence dims (object_dimensions.json)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
@@ -11014,6 +11015,38 @@ void Application::registerSettlementCommands() {
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
         }
 
+        // YARD PROPS + the shared WELL (#29/#25 minimum slice): the rear toft stops being bare —
+        // a woodpile behind each house + a kitchen-garden bed in the open toft (planYardProps,
+        // pure, YardPropsTest-gated); tier `public.well` puts the shared well-head on the main
+        // street's verge at mid-length (the village street well; the market-square well is the
+        // Phase 4 anchor). Skips are COUNTED, never silent.
+        nlohmann::json propsJson = nlohmann::json::object();
+        if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
+            int propsPlaced = 0, propsSkipped = 0;
+            auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
+                const std::string tmpl = Core::FurnitureCatalog::templateFor(type);
+                if (tmpl.empty() || !objectTemplateManager->getTemplate(tmpl)) return false;
+                const int gy = terrainTopAt(cx, cz) + 1;             // stand on the ground/paving
+                return !placedObjectManager
+                            ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9), rot, "")
+                            .empty();
+            };
+            for (const auto& ap : msl.assigned)
+                for (const auto& yp : Core::planYardProps(ap, seed))
+                    (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
+                                                                           : ++propsSkipped);
+            if (tierP->pub.well) {
+                const Core::Rect& ms = msl.mainStreet;
+                const bool msAlongX = ms.w >= ms.d;
+                const int wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                const int wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
+                (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
+            }
+            LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
+                         << propsSkipped << " skipped");
+            propsJson = {{"placed", propsPlaced}, {"skipped", propsSkipped}};
+        }
+
         nlohmann::json programJson = nlohmann::json::object();
         if (programMode && tierP) {
             // Echo {era, tier, seed} so a live build is exactly reproducible (determinism contract).
@@ -11032,6 +11065,7 @@ void Application::registerSettlementCommands() {
                              {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}}},
              {"program", programJson},
              {"paths", pathsJson},
+             {"yard_props", propsJson},
              {"queued_builds", queued}};
     });
 }

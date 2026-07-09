@@ -46,6 +46,9 @@ const std::map<std::string, std::string>& table() {
         {"oven_bread",   "oven_bread"},    // bakery: masonry dome bread oven (vented) — back wall
         {"chopping_block", "chopping_block"}, // butcher: the chopping block (defining work fixture)
         {"meat_rail",      "meat_rail"},      // butcher: freestanding rail of iron hooks (hanging meat)
+        {"well",       "well"},        // yard/square: masonry well-head (settlement placer, not rooms)
+        {"woodpile",   "woodpile"},    // yard: firewood stack (rear toft — planYardProps)
+        {"garden_bed", "garden_bed"},  // yard: raised kitchen-garden bed (rear toft — planYardProps)
     };
     return t;
 }

@@ -298,6 +298,67 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
     return out;
 }
 
+std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {
+    std::vector<YardProp> out;
+    const Rect& pl = ap.plot.rect;
+    const Rect& fp = ap.footprint;
+    // Usable parcel interior: inset 1 cube from every edge (clear of the fence line).
+    const int ix0 = pl.x + 1, iz0 = pl.z + 1, ix1 = pl.x1() - 1, iz1 = pl.z1() - 1;
+    // The REAR TOFT: the interior strip behind the building, opposite the street.
+    int rx0 = ix0, rz0 = iz0, rx1 = ix1, rz1 = iz1;
+    switch (ap.streetSide) {
+        case 'S': rz0 = std::max(iz0, fp.z1()); break;
+        case 'N': rz1 = std::min(iz1, fp.z);    break;
+        case 'W': rx0 = std::max(ix0, fp.x1()); break;
+        default:  rx1 = std::min(ix1, fp.x);    break;   // 'E'
+    }
+    if (rx1 - rx0 <= 0 || rz1 - rz0 <= 0) return out;    // no rear room: place nothing (honest)
+    const bool rearIsZ = (ap.streetSide == 'S' || ap.streetSide == 'N');
+
+    auto draw = [&](unsigned salt, int lo, int hi) {     // [lo, hi] inclusive, deterministic
+        if (hi <= lo) return lo;
+        unsigned x = static_cast<unsigned>(pl.x * 31 + pl.z) * 2654435761u
+                   + seed * 2246822519u + (salt + 5u) * 40503u;
+        x ^= x >> 16; x *= 2246822519u; x ^= x >> 13;
+        return lo + static_cast<int>(x % static_cast<unsigned>(hi - lo + 1));
+    };
+    auto fits = [&](int cx, int cz, int w, int d) {
+        if (cx < rx0 || cz < rz0 || cx + w > rx1 || cz + d > rz1) return false;
+        for (const auto& q : out)
+            if (cx < q.cx + q.w && q.cx < cx + w && cz < q.cz + q.d && q.cz < cz + d) return false;
+        return true;
+    };
+    // Place one prop: `nearBuilding` hugs the rear wall side (the woodpile — fuel by the door);
+    // otherwise it sits deeper in the open toft (the garden). Salted retries slide it laterally.
+    auto tryPlace = [&](const char* type, int w, int d, bool nearBuilding, unsigned salt) {
+        YardProp p;
+        p.type = type;
+        p.rotDeg = rearIsZ ? 0 : 90;                     // long side parallel to the rear wall
+        p.w = rearIsZ ? w : d;
+        p.d = rearIsZ ? d : w;
+        for (int t = 0; t < 6; ++t) {
+            int cx, cz;
+            if (rearIsZ) {
+                cx = draw(salt + t, rx0, rx1 - p.w);
+                if (nearBuilding) cz = (ap.streetSide == 'S') ? rz0 : rz1 - p.d;
+                else              cz = (ap.streetSide == 'S')
+                                        ? draw(salt + 17 + t, rz0 + 2, rz1 - p.d)
+                                        : draw(salt + 17 + t, rz0, rz1 - p.d - 2);
+            } else {
+                cz = draw(salt + t, rz0, rz1 - p.d);
+                if (nearBuilding) cx = (ap.streetSide == 'W') ? rx0 : rx1 - p.w;
+                else              cx = (ap.streetSide == 'W')
+                                        ? draw(salt + 17 + t, rx0 + 2, rx1 - p.w)
+                                        : draw(salt + 17 + t, rx0, rx1 - p.w - 2);
+            }
+            if (fits(cx, cz, p.w, p.d)) { p.cx = cx; p.cz = cz; out.push_back(p); return; }
+        }
+    };
+    tryPlace("woodpile",   2, 1, true,  31);             // fuel stack against the rear wall side
+    tryPlace("garden_bed", 2, 1, false, 67);             // kitchen garden in the open toft
+    return out;
+}
+
 StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth) {
     StreetAxisChoice best;
     best.score = -1;
