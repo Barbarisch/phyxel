@@ -233,14 +233,20 @@ TEST_F(ChunkDataTest, WorldOriginStored) {
     EXPECT_EQ(chunk->getWorldOrigin(), origin);
 }
 
-// --- Re-adding same position updates material ---
+// --- Re-adding same position: blocked by default, replaced with overwrite=true ---
 
-TEST_F(ChunkDataTest, ReaddCubeUpdatesMaterial) {
+TEST_F(ChunkDataTest, ReaddCubeBlocksByDefaultOverwriteReplaces) {
     auto chunk = makeChunk();
-    chunk->addCube(glm::ivec3(5, 5, 5), "Wood");
+    EXPECT_TRUE(chunk->addCube(glm::ivec3(5, 5, 5), "Wood"));
     EXPECT_EQ(chunk->getCubeAt(glm::ivec3(5, 5, 5))->getMaterialName(), "Wood");
 
-    chunk->addCube(glm::ivec3(5, 5, 5), "Stone");
+    // Default (overwrite=false): re-adding over an occupied cell is BLOCKED — returns false, the
+    // existing voxel is preserved. (Safe "place only if empty" semantics.)
+    EXPECT_FALSE(chunk->addCube(glm::ivec3(5, 5, 5), "Stone"));
+    EXPECT_EQ(chunk->getCubeAt(glm::ivec3(5, 5, 5))->getMaterialName(), "Wood");
+
+    // overwrite=true: removes the existing cube and places the new one in its place (for structures).
+    EXPECT_TRUE(chunk->addCube(glm::ivec3(5, 5, 5), "Stone", /*overwrite=*/true));
     EXPECT_EQ(chunk->getCubeAt(glm::ivec3(5, 5, 5))->getMaterialName(), "Stone");
 }
 

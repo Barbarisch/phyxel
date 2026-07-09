@@ -93,7 +93,10 @@ public:
 
     // Cube operations
     bool addCube(const glm::ivec3& localPos);
-    bool addCube(const glm::ivec3& localPos, const std::string& material);
+    // overwrite=false (default): reject if the cell is already occupied (safe placement). overwrite=true:
+    // remove an existing SOLID cube and place the new one in its place (useful for structure placement).
+    // (Overwriting SUBDIVIDED cells is not yet supported — it still rejects even with overwrite.)
+    bool addCube(const glm::ivec3& localPos, const std::string& material, bool overwrite = false);
     // deferRebuild=true: skip the (expensive) per-call chunk re-mesh + GPU upload
     // and instead flag the chunk via setNeedsUpdate, so the per-frame
     // updateDirtyChunks() pass re-meshes each touched chunk exactly ONCE. Used by

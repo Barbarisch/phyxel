@@ -162,7 +162,10 @@ TEST(AStarPathfinderTest, CompletelyBlocked) {
 // Height Changes
 // ============================================================================
 
-TEST(AStarPathfinderTest, PathUpOneBlockStep) {
+TEST(AStarPathfinderTest, PathUpOneBlockStepBlocked) {
+    // MAX_STEP_UP = 0 (no climbing mechanic yet): a 1-block rise across a single corridor has no
+    // walkable route (nowhere to route around), so no path is found. TODO: expect result.found once a
+    // sound step/climb system lands (MAX_STEP_UP = 1).
     TestWorld world;
     world.createFloor(10, 0, 4, 0, 0); // Low floor
     world.createFloor(11, 5, 9, 0, 0); // High floor (1 block up)
@@ -175,7 +178,7 @@ TEST(AStarPathfinderTest, PathUpOneBlockStep) {
         glm::vec3(0.5f, 11.0f, 0.5f),
         glm::vec3(9.5f, 12.0f, 0.5f));
 
-    EXPECT_TRUE(result.found);
+    EXPECT_FALSE(result.found);
 }
 
 TEST(AStarPathfinderTest, PathDownTwoBlockStep) {

@@ -148,7 +148,10 @@ TEST(NavGridTest, FlatFloorNeighbors) {
     EXPECT_EQ(neighbors.size(), 5u);
 }
 
-TEST(NavGridTest, StepUpOneBlock) {
+TEST(NavGridTest, StepUpOneBlockBlocked) {
+    // MAX_STEP_UP = 0: there is no climbing mechanic yet (NavGrid.h) — NPCs route around raised
+    // surfaces rather than stepping onto them. So a 1-block rise is NOT a walkable neighbor.
+    // TODO: flip this to EXPECT_TRUE (foundHigh) once a sound step/climb system lands (MAX_STEP_UP=1).
     TestWorld world;
     // Low floor at Y=10 for x=0..2
     world.createFloor(10, 0, 2, 0, 0);
@@ -166,13 +169,13 @@ TEST(NavGridTest, StepUpOneBlock) {
     ASSERT_NE(high, nullptr);
     EXPECT_EQ(high->surfaceY, 11);
 
-    // low -> high should be a valid neighbor (step up = 1)
+    // low -> high (a 1-block step up) is NOT traversable while MAX_STEP_UP = 0.
     auto neighbors = grid.getNeighbors(low);
     bool foundHigh = false;
     for (auto* n : neighbors) {
         if (n->x == 3 && n->z == 0) foundHigh = true;
     }
-    EXPECT_TRUE(foundHigh);
+    EXPECT_FALSE(foundHigh);
 }
 
 TEST(NavGridTest, StepUpTwoBlocksBlocked) {

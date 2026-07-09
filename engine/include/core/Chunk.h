@@ -181,7 +181,9 @@ public:
     // Cube manipulation
     bool removeCube(const glm::ivec3& localPos, bool deferRebuild = false);
     bool addCube(const glm::ivec3& localPos);
-    bool addCube(const glm::ivec3& localPos, const std::string& material);
+    // overwrite=true removes an existing solid cube and places the new one in its place (default
+    // false = reject if occupied). See ChunkVoxelManager::addCube.
+    bool addCube(const glm::ivec3& localPos, const std::string& material, bool overwrite = false);
     int removeCubesBatch(const std::vector<glm::ivec3>& positions);
     int addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material = "");
     

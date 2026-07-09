@@ -496,8 +496,9 @@ bool ChunkVoxelManager::addCube(
 }
 
 bool ChunkVoxelManager::addCube(
-    const glm::ivec3& localPos, 
-    const std::string& material
+    const glm::ivec3& localPos,
+    const std::string& material,
+    bool overwrite
 ) {
     // Validate position
     if (localPos.x < 0 || localPos.x >= 32 ||
@@ -505,21 +506,24 @@ bool ChunkVoxelManager::addCube(
         localPos.z < 0 || localPos.z >= 32) {
         return false;
     }
-    
+
     size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
     auto& cubes = m_getCubes();
-    
+
     // Ensure cubes vector is properly sized (32x32x32 = 32768 elements)
     if (cubes.size() < 32 * 32 * 32) {
         cubes.resize(32 * 32 * 32);
     }
-    
-    // Reject if position is already occupied by a solid cube or subdivided voxels
-    if (cubes[index] && !cubes[index]->isBroken()) {
-        return false;
-    }
+
+    // Occupied-cell handling. Default: reject (safe "place only if empty"). overwrite=true: remove an
+    // existing SOLID cube and fall through to place the new one in its place.
     auto typeIt = voxelTypeMap.find(localPos);
-    if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+    if (cubes[index] && !cubes[index]->isBroken()) {
+        if (!overwrite) return false;
+        removeCube(localPos, /*deferRebuild=*/true);   // clears the cube + maps + collision; cubes[index] -> null
+    } else if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+        // Overwriting subdivided cells (clearing all sub/microcubes) is not yet supported — reject
+        // even with overwrite. TODO: add subdivided clear-and-replace when structure placement needs it.
         return false;
     }
 

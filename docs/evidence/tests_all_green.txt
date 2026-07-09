@@ -1,0 +1,21 @@
+# Full unit suite GREEN after resolving the 3 design-decision failures (2026-07-09, Release).
+# Mechanical check (not a truncated tail): exit code 0; ran - passed - skipped - failed == 0.
+
+  [==========] 2612 tests from 270 test suites ran.
+  [  PASSED  ] 2608 tests.
+  [  SKIPPED ] 4 tests.
+  [  FAILED  ] 0 tests.
+  exit code = 0     (2612 - 2608 - 4 - 0 = 0 unaccounted)
+
+The 3 formerly-failing tests, resolved per the user's decisions and confirmed [ OK ] by name:
+  ChunkDataTest.ReaddCubeBlocksByDefaultOverwriteReplaces   (b) addCube: default BLOCKS re-add over an
+      occupied cell; new `overwrite=true` removes the existing solid cube and places the new one
+      (for structure placement). engine/src/core/ChunkVoxelManager.cpp + Chunk. Subdivided-overwrite
+      not yet supported (rejects; TODO).
+  NavGridTest.StepUpOneBlockBlocked            (a) MAX_STEP_UP=0 kept (no sound step/climb system yet);
+  AStarPathfinderTest.PathUpOneBlockStepBlocked    tests updated to assert a 1-block rise is NOT
+      traversable, each with a TODO to flip to step-up-allowed once a step/climb system lands.
+
+Started this session at 9 failing (all pre-existing, unrelated to the render merge) -> 0 failing:
+  6 fixed earlier (stale counts, mass-serialization asymmetry, inventory hotbar bounds, skeleton slack),
+  3 resolved here per product decisions (addCube overwrite option; nav no-climb tests).

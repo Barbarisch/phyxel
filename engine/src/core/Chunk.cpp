@@ -141,8 +141,8 @@ bool Chunk::addCube(const glm::ivec3& localPos) {
     return voxelManager.addCube(localPos);
 }
 
-bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material) {
-    return voxelManager.addCube(localPos, material);
+bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material, bool overwrite) {
+    return voxelManager.addCube(localPos, material, overwrite);
 }
 
 int Chunk::removeCubesBatch(const std::vector<glm::ivec3>& positions) {
