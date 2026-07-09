@@ -52,12 +52,15 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getMaterialCount(), 27);
+    // resources/materials.json currently defines 97 materials (grew from the original 27 with biome
+    // variants etc.). Keep in sync with the "materials" array length in materials.json.
+    EXPECT_EQ(registry_->getMaterialCount(), 97);
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    EXPECT_EQ(registry_->getTextureCount(), 162);
+    // 97 materials × 6 face textures = 582 texture slots. Keep in sync with materials.json.
+    EXPECT_EQ(registry_->getTextureCount(), 582);
     // Total splits across the two resolution classes (512 + 1024).
     EXPECT_EQ(registry_->getTextureCount(0) + registry_->getTextureCount(1),
               registry_->getTextureCount());
@@ -226,7 +229,7 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
     auto names = registry_->getAllMaterialNames();
-    EXPECT_EQ(static_cast<int>(names.size()), 27);
+    EXPECT_EQ(static_cast<int>(names.size()), 97);  // = materials.json "materials" array length
 }
 
 // ============================================================================

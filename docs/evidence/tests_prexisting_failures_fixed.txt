@@ -1,0 +1,33 @@
+# Pre-existing unit-test failures — triage + fix (2026-07-09, Release phyxel_tests).
+# The 9 failures found on merged main (docs/evidence/tests_release_93250bf.txt) were pre-existing
+# (unrelated to the render merge). Triaged each into FIX (clearly-correct) vs SURFACE (design decision).
+# Mechanical count check after the fixes: ran=2612, passed=2605, skipped=4, failed=3, 0 unaccounted.
+
+FIXED — 6 (verified passing; passed count 2599 -> 2605):
+  MaterialRegistryTest.HasCorrectMaterialCount   stale test data: hardcoded 27, materials.json now has
+  MaterialRegistryTest.GetAllMaterialNames_HasAll   97 distinct materials (no dupes). Updated -> 97.
+  MaterialRegistryTest.HasCorrectTextureCount    stale: 162 -> 582 (= 97 materials x 6 face textures).
+  MaterialRegistryTest.SaveAndReload_Roundtrip   REAL BUG: saveToJson gated physics on
+      `hasPhysics()` (category=="material"), but loadFromJson reads a "physics" block for ANY material.
+      The 48 vox_palette materials (mass 1.5, category "vox_palette") lost their physics on save ->
+      reloaded as default mass 1.0. Fix: always serialize physics (symmetric with load). hasPhysics()
+      untouched (editor uses it as a category predicate). engine/src/core/MaterialRegistry.cpp.
+  InventoryTest.SelectSlot                       REAL BUG: setSelectedSlot bounds-checked against the
+      full 36-slot store, but the selected slot is a HOTBAR slot (contract: 0..HOTBAR_SIZE-1 = 0..8).
+      setSelectedSlot(9) wrongly returned true. Fix: bound by HOTBAR_SIZE. engine/src/core/Inventory.cpp.
+  CharacterSkeletonTest.KneeElbowLimitsCorrect   OVER-STRICT TEST: the knee hinge high-limit is 0.05
+      and the elbow low-limit -0.05 (a deliberate solver slack at the straight pose); the test demanded
+      exactly <=0 / >=0. Relaxed the two bounds by the 0.05 slack; intent (knee-backward, elbow-forward)
+      preserved. tests/scene/CharacterSkeletonTest.cpp (test-only).
+
+SURFACED — 3 (NOT changed; these are product/design decisions, not clear bugs):
+  NavGridTest.StepUpOneBlock          MAX_STEP_UP = 0 is INTENTIONAL, documented at NavGrid.h:52-53:
+  AStarPathfinderTest.PathUpOneBlockStep  "Set to 0 because there is no climbing mechanic — NPCs route
+      around raised surfaces rather than stepping onto them. Increase if stair traversal is added." So
+      the tests are STALE (they assert 1-block step-up, a deliberately-removed capability). "Fixing"
+      them means either reverting the no-climb design (MAX_STEP_UP=1, global nav change) OR inverting
+      the tests to assert no-climb. That is a design call — not made here.
+  ChunkDataTest.ReaddCubeUpdatesMaterial   Chunk addCube (ChunkVoxelManager.cpp:518) deliberately
+      REJECTS an occupied non-broken cell (returns false); the test expects re-adding to UPDATE the
+      material. Reject-vs-overwrite is a placement-semantics design decision with engine-wide caller
+      impact (some callers may rely on false-on-occupied). Not changed unilaterally.

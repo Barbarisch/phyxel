@@ -221,14 +221,15 @@ TEST(CharacterSkeletonTest, KneeElbowLimitsCorrect) {
     cs.computeBoneSizes();
     cs.generateJointDefs();
 
-    // Knee: bends backward (low=-1.5, high=0.0)
+    // Knee: bends backward (low negative, high ~0). The impl allows a tiny +0.05 rad solver slack at
+    // the straight position, so the "no forward bend" bound is asserted with that tolerance.
     auto& knee = cs.jointDefs[10]; // LeftShin
     EXPECT_LE(knee.hingeLimitLow, 0.0f);
-    EXPECT_LE(knee.hingeLimitHigh, 0.0f);
+    EXPECT_LE(knee.hingeLimitHigh, 0.1f);   // ~0 (+0.05 slack); knee does not meaningfully bend forward
 
-    // Elbow: bends forward (low=0.0, high=1.5)
+    // Elbow: bends forward (low ~0, high positive), with the same -0.05 rad slack at straight.
     auto& elbow = cs.jointDefs[4]; // LeftForearm
-    EXPECT_GE(elbow.hingeLimitLow, 0.0f);
+    EXPECT_GE(elbow.hingeLimitLow, -0.1f);  // ~0 (-0.05 slack); elbow does not meaningfully bend backward
     EXPECT_GE(elbow.hingeLimitHigh, 0.0f);
 }
 

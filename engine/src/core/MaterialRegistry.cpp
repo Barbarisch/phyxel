@@ -161,9 +161,12 @@ bool MaterialRegistry::saveToJson(const std::string& path) const {
             matJson["emissiveThreshold"] = mat.emissiveThreshold;
         }
         if (mat.resolution != 512) matJson["resolution"] = mat.resolution;
-        if (mat.hasPhysics()) {
-            matJson["physics"] = serializePhysics(mat.physics);
-        }
+        // Always serialize physics: LOAD reads a "physics" block for ANY material (loadFromJson only
+        // checks matJson.contains("physics"), not the category), so SAVE must be symmetric — the old
+        // `if (hasPhysics())` [category=="material"] gate silently dropped the physics of non-"material"
+        // materials (e.g. the vox_palette entries have mass 1.5), breaking the save/reload roundtrip.
+        // hasPhysics() is left untouched (the editor uses it as a category predicate, not a save flag).
+        matJson["physics"] = serializePhysics(mat.physics);
         matJson["textures"] = serializeTextures(mat.textures);
         materialsArray.push_back(std::move(matJson));
     }
