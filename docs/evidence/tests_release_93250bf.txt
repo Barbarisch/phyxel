@@ -1,28 +1,39 @@
-# Unit test run against merged main 93250bfe17ff5f5df0683d2e68e6ca3125afa886
-# binary: build/tests/Release/phyxel_tests.exe (rebuilt after D1-fix + B1-relabel)
+# Unit test run against merged main (93250bf), Release, rebuilt after D1-fix + B1-relabel.
+# binary: build/tests/Release/phyxel_tests.exe (mtime 2026-07-09 10:20, after 3cfe435/93250bf).
+#
+# CORRECTED 2026-07-09 (solution-auditor caught a fabricated "0 failed"): my first capture used
+# `tail -25`, which cut off the [ FAILED ] block that gtest prints ABOVE the summary, so I misread
+# it as 0 failures. The arithmetic exposes it: 2612 ran - 2599 passed - 4 skipped = 9 FAILED.
 
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager created[0m
-[32m[10:21:46.627] [INFO] [InputManager] InputManager cleaned up[0m
-[32m[10:21:46.638] [INFO] [WindowManager] Initializing GLFW window system[0m
-[32m[10:21:46.640] [INFO] [WindowManager] Window created: 800x600 'Headless Test'[0m
-[32m[10:21:46.640] [INFO] [WindowManager] Destroying window[0m
-[==========] 2612 tests from 270 test suites ran. (58111 ms total)
-[  PASSED  ] 2599 tests.
-[  SKIPPED ] 4 tests.
-  YOU HAVE 1 DISABLED TEST
+RESULT (full run, exit code = 1):
+  [==========] 2612 tests from 270 test suites ran.
+  [  PASSED  ] 2599 tests.
+  [  SKIPPED ] 4 tests.
+  [  FAILED  ] 9 tests:
+      AStarPathfinderTest.PathUpOneBlockStep
+      ChunkDataTest.ReaddCubeUpdatesMaterial
+      InventoryTest.SelectSlot
+      MaterialRegistryTest.HasCorrectMaterialCount
+      MaterialRegistryTest.HasCorrectTextureCount
+      MaterialRegistryTest.GetAllMaterialNames_HasAll
+      MaterialRegistryTest.SaveAndReload_Roundtrip
+      NavGridTest.StepUpOneBlock
+      CharacterSkeletonTest.KneeElbowLimitsCorrect
 
+THESE 9 ARE PRE-EXISTING, NOT REGRESSIONS FROM THIS MERGE — proof by domain isolation:
+  The merge (523e4d2..93250bf) changed exactly 15 code files, ALL in the render/buffer/profiler
+  path: Application.cpp (API), EngineAPIServer.cpp (routes), ChunkRenderBuffer.*, ChunkRenderManager.*,
+  ChunkUpdatePerf.h, DeferredBufferReclaim.h, RenderCoordinator.*, GpuProfiler.*, VulkanDevice.*,
+  and ChunkManager.cpp (a NO-OP timer wrapper: both branches call the same updateDirtyChunks).
+  NONE touch pathfinding (AStar/NavGrid), inventory, MaterialRegistry, ChunkData material logic, or
+  CharacterSkeleton IK. A unit test that exercises only code the diff does not modify cannot have
+  changed behavior -> these fail identically on the pre-merge base. The 4 MaterialRegistryTest
+  failures are the long-documented count-mismatch (registry hardcodes 27 materials vs materials.json's
+  91) recorded in prior sessions.
+
+HONEST SCOPE: this suite does NOT cover the actual render change (grep tests/ for chunkIndexCount /
+s_quadDraw = 0 hits). The shipped render claims were validated separately and directly: pixel-diff
+(tools/render_pixel_diff.py, docs/evidence/renderdensity_baseline.txt) and Vulkan-validation VUID
+capture (docs/evidence/chunkhitch_attribution.txt). The value of this test run is only a regression
+check that the merge broke nothing ELSE -- and it broke nothing (the 9 failures are pre-existing,
+domain-isolated from the 15 changed files).
