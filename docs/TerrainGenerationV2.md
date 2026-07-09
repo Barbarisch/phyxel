@@ -227,8 +227,29 @@ ranges, sea level, cave dimensions) before shipping.
 > down at P1's compressed base, so a 130 m shelf split was unreachable). Follow-up: add a white
 > **Snow** material (Ice reads glassy for caps).
 >
-> **Increment 2 (next): continentalness in biome selection + Ocean/Beach/Alpine biome entries.**
-> **Increment 3: density-function / nested-spline evaluator refactor** (art-direction foundation, 2a).
+> **Increment 2 ✅ IMPLEMENTED (2026-07-09, uncommitted, pending auditor): continentalness axis +
+> climate contrast + new biomes.** (a) Added a **continentalness** third axis to biome selection
+> (`Biome::contMin/contMax`, default full-range → term cancels for land biomes, a dormant hook for
+> P2 ocean/coast). (b) **Contrast-expanded temperature/moisture** (×1.9): multi-octave fbm clustered
+> at 0.5 so Plains won ~98% and extreme biomes were unreachable — now all biomes appear. (c) Two new
+> grounded land biomes: **Jungle** (Köppen Af/Am/Cfa, hot+wet, temp01 0.75–1.0 = MAT ~21–30 °C,
+> moist01 0.65–1.0 = ~1500–4000 mm/yr via Holdridge log2) and **Tundra** (Köppen ET, cold+dry
+> treeless, temp01 0–0.16 = MAT −5–+0.6 °C, moist01 0–0.18 = ~250–410 mm/yr). Measured
+> (TerrainBiomeTest): Jungle 5,794 cols @ temp 0.76/moist 0.74, Tundra 4,276 @ 0.25/0.22, all
+> pre-existing biomes retained; full suite 0 failures. **Flora gate added:** plants no longer land
+> on the seabed, bare-rock cliffs, or snow-capped non-snow biomes (Snow biome keeps its conifers).
+> **Perf:** `surfaceVariationFor` takes continentalness so the slope pass samples the coarse model
+> once per neighbour instead of twice.
+> Ocean/Beach/Marsh deferred to P2 (need coastline/hydrology — grounding-auditor confirmed no real
+> climate band for a marsh).
+> **Known limitations (tracked, not bugs):** (1) Desert is rare (~5/90k cols) — the hot+dry corner
+> is improbable because temperature and moisture are independent noise; realistic biome frequency
+> needs correlated climate / rain-shadow (future). (2) Tundra's Gravel surface is usually overridden
+> to Ice by the lapse rule (physically correct — it's snow-covered); its distinctness is being
+> treeless. (3) No GrassJungle / Snow / Mud materials yet (Jungle reuses GrassForest, caps use Ice).
+> (4) `kRidgedNorm=1.35` is an empirical normalization (validated by peak-relief bounds, not derived).
+> (5) Treeline == snowline for now (no separate alpine-meadow band below permanent snow).
+> **Increment 3 (next): density-function / nested-spline evaluator refactor** (art-direction, 2a).
 
 - Replace the ad-hoc height formula with the **density/spline node graph** (2a). Model
   continentalness → erosion → peaks-valleys as nested splines.

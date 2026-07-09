@@ -294,6 +294,49 @@
           ]
         }
       ]
+    },
+    {
+      "_note": "Tropical/subtropical humid forest (Koppen Af/Am/Cfa). Bands computed from the shipped values: temp01 0.75-1.0 = MAT 21-30C via MAT=temp01*35-5; moist01 0.65-1.0 = ~1500-4000 mm/yr via precip=250*2^(4*moist01) (Whittaker temp axis + Holdridge log2 precip). Surface reuses GrassForest (no GrassJungle material yet).",
+      "name": "Jungle",
+      "surface": "GrassForest",
+      "subsurface": "Dirt",
+      "deep": "Stone",
+      "temp": [0.75, 1.0],
+      "moisture": [0.65, 1.0],
+      "heightScale": 1.0,
+      "heightOffset": 1.0,
+      "surfaceAlt": "Dirt",
+      "surfaceAltChance": 0.3,
+      "flora": {
+        "density": 0.9,
+        "spacing": 5,
+        "items": [
+          {"template": "forge_jungle_l", "weight": 4},
+          {"template": "forge_jungle_m", "weight": 4},
+          {"template": "forge_palm_m", "weight": 2},
+          {"template": "fern", "weight": 4},
+          {"template": "forge_bush_m", "weight": 3}
+        ]
+      }
+    },
+    {
+      "_note": "Tundra/polar treeless (Koppen ET). Bands computed from the shipped values: temp01 0.0-0.16 = MAT -5 to +0.6C via MAT=temp01*35-5 (the temperature field floors at -5C, so true colder tundra saturates here); moist01 0.0-0.18 = ~250-410 mm/yr polar-desert via precip=250*2^(4*moist01). Distinct from Snow (boreal conifers) by being treeless + Gravel; the lapse-rate rule snow-caps it where cold, which is physically correct.",
+      "name": "Tundra",
+      "surface": "Gravel",
+      "subsurface": "Dirt",
+      "deep": "Stone",
+      "temp": [0.0, 0.16],
+      "moisture": [0.0, 0.18],
+      "heightScale": 0.7,
+      "heightOffset": 0.0,
+      "flora": {
+        "density": 0.15,
+        "spacing": 12,
+        "items": [
+          {"template": "forge_dead_s", "weight": 3},
+          {"template": "forge_bush_s", "weight": 2}
+        ]
+      }
     }
   ]
 }

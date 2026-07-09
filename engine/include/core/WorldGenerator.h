@@ -89,6 +89,12 @@ public:
         std::string deepMaterial = "Stone";        // deep underground
         float tempMin = 0.0f, tempMax = 1.0f;      // climate cell (its CENTRE is the Voronoi site)
         float moistMin = 0.0f, moistMax = 1.0f;
+        // Optional third selection axis: continentalness (0 = ocean-adjacent, 1 = deep interior).
+        // Defaults to the full range so a biome that doesn't care about it (most land biomes) is
+        // selected purely on temp+moisture — its centre 0.5 is shared, so the term cancels in the
+        // argmax/blend and adds no bias. Narrow it to gate a biome by ocean-distance/elevation
+        // (the hook P2's ocean/coast biomes will use). (docs/TerrainGenerationV2.md §P1)
+        float contMin = 0.0f, contMax = 1.0f;
         float heightScale = 1.0f;                  // multiplies terrain height variation
         float heightOffset = 0.0f;                 // added to the surface height (world units)
         // Optional surface scatter: some columns get surfaceAlt instead of surfaceMaterial,
@@ -188,7 +194,9 @@ private:
     // Column-first pipeline (height-based types: Perlin/Flat/Mountains/Caves)
     bool isHeightBased() const;
     ColumnSample sampleColumn(int worldX, int worldZ);   // surface height + climate + blended biome
-    float surfaceVariationFor(int worldX, int worldZ);   // terrain bumpiness around base level (per type)
+    // Layer-1 ridged mountain relief at a column. `continentalness` is passed in (the caller already
+    // sampled the coarse model) so we don't re-sample it here — the slope pass calls this per-neighbor.
+    float surfaceVariationFor(int worldX, int worldZ, float continentalness);
     void initDefaultBiomes();
     std::string materialForColumn(int worldY, const ColumnSample& col) const;
 
