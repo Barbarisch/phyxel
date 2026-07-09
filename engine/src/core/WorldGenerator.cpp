@@ -105,6 +105,28 @@ constexpr float kContinentalMin = -40.0f;  // ocean/shelf floor below sea level 
 constexpr float kMountainAmp    = 288.0f;  // Mountains ridged relief amplitude (96 + 288 ≈ 384 peak)
 constexpr float kHillAmp        = 80.0f;   // Perlin/Caves gentler rolling relief
 
+// ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
+// Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
+// diagram temperature axis; 35 °C span). DESIGN DECISION (stated) — the citable anchor that lets
+// the snow line and alpine gate fall out of real physics instead of a hand-picked Y threshold.
+constexpr float kTempSpanC   = 35.0f;
+constexpr float kSnowTemp01  = 5.0f / kTempSpanC;   // 0 °C freezing == (0−(−5))/35 ≈ 0.143 normalized
+// Environmental lapse rate 6.5 °C/km (ICAO/US Standard Atmosphere) × the P0 vertical compression
+// (~15 m per terrain-voxel, near the Mont-Blanc end of the grounded 12.5–23 m range) = 0.0975
+// °C/voxel; normalized by the 35 °C span → snow emerges from temperature+altitude, physically:
+// poles snowy near sea level, temperate mid-mountains capped, tropics only at the tallest peaks.
+constexpr float kLapse01PerVoxel = (6.5f / 1000.0f) * 15.0f / kTempSpanC;   // ≈ 0.00279 /voxel
+// Angle of repose (loose soil/scree 30–40°, Wikipedia): 35° → tan ≈ 0.70 rise/run, applied in
+// rendered voxel space (local high-frequency detail is 1:1, uncompressed — P0 steepFrac confirms).
+// Above this the surface is exposed rock/scree, not soil. DESIGN pick (midpoint of a real range).
+constexpr float kRockSlope   = 0.70f;
+// NOTE: seabed sediment zonation (shallow sand → deeper gravel/mud) and coastal beaches are NOT
+// here — both need real ocean depth / a coastline, which only exist once P2 lands the hydrology
+// bake. At P1's compressed continental base the ocean floor bottoms out ~kContinentalMin below sea
+// (≈40 voxels), so a 130 m shelf-break split would be dead code, and an altitude-only "beach" rule
+// sands inland lowland (no shore to abut). Seabed is therefore uniform Sand for now; beaches + shelf
+// sediment are deferred to P2 (docs/TerrainGenerationV2.md §P2).
+
 float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 float smoothstep01(float edge0, float edge1, float x) {
     float t = clamp01((x - edge0) / (edge1 - edge0));
@@ -352,6 +374,32 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // and peaks reach ~kSeaLevelY + kContinentalMax + kMountainAmp (~384 above sea level).
         float relief = surfaceVariationFor(wx, wz);
         col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset));
+
+        // P1 slope + altitude/temperature material overrides (docs/TerrainGenerationV2.md §P1).
+        // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
+        // level, exposed rock past the angle of repose, and a lapse-rate snow line. Moderate,
+        // gently-sloped land keeps its biome surface. (Flat is exempt — it stays a clean biome map.)
+        const int altitude = col.surfaceY - static_cast<int>(kSeaLevelY);
+        // Local slope (rise/run) via central difference over ±1 column. Reuse the centre column's
+        // biome blend (climate varies far slower than the ±1 step) instead of re-running biome
+        // selection per neighbor — an approximation good to well under a voxel at this scale.
+        auto nbSurfaceY = [&](int nx, int nz) {
+            return m_coarse->sample(static_cast<float>(nx), static_cast<float>(nz)).baseHeight
+                 + surfaceVariationFor(nx, nz) * blendScale + blendOffset;
+        };
+        const float dhx = (nbSurfaceY(wx + 1, wz) - nbSurfaceY(wx - 1, wz)) * 0.5f;
+        const float dhz = (nbSurfaceY(wx, wz + 1) - nbSurfaceY(wx, wz - 1)) * 0.5f;
+        const float slope = std::sqrt(dhx * dhx + dhz * dhz);
+        const float effTemp = col.temperature - altitude * kLapse01PerVoxel;  // colder with altitude
+
+        if (col.surfaceY < static_cast<int>(kSeaLevelY)) {
+            col.surfaceMat = "Sand";    // ocean floor / seabed (water itself arrives in P2)
+        } else if (slope > kRockSlope) {
+            col.surfaceMat = "Stone";   // too steep for soil to hold → exposed rock / scree
+        } else if (effTemp < kSnowTemp01) {
+            col.surfaceMat = "Ice";     // permanent snow (Ice = closest palette material; see follow-up)
+        }
+        // else: keep the biome surface material set above (moderate, gently-sloped land).
     }
     return col;
 }

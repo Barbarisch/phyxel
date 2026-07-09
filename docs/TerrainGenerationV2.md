@@ -211,6 +211,25 @@ ranges, sea level, cave dimensions) before shipping.
 > paste the NHANES citation there so the ratio stops being bare. Tracked, not P0-blocking.
 
 ### P1 — Density-function evaluator + biome overhaul
+
+> **Increment 1 ✅ IMPLEMENTED (2026-07-09, uncommitted): slope + altitude/temperature material
+> rules.** `sampleColumn` now surfaces the terrain physically on top of the biome material:
+> lapse-rate **snow line** (Ice), **exposed rock** (Stone) on slopes past the angle of repose, and
+> a **sand seabed** below sea level. Grounded (grounding-auditor): temperature field anchored to
+> Whittaker 1975 (−5..+30 °C / 35° span → freezing=0.143); ISA lapse 6.5 °C/km × ~15 m/voxel
+> compression = 0.00279 /voxel; angle-of-repose 35° → 0.70 rise/run. Measured (TerrainMaterialTest,
+> real output): 17,224 tall peaks / 0 grassy, 14,795 snow columns (0 effective-temp violations),
+> 28,584 rock faces, seabed cols all sand; L4 shows rock faces + grass base render on a dramatic
+> peak. Solution-auditor reproduced red→green.
+> **Deferred to P2 (needs real coastline/ocean depth — the auditor caught these as overreach/dead
+> code):** coastal **beaches** (an altitude-only rule sands inland lowland, no shore to abut) and
+> **seabed sediment zonation** (shallow sand → deep gravel; the ocean floor only reaches ~40 voxels
+> down at P1's compressed base, so a 130 m shelf split was unreachable). Follow-up: add a white
+> **Snow** material (Ice reads glassy for caps).
+>
+> **Increment 2 (next): continentalness in biome selection + Ocean/Beach/Alpine biome entries.**
+> **Increment 3: density-function / nested-spline evaluator refactor** (art-direction foundation, 2a).
+
 - Replace the ad-hoc height formula with the **density/spline node graph** (2a). Model
   continentalness → erosion → peaks-valleys as nested splines.
 - **Biomes:** make `continentalness` actually drive selection (currently unused); add **ocean,
