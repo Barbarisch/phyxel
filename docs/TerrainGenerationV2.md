@@ -9,6 +9,12 @@
 > and [`docs/WaterSystem.md`](WaterSystem.md). Those remain accurate for **what shipped**; this
 > doc is **where we're going**. The v1 pipeline is not thrown away — it becomes **Layer 1**
 > (per-chunk detail) beneath a new **Layer 0** (coarse global model).
+>
+> **Water has a dedicated runtime companion:** [`docs/WaterSystemV2.md`](WaterSystemV2.md). This
+> doc owns *generation* (what the world bakes: sea level, per-basin lake levels, river graph);
+> WaterSystemV2 owns the *runtime* (how the CA sim receives and renders it). **§P2 here == Water
+> Phase C there** — the seam where the two meet. Keep the two docs reconciled; a change to the
+> baked hydrology contract in P2 must be mirrored in WaterSystemV2 Phase C, and vice-versa.
 
 ---
 
@@ -163,7 +169,22 @@ agent-usability · L4 live runtime). Numeric parameters are flagged **⚑GROUND*
 grounding-auditor must supply a citable source (river widths by order, mountain heights vs real
 ranges, sea level, cave dimensions) before shipping.
 
-### P0 — CoarseWorldModel scaffold + immediate mountain drama
+### P0 — CoarseWorldModel scaffold + immediate mountain drama  ✅ IMPLEMENTED (2026-07-09, validated L2 + L4)
+
+> **Shipped in working tree (not yet committed):** `CoarseWorldModel` (Layer 0, `engine/{include,src}/core/CoarseWorldModel.*`),
+> noise extracted to pure free functions, `WorldGenerator::sampleColumn` sources its continental
+> base from the coarse model, and ridged-multifractal + domain-warp + amplification-spline mountain
+> relief in `surfaceVariationFor`. Far-terrain LOD is consistent for free (it routes through
+> `sampleSurface`→`sampleColumn`). **Measured:** Mountains peak relief **~334 voxels** (was ~64),
+> steepFrac 0.49 vs hills 0.05, worst chunk-border adjacent-column jump **4** (no seams),
+> deterministic. Runtime L4: peaks Y 199–322 over a 128-wide region, renders as a towering
+> stone-faced grass-based mountain. Full unit suite: **2618 passed, 0 failed, 4 skipped** (the 4
+> skips are env-gated — 3 AIEndToEndTest need PHYXEL_AI_API_KEY, 1 CharacterSkeletonTest needs an
+> anim file — unrelated to terrain). Independently audited (solution-auditor reproduced
+> red→green: pre-P0 peakRelief=25 FAIL → P0 peakRelief=334 PASS). Feature claims verified REAL.
+> Tuned constants: `kRmFreq=0.006`, `kMountainAmp=288`, `kContinentalMax=96`, continentalness
+> contrast ×1.9. Tests: `tests/core/{CoarseWorldModelTest,TerrainReliefTest}.cpp`.
+
 - **Foundation:** introduce `CoarseWorldModel` (interface + bounded backing first), persisted in
   `world.db`. Seed it trivially from the *current* noise so nothing regresses. Wire Layer-1
   `WorldGenerator` to sample it. Also wire it as the source for the existing far-terrain LOD
@@ -171,11 +192,23 @@ ranges, sea level, cave dimensions) before shipping.
 - **Local drama (cheap, high-impact):** add **ridged multifractal** (`1−abs(noise)`, octave-weighted
   by the previous octave → rough peaks, smooth lowlands) + **domain warping** (`fbm(p+fbm(p))`) +
   an **amplification spline** on final height. Remove the ±9 continental cap and deepen the usable
-  vertical range (Y is already unbounded in the engine; only the constants are shallow). ⚑GROUND
-  peak heights & sea-level baseline against a real reference range.
+  vertical range (Y is already unbounded in the engine; only the constants are shallow).
 - **Validation:** L2 (height-profile / ridge-continuity assertions on real output) + L4 (runtime
   screenshots of a dramatic skyline). **Stress:** generate a full region, assert no seams at
   chunk borders and monotonic ridge behavior.
+
+**Grounded values for P0 (grounding-auditor, 2026-07-09):**
+| Value | Grounded/decided | Source |
+|-------|------------------|--------|
+| Meters per voxel | **1.00 m** (structures/characters 1:1) | CDC/NCHS NHANES 2017-20: 175.4 cm ÷ 1.751-cube character = 1.0017 |
+| Terrain vertical scale | **COMPRESSED** — grandest peaks **~384 voxels** above sea level (~12 chunks); typical mountains 128–256. ~1 terrain-voxel ≈ 12–23 m of real relief for large landforms *(user decision — a tunable amplitude, dial up in P5)* | design call; real range Mont Blanc 4,809 m → Everest 8,849 m compressed |
+| Sea-level Y | **Y=16** (named `kSeaLevelY`) — *engineering continuity* with existing worlds (Flat stays Y=16), NOT a geographic figure; Y is an arbitrary unbounded origin | stated rationale, not a citation (auditor: Y=16 is unsourceable convenience — declare the rationale) |
+| Ridged-multifractal | H=1.0, offset=1.0, gain=2.0, **lacunarity=2.0**, **octaves=6** (tunable knob, not a fact) | Musgrave `musgrave.c` (H/offset/gain); libnoise/SharpNoise lineage (lacunarity/octaves default) |
+| Ocean/shelf depth | *range grounded, point value deferred to P1/P2:* near-shore 60–140 voxels; abyssal 3,000–6,000 (cap for perf, declare the cap) | NOAA/Britannica shelf-break ~133 m, avg ocean 3,682 m |
+
+> Note: the repo asserts "1 cube ≈ 1 m" **uncited** in 4 places (`DimensionCanon.h:9`, `scale.py:6-7`,
+> `StructureGenerationPipeline.md:113`, `character_design_constraints.json`). Housekeeping follow-up:
+> paste the NHANES citation there so the ratio stops being bare. Tracked, not P0-blocking.
 
 ### P1 — Density-function evaluator + biome overhaul
 - Replace the ad-hoc height formula with the **density/spline node graph** (2a). Model
@@ -197,6 +230,10 @@ ranges, sea level, cave dimensions) before shipping.
   sea level) so the sim can activate in a **player-region** for interactive flow — *generalize the
   CA off its fixed 64×32×64 box* to a sparse player-follow region. (See `docs/WaterSystem.md` for
   the existing CA; this connects generation to it for the first time.)
+  **The water-runtime work this requires — freeing the CA from its fixed box, active-set/sleep,
+  per-region levels, sparse field persistence in `world.db`, and this generation→CA wiring — is
+  planned phase-by-phase in [`docs/WaterSystemV2.md`](WaterSystemV2.md) (Phases A–C). This P2 is
+  its Phase C.**
 - **Validation:** **L3** — this is usability-critical and silent-failure-prone. Assert every river
   is **continuously downhill to a lake or sea** (walk the graph), every lake surface is **flat and
   contained** (single spill scalar), no water on a slope, no chunk-border level mismatch. **Stress:**

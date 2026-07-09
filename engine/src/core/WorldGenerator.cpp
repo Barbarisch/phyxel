@@ -14,12 +14,166 @@ namespace Phyxel {
 
 using json = nlohmann::json;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Free-function terrain noise (docs/TerrainGenerationV2.md P0).
+//
+// The coarse-model source and the Layer-1 ridged detail both need noise that is a PURE
+// function of (position, seed) — no WorldGenerator instance — so a copied generator (the
+// streaming worker) samples identically. These carry the noise seed EXPLICITLY. The member
+// WorldGenerator::noise3D/perlinNoise3D/etc. now delegate here, so behavior is unchanged and
+// the seam-critical "do not mask the lattice index" property is preserved verbatim.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+
+int tnHash(int x, int y, int z, uint32_t seed) {
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    y = ((y >> 16) ^ y) * 0x45d9f3b;
+    y = ((y >> 16) ^ y) * 0x45d9f3b;
+    y = (y >> 16) ^ y;
+    z = ((z >> 16) ^ z) * 0x45d9f3b;
+    z = ((z >> 16) ^ z) * 0x45d9f3b;
+    z = (z >> 16) ^ z;
+    return (x ^ y ^ z) + static_cast<int>(seed);
+}
+
+float tnFade(float t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+float tnLerp(float a, float b, float t) { return a + t * (b - a); }
+
+float tnGrad(int hash, float x, float y, float z) {
+    int h = hash & 15;
+    float u = h < 8 ? x : y;
+    float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+// Gradient-noise lattice. NOTE: the lattice index is deliberately NOT masked with & 255 —
+// masking creates a hard several-voxel cliff at every multiple of 256 (world coord 0, chunk
+// edges). See the original comment in noise3D; preserved here verbatim.
+float tnNoise3D(float x, float y, float z, uint32_t seed) {
+    int xi = static_cast<int>(std::floor(x));
+    int yi = static_cast<int>(std::floor(y));
+    int zi = static_cast<int>(std::floor(z));
+    float xf = x - std::floor(x);
+    float yf = y - std::floor(y);
+    float zf = z - std::floor(z);
+    float u = tnFade(xf), v = tnFade(yf), w = tnFade(zf);
+    int aaa = tnHash(xi, yi, zi, seed);
+    int aba = tnHash(xi, yi + 1, zi, seed);
+    int aab = tnHash(xi, yi, zi + 1, seed);
+    int abb = tnHash(xi, yi + 1, zi + 1, seed);
+    int baa = tnHash(xi + 1, yi, zi, seed);
+    int bba = tnHash(xi + 1, yi + 1, zi, seed);
+    int bab = tnHash(xi + 1, yi, zi + 1, seed);
+    int bbb = tnHash(xi + 1, yi + 1, zi + 1, seed);
+    float x1 = tnLerp(tnGrad(aaa, xf, yf, zf), tnGrad(baa, xf - 1, yf, zf), u);
+    float x2 = tnLerp(tnGrad(aba, xf, yf - 1, zf), tnGrad(bba, xf - 1, yf - 1, zf), u);
+    float y1 = tnLerp(x1, x2, v);
+    x1 = tnLerp(tnGrad(aab, xf, yf, zf - 1), tnGrad(bab, xf - 1, yf, zf - 1), u);
+    x2 = tnLerp(tnGrad(abb, xf, yf - 1, zf - 1), tnGrad(bbb, xf - 1, yf - 1, zf - 1), u);
+    float y2 = tnLerp(x1, x2, v);
+    return tnLerp(y1, y2, w);
+}
+
+float tnFbm(float x, float y, float z, int octaves, float persistence, float lacunarity, uint32_t seed) {
+    float total = 0.0f, frequency = 1.0f, amplitude = 1.0f, maxValue = 0.0f;
+    for (int i = 0; i < octaves; ++i) {
+        total += tnNoise3D(x * frequency, y * frequency, z * frequency, seed) * amplitude;
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    return total / maxValue;
+}
+
+// ── P0 grounded constants (docs/TerrainGenerationV2.md §P0 "Grounded values"). ──
+constexpr float kSeaLevelY = 16.0f;   // engineering continuity (Flat stays Y=16); an arbitrary
+                                      // unbounded origin, NOT a geographic figure (auditor-flagged).
+
+// Ridged multifractal (Musgrave, musgrave.c): H=1.0, offset=1.0, gain=2.0; lacunarity=2.0 and
+// octaves=6 from the libnoise/SharpNoise lineage (octaves is a tunable knob, not a fact).
+constexpr float kRmH = 1.0f, kRmOffset = 1.0f, kRmGain = 2.0f, kRmLacunarity = 2.0f;
+constexpr int   kRmOctaves = 6;
+constexpr float kRmFreq = 0.0060f;    // base ridge wavelength (~167 world units) — steeper flanks
+                                      // for rugged mountains; verified at runtime via TerrainReliefTest.
+
+// Vertical scale (user decision 2026-07-09): COMPRESSED. Grandest peaks ~384 voxels above sea
+// level; the continental base supplies up to +96, ridged detail supplies the rest.
+constexpr float kContinentalMax = 96.0f;   // max low-frequency landmass rise above sea level (voxels)
+constexpr float kContinentalMin = -40.0f;  // ocean/shelf floor below sea level (near-shore band; deep-ocean cap is P1/P2)
+constexpr float kMountainAmp    = 288.0f;  // Mountains ridged relief amplitude (96 + 288 ≈ 384 peak)
+constexpr float kHillAmp        = 80.0f;   // Perlin/Caves gentler rolling relief
+
+float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+float smoothstep01(float edge0, float edge1, float x) {
+    float t = clamp01((x - edge0) / (edge1 - edge0));
+    return t * t * (3.0f - 2.0f * t);
+}
+
+// Continental base elevation from continentalness [0,1] → world Y. A cubic "amplification
+// spline": flat lowlands/shelf near sea level, exaggerated interior highlands. This is the
+// Layer-0 low-frequency landmass; dramatic peaks come from the Layer-1 ridged detail on top.
+float continentalBase(float cont) {
+    float t = clamp01(cont);
+    float shaped = t * t * (3.0f - 2.0f * t);   // smoothstep redistribution (flat low, steep high)
+    return kSeaLevelY + kContinentalMin + (kContinentalMax - kContinentalMin) * shaped;
+}
+
+// Ridged multifractal (Musgrave). Returns ~[0, ~1.4]; peaks sharp (rough), valleys smooth,
+// because each octave is weighted by the previous (detail only accumulates on high ground).
+float tnRidgedMultifractal(float x, float z, uint32_t seed) {
+    float freq = 1.0f, result = 0.0f, weight = 1.0f;
+    float signal = kRmOffset - std::fabs(tnNoise3D(x, 0.0f, z, seed));
+    signal *= signal;
+    result = signal;
+    for (int i = 1; i < kRmOctaves; ++i) {
+        x *= kRmLacunarity;
+        z *= kRmLacunarity;
+        weight = clamp01(signal * kRmGain);
+        signal = kRmOffset - std::fabs(tnNoise3D(x, 0.0f, z, seed));
+        signal *= signal;
+        signal *= weight;
+        result += signal * std::pow(freq, -kRmH);
+        freq *= kRmLacunarity;
+    }
+    return result;
+}
+constexpr float kRidgedNorm = 1.35f;  // ~max of tnRidgedMultifractal at these params → normalize to [0,1]
+
+}  // namespace
+
 WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
     : generationType(type), seed(seed) {
     initDefaultBiomes();
     // Best-effort override from resources/biomes.json (CWD-relative, like materials.json).
     // Keeps the built-in defaults if the file is missing or invalid.
     loadBiomes("resources/biomes.json");
+    rebuildCoarseModel();
+}
+
+// Build the Layer-0 coarse model. The source is PURE (captures only seed by value) so the
+// worker's generator copy shares a valid, thread-safe model. cellSize = 32 (one sample per
+// chunk): continentalness is very low frequency, so interpolating it per-chunk is effectively
+// exact. Climate (temp/moisture) stays per-column in sampleColumn for P0; it migrates into the
+// coarse model in P1 (biome overhaul), where biome-border changes are expected and tested.
+void WorldGenerator::rebuildCoarseModel() {
+    const uint32_t s = seed;
+    const float contF = terrainParams.climateFrequency * 0.42f;  // continents larger than biomes
+    m_coarse = std::make_shared<CoarseWorldModel>(
+        [s, contF](float x, float z) {
+            CoarseSample cs;
+            auto to01 = [](float n) { return n < -1.0f ? 0.0f : (n > 1.0f ? 1.0f : (n + 1.0f) * 0.5f); };
+            // 2-octave fbm compresses toward 0.5; expand the contrast so continents genuinely
+            // reach ocean (low) and mountainous-interior (high) extremes instead of grey mush.
+            float raw = to01(tnFbm(x * contF, 300.0f, z * contF, 2, 0.5f, 2.0f, s));
+            cs.continentalness = clamp01((raw - 0.5f) * 1.9f + 0.5f);
+            cs.baseHeight = continentalBase(cs.continentalness);
+            // temperature/moisture left at defaults for P0 (unused; sampleColumn computes them
+            // per-column for biome selection). Filled in P1.
+            return cs;
+        },
+        32.0f);
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -110,22 +264,31 @@ bool WorldGenerator::isHeightBased() const {
 }
 
 float WorldGenerator::surfaceVariationFor(int wx, int wz) {
-    // Terrain "bumpiness" around the base level (16). Per-biome height scale/offset and
-    // continentalness are applied on top in sampleColumn. Flat contributes no variation.
-    switch (generationType) {
-        case GenerationType::Flat:
-            return 0.0f;
-        case GenerationType::Mountains:
-            return perlinNoise3D(wx * 0.01f, 0.0f, wz * 0.01f, 6, 0.7f, 2.0f) * 40.0f
-                 + perlinNoise3D(wx * 0.03f, 0.0f, wz * 0.03f, 4, 0.5f, 2.0f) * 20.0f
-                 + 4.0f;
-        case GenerationType::Perlin:
-        case GenerationType::Caves:
-        default:
-            return perlinNoise3D(wx * terrainParams.frequency, 0.0f, wz * terrainParams.frequency,
-                                 terrainParams.octaves, terrainParams.persistence, terrainParams.lacunarity)
-                 * terrainParams.heightScale;
+    // Layer-1 mountain relief (docs/TerrainGenerationV2.md P0): ridged multifractal, domain-
+    // warped so ridgelines bend, gated by a "mountainousness" mask from continentalness so
+    // plains stay flat and only high continental interiors grow rough peaks. Returns voxels of
+    // relief >= 0 (the continental base + sea level are added in sampleColumn). Flat = no relief.
+    if (generationType == GenerationType::Flat) return 0.0f;
+
+    // Domain warp the sample position (Quilez: fbm(p + fbm(p))) so ridges braid organically.
+    const float warpF = 0.006f, warpAmp = 40.0f;
+    const float wxw = wx + tnFbm(wx * warpF, 900.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+    const float wzw = wz + tnFbm(wx * warpF, 950.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
+
+    float ridged = clamp01(tnRidgedMultifractal(wxw * kRmFreq, wzw * kRmFreq, seed) / kRidgedNorm);
+
+    // Mountainousness mask: low continental land is gentle, high continental interior is alpine.
+    // Mountains bias the whole map upward and rougher; Perlin/Caves get gentler rolling hills.
+    float cont = m_coarse->sample(static_cast<float>(wx), static_cast<float>(wz)).continentalness;
+    if (generationType == GenerationType::Mountains) {
+        // Mask reaches full amplitude by mid-high continentalness (achievable after contrast
+        // expansion), leaving low-continental coasts/valleys gentle. Peaks approach kMountainAmp.
+        float mask = smoothstep01(0.20f, 0.70f, cont);
+        return ridged * mask * kMountainAmp;
     }
+    // Perlin / Caves: gentler, hills emerge above mid-continentalness.
+    float mask = smoothstep01(0.40f, 0.85f, cont);
+    return ridged * mask * kHillAmp;
 }
 
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
@@ -134,7 +297,6 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     // Continentalness is lower-frequency still (continents larger than biomes).
     auto to01 = [](float n) { float v = (n + 1.0f) * 0.5f; return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
     const float cf = terrainParams.climateFrequency;
-    const float contF = cf * 0.42f;  // continents larger than biomes
     // Domain warp: offset the climate sample position by a separate noise so biome borders
     // are organic and wandering instead of straight Voronoi contours. 4 climate octaves add
     // fine detail so borders are ragged, not clean curves.
@@ -142,9 +304,13 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     const float warpF = cf * 2.0f;
     const float swx = wx + perlinNoise3D(wx * warpF, 500.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
     const float swz = wz + perlinNoise3D(wx * warpF, 600.0f, wz * warpF, 2, 0.5f, 2.0f) * warpAmp;
-    col.temperature     = to01(perlinNoise3D(swx * cf,   100.0f, swz * cf,   4, 0.5f, 2.0f));
-    col.moisture        = to01(perlinNoise3D(swx * cf,   200.0f, swz * cf,   4, 0.5f, 2.0f));
-    col.continentalness = to01(perlinNoise3D(wx * contF, 300.0f, wz * contF, 2, 0.5f, 2.0f));
+    col.temperature     = to01(perlinNoise3D(swx * cf, 100.0f, swz * cf, 4, 0.5f, 2.0f));
+    col.moisture        = to01(perlinNoise3D(swx * cf, 200.0f, swz * cf, 4, 0.5f, 2.0f));
+    // Continentalness + continental base elevation now come from the Layer-0 coarse model
+    // (docs/TerrainGenerationV2.md). It is very low frequency, so per-chunk interpolation is
+    // effectively exact; this is the seam where Layer 1 reads the global landmass shape.
+    const CoarseSample coarse = m_coarse->sample(static_cast<float>(wx), static_cast<float>(wz));
+    col.continentalness = coarse.continentalness;
 
     // Biome selection + height blending: weight each biome by a Gaussian of the distance
     // from this column's climate to the biome's climate-cell CENTRE (a smooth Voronoi). The
@@ -178,11 +344,14 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     }
 
     if (generationType == GenerationType::Flat) {
-        col.surfaceY = 16;  // Flat stays flat; biome affects material only (no cliffs, clean biome map)
+        col.surfaceY = static_cast<int>(kSeaLevelY);  // Flat stays flat; biome affects material only
     } else {
-        float variation = surfaceVariationFor(wx, wz);
-        float elevation = (col.continentalness - 0.5f) * 18.0f;  // large-scale land height, +-9 (gentle)
-        col.surfaceY = static_cast<int>(std::floor(16.0f + variation * blendScale + blendOffset + elevation));
+        // surfaceY = Layer-0 continental base (sea level + landmass rise/ocean carve)
+        //          + Layer-1 ridged mountain relief, scaled by the biome's height extremeness.
+        // The old ±9 continental cap is gone — the base now spans kContinentalMin..kContinentalMax
+        // and peaks reach ~kSeaLevelY + kContinentalMax + kMountainAmp (~384 above sea level).
+        float relief = surfaceVariationFor(wx, wz);
+        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset));
     }
     return col;
 }
@@ -352,6 +521,9 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
             break;
         }
     }
+    // climateFrequency changed → the coarse model's continentalness frequency changed. Rebuild
+    // it now so the worker snapshot (taken after applyRecipe) copies an up-to-date Layer 0.
+    rebuildCoarseModel();
     LOG_INFO_FMT("WorldGenerator", "Applied world recipe (climateFreq=" << recipe.climateFrequency
                  << ", " << recipe.biomes.size() << " biome tunings)");
 }
@@ -546,91 +718,19 @@ bool WorldGenerator::generateCity(const glm::ivec3& chunkCoord, const glm::ivec3
     return false;
 }
 
+// The gradient-noise implementation now lives in the file-scope tn* free functions above
+// (single source of truth, seed passed explicitly so it's reusable by the coarse-model source
+// and the ridged detail). These members delegate, preserving identical behavior — including the
+// deliberately-unmasked lattice index that keeps noise continuous across chunk edges / x=z=0.
 float WorldGenerator::perlinNoise3D(float x, float y, float z, int octaves, float persistence, float lacunarity) {
-    float total = 0.0f;
-    float frequency = 1.0f;
-    float amplitude = 1.0f;
-    float maxValue = 0.0f;
-    
-    for (int i = 0; i < octaves; ++i) {
-        total += noise3D(x * frequency, y * frequency, z * frequency) * amplitude;
-        maxValue += amplitude;
-        amplitude *= persistence;
-        frequency *= lacunarity;
-    }
-    
-    return total / maxValue;
+    return tnFbm(x, y, z, octaves, persistence, lacunarity, seed);
 }
 
-float WorldGenerator::noise3D(float x, float y, float z) {
-    // Gradient-noise lattice. NOTE: do NOT mask the lattice index with & 255 here — the
-    // corner hashes use xi+1/yi+1/zi+1 unmasked, so masking xi creates a hard discontinuity
-    // at every multiple of 256 (e.g. world coordinate 0): the cell below 0 interpolates
-    // toward hash(256) while the cell above starts from hash(0), which differ. That produced
-    // a straight several-voxel cliff exactly along the x=0 / z=0 chunk edges. The hash takes
-    // arbitrary ints, so leaving the index unmasked keeps the noise continuous everywhere.
-    int xi = static_cast<int>(std::floor(x));
-    int yi = static_cast<int>(std::floor(y));
-    int zi = static_cast<int>(std::floor(z));
-    
-    float xf = x - std::floor(x);
-    float yf = y - std::floor(y);
-    float zf = z - std::floor(z);
-    
-    float u = fade(xf);
-    float v = fade(yf);
-    float w = fade(zf);
-    
-    int aaa = hash(xi, yi, zi);
-    int aba = hash(xi, yi + 1, zi);
-    int aab = hash(xi, yi, zi + 1);
-    int abb = hash(xi, yi + 1, zi + 1);
-    int baa = hash(xi + 1, yi, zi);
-    int bba = hash(xi + 1, yi + 1, zi);
-    int bab = hash(xi + 1, yi, zi + 1);
-    int bbb = hash(xi + 1, yi + 1, zi + 1);
-    
-    float x1 = lerp(grad(aaa, xf, yf, zf), grad(baa, xf - 1, yf, zf), u);
-    float x2 = lerp(grad(aba, xf, yf - 1, zf), grad(bba, xf - 1, yf - 1, zf), u);
-    float y1 = lerp(x1, x2, v);
-    
-    x1 = lerp(grad(aab, xf, yf, zf - 1), grad(bab, xf - 1, yf, zf - 1), u);
-    x2 = lerp(grad(abb, xf, yf - 1, zf - 1), grad(bbb, xf - 1, yf - 1, zf - 1), u);
-    float y2 = lerp(x1, x2, v);
-    
-    return lerp(y1, y2, w);
-}
-
-float WorldGenerator::fade(float t) {
-    return t * t * t * (t * (t * 6 - 15) + 10);
-}
-
-float WorldGenerator::lerp(float a, float b, float t) {
-    return a + t * (b - a);
-}
-
-float WorldGenerator::grad(int hash, float x, float y, float z) {
-    int h = hash & 15;
-    float u = h < 8 ? x : y;
-    float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
-    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
-}
-
-int WorldGenerator::hash(int x, int y, int z) {
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = (x >> 16) ^ x;
-    
-    y = ((y >> 16) ^ y) * 0x45d9f3b;
-    y = ((y >> 16) ^ y) * 0x45d9f3b;
-    y = (y >> 16) ^ y;
-    
-    z = ((z >> 16) ^ z) * 0x45d9f3b;
-    z = ((z >> 16) ^ z) * 0x45d9f3b;
-    z = (z >> 16) ^ z;
-    
-    return (x ^ y ^ z) + seed;
-}
+float WorldGenerator::noise3D(float x, float y, float z) { return tnNoise3D(x, y, z, seed); }
+float WorldGenerator::fade(float t) { return tnFade(t); }
+float WorldGenerator::lerp(float a, float b, float t) { return tnLerp(a, b, t); }
+float WorldGenerator::grad(int hash, float x, float y, float z) { return tnGrad(hash, x, y, z); }
+int WorldGenerator::hash(int x, int y, int z) { return tnHash(x, y, z, seed); }
 
 std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const {
     float y = static_cast<float>(worldPos.y);

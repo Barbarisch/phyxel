@@ -7,6 +7,10 @@
 > regions, GPU compute port, planar reflection/refraction, buoyancy/swimming — remain
 > **TODO**. Branch: `feature/water-system`. The sections below remain the authoritative
 > design rationale.
+>
+> **Scaling to large procedural bodies (oceans/rivers/lakes) is planned separately in
+> [`docs/WaterSystemV2.md`](WaterSystemV2.md)** — the water-runtime counterpart to the terrain-v2
+> hydrology bake. This v1 doc stays accurate for *what shipped*; v2 is *where scale goes*.
 
 ## Goals (agreed scope)
 

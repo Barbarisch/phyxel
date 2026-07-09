@@ -2,8 +2,11 @@
 
 #include <glm/glm.hpp>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "core/CoarseWorldModel.h"
 
 namespace Phyxel {
 
@@ -164,6 +167,15 @@ private:
     DepthProfile depthProfile;
     std::vector<Biome> m_biomes;
     GenerationFunction customGenerator;
+
+    // Layer 0 (docs/TerrainGenerationV2.md): low-frequency continental base + climate,
+    // sampled+interpolated from a coarse grid. sampleColumn (Layer 1) reads the base
+    // elevation from here and adds high-frequency ridged mountain detail on top. Held by
+    // shared_ptr with a PURE source (captures seed/params by value) so the worker's
+    // generator copy shares the same immutable, thread-safe model. Rebuilt whenever seed
+    // or generation params change (ctor + applyRecipe).
+    std::shared_ptr<CoarseWorldModel> m_coarse;
+    void rebuildCoarseModel();
 
     // Generation implementations
     bool generateRandom(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
