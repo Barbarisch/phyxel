@@ -106,13 +106,17 @@ no visual change, no caster-drop risk. Light-volume frustum culling (138→fewer
 second lever. **(NB: the pipeline-stats queries add sync overhead — gate them OFF before D1 A/B
 timing so they don't pollute the delta.)**
 
-**D1 6-index quad RESULT (measured 2026-07-08, evidence file):** implemented behind `s_quadDraw`
-(`POST /api/debug/quad_draw`); pipeline-stats now gated OFF by default. **Pixel-identical ON vs OFF**
-(winding correct for all faces), **primitives cut exactly 6×** (shadow 2.78M→464k, static 451k→75k).
-Main pass **4.7→3.1 ms** (fragment work 3.06M→1.9M). BUT the **shadow pass did NOT change** (~28 ms) —
-refuting D1a's projection. `frag=0` meant depth-only, but the shadow cost is **depth-FILL** (invisible
-to that counter) and 6× fewer coplanar tris don't reduce shadow-map texel coverage. So the quad is a
-correct, keep-it win for the main pass, but **not** the shadow fix. → **D1b below.**
+**D1 6-index quad RESULT (measured 2026-07-08, corrected 2026-07-09):** `s_quadDraw`
+(`POST /api/debug/quad_draw`), **MAIN OPAQUE PASS ONLY, default ON.** Main pass **4.7→3.0 ms**
+(primitives 451k→75k, fragment 3.06M→1.9M). Shadow-pass timing did NOT change — refuting D1a's
+"primitive-bound" projection (`frag=0` is depth-FILL, not primitive-bound).
+> **CORRECTION (pre-merge pixel-diff):** the first version applied the quad to ALL passes and the
+> eyeballed "pixel-identical" was WRONG — a scripted diff (grass/foliage off, sun paused) showed it
+> broke ~1.1% of pixels. Cause: the shadow pipeline **front-culls** (needs both windings of closed
+> casters); a 1-winding quad → that face casts no shadow. Fix: quad on the main (back-culled) pass
+> only; shadow/reflection/OIT/mirror stay 36-index. Re-diff = **16 isolated edge pixels (99.997%
+> within 2/255)** = the shipped perceptually-lossless bar, shadows intact. Lesson: a timing-null is
+> not an output-null — always pixel-diff render changes with grass/foliage off AND day-night paused.
 
 ### D1b — shadow-map resolution test: DONE, resolution is only a PARTIAL lever
 **Measured (evidence file):** 4096²→2048² (4× fewer texels) cut the shadow pass only **~30%**

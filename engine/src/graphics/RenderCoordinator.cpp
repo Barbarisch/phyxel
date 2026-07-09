@@ -615,7 +615,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
 
-        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
     }
 }
 
@@ -759,7 +759,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
-        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.reflectionDrawCalls++;
     }
 
@@ -818,7 +818,7 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
-        vulkanDevice->drawIndexed(frameIndex, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.mirrorGeomDrawCalls++;
     }
     LOG_DEBUG("RenderCoordinator", "Mirror geometry pass: {} chunks drawn", lastFrameStats.mirrorGeomDrawCalls);
@@ -962,7 +962,9 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
     visibleChunkIndices.swap(kept);
 }
 
-bool RenderCoordinator::s_shadowFrustumCull = true;  // D1c: light-frustum cull the shadow pass
+// D1c: light-frustum cull the shadow pass. Default OFF — measured to give NO perf win (the fitted
+// shadow volume legitimately contains ~all chunks); kept as an opt-in for future cascade work.
+bool RenderCoordinator::s_shadowFrustumCull = false;
 
 void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                                          const glm::vec3& cullCenter, float cullRadius) {
@@ -1021,7 +1023,10 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
 
              // Draw
-             vkCmdDrawIndexed(commandBuffer, vulkanDevice->chunkIndexCount(), chunk->getNumInstances(), 0, 0, 0);
+             // 36-index cube REQUIRED here: the shadow pipeline front-culls (ShadowMap.cpp:429,
+             // renders back faces of closed casters). A 6-index quad has ONE winding → front-culled →
+             // the face casts no shadow. Do NOT use chunkIndexCount() in the shadow pass.
+             vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
              ++shadowChunks;
              shadowInstances += chunk->getNumInstances();
         }

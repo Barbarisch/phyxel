@@ -279,8 +279,9 @@ public:
         // indices, but the shader collapses them onto the instance's single face quad → ~12
         // triangles/face (6× the 2 a quad needs). s_quadDraw ON draws only the first 6 indices
         // (the +Z front quad {4,6,5,6,7,5}), which the shader repositions per faceID → one quad/face.
-        // Density-independent primitive cut; biggest win in the depth-only, primitive-bound shadow
-        // pass. Default OFF (36-index, current behaviour) for A/B; flip after visual + perf verify.
+        // MAIN OPAQUE PASS ONLY (back-culled): pixel-identical there. The SHADOW pass FRONT-culls
+        // closed casters (ShadowMap.cpp:429) and needs BOTH windings → it stays 36-index; likewise
+        // reflection/OIT/mirror keep 36 (mirrored/transparent winding unverified). See renderShadowPass.
         static bool s_quadDraw;
         static uint32_t chunkIndexCount() { return s_quadDraw ? 6u : 36u; }
 

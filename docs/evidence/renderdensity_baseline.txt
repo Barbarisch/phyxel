@@ -193,3 +193,31 @@ REMAINING SHADOW FIXES (structural — none a quick toggle; scope next):
      needs static-ish sun + care on camera motion).
   3. SHORTER shadow distance / CASCADE — smaller fitted volume → fewer chunks + less fill (quality
      tradeoff or cascade complexity).
+
+================================================================================
+D1 CORRECTION (2026-07-09) — the all-passes quad BROKE SHADOWS; fixed to main-pass-only
+================================================================================
+The pre-merge scripted pixel-diff (grass/foliage OFF, day-night PAUSED to remove the sun-drift
+confound; noise floor then = 0 exactly) REFUTED the earlier eyeballed "pixel-identical" claim: the
+6-index quad applied to ALL passes changed ~1.1% of viewport pixels, concentrated on shadowed faces.
+
+ROOT CAUSE: the chunk SHADOW pipeline front-culls (ShadowMap.cpp:429, VK_CULL_MODE_FRONT_BIT — it
+renders BACK faces of closed casters, a peter-panning fix). The 36-index cube emits BOTH windings per
+face so a back face always survives; the 6-index quad emits ONE (front) winding → front-culled → that
+face casts NO shadow. So the quad silently broke shadows (the D1 "shadow pass unchanged ~28ms" was a
+timing null that hid a correctness change — the pixel-diff caught it).
+
+FIX: apply the 6-index quad to the MAIN OPAQUE pass ONLY (back-culled). Shadow + reflection + OIT +
+mirror reverted to 36-index (both windings). Re-diff (sun frozen, grass/foliage off):
+  noise floor OFF vs OFF        : max_delta 0, 0.0000% — deterministic
+  main-pass quad ON vs OFF      : viewport 16 isolated pixels differ (>8), max 147, mean 0.0007,
+                                  99.997% within 2/255 — scattered silhouette-EDGE aliasing (the
+                                  quad's diagonal split differs by ≤1px at some cube edges), NO wrong
+                                  faces, shadows intact. = the shipped fine-merge "perceptually
+                                  lossless" bar. Verified by a diff-highlight image (16 specks at edges).
+  win preserved: static_prims 451,512→75,252 (6×), Static Geometry pass 4.7→3.0 ms; shadow back to
+  2,783,964 prims (36-index, shadows correct).
+
+s_quadDraw now DEFAULT ON (main-pass-only, verified). D1c s_shadowFrustumCull DEFAULT OFF (no win).
+LESSON: a timing-null ("no effect on the shadow pass") is NOT an output-null — always pixel-diff a
+render change, with grass/foliage off AND the day-night cycle paused (both are noise sources).

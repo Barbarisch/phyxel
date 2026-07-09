@@ -1075,7 +1075,9 @@ bool VulkanDevice::createVertexBuffer() {
     return true;
 }
 
-bool VulkanDevice::s_quadDraw = false;  // D1: 6-index quad draw toggle (docs/RenderDensityPlan.md)
+// D1: 6-index quad draw for the MAIN OPAQUE pass. Default ON — verified pixel-identical (main pass
+// back-culls; shadow/reflection/OIT stay 36-index). ~34% off the main Static Geometry pass.
+bool VulkanDevice::s_quadDraw = true;
 
 bool VulkanDevice::createIndexBuffer() {
     // Define indices for the 6 faces of the cube (each face has 2 triangles = 6 indices)
