@@ -88,6 +88,90 @@ TEST(FlowFieldTest, OrderIsARiverOnTheValleyFloorNotTheRidge) {
     EXPECT_GE(f.maxOrder(), 1);
 }
 
+TEST(FlowFieldTest, ChannelGeometryTablesAreGrounded) {
+    // Grounded width (2,3,5,8,14,22 → half below) and depth (0,0,1,1,1,2) by Strahler order.
+    EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(1), 1.0f);
+    EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(3), 2.5f);
+    EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(6), 11.0f);
+    EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(9), 11.0f) << "clamps above order 6";
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(1), 0.0f) << "order-1 is sub-voxel → no carve";
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(2), 0.0f) << "order-2 is sub-voxel → no carve";
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(3), 1.0f);
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(6), 2.0f);
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(0), 0.0f) << "non-river → no carve";
+}
+
+TEST(FlowFieldTest, SegmentChannelGeometryAndOrderGate) {
+    // Segment from (0,0) to (100,0), order 3 → half-width 2.5, depth 1.0, parabolic.
+    // On the centreline: full depth. Halfway out: 1*(1-0.5^2)=0.75. Beyond half-width: no carve.
+    auto onLine = FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 3);
+    EXPECT_TRUE(onLine.hit);
+    EXPECT_EQ(onLine.order, 3);
+    EXPECT_NEAR(onLine.depth, 1.0f, 1e-4f) << "full depth at the centreline";
+
+    auto halfway = FlowField::segmentChannel(50.0f, 1.25f, 0.0f, 0.0f, 100.0f, 0.0f, 3);  // 1.25 = halfW/2
+    EXPECT_TRUE(halfway.hit);
+    EXPECT_NEAR(halfway.depth, 0.75f, 1e-3f) << "parabolic: 1*(1-0.5^2)";
+
+    auto beyond = FlowField::segmentChannel(50.0f, 3.0f, 0.0f, 0.0f, 100.0f, 0.0f, 3);  // 3 > halfW 2.5
+    EXPECT_FALSE(beyond.hit) << "outside half-width → no carve";
+
+    // Order gate: orders 1-2 are sub-voxel → no carve even on the centreline; order 6 carves deeper.
+    EXPECT_FALSE(FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 2).hit) << "order 2 sub-voxel";
+    EXPECT_FALSE(FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 1).hit) << "order 1 sub-voxel";
+    auto big = FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 6);
+    EXPECT_TRUE(big.hit);
+    EXPECT_NEAR(big.depth, 2.0f, 1e-4f) << "order 6 depth";
+}
+
+// A hand-encoded drainage tree (heights = a lookup grid so steepest-descent follows the tree): two
+// order-1 pairs form two order-2 tributaries that meet at c3 → order 3. cellSize 10, threshold 0.
+//   outlet(0,3)=0  c3(1,3)=10 ;  c1(1,2)=20 fed by (2,2),(1,1) ;  c2(1,4)=20 fed by (2,4),(1,5).
+static float treeHeight(float x, float z) {
+    static const float H[7][7] = {
+        {50, 50, 50, 50, 50, 50, 50},
+        {50, 50, 50, 50, 50, 50, 50},
+        {50, 20, 50, 50, 50, 50, 50},   // c1 at (i=1,j=2)
+        { 0, 10, 50, 50, 50, 50, 50},   // outlet (0,3), c3 (1,3)
+        {50, 20, 50, 50, 50, 50, 50},   // c2 at (1,4)
+        {50, 50, 50, 50, 50, 50, 50},
+        {50, 50, 50, 50, 50, 50, 50},
+    };
+    int i = static_cast<int>(std::lround(x / 10.0f)), j = static_cast<int>(std::lround(z / 10.0f));
+    i = i < 0 ? 0 : (i > 6 ? 6 : i);
+    j = j < 0 ? 0 : (j > 6 ? 6 : j);
+    return H[j][i];
+}
+
+TEST(FlowFieldTest, ChannelAtCarvesAnOrder3RiverAtItsCentreline) {
+    FlowField f(treeHeight, 0.0f, 0.0f, 7, 7, 10.0f, -1000.0f, /*riverThreshold=*/0);
+    ASSERT_GE(f.maxOrder(), 3) << "the hand-built tree must reach order 3 (two order-2 tributaries meet)";
+    ASSERT_EQ(f.orderAt(15.0f, 35.0f), 3) << "c3 (cell 1,3) is the order-3 confluence";
+
+    // On the c3 cell centre (= a segment endpoint): carves, order 3, ~full depth (channelDepth(3)=1).
+    auto on = f.channelAt(15.0f, 35.0f);
+    EXPECT_TRUE(on.hit) << "channelAt must carve on the order-3 river";
+    EXPECT_EQ(on.order, 3);
+    EXPECT_NEAR(on.depth, 1.0f, 0.2f);
+    // Well off the network (a high plateau corner) → no order-≥3 channel → no carve.
+    auto off = f.channelAt(55.0f, 5.0f);
+    EXPECT_FALSE(off.hit) << "channelAt must not carve off the river network";
+}
+
+TEST(FlowFieldTest, ChannelAtGatesOrder1And2RiversAtCellCentres) {
+    // The single valley tops out at order 1-2; sampling at cell CENTRES (where the segments actually
+    // run) it must carve NOTHING (orders 1-2 sub-voxel). Sampling centres makes this sensitive to the
+    // gate — a broken order gate would produce hits here (proven by the auditor's mutation).
+    auto height = [](float x, float z) { return std::fabs(z - 100.0f) * 2.0f + x * 0.1f; };
+    FlowField f(height, 0.0f, 0.0f, 20, 20, 10.0f, -1000.0f, /*riverThreshold=*/20);
+    ASSERT_GE(f.maxOrder(), 1) << "there must be river cells to gate (else the test is vacuous)";
+    ASSERT_LE(f.maxOrder(), 2) << "this fixture is meant to top out below the carving order (3)";
+    for (int j = 0; j < 20; ++j)
+        for (int i = 0; i < 20; ++i)
+            EXPECT_FALSE(f.channelAt((i + 0.5f) * 10.0f, (j + 0.5f) * 10.0f).hit)
+                << "order-<=2 river must carve nothing at cell centre (" << i << "," << j << ")";
+}
+
 TEST(FlowFieldTest, Deterministic) {
     auto height = [](float x, float z) { return std::fabs(z - 90.0f) * 1.5f + x * 0.2f + std::sin(x * 0.03f) * 5.0f; };
     FlowField a(height, -50.0f, -50.0f, 22, 22, 11.0f, -1000.0f);

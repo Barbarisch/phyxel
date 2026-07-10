@@ -44,6 +44,28 @@ public:
     static std::vector<int> computeStrahler(const std::vector<int>& downstream,
                                             const std::vector<int>& accum, int threshold);
 
+    // Grounded channel geometry by Strahler order (docs/TerrainGenerationV2.md §P2; Doll et al.
+    // NC Coastal-Plain hydraulic geometry). Width 2/3/5/8/14/22 voxels → half-width below; carve
+    // depth 0/0/1/1/1/2 voxels — orders 1–2 are SUB-VOXEL so they do NOT carve a bed (surface-only).
+    static float channelHalfWidth(int order);
+    static float channelDepth(int order);
+
+    // River carve at a world column: rivers are coarse cells, so each is modeled as a segment from its
+    // centre to its downstream river cell's centre; a column carves if within half-width of the nearest
+    // such segment, with a parabolic bed (deepest at the centreline). Returns the deepest (max-order)
+    // hit. hit=false where no order≥3 channel is within range.
+    struct ChannelHit {
+        bool hit = false;
+        int order = 0;
+        float depth = 0.0f;   // parabolic carve depth at this column (voxels)
+    };
+    ChannelHit channelAt(float worldX, float worldZ) const;
+
+    // Per-segment channel test (the geometry, exposed for direct testing): a point p carves iff
+    // order>=3 (orders 1-2 sub-voxel → no bed) AND p is within half-width of segment a→b, with a
+    // parabolic bed (full depth at the centreline, 0 at the edge). channelAt applies this per river cell.
+    static ChannelHit segmentChannel(float px, float pz, float ax, float az, float bx, float bz, int order);
+
     int maxAccum() const { return m_maxAccum; }
     int cellsX() const { return m_cellsX; }
     int cellsZ() const { return m_cellsZ; }
@@ -57,6 +79,7 @@ private:
     int m_cellsX = 0, m_cellsZ = 0;
     std::vector<int> m_accum;   // per cell; upstream drainage count
     std::vector<int> m_order;   // per cell; Strahler order (0 = not a river)
+    std::vector<int> m_downstream;  // per cell; steepest-descent drainage target (self = sink)
     int m_maxAccum = 0;
     int m_maxOrder = 0;
     size_t m_released = 0;      // cells processed by the Kahn pass (== cell count iff acyclic)

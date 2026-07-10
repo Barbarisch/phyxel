@@ -72,6 +72,78 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
     // Strahler order over the river cells (accum > threshold).
     m_order = computeStrahler(downstream, m_accum, riverThreshold);
     m_maxOrder = m_order.empty() ? 0 : *std::max_element(m_order.begin(), m_order.end());
+    m_downstream = std::move(downstream);  // kept for channelAt's segment geometry
+}
+
+namespace {
+// Distance from point p to segment a→b in the XZ plane.
+float pointSegDist(float px, float pz, float ax, float az, float bx, float bz) {
+    const float abx = bx - ax, abz = bz - az;
+    const float ab2 = abx * abx + abz * abz;
+    float t = (ab2 > 0.0f) ? ((px - ax) * abx + (pz - az) * abz) / ab2 : 0.0f;
+    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    const float cx = ax + t * abx, cz = az + t * abz;
+    const float ddx = px - cx, ddz = pz - cz;
+    return std::sqrt(ddx * ddx + ddz * ddz);
+}
+}  // namespace
+
+float FlowField::channelHalfWidth(int order) {
+    static const float hw[6] = {1.0f, 1.5f, 2.5f, 4.0f, 7.0f, 11.0f};  // = width {2,3,5,8,14,22}/2
+    if (order < 1) return 0.0f;
+    return hw[order > 6 ? 5 : order - 1];
+}
+
+float FlowField::channelDepth(int order) {
+    static const float dp[6] = {0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 2.0f};  // orders 1-2 sub-voxel → no carve
+    if (order < 1) return 0.0f;
+    return dp[order > 6 ? 5 : order - 1];
+}
+
+FlowField::ChannelHit FlowField::segmentChannel(float px, float pz, float ax, float az,
+                                                float bx, float bz, int order) {
+    ChannelHit h;
+    if (order < 3) return h;                       // orders 1-2 are sub-voxel → no bed carve
+    const float halfW = channelHalfWidth(order);
+    const float dist = pointSegDist(px, pz, ax, az, bx, bz);
+    if (dist >= halfW) return h;
+    const float t = dist / halfW;                  // parabolic bed: full depth at centre, 0 at edge
+    h.hit = true;
+    h.order = order;
+    h.depth = channelDepth(order) * (1.0f - t * t);
+    return h;
+}
+
+FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
+    ChannelHit best;
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return best;
+    const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int cj = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    // Scan radius sized so no channel within half-width of the query is missed: a river cell whose
+    // segment comes within halfWidth of the point has its centre within halfWidth + cellSize of it.
+    // DEPENDS on drainage being 4-connected (segment length = one orthogonal cellSize hop — see
+    // PriorityFlood::fillWithFlow + the steepest-descent pass); if that ever becomes 8-connected the
+    // segment length grows to cellSize·√2 and this radius must grow too. For the real 32 m cell it is
+    // 5×5 (r=2, since ceil(11/32)=1); it stays correct for small cellSize / large orders.
+    const int r = 1 + static_cast<int>(std::ceil(channelHalfWidth(m_maxOrder) / m_cellSize));
+    for (int j = cj - r; j <= cj + r; ++j)
+        for (int i = ci - r; i <= ci + r; ++i) {
+            if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
+            const int rc = j * m_cellsX + i;
+            const int ord = m_order[rc];
+            if (ord <= best.order) continue;  // keep the deepest (max-order) hit
+            const float ax = m_originX + (i + 0.5f) * m_cellSize;
+            const float az = m_originZ + (j + 0.5f) * m_cellSize;
+            float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
+            const int d = m_downstream[rc];
+            if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size()) {
+                bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize;
+                bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
+            }
+            ChannelHit h = segmentChannel(worldX, worldZ, ax, az, bx, bz, ord);
+            if (h.hit) best = h;
+        }
+    return best;
 }
 
 std::vector<int> FlowField::computeStrahler(const std::vector<int>& downstream,
