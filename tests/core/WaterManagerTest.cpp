@@ -82,6 +82,21 @@ TEST(WaterManagerTest, RecenterKeepsSpringInjecting) {
         << "spring stopped injecting after recenter — source re-projection (applySprings) was lost";
 }
 
+// followTo recenters the region on a focus (camera) only once it drifts past the hysteresis dead
+// zone, snaps the box to re-centre horizontally, and PRESERVES the Y origin (the box stays on its
+// ground/sea band, not the camera altitude).
+TEST(WaterManagerTest, FollowToRecentersPastHysteresisAndKeepsY) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));  // centre at world (16,8,16)
+    // Focus inside the dead zone (and high above) → no recenter.
+    EXPECT_FALSE(wm.followTo(glm::vec3(18.0f, 50.0f, 12.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(0, 0, 0));
+    // Focus far in x → recenter so it is centred; Y origin preserved despite the y=50 camera height.
+    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 50.0f, 16.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(100 - 16, 0, 16 - 16));  // (84, 0, 0)
+    // Now inside the dead zone of the new centre (84+16=100) → no further move.
+    EXPECT_FALSE(wm.followTo(glm::vec3(103.0f, 5.0f, 18.0f), 8));
+}
+
 // Recentering far enough that the pool leaves the window drops it (mass falls off the frontier) —
 // the seam-loss the ocean boundary condition (Phase A2) will later replace at the leading edge.
 TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {

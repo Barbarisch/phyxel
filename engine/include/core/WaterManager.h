@@ -44,6 +44,13 @@ public:
     // procedural generator placed rivers/lakes). Mass is conserved for water that stays in-window.
     void recenter(const glm::ivec3& newOrigin);
 
+    // Keep the region centred on `focusWorld` (e.g. the camera/player) in the horizontal plane,
+    // recentering ONLY when the focus has drifted more than `hysteresisCells` from the current centre
+    // (a dead zone so it doesn't recenter every frame — that would thrash the re-flood/re-sync). The Y
+    // origin is preserved: the box stays anchored to its ground/sea band, not the camera's altitude.
+    // Returns true if it recentered. Call once per frame with the camera position (WaterSystemV2 A2).
+    bool followTo(const glm::vec3& focusWorld, int hysteresisCells);
+
     // World-space helpers. Amount may be negative to remove water.
     void  placeWater(const glm::vec3& worldPos, float amount);
     float massAtWorld(const glm::vec3& worldPos) const;

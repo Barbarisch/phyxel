@@ -103,6 +103,18 @@ void WaterManager::recenter(const glm::ivec3& newOrigin) {
     rebuildOcean();
 }
 
+bool WaterManager::followTo(const glm::vec3& focusWorld, int hysteresisCells) {
+    const int cx = m_origin.x + m_dims.x / 2;   // current box centre (world), XZ only
+    const int cz = m_origin.z + m_dims.z / 2;
+    const int fx = static_cast<int>(std::floor(focusWorld.x));
+    const int fz = static_cast<int>(std::floor(focusWorld.z));
+    if (std::abs(fx - cx) <= hysteresisCells && std::abs(fz - cz) <= hysteresisCells)
+        return false;                            // still inside the dead zone → don't thrash
+    // Re-centre the box on the focus horizontally; keep the Y origin (ground/sea band).
+    recenter(glm::ivec3(fx - m_dims.x / 2, m_origin.y, fz - m_dims.z / 2));
+    return true;
+}
+
 void WaterManager::rebuildSurface() {
     m_surface.clear();
     m_waterfalls.clear();

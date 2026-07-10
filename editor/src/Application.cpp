@@ -3159,6 +3159,14 @@ void Application::update(float deltaTime) {
     // at a reduced rate. Set before NPC/entity updates this frame.
     if (camera) Scene::AnimatedVoxelCharacter::setViewerPosition(camera->getPosition());
 
+    // Player-following: keep the sim region centred on the viewer so water can exist anywhere the
+    // camera goes (WaterSystemV2 Phase A2), recentering only once it drifts a quarter-box from centre.
+    if (waterManager && camera &&
+        waterManager->followTo(camera->getPosition(), waterManager->dims().x / 4)) {
+        const glm::ivec3 o = waterManager->origin();
+        LOG_INFO_FMT("Water", "[WATER] region followed viewer → origin (" << o.x << "," << o.y << "," << o.z << ")");
+    }
+
     // Tick the CPU water cellular automaton (fixed-rate internally).
     if (waterManager) waterManager->update(deltaTime);
 
