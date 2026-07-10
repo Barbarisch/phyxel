@@ -1,11 +1,43 @@
 # Water System v2 — Scaling to Oceans, Rivers & Lakes
 
-> Status: **DESIGN / not yet started** (2026-07-09). This is the water-**runtime** plan for
+> Status: **Phase A IN PROGRESS** (updated 2026-07-10). This is the water-**runtime** plan for
 > supporting large procedural bodies of water. It is the runtime counterpart to
 > [`docs/TerrainGenerationV2.md`](TerrainGenerationV2.md) §P2 (which decides *what generation
 > feeds* the water system) — this doc decides *how the water runtime must change to receive it*.
 > The two must stay reconciled. It supersedes the scale/roadmap sections of
 > [`docs/WaterSystem.md`](WaterSystem.md) (v1), which remains accurate for **what shipped**.
+>
+> ### Progress (verify each via `git show <hash>` + `build/tests/Debug/phyxel_tests.exe --gtest_filter='Water*'`)
+> **SHIPPED (branch `terrain-gen-v2-p0`, unit-tested + solution-auditor-verified):**
+> - **A1 — relocatable region** (6ebeab7): `WaterSimulation::shift(delta)` + `WaterManager::recenter`
+>   translate the field so the box can move with content preserved. Tests: `WaterManagerTest`,
+>   `WaterSimulation.Shift*`.
+> - **A2a — player-following** (499fdde): `WaterManager::followTo(focus, hysteresis)` recenters on the
+>   camera (XZ, keeps Y); wired into `Application::update`. L4-confirmed the box follows.
+> - **A2b — ocean boundary condition** (4773dc1): `setOceanBoundary(bool)` seeds the ocean from the
+>   region edges so the sea survives a recenter. **Mechanism only — NOT wired into the live Application.**
+> - **A2c part 1 — settle-skip / sleep** (d6fd987): a settled field's `step()` returns O(1) (measured
+>   ~36,000× cheaper on a 64³ box, Debug). Includes a fix for a real GPU-bypass freeze the auditor
+>   caught (`stepGpu` must `wake()` the sim). Tests: `WaterSimulation.SettledFieldSkipsWork`,
+>   `WakeForcesTheNextStepToRun`.
+> - **Z-fighting fix** (3e7bafc): depth-bias the flat sea plane so voxel tops at sea level stop
+>   flickering. Rendering change; static waterline confirmed clean, **temporal flicker NOT
+>   independently confirmed** (move the camera along a coast to verify).
+>
+> **NOT done (do not assume these exist):**
+> - A2c remainder: finer per-cell active-set (settle-skip is GLOBAL — only fully-at-rest fields are
+>   free; partially-active fields still pay the full O(box) sweep). Wire `setOceanBoundary` live. Unify
+>   the DUPLICATED sea-level state (`Application.cpp` render default 16 vs sim default 0 — latent drift).
+>   The Phase-A "walk a long distance, many recenters" STRESS test.
+> - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
+>   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
+>   water, and only where terrain is below sea level.
+> - **Two demo-related items I was asked about but did NOT build** (2026-07-10, recorded honestly): a
+>   **soft shoreline / beach band** (sand/gravel coastal material + gentler near-shore slope) does not
+>   exist — the coast is a hard grass-to-water edge; and the **"floating slab"** at a generated patch's
+>   edge is NOT fixed — exposed chunk-boundary faces still render as vertical walls (a demo was framed
+>   to avoid them, which is not a fix). Real fixes: a coastal-band material rule in the terrain
+>   generator, and skipping/streaming the exposed boundary faces.
 
 ---
 

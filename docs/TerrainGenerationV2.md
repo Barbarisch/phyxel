@@ -310,9 +310,19 @@ ranges, sea level, cave dimensions) before shipping.
 > continental sample scale (window widened, thresholds/invariants UNCHANGED — a small window now sits
 > in one continent's interior): relief peak/low-ground measured over a strided [-8192,8192] scan
 > (peak 442, ocean at Y=-15), seabed search widened (52840 below-sea cols, all Sand). River tests
-> re-anchored to seed-7's new order-4 near-origin river. Next (P2 wrap): riverbed-material grounding,
-> bake PERSISTENCE to world.db (cache the deterministic bake so world-load/tests don't re-bake),
-> infinite-region partitioning (P5). Then WaterSystemV2 renders water.
+> re-anchored to seed-7's new order-4 near-origin river. Bake PERSISTENCE partly addressed by an
+> in-process memoization cache (commit 52935a9) — NOT world.db persistence. Next (P2 wrap):
+> riverbed-material grounding, world.db bake persistence, infinite-region partitioning (P5). Then
+> WaterSystemV2 renders water.
+>
+> **KNOWN COASTAL GAP (2026-07-10, recorded honestly — NOT implemented):** with big continents the
+> terrain now produces genuine coastlines (land crossing sea level into ocean basins), but there is
+> **no soft-shoreline / beach generation**: the coast is a hard grass-meets-water edge with whatever
+> (often steep) slope the relief produces — no sand/gravel coastal band, no near-shore flattening.
+> A real fix is a grounded **coastal-band material + slope rule** in `sampleColumn` (a beach zone within
+> N voxels of sea level on gentle slopes). Separately, a demo-only visual annoyance: a generated patch's
+> exposed chunk-boundary faces render as vertical "slab" walls; a fix would skip/stream those boundary
+> faces (a rendering change, not terrain-gen). Neither is done.
 
 **Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
 | Value | Grounded | Source | Design decision to state |
