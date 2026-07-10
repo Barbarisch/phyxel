@@ -120,8 +120,8 @@ constexpr float kHillFineAmp  = 22.0f;     // Perlin/Caves: light surface roughn
 // (a DESIGN limit — infinite-world region partitioning is P5). 256² = 65 536 cells → the two
 // Priority-Flood + accumulation passes are O(n log n), a few ms, run once (ctor + applyRecipe).
 constexpr int   kHydroCells  = 256;
-constexpr float kHydroCell   = 32.0f;      // = coarse-model cell size (one chunk wide)
-constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -4096 → box [-4096, 4096]²
+constexpr float kHydroCell   = 128.0f;     // 4 chunks per hydrology cell (coarse grid → cheap bake)
+constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -16384 → box [-16384, 16384]² (~32 km)
 
 // Valley shaping: a river's floor is planed smooth over a corridor several channel-widths wide, so
 // the carved channel seats in a valley instead of a thin slot buried by mountain relief roughness.
@@ -263,18 +263,25 @@ void WorldGenerator::rebuildCoarseModel() {
         return;
     }
     // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
-    // Layer-1 relief), so rivers sit in the valleys the player actually sees — NOT the smooth Layer-0
-    // base alone. Pure: captures the already-built coarse model (shared_ptr, immutable) + seed + type
-    // by value; no `this`. Sampled at cell centres (float→int floor matches sampleColumn's columns).
+    // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
+    // high-Strahler-order trunk rivers (the smooth base alone drains in low-order parallel sheets).
+    // Pure: captures the immutable coarse model + seed + type by value; no `this`.
     auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
         const CoarseSample cs = coarse->sample(x, z);
         return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
                                         static_cast<int>(std::floor(z)), cs.continentalness);
     };
+    // Channel-initiation threshold is a physical AREA (kDefaultRiverThresholdCells ≈ 0.1 km² at the
+    // 32 m reference cell); rescale it to THIS cell size so a coarser grid keeps the same real drainage
+    // density (and the same Strahler order, which depends on basin-area/threshold-area, not on cell
+    // resolution). Coarser cells → far fewer cells → an affordable bake over a much larger region.
+    const int riverThresh = std::max(
+        1, static_cast<int>(std::lround(FlowField::kDefaultRiverThresholdCells *
+                                        (32.0 * 32.0) / (kHydroCell * kHydroCell))));
     m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
                                              kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
-                                          kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
+                                          kHydroCells, kHydroCells, kHydroCell, kSeaLevelY, riverThresh);
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
              << " cells, maxAccum=" << m_flow->maxAccum() << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));

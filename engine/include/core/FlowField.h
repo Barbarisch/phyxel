@@ -80,6 +80,11 @@ public:
     int maxAccum() const { return m_maxAccum; }
     int cellsX() const { return m_cellsX; }
     int cellsZ() const { return m_cellsZ; }
+    // Baked region geometry (world units), so callers/tests can derive cell centres without
+    // mirroring the generator's region constants.
+    float originX() const { return m_originX; }
+    float originZ() const { return m_originZ; }
+    float cellSize() const { return m_cellSize; }
     // True iff the accumulation topo-pass released every cell (no cycle in the drainage graph). A
     // cycle would silently under-count upstream area, so this is a guard against future changes to
     // the steepest-descent/flat-fallback direction logic.
