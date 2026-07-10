@@ -275,7 +275,16 @@ ranges, sea level, cave dimensions) before shipping.
 
 > **Progress:** P2.1 `PriorityFlood` (commit 1937b95) · P2.2 `HydrologyMap` — lake/sea levels
 > (eaa1a15) · P2.3a `FlowField` — flow accumulation (river signal; valley funnels 81% of a region to
-> its mouth) — all standalone/tested/audited. Next: P2.3b Strahler order + threshold + carve.
+> its mouth) · P2.3b-1 Strahler order + grounded channel geometry · P2.3b-2a `channelAt` segment
+> carve query — all standalone/tested/audited. **P2.3b-2b SHIPPED (commit f7b6be4, 2026-07-10):**
+> the pipeline is now WIRED INTO the live generator — `rebuildCoarseModel` bakes a `HydrologyMap` +
+> `FlowField` over a bounded 256×256 @32m region on the full surface height; `sampleColumn` carves
+> order≥3 channels and shapes VALLEYS (attenuates Layer-1 relief toward the thalweg over a corridor
+> `channelHalfWidth·kValleyWidthMul`, `kValleyWidthMul=5.0` per Williams 1986 / Rosgen 1994). L3 test
+> `TerrainRiverTest` (carve-wired, 0.86 beds-in-valley, acyclic-downhill, deterministic; red-before-
+> green for both carve + valley shaping, solution-auditor PASS). Rivers are visible carved valleys at
+> L4; WATER FILL is WaterSystemV2's job. Next: sinuosity/meander, order≥4 rivers, infinite-region
+> partitioning (P5), bed material grounding.
 
 **Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
 | Value | Grounded | Source | Design decision to state |
