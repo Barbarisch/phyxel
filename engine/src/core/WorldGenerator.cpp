@@ -134,6 +134,21 @@ constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -4096 → b
 // minor and channelHalfWidth already scales the absolute width). (docs/TerrainGenerationV2.md §P2)
 constexpr float kValleyWidthMul = 5.0f;
 
+// River meander: the drainage runs on a 32 m D8 cell grid, so raw channels are straight, axis-aligned
+// segments. To make rivers SINUOUS we domain-warp the query coordinate before every channel lookup —
+// warp⁻¹ of a straight tube is a sinuous tube, so the SAME warp on the valley-shaping and carve queries
+// bends both together without touching the drainage topology (downstream/order/flow stay intact).
+// GROUNDED (grounding-auditor 2026-07-10):
+//  • kMeanderFreq → wavelength λ = 1/0.018 ≈ 55 m ≈ 11× the ~5 m order-3 channel width — Leopold &
+//    Wolman 1960 (USGS PP 282-B) λ ≈ 10.9·W; the 7–14×W band puts 55 m centrally.
+//  • kMeanderAmp scales tnFbm, whose typical magnitude is well below its ±1 extreme (empirically
+//    ~0.2–0.3), so the typical lateral displacement ≈ 55·0.25 ≈ 14 m. That matches the meander
+//    amplitude ≈ half the belt width from Williams 1986 (*J. Hydrology* 88; belt B = 3.7·W^1.12 →
+//    ≈26 m for a 5 m channel → amplitude ≈13 m). The actual sinuosity is validated by the
+//    RiversMeander L3 test (not asserted from the noise magnitude alone).
+constexpr float kMeanderFreq = 0.018f;
+constexpr float kMeanderAmp  = 55.0f;
+
 // ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
 // Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
 // diagram temperature axis; 35 °C span). DESIGN DECISION (stated) — the citable anchor that lets
@@ -462,10 +477,21 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // slot buried by relief roughness. Relief is >= 0, so driving it to 0 at the thalweg makes the
         // channel the local minimum by construction. The corridor is a few channel-widths wide
         // (kValleyWidthMul); outside it, relief is untouched. Guarded on m_flow.
+        // MEANDER: warp the query coordinate so straight D8 cell-channels carve as SINUOUS rivers in
+        // world space. The SAME warped (mwx,mwz) drives BOTH the valley shaping and the carve below, so
+        // valley and channel stay aligned. Two decorrelated fbm bands (distinct offsets) give an x/z
+        // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
+        float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
+        if (m_flow) {
+            mwx += kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+            mwz += kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+        }
+
+        // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
+        // (meandered) channel centreline so the river seats in a SMOOTH valley floor, not a thin slot.
         if (m_flow) {
             const float maxValleyHalf = FlowField::channelHalfWidth(6) * kValleyWidthMul;  // widest order
-            const FlowField::NearestChannel nc =
-                m_flow->nearestChannel(static_cast<float>(wx), static_cast<float>(wz), maxValleyHalf);
+            const FlowField::NearestChannel nc = m_flow->nearestChannel(mwx, mwz, maxValleyHalf);
             if (nc.order >= 3) {
                 const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
                 relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
@@ -479,7 +505,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // Sand. riverOrder marks the bed for the flora gate + the water runtime (WaterSystemV2 fills
         // the channel; the carve only shapes the terrain).
         if (m_flow) {
-            const FlowField::ChannelHit ch = m_flow->channelAt(static_cast<float>(wx), static_cast<float>(wz));
+            const FlowField::ChannelHit ch = m_flow->channelAt(mwx, mwz);
             if (ch.hit) {
                 col.surfaceY -= static_cast<int>(std::lround(ch.depth));
                 col.riverOrder = ch.order;

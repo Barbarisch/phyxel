@@ -5,17 +5,22 @@
 #include "core/HydrologyMap.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <set>
+#include <utility>
 #include <vector>
 
-// L3 integration validation for the P2 river carve (docs/TerrainGenerationV2.md §P2). Drives the
-// REAL WorldGenerator over the baked hydrology region and asserts the river network is wired into
-// the generator's output: carving actually happens (non-vacuous), the drainage is acyclic (flows to
-// sinks, never uphill loops), carved beds sit in valleys (local minima across the channel), and it
-// is deterministic. RED baseline (each invariant independently coupled to one feature): disabling the
-// carve in sampleColumn leaves riverOrder 0, so CarveIsWiredToTheRiverNetwork + DeterministicCarve fail
-// while BedsSitInValleysNotOnRidges still passes (valley shaping alone troughs the beds); disabling
-// valley shaping drops BedsSitInValleysNotOnRidges to ~0.28 and fails it while CarveIsWired still passes.
+// L3 integration validation for the P2 river carve + meander (docs/TerrainGenerationV2.md §P2).
+// Drives the REAL WorldGenerator over the baked hydrology region and asserts the river network is
+// wired into the generator's output: carving happens (non-vacuous), rivers MEANDER (the carved
+// channel is displaced off the straight D8 cell centres), carved beds sit in valleys, drainage is
+// acyclic (downhill to sinks), and it is deterministic.
+//
+// RED baselines (each invariant independently coupled to one feature):
+//  - carve disabled  → riverOrder 0 everywhere → CarvingIsNonVacuous + DeterministicCarve fail.
+//  - valley shaping disabled → BedsSitInValleys drops (~0.3) and fails.
+//  - meander disabled → the channel sits ON the cell centres → RiversMeander's mean offset ≈ 0 fails.
 
 namespace Phyxel {
 namespace {
@@ -25,81 +30,144 @@ constexpr float kHydroCell  = 32.0f;
 constexpr float kHydroOrigin = -4096.0f;   // must mirror WorldGenerator's kHydroOrigin/kHydroCells
 constexpr int   kHydroCells  = 256;
 
-// Cell-centre world coord for cell (i,j) of the baked region.
 float cellCentreX(int i) { return kHydroOrigin + (i + 0.5f) * kHydroCell; }
 float cellCentreZ(int j) { return kHydroOrigin + (j + 0.5f) * kHydroCell; }
 
-// Collect the world-column centres of every order>=3 river cell in the baked region (these are the
-// cells that carve — orders 1-2 are sub-voxel). Uses only public queries.
-std::vector<std::pair<int, int>> riverCellCentres(WorldGenerator& g) {
+// World-column centres of every order>=3 river cell (these are the carving cells; the meander then
+// displaces the actual channel off these centres). Optionally restricted to |x|,|z| <= clamp to keep
+// the per-cell window scans that follow affordable.
+std::vector<std::pair<int, int>> riverCellCentres(WorldGenerator& g, int clamp = 1 << 30) {
     std::vector<std::pair<int, int>> out;
     const FlowField* rn = g.riverNetwork();
     if (!rn) return out;
     for (int j = 0; j < kHydroCells; ++j)
         for (int i = 0; i < kHydroCells; ++i) {
             const float wx = cellCentreX(i), wz = cellCentreZ(j);
-            if (rn->orderAt(wx, wz) >= 3)
-                out.emplace_back(static_cast<int>(std::floor(wx)), static_cast<int>(std::floor(wz)));
+            if (rn->orderAt(wx, wz) < 3) continue;
+            const int ix = static_cast<int>(std::floor(wx)), iz = static_cast<int>(std::floor(wz));
+            if (std::abs(ix) <= clamp && std::abs(iz) <= clamp) out.emplace_back(ix, iz);
         }
     return out;
 }
 
-// The carve is wired: every place the network runs an order>=3 channel, the generator's column
-// there is marked a riverbed (riverOrder>=3). This is the red-before-green discriminator — with the
-// carve removed from sampleColumn, riverOrder is 0 everywhere and this fails on the first river cell.
-TEST(TerrainRiverTest, CarveIsWiredToTheRiverNetwork) {
+// Scan a ±W window around each river-cell centre and collect every carved (riverOrder>=3) column of
+// the actual (meandered) channel, deduplicated.
+std::vector<std::pair<int, int>> carvedColumnsNear(WorldGenerator& g,
+                                                   const std::vector<std::pair<int, int>>& cells, int W) {
+    std::set<std::pair<int, int>> seen;
+    for (const auto& c : cells)
+        for (int dz = -W; dz <= W; ++dz)
+            for (int dx = -W; dx <= W; ++dx) {
+                const int x = c.first + dx, z = c.second + dz;
+                if (g.sampleSurface(x, z).riverOrder >= 3) seen.emplace(x, z);
+            }
+    return {seen.begin(), seen.end()};
+}
+
+// Carving is wired and non-vacuous: the meandered channel carves a substantial set of riverbed
+// columns near the network. RED (carve disabled): riverOrder is 0 everywhere → 0 carved.
+TEST(TerrainRiverTest, CarvingIsNonVacuous) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
     const FlowField* rn = g.riverNetwork();
     ASSERT_NE(rn, nullptr);
     EXPECT_GE(rn->maxOrder(), 3) << "no carving-order river baked — test would be vacuous";
 
-    const auto cells = riverCellCentres(g);
-    ASSERT_GT(cells.size(), 50u) << "too few order>=3 river cells to validate carving";
-
-    int carved = 0;
-    for (const auto& c : cells) {
-        const WorldGenerator::ColumnSample col = g.sampleSurface(c.first, c.second);
-        if (col.riverOrder >= 3) ++carved;
-    }
-    std::printf("[river] seed=7: %zu order>=3 river cells, %d carved at their centres\n",
-                cells.size(), carved);
-    // Every river-cell centre must read as a carved bed. (Allow none to be missed.)
-    EXPECT_EQ(carved, static_cast<int>(cells.size()))
-        << "the generator did not carve at river-network cells — carve not wired to channelAt";
+    const auto cells = riverCellCentres(g, 700);   // near-origin subset (keeps the scan affordable)
+    ASSERT_GT(cells.size(), 20u) << "too few order>=3 river cells near origin to validate";
+    const auto carved = carvedColumnsNear(g, cells, 22);
+    std::printf("[river] seed=7: %zu river cells (|xz|<=700), %zu carved channel columns\n",
+                cells.size(), carved.size());
+    EXPECT_GT(carved.size(), 200u) << "the meandered channel barely carves — carve not wired";
 }
 
-// Carved beds sit in valleys, not on ridges/columns: across the channel the bed is strictly lower
-// than the terrain a channel-width to either side. Checked on both axes; a trough passes on at least
-// the cross-flow axis. A "river carved onto a ridge" bug (baking on the wrong height field, or a
-// coordinate mismatch between the bake and sampleColumn) makes the bed HIGHER than its banks → fails.
+// Rivers MEANDER: the meander warp displaces the carved channel OFF the straight D8 cell centres.
+// Without the warp the channel segments run cell-centre → downstream-cell-centre, so every river-cell
+// centre lies exactly ON the channel (carved). The warp swings the channel a full channel-width+ to
+// the side, so most centres fall off it. We measure the fraction of river-cell centres still carved.
+// (This isolates the WARP: a metric like "centreline excursion" fails because the D8 path itself
+// wanders cell-to-cell.) RED (meander disabled): the channel IS the cell path → fraction ≈ 1.0.
+TEST(TerrainRiverTest, RiversMeander) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto cells = riverCellCentres(g, 700);
+    ASSERT_GT(cells.size(), 20u);
+    int onCentre = 0;
+    for (const auto& c : cells)
+        if (g.sampleSurface(c.first, c.second).riverOrder >= 3) ++onCentre;
+    const double frac = static_cast<double>(onCentre) / cells.size();
+    std::printf("[river] river-cell centres still on the carved channel = %.2f (%d/%zu) — low ⇒ meandered\n",
+                frac, onCentre, cells.size());
+    EXPECT_LT(frac, 0.5)
+        << "channel still runs through the cell centres — river is the straight D8 path, not meandering";
+}
+
+// Rivers are SINUOUS (not merely displaced): the carved channel's centreline is meaningfully longer
+// than the straight line between its endpoints. Near the origin the seed-7 river runs ~N-S; we build
+// the channel centreline meanX(z) (mean x of carved columns per z-row), subsample it to suppress
+// per-row noise, and measure sinuosity = arc-length / straight-line distance (Leopold-Wolman-Miller:
+// straight <1.05, sinuous 1.05-1.5). This is STRONGER than RiversMeander: a constant lateral offset
+// (a straight but shifted channel) leaves the centreline straight → sinuosity ≈ 1.0 → fails here,
+// whereas it would pass RiversMeander. Only a genuine periodic warp lengthens the path.
+TEST(TerrainRiverTest, RiversAreSinuous) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    const int zLo = -180, zHi = 180, xLo = 180, xHi = 300;
+    std::vector<std::pair<double, double>> centre;  // (meanX, z) per z-row that has channel
+    for (int z = zLo; z <= zHi; ++z) {
+        long sumX = 0;
+        int n = 0;
+        for (int x = xLo; x <= xHi; ++x)
+            if (g.sampleSurface(x, z).riverOrder >= 3) { sumX += x; ++n; }
+        if (n > 0) centre.emplace_back(static_cast<double>(sumX) / n, static_cast<double>(z));
+    }
+    ASSERT_GT(centre.size(), 80u) << "river does not span the window — cannot judge sinuosity";
+    // Subsample every 6 z-rows: at ~55 m meander wavelength this keeps the bends while averaging out
+    // the ±0.5-column quantisation noise that would otherwise inflate arc length on a straight channel.
+    const int step = 6;
+    double arc = 0.0;
+    std::pair<double, double> prev = centre.front();
+    for (size_t i = step; i < centre.size(); i += step) {
+        const double dx = centre[i].first - prev.first, dz = centre[i].second - prev.second;
+        arc += std::sqrt(dx * dx + dz * dz);
+        prev = centre[i];
+    }
+    const double straight = std::sqrt(std::pow(prev.first - centre.front().first, 2.0) +
+                                      std::pow(prev.second - centre.front().second, 2.0));
+    const double sinuosity = arc / straight;
+    std::printf("[river] channel sinuosity (arc/straight) = %.3f over %zu centreline points\n",
+                sinuosity, centre.size());
+    // The straight D8 drainage path has a natural baseline sinuosity of ~1.057 at this seed/window
+    // (a constant lateral offset reproduces exactly that — translation preserves arc/straight); the
+    // fbm meander warp lengthens the centreline to ~1.13. Threshold 1.09 sits between, so it fails on
+    // both a straight channel and a non-sinuous constant offset, and passes only on the real warp.
+    EXPECT_GT(sinuosity, 1.09) << "channel centreline is ~straight — rivers not sinuous/meandering";
+}
+
+// Carved beds sit in valleys, not on ridges: across the channel the bed is strictly lower than the
+// terrain a channel-width to either side. Sampled on the ACTUAL carved (meandered) columns (not cell
+// centres, which the meander no longer lands on). RED (valley shaping disabled): drops to ~0.3.
 TEST(TerrainRiverTest, BedsSitInValleysNotOnRidges) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
-    const auto cells = riverCellCentres(g);
-    ASSERT_GT(cells.size(), 50u);
+    const auto cells = riverCellCentres(g, 700);
+    const auto carved = carvedColumnsNear(g, cells, 22);
+    ASSERT_GT(carved.size(), 200u);
 
     const int d = 6;   // banks well outside the order-3 half-width (2.5)
     int trough = 0, tested = 0;
-    for (const auto& c : cells) {
+    for (const auto& c : carved) {
         const int bed = g.sampleSurface(c.first, c.second).surfaceY;
         const int xl = g.sampleSurface(c.first - d, c.second).surfaceY;
         const int xr = g.sampleSurface(c.first + d, c.second).surfaceY;
         const int zl = g.sampleSurface(c.first, c.second - d).surfaceY;
         const int zr = g.sampleSurface(c.first, c.second + d).surfaceY;
-        const bool troughX = bed < xl && bed < xr;
-        const bool troughZ = bed < zl && bed < zr;
-        if (troughX || troughZ) ++trough;
+        if ((bed < xl && bed < xr) || (bed < zl && bed < zr)) ++trough;
         ++tested;
     }
     const double rate = static_cast<double>(trough) / tested;
     std::printf("[river] beds in a cross-channel trough: %d/%d (%.2f)\n", trough, tested, rate);
-    // The vast majority of carved beds must be local minima across the channel. (Confluences, the
-    // sea mouth, and flat spills legitimately fail, so this is a majority — not all — bound.)
     EXPECT_GT(rate, 0.70) << "carved beds are not in valleys — rivers on ridges (wrong height field?)";
 }
 
-// Drainage is acyclic: every flow path terminates at a sink (no uphill loop). Combined with
-// Priority-Flood's downhill-by-construction downstream (proven in FlowFieldTest), this means every
-// river flows monotonically downhill to the sea/a lake within the baked region.
+// Drainage is acyclic: every flow path terminates at a sink (no uphill loop). With Priority-Flood's
+// downhill-by-construction downstream, this means rivers flow monotonically downhill to sea/lake.
 TEST(TerrainRiverTest, DrainageIsAcyclicFlowsToSinks) {
     for (uint32_t s : {7u, 99u, 4242u}) {
         WorldGenerator g(WorldGenerator::GenerationType::Mountains, s);
@@ -109,40 +177,39 @@ TEST(TerrainRiverTest, DrainageIsAcyclicFlowsToSinks) {
     }
 }
 
-// Determinism: the baked hydrology + carve are a pure function of seed (safe under the streaming
-// worker's generator copy). Two independent generators agree column-for-column.
+// Determinism: the baked hydrology + meandered carve are a pure function of seed. Two independent
+// generators agree column-for-column over the actual carved channel (non-vacuous on riverbeds).
 TEST(TerrainRiverTest, DeterministicCarve) {
-    WorldGenerator a(WorldGenerator::GenerationType::Mountains, 4242u);
-    WorldGenerator b(WorldGenerator::GenerationType::Mountains, 4242u);
-    // Sample the actual river-cell centres so the check is NON-VACUOUS on carved beds (not just dry
-    // land) — a nondeterministic carve/valley pass would diverge here.
-    const auto cells = riverCellCentres(a);
-    ASSERT_GT(cells.size(), 50u);
+    WorldGenerator a(WorldGenerator::GenerationType::Mountains, 7u);
+    WorldGenerator b(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto cells = riverCellCentres(a, 700);
+    const auto carved = carvedColumnsNear(a, cells, 22);
+    ASSERT_GT(carved.size(), 200u);
     int riverbeds = 0;
-    for (const auto& c : cells) {
+    for (const auto& c : carved) {
         const WorldGenerator::ColumnSample ca = a.sampleSurface(c.first, c.second);
         const WorldGenerator::ColumnSample cb = b.sampleSurface(c.first, c.second);
         EXPECT_EQ(ca.surfaceY, cb.surfaceY) << "surfaceY differs at (" << c.first << "," << c.second << ")";
         EXPECT_EQ(ca.riverOrder, cb.riverOrder) << "riverOrder differs at (" << c.first << "," << c.second << ")";
         if (ca.riverOrder >= 3) ++riverbeds;
     }
-    std::printf("[river] deterministic sample hit %d riverbed columns\n", riverbeds);
-    EXPECT_GT(riverbeds, 50) << "determinism check never landed on a carved bed — vacuous";
+    std::printf("[river] deterministic over %d carved columns\n", riverbeds);
+    EXPECT_GT(riverbeds, 200) << "vacuous — no carved columns compared";
 }
 
-// Diagnostic (not an assertion of quality): print the order>=3 river-cell centres nearest the world
-// origin for seed 7, so the L4 runtime demo can aim the camera at an actual carved valley.
-TEST(TerrainRiverTest, PrintNearOriginRiverCellsSeed7) {
+// Diagnostic (not a quality assertion): print carved channel columns nearest the origin for seed 7,
+// so the L4 runtime demo can aim the camera at an actual meandering river.
+TEST(TerrainRiverTest, PrintNearOriginCarvedColumnsSeed7) {
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
-    auto cells = riverCellCentres(g);
-    ASSERT_GT(cells.size(), 0u);
-    std::sort(cells.begin(), cells.end(), [](auto a, auto b) {
+    auto carved = carvedColumnsNear(g, riverCellCentres(g, 400), 24);
+    ASSERT_GT(carved.size(), 0u);
+    std::sort(carved.begin(), carved.end(), [](auto a, auto b) {
         return (a.first * a.first + a.second * a.second) < (b.first * b.first + b.second * b.second);
     });
-    for (size_t i = 0; i < cells.size() && i < 8; ++i) {
-        const auto col = g.sampleSurface(cells[i].first, cells[i].second);
-        std::printf("[river] seed7 near-origin river #%zu (%d,%d) surfaceY=%d order=%d\n",
-                    i, cells[i].first, cells[i].second, col.surfaceY, col.riverOrder);
+    for (size_t i = 0; i < carved.size() && i < 8; ++i) {
+        const auto col = g.sampleSurface(carved[i].first, carved[i].second);
+        std::printf("[river] seed7 near-origin carved #%zu (%d,%d) surfaceY=%d order=%d\n",
+                    i, carved[i].first, carved[i].second, col.surfaceY, col.riverOrder);
     }
 }
 

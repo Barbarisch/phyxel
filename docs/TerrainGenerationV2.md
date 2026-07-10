@@ -283,8 +283,17 @@ ranges, sea level, cave dimensions) before shipping.
 > `channelHalfWidth·kValleyWidthMul`, `kValleyWidthMul=5.0` per Williams 1986 / Rosgen 1994). L3 test
 > `TerrainRiverTest` (carve-wired, 0.86 beds-in-valley, acyclic-downhill, deterministic; red-before-
 > green for both carve + valley shaping, solution-auditor PASS). Rivers are visible carved valleys at
-> L4; WATER FILL is WaterSystemV2's job. Next: sinuosity/meander, order≥4 rivers, infinite-region
-> partitioning (P5), bed material grounding.
+> L4; WATER FILL is WaterSystemV2's job.
+>
+> **P2.3c SHIPPED (meandering rivers, 2026-07-10):** the D8 channels were straight/axis-aligned, so
+> the query coordinate is now domain-warped before every channel lookup (SAME warp for valley shaping
+> + carve → aligned) — warp⁻¹ of a straight tube is a sinuous tube, so rivers meander while drainage
+> topology is untouched. Grounded (grounding-auditor): meander wavelength `kMeanderFreq`→~55 m ≈ 11×W
+> (Leopold-Wolman 1960); amplitude `kMeanderAmp`→~14 m ≈ Williams-1986 belt/2. L3: `RiversMeander`
+> (channel displaced off the D8 cell centres: 1.0→0.35) + `RiversAreSinuous` (arc/straight = 1.13 vs
+> the 1.057 D8/constant-offset baseline — catches a non-sinuous constant offset that RiversMeander
+> alone would not). Solution-auditor PASS. Next: order≥4 rivers (8 km box maxes at order 3),
+> bed-material grounding, infinite-region partitioning (P5).
 
 **Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
 | Value | Grounded | Source | Design decision to state |
