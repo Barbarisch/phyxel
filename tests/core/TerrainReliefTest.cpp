@@ -59,35 +59,46 @@ TEST(TerrainReliefTest, MeasureAndValidateDrama) {
     WorldGenerator perlin(WorldGenerator::GenerationType::Perlin, 4242u);
     WorldGenerator flat(WorldGenerator::GenerationType::Flat, 4242u);
 
-    // Region large enough to cross several ridge wavelengths (~285 units) and many chunk borders.
+    // Fine window (footprint-scale roughness): mountains rougher than rolling hills. This lands in a
+    // continent interior for seed 4242, so it captures rough alpine terrain.
     const int x0 = -256, z0 = -256, W = 512, D = 512;
     Field fm = sampleField(mtns, x0, z0, W, D);
     Field fp = sampleField(perlin, x0, z0, W, D);
     Field ff = sampleField(flat, x0, z0, W, D);
-
     double mSteep = steepFraction(fm, 6);
     double pSteep = steepFraction(fp, 6);
-    std::printf("[relief] Mountains Y[%d,%d] peakRelief=%d steepFrac=%.3f\n",
-                fm.minY, fm.maxY, fm.maxY - kSeaLevel, mSteep);
-    std::printf("[relief] Perlin    Y[%d,%d] peakRelief=%d steepFrac=%.3f\n",
-                fp.minY, fp.maxY, fp.maxY - kSeaLevel, pSteep);
-    std::printf("[relief] Flat      Y[%d,%d]\n", ff.minY, ff.maxY);
+
+    // Continental-scale strided scan for the elevation RANGE: continents are ~6.7 km, so the grandest
+    // peaks and the ocean/coast lows only both appear across a continent-spanning area (a single fine
+    // window sits inside ONE continent's interior). The range is a broad-scale feature, so a stride
+    // does not miss it. This is what makes "dramatic peaks AND low coasts coexist" measurable at the
+    // new continental scale (docs/TerrainGenerationV2.md §P2.3e).
+    int gMin = 9999, gMax = -9999;
+    for (int z = -8192; z <= 8192; z += 32)
+        for (int x = -8192; x <= 8192; x += 32) {
+            int y = mtns.sampleSurface(x, z).surfaceY;
+            gMin = std::min(gMin, y);
+            gMax = std::max(gMax, y);
+        }
+    std::printf("[relief] fine window Y[%d,%d] mSteep=%.3f pSteep=%.3f | continental Y[%d,%d] peakRelief=%d\n",
+                fm.minY, fm.maxY, mSteep, pSteep, gMin, gMax, gMax - kSeaLevel);
 
     // Flat stays exactly at sea level.
     EXPECT_EQ(ff.minY, kSeaLevel);
     EXPECT_EQ(ff.maxY, kSeaLevel);
 
-    // Dramatic peaks: grandest Mountains peak well past the old ~64 cap, approaching the ~384
-    // target (with headroom for tuning). RED on pre-P0 (which capped at ~64).
-    EXPECT_GT(fm.maxY - kSeaLevel, 250) << "mountains are not tall enough — drama missing";
-    EXPECT_LT(fm.maxY - kSeaLevel, 460) << "mountains overshoot the ~384 compressed target";
+    // Dramatic peaks: the grandest continental peak is well past the old ~64 cap, in the compressed
+    // ~384 target band (with headroom). RED on pre-P0 (which capped at ~64).
+    EXPECT_GT(gMax - kSeaLevel, 250) << "mountains are not tall enough — drama missing";
+    EXPECT_LT(gMax - kSeaLevel, 460) << "mountains overshoot the ~384 compressed target";
 
     // Mountains are meaningfully rougher/steeper at building-footprint scale than rolling hills.
     EXPECT_GT(mSteep, pSteep + 0.05)
         << "mountains should have far more steep footprints than hills";
 
-    // Low ground exists near/below sea level (oceans/lowlands), not a uniformly-raised plateau.
-    EXPECT_LT(fm.minY, kSeaLevel + 24) << "no low ground — continental base never dips to coast";
+    // Low ground exists near/below sea level (oceans/coasts) somewhere across the continents — the
+    // world is not a uniformly-raised plateau.
+    EXPECT_LT(gMin, kSeaLevel + 24) << "no ocean/coast anywhere — continental base never dips to sea";
 }
 
 TEST(TerrainReliefTest, MountainsSlopeGraduallyNotSheerColumns) {

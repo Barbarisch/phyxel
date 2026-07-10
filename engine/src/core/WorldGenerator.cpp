@@ -236,7 +236,13 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
 // coarse model in P1 (biome overhaul), where biome-border changes are expected and tested.
 void WorldGenerator::rebuildCoarseModel() {
     const uint32_t s = seed;
-    const float contF = terrainParams.climateFrequency * 0.42f;  // continents larger than biomes
+    // Continentalness is much lower-frequency than biome climate — its wavelength sets the landmass
+    // size, which caps drainage-basin size and thus the max Strahler river order. At climateFrequency
+    // 0.002 the 0.075 factor gives ~1/(0.002·0.075) ≈ 6.7 km landmasses: ~5 across the ~32 km bake
+    // region, enough for order-5/6 trunk rivers to converge. DESIGN/ART-DIRECTION choice (a COMPRESSED
+    // "continent" scale, like kSeaLevelY — NOT a geographic figure; real continents are ~1000s of km),
+    // picked for landmass VARIETY across the region + big-river drainage. (Was 0.42 → ~1.2 km, order 3.)
+    const float contF = terrainParams.climateFrequency * 0.075f;  // continents ≫ biomes
     // Capture the height spline BY VALUE so the coarse source stays pure (safe under the worker's
     // generator copy). Reshaping the spline (default vs recipe) changes the coastline/plateau profile.
     const Spline hspline = m_continentalHeightSpline;

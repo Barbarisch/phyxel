@@ -27,11 +27,11 @@ namespace {
 
 constexpr int kSeaLevel = 16;
 
-// The 32 km region has 671 order>=3 cells for seed 7 — far too many to window-scan all of them. The
-// windowed carve/meander/sinuosity tests anchor on ONE river: the order>=3 stream nearest the origin,
-// which runs ~N-S near x=-832..-960 over z=-1344..-832 (found via the PrintRiverCellsSeed7 probe). The
-// box bounds it with margin. (Deterministic per seed; re-derive from the probe if the region changes.)
-constexpr int kBoxX0 = -1120, kBoxX1 = -680, kBoxZ0 = -1440, kBoxZ1 = -760;
+// The region has thousands of order>=3 cells for seed 7 — far too many to window-scan all. The
+// windowed carve/meander/sinuosity tests anchor on ONE river: the order-4 stream nearest the origin,
+// which runs ~N-S near x=832 over z=-320..320 (found via the PrintRiverCellsSeed7 probe). The box
+// bounds it with margin. (Deterministic per seed; re-derive from the probe if the terrain changes.)
+constexpr int kBoxX0 = 712, kBoxX1 = 952, kBoxZ0 = -460, kBoxZ1 = 460;
 
 // World-column centres of order>=3 river cells within [x0,x1]×[z0,z1] (default = whole baked region).
 // Geometry is read from the baked FlowField itself (origin/cellSize/cell counts), so this is
@@ -78,7 +78,7 @@ TEST(TerrainRiverTest, HigherOrderRiversExist) {
                     s, rn->cellsX(), rn->cellsZ(), rn->maxAccum(), rn->maxOrder());
         best = std::max(best, rn->maxOrder());
     }
-    EXPECT_GE(best, 4) << "no order>=4 trunk river in any seed — region too small for big rivers";
+    EXPECT_GE(best, 5) << "no order>=5 trunk river in any seed — continents too small for big rivers";
 }
 
 // Carving is wired and non-vacuous: the meandered channel carves a substantial set of riverbed
@@ -113,7 +113,10 @@ TEST(TerrainRiverTest, RiversMeander) {
     const double frac = static_cast<double>(onCentre) / cells.size();
     std::printf("[river] river-cell centres still on the carved channel = %.2f (%d/%zu) — low ⇒ meandered\n",
                 frac, onCentre, cells.size());
-    EXPECT_LT(frac, 0.5)
+    // Baseline (warp off): the D8 channel runs through every cell centre → 1.00. The warp swings it
+    // off them → 0.50 for this order-4 river (wider channels retain more centres than the order-3
+    // case, so this bound is looser than the sinuosity check but still separates 0.50 from 1.00).
+    EXPECT_LT(frac, 0.75)
         << "channel still runs through the cell centres — river is the straight D8 path, not meandering";
 }
 
@@ -151,12 +154,11 @@ TEST(TerrainRiverTest, RiversAreSinuous) {
     const double sinuosity = arc / straight;
     std::printf("[river] channel sinuosity (arc/straight) = %.3f over %zu centreline points\n",
                 sinuosity, centre.size());
-    // The coarse 128 m D8 drainage path already has a baseline sinuosity of ~1.167 at this seed/window
-    // (its cell-to-cell jogs; a constant lateral offset reproduces exactly that — translation preserves
-    // arc/straight); the fbm meander warp lengthens the centreline further to ~1.35. Threshold 1.25
-    // sits between, so it fails on the bare D8 path and on a non-sinuous constant offset, and passes
-    // only when the meander warp adds real sinuosity on top of the coarse drainage.
-    EXPECT_GT(sinuosity, 1.25) << "meander adds no sinuosity over the coarse D8 path — warp not working";
+    // The anchor river's D8 path runs dead straight N-S (sinuosity 1.000; a constant lateral offset
+    // reproduces exactly that — translation preserves arc/straight); the fbm meander warp lengthens
+    // the centreline to ~1.20. Threshold 1.10 sits between, so it fails on the bare/constant-offset
+    // straight channel and passes only when the meander warp adds real sinuosity.
+    EXPECT_GT(sinuosity, 1.10) << "channel centreline is ~straight — rivers not sinuous/meandering";
 }
 
 // Carved beds sit in valleys, not on ridges: across the channel the bed is strictly lower than the

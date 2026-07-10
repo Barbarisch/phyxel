@@ -58,9 +58,12 @@ TEST(TerrainMaterialTest, SeabedBelowSeaLevelIsSand) {
     // Sand SPECIFICALLY (not "Sand or Gravel") — at P1's shallow ocean depth there is no reachable
     // deeper-sediment band, so a two-material test would pass vacuously. Shelf/abyssal zonation is P2.
     WorldGenerator perlin(WorldGenerator::GenerationType::Perlin, 4242u);
+    // Continental-scale strided scan: continents are ~6.7 km, so ocean basins only appear across a
+    // continent-spanning area (a small window at origin sits in a continent interior). Stride keeps it
+    // affordable; every below-sea column sampled is still checked individually.
     long belowSea = 0, notSand = 0;
-    for (int z = -256; z <= 256; z += 2)
-        for (int x = -256; x <= 256; x += 2) {
+    for (int z = -8192; z <= 8192; z += 24)
+        for (int x = -8192; x <= 8192; x += 24) {
             auto cs = perlin.sampleSurface(x, z);
             if (cs.surfaceY < kSeaLevel) {
                 ++belowSea;
