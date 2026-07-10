@@ -250,13 +250,13 @@ void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid)
     if (m_sim.inBounds(lx, ly, lz)) {
         m_sim.setSolid(lx, ly, lz, solid);
         // Terrain changed: re-flood the ocean so breaches fill / dug seabed refills.
-        if (!m_oceanSeeds.empty()) m_oceanDirty = true;
+        if (!m_oceanSeeds.empty() || m_oceanBoundary) m_oceanDirty = true;
     }
 }
 
 void WaterManager::setSeaLevel(float worldY) {
     m_seaLevel = worldY;
-    if (!m_oceanSeeds.empty()) m_oceanDirty = true;
+    if (!m_oceanSeeds.empty() || m_oceanBoundary) m_oceanDirty = true;
 }
 
 void WaterManager::addOceanSeed(const glm::vec3& worldPos) {
@@ -274,6 +274,12 @@ void WaterManager::clearOcean() {
     rebuildSurface();
 }
 
+void WaterManager::setOceanBoundary(bool on) {
+    if (m_oceanBoundary == on) return;
+    m_oceanBoundary = on;
+    m_oceanDirty = true;   // re-flood next update (or clear, if turning off with no point seeds)
+}
+
 void WaterManager::rebuildOcean() {
     m_oceanDirty = false;
     const int seaLevelLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
@@ -281,6 +287,24 @@ void WaterManager::rebuildOcean() {
     localSeeds.reserve(m_oceanSeeds.size());
     for (const glm::ivec3& s : m_oceanSeeds)
         localSeeds.emplace_back(s.x - m_origin.x, s.y - m_origin.y, s.z - m_origin.z);
+    // Boundary condition (Phase A2b): also seed from every region-edge cell at/below sea level that
+    // is open (non-solid). This makes the ocean re-establish from the frontier wherever the region
+    // moves, so a following region doesn't drain the sea when it leaves a point seed behind. The flood
+    // (fillOcean) is connectivity-gated, so a sealed sub-sea pocket not reachable from an edge stays dry.
+    if (m_oceanBoundary) {
+        const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+        const int topY = std::min(seaLevelLocalY, sy - 1);
+        for (int y = 0; y <= topY; ++y) {
+            for (int x = 0; x < sx; ++x) {          // the z = 0 and z = sz-1 side faces
+                if (!m_sim.isSolid(x, y, 0))      localSeeds.emplace_back(x, y, 0);
+                if (!m_sim.isSolid(x, y, sz - 1)) localSeeds.emplace_back(x, y, sz - 1);
+            }
+            for (int z = 1; z < sz - 1; ++z) {      // the x = 0 and x = sx-1 side faces (corners done above)
+                if (!m_sim.isSolid(0, y, z))      localSeeds.emplace_back(0, y, z);
+                if (!m_sim.isSolid(sx - 1, y, z)) localSeeds.emplace_back(sx - 1, y, z);
+            }
+        }
+    }
     m_sim.fillOcean(localSeeds, seaLevelLocalY); // clears all sources, then pins the ocean
     applySprings();                               // re-pin authored springs over the top
     rebuildSurface();

@@ -69,6 +69,16 @@ public:
     void  addOceanSeed(const glm::vec3& worldPos); // a point the ocean floods out from
     void  clearOcean();                             // remove the ocean (seeds + pins)
 
+    // Ocean as a BOUNDARY CONDITION (WaterSystemV2 Phase A2b) instead of / in addition to point
+    // seeds: every region-edge cell at/below sea level (and non-solid) acts as an ocean seed, so the
+    // flood re-establishes from the frontier wherever the region moves. This is what lets a following
+    // region keep the sea when the player walks away from a point seed (point seeds leave the window
+    // and the ocean would otherwise drain). Connectivity-gating still applies — a sealed sub-sea
+    // pocket not reachable from an edge stays dry. (An "implicit ocean": everything at/below sea level
+    // connected to the region boundary is sea; Phase C refines it with the baked ocean extent.)
+    void  setOceanBoundary(bool on);
+    bool  oceanBoundary() const { return m_oceanBoundary; }
+
     // --- Authored sources (springs / river heads) ---
     // A spring is a persistent source pinned to `mass` each step — a continuous supply
     // (a fountain, a river head). Survives ocean re-floods (kept separate from the
@@ -137,6 +147,7 @@ private:
 
     float                   m_seaLevel = 0.0f;
     bool                    m_oceanDirty = false;
+    bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     struct Spring { glm::ivec3 cell; float mass; };

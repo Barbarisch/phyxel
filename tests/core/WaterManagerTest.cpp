@@ -97,6 +97,52 @@ TEST(WaterManagerTest, FollowToRecentersPastHysteresisAndKeepsY) {
     EXPECT_FALSE(wm.followTo(glm::vec3(103.0f, 5.0f, 18.0f), 8));
 }
 
+// The ocean BOUNDARY CONDITION seeds the sea from the region edges (no point seed needed) and, being
+// re-derived from the frontier on every recenter, the sea PERSISTS when the region moves away — the
+// exact failure a point seed has (it leaves the window and the ocean drains). Null ChunkManager → no
+// terrain, so every cell at/below sea level floods (an all-water region up to sea level).
+TEST(WaterManagerTest, OceanBoundaryFillsWithoutSeedsAndSurvivesRecenter) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
+    wm.setSeaLevel(4.0f);
+    // No point seed and boundary off → no ocean, even after a step.
+    wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "there should be no ocean without seeds or boundary mode";
+
+    // Boundary mode on → the region floods to sea level from its edges, with no point seed.
+    wm.setOceanBoundary(true);
+    wm.update(0.1f);
+    const float flooded = wm.totalMass();
+    EXPECT_GT(flooded, 100.0f) << "boundary condition did not seed the ocean";
+
+    // Move the region far away. A point seed would be left behind and the sea would drain; the
+    // boundary condition re-seeds from the new frontier. recenter re-derives the source PINS; a step
+    // (as the live frame loop runs every frame) re-pins them to full mass, restoring the same fill.
+    wm.recenter(glm::ivec3(500, 0, 500));
+    wm.update(0.1f);
+    EXPECT_NEAR(wm.totalMass(), flooded, flooded * 0.05f)
+        << "ocean drained after the region moved — boundary condition not re-seeding at the new location";
+}
+
+// Connectivity-gating still holds WITH boundary seeds: a sealed sub-sea pocket (a non-solid cell
+// fully enclosed by solids, below sea level, not reachable from any region edge) stays DRY while the
+// rest of the region floods. This is the "sealed pocket stays dry" invariant, now via the boundary path.
+TEST(WaterManagerTest, OceanBoundaryLeavesSealedPocketDry) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
+    // Enclose the single cell (8,4,8) — well below sea level 8 — with solids on all six faces.
+    wm.setSolidWorld(7, 4, 8, true); wm.setSolidWorld(9, 4, 8, true);
+    wm.setSolidWorld(8, 3, 8, true); wm.setSolidWorld(8, 5, 8, true);
+    wm.setSolidWorld(8, 4, 7, true); wm.setSolidWorld(8, 4, 9, true);
+    wm.setSeaLevel(8.0f);
+    wm.setOceanBoundary(true);
+    for (int i = 0; i < 5; ++i) wm.update(0.1f);
+
+    EXPECT_GT(wm.totalMass(), 100.0f) << "the open region should have flooded";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(2.5f, 4.5f, 2.5f)), 100.0f);  // sanity: an open cell exists
+    EXPECT_GT(wm.massAtWorld(glm::vec3(2.5f, 4.5f, 2.5f)), 0.5f) << "an open sub-sea cell should be wet";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(8.5f, 4.5f, 8.5f)), 1e-3f)
+        << "the sealed pocket flooded — connectivity-gating broke with boundary seeds";
+}
+
 // Recentering far enough that the pool leaves the window drops it (mass falls off the frontier) —
 // the seam-loss the ocean boundary condition (Phase A2) will later replace at the leading edge.
 TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {
