@@ -241,6 +241,15 @@ void WaterRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swa
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_NONE; // visible from above and below the surface
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    // Depth bias: the sea plane sits at exactly Y=seaLevel, so any voxel TOP face at that same height
+    // is coplanar with it → the depth test can't decide a winner and the surfaces flicker/swap as the
+    // camera moves (z-fighting at the water line). Push the plane slightly back in depth so terrain
+    // exactly at sea level consistently wins the tie (the water line reads as land, no flicker). The
+    // plane's world height is unchanged. (depthWriteEnable stays false, so this only affects the test.)
+    rasterizer.depthBiasEnable = VK_TRUE;
+    rasterizer.depthBiasConstantFactor = 2.0f;
+    rasterizer.depthBiasClamp = 0.0f;
+    rasterizer.depthBiasSlopeFactor = 1.5f;
 
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
