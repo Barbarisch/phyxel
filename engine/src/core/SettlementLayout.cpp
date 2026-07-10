@@ -354,6 +354,186 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
     return out;
 }
 
+MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
+                                const RoomProgramRegistry& rooms, unsigned seed) {
+    MainStreetLayout out;
+    if (W <= 0 || D <= 0 || tier.street.mainWidth <= 0) return out;
+    const bool alongX = (W >= D);
+    const int L = alongX ? W : D, C = alongX ? D : W;
+    const int sw = tier.street.mainWidth;
+    const int lw = std::max(1, tier.street.laneWidth);
+    const int v0 = (C - sw) / 2;
+    if (v0 <= 0 || v0 + sw >= C) return out;
+
+    auto mkRect = [&](int u, int v, int du, int dv) {
+        return alongX ? Rect{u, v, du, dv} : Rect{v, u, dv, du};
+    };
+    auto drawIn = [&](int idx, unsigned salt, int lo, int hi) {
+        if (hi <= lo) return lo;
+        unsigned x = static_cast<unsigned>(idx) * 2654435761u + seed * 2246822519u
+                   + (salt + 3u) * 40503u;
+        x ^= x >> 16; x *= 2246822519u; x ^= x >> 13;
+        return lo + static_cast<int>(x % static_cast<unsigned>(hi - lo + 1));
+    };
+
+    // ---- AXES: the main street + a full cross street of MAIN width, crossing at mid-length.
+    out.mainStreet = mkRect(0, v0, L, sw);
+    out.base.streets.push_back(out.mainStreet);
+    const int uc0 = (L - sw) / 2, uc1 = uc0 + sw;          // the cross axis (u-range)
+    out.base.streets.push_back(mkRect(uc0, 0, sw, C));
+
+    // ---- MARKET SQUARE over the crossing (the crossroads growth seed).
+    const int sqW = std::min(tier.pub.marketW > 0 ? tier.pub.marketW : 12, L / 3);
+    const int sqD = std::min(tier.pub.marketD > 0 ? tier.pub.marketD : 12, C / 3);
+    const int squ = (L - sqW) / 2;
+    const int sqv = std::max(0, v0 + sw / 2 - sqD / 2);
+    out.marketSquare = mkRect(squ, sqv, sqW, sqD);
+    out.hasSquare = true;
+    out.base.streets.push_back(out.marketSquare);
+
+    // ---- SECONDARY streets (lane width) perpendicular to the main street at seeded-JITTERED
+    // block intervals — the bounded chaos. Walk from both edges toward the centre; keep clear
+    // of the cross axis + square.
+    const int endMargin = std::max(2, lw);
+    // exclusion zone: the square/axis plus a full block-min margin either side, so no secondary
+    // lands a degenerate sliver from the crossroads (block gaps stay within the jitter band)
+    const int exLo = std::min(squ, uc0) - tier.blocksMin;
+    const int exHi = std::max(squ + sqW, uc1) + tier.blocksMin;
+    std::vector<std::pair<int, int>> vertBands;            // (u0, u1) of perpendicular streets
+    vertBands.push_back({uc0, uc1});
+    {
+        int u = endMargin, k = 0;
+        while (true) {
+            u += drawIn(k++, 71, tier.blocksMin, tier.blocksMax);
+            if (u + lw >= L - endMargin) break;
+            if (u + lw >= exLo && u <= exHi) { u = exHi; continue; }
+            out.base.streets.push_back(mkRect(u, 0, lw, C));
+            vertBands.push_back({u, u + lw});
+        }
+    }
+    std::sort(vertBands.begin(), vertBands.end());
+    // main-row allocation cuts on the perpendicular streets AND the square's full u-extent
+    // (the square is wider than the cross axis — rows must not run into the market place)
+    std::vector<std::pair<int, int>> mainCuts = vertBands;
+    for (auto& b : mainCuts)
+        if (b.first == uc0 && b.second == uc1) b = {std::min(uc0, squ), std::max(uc1, squ + sqW)};
+    std::sort(mainCuts.begin(), mainCuts.end());
+
+    // ---- shared burgage-row allocator (both axes use it). Runs along a street edge in (run,
+    // depth) coords; `alongU` = the run follows the U axis (fronting the MAIN street) or the V
+    // axis (fronting the CROSS street). District ring: a plot whose frontage midpoint lies within
+    // `coreRing` (Chebyshev, cubes) of the square centre draws from the shop-heavy core weights
+    // and keeps tight setbacks; the fringe draws the base palette at +1 setback (looser edges).
+    const int sqCu = squ + sqW / 2, sqCv = sqv + sqD / 2;  // square centre (u/v frame)
+    int count = 0;
+    const int depthCap = tier.plot.depthMax + tier.setback.max + 2;
+    auto allocRow = [&](int runFrom, int runTo, int streetEdge, bool plusDepth, bool alongU,
+                        int availDepth) {
+        if (availDepth < 4) return;
+        int cursor = runFrom;
+        int guard = 0;
+        while (count < tier.buildingsMax && ++guard < 64) {
+            bool fit = false;
+            const int redraws = static_cast<int>(std::max<size_t>(1, tier.typologyWeights.size()));
+            for (int t = 0; t < redraws && !fit; ++t) {
+                // ring membership from the FRONTAGE MIDPOINT (market adjacency is about frontage).
+                // Chicken-and-egg: the midpoint needs the frontage, the frontage needs the palette
+                // — so guess at cursor+8 (a typical half-frontage), size, re-check at the exact
+                // midpoint, and re-draw ONCE with the corrected palette if membership flipped.
+                auto ringAt = [&](int runPos) {
+                    if (tier.coreRing <= 0 || tier.coreTypologyWeights.empty()) return false;
+                    const int fu = alongU ? runPos : streetEdge;
+                    const int fv = alongU ? streetEdge : runPos;
+                    return std::max(std::abs(fu - sqCu), std::abs(fv - sqCv)) <= tier.coreRing;
+                };
+                bool core = ringAt(cursor + 8);
+                std::string typ;
+                const RoomProgram* rp = nullptr;
+                int fDim = 0, dDim = 0, setb = 0, frontage = 0;
+                for (int pass = 0; pass < 2; ++pass) {
+                    const auto& weights = core ? tier.coreTypologyWeights : tier.typologyWeights;
+                    typ = drawTypology(weights, count, seed, static_cast<unsigned>(t));
+                    rp = rooms.get(typ);
+                    if (!rp) break;
+                    const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                    const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                       : rp->widthMin));
+                    const bool longToStreet = (rp->entrance == "long_wall");
+                    fDim = longToStreet ? natLong : natShort;
+                    dDim = longToStreet ? natShort : natLong;
+                    setb = drawIn(count, 11, tier.setback.min, tier.setback.max) + (core ? 0 : 1);
+                    frontage = fDim + 2 * setb;
+                    const bool actual = ringAt(cursor + frontage / 2);
+                    if (actual == core) break;
+                    core = actual;
+                }
+                if (!rp) continue;
+                const int minDepth = dDim + setb + 1;
+                if (minDepth > availDepth) continue;
+                if (cursor + frontage > runTo) continue;
+                const int depth = std::clamp(drawIn(count, 12, tier.plot.depthMin,
+                                                    tier.plot.depthMax),
+                                             minDepth, availDepth);
+                const int vPlot = plusDepth ? streetEdge : streetEdge - depth;
+                AssignedPlot ap;
+                ap.plot.rect = alongU ? mkRect(cursor, vPlot, frontage, depth)
+                                      : mkRect(vPlot, cursor, depth, frontage);
+                ap.plot.row = plusDepth ? 0 : 1;
+                ap.plot.col = count;
+                ap.typology = typ;
+                ap.setback = setb;
+                if (alongU) ap.streetSide = plusDepth ? (alongX ? 'S' : 'W') : (alongX ? 'N' : 'E');
+                else        ap.streetSide = plusDepth ? (alongX ? 'W' : 'S') : (alongX ? 'E' : 'N');
+                // footprint: natural size, front wall `setb` off the street edge, centred on the run
+                const int fpRun = cursor + setb;
+                const int fpV = plusDepth ? streetEdge + setb : streetEdge - setb - dDim;
+                ap.footprint = alongU ? mkRect(fpRun, fpV, fDim, dDim)
+                                      : mkRect(fpV, fpRun, dDim, fDim);
+                out.base.plots.push_back(ap.plot);
+                out.assigned.push_back(ap);
+                cursor += frontage + tier.plot.sideGap;
+                ++count;
+                fit = true;
+            }
+            if (!fit) break;
+        }
+    };
+
+    // ---- MAIN-STREET rows: one burgage run per BLOCK (between consecutive perpendicular
+    // streets), both sides, capped so cross-street rows keep their own band.
+    const int rowBand = std::min(depthCap, (C - sw) / 2 - 2);
+    for (size_t b = 0; b <= mainCuts.size(); ++b) {
+        const int a = (b == 0) ? endMargin : mainCuts[b - 1].second + 1;
+        const int e = (b < mainCuts.size()) ? mainCuts[b].first - 1 : L - endMargin;
+        if (e - a < 6) continue;
+        allocRow(a, e, v0 + sw, true, true, rowBand);       // north row of this block
+        allocRow(a, e, v0, false, true, rowBand);           // south row
+    }
+
+    // ---- CROSS-STREET rows: front the cross axis BEYOND the main rows' band (the second
+    // burgage axis of the crossroads). Depth extends toward the nearest secondary street.
+    {
+        int leftGap = uc0 - endMargin, rightGap = L - endMargin - uc1;
+        for (const auto& vb : vertBands) {
+            if (vb.second <= uc0) leftGap = std::min(leftGap, uc0 - vb.second - 1);
+            if (vb.first >= uc1)  rightGap = std::min(rightGap, vb.first - uc1 - 1);
+        }
+        const int nLo = v0 + sw + rowBand + 1, nHi = C - 2;   // north segment (v-range)
+        const int sLo = 2, sHi = v0 - rowBand - 1;            // south segment
+        if (nHi - nLo >= 6) {
+            allocRow(nLo, nHi, uc1, true, false, std::min(depthCap, rightGap));   // east of the axis
+            allocRow(nLo, nHi, uc0, false, false, std::min(depthCap, leftGap));   // west of the axis
+        }
+        if (sHi - sLo >= 6) {
+            allocRow(sLo, sHi, uc1, true, false, std::min(depthCap, rightGap));
+            allocRow(sLo, sHi, uc0, false, false, std::min(depthCap, leftGap));
+        }
+    }
+
+    out.ok = !out.assigned.empty();
+    return out;
+}
+
 std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {
     std::vector<YardProp> out;
     const Rect& pl = ap.plot.rect;

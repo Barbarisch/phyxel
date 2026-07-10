@@ -65,6 +65,9 @@ TEST(SettlementProgramTest, EveryTierTypologyExistsInRoomProgram) {
             for (const auto& [typ, w] : t->typologyWeights)
                 EXPECT_TRUE(rreg.contains(typ))
                     << era << "/" << tier << " weights unknown typology '" << typ << "'";
+            for (const auto& [typ, w] : t->coreTypologyWeights)
+                EXPECT_TRUE(rreg.contains(typ))
+                    << era << "/" << tier << " CORE weights unknown typology '" << typ << "'";
         }
 }
 

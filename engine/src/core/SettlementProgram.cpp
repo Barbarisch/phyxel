@@ -42,6 +42,15 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
     if (rec.contains("typology_weights") && rec["typology_weights"].is_object())
         for (auto it = rec["typology_weights"].begin(); it != rec["typology_weights"].end(); ++it)
             if (it.value().is_number()) t.typologyWeights[it.key()] = it.value().get<int>();
+    if (rec.contains("core_typology_weights") && rec["core_typology_weights"].is_object())
+        for (auto it = rec["core_typology_weights"].begin();
+             it != rec["core_typology_weights"].end(); ++it)
+            if (it.value().is_number()) t.coreTypologyWeights[it.key()] = it.value().get<int>();
+    t.coreRing = rec.value("core_ring", 0);
+    if (rec.contains("blocks") && rec["blocks"].is_object()) {
+        t.blocksMin = rec["blocks"].value("min", t.blocksMin);
+        t.blocksMax = rec["blocks"].value("max", t.blocksMax);
+    }
     if (rec.contains("public") && rec["public"].is_object()) {
         const auto& pb = rec["public"];
         t.pub.well = pb.value("well", false);

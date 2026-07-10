@@ -69,6 +69,13 @@ struct SettlementTierPreset {
     /// room_program.json (referential integrity, gated by SettlementProgramTest).
     std::map<std::string, int> typologyWeights;
 
+    /// City tier: the shop-heavy palette drawn INSIDE the core ring around the market square
+    /// (trades cluster on the market place — the burgage-rent gradient). Empty = no ring split.
+    std::map<std::string, int> coreTypologyWeights;
+    int coreRing = 0;      ///< core-ring radius (cubes) around the square centre; 0 = unused
+    int blocksMin = 18;    ///< secondary-street spacing range (cubes) — the jittered city blocks
+    int blocksMax = 30;
+
     PublicSpec pub;
 
     std::map<std::string, std::string> sources;  ///< per-value provenance (grounding rule)

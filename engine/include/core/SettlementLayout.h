@@ -146,6 +146,18 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                                       const RoomProgramRegistry& rooms, unsigned seed,
                                       char axis = 0, int crossOffset = -1);
 
+/// SEMI-ORGANIC CITY (city tier, site_settlement #38 growth axes + zone_districts #41): the
+/// "slightly organized, a little chaotic" quarter. Crossroads AXES — the main street and a cross
+/// street meeting at the market square — plus SECONDARY cross streets at seeded-JITTERED block
+/// intervals (the bounded chaos: axis-aligned rects, never free angles). Burgage rows front the
+/// main street in every block AND the central cross street beyond the main rows' band. Districts
+/// are DATA: inside `coreRing` of the square the typology draw uses `coreTypologyWeights` (trades
+/// cluster on the market); the fringe uses the base weights and +1 setback (looser edges).
+/// Returns the same MainStreetLayout shape (mainStreet = the main axis, marketSquare set), so the
+/// whole downstream pipeline (paver, fences, props, well) is shared. Deterministic in (tier,W,D,seed).
+MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
+                                const RoomProgramRegistry& rooms, unsigned seed);
+
 /// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
 struct YardProp {
     std::string type;    ///< FurnitureCatalog type ("woodpile" | "garden_bed")

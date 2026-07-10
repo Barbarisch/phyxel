@@ -10478,12 +10478,6 @@ void Application::registerSettlementCommands() {
                      {"known_eras", programReg.eras()}, {"known_tiers", programReg.tiers(era)}};
                 return;
             }
-            if (tierP->morphology == "semi_organic") {
-                r = {{"error", "morphology_not_implemented"},
-                     {"detail", era + "/" + tierName + " uses 'semi_organic' (Phase 5); "
-                                "implemented morphologies: cluster, main_street"}};
-                return;
-            }
             if (tierP->morphology == "cluster") {
                 // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
                 // palette (weight-EXPANDED so pickBuildingVariant's uniform cycle honors the weights).
@@ -10493,7 +10487,10 @@ void Application::registerSettlementCommands() {
                 if (mix.empty()) mix = {"croft"};
             }
         }
-        const bool mainStreetMode = tierP && tierP->morphology == "main_street";
+        // main_street AND semi_organic (the city) share the whole street-settlement pipeline —
+        // the city planner returns the same MainStreetLayout shape (axes + square + assigned).
+        const bool cityMode = tierP && tierP->morphology == "semi_organic";
+        const bool mainStreetMode = cityMode || (tierP && tierP->morphology == "main_street");
         // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
         // hall) — main-street mode sizes the PLOT from the typology up front (the burgage principle);
         // legacy mode centres the natural footprint in its uniform plot below.
@@ -10551,7 +10548,9 @@ void Application::registerSettlementCommands() {
                 // (graceful degradation, TerrainAwareSettlement.md).
                 const Core::StreetAxisChoice pick =
                     Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin);
-                msl = Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,
+                msl = cityMode
+                    ? Core::planCityLayout(*tierP, W, D, roomReg, seed)   // city picks its own axes
+                    : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,
                                                  pick.axis, pick.crossOffset);
                 std::vector<Core::AssignedPlot> keep;
                 for (const auto& ap : msl.assigned) {
@@ -10590,7 +10589,8 @@ void Application::registerSettlementCommands() {
                 }
             }
         } else if (mainStreetMode) {
-            msl = Core::planMainStreetLayout(*tierP, W, D, roomReg, seed);
+            msl = cityMode ? Core::planCityLayout(*tierP, W, D, roomReg, seed)
+                           : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed);
             if (!msl.ok) {
                 r = {{"error", "settlement footprint too small for a main street at tier '"
                                 + tierName + "'"}};

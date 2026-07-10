@@ -64,21 +64,26 @@
           }
         },
         "city": {
-          "description": "A walled-city quarter — crossroads axes meeting at a market square, jittered secondary lanes, contiguous irregular plots. Slightly organized, a little chaotic.",
+          "description": "A walled-city quarter — crossroads axes meeting at a market square, jittered secondary streets slicing irregular blocks, trades clustered near the square. Slightly organized, a little chaotic.",
           "morphology": "semi_organic",
-          "buildings": { "min": 30, "max": 60 },
-          "street": { "main_width": 7, "lane_width": 3, "material": "Cobblestone", "back_lanes": true },
-          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 20, "side_gap": 0 },
+          "buildings": { "min": 20, "max": 48 },
+          "street": { "main_width": 7, "lane_width": 3, "material": "Cobblestone" },
+          "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 18, "side_gap": 0 },
           "setback": { "min": 0, "max": 1 },
-          "typology_weights": { "hall_house": 3, "croft": 2, "tavern": 1, "blacksmith": 1, "general_store": 1, "bakery": 1, "apothecary": 1, "butcher": 1, "manor_hall": 1 },
+          "blocks": { "min": 18, "max": 30 },
+          "typology_weights": { "hall_house": 3, "croft": 2, "longhouse": 1, "tavern": 1, "blacksmith": 1, "manor_hall": 1 },
+          "core_typology_weights": { "tavern": 2, "general_store": 2, "bakery": 1, "apothecary": 1, "butcher": 1, "hall_house": 2 },
+          "core_ring": 24,
           "public": { "well": true, "market_square": { "w": 16, "d": 16 } },
           "sources": {
-            "morphology": "organic-accretion city form (pre-planned medieval growth): Schofield & Vince, Medieval Towns — street networks accreted from axes + infill, not surveyed grids. Implementation (Phase 5): bounded jitter over crossroads axes — DESIGN DECISION disclosed",
+            "morphology": "organic-accretion city form (pre-planned medieval growth): Schofield & Vince, Medieval Towns — street networks accreted from AXES + infill, not surveyed grids. Implementation: crossroads axes meeting at the market square + secondary streets at seeded-JITTERED intervals (the bounded chaos) — DESIGN DECISION disclosed",
             "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
             "street.main_width": "NEEDS-RESEARCH — principal city streets carried through-traffic + encroachment; wider than town main streets",
-            "typology_weights": "denser dwelling mix + full trades + a manor_hall (urban magnate house); ratios REASONED"
-          },
-          "_status": "DATA ONLY — semi_organic morphology is Phase 5; the loader accepts this tier, the builder surfaces `morphology_not_implemented` until then."
+            "blocks": "REASONED 18-30 m secondary-street spacing: burgage depth (12-18) + circulation; no measured medieval block-spacing source consulted yet (candidate: Conzen town-plan analysis, Alnwick) — NEEDS-RESEARCH",
+            "core_typology_weights": "market-adjacency of trades: shops/inns cluster on the market place and principal streets (Schofield & Vince; standard burgage-rent gradient reasoning) — ratios REASONED",
+            "core_ring": "REASONED ~24 m 'market frontage' radius — the first plot rows around the square; no measured source",
+            "typology_weights": "dwelling-heavy fringe mix + a manor_hall (urban magnate house); ratios REASONED"
+          }
         }
       }
     }
