@@ -301,9 +301,18 @@ ranges, sea level, cave dimensions) before shipping.
 > 0.1 km²). Now **maxOrder 4** (3/5 seeds; auditor-confirmed the old 8 km region caps at 3 for all
 > seeds). `FlowField` exposes origin/cellSize; tests anchor on a box around one river (671 order≥3
 > cells region-wide). Sinuosity threshold 1.09→1.25 (the coarse 128 m path is itself more sinuous:
-> baseline 1.167 vs warp 1.353). No terrain regression. Next: **order 5-6 needs bigger continental
-> basins (lower continentalness frequency)** — a terrain-shape change for its own increment; also
-> bed-material grounding, infinite-region partitioning (P5).
+> baseline 1.167 vs warp 1.353). No terrain regression.
+>
+> **P2.3e SHIPPED (bigger continents → Strahler order 5-6, commit f2575df, 2026-07-10):** enlarged the
+> continentalness wavelength (frequency factor 0.42→0.075 → ~**6.7 km** landmasses, a compressed-scale
+> art-direction choice) so drainage basins converge into **order 5-6** trunk rivers (was 4). Auditor-
+> confirmed causal: reverting ONLY contF drops order back to 4. Terrain tests rescaled to the
+> continental sample scale (window widened, thresholds/invariants UNCHANGED — a small window now sits
+> in one continent's interior): relief peak/low-ground measured over a strided [-8192,8192] scan
+> (peak 442, ocean at Y=-15), seabed search widened (52840 below-sea cols, all Sand). River tests
+> re-anchored to seed-7's new order-4 near-origin river. Next (P2 wrap): riverbed-material grounding,
+> bake PERSISTENCE to world.db (cache the deterministic bake so world-load/tests don't re-bake),
+> infinite-region partitioning (P5). Then WaterSystemV2 renders water.
 
 **Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
 | Value | Grounded | Source | Design decision to state |
