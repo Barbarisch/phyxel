@@ -19,9 +19,12 @@ struct Greater {
     }
 };
 // Core Priority-Flood loop: `closed`/`pq` are pre-seeded with the outlet cells; this raises every
-// remaining cell to its drainage-limited level. Shared by both public fill() overloads.
+// remaining cell to its drainage-limited level. Shared by all public fill*() entry points. When
+// `downstream` is non-null it records, for each cell, the neighbor it was reached from (toward the
+// outlet) — a valid D8 flow direction even across flats.
 void floodCore(std::vector<float>& filled, std::vector<uint8_t>& closed,
-               std::priority_queue<Node, std::vector<Node>, Greater>& pq, int w, int h, uint64_t& seq) {
+               std::priority_queue<Node, std::vector<Node>, Greater>& pq, int w, int h, uint64_t& seq,
+               std::vector<int>* downstream) {
     static const int dx[4] = {1, -1, 0, 0};
     static const int dy[4] = {0, 0, 1, -1};
     while (!pq.empty()) {
@@ -37,6 +40,7 @@ void floodCore(std::vector<float>& filled, std::vector<uint8_t>& closed,
             // level we reached it at. If it was already higher, it keeps its own (real) elevation.
             if (filled[ni] < c.level) filled[ni] = c.level;
             closed[ni] = 1;
+            if (downstream) (*downstream)[ni] = c.index;  // ni drains toward c (the outlet side)
             pq.push({filled[ni], seq++, static_cast<int>(ni)});
         }
     }
@@ -62,7 +66,7 @@ std::vector<float> PriorityFlood::fill(const std::vector<float>& elevation, int 
     for (int x = 0; x < w; ++x) { push(x, 0); push(x, h - 1); }
     for (int y = 1; y < h - 1; ++y) { push(0, y); push(w - 1, y); }
 
-    floodCore(filled, closed, pq, w, h, seq);
+    floodCore(filled, closed, pq, w, h, seq, nullptr);
     return filled;
 }
 
@@ -86,8 +90,36 @@ std::vector<float> PriorityFlood::fill(const std::vector<float>& elevation, int 
         for (int x = 0; x < w; ++x)
             if (filled[static_cast<size_t>(y) * w + x] <= seaLevel) push(x, y);
 
-    floodCore(filled, closed, pq, w, h, seq);
+    floodCore(filled, closed, pq, w, h, seq, nullptr);
     return filled;
+}
+
+PriorityFlood::FlowResult PriorityFlood::fillWithFlow(const std::vector<float>& elevation, int w, int h, float seaLevel) {
+    FlowResult r;
+    r.filled = elevation;
+    const size_t n = (w > 0 && h > 0) ? static_cast<size_t>(w) * h : 0;
+    r.downstream.resize(elevation.size());
+    for (size_t i = 0; i < r.downstream.size(); ++i) r.downstream[i] = static_cast<int>(i);  // default: self
+    if (n == 0 || elevation.size() < n) return r;
+
+    std::vector<uint8_t> closed(n, 0);
+    std::priority_queue<Node, std::vector<Node>, Greater> pq;
+    uint64_t seq = 0;
+    auto push = [&](int x, int y) {
+        size_t i = static_cast<size_t>(y) * w + x;
+        if (closed[i]) return;
+        closed[i] = 1;                       // seed cells keep downstream == self (they are outlets)
+        pq.push({r.filled[i], seq++, static_cast<int>(i)});
+    };
+    // Outlets = the grid border AND every sub-sea cell (same as the sea-outlet fill).
+    for (int x = 0; x < w; ++x) { push(x, 0); push(x, h - 1); }
+    for (int y = 1; y < h - 1; ++y) { push(0, y); push(w - 1, y); }
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (r.filled[static_cast<size_t>(y) * w + x] <= seaLevel) push(x, y);
+
+    floodCore(r.filled, closed, pq, w, h, seq, &r.downstream);
+    return r;
 }
 
 std::vector<float> PriorityFlood::waterDepth(const std::vector<float>& elevation, int w, int h) {

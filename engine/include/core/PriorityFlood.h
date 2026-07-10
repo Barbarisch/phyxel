@@ -38,6 +38,17 @@ public:
     // Convenience: per-cell water depth = filled - elevation (>= 0). depth[i] > 0 marks a lake cell
     // whose flat surface is at filled[i]; depth[i] == 0 is dry land.
     static std::vector<float> waterDepth(const std::vector<float>& elevation, int w, int h);
+
+    // Filled heights + D8 flow directions in one pass (Barnes 2014b "Priority-Flood+FlowDirs").
+    // downstream[c] = the row-major index of the neighbor c was first reached from during the flood
+    // — which points toward the outlet by construction, giving a valid drainage direction even
+    // across flat lakes. Outlet cells (border + sub-sea seeds) have downstream[c] == c (they drain
+    // out of the region). Used for flow accumulation → rivers (docs/TerrainGenerationV2.md P2.3).
+    struct FlowResult {
+        std::vector<float> filled;
+        std::vector<int> downstream;
+    };
+    static FlowResult fillWithFlow(const std::vector<float>& elevation, int w, int h, float seaLevel);
 };
 
 }  // namespace Phyxel

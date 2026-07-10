@@ -114,5 +114,24 @@ TEST(PriorityFloodTest, FilledNeverBelowElevationAndDrains) {
         }
 }
 
+TEST(PriorityFloodTest, FillWithFlowGivesValidDownstream) {
+    // Every cell's downstream must (a) drain to a filled level <= its own (never uphill), and
+    // (b) reach an outlet (a self-loop) within n steps (no cycles). Outlets point to themselves.
+    const int w = 12, h = 10;
+    std::vector<float> e(w * h);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) e[y * w + x] = static_cast<float>(((x * 7 + y * 13 + x * y) % 17));
+    auto fr = PriorityFlood::fillWithFlow(e, w, h, -1000.0f);  // no ocean → border outlets
+    ASSERT_EQ(static_cast<int>(fr.downstream.size()), w * h);
+    for (int c = 0; c < w * h; ++c) {
+        int d = fr.downstream[c];
+        EXPECT_GE(fr.filled[c] + 1e-4f, fr.filled[d]) << "downstream is uphill at " << c;
+        // Walk to an outlet (self-loop) — must terminate (no cycles).
+        int steps = 0, cur = c;
+        while (fr.downstream[cur] != cur && steps <= w * h) { cur = fr.downstream[cur]; ++steps; }
+        EXPECT_LE(steps, w * h) << "downstream cycle starting at " << c;
+    }
+}
+
 }  // namespace
 }  // namespace Phyxel

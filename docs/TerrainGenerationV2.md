@@ -272,6 +272,19 @@ ranges, sea level, cave dimensions) before shipping.
   DB source of truth.
 
 ### P2 — Hydrology bake (the headline: rivers, lakes, oceans)
+
+> **Progress:** P2.1 `PriorityFlood` (commit 1937b95) · P2.2 `HydrologyMap` — lake/sea levels
+> (eaa1a15) · P2.3a `FlowField` — flow accumulation (river signal; valley funnels 81% of a region to
+> its mouth) — all standalone/tested/audited. Next: P2.3b Strahler order + threshold + carve.
+
+**Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
+| Value | Grounded | Source | Design decision to state |
+|-------|----------|--------|--------------------------|
+| Channel-initiation threshold | **49–977 cells** (0.05–1 km², climate-dependent) | Montgomery & Dietrich 1992, *Science* 255 | Pick one value + its climate analog. Also: our pure cell-count D8 is a **simplification** of the real area×slope² criterion — state it. |
+| Width by Strahler order 1–6 | **2, 3, 5, 8, 14, 22 voxels** | Doll et al. NC Coastal-Plain regression W=10.97·A^0.36 (r²=0.87) + Horton area-ratio ≈4 chaining | Region analog (Coastal Plain vs Piedmont vs Mtn) + the order↔area Horton chaining are design synthesis, not a measured per-order table. |
+| Depth by order 1–6 | 0.24, 0.36, 0.55, 0.84, 1.27, 1.92 m | Doll et al. D=1.29·A^0.30 (W/D 5–19, narrower than Rosgen's 10–30) | **Orders 1–2 are SUB-VOXEL** — do NOT round to 1 voxel (300% error). Carve bed only for order ≥3 (~1,1,1,2 voxels); orders 1–2 are surface-only until fractional/subcube carving. Incision is Layer-1 local detail → ~1:1 voxels (not vertically compressed). |
+| Sinuosity (deferred) | straight <1.05 / sinuous 1.05–1.5 / meandering ≥1.5 | Leopold-Wolman-Miller 1964; Rosgen 1994 | Later refinement; fetch Rosgen 1994 directly before shipping. |
+
 - On the coarse grid: **Priority-Flood → D8 accumulation → Strahler order** (2b). Persist river
   graph, basin labels, lake levels, sea level to `world.db`. Tiled variant for the infinite backing.
 - **Layer-1 carve:** rivers by distance-to-nearest-segment × order → channel width/depth ⚑GROUND
