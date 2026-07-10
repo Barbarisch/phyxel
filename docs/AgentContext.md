@@ -126,6 +126,36 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **NO-FROZEN-ENGINE (async builds + progress) SHIPPED 2026-07-10 — STANDING USER DIRECTIVE:
+  heavy work must never freeze the loop; progress must be visible.** The city L4 froze the
+  window ~25 min (28 synchronous builds inside ONE processAPICommands drain, API lying "no
+  project loaded"). Response, all MEASURED-first (buildV2 now logs `[perf] phases ms` +
+  returns `timings_ms`):
+  1. **Perf fixes:** fixture spawns did a synchronous rebuildFaces+GPU-upload per touched
+     chunk (76% of a build — 11.8 s of 15.5) → `spawnTemplateMicro` now dirty-marks (budgeted
+     DirtyChunkTracker remesh); street/fence stamping went through the per-voxel mod-system
+     wrapper (city paving 181 s) → bulk `place()` batches (city 20.5 s); `removeVoxels` got
+     place()-style bulk collision deferral; pad/basement/grass dropped their REDUNDANT
+     whole-world `buildAllChunkPhysics()` (endBulkOperation already rebuilds the same shapes
+     per touched chunk — the explicit pass cost 18-61 s/building at ~140 chunks). NEW
+     `ChunkManager::buildChunkPhysicsInRegion` for future regional needs. Per building:
+     15.5 s → **3.9 s** (Debug, ~90-chunk world).
+  2. **MainThreadJobs** (`engine/core/MainThreadJobs.{h,cpp}`): heavy MAIN-THREAD work sliced
+     into per-frame units with {phase, done, total} progress; merged into /api/jobs +
+     /api/job/{id} + cancel (ids from 1,000,000); ticked next to processCompletedJobs; an
+     **Active Jobs ImGui overlay** (progress bars, auto-shows while jobs run).
+     `build_settlement` is ASYNC BY DEFAULT: planning inline → returns job_id immediately;
+     terrace-per-parcel / paving / fences / props / one-unit-per-building run sliced
+     ({"async": false} = old inline behavior). Buildings seat in-unit (post-terrace).
+  3. **L4 responsiveness contract PROVEN:** seed-3 city (32 units) built while a probe hit
+     /api/status every 2 s: **478 samples, 0 failures, worst latency 454 ms**; window rendered
+     throughout (mid-build screenshot); progress visible in /api/jobs + overlay; spurs 28/28.
+  **Follow-ups:** per-building cost still pad/grass-bound at city scale (double bulk-rebuild
+  per phase — coalesce remove+place bulk sessions); the 5s queueAndWait can still eat the
+  SUBMIT response if the loop is busy with another long frame (job discoverable via /api/jobs);
+  rebuildOccupancyFromChunks (paving/fence units) still whole-world; verify scripts expecting
+  the sync settlement response must pass {"async": false}.
+
 - **SETTLEMENT MORPHOLOGY v2 — PHASE 4 (MARKET TOWN TIER) SHIPPED 2026-07-09.** `tier:"town"`
   is live end-to-end: the main street WIDENS into a building-free market square at mid-length
   (widened-street market form; paved plaza; the tier well anchors its centre), and each burgage

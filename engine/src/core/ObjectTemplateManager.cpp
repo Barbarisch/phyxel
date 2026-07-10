@@ -877,8 +877,12 @@ bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const gl
     for (Chunk* chunk : modifiedChunks) {
         chunk->batchUpdateCollisions();
         chunk->setPhysicsBulkMode(false);
-        chunk->rebuildFaces();
-        chunk->updateVulkanBuffer();
+        // [no-frozen-engine] MARK DIRTY instead of the old synchronous rebuildFaces()+
+        // updateVulkanBuffer() per touched chunk: the sync remesh made EVERY fixture spawn
+        // pay full chunk remeshes + GPU uploads (~150-300 ms Debug each) — 76% of a
+        // building's cost (measured: fixtures=11818 ms of TOTAL=15450). The budgeted
+        // DirtyChunkTracker (6 ms/frame) remeshes within a few frames instead.
+        m_chunkManager->markChunkDirty(chunk);
     }
     return true;
 }
