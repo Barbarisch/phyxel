@@ -75,7 +75,16 @@ void WaterManager::update(float dt) {
     m_accum += std::min(dt, 0.25f);
     int steps = 0;
     while (m_accum >= STEP_DT && steps < MAX_STEPS_PER_UPDATE) {
-        if (m_useGpu) stepGpu(); else m_sim.step();
+        if (m_useGpu) {
+            stepGpu();
+            // The GPU stepper writes the mass field directly (bypassing WaterSimulation's tracked
+            // mutators), so it must keep the field awake — otherwise switching back to the CPU stepper
+            // would trust a stale "settled" flag and freeze the field mid-flow. (The settle-skip is a
+            // CPU-path optimization; the resident-GPU dirty-page path is Phase D.)
+            m_sim.wake();
+        } else {
+            m_sim.step();
+        }
         m_accum -= STEP_DT;
         ++steps;
     }

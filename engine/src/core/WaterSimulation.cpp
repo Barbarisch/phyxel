@@ -16,6 +16,7 @@ void WaterSimulation::setSolid(int x, int y, int z, bool solid) {
     if (!inBounds(x, y, z)) return;
     m_solid[idx(x, y, z)] = solid ? 1 : 0;
     if (solid) m_mass[idx(x, y, z)] = 0.0f; // solid cells hold no water
+    m_settled = false;                       // terrain change may re-open flow
 }
 
 bool WaterSimulation::isSolid(int x, int y, int z) const {
@@ -26,6 +27,7 @@ bool WaterSimulation::isSolid(int x, int y, int z) const {
 void WaterSimulation::setChannel(int x, int y, int z, bool channel) {
     if (!inBounds(x, y, z)) return;
     m_channel[idx(x, y, z)] = channel ? 1 : 0;
+    m_settled = false;                       // changes evaporation eligibility for this cell
 }
 
 bool WaterSimulation::isChannel(int x, int y, int z) const {
@@ -36,21 +38,25 @@ bool WaterSimulation::isChannel(int x, int y, int z) const {
 void WaterSimulation::addWater(int x, int y, int z, float amount) {
     if (!inBounds(x, y, z) || m_solid[idx(x, y, z)]) return;
     m_mass[idx(x, y, z)] = std::max(0.0f, m_mass[idx(x, y, z)] + amount);
+    m_settled = false;                       // injected/removed mass → flow again
 }
 
 void WaterSimulation::setSource(int x, int y, int z, float mass) {
     if (!inBounds(x, y, z)) return;
     m_source[idx(x, y, z)] = mass;
     m_hasSources = true;
+    m_settled = false;                       // a new reservoir will inject
 }
 
 void WaterSimulation::clearSource(int x, int y, int z) {
     if (!inBounds(x, y, z)) return;
     m_source[idx(x, y, z)] = -1.0f;
     // (m_hasSources stays true; harmless — the per-cell check still gates pinning.)
+    m_settled = false;
 }
 
 int WaterSimulation::fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY) {
+    m_settled = false;                       // the ocean re-pin re-activates the field
     // Ocean owns the source system: clear all pins, then re-flood.
     std::fill(m_source.begin(), m_source.end(), -1.0f);
     m_hasSources = false;
@@ -119,11 +125,20 @@ inline float stableBottom(float total) {
 } // namespace
 
 void WaterSimulation::step(float flowSide) {
-    // Re-pin source cells to their held mass (infinite reservoirs) before flowing.
+    if (m_settled) return;   // provably at rest since the last executed step → nothing to do
+    ++m_sweepsRun;
+    bool changed = false;    // did this step move any mass? (if not, the field is settled)
+
+    const float MIN_FLOW = 1e-4f;
+    // Re-pin source cells to their held mass (infinite reservoirs) before flowing. A re-pin that
+    // actually restores drained mass counts as movement (the field is still doing work).
     if (m_hasSources) {
         const size_t n = m_mass.size();
         for (size_t i = 0; i < n; ++i)
-            if (m_source[i] >= 0.0f && !m_solid[i]) m_mass[i] = m_source[i];
+            if (m_source[i] >= 0.0f && !m_solid[i]) {
+                if (std::abs(m_mass[i] - m_source[i]) > MIN_FLOW) changed = true;
+                m_mass[i] = m_source[i];
+            }
     }
 
     // Start from the current state; all flow reads m_mass (this frame's snapshot) and
@@ -132,7 +147,6 @@ void WaterSimulation::step(float flowSide) {
 
     static const int HX[4] = {1, -1, 0, 0};
     static const int HZ[4] = {0, 0, 1, -1};
-    const float MIN_FLOW = 1e-4f;
     const float MAX_SPEED = 1.0f; // cap on mass moved out of one cell per direction
 
     for (int z = 0; z < m_sz; ++z)
@@ -150,7 +164,7 @@ void WaterSimulation::step(float flowSide) {
             float flow = stableBottom(remaining + m_mass[b]) - m_mass[b];
             flow = std::min(flow, std::min(MAX_SPEED, remaining));
             if (flow > MIN_FLOW) {
-                m_next[c] -= flow; m_next[b] += flow; remaining -= flow;
+                m_next[c] -= flow; m_next[b] += flow; remaining -= flow; changed = true;
             }
         }
 
@@ -163,7 +177,7 @@ void WaterSimulation::step(float flowSide) {
             float flow = (remaining - m_mass[n]) * 0.25f * flowSide;
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
-                m_next[c] -= flow; m_next[n] += flow; remaining -= flow;
+                m_next[c] -= flow; m_next[n] += flow; remaining -= flow; changed = true;
             }
         }
 
@@ -174,7 +188,7 @@ void WaterSimulation::step(float flowSide) {
             float flow = remaining - stableBottom(remaining + m_mass[a]);
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
-                m_next[c] -= flow; m_next[a] += flow; remaining -= flow;
+                m_next[c] -= flow; m_next[a] += flow; remaining -= flow; changed = true;
             }
         }
     }
@@ -188,10 +202,15 @@ void WaterSimulation::step(float flowSide) {
         const size_t n = m_mass.size();
         for (size_t i = 0; i < n; ++i) {
             float m = m_mass[i];
-            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i] && !m_channel[i])
+            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i] && !m_channel[i]) {
                 m_mass[i] = std::max(0.0f, m - EVAP_RATE); // channel cells never evaporate
+                changed = true;
+            }
         }
     }
+
+    // If nothing moved this step, the field is at rest — skip future steps until a disturbance wakes it.
+    if (!changed) m_settled = true;
 }
 
 void WaterSimulation::shift(const glm::ivec3& delta) {
@@ -212,6 +231,7 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
     m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
     m_hasSources = false;
     for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }
+    m_settled = false;   // the field was relocated → re-settle from the new configuration
 }
 
 } // namespace Core

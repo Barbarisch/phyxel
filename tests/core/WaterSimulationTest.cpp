@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include "core/WaterSimulation.h"
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <algorithm>
 
 using Phyxel::Core::WaterSimulation;
@@ -53,6 +55,68 @@ TEST(WaterSimulation, ShiftTranslatesFieldAndConservesInWindowMass) {
     // Shift everything out of the window → mass is dropped at the frontier.
     sim.shift(glm::ivec3(100, 0, 0));
     EXPECT_FLOAT_EQ(sim.totalMass(), 0.0f) << "content shifted past the edge should be dropped";
+}
+
+// Once the field reaches rest, step() does NO work (returns immediately) until a disturbance wakes
+// it — the SLEEP perf property. sweepsRun() (steps that ran the sweep) freezes while settled and
+// resumes after a disturbance. Also prints a rough active-vs-settled per-step cost on a 64^3 box so
+// the perf win is concrete (Debug build — Release is ~an order of magnitude faster).
+TEST(WaterSimulation, SettledFieldSkipsWork) {
+    WaterSimulation sim(8, 8, 8);
+    addFloor(sim);
+    sim.addWater(3, 5, 3, 1.0f);
+    int guard = 0;
+    while (!sim.settled() && guard++ < 2000) sim.step();
+    ASSERT_TRUE(sim.settled()) << "water never reached rest";
+
+    const unsigned long long sweepsAtRest = sim.sweepsRun();
+    const float massAtRest = sim.totalMass();
+    for (int i = 0; i < 100; ++i) sim.step();                 // all should be skipped no-ops
+    EXPECT_EQ(sim.sweepsRun(), sweepsAtRest) << "settled field kept sweeping — no perf win";
+    EXPECT_FLOAT_EQ(sim.totalMass(), massAtRest) << "settled field changed while skipping";
+
+    sim.addWater(3, 6, 3, 0.5f);                              // disturbance
+    EXPECT_FALSE(sim.settled()) << "disturbance did not wake the field";
+    sim.step();
+    EXPECT_GT(sim.sweepsRun(), sweepsAtRest) << "woken field did not resume sweeping";
+
+    // Concrete cost datapoint: a 64x32x64 box (131,072 cells) — active step vs settled (skipped) step.
+    WaterSimulation big(64, 32, 64);
+    for (int z = 0; z < 64; ++z) for (int x = 0; x < 64; ++x) big.setSolid(x, 0, z, true);
+    for (int z = 20; z < 44; ++z) for (int x = 20; x < 44; ++x) big.addWater(x, 6, z, 1.0f);
+    auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 20; ++i) big.step();                  // active sweeps
+    auto t1 = std::chrono::steady_clock::now();
+    int g = 0; while (!big.settled() && g++ < 4000) big.step();
+    ASSERT_TRUE(big.settled());
+    auto t2 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 1000; ++i) big.step();                // settled: should be ~free
+    auto t3 = std::chrono::steady_clock::now();
+    const double activeUs  = std::chrono::duration<double, std::micro>(t1 - t0).count() / 20.0;
+    const double settledUs = std::chrono::duration<double, std::micro>(t3 - t2).count() / 1000.0;
+    std::printf("[water-perf] 64x32x64 box (Debug): active step %.1f us, settled step %.3f us (%.0fx cheaper)\n",
+                activeUs, settledUs, settledUs > 0 ? activeUs / settledUs : 0.0);
+}
+
+// wake() forces the next step() to run even when the field was settled. This is the contract the GPU
+// stepper depends on: WaterManager::stepGpu() writes the mass field DIRECTLY (bypassing the tracked
+// mutators), so WaterManager::update() calls m_sim.wake() after every GPU step — otherwise switching
+// back to the CPU stepper would trust a stale "settled" flag and freeze the field mid-flow. (The
+// actual GPU→CPU switch needs a Vulkan device and is exercised by runtime/integration, not this
+// CPU-only unit test; here we prove the wake() primitive the fix relies on.)
+TEST(WaterSimulation, WakeForcesTheNextStepToRun) {
+    WaterSimulation sim(8, 8, 8);
+    addFloor(sim);
+    sim.addWater(3, 5, 3, 1.0f);
+    int g = 0; while (!sim.settled() && g++ < 2000) sim.step();
+    ASSERT_TRUE(sim.settled());
+
+    const unsigned long long sweeps = sim.sweepsRun();
+    sim.step();
+    EXPECT_EQ(sim.sweepsRun(), sweeps) << "settled field should have skipped this step";
+    sim.wake();                                    // e.g. after a GPU step wrote the field directly
+    sim.step();
+    EXPECT_GT(sim.sweepsRun(), sweeps) << "wake() did not force the next step to run — GPU resume would freeze";
 }
 
 // Water released high in a column ends up resting on the floor, top empties.

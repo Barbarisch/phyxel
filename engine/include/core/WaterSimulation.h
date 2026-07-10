@@ -87,7 +87,24 @@ public:
 
     // Advance the simulation one tick. `flowSide` damps horizontal equalization
     // (0..1); lower = calmer/slower leveling.
+    //
+    // SLEEP (perf): a step that moves no mass (every transfer below MIN_FLOW, no source re-pin change,
+    // no evaporation) marks the field SETTLED; subsequent steps then return immediately — O(1) instead
+    // of the O(cell-count) sweep + double-buffer copy — until a disturbance (addWater / setSolid /
+    // setSource / setChannel / fillOcean / shift) wakes it. This is the common case: still water and
+    // dry regions cost nothing. (A finer per-cell active-set that also speeds PARTIALLY-active fields
+    // is future work; this global skip handles fully-at-rest fields, which dominate.)
     void step(float flowSide = 1.0f);
+
+    // True once the field has reached rest (last executed step moved no mass); a disturbance clears it.
+    bool settled() const { return m_settled; }
+    // Force the field awake — the settle flag no longer reflects reality. MUST be called by any code
+    // that mutates m_mass OUTSIDE step()/the tracked mutators (notably the GPU stepper, which writes
+    // mass() directly): otherwise a later CPU step() trusts a stale "settled" and freezes the field.
+    void wake() { m_settled = false; }
+    // Count of steps that actually ran the sweep (skipped/settled steps don't increment it) — lets
+    // tests prove that a settled field stops doing work.
+    unsigned long long sweepsRun() const { return m_sweepsRun; }
 
     // Translate the whole field by an integer cell `delta`: after the shift, the cell at local p
     // holds what was at local p+delta (so the WORLD content stays put while the grid window moves by
@@ -112,6 +129,8 @@ private:
     std::vector<uint8_t> m_channel; // per-cell: 1 = channel (no evaporation)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
+    bool                 m_settled    = false; // last step moved no mass → skip until disturbed
+    unsigned long long   m_sweepsRun  = 0;     // steps that ran the full sweep (observability)
 };
 
 } // namespace Core
