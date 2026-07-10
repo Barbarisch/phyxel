@@ -46,6 +46,48 @@ TEST(FlowFieldTest, DrainageGraphIsAcyclic_AllCellsReleased) {
     EXPECT_TRUE(f.drainageComplete()) << "a cycle in the drainage graph left cells unreleased";
 }
 
+TEST(FlowFieldTest, StrahlerTwoEqualTributariesMakeNextOrder) {
+    // Y-confluence: A(0)→C(2), B(1)→C(2), C(2)→D(3), D(3)=sink. Two order-1 streams meet → order 2.
+    std::vector<int> downstream = {2, 2, 3, 3};
+    std::vector<int> accum = {1, 1, 3, 4};
+    auto order = FlowField::computeStrahler(downstream, accum, /*threshold=*/0);
+    EXPECT_EQ(order[0], 1);  // headwater A
+    EXPECT_EQ(order[1], 1);  // headwater B
+    EXPECT_EQ(order[2], 2);  // confluence: two equal order-1 → order 2
+    EXPECT_EQ(order[3], 2);  // trunk keeps order 2
+}
+
+TEST(FlowFieldTest, StrahlerSmallTributaryDoesNotBumpTrunk) {
+    // A,B→C (order 2); a lone source E joins C at F. E is order 1, so F stays order 2 (not 3).
+    // idx: 0=A→2, 1=B→2, 2=C→5, 3=E→5, 4=isolated(self), 5=F=sink.
+    std::vector<int> downstream = {2, 2, 5, 5, 4, 5};
+    std::vector<int> accum = {1, 1, 3, 1, 1, 5};
+    auto order = FlowField::computeStrahler(downstream, accum, /*threshold=*/0);
+    EXPECT_EQ(order[2], 2) << "the A+B confluence is order 2";
+    EXPECT_EQ(order[3], 1) << "lone tributary E is order 1";
+    EXPECT_EQ(order[5], 2) << "order-1 tributary must NOT bump the order-2 trunk to 3";
+}
+
+TEST(FlowFieldTest, StrahlerThresholdDemotesSubThresholdTributaries) {
+    // Same Y as test 1 but threshold=2: A,B (accum 1) are below threshold → order 0, and C becomes a
+    // headwater (order 1) because it has no RIVER tributaries.
+    std::vector<int> downstream = {2, 2, 3, 3};
+    std::vector<int> accum = {1, 1, 3, 4};
+    auto order = FlowField::computeStrahler(downstream, accum, /*threshold=*/2);
+    EXPECT_EQ(order[0], 0) << "sub-threshold cell is not a river";
+    EXPECT_EQ(order[1], 0);
+    EXPECT_EQ(order[2], 1) << "river cell with no river tributaries is a headwater";
+    EXPECT_EQ(order[3], 1);
+}
+
+TEST(FlowFieldTest, OrderIsARiverOnTheValleyFloorNotTheRidge) {
+    auto height = [](float x, float z) { return std::fabs(z - 100.0f) * 2.0f + x * 0.1f; };
+    FlowField f(height, 0.0f, 0.0f, 20, 20, 10.0f, -1000.0f, /*riverThreshold=*/50);
+    EXPECT_GE(f.orderAt(5.0f, 100.0f), 1) << "the high-accumulation valley mouth should be a river";
+    EXPECT_EQ(f.orderAt(185.0f, 5.0f), 0) << "a low-accumulation ridge is not a river";
+    EXPECT_GE(f.maxOrder(), 1);
+}
+
 TEST(FlowFieldTest, Deterministic) {
     auto height = [](float x, float z) { return std::fabs(z - 90.0f) * 1.5f + x * 0.2f + std::sin(x * 0.03f) * 5.0f; };
     FlowField a(height, -50.0f, -50.0f, 22, 22, 11.0f, -1000.0f);

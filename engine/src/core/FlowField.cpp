@@ -9,7 +9,7 @@
 namespace Phyxel {
 
 FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
-                     int cellsX, int cellsZ, float cellSize, float seaLevel)
+                     int cellsX, int cellsZ, float cellSize, float seaLevel, int riverThreshold)
     : m_originX(originX), m_originZ(originZ), m_cellSize(cellSize > 0.0f ? cellSize : 1.0f),
       m_cellsX(cellsX > 0 ? cellsX : 0), m_cellsZ(cellsZ > 0 ? cellsZ : 0) {
     if (m_cellsX <= 0 || m_cellsZ <= 0 || !heightAt) return;
@@ -68,6 +68,45 @@ FlowField::FlowField(const HeightFunc& heightAt, float originX, float originZ,
     }
     m_released = q.size();  // every cell released ⟺ the drainage graph is acyclic (no under-count)
     m_maxAccum = m_accum.empty() ? 0 : *std::max_element(m_accum.begin(), m_accum.end());
+
+    // Strahler order over the river cells (accum > threshold).
+    m_order = computeStrahler(downstream, m_accum, riverThreshold);
+    m_maxOrder = m_order.empty() ? 0 : *std::max_element(m_order.begin(), m_order.end());
+}
+
+std::vector<int> FlowField::computeStrahler(const std::vector<int>& downstream,
+                                            const std::vector<int>& accum, int threshold) {
+    const size_t n = std::min(downstream.size(), accum.size());
+    std::vector<int> order(n, 0);
+    if (n == 0) return order;
+
+    // Process river cells upstream-first (ascending accum: a cell's downstream always has strictly
+    // greater accum, so this is a valid topological order). At each cell, the max incoming river
+    // order + how many tributaries carry it decide the Strahler rule.
+    std::vector<int> idx(n);
+    std::iota(idx.begin(), idx.end(), 0);
+    std::stable_sort(idx.begin(), idx.end(), [&](int a, int b) { return accum[a] < accum[b]; });
+
+    std::vector<int> maxIn(n, 0), cntAtMax(n, 0);
+    for (int c : idx) {
+        if (accum[c] <= threshold) continue;                 // not a river → order stays 0
+        order[c] = (maxIn[c] == 0) ? 1                       // headwater
+                                   : (cntAtMax[c] >= 2 ? maxIn[c] + 1 : maxIn[c]);  // Strahler rule
+        int d = downstream[c];
+        if (d != c && d >= 0 && static_cast<size_t>(d) < n && accum[d] > threshold) {
+            if (order[c] > maxIn[d]) { maxIn[d] = order[c]; cntAtMax[d] = 1; }
+            else if (order[c] == maxIn[d]) { ++cntAtMax[d]; }
+        }
+    }
+    return order;
+}
+
+int FlowField::orderAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return 0;
+    int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return 0;
+    return m_order[static_cast<size_t>(j) * m_cellsX + i];
 }
 
 int FlowField::accumAt(float worldX, float worldZ) const {
