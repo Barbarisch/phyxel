@@ -292,7 +292,17 @@ ranges, sea level, cave dimensions) before shipping.
 > (Leopold-Wolman 1960); amplitude `kMeanderAmp`→~14 m ≈ Williams-1986 belt/2. L3: `RiversMeander`
 > (channel displaced off the D8 cell centres: 1.0→0.35) + `RiversAreSinuous` (arc/straight = 1.13 vs
 > the 1.057 D8/constant-offset baseline — catches a non-sinuous constant offset that RiversMeander
-> alone would not). Solution-auditor PASS. Next: order≥4 rivers (8 km box maxes at order 3),
+> alone would not). Solution-auditor PASS.
+>
+> **P2.3d SHIPPED (bigger world + higher-order rivers, commit c9a08db, 2026-07-10):** the 8 km region
+> capped rivers at Strahler order 3. Strahler order ∝ basin-area/threshold-area (NOT cell resolution),
+> so the region grew to ~**32 km** using COARSER 128 m cells at the same 256² count (bake still ~0.6 s;
+> a 1024²@32m alternative was ~9 s). Threshold rescaled to the cell area (6 cells @128m = the grounded
+> 0.1 km²). Now **maxOrder 4** (3/5 seeds; auditor-confirmed the old 8 km region caps at 3 for all
+> seeds). `FlowField` exposes origin/cellSize; tests anchor on a box around one river (671 order≥3
+> cells region-wide). Sinuosity threshold 1.09→1.25 (the coarse 128 m path is itself more sinuous:
+> baseline 1.167 vs warp 1.353). No terrain regression. Next: **order 5-6 needs bigger continental
+> basins (lower continentalness frequency)** — a terrain-shape change for its own increment; also
 > bed-material grounding, infinite-region partitioning (P5).
 
 **Grounded values for P2.3 rivers (grounding-auditor, 2026-07-09; coarse cell = 32 m ≈ 1024 m²):**
