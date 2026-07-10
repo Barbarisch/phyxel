@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <mutex>
 #include <nlohmann/json.hpp>
 
 namespace Phyxel {
@@ -234,6 +235,40 @@ WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
 // chunk): continentalness is very low frequency, so interpolating it per-chunk is effectively
 // exact. Climate (temp/moisture) stays per-column in sampleColumn for P0; it migrates into the
 // coarse model in P1 (biome overhaul), where biome-border changes are expected and tested.
+// ── In-process hydrology-bake cache ─────────────────────────────────────────────────────────────
+// The bake (HydrologyMap + FlowField) is a PURE function of (generationType, seed, climateFrequency
+// → continentalness frequency, the height spline) over the fixed region constants — expensive
+// (~0.6 s Debug) but IDENTICAL across generators with the same inputs. The test suite constructs the
+// same (seed, type) many times in one process, and an in-session world reload reconstructs the
+// generator; memoize so they reuse one bake instead of re-running Priority-Flood each time. The
+// backings are immutable + const-read, so sharing the shared_ptrs across generators is safe (exactly
+// like the streaming worker's generator copy already does). NOT persisted across process restarts —
+// the bake is cheap enough that a fresh world-load re-bake is fine; world.db persistence is deferred.
+namespace {
+struct HydroBakeKey {
+    int genType;
+    uint32_t seed;
+    float climateFreq;
+    std::vector<Spline::Point> spline;
+    bool operator==(const HydroBakeKey& o) const {
+        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq) return false;
+        if (spline.size() != o.spline.size()) return false;
+        for (size_t i = 0; i < spline.size(); ++i)
+            if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
+        return true;
+    }
+};
+struct HydroBake { std::shared_ptr<HydrologyMap> hydro; std::shared_ptr<FlowField> flow; };
+std::mutex g_hydroCacheMutex;
+std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
+constexpr size_t kHydroCacheCap = 64;
+}  // namespace
+
+void WorldGenerator::clearHydroBakeCache() {
+    std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
+    g_hydroCache.clear();
+}
+
 void WorldGenerator::rebuildCoarseModel() {
     const uint32_t s = seed;
     // Continentalness is much lower-frequency than biome climate — its wavelength sets the landmass
@@ -268,6 +303,14 @@ void WorldGenerator::rebuildCoarseModel() {
         m_flow.reset();
         return;
     }
+    // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
+    const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
+                           m_continentalHeightSpline.points()};
+    {
+        std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
+        for (const auto& e : g_hydroCache)
+            if (e.first == key) { m_hydro = e.second.hydro; m_flow = e.second.flow; return; }
+    }
     // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
     // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
     // high-Strahler-order trunk rivers (the smooth base alone drains in low-order parallel sheets).
@@ -291,6 +334,15 @@ void WorldGenerator::rebuildCoarseModel() {
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
              << " cells, maxAccum=" << m_flow->maxAccum() << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
+    // Store in the cache (another thread may have baked the same key meanwhile — keep the first, they
+    // are identical). Bounded: evict oldest once over the cap (few distinct configs in practice).
+    {
+        std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
+        for (const auto& e : g_hydroCache)
+            if (e.first == key) return;  // someone else inserted it; ours is identical, drop it
+        g_hydroCache.push_back({key, {m_hydro, m_flow}});
+        if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
+    }
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {

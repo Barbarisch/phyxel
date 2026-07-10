@@ -52,6 +52,19 @@ std::vector<std::pair<int, int>> riverCellCentres(WorldGenerator& g, int x0 = -(
     return out;
 }
 
+// Fingerprint of a baked river network: the Strahler order sampled at every 8th cell. Two generators
+// with the same bake inputs produce identical fingerprints; different inputs must differ.
+std::vector<int> orderFingerprint(WorldGenerator& g) {
+    std::vector<int> f;
+    const FlowField* rn = g.riverNetwork();
+    if (!rn) return f;
+    const float ox = rn->originX(), oz = rn->originZ(), cs = rn->cellSize();
+    for (int j = 0; j < rn->cellsZ(); j += 8)
+        for (int i = 0; i < rn->cellsX(); i += 8)
+            f.push_back(rn->orderAt(ox + (i + 0.5f) * cs, oz + (j + 0.5f) * cs));
+    return f;
+}
+
 // Scan a ±W window around each river-cell centre and collect every carved (riverOrder>=3) column of
 // the actual (meandered) channel, deduplicated.
 std::vector<std::pair<int, int>> carvedColumnsNear(WorldGenerator& g,
@@ -201,10 +214,14 @@ TEST(TerrainRiverTest, DrainageIsAcyclicFlowsToSinks) {
 // generators agree column-for-column over the actual carved channel (non-vacuous on riverbeds).
 TEST(TerrainRiverTest, DeterministicCarve) {
     WorldGenerator a(WorldGenerator::GenerationType::Mountains, 7u);
-    WorldGenerator b(WorldGenerator::GenerationType::Mountains, 7u);
     const auto cells = riverCellCentres(a, kBoxX0, kBoxX1, kBoxZ0, kBoxZ1);
     const auto carved = carvedColumnsNear(a, cells, 22);
     ASSERT_GT(carved.size(), 200u);
+    // Force b to bake INDEPENDENTLY (not share a's cached backing), so this genuinely tests that two
+    // separate bakes of the same seed agree — not that one object equals itself.
+    WorldGenerator::clearHydroBakeCache();
+    WorldGenerator b(WorldGenerator::GenerationType::Mountains, 7u);
+    EXPECT_NE(a.riverNetwork(), b.riverNetwork()) << "b reused a's cached bake — determinism not actually tested";
     int riverbeds = 0;
     for (const auto& c : carved) {
         const WorldGenerator::ColumnSample ca = a.sampleSurface(c.first, c.second);
@@ -215,6 +232,24 @@ TEST(TerrainRiverTest, DeterministicCarve) {
     }
     std::printf("[river] deterministic over %d carved columns\n", riverbeds);
     EXPECT_GT(riverbeds, 200) << "vacuous — no carved columns compared";
+}
+
+// The in-process hydrology-bake cache must be keyed on ALL bake inputs. This guards the cache KEY:
+// same (seed, type) → identical network; a DIFFERENT seed or generation type → a different network.
+// A key that dropped seed or genType would silently hand the second generator the first's cached bake,
+// producing an identical fingerprint here (RED). (Determinism/HigherOrder alone would NOT catch that.)
+TEST(TerrainRiverTest, HydroBakeCacheKeyDiscriminates) {
+    WorldGenerator a(WorldGenerator::GenerationType::Mountains, 7u);
+    WorldGenerator a2(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto fa = orderFingerprint(a);
+    ASSERT_GT(fa.size(), 100u);
+    EXPECT_EQ(fa, orderFingerprint(a2)) << "same seed+type gave different bakes — non-deterministic";
+
+    WorldGenerator b(WorldGenerator::GenerationType::Mountains, 20260710u);
+    EXPECT_NE(fa, orderFingerprint(b)) << "different seed gave the SAME bake — cache key omits seed?";
+
+    WorldGenerator p(WorldGenerator::GenerationType::Perlin, 7u);
+    EXPECT_NE(fa, orderFingerprint(p)) << "different generation type gave the SAME bake — cache key omits genType?";
 }
 
 // Diagnostic (not a quality assertion): print carved channel columns nearest the origin for seed 7,

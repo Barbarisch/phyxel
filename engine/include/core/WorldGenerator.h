@@ -158,6 +158,12 @@ public:
     const FlowField*    riverNetwork() const { return m_flow.get(); }
     const HydrologyMap* hydrology()    const { return m_hydro.get(); }
 
+    // Testing/tooling hook: clear the process-wide hydrology-bake memoization cache so the NEXT
+    // generator construction re-bakes independently instead of sharing a cached backing. Used to keep
+    // bake determinism genuinely under test (otherwise two same-seed generators share one cached
+    // object and a determinism comparison becomes a tautology).
+    static void clearHydroBakeCache();
+
     // A planned piece of flora: which template to stamp, the surface column it belongs to,
     // and the surface Y its trunk base sits on. The caller (which owns ObjectTemplateManager)
     // centers the template footprint on the column and stamps it. Kept template-agnostic so
