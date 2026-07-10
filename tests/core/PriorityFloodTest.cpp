@@ -69,6 +69,27 @@ TEST(PriorityFloodTest, LakeSurfaceIsFlat) {
     EXPECT_FLOAT_EQ(lvl, 30.0f) << "fully-enclosed basin fills to its rim (the 30 plateau)";
 }
 
+TEST(PriorityFloodTest, SeaOutletDrainsSubSeaCellsInsteadOfBrimming) {
+    // 5×5: a 50 plateau + 10 ring enclose a sub-sea pit of -20. sea = 0.
+    // Border-only fill: the whole interior is enclosed → brims to the rim (50).
+    // Sea-outlet fill: the pit is <= sea, so it's an OUTLET (ocean drains out) → stays -20, and the
+    // 10-ring drains down to it → stays 10. This is the difference the sea outlet makes.
+    const int w = 5, h = 5;
+    std::vector<float> e = {
+        50, 50,  50, 50, 50,
+        50, 10,  10, 10, 50,
+        50, 10, -20, 10, 50,
+        50, 10,  10, 10, 50,
+        50, 50,  50, 50, 50,
+    };
+    auto fb = PriorityFlood::fill(e, w, h);           // border outlets only
+    auto fs = PriorityFlood::fill(e, w, h, 0.0f);     // + sea outlet at 0
+    EXPECT_FLOAT_EQ(fb[2 * w + 2], 50.0f) << "border-only should brim the enclosed pit to the rim";
+    EXPECT_FLOAT_EQ(fs[2 * w + 2], -20.0f) << "sea outlet leaves the sub-sea pit draining (unfilled)";
+    EXPECT_FLOAT_EQ(fb[2 * w + 1], 50.0f) << "border-only brims the ring too";
+    EXPECT_FLOAT_EQ(fs[2 * w + 1], 10.0f) << "ring drains to the sub-sea outlet, not brimmed";
+}
+
 TEST(PriorityFloodTest, FilledNeverBelowElevationAndDrains) {
     // Random-ish rugged field: (1) filled >= elevation everywhere; (2) every non-border cell has a
     // neighbor at <= its filled level (a non-increasing path to the border always exists).

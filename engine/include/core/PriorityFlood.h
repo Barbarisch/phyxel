@@ -29,6 +29,12 @@ public:
     // returns a copy (every cell is already a border/outlet).
     static std::vector<float> fill(const std::vector<float>& elevation, int w, int h);
 
+    // Sea-outlet variant: in addition to the grid border, every cell at or below `seaLevel` is a
+    // drainage outlet (the ocean drains to infinity). So inland basins ABOVE the sea fill only to
+    // their spill toward the nearest sea/border outlet — they don't all brim to the region border.
+    // This is the coarse-grid bake for lakes + ocean (docs/TerrainGenerationV2.md P2.2).
+    static std::vector<float> fill(const std::vector<float>& elevation, int w, int h, float seaLevel);
+
     // Convenience: per-cell water depth = filled - elevation (>= 0). depth[i] > 0 marks a lake cell
     // whose flat surface is at filled[i]; depth[i] == 0 is dry land.
     static std::vector<float> waterDepth(const std::vector<float>& elevation, int w, int h);

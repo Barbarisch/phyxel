@@ -18,6 +18,30 @@ struct Greater {
         return a.seq > b.seq;
     }
 };
+// Core Priority-Flood loop: `closed`/`pq` are pre-seeded with the outlet cells; this raises every
+// remaining cell to its drainage-limited level. Shared by both public fill() overloads.
+void floodCore(std::vector<float>& filled, std::vector<uint8_t>& closed,
+               std::priority_queue<Node, std::vector<Node>, Greater>& pq, int w, int h, uint64_t& seq) {
+    static const int dx[4] = {1, -1, 0, 0};
+    static const int dy[4] = {0, 0, 1, -1};
+    while (!pq.empty()) {
+        Node c = pq.top();
+        pq.pop();
+        int cx = c.index % w, cy = c.index / w;
+        for (int d = 0; d < 4; ++d) {
+            int nx = cx + dx[d], ny = cy + dy[d];
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            size_t ni = static_cast<size_t>(ny) * w + nx;
+            if (closed[ni]) continue;
+            // Raise the neighbor to at least the current fill front: it can drain no lower than the
+            // level we reached it at. If it was already higher, it keeps its own (real) elevation.
+            if (filled[ni] < c.level) filled[ni] = c.level;
+            closed[ni] = 1;
+            pq.push({filled[ni], seq++, static_cast<int>(ni)});
+        }
+    }
+}
+
 }  // namespace
 
 std::vector<float> PriorityFlood::fill(const std::vector<float>& elevation, int w, int h) {
@@ -28,37 +52,41 @@ std::vector<float> PriorityFlood::fill(const std::vector<float>& elevation, int 
     std::vector<uint8_t> closed(static_cast<size_t>(w) * h, 0);
     std::priority_queue<Node, std::vector<Node>, Greater> pq;
     uint64_t seq = 0;
-
-    auto idx = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
     auto push = [&](int x, int y) {
-        size_t i = idx(x, y);
+        size_t i = static_cast<size_t>(y) * w + x;
         if (closed[i]) return;
         closed[i] = 1;
         pq.push({filled[i], seq++, static_cast<int>(i)});
     };
-
-    // Seed the min-heap with every border cell at its own elevation (the outlets).
+    // Seed every border cell at its own elevation (the outlets).
     for (int x = 0; x < w; ++x) { push(x, 0); push(x, h - 1); }
     for (int y = 1; y < h - 1; ++y) { push(0, y); push(w - 1, y); }
 
-    static const int dx[4] = {1, -1, 0, 0};
-    static const int dy[4] = {0, 0, 1, -1};
-    while (!pq.empty()) {
-        Node c = pq.top();
-        pq.pop();
-        int cx = c.index % w, cy = c.index / w;
-        for (int d = 0; d < 4; ++d) {
-            int nx = cx + dx[d], ny = cy + dy[d];
-            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-            size_t ni = idx(nx, ny);
-            if (closed[ni]) continue;
-            // Raise the neighbor to at least the current fill front: it can drain no lower than the
-            // level we reached it at. If it was already higher, it keeps its own (real) elevation.
-            if (filled[ni] < c.level) filled[ni] = c.level;
-            closed[ni] = 1;
-            pq.push({filled[ni], seq++, static_cast<int>(ni)});
-        }
-    }
+    floodCore(filled, closed, pq, w, h, seq);
+    return filled;
+}
+
+std::vector<float> PriorityFlood::fill(const std::vector<float>& elevation, int w, int h, float seaLevel) {
+    std::vector<float> filled = elevation;
+    if (w <= 0 || h <= 0 || static_cast<int>(elevation.size()) < w * h) return filled;
+
+    std::vector<uint8_t> closed(static_cast<size_t>(w) * h, 0);
+    std::priority_queue<Node, std::vector<Node>, Greater> pq;
+    uint64_t seq = 0;
+    auto push = [&](int x, int y) {
+        size_t i = static_cast<size_t>(y) * w + x;
+        if (closed[i]) return;
+        closed[i] = 1;
+        pq.push({filled[i], seq++, static_cast<int>(i)});
+    };
+    // Outlets = the grid border AND every sub-sea cell (the ocean drains to infinity).
+    for (int x = 0; x < w; ++x) { push(x, 0); push(x, h - 1); }
+    for (int y = 1; y < h - 1; ++y) { push(0, y); push(w - 1, y); }
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (filled[static_cast<size_t>(y) * w + x] <= seaLevel) push(x, y);
+
+    floodCore(filled, closed, pq, w, h, seq);
     return filled;
 }
 
