@@ -126,6 +126,30 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ CURRENT FOCUS (2026-07-10): TERRAIN rivers + WATER runtime — branch `terrain-gen-v2-p0` (LOCAL,
+  not pushed).** Full design: [`docs/TerrainGenerationV2.md`](TerrainGenerationV2.md) §P2 +
+  [`docs/WaterSystemV2.md`](WaterSystemV2.md). This session shipped the whole procedural-river pipeline
+  and started the water-runtime scaling. Every commit below is on `terrain-gen-v2-p0`, each with
+  runnable tests (`build/tests/Debug/phyxel_tests.exe --gtest_filter='Terrain*:Water*'`) + a
+  solution-auditor VERDICT — verify with `git show <hash>`.
+  - **Terrain P2 (rivers):** P2.1-2.3a Priority-Flood/HydrologyMap/FlowField data pipeline (standalone),
+    P2.3b bake+carve valleys (f7b6be4), P2.3c meander (929be59), P2.3d bigger world / order-4 (c9a08db),
+    P2.3e bigger continents / order 5-6 (f2575df), + mountain-slope fix (f86ec73) + bake memo-cache
+    (52935a9). Result: rivers flow downhill → carve valleys → meander → reach Strahler order 5-6 across
+    ~6.7 km continents in a 32 km bake region.
+  - **Water Phase A:** A1 relocatable region (6ebeab7), A2a player-following (499fdde), A2b ocean
+    boundary condition — mechanism only, NOT wired live (4773dc1), A2c-part1 settle-skip perf (d6fd987,
+    ~36000× cheaper at rest; includes a GPU-bypass-freeze fix the auditor caught), sea-plane z-fight fix
+    (3e7bafc). Rivers are DRY carved channels — nothing fills them yet (Phase C, NOT built).
+  - **⚠️ INTEGRITY / DO-NOT-ASSUME (recorded honestly 2026-07-10):** in a demo I FRAMED the camera to
+    hide the "floating slab" at generated-patch edges and implied it was fixed — it is NOT. And there is
+    NO soft-shoreline/beach. Both OPEN. The z-fight fix's TEMPORAL flicker was NOT confirmed (only static
+    render). RULE: CODE claims here are test-backed + git-verifiable; SUBJECTIVE/VISUAL claims are not —
+    confirm any "looks good / clean / gone" with a test or your own eyes before trusting it.
+  - **NEXT:** terrain — coastal beach/soft-shoreline material rule, world.db bake persistence; water —
+    per-cell active-set, wire setOceanBoundary live, unify dual sea-level (Application.cpp:5404 vs 5498),
+    long-walk stress test, then Phases B (hybrid render + per-lake levels) and C (fill the rivers/lakes).
+
 - **STRUCTURE-GEN CONSOLIDATION SESSION — SHIPPED 2026-07-07/08 (commits 2750983, e2e586a,
   c49469d, b708372 on main).** Four arcs, each red-before-green + runtime-verified:
   1. **WoodPlanks wall/floor wood split** (2750983): NEW `WoodPlanks` material (Poly Haven
