@@ -95,15 +95,22 @@ constexpr float kSeaLevelY = 16.0f;   // engineering continuity (Flat stays Y=16
 // octaves=6 from the libnoise/SharpNoise lineage (octaves is a tunable knob, not a fact).
 constexpr float kRmH = 1.0f, kRmOffset = 1.0f, kRmGain = 2.0f, kRmLacunarity = 2.0f;
 constexpr int   kRmOctaves = 6;
-constexpr float kRmFreq = 0.0060f;    // base ridge wavelength (~167 world units) — steeper flanks
-                                      // for rugged mountains; verified at runtime via TerrainReliefTest.
+// Mountain relief is TWO ridged bands so peaks SLOPE up instead of forming sheer columns:
+//  • a BROAD massif (long wavelength, most of the height) → a tall peak spreads its rise over
+//    ~half a wavelength, giving flanks around the angle of repose, not vertical cliffs;
+//  • a FINE detail band (short wavelength, small amplitude) → rocky ruggedness on the slopes.
+// The old single 0.006-freq × 288-amp put a 288-voxel rise over ~83 units (~74° = sheer cliff).
+constexpr float kRmFreqBroad = 0.0013f;   // massif form, ~770-unit wavelength (the SLOPE)
+constexpr float kRmFreq      = 0.0060f;    // fine detail, ~167-unit wavelength (the roughness)
 
 // Vertical scale (user decision 2026-07-09): COMPRESSED. Grandest peaks ~384 voxels above sea
-// level; the continental base supplies up to +96, ridged detail supplies the rest.
+// level; the continental base supplies up to +96, the broad+fine relief the rest.
 constexpr float kContinentalMax = 96.0f;   // max low-frequency landmass rise above sea level (voxels)
 constexpr float kContinentalMin = -40.0f;  // ocean/shelf floor below sea level (near-shore band; deep-ocean cap is P1/P2)
-constexpr float kMountainAmp    = 288.0f;  // Mountains ridged relief amplitude (96 + 288 ≈ 384 peak)
-constexpr float kHillAmp        = 80.0f;   // Perlin/Caves gentler rolling relief
+constexpr float kMtnBroadAmp  = 250.0f;    // Mountains: broad massif amplitude (the sloped bulk)
+constexpr float kMtnFineAmp   = 55.0f;     // Mountains: fine rocky detail on the slopes
+constexpr float kHillBroadAmp = 55.0f;     // Perlin/Caves: gentle rolling swells
+constexpr float kHillFineAmp  = 22.0f;     // Perlin/Caves: light surface roughness
 
 // ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
 // Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
@@ -305,20 +312,22 @@ float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
     const float wxw = wx + tnFbm(wx * warpF, 900.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
     const float wzw = wz + tnFbm(wx * warpF, 950.0f, wz * warpF, 2, 0.5f, 2.0f, seed) * warpAmp;
 
-    float ridged = clamp01(tnRidgedMultifractal(wxw * kRmFreq, wzw * kRmFreq, seed) / kRidgedNorm);
+    // Two ridged bands: a BROAD massif (the sloped bulk of a mountain) + FINE detail (roughness).
+    // Summed, a peak's height is reached gradually over the broad wavelength → flanks slope up
+    // instead of jumping vertically. The fine band is decorrelated by a distinct seed.
+    const float broad = clamp01(tnRidgedMultifractal(wxw * kRmFreqBroad, wzw * kRmFreqBroad, seed) / kRidgedNorm);
+    const float fine  = clamp01(tnRidgedMultifractal(wxw * kRmFreq, wzw * kRmFreq, seed ^ 0x51EDu) / kRidgedNorm);
 
     // Mountainousness mask (continentalness passed in by the caller): low continental land is
     // gentle, high continental interior is alpine. Mountains bias the whole map upward and rougher;
     // Perlin/Caves get gentler rolling hills.
     if (generationType == GenerationType::Mountains) {
-        // Mask reaches full amplitude by mid-high continentalness (achievable after contrast
-        // expansion), leaving low-continental coasts/valleys gentle. Peaks approach kMountainAmp.
-        float mask = smoothstep01(0.20f, 0.70f, cont);
-        return ridged * mask * kMountainAmp;
+        const float mask = smoothstep01(0.20f, 0.70f, cont);
+        return (broad * kMtnBroadAmp + fine * kMtnFineAmp) * mask;
     }
     // Perlin / Caves: gentler, hills emerge above mid-continentalness.
-    float mask = smoothstep01(0.40f, 0.85f, cont);
-    return ridged * mask * kHillAmp;
+    const float mask = smoothstep01(0.40f, 0.85f, cont);
+    return (broad * kHillBroadAmp + fine * kHillFineAmp) * mask;
 }
 
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {

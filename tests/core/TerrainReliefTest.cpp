@@ -90,22 +90,32 @@ TEST(TerrainReliefTest, MeasureAndValidateDrama) {
     EXPECT_LT(fm.minY, kSeaLevel + 24) << "no low ground — continental base never dips to coast";
 }
 
-TEST(TerrainReliefTest, NoCliffSeamsAtChunkBorders) {
+TEST(TerrainReliefTest, MountainsSlopeGraduallyNotSheerColumns) {
     WorldGenerator mtns(WorldGenerator::GenerationType::Mountains, 99u);
-    // Scan across several chunk borders (x multiples of 32). Natural terrain slope is bounded;
-    // a masking/interp bug would show a sudden multi-voxel jump exactly at a border column.
-    int worstJump = 0, worstX = 0;
-    const int z = 40;
-    for (int x = -200; x < 200; ++x) {
-        int a = mtns.sampleSurface(x, z).surfaceY;
-        int b = mtns.sampleSurface(x + 1, z).surfaceY;
-        int jump = std::abs(a - b);
-        if (jump > worstJump) { worstJump = jump; worstX = x; }
-    }
-    std::printf("[seam] worst adjacent-column jump = %d at x=%d\n", worstJump, worstX);
-    // Steep mountains can legitimately climb several voxels per column, but a seam bug produces
-    // a much larger discontinuity. Bound it well below a "cliff."
-    EXPECT_LE(worstJump, 12) << "suspicious cliff — likely a chunk-border seam";
+    // "Sloped flank vs sheer column" is a WORST-STEP property, not an average: both versions slope
+    // gently on average (most steps <1 voxel), but the pre-fix single-band relief (kRmFreq=0.006 ×
+    // amp 288) puts occasional sharp ridge-cusp cliffs of ~15 voxels in a single horizontal step —
+    // the "columns rising well above the terrain" the player saw. The broad+fine fix spreads the
+    // massif height over a ~4.6× longer wavelength, so the amplitude that reaches any single cusp is
+    // the small fine band only → the worst step drops to ~3. We scan the FULL mountain body (2D, both
+    // x- and z-neighbours; one scan-line undersamples the true worst) for the steepest single step.
+    // Measured: pre-fix worst = 15 (FAILS), fixed worst = 3 (PASSES) — this straddles the threshold.
+    int worst = 0, wx = 0, wz = 0;
+    long steps = 0;
+    for (int z = -220; z <= 220; z += 2)
+        for (int x = -220; x < 220; ++x) {
+            int a = mtns.sampleSurface(x, z).surfaceY;
+            if (a <= kSeaLevel + 120) continue;   // only the mountain body, not lowland/valley
+            int jx = std::abs(a - mtns.sampleSurface(x + 1, z).surfaceY);
+            int jz = std::abs(a - mtns.sampleSurface(x, z + 1).surfaceY);
+            int j = std::max(jx, jz);
+            if (j > worst) { worst = j; wx = x; wz = z; }
+            ++steps;
+        }
+    ASSERT_GT(steps, 500) << "too few mountain columns sampled to judge slope";
+    std::printf("[slope] worst single step over %ld mountain columns = %d at (%d,%d)\n",
+                steps, worst, wx, wz);
+    EXPECT_LE(worst, 6) << "a single column climbs >6 voxels in one step — a sheer cliff/tower, not a sloped flank";
 }
 
 TEST(TerrainReliefTest, DeterministicAcrossInstances) {
