@@ -23,12 +23,21 @@
 > - **Z-fighting fix** (3e7bafc): depth-bias the flat sea plane so voxel tops at sea level stop
 >   flickering. Rendering change; static waterline confirmed clean, **temporal flicker NOT
 >   independently confirmed** (move the camera along a coast to verify).
+> - **Phase A wrap-up** (2026-07-10): (1) **sea level UNIFIED** — one shared constant
+>   `Core::kSeaLevelY` (`engine/include/core/WorldConstants.h`) now feeds the WorldGenerator bake,
+>   the `WaterManager` sim default (was 0) and the `RenderCoordinator` sea-plane default (was a
+>   private 16); `game.json` load sets both sides from the same value and `set_sea_level` moves
+>   both. (2) **ocean boundary wired LIVE**: `game.json` `water.oceanBoundary: true` (applied +
+>   reset on world switch in `autoLoadGameDefinition`), new `water_ocean_boundary` debug command,
+>   persisted by `water_save`. (3) **Phase-A STRESS test shipped** (`WaterManagerTest.Stress*`):
+>   50 recenters oscillating over a standing walled lake (incl. a NEGATIVE window origin) assert
+>   volume/level/world-position at EVERY recenter; a 100-recenter one-way walk with the boundary
+>   condition asserts the sea re-establishes at the same volume+level every stride. Red-verified by
+>   mutation (seam drift ±1 → caught at recenter #3; boundary seeding disabled → caught at flood).
 >
 > **NOT done (do not assume these exist):**
 > - A2c remainder: finer per-cell active-set (settle-skip is GLOBAL — only fully-at-rest fields are
->   free; partially-active fields still pay the full O(box) sweep). Wire `setOceanBoundary` live. Unify
->   the DUPLICATED sea-level state (`Application.cpp` render default 16 vs sim default 0 — latent drift).
->   The Phase-A "walk a long distance, many recenters" STRESS test.
+>   free; partially-active fields still pay the full O(box) sweep).
 > - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
 >   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
 >   water, and only where terrain is below sea level.

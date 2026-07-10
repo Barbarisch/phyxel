@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/WaterSimulation.h"
+#include "core/WorldConstants.h"
 #include "vulkan/ComputePipeline.h"
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
@@ -145,7 +146,8 @@ private:
     void rebuildOcean(); // re-run the ocean flood-fill from the seeds
     void applySprings(); // (re-)pin authored springs after the ocean clears sources
 
-    float                   m_seaLevel = 0.0f;
+    float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
+                                                     // match the sea-plane renderer or they drift
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds

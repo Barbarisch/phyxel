@@ -152,3 +152,84 @@ TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {
     wm.recenter(glm::ivec3(200, 0, 200));  // pool now far outside the window
     EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "pool outside the moved window should be gone";
 }
+
+// ─── Sea-level unification (WaterSystemV2 Phase A wrap-up) ────────────────────────────────────────
+// The sim's default sea level must be the SHARED engine constant (WorldConstants.h) — it used to
+// default to 0 while the sea-plane renderer defaulted to 16, so the plane drew a sea the sim didn't
+// have. RenderCoordinator::m_seaLevel is initialized from the same constant (not unit-instantiable
+// here — it's Vulkan-bound — so that side is enforced by construction, this side by assertion).
+static_assert(Phyxel::Core::kSeaLevelY == 16.0f,
+              "kSeaLevelY changed — re-check every consumer (WorldGenerator, WaterManager, "
+              "RenderCoordinator, game.json defaults) and the grounded-values table");
+
+TEST(WaterManagerTest, DefaultSeaLevelIsTheSharedWorldConstant) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    EXPECT_FLOAT_EQ(wm.seaLevel(), Phyxel::Core::kSeaLevelY)
+        << "WaterManager re-declared its own sea-level default — render/sim drift is back";
+}
+
+// ─── Phase A STRESS (doc-required: docs/WaterSystemV2.md §Phase A "Stress") ───────────────────────
+// Walk the focus back and forth so the region recenters MANY times over a standing (walled) lake
+// that always stays in-window, asserting the invariant at EVERY recenter (not just at the end):
+//   volume — total mass exactly conserved;
+//   level  — the lake's settled surface stays at the same world Y (wet at y=0, dry at y=1);
+//   place  — the water stays at its WORLD position while the window slides under it.
+// 50 recenters, alternating window x ∈ [10,42) and x ∈ [-10,22) — the second window has a NEGATIVE
+// origin, so this also stresses the negative-world-coordinate path the single-recenter tests never
+// crossed. The basin (world x,z ∈ [11,16]) is inside both windows, so nothing may fall off.
+TEST(WaterManagerTest, StressManyRecentersOverStandingLakeKeepInvariants) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildBasinAndFill(wm);
+
+    const float volume = wm.totalMass();
+    const float levelCell = wm.massAtWorld(glm::vec3(13.5f, 0.5f, 13.5f));  // settled surface cell
+    ASSERT_GT(volume, 15.0f) << "pool did not fill";
+    ASSERT_GT(levelCell, 0.9f) << "lake should be full at y=0";
+    ASSERT_LT(wm.massAtWorld(glm::vec3(13.5f, 1.5f, 13.5f)), 0.05f) << "lake should be dry at y=1";
+
+    int recenters = 0;
+    for (int i = 0; i < 25; ++i) {
+        for (const float fx : {26.5f, 6.5f}) {          // oscillate past the dead zone each time
+            const bool moved = wm.followTo(glm::vec3(fx, 50.0f, 16.5f), 4);
+            ASSERT_TRUE(moved) << "iteration " << i << ": focus " << fx
+                               << " did not trigger a recenter — the stress isn't stressing";
+            ++recenters;
+            wm.update(0.1f);  // one live-loop tick after the move (as the frame loop would)
+            ASSERT_NEAR(wm.totalMass(), volume, 1e-3f)
+                << "volume changed at recenter #" << recenters;
+            ASSERT_NEAR(wm.massAtWorld(glm::vec3(13.5f, 0.5f, 13.5f)), levelCell, 1e-3f)
+                << "lake level dropped at its world position at recenter #" << recenters;
+            ASSERT_LT(wm.massAtWorld(glm::vec3(13.5f, 1.5f, 13.5f)), 0.05f)
+                << "lake level ROSE (water above the settled surface) at recenter #" << recenters;
+        }
+    }
+    EXPECT_EQ(recenters, 50);
+}
+
+// Long one-way walk with the ocean BOUNDARY CONDITION on: 100 consecutive recenters marching the
+// region ~800 cells, asserting at EVERY recenter that the sea re-establishes to the same volume and
+// stays at the same LEVEL (wet at y=4, dry at y=5). This is the live following-region scenario —
+// a point seed fails it after the first recenter that leaves the seed behind.
+TEST(WaterManagerTest, StressLongWalkOceanBoundaryKeepsSeaAtEveryRecenter) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
+    wm.setSeaLevel(4.0f);
+    wm.setOceanBoundary(true);
+    wm.update(0.1f);
+    const float volume = wm.totalMass();
+    ASSERT_GT(volume, 100.0f) << "boundary condition did not flood the initial region";
+
+    int recenters = 0;
+    for (int step = 1; step <= 100; ++step) {
+        const float fx = 8.0f + 8.0f * step;            // stride 8 > hysteresis 4 → recenter each step
+        if (!wm.followTo(glm::vec3(fx, 30.0f, 8.0f), 4)) continue;
+        ++recenters;
+        wm.update(0.1f);  // the live loop steps every frame; fillOcean pins re-fill on the step
+        ASSERT_NEAR(wm.totalMass(), volume, volume * 0.05f)
+            << "sea volume wrong at recenter #" << recenters << " (focus x=" << fx << ")";
+        ASSERT_GT(wm.massAtWorld(glm::vec3(fx, 4.5f, 8.5f)), 0.5f)
+            << "no sea at the new window centre at recenter #" << recenters;
+        ASSERT_LT(wm.massAtWorld(glm::vec3(fx, 5.5f, 8.5f)), 0.05f)
+            << "sea ABOVE sea level at recenter #" << recenters;
+    }
+    EXPECT_EQ(recenters, 100) << "the walk should recenter on every stride";
+}

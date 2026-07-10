@@ -667,9 +667,12 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     shared corner-height grid, **side faces + vertical waterfall curtains**, depth-darkened
     translucency). Mist = soft `VfxSystem` bursts at detected waterfall lips (`WaterManager::
     waterfalls()`), with `VfxBurstParams.posJitter` for an even cloud.
-  - **Debug HTTP** (`/api/debug/`): `place_water`, `water_sync`, `water_stats`, `set_sea_level`,
-    `add_ocean_seed`, `clear_ocean`, `place_spring`, `clear_springs`, `set_channel_region`,
-    `water_gpu`, `water_save`.
+  - **Debug HTTP** (`/api/debug/`): `place_water`, `water_sync`, `water_stats`, `set_sea_level`
+    (moves the sim AND the sea-plane renderer together), `add_ocean_seed`, `clear_ocean`,
+    `water_ocean_boundary` (seed the sea from the region frontier — WaterSystemV2 A2b),
+    `place_spring`, `clear_springs`, `set_channel_region`, `water_gpu`, `water_save`.
+    game.json `water` block keys: `enabled`, `seaLevel` (default = shared `Core::kSeaLevelY`,
+    `engine/include/core/WorldConstants.h`), `oceanBoundary`, `oceanSeeds`, `springs`, `channels`.
   - **GOTCHAS:** (1) `place_water`/`place_spring` into a **solid voxel does nothing** — target the
     AIR cell (e.g. spring on a platform whose top voxel is y19 goes at **y20**). (2) Sub-voxel
     terrain (subcubes/microcubes) is **NOT supported** — the sim is full-voxel; partial voxels

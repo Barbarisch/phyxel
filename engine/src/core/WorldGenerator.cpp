@@ -4,6 +4,7 @@
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
 #include "core/FlowField.h"
+#include "core/WorldConstants.h"
 #include "utils/Logger.h"
 #include <random>
 #include <cmath>
@@ -91,8 +92,8 @@ float tnFbm(float x, float y, float z, int octaves, float persistence, float lac
 }
 
 // ── P0 grounded constants (docs/TerrainGenerationV2.md §P0 "Grounded values"). ──
-constexpr float kSeaLevelY = 16.0f;   // engineering continuity (Flat stays Y=16); an arbitrary
-                                      // unbounded origin, NOT a geographic figure (auditor-flagged).
+// kSeaLevelY moved to core/WorldConstants.h — water sim + sea-plane renderer must share it.
+using Core::kSeaLevelY;
 
 // Ridged multifractal (Musgrave, musgrave.c): H=1.0, offset=1.0, gain=2.0; lacunarity=2.0 and
 // octaves=6 from the libnoise/SharpNoise lineage (octaves is a tunable knob, not a fact).

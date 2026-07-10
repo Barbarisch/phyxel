@@ -5405,11 +5405,18 @@ void Application::autoLoadGameDefinition() {
         // Per-world water surface config (see docs/WaterSystem.md). Default OFF so a
         // world without a "water" block never floods; switching to such a world also
         // turns water back off. Top-level so the "world" erase below doesn't drop it.
-        if (renderCoordinator) {
+        // Sea level is ALWAYS set (not only when the key exists) so a world switch can't
+        // leak the previous world's level, and the render plane + water sim are fed the
+        // SAME value with the SAME default (kSeaLevelY) — they used to default apart
+        // (render 16, sim 0), so the plane drew where the sim had no sea.
+        {
             nlohmann::json water = gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
-            renderCoordinator->setWaterEnabled(water.value("enabled", false));
-            if (water.contains("seaLevel"))
-                renderCoordinator->setSeaLevel(water.value("seaLevel", 16.0f));
+            const float seaLevel = water.value("seaLevel", Core::kSeaLevelY);
+            if (renderCoordinator) {
+                renderCoordinator->setWaterEnabled(water.value("enabled", false));
+                renderCoordinator->setSeaLevel(seaLevel);
+            }
+            if (waterManager) waterManager->setSeaLevel(seaLevel);
         }
 
         // Combat ruleset is locked per-game (see docs/TurnBasedCombat.md). Read
@@ -5501,22 +5508,27 @@ void Application::autoLoadGameDefinition() {
             // itself reconstructs: the ocean re-floods from its seeds and springs re-emit.
             if (waterManager) {
                 waterManager->syncSolidsFromChunks();
-                if (gameDef.contains("water")) {
-                    const auto& w = gameDef["water"];
-                    if (w.contains("seaLevel")) waterManager->setSeaLevel(w.value("seaLevel", 0.0f));
-                    if (w.contains("oceanSeeds"))
-                        for (const auto& s : w["oceanSeeds"])
-                            if (s.is_array() && s.size() == 3)
-                                waterManager->addOceanSeed(glm::vec3(s[0].get<float>(), s[1].get<float>(), s[2].get<float>()));
-                    if (w.contains("springs"))
-                        for (const auto& sp : w["springs"])
-                            waterManager->addSpring(glm::vec3(sp.value("x", 0.0f), sp.value("y", 0.0f), sp.value("z", 0.0f)),
-                                                    sp.value("mass", 1.0f));
-                    if (w.contains("channels"))
-                        for (const auto& c : w["channels"])
-                            if (c.is_array() && c.size() == 3)
-                                waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
-                }
+                // Applied unconditionally (empty object when no "water" block) so switching
+                // to a water-less world RESETS the boundary flag rather than leaking the
+                // previous world's ocean. seaLevel was already applied above (unified with
+                // the render plane).
+                const nlohmann::json w =
+                    gameDef.contains("water") ? gameDef["water"] : nlohmann::json::object();
+                // Ocean boundary condition (WaterSystemV2 A2b): seed the sea from the
+                // region frontier so it survives the player-following recenters.
+                waterManager->setOceanBoundary(w.value("oceanBoundary", false));
+                if (w.contains("oceanSeeds"))
+                    for (const auto& s : w["oceanSeeds"])
+                        if (s.is_array() && s.size() == 3)
+                            waterManager->addOceanSeed(glm::vec3(s[0].get<float>(), s[1].get<float>(), s[2].get<float>()));
+                if (w.contains("springs"))
+                    for (const auto& sp : w["springs"])
+                        waterManager->addSpring(glm::vec3(sp.value("x", 0.0f), sp.value("y", 0.0f), sp.value("z", 0.0f)),
+                                                sp.value("mass", 1.0f));
+                if (w.contains("channels"))
+                    for (const auto& c : w["channels"])
+                        if (c.is_array() && c.size() == 3)
+                            waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
             }
 
             // Build navigation grid for NPC pathfinding
@@ -10348,8 +10360,18 @@ void Application::registerWaterCommands() {
     });
     reg.on("set_sea_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
-        waterManager->setSeaLevel(cmd.params.value("level", 0.0f));
+        const float level = cmd.params.value("level", Core::kSeaLevelY);
+        waterManager->setSeaLevel(level);
+        // Keep the flat sea-plane renderer at the same height as the sim — these two
+        // drifting apart is exactly the bug the shared kSeaLevelY default fixed.
+        if (renderCoordinator) renderCoordinator->setSeaLevel(level);
         r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+    });
+    reg.on("water_ocean_boundary", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->setOceanBoundary(cmd.params.value("on", true));
+        r = {{"success", true}, {"ocean_boundary", waterManager->oceanBoundary()},
+             {"sea_level", waterManager->seaLevel()}};
     });
     reg.on("add_ocean_seed", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
@@ -10395,6 +10417,7 @@ void Application::registerWaterCommands() {
         nlohmann::json w = doc.contains("water") ? doc["water"] : nlohmann::json::object();
         w["enabled"]  = renderCoordinator ? renderCoordinator->isWaterEnabled() : false;
         w["seaLevel"] = waterManager->seaLevel();
+        w["oceanBoundary"] = waterManager->oceanBoundary();
         nlohmann::json seeds = nlohmann::json::array();
         for (const auto& s : waterManager->oceanSeeds()) seeds.push_back({s.x, s.y, s.z});
         w["oceanSeeds"] = seeds;

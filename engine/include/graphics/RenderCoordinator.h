@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "core/WorldConstants.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
 #include "utils/PerformanceMonitor.h"
@@ -378,7 +379,8 @@ private:
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     bool  m_waterEnabled = false;
-    float m_seaLevel = 16.0f;
+    float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
+                                         // water sim or the plane draws where no water is
 
     // Per-cell water surface rendering (the CPU sim's actual field).
     std::unique_ptr<WaterCellRenderPipeline> waterCellPipeline;
