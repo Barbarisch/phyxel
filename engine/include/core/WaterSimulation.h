@@ -89,6 +89,15 @@ public:
     // (0..1); lower = calmer/slower leveling.
     void step(float flowSide = 1.0f);
 
+    // Translate the whole field by an integer cell `delta`: after the shift, the cell at local p
+    // holds what was at local p+delta (so the WORLD content stays put while the grid window moves by
+    // delta — the primitive a WaterManager uses to recenter its region on the player). Cells whose
+    // source p+delta falls outside the old grid are the newly-exposed frontier: mass 0, not-solid,
+    // not-source, not-channel (the manager re-syncs terrain solidity + re-applies ocean/springs on
+    // the frontier). Mass is conserved for content that stays in-window; content shifted past an edge
+    // is dropped (that lost mass is what the ocean boundary condition later replaces at the frontier).
+    void shift(const glm::ivec3& delta);
+
 private:
     size_t idx(int x, int y, int z) const {
         return static_cast<size_t>(x) + static_cast<size_t>(m_sx) *

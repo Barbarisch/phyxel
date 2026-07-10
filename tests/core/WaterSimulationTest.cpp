@@ -33,6 +33,28 @@ TEST(WaterSimulation, ConservesMass) {
     EXPECT_GE(sim.minMass(), -1e-5f); // never goes negative
 }
 
+// shift() translates the field (new[p] = old[p+delta]) so world content stays put as the grid
+// window moves; content staying in-window is conserved, content shifted past an edge is dropped.
+// (WaterSystemV2 Phase A: the primitive WaterManager::recenter uses to follow the player.)
+TEST(WaterSimulation, ShiftTranslatesFieldAndConservesInWindowMass) {
+    WaterSimulation sim(8, 8, 8);
+    sim.addWater(4, 4, 4, 1.0f);
+    sim.setChannel(4, 4, 4, true);
+    const float before = sim.totalMass();
+    ASSERT_FLOAT_EQ(before, 1.0f);
+
+    // Move the window +1 in x: the cell that was at local (4,4,4) is now at (3,4,4).
+    sim.shift(glm::ivec3(1, 0, 0));
+    EXPECT_FLOAT_EQ(sim.massAt(3, 4, 4), 1.0f) << "content did not translate by -delta";
+    EXPECT_FLOAT_EQ(sim.massAt(4, 4, 4), 0.0f) << "old cell not vacated";
+    EXPECT_TRUE(sim.isChannel(3, 4, 4)) << "channel tag did not travel with the cell";
+    EXPECT_FLOAT_EQ(sim.totalMass(), before) << "mass not conserved while content stays in-window";
+
+    // Shift everything out of the window → mass is dropped at the frontier.
+    sim.shift(glm::ivec3(100, 0, 0));
+    EXPECT_FLOAT_EQ(sim.totalMass(), 0.0f) << "content shifted past the edge should be dropped";
+}
+
 // Water released high in a column ends up resting on the floor, top empties.
 TEST(WaterSimulation, FallsToFloor) {
     WaterSimulation sim(1, 10, 1);

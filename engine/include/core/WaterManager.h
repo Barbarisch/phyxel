@@ -36,6 +36,14 @@ public:
     // Fixed-timestep stepping; accumulates real time and steps at STEP_HZ.
     void update(float dt);
 
+    // Relocate the simulated region so its local origin becomes `newOrigin` (world cells), keeping
+    // m_dims fixed (GPU buffers + the O(dims) sweep budget stay valid). The water field is translated
+    // so world content stays put (WaterSimulation::shift), terrain solidity is re-read for the moved
+    // window, and channels/ocean/springs are re-projected from their world-space authoring lists.
+    // This is WaterSystemV2 Phase A: the region can travel with the player (and, later, to where the
+    // procedural generator placed rivers/lakes). Mass is conserved for water that stays in-window.
+    void recenter(const glm::ivec3& newOrigin);
+
     // World-space helpers. Amount may be negative to remove water.
     void  placeWater(const glm::vec3& worldPos, float amount);
     float massAtWorld(const glm::vec3& worldPos) const;

@@ -83,6 +83,26 @@ void WaterManager::update(float dt) {
     if (steps > 0) rebuildSurface();
 }
 
+void WaterManager::recenter(const glm::ivec3& newOrigin) {
+    const glm::ivec3 delta = newOrigin - m_origin;
+    if (delta == glm::ivec3(0)) return;
+    // Translate the field so world content stays put, then move the window origin.
+    m_sim.shift(delta);
+    m_origin = newOrigin;
+    // Terrain solidity is window-local → re-read it for the moved window (covers the frontier).
+    syncSolidsFromChunks();
+    // Re-tag channels for the new window from the world-space authoring list (shift preserved the
+    // in-window tags; this restores any the frontier now covers). Idempotent; leaves m_channelCells.
+    for (const glm::ivec3& c : m_channelCells) {
+        const int lx = c.x - m_origin.x, ly = c.y - m_origin.y, lz = c.z - m_origin.z;
+        if (m_sim.inBounds(lx, ly, lz)) m_sim.setChannel(lx, ly, lz, true);
+    }
+    // Re-derive the source pins for the new window: rebuildOcean re-floods the ocean from its
+    // world-space seeds (or, with none, clears sources) and re-pins springs, then rebuilds the
+    // surface. Correct whether or not an ocean/springs are authored.
+    rebuildOcean();
+}
+
 void WaterManager::rebuildSurface() {
     m_surface.clear();
     m_waterfalls.clear();

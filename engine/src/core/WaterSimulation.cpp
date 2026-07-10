@@ -194,5 +194,25 @@ void WaterSimulation::step(float flowSide) {
     }
 }
 
+void WaterSimulation::shift(const glm::ivec3& delta) {
+    if (delta == glm::ivec3(0)) return;
+    // Gather into fresh buffers to avoid in-place aliasing; new[p] = old[p+delta], frontier = default.
+    std::vector<float>   nm(m_mass.size(), 0.0f);
+    std::vector<uint8_t> ns(m_solid.size(), 0);
+    std::vector<float>   nsrc(m_source.size(), -1.0f);   // -1 = not a source
+    std::vector<uint8_t> nch(m_channel.size(), 0);
+    for (int z = 0; z < m_sz; ++z)
+    for (int y = 0; y < m_sy; ++y)
+    for (int x = 0; x < m_sx; ++x) {
+        const int sx = x + delta.x, sy = y + delta.y, sz = z + delta.z;
+        if (!inBounds(sx, sy, sz)) continue;   // exposed frontier keeps the defaults above
+        const size_t d = idx(x, y, z), s = idx(sx, sy, sz);
+        nm[d] = m_mass[s]; ns[d] = m_solid[s]; nsrc[d] = m_source[s]; nch[d] = m_channel[s];
+    }
+    m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
+    m_hasSources = false;
+    for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }
+}
+
 } // namespace Core
 } // namespace Phyxel
