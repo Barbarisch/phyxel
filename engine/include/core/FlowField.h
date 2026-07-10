@@ -61,6 +61,17 @@ public:
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
 
+    // Nearest order≥3 channel to a world column, for VALLEY shaping (wider than the channel itself):
+    // the distance (world units) to the closest channel centreline segment and that channel's order,
+    // scanning cells within `searchRadius`. dist is huge and order 0 if none is in range. The
+    // generator attenuates Layer-1 relief toward the centreline so rivers seat in a smooth valley
+    // floor, not a thin slot buried by relief roughness. (docs/TerrainGenerationV2.md §P2)
+    struct NearestChannel {
+        float dist = 1e30f;
+        int   order = 0;
+    };
+    NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius) const;
+
     // Per-segment channel test (the geometry, exposed for direct testing): a point p carves iff
     // order>=3 (orders 1-2 sub-voxel → no bed) AND p is within half-width of segment a→b, with a
     // parabolic bed (full depth at the centreline, 0 at the edge). channelAt applies this per river cell.

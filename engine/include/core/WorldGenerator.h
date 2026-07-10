@@ -13,6 +13,8 @@ namespace Phyxel {
 
 class Chunk;
 struct WorldRecipe;
+class HydrologyMap;
+class FlowField;
 
 /**
  * @brief World generation interface for procedural world creation
@@ -128,6 +130,8 @@ public:
         float continentalness = 0.5f; // [0,1] large-scale land elevation
         int   biomeIndex  = 0;        // dominant biome (index into m_biomes)
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
+        int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
+                                      // >0 marks a carved riverbed (for the flora gate + water runtime)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -147,6 +151,12 @@ public:
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+
+    // Baked hydrology backings (docs/TerrainGenerationV2.md §P2), for the water runtime + tests.
+    // Null for Flat / non-height-based types (nothing baked). Owned by the generator; the pointers
+    // are valid until the next rebuild (ctor / applyRecipe).
+    const FlowField*    riverNetwork() const { return m_flow.get(); }
+    const HydrologyMap* hydrology()    const { return m_hydro.get(); }
 
     // A planned piece of flora: which template to stamp, the surface column it belongs to,
     // and the surface Y its trunk base sits on. The caller (which owns ObjectTemplateManager)
@@ -183,6 +193,17 @@ private:
     // or generation params change (ctor + applyRecipe).
     std::shared_ptr<CoarseWorldModel> m_coarse;
     void rebuildCoarseModel();
+
+    // Layer-0 hydrology baked over a BOUNDED region (docs/TerrainGenerationV2.md §P2): lake/sea
+    // surface levels (m_hydro) and the river drainage network + Strahler-ordered channel geometry
+    // (m_flow), computed ONCE per world build in rebuildCoarseModel over the FULL surface height
+    // (coarse base + Layer-1 relief) so rivers sit in the rendered valleys. sampleColumn reads
+    // m_flow->channelAt to carve riverbeds. Both are immutable plain-grid backings held by
+    // shared_ptr with a PURE source, so the streaming worker's generator copy shares them safely
+    // (like m_coarse). Columns outside the baked region get no water/rivers (infinite-world
+    // partitioning is P5). Null for Flat / non-height-based types.
+    std::shared_ptr<HydrologyMap> m_hydro;
+    std::shared_ptr<FlowField>    m_flow;
 
     // The continentalness → base-elevation shaping spline (docs/TerrainGenerationV2.md §2a): the
     // "how tall" art-direction curve, decoupled from the "how mountainous" noise. Default is a

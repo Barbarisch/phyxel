@@ -2,6 +2,8 @@
 #include "core/WorldRecipe.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
+#include "core/HydrologyMap.h"
+#include "core/FlowField.h"
 #include "utils/Logger.h"
 #include <random>
 #include <cmath>
@@ -112,6 +114,26 @@ constexpr float kMtnFineAmp   = 55.0f;     // Mountains: fine rocky detail on th
 constexpr float kHillBroadAmp = 55.0f;     // Perlin/Caves: gentle rolling swells
 constexpr float kHillFineAmp  = 22.0f;     // Perlin/Caves: light surface roughness
 
+// ── P2 hydrology bake region (docs/TerrainGenerationV2.md §P2 "bounded backing"). ──
+// The lake/river network is baked ONCE per world build over a fixed box centred on the world
+// origin: 256 cells × 32 m = 8192 world units (~8 km) per side. Columns outside get no water/rivers
+// (a DESIGN limit — infinite-world region partitioning is P5). 256² = 65 536 cells → the two
+// Priority-Flood + accumulation passes are O(n log n), a few ms, run once (ctor + applyRecipe).
+constexpr int   kHydroCells  = 256;
+constexpr float kHydroCell   = 32.0f;      // = coarse-model cell size (one chunk wide)
+constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -4096 → box [-4096, 4096]²
+
+// Valley shaping: a river's floor is planed smooth over a corridor several channel-widths wide, so
+// the carved channel seats in a valley instead of a thin slot buried by mountain relief roughness.
+// This multiplies the channel HALF-width, so the full smoothed corridor = kValleyWidthMul × the full
+// bankfull channel width. GROUNDED (grounding-auditor 2026-07-10): unconfined alluvial valleys run
+// well above the Rosgen (1994, *Catena* 22:169-199) entrenchment-ratio threshold of 2.2× bankfull
+// width, and Williams (1986, *J. Hydrology* 88:147-164; meander-belt B = 3.7·W^1.12 over ~150 world
+// stations) predicts ≈5.2× for an order-3 channel rising to ≈6.2× for order-6. 5.0× sits at the
+// conservative-central end of that empirical range (a flat multiplier; the per-order ratio drift is
+// minor and channelHalfWidth already scales the absolute width). (docs/TerrainGenerationV2.md §P2)
+constexpr float kValleyWidthMul = 5.0f;
+
 // ── P1 material rules (docs/TerrainGenerationV2.md §P1; grounding-auditor 2026-07-09). ──
 // Temperature field anchor: normalized [0,1] == mean-annual −5..+30 °C (Whittaker 1975 biome-
 // diagram temperature axis; 35 °C span). DESIGN DECISION (stated) — the citable anchor that lets
@@ -177,6 +199,11 @@ constexpr float kRidgedNorm = 1.35f;  // ~max of tnRidgedMultifractal at these p
 
 }  // namespace
 
+// Forward decl: rebuildCoarseModel (below) bakes hydrology on the full surface via reliefAt, which
+// is defined later next to surfaceVariationFor. Declared here (in namespace Phyxel, matching the
+// static definition's linkage) so the bake can call it before its definition.
+static float reliefAt(WorldGenerator::GenerationType genType, uint32_t seed, int wx, int wz, float cont);
+
 WorldGenerator::WorldGenerator(GenerationType type, uint32_t seed)
     : generationType(type), seed(seed) {
     initDefaultBiomes();
@@ -211,6 +238,31 @@ void WorldGenerator::rebuildCoarseModel() {
             return cs;
         },
         32.0f);
+
+    // ── P2 hydrology bake ─────────────────────────────────────────────────────────────────────
+    // Flat / non-height-based types have no relief and no drainage worth baking → skip (leaves the
+    // members null; sampleColumn's carve is guarded on m_flow).
+    if (!isHeightBased() || generationType == GenerationType::Flat) {
+        m_hydro.reset();
+        m_flow.reset();
+        return;
+    }
+    // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
+    // Layer-1 relief), so rivers sit in the valleys the player actually sees — NOT the smooth Layer-0
+    // base alone. Pure: captures the already-built coarse model (shared_ptr, immutable) + seed + type
+    // by value; no `this`. Sampled at cell centres (float→int floor matches sampleColumn's columns).
+    auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
+        const CoarseSample cs = coarse->sample(x, z);
+        return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
+                                        static_cast<int>(std::floor(z)), cs.continentalness);
+    };
+    m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
+                                             kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
+    m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
+                                          kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
+    LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
+             << " cells, maxAccum=" << m_flow->maxAccum() << " maxOrder=" << m_flow->maxOrder()
+             << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -300,12 +352,15 @@ bool WorldGenerator::isHeightBased() const {
     }
 }
 
-float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
+// Layer-1 ridged relief at a column — PURE (a free function of generation type + seed + position +
+// continentalness), so both surfaceVariationFor and the hydrology bake (rebuildCoarseModel) compute
+// the SAME surface without a `this` capture or a duplicated copy of the math that could drift.
+static float reliefAt(WorldGenerator::GenerationType genType, uint32_t seed, int wx, int wz, float cont) {
     // Layer-1 mountain relief (docs/TerrainGenerationV2.md P0): ridged multifractal, domain-
     // warped so ridgelines bend, gated by a "mountainousness" mask from continentalness so
     // plains stay flat and only high continental interiors grow rough peaks. Returns voxels of
     // relief >= 0 (the continental base + sea level are added in sampleColumn). Flat = no relief.
-    if (generationType == GenerationType::Flat) return 0.0f;
+    if (genType == WorldGenerator::GenerationType::Flat) return 0.0f;
 
     // Domain warp the sample position (Quilez: fbm(p + fbm(p))) so ridges braid organically.
     const float warpF = 0.006f, warpAmp = 40.0f;
@@ -321,13 +376,17 @@ float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
     // Mountainousness mask (continentalness passed in by the caller): low continental land is
     // gentle, high continental interior is alpine. Mountains bias the whole map upward and rougher;
     // Perlin/Caves get gentler rolling hills.
-    if (generationType == GenerationType::Mountains) {
+    if (genType == WorldGenerator::GenerationType::Mountains) {
         const float mask = smoothstep01(0.20f, 0.70f, cont);
         return (broad * kMtnBroadAmp + fine * kMtnFineAmp) * mask;
     }
     // Perlin / Caves: gentler, hills emerge above mid-continentalness.
     const float mask = smoothstep01(0.40f, 0.85f, cont);
     return (broad * kHillBroadAmp + fine * kHillFineAmp) * mask;
+}
+
+float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
+    return reliefAt(generationType, seed, wx, wz, cont);
 }
 
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
@@ -397,7 +456,35 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // The old ±9 continental cap is gone — the base now spans kContinentalMin..kContinentalMax
         // and peaks reach ~kSeaLevelY + kContinentalMax + kMountainAmp (~384 above sea level).
         float relief = surfaceVariationFor(wx, wz, coarse.continentalness);
+
+        // P2 valley shaping (docs/TerrainGenerationV2.md §P2): near a river, attenuate Layer-1 relief
+        // toward the channel centreline so the river seats in a SMOOTH valley floor rather than a thin
+        // slot buried by relief roughness. Relief is >= 0, so driving it to 0 at the thalweg makes the
+        // channel the local minimum by construction. The corridor is a few channel-widths wide
+        // (kValleyWidthMul); outside it, relief is untouched. Guarded on m_flow.
+        if (m_flow) {
+            const float maxValleyHalf = FlowField::channelHalfWidth(6) * kValleyWidthMul;  // widest order
+            const FlowField::NearestChannel nc =
+                m_flow->nearestChannel(static_cast<float>(wx), static_cast<float>(wz), maxValleyHalf);
+            if (nc.order >= 3) {
+                const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
+                relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
+            }
+        }
         col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset));
+
+        // P2 river carve: lower the smooth valley floor further where the network runs a channel
+        // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
+        // Done BEFORE the material overrides so a carved bed that dips below sea level reads as seabed
+        // Sand. riverOrder marks the bed for the flora gate + the water runtime (WaterSystemV2 fills
+        // the channel; the carve only shapes the terrain).
+        if (m_flow) {
+            const FlowField::ChannelHit ch = m_flow->channelAt(static_cast<float>(wx), static_cast<float>(wz));
+            if (ch.hit) {
+                col.surfaceY -= static_cast<int>(std::lround(ch.depth));
+                col.riverOrder = ch.order;
+            }
+        }
 
         // P1 slope + altitude/temperature material overrides (docs/TerrainGenerationV2.md §P1).
         // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
@@ -465,6 +552,13 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
     if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;              // seabed / underwater
     if (col.surfaceMat == "Stone") return false;                                // cliff (slope override; no biome surfaces Stone)
     if (col.surfaceMat == "Ice" && biome.surfaceMaterial != "Ice") return false; // snow-capped non-snow biome
+    // P2: no trees in a carved river channel, nor on land that sits below a lake/sea surface (the
+    // water runtime will flood it). Keeps flora off the water line. (docs/TerrainGenerationV2.md §P2)
+    if (col.riverOrder > 0) return false;                                       // carved riverbed
+    if (m_hydro) {
+        const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
+        if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;  // under lake/sea
+    }
 
     // Resolve this layer's config: layer 0 = the biome's flat flora fields, 1+ = extraFloraLayers.
     float density; int spacingRaw; std::string mode; float fullness;

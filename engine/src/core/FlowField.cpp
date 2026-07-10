@@ -146,6 +146,34 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     return best;
 }
 
+FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius) const {
+    NearestChannel best;
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return best;
+    const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    const int cj = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    // A channel segment whose centreline comes within `searchRadius` of the point has its cell centre
+    // within searchRadius + cellSize of it (segment length = one orthogonal cellSize hop; see channelAt).
+    const int r = 1 + static_cast<int>(std::ceil(searchRadius / m_cellSize));
+    for (int j = cj - r; j <= cj + r; ++j)
+        for (int i = ci - r; i <= ci + r; ++i) {
+            if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
+            const int rc = j * m_cellsX + i;
+            const int ord = m_order[rc];
+            if (ord < 3) continue;   // orders 1-2 are sub-voxel → they cut no valley
+            const float ax = m_originX + (i + 0.5f) * m_cellSize;
+            const float az = m_originZ + (j + 0.5f) * m_cellSize;
+            float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)
+            const int d = m_downstream[rc];
+            if (d != rc && d >= 0 && static_cast<size_t>(d) < m_downstream.size()) {
+                bx = m_originX + (d % m_cellsX + 0.5f) * m_cellSize;
+                bz = m_originZ + (d / m_cellsX + 0.5f) * m_cellSize;
+            }
+            const float dist = pointSegDist(worldX, worldZ, ax, az, bx, bz);
+            if (dist < best.dist) { best.dist = dist; best.order = ord; }
+        }
+    return best;
+}
+
 std::vector<int> FlowField::computeStrahler(const std::vector<int>& downstream,
                                             const std::vector<int>& accum, int threshold) {
     const size_t n = std::min(downstream.size(), accum.size());
