@@ -3,6 +3,7 @@
 #include "core/WaterManager.h"
 #include "core/ChunkManager.h"
 
+#include <cmath>
 #include <glm/glm.hpp>
 
 using Phyxel::ChunkManager;
@@ -264,8 +265,8 @@ TEST(WaterManagerTest, RiverInflowFlowsDownhillThroughTheRegion) {
     for (int x = 0; x <= 31; ++x)
         for (int y = 2; y <= 8; ++y) { wm.setSolidWorld(x, y, 15, true); wm.setSolidWorld(x, y, 17, true); }
 
-    wm.setRiverQuery([](float, float wz) { return wz >= 16.0f && wz < 17.0f; });
-    wm.update(0.1f);   // rebuild: bed tags + the x=0 edge inflow pin
+    wm.setRiverQuery([](float, float wz) { return (wz >= 16.0f && wz < 17.0f) ? 1.0f : 0.0f; });
+    wm.update(0.1f);   // rebuild: bed tags + recessed-bed pins
 
     EXPECT_TRUE(wm.sim().isChannel(0, 7, 16)) << "river bed cell not channel-tagged";
     ASSERT_GT(wm.totalMass(), 0.5f) << "edge inflow pin did not inject any water";
@@ -277,15 +278,113 @@ TEST(WaterManagerTest, RiverInflowFlowsDownhillThroughTheRegion) {
         << "water appeared far ABOVE the channel bed";
 }
 
+// River flow TUNING: the ribbon is pinned full inside its recessed carve; where the carve is
+// BREACHED (a bake-vs-terrain mismatch — the bank sits below the water), the pins pour water out.
+// With evaporation OFF that pour accumulates without bound (the observed rising-pool defect); with
+// evaporation ON the thin spill dries and the pour reaches a bounded equilibrium while the ribbon
+// itself stays full end-to-end. Both halves in one scenario so the contrast is the red/green.
+TEST(WaterManagerTest, RiverWithEvaporationReachesBoundedSteadyStateWithWetBed) {
+    auto build = [](WaterManager& wm) {
+        // A recessed channel along x at z=16 (slab + 1-high lips on both banks), stepping down,
+        // with a 3-column BREACH in the z=17 lip at x 14..16 — the mismatch the CA leaks through.
+        auto shelf = [&](int x0, int x1, int ySlab) {
+            for (int x = x0; x <= x1; ++x) {
+                wm.setSolidWorld(x, ySlab, 16, true);           // channel slab (bed sits on it)
+                wm.setSolidWorld(x, ySlab, 15, true);           // bank support
+                wm.setSolidWorld(x, ySlab, 17, true);
+                wm.setSolidWorld(x, ySlab + 1, 15, true);       // z=15 lip (intact bank)
+                if (x < 14 || x > 16)
+                    wm.setSolidWorld(x, ySlab + 1, 17, true);   // z=17 lip, breached at 14..16
+            }
+        };
+        shelf(0, 9, 6); shelf(10, 19, 4); shelf(20, 31, 2);
+        // Centerline carve depth 1.0 (recessed → pinned); the z=17 bank is on the parabolic band
+        // EDGE (depth 0.3, not recessed) — tagged but NOT pinned, else the bank itself becomes a
+        // full water source and the valley floods by construction.
+        wm.setRiverQuery([](float, float wz) {
+            if (wz >= 16.0f && wz < 17.0f) return 1.0f;
+            if (wz >= 17.0f && wz < 18.0f) return 0.3f;
+            return 0.0f;
+        });
+    };
+
+    // Half 1 (the defect): evaporation off → the breach pour accumulates without bound.
+    WaterManager without(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    build(without);
+    for (int i = 0; i < 100; ++i) without.update(0.2f);
+    const float m1 = without.totalMass();
+    for (int i = 0; i < 100; ++i) without.update(0.2f);
+    const float growthWithout = without.totalMass() - m1;
+    EXPECT_GT(growthWithout, 5.0f)
+        << "expected the untuned river to keep growing through the breach (rising-pool defect)";
+
+    // Half 2 (the tuning): evaporation on → the pour bounds, the ribbon stays full.
+    WaterManager with(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    build(with);
+    with.setEvaporation(true);
+    for (int i = 0; i < 100; ++i) with.update(0.2f);
+    const float m2 = with.totalMass();
+    for (int i = 0; i < 100; ++i) with.update(0.2f);
+    const float growthWith = with.totalMass() - m2;
+    EXPECT_LT(std::abs(growthWith), std::max(1.0f, growthWithout * 0.2f))
+        << "evaporation did not bound the breach pour";
+    EXPECT_GT(with.massAtWorld(glm::vec3(0.5f, 7.5f, 16.5f)), 0.5f)
+        << "the river bed dried out at the top of the course";
+    EXPECT_GT(with.massAtWorld(glm::vec3(15.5f, 5.5f, 16.5f)), 0.5f)
+        << "the ribbon is not full MID-course (at the breach) — bed pins must span the channel";
+    EXPECT_GT(with.massAtWorld(glm::vec3(30.5f, 3.5f, 16.5f)), 0.5f)
+        << "the ribbon is not full at the BOTTOM of the course";
+    // The non-recessed band edge (carve depth 0.3 on the z=17 bank) must NOT be a pinned source:
+    // its bed cell sits ON the bank top, and pinning it floods the valley by construction.
+    EXPECT_LT(with.massAtWorld(glm::vec3(5.5f, 8.5f, 17.5f)), 0.5f)
+        << "a non-recessed band-edge column was pinned — full water standing on the bank";
+}
+
 // River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
 // neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
 // region floor wherever chunks haven't streamed in yet.
 TEST(WaterManagerTest, RiverColumnsWithoutLoadedTerrainAreSkipped) {
     WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
-    wm.setRiverQuery([](float, float) { return true; });   // "river everywhere" — but no terrain
+    wm.setRiverQuery([](float, float) { return 1.0f; });   // "river everywhere" — but no terrain
     for (int i = 0; i < 10; ++i) wm.update(0.1f);
     EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f)
         << "river inflow pinned into unloaded columns — water pouring into the void";
+}
+
+// ─── L3 bake-vs-terrain validation: rim leaks ─────────────────────────────────────────────────────
+// The validator flags exactly the observed live defect: a baked-DRY rim column whose carved surface
+// sits BELOW the adjacent water level — the CA levels water into it, so the lake/sea spreads beyond
+// its baked extent. A properly-carved rim (surface at/above the level) is NOT flagged.
+TEST(WaterManagerTest, ValidateTableFlagsCarvedRimLeaksOnly) {
+    ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
+    owned->initializeForLoading();
+    // A lake basin: interior columns x,z in [10,13] with floor at y=5 (under water, level 8);
+    // rim ring x,z in [9,14] \ interior at y=10 (contains); everything else solid to y=10.
+    // ONE rim column (9,12) carved down to y=6 — below the level → the leak.
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) {
+            const bool interior = (x >= 10 && x <= 13 && z >= 10 && z <= 13);
+            int top = interior ? 5 : 10;
+            if (x == 9 && z == 12) top = 6;   // the carved (leaky) rim column
+            for (int y = 0; y <= top; ++y) owned->addCube(glm::ivec3(x, y, z));
+        }
+    cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
+    cm.chunks.push_back(std::move(owned));
+
+    WaterManager wm(&cm, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    wm.setWaterTable([](float wx, float wz) -> float {
+        return (wx >= 10.0f && wx < 14.0f && wz >= 10.0f && wz < 14.0f) ? 8.0f : -1e30f;
+    });
+
+    const auto v = wm.validateTable(glm::ivec2(5, 5), glm::ivec2(18, 18), 31);
+    EXPECT_EQ(v.unloaded, 0);
+    EXPECT_EQ(v.wet, 16) << "the 4x4 lake interior should be baked-wet";
+    EXPECT_GT(v.rim, 0) << "the ring around the lake should count as rim";
+    EXPECT_EQ(v.rimLeaks, 1) << "exactly the one carved rim column should be flagged";
+    EXPECT_EQ(v.worstLeakAt, glm::ivec2(9, 12));
+    EXPECT_FLOAT_EQ(v.worstLeakDepth, 2.0f) << "floor(8) - surface 6 = 2";
 }
 
 // ─── Stale-solid window (streamed chunks → water solidity) ────────────────────────────────────────

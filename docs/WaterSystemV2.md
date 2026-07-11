@@ -132,6 +132,34 @@
 >   observed: the free camera drifted upward unattended (region origin crept 44→…→80 before
 >   settling; re-pinned; watch item, not water).
 >
+> - **River flow TUNING + L3 bake-vs-terrain validator** (2026-07-11): (1) `setRiverQuery` now takes
+>   CARVE DEPTH (FlowField::channelAt().depth); every river bed cell is channel-tagged, and RECESSED
+>   columns (depth ≥ 0.5) are pinned as full sources — the river is an implicit reservoir along its
+>   carve, same semantics as ocean/lake pins. Two designs were tried and MEASURED before this one:
+>   edge-only frontier inflow died into puddles ~5 cells out (thin CA flow attenuates geometrically,
+>   MIN_FLOW cutoff), and pinning the full non-recessed band flooded the banks by construction
+>   (growth got WORSE than untuned). (2) Evaporation now defaults ON for baked-table worlds
+>   (`water.evaporation` overrides; authored worlds unchanged) — bounds off-channel spill.
+>   L4 (evidence: docs/evidence/water-c2-tuning-l3-validator-20260711.txt, BOTH configs measured
+>   on-disk at the same river, same 200 s protocol): ribbon full end-to-end (centerline wet at
+>   every sampled point). CORRECTED convergence picture — the earlier "rising pools forever"
+>   framing came from a too-short window: in a CONFINED valley both configs converge to hydrostatic
+>   equilibrium with the pins; evaporation roughly HALVES the flooded volume (untuned: 10050→12033,
+>   deltas 524→58, heading to valley-full-at-river-level; tuned: →~6600, deltas 203→31) and dries
+>   thin sheets. Genuinely unbounded growth needs an UNCONFINED spill path — modeled by the unit
+>   test's bank breach, where evap-off growth continues and evap-on bounds it.
+>   (3) `WaterManager::validateTable` + `water_validate {x1,z1,x2,z2,maxY}` HTTP command: per-column
+>   bake-level vs carved-surface comparison flagging RIM LEAKS (dry column adjacent to wet whose
+>   surface sits below the neighbor's level). First live run at the coast: **65/65 rim columns
+>   leak, worst 5 voxels deep** — the coarse (128 m/cell) bake's wet/dry boundary is systematically
+>   far from the true carved waterline; the coastal leak is not isolated defects but the rim itself.
+>   Independent cross-check: the worst-leak column (363,511) has carved surface y=11 vs adjacent
+>   baked level 16 → depth 5, matching the validator's 5.0 exactly; terrain across the rect's
+>   corners is 10–15, far below the 64 scan cap (no truncation inflating the count). That is the
+>   actionable L3 diagnosis: the fix is a fine-grained shoreline (bake refinement or a coastal band
+>   rule in the generator), not per-spot patching. NOTE: keep `maxY` near the local terrain top —
+>   the default 200 over a 64² rect blows the 5s game-loop budget in Debug.
+>
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift

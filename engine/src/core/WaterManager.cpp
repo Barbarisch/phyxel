@@ -329,9 +329,60 @@ void WaterManager::setWaterTable(std::function<float(float, float)> levelAt) {
     m_oceanDirty = true;   // re-derive the pins from (or without) the table on the next update
 }
 
-void WaterManager::setRiverQuery(std::function<bool(float, float)> riverAt) {
-    m_riverFn = std::move(riverAt);
-    m_oceanDirty = true;   // re-derive channel tags + edge inflows on the next update
+void WaterManager::setRiverQuery(std::function<float(float, float)> depthAt) {
+    m_riverFn = std::move(depthAt);
+    m_oceanDirty = true;   // re-derive channel tags + bed pins on the next update
+}
+
+WaterManager::TableValidation WaterManager::validateTable(const glm::ivec2& minXZ,
+                                                          const glm::ivec2& maxXZ,
+                                                          int maxScanY) const {
+    TableValidation v;
+    if (!m_tableFn || !m_cm) return v;
+    const int w = maxXZ.x - minXZ.x + 1, d = maxXZ.y - minXZ.y + 1;
+    if (w <= 0 || d <= 0) return v;
+
+    // Pass 1: per-column baked level + carved surface (topmost solid; INT_MIN = unloaded/none).
+    std::vector<float> level(static_cast<size_t>(w) * d);
+    std::vector<int>   surf(static_cast<size_t>(w) * d, INT_MIN);
+    auto at = [&](int ix, int iz) { return static_cast<size_t>(ix) + static_cast<size_t>(w) * iz; };
+    for (int iz = 0; iz < d; ++iz)
+        for (int ix = 0; ix < w; ++ix) {
+            const int wx = minXZ.x + ix, wz = minXZ.y + iz;
+            level[at(ix, iz)] = m_tableFn(wx + 0.5f, wz + 0.5f);
+            for (int y = maxScanY; y >= 0; --y)
+                if (m_cm->hasVoxelAt(glm::ivec3(wx, y, wz))) { surf[at(ix, iz)] = y; break; }
+        }
+
+    // Pass 2: classify. A rim column is baked-DRY next to a baked-wet neighbor; it LEAKS when its
+    // carved surface sits below the neighbor's water level (open cells at/below the level exist,
+    // so the CA levels water into it and the body spreads beyond its baked extent).
+    static const int NX[4] = {1, -1, 0, 0}, NZ[4] = {0, 0, 1, -1};
+    for (int iz = 0; iz < d; ++iz)
+        for (int ix = 0; ix < w; ++ix) {
+            if (surf[at(ix, iz)] == INT_MIN) { ++v.unloaded; continue; }
+            ++v.columns;
+            const bool wetCol = level[at(ix, iz)] > TABLE_DRY;
+            if (wetCol) { ++v.wet; continue; }
+            float adjLevel = TABLE_DRY;   // highest wet-neighbor level (loaded neighbors only)
+            for (int k = 0; k < 4; ++k) {
+                const int nx = ix + NX[k], nz = iz + NZ[k];
+                if (nx < 0 || nx >= w || nz < 0 || nz >= d) continue;
+                if (surf[at(nx, nz)] == INT_MIN) continue;
+                adjLevel = std::max(adjLevel, level[at(nx, nz)]);
+            }
+            if (adjLevel <= TABLE_DRY) continue;   // not a rim column
+            ++v.rim;
+            const float leakDepth = std::floor(adjLevel) - static_cast<float>(surf[at(ix, iz)]);
+            if (leakDepth > 0.0f) {
+                ++v.rimLeaks;
+                if (leakDepth > v.worstLeakDepth) {
+                    v.worstLeakDepth = leakDepth;
+                    v.worstLeakAt = glm::ivec2(minXZ.x + ix, minXZ.y + iz);
+                }
+            }
+        }
+    return v;
 }
 
 void WaterManager::applyRiverInflows() {
@@ -339,8 +390,9 @@ void WaterManager::applyRiverInflows() {
     const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
     for (int lz = 0; lz < sz; ++lz)
     for (int lx = 0; lx < sx; ++lx) {
-        if (!m_riverFn(static_cast<float>(m_origin.x + lx) + 0.5f,
-                       static_cast<float>(m_origin.z + lz) + 0.5f)) continue;
+        const float carveDepth = m_riverFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                                           static_cast<float>(m_origin.z + lz) + 0.5f);
+        if (carveDepth <= 0.0f) continue;
         // The bed: the first open cell above a REAL solid cell (y-1 >= 0, so an unloaded column —
         // open all the way down to the out-of-bounds floor — yields no bed and is skipped; the
         // stream-in solidity sync re-runs this rebuild once its terrain arrives).
@@ -350,8 +402,10 @@ void WaterManager::applyRiverInflows() {
         }
         if (bedY < 0) continue;
         m_sim.setChannel(lx, bedY, lz, true);   // riverbed never evaporates dry
-        if (lx == 0 || lx == sx - 1 || lz == 0 || lz == sz - 1)
-            m_sim.setSource(lx, bedY, lz, WaterSimulation::MAX_MASS); // upstream inflow at the frontier
+        // Implicit-reservoir pins on the RECESSED part of the band only (see setRiverQuery):
+        // the ribbon is full inside the carve; the non-recessed parabolic edges are left to the CA.
+        if (carveDepth >= 0.5f)
+            m_sim.setSource(lx, bedY, lz, WaterSimulation::MAX_MASS);
     }
 }
 

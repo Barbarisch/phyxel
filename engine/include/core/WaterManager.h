@@ -96,17 +96,41 @@ public:
     bool hasWaterTable() const { return static_cast<bool>(m_tableFn); }
 
     // --- Baked RIVERS (WaterSystemV2 Phase C2) ---
-    // Bind a river-channel test (world column → is this on an order≥3 carved channel? —
-    // FlowField::channelAt(...).hit matches the contract). While bound, every rebuild channel-tags
-    // each river column's BED cell (the first open cell above real solid, so evaporation never dries
-    // the riverbed) and pins region-EDGE river columns at their bed as full sources — the moving
-    // window's stand-in for upstream inflow ("springs at river heads" for a region that rarely
-    // contains a true head): water enters at the frontier and the CA carries it downhill through
-    // the carved valley. Columns whose terrain isn't loaded yet have no real solid below → skipped
-    // (no floating pins); the chunk-stream-in solidity sync re-triggers the rebuild once the bed
-    // exists. Re-derived wherever the region travels, like the water table.
-    void setRiverQuery(std::function<bool(float worldX, float worldZ)> riverAt);
+    // Bind a river-channel CARVE-DEPTH query (world column → carve depth in voxels, 0 = not on a
+    // channel — FlowField::channelAt(...).depth matches the contract). While bound, every rebuild
+    // channel-tags each river column's BED cell (first open cell above real solid), and columns
+    // that are actually RECESSED (depth ≥ 0.5 — the carve dug at least half a voxel) get their bed
+    // pinned as a FULL source — the river is an implicit reservoir along its carved course, the
+    // same semantics as the ocean/lake pins: the ribbon is full end-to-end and digging the bank
+    // makes river water pour out (and re-pin). Non-recessed band edges (parabolic depth → 0) are
+    // tagged but NOT pinned — pinning them puts full water ON the bank and guarantees valley
+    // flooding (measured: growth got WORSE than the untuned case). Evaporation bounds off-channel
+    // spill. (Edge-only frontier inflow was tried first and died into puddles ~5 cells out — thin
+    // CA flow attenuates geometrically.) Unloaded columns are skipped; the chunk-stream-in
+    // solidity sync re-triggers the rebuild once the bed exists.
+    void setRiverQuery(std::function<float(float worldX, float worldZ)> depthAt);
     bool hasRiverQuery() const { return static_cast<bool>(m_riverFn); }
+
+    // --- L3 bake-vs-terrain validation (docs/WaterSystemV2.md Phase C) ---
+    // The bake decides WHERE water sits (per-column levels); the carved terrain decides whether it
+    // is CONTAINED. Where they disagree at a water body's rim — a baked-DRY column whose carved
+    // surface sits BELOW an adjacent wet column's level — the CA legitimately levels water into it
+    // (pinned→unpinned flow) and the body leaks/spreads beyond its baked extent (observed live:
+    // the sea filling bake-dry shoreline flats, region mass rising 6923→9912 over 70 s). This scan
+    // quantifies that mismatch over a world-space rect using LOADED terrain only.
+    struct TableValidation {
+        int columns  = 0;    // columns evaluated (terrain loaded)
+        int unloaded = 0;    // columns skipped (no solid found in the scan range)
+        int wet      = 0;    // baked-wet columns
+        int rim      = 0;    // baked-dry columns N4-adjacent to a wet column
+        int rimLeaks = 0;    // rim columns whose surface < the neighbor's water level (leak!)
+        float      worstLeakDepth = 0.0f;  // max (neighborLevel − rimSurfaceY)
+        glm::ivec2 worstLeakAt{0, 0};      // world x,z of the worst leak
+    };
+    // Scans [minXZ, maxXZ] inclusive. Requires a bound water table and a ChunkManager; terrain
+    // surface = topmost solid via hasVoxelAt, scanned downward from maxScanY.
+    TableValidation validateTable(const glm::ivec2& minXZ, const glm::ivec2& maxXZ,
+                                  int maxScanY = 200) const;
     // Query the bound table at a world column (TABLE_DRY when dry or no table bound) — debug/tooling
     // surface so the baked water can be probed without chunks being loaded there.
     float tableLevelAt(float worldX, float worldZ) const {
@@ -186,7 +210,7 @@ private:
     float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
                                                      // match the sea-plane renderer or they drift
     std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
-    std::function<bool(float, float)>  m_riverFn;    // baked river channels (Phase C2); null = none
+    std::function<float(float, float)> m_riverFn;    // river carve depth (Phase C2); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds

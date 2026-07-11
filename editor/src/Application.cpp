@@ -5558,16 +5558,26 @@ void Application::autoLoadGameDefinition() {
                     // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
                     // upstream inflow at the region frontier, flowing downhill through the valley.
                     if (w.value("bakedTable", true) && gen && gen->riverNetwork()) {
-                        waterManager->setRiverQuery([this](float wx, float wz) -> bool {
+                        waterManager->setRiverQuery([this](float wx, float wz) -> float {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
                             const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            return f && f->channelAt(wx, wz).hit;
+                            if (!f) return 0.0f;
+                            const auto h = f->channelAt(wx, wz);
+                            return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
                     } else {
                         waterManager->setRiverQuery(nullptr);
                     }
+                    // Evaporation default (river flow tuning): generation-fed worlds want bounded
+                    // spill — river inflow otherwise pools and RISES forever (observed live at the
+                    // order-3 river, 2026-07-11). Evaporation dries only THIN unpinned water; the
+                    // channel-tagged riverbed, full sea/lake pins, and deep pools are untouched.
+                    // Authored worlds (no baked table) keep the v1 default (off, mass-conserving).
+                    // Override either way with water.evaporation.
+                    waterManager->setEvaporation(
+                        w.value("evaporation", waterManager->hasWaterTable()));
                 }
             }
 
@@ -10420,6 +10430,20 @@ void Application::registerWaterCommands() {
             r["river_order"]   = f->orderAt(wx, wz);
             r["river_channel"] = f->channelAt(wx, wz).hit;
         }
+    });
+    reg.on("water_validate", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        if (!waterManager->hasWaterTable()) { r = {{"error", "no water table bound"}}; return; }
+        const glm::ivec2 lo(cmd.params.value("x1", 0), cmd.params.value("z1", 0));
+        const glm::ivec2 hi(cmd.params.value("x2", lo.x), cmd.params.value("z2", lo.y));
+        // maxY caps the per-column downward surface scan — the default 200 over a 64² rect is
+        // ~850k voxel queries and blows the 5s game-loop budget in Debug; pass a ceiling just
+        // above the local terrain (e.g. 64 at the coast) for interactive use.
+        const auto v = waterManager->validateTable(lo, hi, cmd.params.value("maxY", 200));
+        r = {{"columns", v.columns}, {"unloaded", v.unloaded}, {"wet", v.wet},
+             {"rim", v.rim}, {"rim_leaks", v.rimLeaks},
+             {"worst_leak_depth", v.worstLeakDepth},
+             {"worst_leak_at", {{"x", v.worstLeakAt.x}, {"z", v.worstLeakAt.y}}}};
     });
     reg.on("water_ocean_boundary", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);

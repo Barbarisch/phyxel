@@ -1,0 +1,75 @@
+=== FINAL river tuning L4 Sat Jul 11 14:44:38 EDT 2026 ===
+[14:44:22.309] [INFO] [Water] [WATER] region followed viewer ? origin (-2400,62,-2332)
+--- mass over ~60s (full-bed pins + evap): expect BOUNDED, ribbon-sized ---
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":5432.7646484375,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":5544.07958984375,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":5624.28369140625,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":5753.53759765625,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":5845.81103515625,"water_table":true}
+--- ribbon probes along the channel centerline x=-2368 (bed ~71-73) ---
+WET ( -2368, 73.5, -2330): 1.0
+WET ( -2368, 70.5, -2310): 1.011547327041626
+WET ( -2368, 71.5, -2310): 0.5297616124153137
+WET ( -2368, 73.5, -2290): 1.0
+WET ( -2368, 73.5, -2275): 1.0
+--- convergence watch: 10 samples, 20s apart ---
+t+20s: 6049.23681640625
+t+40s: 6178.83740234375
+t+60s: 6250.5654296875
+t+80s: 6290.65283203125
+t+100s: 6307.86962890625
+t+120s: 6321.28955078125
+t+140s: 6404.6435546875
+t+160s: 6523.27294921875
+t+180s: 6576.92919921875
+t+200s: 6607.8125
+=== L3 validator L4 at the coast Sat Jul 11 14:52:49 EDT 2026 ===
+--- water_validate over (318..382, 468..532) — the region where the leak was observed live ---
+{"action":"water_validate","error":"Request timed out waiting for game loop","timeout_ms":5000}
+=== L3 validator L4 at the coast (maxY=64) Sat Jul 11 14:56:28 EDT 2026 ===
+{"columns":4225,"rim":65,"rim_leaks":65,"unloaded":0,"wet":1365,"worst_leak_at":{"x":363,"z":511},"worst_leak_depth":5.0}
+=== river tuning + validator L4 evidence Sat Jul 11 14:29:02 EDT 2026 ===
+[14:28:43.199] [INFO] [Water] [WATER] region followed viewer ? origin (-2400,62,-2332)
+--- river mass over ~110s (evaporation now default-ON for baked worlds): expect BOUNDED ---
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.87269592285156,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.87369537353516,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.87366485595703,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.8729019165039,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.8729019165039,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.8728256225586,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.87374114990234,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-2400,"y":62,"z":-2332},"total_mass":66.87374114990234,"water_table":true}
+--- channel cross-section: x scan at z=-2296, y=71.5/72.5 ---
+(unlisted probes read 0.0)
+--- hunting the 66.87 mass: probes near region z-edges along the channel ---
+(-2372, 70.5, -2331): 0.07104971259832382
+(-2370, 72.5, -2331): 0.5978111028671265
+(-2370, 73.5, -2331): 0.20000000298023224
+(-2368, 73.5, -2331): 0.9025751352310181
+(-2366, 73.5, -2331): 0.8415424823760986
+(-2370, 71.5, -2330): 0.6081811189651489
+(-2370, 72.5, -2330): 0.15649785101413727
+(-2370, 73.5, -2330): 0.07606008648872375
+(-2368, 73.5, -2330): 0.6103005409240723
+(-2366, 73.5, -2330): 0.6215606927871704
+(-2368, 70.5, -2269): 0.24606361985206604
+(-2366, 70.5, -2269): 0.017112618312239647
+(unlisted probes < 0.01)
+=== UNTUNED baseline (water.evaporation=false override) at the same river Sat Jul 11 15:07:27 EDT 2026 ===
+[15:07:11.418] [INFO] [Water] [WATER] region followed viewer ? origin (-2400,62,-2332)
+--- mass, 10 samples @20s: expect MONOTONIC RISE, no deceleration ---
+t+20s: 10050.6201171875
+t+40s: 10574.5107421875
+t+60s: 10983.69140625
+t+80s: 11286.7626953125
+t+100s: 11509.8330078125
+t+120s: 11678.1806640625
+t+140s: 11803.3720703125
+t+160s: 11900.2099609375
+t+180s: 11974.9970703125
+t+200s: 12032.9736328125
+
+=== maxY-truncation check: get_terrain_height across the validated rect (maxY was 64) ===
+(363,511) worst-leak column: surface_y=11 (adjacent baked level 16 -> leak depth 5 = validator's worst_leak_depth 5.0)
+(318,468): surface_y=15   (382,532): surface_y=10   (318,532): surface_y=13   (382,468): surface_y=12
+All far below the 64 scan cap -> no truncation; the 65/65 rim-leak result stands.
