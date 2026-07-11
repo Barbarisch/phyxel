@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
 #include "core/WaterManager.h"
+#include "core/ChunkManager.h"
 
 #include <glm/glm.hpp>
 
+using Phyxel::ChunkManager;
 using Phyxel::Core::WaterManager;
 
 // WaterSystemV2 Phase A1: the water region can RECENTER (move its window) with the water field
@@ -239,6 +241,55 @@ TEST(WaterManagerTest, UndisturbedSeaIsLeftToTheFlatPlaneNotPerCellRendered) {
     wm.placeWater(glm::vec3(8.5f, 6.5f, 8.5f), 2.0f);   // a splash ABOVE sea level
     EXPECT_FALSE(wm.surfaceCells().empty())
         << "disturbed water above sea level must still render per-cell";
+}
+
+// ─── Stale-solid window (streamed chunks → water solidity) ────────────────────────────────────────
+// A chunk that streams in INSIDE the water region must push its solids into the sim: without it,
+// water flooded where terrain later loads stays INSIDE that terrain until the next recenter happens
+// to re-read solidity (the stale-solid window). ChunkManager::syncChunkToOccupancy is the per-chunk
+// push the streaming pump's onChunkLoaded hook calls; here we drive it exactly the way the pump
+// does, against a REAL ChunkManager wired to the manager like the editor wires it.
+TEST(WaterManagerTest, StreamedInTerrainDrainsTheWaterItDisplaced) {
+    ChunkManager cm;
+    // The subsystem callbacks (incl. the chunk-map accessor every voxel query needs) are wired in
+    // initialize(), not the constructor — null Vulkan handles are fine headless (nothing in the
+    // wiring touches the device; only chunk-buffer creation would, and we bypass it).
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    // Terrain that exists in the world before the water sim knows about it: a solid 8×8 island
+    // block, world x,z in [8,15], y in [0,7]. Built headless and inserted directly (the
+    // createChunk path needs a Vulkan device), exactly what a not-yet-streamed chunk looks like.
+    auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
+    owned->initializeForLoading();
+    for (int x = 8; x <= 15; ++x)
+        for (int z = 8; z <= 15; ++z)
+            for (int y = 0; y <= 7; ++y) owned->addCube(glm::ivec3(x, y, z));
+    cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
+    cm.chunks.push_back(std::move(owned));
+
+    WaterManager wm(&cm, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    cm.setVoxelOccupancyCallback([&wm](int x, int y, int z, bool solid) {
+        wm.setSolidWorld(x, y, z, solid);
+    });
+    // NOTE: the sim's solidity was synced at construction (syncSolidsFromChunks reads the chunk),
+    // so to reproduce the STALE state we flood first with an empty mask: clear the island cells.
+    for (int x = 8; x <= 15; ++x)
+        for (int z = 8; z <= 15; ++z)
+            for (int y = 0; y <= 7; ++y) wm.setSolidWorld(x, y, z, false);
+
+    wm.setWaterTable([](float, float) { return 6.0f; });   // uniform sea, level y=6
+    wm.update(0.1f);
+    ASSERT_GT(wm.totalMass(), 1000.0f) << "sea should have flooded";
+    ASSERT_GT(wm.massAtWorld(glm::vec3(10.5f, 3.5f, 10.5f)), 0.5f)
+        << "precondition: water should sit where the island terrain exists (the stale window)";
+
+    // The chunk "streams in": the pump pushes its solids at every occupancy consumer.
+    cm.syncChunkToOccupancy(glm::ivec3(0, 0, 0));
+    wm.update(0.1f);   // solidity change dirtied the ocean → re-derive + step
+
+    EXPECT_LT(wm.massAtWorld(glm::vec3(10.5f, 3.5f, 10.5f)), 1e-3f)
+        << "water still INSIDE streamed-in terrain — the stale-solid window is back";
+    EXPECT_GT(wm.massAtWorld(glm::vec3(3.5f, 3.5f, 3.5f)), 0.5f)
+        << "open sea next to the island should still be flooded";
 }
 
 // ─── Phase A STRESS (doc-required: docs/WaterSystemV2.md §Phase A "Stress") ───────────────────────

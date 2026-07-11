@@ -40,20 +40,7 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     );
     // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
     m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
-        if (!m_gpuParticles) return;
-        // Direct map lookup + dense-array cube reads. The previous form linear-scanned
-        // the chunk vector, then made 32k GLOBAL hasVoxelAt queries (chunk lookup + hash
-        // each) — ~26ms per streamed chunk, in the pump, on the main thread.
-        Chunk* chunk = getChunkAtCoord(Utils::CoordinateUtils::worldToChunkCoord(origin));
-        if (!chunk) return;
-        for (int lx = 0; lx < 32; ++lx) {
-            for (int ly = 0; ly < 32; ++ly) {
-                for (int lz = 0; lz < 32; ++lz) {
-                    if (chunk->getCubeAt(glm::ivec3(lx, ly, lz)))
-                        m_gpuParticles->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, true);
-                }
-            }
-        }
+        syncChunkToOccupancy(origin);
     });
     // Phase 1 — generation wire: streamed chunks are filled by the configured world
     // generator (when enabled) instead of the legacy random fill.
@@ -929,6 +916,27 @@ void ChunkManager::rebuildOccupancyFromChunks() {
 void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
     if (m_gpuParticles) m_gpuParticles->setOccupied(worldX, worldY, worldZ, solid);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldX, worldY, worldZ, solid);
+}
+
+void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
+    if (!m_gpuParticles && !m_voxelOccupancyCallback) return;
+    // Direct map lookup + dense-array cube reads. The previous form linear-scanned the chunk
+    // vector, then made 32k GLOBAL hasVoxelAt queries (chunk lookup + hash each) — ~26ms per
+    // streamed chunk, in the pump, on the main thread.
+    Chunk* chunk = getChunkAtCoord(Utils::CoordinateUtils::worldToChunkCoord(chunkWorldOrigin));
+    if (!chunk) return;
+    for (int lx = 0; lx < 32; ++lx) {
+        for (int ly = 0; ly < 32; ++ly) {
+            for (int lz = 0; lz < 32; ++lz) {
+                if (!chunk->getCubeAt(glm::ivec3(lx, ly, lz))) continue;
+                const int wx = chunkWorldOrigin.x + lx, wy = chunkWorldOrigin.y + ly,
+                          wz = chunkWorldOrigin.z + lz;
+                if (m_gpuParticles) m_gpuParticles->setOccupied(wx, wy, wz, true);
+                // Water-sim solidity (setSolidWorld bounds-rejects out-of-region cells cheaply).
+                if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(wx, wy, wz, true);
+            }
+        }
+    }
 }
 
 void ChunkManager::updateAfterCubeSubdivision(const glm::ivec3& worldPos) {

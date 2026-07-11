@@ -86,10 +86,21 @@
 >   only picked up by recenter's syncSolidsFromChunks). Post-fix flight over ocean with active
 >   streaming + 2 recenters: water 0.001–0.003 ms in all 18 samples (the one O(box) rebuild frame
 >   per recenter was NOT caught by sampling — bounded by the ~6 ms class, once per ~16 cells
->   traveled). No rebuild coalescer needed. NEW correctness nuance exposed by the same code
->   reading: a chunk that streams IN inside the water region doesn't update sim solidity until the
->   next recenter/water_sync — table water pinned where terrain later loads stays until then
->   (stale-solid window; follow-up).
+>   traveled). No rebuild coalescer needed.
+> - **Stale-solid window FIXED** (2026-07-11): a chunk streaming in updated the GPU occupancy grid
+>   but not the water sim's solidity (the per-voxel callback fires only on edits) — water flooded
+>   where terrain later loads stayed INSIDE it until the next recenter. Fix:
+>   `ChunkManager::syncChunkToOccupancy` (the onChunkLoaded hook body, now public + testable)
+>   pushes each solid voxel at BOTH consumers; the old code also early-returned when
+>   GpuParticlePhysics was absent, which would have skipped the water half entirely. Tested against
+>   a REAL headless ChunkManager (`initialize(VK_NULL_HANDLE,…)` — the subsystem wiring lives in
+>   initialize(), not the ctor) + mutation red; L4 at a never-streamed coast: probes INSIDE freshly
+>   loaded terrain read 0.0 while the open cell above held ~1.0, region origin pinned throughout.
+>   Follow-ups flagged by audit: chunk EVICTION doesn't clear sim solids (currently unreachable —
+>   water window 64 ≪ unload distance 352 — but implicit/untested); the 32k-per-chunk callback cost
+>   is asserted cheap, not measured. LIVE OBSERVATION at the coast: total region mass rose steadily
+>   (6923→9912 over 70 s) as the sea leveled into below-sea-level shoreline flats the coarse bake
+>   marks DRY — concrete live evidence for the open L3 bake-vs-terrain validation item.
 >
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the

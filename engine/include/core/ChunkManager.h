@@ -144,6 +144,13 @@ public:
     // Bulk-populate the GPU 3D occupancy grid from all currently loaded chunks.
     // Call once after GpuParticlePhysics is initialized and all startup chunks are loaded.
     void rebuildOccupancyFromChunks();
+
+    // Push one loaded chunk's solid voxels to every occupancy consumer: the GPU particle grid
+    // AND the per-voxel occupancy callback (the water sim's solidity mask). Called when a chunk
+    // streams in at runtime — without the callback half, water flooded where terrain later loads
+    // stayed inside it until the next region recenter re-read solidity (the stale-solid window).
+    // No-op if the chunk isn't currently loaded.
+    void syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin);
     
     // World storage management
     bool initializeWorldStorage(const std::string& worldPath);
