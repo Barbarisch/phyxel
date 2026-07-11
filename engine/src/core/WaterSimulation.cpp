@@ -1,5 +1,6 @@
 #include "core/WaterSimulation.h"
 #include <algorithm>
+#include <climits>
 
 namespace Phyxel {
 namespace Core {
@@ -103,6 +104,58 @@ int WaterSimulation::fillOcean(const std::vector<glm::ivec3>& localSeeds, int se
         for (const auto& n : NB) {
             int nx = v.x + n[0], ny = v.y + n[1], nz = v.z + n[2];
             if (canOcean(nx, ny, nz) && !visited[idx(nx, ny, nz)]) {
+                visited[idx(nx, ny, nz)] = 1;
+                stack.push_back({nx, ny, nz});
+            }
+        }
+    }
+    m_hasSources = (count > 0);
+    return count;
+}
+
+int WaterSimulation::fillWaterTable(const std::function<int(int lx, int lz)>& levelLocalY) {
+    markAllCols();   // the re-pin/clear can touch any column
+    std::fill(m_source.begin(), m_source.end(), -1.0f);
+    m_hasSources = false;
+
+    // Cache the per-column level once (the callback may be an engine-side hydrology lookup).
+    std::vector<int> lvl(static_cast<size_t>(m_sx) * m_sz);
+    for (int z = 0; z < m_sz; ++z)
+        for (int x = 0; x < m_sx; ++x) lvl[colIdx(x, z)] = levelLocalY(x, z);
+
+    auto canWater = [&](int x, int y, int z) {
+        return inBounds(x, y, z) && !m_solid[idx(x, y, z)] && y <= lvl[colIdx(x, z)];
+    };
+
+    std::vector<uint8_t> visited(m_mass.size(), 0);
+    std::vector<glm::ivec3> stack;
+    auto seed = [&](int x, int y, int z) {
+        if (canWater(x, y, z) && !visited[idx(x, y, z)]) {
+            visited[idx(x, y, z)] = 1;
+            stack.push_back({x, y, z});
+        }
+    };
+    for (int z = 0; z < m_sz; ++z)
+        for (int x = 0; x < m_sx; ++x) {
+            const int L = lvl[colIdx(x, z)];
+            if (L == INT_MIN) continue;
+            // The column's water-surface cell (clamped into the region if the surface is above it).
+            seed(x, std::min(L, m_sy - 1), z);
+            // Region side edges: the water continues beyond the window, so every open edge cell
+            // at/below its level acts as a seed (the moving-region boundary condition, per column).
+            if (x == 0 || x == m_sx - 1 || z == 0 || z == m_sz - 1)
+                for (int y = 0; y <= std::min(L, m_sy - 1); ++y) seed(x, y, z);
+        }
+
+    static const int NB[6][3] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+    int count = 0;
+    while (!stack.empty()) {
+        glm::ivec3 v = stack.back(); stack.pop_back();
+        m_source[idx(v.x, v.y, v.z)] = MAX_MASS; // pin full (infinite reservoir)
+        ++count;
+        for (const auto& n : NB) {
+            int nx = v.x + n[0], ny = v.y + n[1], nz = v.z + n[2];
+            if (canWater(nx, ny, nz) && !visited[idx(nx, ny, nz)]) {
                 visited[idx(nx, ny, nz)] = 1;
                 stack.push_back({nx, ny, nz});
             }

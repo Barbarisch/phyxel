@@ -4,6 +4,7 @@
 #include "vulkan/VulkanDevice.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstring>
 #include <cstdint>
@@ -141,6 +142,17 @@ void WaterManager::rebuildSurface() {
     std::vector<float> colTop(static_cast<size_t>(sx) * sz, -1e9f);
 
     // Pass 1: locate surface cells, record column depth, track the topmost per column.
+    // SEA SUPPRESSION (interim far/near handoff, 2026-07-11): a surface cell that IS the
+    // undisturbed sea — source-pinned at the sea band (y == floor(seaLevel)) — is NOT emitted:
+    // the flat sea plane already draws that water, inside and outside the region, so emitting it
+    // per-cell double-drew the ocean as a darker, hard-edged 64×64 "slab" that followed the
+    // camera (the region frontier's skirts read as a wall in open sea). Suppressed cells still
+    // feed colTop, so neighboring rendered water (splashes, lakes) closes its skirts against the
+    // sea surface instead of dropping to the seabed. Lakes (level ≠ seaLevel) and any unpinned
+    // water (splashes, spills) render per-cell as before. The REAL far/near LOD handoff is
+    // Phase B (docs/WaterSystemV2.md).
+    const int seaLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
+    const std::vector<float>& srcMask = m_sim.sourceMask();
     struct Cell { int x, y, z; float surfaceY, depth; };
     std::vector<Cell> cells;
     for (int z = 0; z < sz; ++z)
@@ -159,9 +171,15 @@ void WaterManager::rebuildSurface() {
             if (md <= RENDER_MIN || m_sim.isSolid(x, dy, z)) break;
             depth += std::min(md, 1.0f);
         }
-        cells.push_back({x, y, z, surfaceY, depth});
         float& top = colTop[colIdx(x, z)];
         if (surfaceY > top) top = surfaceY;
+        const bool isPinnedSea =
+            y == seaLocalY &&
+            srcMask[static_cast<size_t>(x) +
+                    static_cast<size_t>(sx) * (static_cast<size_t>(y) +
+                    static_cast<size_t>(sy) * static_cast<size_t>(z))] >= 0.0f;
+        if (isPinnedSea) continue;   // the flat sea plane draws this water
+        cells.push_back({x, y, z, surfaceY, depth});
     }
 
     // Shared corner-height grid, (sx+1) x (sz+1). Each grid corner is touched by up to
@@ -265,8 +283,8 @@ void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid)
     int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
     if (m_sim.inBounds(lx, ly, lz)) {
         m_sim.setSolid(lx, ly, lz, solid);
-        // Terrain changed: re-flood the ocean so breaches fill / dug seabed refills.
-        if (!m_oceanSeeds.empty() || m_oceanBoundary) m_oceanDirty = true;
+        // Terrain changed: re-flood the ocean/table so breaches fill / dug seabed refills.
+        if (!m_oceanSeeds.empty() || m_oceanBoundary || m_tableFn) m_oceanDirty = true;
     }
 }
 
@@ -296,8 +314,27 @@ void WaterManager::setOceanBoundary(bool on) {
     m_oceanDirty = true;   // re-flood next update (or clear, if turning off with no point seeds)
 }
 
+void WaterManager::setWaterTable(std::function<float(float, float)> levelAt) {
+    m_tableFn = std::move(levelAt);
+    m_oceanDirty = true;   // re-derive the pins from (or without) the table on the next update
+}
+
 void WaterManager::rebuildOcean() {
     m_oceanDirty = false;
+    // Baked water table bound (Phase C): derive every pin from the per-column baked levels —
+    // lakes at their spill height, ocean at sea level — instead of the scalar/authored path.
+    // recenter() re-runs this, so the table re-derives wherever the region travels.
+    if (m_tableFn) {
+        m_sim.fillWaterTable([this](int lx, int lz) -> int {
+            const float wl = m_tableFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                                       static_cast<float>(m_origin.z + lz) + 0.5f);
+            if (wl <= TABLE_DRY) return INT_MIN;
+            return static_cast<int>(std::floor(wl)) - m_origin.y;
+        });
+        applySprings();     // authored springs still ride on top of the baked table
+        rebuildSurface();
+        return;
+    }
     const int seaLevelLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
     std::vector<glm::ivec3> localSeeds;
     localSeeds.reserve(m_oceanSeeds.size());

@@ -47,10 +47,36 @@
 >   All four new tests red-verified by mutation. L4 smoke: same 7206.999 flood as pre-change,
 >   place_water evolves, GPU on→off switch keeps flowing (no freeze).
 >
+> - **Phase C1 — baked water table** (2026-07-11): `WaterSimulation::fillWaterTable(levelFn)`
+>   (per-column levels, connectivity-gated flood seeded from each wet column's surface cell + the
+>   region edges) + `WaterManager::setWaterTable` (supersedes scalar sea level / point seeds /
+>   boundary flag while bound; re-derives on every recenter) + Application binds it when the
+>   STREAMING generator baked hydrology (`world.streaming: true`, height-based non-Flat; opt-out
+>   `water.bakedTable: false`). New `water_table_level {x,z}` debug probe (+ the missing HTTP routes
+>   for it and `water_ocean_boundary` — CommandRegistry handlers need explicit `EngineAPIServer`
+>   routes). L4: Perlin streamed world, water block = `{enabled}` ONLY — sea flooded purely from the
+>   bake (region at open ocean = exactly 64×64×9 layers), re-derived across recenters.
+> - **Ocean "slab" fix** (2026-07-11, user-reported): the region's per-cell renderer double-drew the
+>   pinned sea as a differently-shaded, hard-skirted 64×64 slab following the camera.
+>   `rebuildSurface` now SUPPRESSES source-pinned sea-surface cells at the plane's level (the flat
+>   plane draws the ocean, inside and outside the region); suppressed columns still feed corner
+>   smoothing so splash/lake skirts close against the sea. Lakes (≠ sea level) + unpinned water
+>   render per-cell as before. Verified by mutation red (suppression disabled → test fails) AND live
+>   same-vantage before/after + a pixel probe (mean B−R over the foreground seabed crop). NOTE — a
+>   depth-bias hypothesis was DISPROVEN in the process: the sea-plane's `depthBiasSlopeFactor=1.5`
+>   (3e7bafc) was suspected of hiding the plane behind the seabed at grazing angles; a red/green
+>   pixel probe with the OLD bias + suppression showed full water tint at both originally-broken
+>   vantages (B−R +13.5 / +58.1), so the bias was NOT the cause and the shipped values were kept
+>   unchanged. The REAL far/near LOD handoff remains Phase B.
+>
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift
 >   marks ALL columns (correct but unoptimized).
+> - Phase C remainder: RIVERS are still dry (no channel tags / head springs from the FlowField bake);
+>   lake fill is unit-proven but not yet observed on a real baked lake in-engine (the L4 world's
+>   region only reached ocean); the L3 validation pass (river continuity / lake containment vs the
+>   actually-carved terrain) is not built — a bake-vs-terrain mismatch would leak a lake silently.
 > - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
 >   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
 >   water, and only where terrain is below sea level.

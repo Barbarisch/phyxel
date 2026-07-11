@@ -3,6 +3,7 @@
 #include "core/WaterSimulation.h"
 #include "core/WorldConstants.h"
 #include "vulkan/ComputePipeline.h"
+#include <functional>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
@@ -80,6 +81,24 @@ public:
     void  setOceanBoundary(bool on);
     bool  oceanBoundary() const { return m_oceanBoundary; }
 
+    // --- Baked WATER TABLE (WaterSystemV2 Phase C: generation feeds water) ---
+    // Bind a per-column water-level source (world column → flat water-surface world Y, or any value
+    // <= TABLE_DRY for dry land — HydrologyMap::waterLevelAt matches this contract directly). While
+    // bound, rebuildOcean derives ALL source pins from the table via fillWaterTable — baked lakes
+    // fill at their own spill level and the ocean at sea level, re-derived wherever the region
+    // recenters — SUPERSEDING the scalar sea level, point seeds, and the boundary flag (springs are
+    // still re-applied on top). Bind nullptr to return to the authored/scalar path. The callback
+    // must stay valid for the manager's lifetime and be cheap-ish (called once per column per
+    // rebuild).
+    static constexpr float TABLE_DRY = -1e29f;
+    void setWaterTable(std::function<float(float worldX, float worldZ)> levelAt);
+    bool hasWaterTable() const { return static_cast<bool>(m_tableFn); }
+    // Query the bound table at a world column (TABLE_DRY when dry or no table bound) — debug/tooling
+    // surface so the baked water can be probed without chunks being loaded there.
+    float tableLevelAt(float worldX, float worldZ) const {
+        return m_tableFn ? m_tableFn(worldX, worldZ) : TABLE_DRY;
+    }
+
     // --- Authored sources (springs / river heads) ---
     // A spring is a persistent source pinned to `mass` each step — a continuous supply
     // (a fountain, a river head). Survives ocean re-floods (kept separate from the
@@ -151,6 +170,7 @@ private:
 
     float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
                                                      // match the sea-plane renderer or they drift
+    std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds

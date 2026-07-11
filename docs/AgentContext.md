@@ -670,9 +670,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   - **Debug HTTP** (`/api/debug/`): `place_water`, `water_sync`, `water_stats`, `set_sea_level`
     (moves the sim AND the sea-plane renderer together), `add_ocean_seed`, `clear_ocean`,
     `water_ocean_boundary` (seed the sea from the region frontier — WaterSystemV2 A2b),
+    `water_table_level` {x,z} (probe the baked hydrology water level at any world column — Phase C),
     `place_spring`, `clear_springs`, `set_channel_region`, `water_gpu`, `water_save`.
-    game.json `water` block keys: `enabled`, `seaLevel` (default = shared `Core::kSeaLevelY`,
-    `engine/include/core/WorldConstants.h`), `oceanBoundary`, `oceanSeeds`, `springs`, `channels`.
+    **GOTCHA:** a CommandRegistry handler is NOT reachable over HTTP until it also gets an explicit
+    `srv.Post("/api/debug/<name>", ...)` route in `EngineAPIServer.cpp` (silent empty response
+    otherwise). game.json `water` block keys: `enabled`, `seaLevel` (default = shared
+    `Core::kSeaLevelY`, `engine/include/core/WorldConstants.h`), `oceanBoundary`, `bakedTable`
+    (default true: bind the streamed generator's hydrology bake so ocean/lakes fill at baked levels —
+    needs `world.streaming: true`), `oceanSeeds`, `springs`, `channels`.
   - **GOTCHAS:** (1) `place_water`/`place_spring` into a **solid voxel does nothing** — target the
     AIR cell (e.g. spring on a platform whose top voxel is y19 goes at **y20**). (2) Sub-voxel
     terrain (subcubes/microcubes) is **NOT supported** — the sim is full-voxel; partial voxels

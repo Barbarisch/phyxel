@@ -58,6 +58,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
+#include "core/HydrologyMap.h"
 #include "core/VoxelTemplate.h"
 #include "physics/Material.h"
 #include "story/StoryWorldLoader.h"
@@ -5529,6 +5530,26 @@ void Application::autoLoadGameDefinition() {
                     for (const auto& c : w["channels"])
                         if (c.is_array() && c.size() == 3)
                             waterManager->setChannelWorld(c[0].get<int>(), c[1].get<int>(), c[2].get<int>(), true);
+                // Phase C (generation feeds water): bind the baked hydrology water table when this
+                // world's streaming generator baked one (height-based non-Flat types) — the sim then
+                // fills the baked ocean AND lakes at their own levels wherever the region travels,
+                // with no authored seeds. Opt out per-world with water.bakedTable=false. Applied /
+                // cleared unconditionally so a world switch resets the binding.
+                {
+                    const WorldGenerator* gen =
+                        chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                    if (w.value("bakedTable", true) && gen && gen->hydrology()) {
+                        waterManager->setWaterTable([this](float wx, float wz) -> float {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            const HydrologyMap* h = g ? g->hydrology() : nullptr;
+                            return h ? h->waterLevelAt(wx, wz) : -1e30f; // NO_WATER
+                        });
+                        LOG_INFO("Application", "[WATER] baked hydrology water table bound (Phase C)");
+                    } else {
+                        waterManager->setWaterTable(nullptr);
+                    }
+                }
             }
 
             // Build navigation grid for NPC pathfinding
@@ -10367,6 +10388,14 @@ void Application::registerWaterCommands() {
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
         r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
     });
+    reg.on("water_table_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const float wx = cmd.params.value("x", 0.0f), wz = cmd.params.value("z", 0.0f);
+        const float wl = waterManager->tableLevelAt(wx, wz);
+        r = {{"x", wx}, {"z", wz}, {"table_bound", waterManager->hasWaterTable()},
+             {"wet", wl > Core::WaterManager::TABLE_DRY},
+             {"level", wl > Core::WaterManager::TABLE_DRY ? wl : 0.0f}};
+    });
     reg.on("water_ocean_boundary", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         waterManager->setOceanBoundary(cmd.params.value("on", true));
@@ -10440,6 +10469,7 @@ void Application::registerWaterCommands() {
     reg.on("water_stats", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         r = {{"total_mass", waterManager->totalMass()},
+             {"water_table", waterManager->hasWaterTable()},
              {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
              {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
         if (cmd.params.contains("x")) {

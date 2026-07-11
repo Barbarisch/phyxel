@@ -187,6 +187,60 @@ TEST(WaterManagerTest, DefaultSeaLevelIsTheSharedWorldConstant) {
         << "WaterManager re-declared its own sea-level default — render/sim drift is back";
 }
 
+// ─── Baked WATER TABLE (Phase C: generation feeds water) ──────────────────────────────────────────
+// With a table bound (world column → baked level), rebuildOcean derives ALL pins from it: a baked
+// lake fills at its own level, dry columns stay dry, and — because recenter re-runs the derivation —
+// the lake persists at its WORLD position when the region moves. No authored seeds anywhere.
+TEST(WaterManagerTest, BakedWaterTableFillsLakeAndSurvivesRecenter) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    for (int y = 0; y <= 4; ++y) {   // basin walls (world space) around interior x,z in [12,15]
+        for (int z = 11; z <= 16; ++z) { wm.setSolidWorld(11, y, z, true); wm.setSolidWorld(16, y, z, true); }
+        for (int x = 11; x <= 16; ++x) { wm.setSolidWorld(x, y, 11, true); wm.setSolidWorld(x, y, 16, true); }
+    }
+    // Baked table: the basin interior is a lake with surface at world y=2; everywhere else dry.
+    wm.setWaterTable([](float wx, float wz) -> float {
+        return (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) ? 2.0f : -1e30f;
+    });
+    wm.update(0.1f);   // rebuild (table pins) + a step to fill the pins
+
+    const float volume = wm.totalMass();
+    EXPECT_NEAR(volume, 48.0f, 1.0f) << "lake should fill its 4x4 columns from y=0 to level y=2";
+    EXPECT_GT(wm.massAtWorld(glm::vec3(13.5f, 2.5f, 13.5f)), 0.9f) << "lake surface should be wet";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 1e-3f) << "water above the baked level";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(25.5f, 0.5f, 25.5f)), 1e-3f) << "dry column got water";
+
+    // A lake sits at ITS OWN level (≠ the sea plane's height), so it must render per-cell —
+    // the sea-suppression below must not swallow it.
+    EXPECT_FALSE(wm.surfaceCells().empty()) << "baked lake lost its per-cell surface";
+
+    // Move the region; the table re-derives at the new origin — the lake stays at its world position.
+    wm.recenter(glm::ivec3(6, 0, 6));
+    wm.update(0.1f);
+    EXPECT_NEAR(wm.totalMass(), volume, 1.0f) << "lake volume changed across the recenter";
+    EXPECT_GT(wm.massAtWorld(glm::vec3(13.5f, 2.5f, 13.5f)), 0.9f)
+        << "lake left its world position after recenter — table re-derivation broken";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 1e-3f);
+}
+
+// The undisturbed SEA is drawn by the flat sea plane (one look, inside and outside the region) —
+// per-cell rendering of pinned sea-surface cells is SUPPRESSED. Emitting them double-drew the
+// ocean as a darker, hard-edged slab exactly the size of the sim region, following the camera
+// (user-reported 2026-07-11). Disturbed water (a splash above sea level) must still render
+// per-cell — that's what the sim renderer is for.
+TEST(WaterManagerTest, UndisturbedSeaIsLeftToTheFlatPlaneNotPerCellRendered) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
+    wm.setSeaLevel(4.0f);
+    wm.setOceanBoundary(true);
+    wm.update(0.1f);
+    ASSERT_GT(wm.totalMass(), 100.0f) << "sea should have flooded";
+    EXPECT_TRUE(wm.surfaceCells().empty())
+        << "undisturbed sea emitted per-cell surface quads — the region renders as a slab again";
+
+    wm.placeWater(glm::vec3(8.5f, 6.5f, 8.5f), 2.0f);   // a splash ABOVE sea level
+    EXPECT_FALSE(wm.surfaceCells().empty())
+        << "disturbed water above sea level must still render per-cell";
+}
+
 // ─── Phase A STRESS (doc-required: docs/WaterSystemV2.md §Phase A "Stress") ───────────────────────
 // Walk the focus back and forth so the region recenters MANY times over a standing (walled) lake
 // that always stays in-window, asserting the invariant at EVERY recenter (not just at the end):

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "core/WaterSimulation.h"
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
@@ -231,6 +232,92 @@ TEST(WaterSimulation, EvaporationToggleWakesSettledThinFilm) {
     for (int i = 0; i < 40; ++i) sim.step();
     EXPECT_LT(sim.totalMass(), 1e-4f)
         << "settled thin film never evaporated after the toggle — setEvaporation didn't wake the field";
+}
+
+// ─── Baked WATER TABLE (WaterSystemV2 Phase C: generation feeds water) ────────────────────────────
+
+// fillWaterTable floods a basin to ITS OWN per-column level (a lake above sea level) and nothing
+// else: wet up to the level, dry above it, dry outside the wet columns. This is the generalization
+// that lets baked mountain lakes fill without a global sea level reaching them.
+TEST(WaterSimulation, FillWaterTableFloodsLakeToItsBakedLevelOnly) {
+    WaterSimulation sim(16, 12, 16);
+    for (int y = 0; y <= 6; ++y)       // basin walls ringing interior x,z in [5,7], well above level 5
+        for (int i = 4; i <= 8; ++i) {
+            sim.setSolid(i, y, 4, true); sim.setSolid(i, y, 8, true);
+            sim.setSolid(4, y, i, true); sim.setSolid(8, y, i, true);
+        }
+    const int pinned = sim.fillWaterTable([](int lx, int lz) {
+        return (lx >= 5 && lx <= 7 && lz >= 5 && lz <= 7) ? 5 : INT_MIN;  // 3x3 lake, level y=5
+    });
+    EXPECT_EQ(pinned, 3 * 3 * 6) << "lake should pin its 3x3 columns from y=0 up to level y=5";
+    for (int i = 0; i < 4; ++i) sim.step();
+
+    EXPECT_NEAR(sim.totalMass(), 54.0f, 1.0f) << "lake did not fill to its level";
+    // Pinned sources breathe ~0.01 into the cell below between re-pins → threshold, not exact-1.0.
+    EXPECT_GT(sim.massAt(6, 5, 6), 0.9f) << "surface cell at the baked level should be full";
+    EXPECT_LT(sim.massAt(6, 6, 6), 1e-3f) << "water ABOVE the baked level";
+    EXPECT_LT(sim.massAt(2, 0, 2), 1e-3f) << "water in a DRY column outside the lake";
+}
+
+// Fine-scale connectivity-gating still holds under the table: a sealed cavity below the lake
+// (enclosed by solids, unreachable from the lake surface) stays dry even though its column is wet.
+TEST(WaterSimulation, FillWaterTableLeavesSealedPocketDry) {
+    WaterSimulation sim(16, 12, 16);
+    for (int y = 0; y <= 6; ++y)
+        for (int i = 4; i <= 8; ++i) {
+            sim.setSolid(i, y, 4, true); sim.setSolid(i, y, 8, true);
+            sim.setSolid(4, y, i, true); sim.setSolid(8, y, i, true);
+        }
+    // Seal the single cell (6,1,6): solids on all six faces (inside the lake's wet volume).
+    sim.setSolid(5, 1, 6, true); sim.setSolid(7, 1, 6, true);
+    sim.setSolid(6, 0, 6, true); sim.setSolid(6, 2, 6, true);
+    sim.setSolid(6, 1, 5, true); sim.setSolid(6, 1, 7, true);
+    sim.fillWaterTable([](int lx, int lz) {
+        return (lx >= 5 && lx <= 7 && lz >= 5 && lz <= 7) ? 5 : INT_MIN;
+    });
+    for (int i = 0; i < 4; ++i) sim.step();
+
+    EXPECT_GT(sim.massAt(5, 5, 5), 0.5f) << "the open lake volume should be wet";
+    EXPECT_FLOAT_EQ(sim.massAt(6, 1, 6), 0.0f)
+        << "sealed pocket under the lake flooded — connectivity-gating broke in fillWaterTable";
+}
+
+// With a UNIFORM level the table degenerates to the ocean boundary condition: on terrain with no
+// sealed pockets, fillWaterTable(L everywhere) and fillOcean(edge seeds at/below L) must produce
+// the exact same field. Guards the generalization against quietly changing ocean behavior.
+TEST(WaterSimulation, FillWaterTableUniformLevelMatchesOceanBoundaryFill) {
+    auto build = [](WaterSimulation& sim) {
+        for (int z = 0; z < 16; ++z)
+            for (int x = 0; x < 16; ++x) sim.setSolid(x, 0, z, true);       // seabed
+        for (int z = 5; z <= 9; ++z)                                        // a plateau island
+            for (int x = 5; x <= 9; ++x)
+                for (int y = 1; y <= 6; ++y) sim.setSolid(x, y, z, true);
+        for (int y = 1; y <= 3; ++y) sim.setSolid(12, y, 12, true);         // a pillar stub
+    };
+    WaterSimulation table(16, 8, 16), ocean(16, 8, 16);
+    build(table); build(ocean);
+    const int L = 4;
+
+    table.fillWaterTable([&](int, int) { return L; });
+    std::vector<glm::ivec3> edgeSeeds;                    // fillOcean's boundary-condition seeding
+    for (int y = 0; y <= L; ++y) {
+        for (int x = 0; x < 16; ++x) {
+            if (!ocean.isSolid(x, y, 0))  edgeSeeds.push_back({x, y, 0});
+            if (!ocean.isSolid(x, y, 15)) edgeSeeds.push_back({x, y, 15});
+        }
+        for (int z = 1; z < 15; ++z) {
+            if (!ocean.isSolid(0, y, z))  edgeSeeds.push_back({0, y, z});
+            if (!ocean.isSolid(15, y, z)) edgeSeeds.push_back({15, y, z});
+        }
+    }
+    ocean.fillOcean(edgeSeeds, L);
+
+    for (int i = 0; i < 3; ++i) { table.step(); ocean.step(); }
+    for (int z = 0; z < 16; ++z)
+    for (int y = 0; y < 8; ++y)
+    for (int x = 0; x < 16; ++x)
+        ASSERT_FLOAT_EQ(table.massAt(x, y, z), ocean.massAt(x, y, z))
+            << "uniform table diverged from the ocean fill at (" << x << "," << y << "," << z << ")";
 }
 
 // Water released high in a column ends up resting on the floor, top empties.

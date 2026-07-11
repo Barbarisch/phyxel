@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstdint>
 #include <cstddef>
+#include <functional>
 #include <glm/glm.hpp>
 
 namespace Phyxel {
@@ -59,6 +60,20 @@ public:
     // Clears all existing sources first (the ocean owns the source system for now).
     // Returns the number of cells pinned.
     int fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY);
+
+    // Generalized WATER TABLE (WaterSystemV2 Phase C — generation feeds water): per-COLUMN water
+    // levels instead of one global sea level, so baked lakes fill at their own spill height and the
+    // ocean at sea level, in one pass. `levelLocalY(lx, lz)` returns the column's water-surface cell
+    // Y in LOCAL grid coords, or INT_MIN for dry land. Seeds: each wet column's SURFACE cell (y ==
+    // min(level, sy-1), if open — an island column that is solid there simply doesn't seed; the
+    // flood arrives laterally) plus every region side-edge cell at/below its column's level (the
+    // water continues beyond the region window). The flood then spreads through open cells with
+    // y <= their own column's level and pins each as a full source. Connectivity-gating is
+    // preserved at the fine scale: a sealed cavity under a lake stays dry (unreachable from the
+    // surface); the coarse-scale question "is this column wet, and how high" is the BAKE's job
+    // (priority-flood already solved basin spills globally). Clears all sources first, like
+    // fillOcean. Returns the number of cells pinned.
+    int fillWaterTable(const std::function<int(int lx, int lz)>& levelLocalY);
 
     float massAt(int x, int y, int z) const;
     float totalMass() const;
