@@ -215,6 +215,38 @@ TEST(WaterSimulation, LocalDisturbanceSweepsOnlyNearbyColumns) {
                 "(max %d of %d columns swept)\n", us, maxProcessed, sim.columnCount());
 }
 
+// A fully-pinned ocean must reach REST: every transfer between two source-pinned cells is
+// meaningless (both ends are re-clamped to their pinned mass at the next step's re-pin), but the
+// compression rule wants deep cells at slightly OVER full — so pinned column stacks re-donated
+// ~0.01 downward every step, forever, and the live ocean never settled (found by the live frame
+// profiler: ~6ms water step at 20Hz over open sea, at rest, with total mass exactly constant).
+// Pinned→unpinned transfers still run — that is how a breach floods.
+TEST(WaterSimulation, FullyPinnedOceanSettlesAndStopsSweeping) {
+    WaterSimulation sim(16, 16, 16);
+    addFloor(sim);
+    const int pinned = sim.fillWaterTable([](int, int) { return 6; });  // ocean up to y=6 everywhere
+    ASSERT_GT(pinned, 1000) << "ocean should have flooded the open box";
+
+    int guard = 0;
+    while (!sim.settled() && guard++ < 60) sim.step();
+    ASSERT_TRUE(sim.settled())
+        << "a fully-pinned ocean never reached rest — pinned<->pinned compression oscillation";
+    const unsigned long long sweeps = sim.sweepsRun();
+    const float mass = sim.totalMass();
+    for (int i = 0; i < 50; ++i) sim.step();
+    EXPECT_EQ(sim.sweepsRun(), sweeps) << "settled pinned ocean kept sweeping";
+    EXPECT_FLOAT_EQ(sim.totalMass(), mass);
+
+    // A breach still floods: drain one cell and remove its pin — an empty UNPINNED gap in the
+    // ocean. Its pinned neighbors must still flow into it (pinned→unpinned is real physics).
+    sim.clearSource(8, 1, 8);
+    sim.addWater(8, 1, 8, -1.0f);
+    ASSERT_LT(sim.massAt(8, 1, 8), 1e-4f);
+    sim.step();
+    EXPECT_GT(sim.massAt(8, 1, 8), 0.1f)
+        << "pinned neighbors no longer flow into an unpinned breach — the skip is too broad";
+}
+
 // Turning evaporation ON must wake a settled field: thin cells that settled while evaporation was
 // off only became sink-eligible by the toggle, and the settle-skip would otherwise bypass them
 // forever (they'd never dry). This was a real latent hole: setEvaporation() didn't clear the

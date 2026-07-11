@@ -69,6 +69,20 @@
 >   vantages (B−R +13.5 / +58.1), so the bias was NOT the cause and the shipped values were kept
 >   unchanged. The REAL far/near LOD handoff remains Phase B.
 >
+> - **Live frame profiling + pinned-ocean settle fix** (2026-07-11): `PROFILE_SCOPE("Water")` around
+>   followTo+update — `/api/debug/frame_profile` now shows the water system's per-frame share. First
+>   live measurement immediately found a real defect: a fully-pinned ocean NEVER settled (the
+>   compression rule wants deep cells slightly over full; the re-pin clamps to exactly 1.0 → pinned
+>   stacks re-donated ~0.01 down every step forever → ~6ms Water on every 20 Hz step frame over open
+>   sea, at rest, doing nothing). Fix: pinned→pinned transfers are skipped (both ends get re-clamped
+>   anyway); pinned→unpinned still flows (breach flooding/springs — covered by the new
+>   `FullyPinnedOceanSettlesAndStopsSweeping` test, true red-before-green, + 3 pre-existing breach/
+>   dig tests). **Measured (Debug, table-flooded 64×32×64 open-ocean region):** settled ocean
+>   0.002–0.004 ms/frame (was ~6 ms on every step frame); a 5×8-mass splash burst ~3.3–3.8 ms on
+>   step frames for ~2–3 s, then back to 0.002; heavy chunk-streaming churn still costs ~6 ms per
+>   step frame (each chunk-load batch dirties the ocean → one full O(box) re-flood per update) —
+>   REMAINING follow-up, not fixed.
+>
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift

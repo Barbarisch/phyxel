@@ -272,6 +272,13 @@ void WaterSimulation::step(float flowSide) {
     static const int HZ[4] = {0, 0, 1, -1};
     const float MAX_SPEED = 1.0f; // cap on mass moved out of one cell per direction
 
+    // Transfers between TWO source-pinned cells are skipped: both ends are re-clamped to their
+    // pinned mass at the next re-pin, so the exchange is pure churn — and it is what kept a
+    // fully-pinned ocean from EVER settling (the compression rule wants deep cells slightly over
+    // full, the pin says exactly full, so pinned column stacks re-donated ~0.01 down every step,
+    // forever — ~6ms/step live at 20 Hz over open sea, doing nothing). Pinned→unpinned still
+    // flows: that is how a breach floods and how a spring feeds its pool.
+    auto pinned = [&](size_t i) { return m_source[i] >= 0.0f; };
     for (int z = 0; z < m_sz; ++z)
     for (int x = 0; x < m_sx; ++x) {
         if (!m_colProcess[colIdx(x, z)]) continue;
@@ -280,16 +287,19 @@ void WaterSimulation::step(float flowSide) {
         if (m_solid[c]) continue;
         float remaining = m_mass[c]; // working mass still available to move out
         if (remaining <= 0.0f) continue;
+        const bool cPinned = pinned(c);
 
         // 1) Gravity (compression-aware): the cell below holds up to its stable share
         //    of the combined column; the excess stays here to be pushed up later.
         if (y - 1 >= 0 && !m_solid[idx(x, y - 1, z)]) {
             const size_t b = idx(x, y - 1, z);
-            float flow = stableBottom(remaining + m_mass[b]) - m_mass[b];
-            flow = std::min(flow, std::min(MAX_SPEED, remaining));
-            if (flow > MIN_FLOW) {
-                m_next[c] -= flow; m_next[b] += flow; remaining -= flow; changed = true;
-                markCol(x, z);
+            if (!(cPinned && pinned(b))) {
+                float flow = stableBottom(remaining + m_mass[b]) - m_mass[b];
+                flow = std::min(flow, std::min(MAX_SPEED, remaining));
+                if (flow > MIN_FLOW) {
+                    m_next[c] -= flow; m_next[b] += flow; remaining -= flow; changed = true;
+                    markCol(x, z);
+                }
             }
         }
 
@@ -299,6 +309,7 @@ void WaterSimulation::step(float flowSide) {
             int nx = x + HX[k], nz = z + HZ[k];
             if (!inBounds(nx, y, nz) || m_solid[idx(nx, y, nz)]) continue;
             const size_t n = idx(nx, y, nz);
+            if (cPinned && pinned(n)) continue;
             float flow = (remaining - m_mass[n]) * 0.25f * flowSide;
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
@@ -311,11 +322,13 @@ void WaterSimulation::step(float flowSide) {
         //    the cell above. This is what makes connected water rise to a common level.
         if (remaining > MAX_MASS && y + 1 < m_sy && !m_solid[idx(x, y + 1, z)]) {
             const size_t a = idx(x, y + 1, z);
-            float flow = remaining - stableBottom(remaining + m_mass[a]);
-            flow = std::min(flow, remaining);
-            if (flow > MIN_FLOW) {
-                m_next[c] -= flow; m_next[a] += flow; remaining -= flow; changed = true;
-                markCol(x, z);
+            if (!(cPinned && pinned(a))) {
+                float flow = remaining - stableBottom(remaining + m_mass[a]);
+                flow = std::min(flow, remaining);
+                if (flow > MIN_FLOW) {
+                    m_next[c] -= flow; m_next[a] += flow; remaining -= flow; changed = true;
+                    markCol(x, z);
+                }
             }
         }
         }

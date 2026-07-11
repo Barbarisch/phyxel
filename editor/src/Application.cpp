@@ -3162,14 +3162,19 @@ void Application::update(float deltaTime) {
 
     // Player-following: keep the sim region centred on the viewer so water can exist anywhere the
     // camera goes (WaterSystemV2 Phase A2), recentering only once it drifts a quarter-box from centre.
-    if (waterManager && camera &&
-        waterManager->followTo(camera->getPosition(), waterManager->dims().x / 4)) {
-        const glm::ivec3 o = waterManager->origin();
-        LOG_INFO_FMT("Water", "[WATER] region followed viewer → origin (" << o.x << "," << o.y << "," << o.z << ")");
-    }
+    // The scope covers followTo (recenter spikes: shift + re-flood) AND update (steps + surface
+    // rebuild), so /api/debug/frame_profile shows the water system's true per-frame share.
+    {
+        PROFILE_SCOPE(*performanceProfiler, "Water");
+        if (waterManager && camera &&
+            waterManager->followTo(camera->getPosition(), waterManager->dims().x / 4)) {
+            const glm::ivec3 o = waterManager->origin();
+            LOG_INFO_FMT("Water", "[WATER] region followed viewer → origin (" << o.x << "," << o.y << "," << o.z << ")");
+        }
 
-    // Tick the CPU water cellular automaton (fixed-rate internally).
-    if (waterManager) waterManager->update(deltaTime);
+        // Tick the CPU water cellular automaton (fixed-rate internally).
+        if (waterManager) waterManager->update(deltaTime);
+    }
 
     // Waterfall mist: emit soft rising spray at the base of each detected fall lip.
     if (waterManager && renderCoordinator && renderCoordinator->getVfxSystem()) {
