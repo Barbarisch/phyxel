@@ -10,13 +10,33 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_solid(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0),
       m_next(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
       m_source(static_cast<size_t>(sizeX) * sizeY * sizeZ, -1.0f),
-      m_channel(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0) {}
+      m_channel(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0),
+      m_colDirty(static_cast<size_t>(sizeX) * sizeZ, 1),   // all dirty: first sweep is full
+      m_colProcess(static_cast<size_t>(sizeX) * sizeZ, 0),
+      m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0) {}
+
+void WaterSimulation::markAllCols() {
+    std::fill(m_colDirty.begin(), m_colDirty.end(), 1);
+    m_settled = false;
+}
+
+void WaterSimulation::wake() {
+    markAllCols();
+}
+
+void WaterSimulation::setEvaporation(bool enabled) {
+    if (m_evaporate == enabled) return;
+    m_evaporate = enabled;
+    // A settled field can hold thin (< EVAP_THRESHOLD) cells that only became sink-eligible by this
+    // toggle; without a full wake they would never dry (the settle-skip would keep bypassing them).
+    markAllCols();
+}
 
 void WaterSimulation::setSolid(int x, int y, int z, bool solid) {
     if (!inBounds(x, y, z)) return;
     m_solid[idx(x, y, z)] = solid ? 1 : 0;
     if (solid) m_mass[idx(x, y, z)] = 0.0f; // solid cells hold no water
-    m_settled = false;                       // terrain change may re-open flow
+    markCol(x, z);                           // terrain change may re-open flow
 }
 
 bool WaterSimulation::isSolid(int x, int y, int z) const {
@@ -27,7 +47,7 @@ bool WaterSimulation::isSolid(int x, int y, int z) const {
 void WaterSimulation::setChannel(int x, int y, int z, bool channel) {
     if (!inBounds(x, y, z)) return;
     m_channel[idx(x, y, z)] = channel ? 1 : 0;
-    m_settled = false;                       // changes evaporation eligibility for this cell
+    markCol(x, z);                           // changes evaporation eligibility for this cell
 }
 
 bool WaterSimulation::isChannel(int x, int y, int z) const {
@@ -38,25 +58,25 @@ bool WaterSimulation::isChannel(int x, int y, int z) const {
 void WaterSimulation::addWater(int x, int y, int z, float amount) {
     if (!inBounds(x, y, z) || m_solid[idx(x, y, z)]) return;
     m_mass[idx(x, y, z)] = std::max(0.0f, m_mass[idx(x, y, z)] + amount);
-    m_settled = false;                       // injected/removed mass → flow again
+    markCol(x, z);                           // injected/removed mass → flow again
 }
 
 void WaterSimulation::setSource(int x, int y, int z, float mass) {
     if (!inBounds(x, y, z)) return;
     m_source[idx(x, y, z)] = mass;
     m_hasSources = true;
-    m_settled = false;                       // a new reservoir will inject
+    markCol(x, z);                           // a new reservoir will inject
 }
 
 void WaterSimulation::clearSource(int x, int y, int z) {
     if (!inBounds(x, y, z)) return;
     m_source[idx(x, y, z)] = -1.0f;
     // (m_hasSources stays true; harmless — the per-cell check still gates pinning.)
-    m_settled = false;
+    markCol(x, z);
 }
 
 int WaterSimulation::fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY) {
-    m_settled = false;                       // the ocean re-pin re-activates the field
+    markAllCols();                           // the ocean re-pin/clear can touch any column
     // Ocean owns the source system: clear all pins, then re-flood.
     std::fill(m_source.begin(), m_source.end(), -1.0f);
     m_hasSources = false;
@@ -126,32 +146,83 @@ inline float stableBottom(float total) {
 
 void WaterSimulation::step(float flowSide) {
     if (m_settled) return;   // provably at rest since the last executed step → nothing to do
+
+    // ACTIVE SET: build the sweep set P = dirty ∪ N4(dirty) and the snapshot/write-back set
+    // W = P ∪ N4(P). Soundness: all flow is a pure gather from m_mass (writes go to m_next), so a
+    // cell's transfers are a deterministic function of its column and its N4-neighbor columns. A
+    // column outside P has unchanged mass AND unchanged neighbors since it was last swept, so
+    // re-sweeping it would reproduce the same below-MIN_FLOW transfers — skipping it cannot change
+    // the result. W covers every possible write: destinations are N4/vertical neighbors of P cells.
+    int processed = 0;
+    for (int cz = 0; cz < m_sz; ++cz)
+        for (int cx = 0; cx < m_sx; ++cx) {
+            const size_t c = colIdx(cx, cz);
+            const bool p = m_colDirty[c] != 0 ||
+                           (cx > 0        && m_colDirty[c - 1]) ||
+                           (cx + 1 < m_sx && m_colDirty[c + 1]) ||
+                           (cz > 0        && m_colDirty[c - m_sx]) ||
+                           (cz + 1 < m_sz && m_colDirty[c + m_sx]);
+            m_colProcess[c] = p ? 1 : 0;
+            if (p) ++processed;
+        }
+    if (processed == 0) {    // nothing changed since the last sweep anywhere → at rest
+        m_colsProcessed = 0;
+        m_settled = true;
+        return;
+    }
+    for (int cz = 0; cz < m_sz; ++cz)
+        for (int cx = 0; cx < m_sx; ++cx) {
+            const size_t c = colIdx(cx, cz);
+            m_colWrite[c] = (m_colProcess[c] ||
+                             (cx > 0        && m_colProcess[c - 1]) ||
+                             (cx + 1 < m_sx && m_colProcess[c + 1]) ||
+                             (cz > 0        && m_colProcess[c - m_sx]) ||
+                             (cz + 1 < m_sz && m_colProcess[c + m_sx])) ? 1 : 0;
+        }
+    m_colsProcessed = processed;
     ++m_sweepsRun;
+    // From here on m_colDirty describes the NEXT sweep: cleared now, re-marked by every transfer.
+    std::fill(m_colDirty.begin(), m_colDirty.end(), 0);
     bool changed = false;    // did this step move any mass? (if not, the field is settled)
 
     const float MIN_FLOW = 1e-4f;
     // Re-pin source cells to their held mass (infinite reservoirs) before flowing. A re-pin that
-    // actually restores drained mass counts as movement (the field is still doing work).
+    // actually restores drained mass counts as movement (the field is still doing work). Only P
+    // columns can hold a drifted source: draining a source's mass is a transfer that marked it dirty.
     if (m_hasSources) {
-        const size_t n = m_mass.size();
-        for (size_t i = 0; i < n; ++i)
-            if (m_source[i] >= 0.0f && !m_solid[i]) {
-                if (std::abs(m_mass[i] - m_source[i]) > MIN_FLOW) changed = true;
-                m_mass[i] = m_source[i];
+        for (int cz = 0; cz < m_sz; ++cz)
+        for (int cx = 0; cx < m_sx; ++cx) {
+            if (!m_colProcess[colIdx(cx, cz)]) continue;
+            for (int y = 0; y < m_sy; ++y) {
+                const size_t i = idx(cx, y, cz);
+                if (m_source[i] >= 0.0f && !m_solid[i]) {
+                    if (std::abs(m_mass[i] - m_source[i]) > MIN_FLOW) {
+                        changed = true;
+                        markCol(cx, cz);
+                    }
+                    m_mass[i] = m_source[i];
+                }
             }
+        }
     }
 
-    // Start from the current state; all flow reads m_mass (this frame's snapshot) and
-    // accumulates into m_next, so transfers are order-independent and mass-conserving.
-    m_next = m_mass;
+    // Snapshot the write set: all flow reads m_mass (this frame's snapshot) and accumulates into
+    // m_next, so transfers are order-independent and mass-conserving. Only W columns can be written,
+    // so only they need the snapshot (and the write-back below) — not the whole box.
+    for (int cz = 0; cz < m_sz; ++cz)
+    for (int cx = 0; cx < m_sx; ++cx) {
+        if (!m_colWrite[colIdx(cx, cz)]) continue;
+        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_next[i] = m_mass[i]; }
+    }
 
     static const int HX[4] = {1, -1, 0, 0};
     static const int HZ[4] = {0, 0, 1, -1};
     const float MAX_SPEED = 1.0f; // cap on mass moved out of one cell per direction
 
     for (int z = 0; z < m_sz; ++z)
-    for (int y = 0; y < m_sy; ++y)
     for (int x = 0; x < m_sx; ++x) {
+        if (!m_colProcess[colIdx(x, z)]) continue;
+        for (int y = 0; y < m_sy; ++y) {
         const size_t c = idx(x, y, z);
         if (m_solid[c]) continue;
         float remaining = m_mass[c]; // working mass still available to move out
@@ -165,6 +236,7 @@ void WaterSimulation::step(float flowSide) {
             flow = std::min(flow, std::min(MAX_SPEED, remaining));
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[b] += flow; remaining -= flow; changed = true;
+                markCol(x, z);
             }
         }
 
@@ -178,6 +250,7 @@ void WaterSimulation::step(float flowSide) {
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[n] += flow; remaining -= flow; changed = true;
+                markCol(x, z); markCol(nx, nz);
             }
         }
 
@@ -189,22 +262,37 @@ void WaterSimulation::step(float flowSide) {
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[a] += flow; remaining -= flow; changed = true;
+                markCol(x, z);
             }
+        }
         }
     }
 
-    m_mass.swap(m_next);
+    // Write back the W columns (the only ones m_next was synced for — a full buffer swap would
+    // publish stale data everywhere else).
+    for (int cz = 0; cz < m_sz; ++cz)
+    for (int cx = 0; cx < m_sx; ++cx) {
+        if (!m_colWrite[colIdx(cx, cz)]) continue;
+        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_mass[i] = m_next[i]; }
+    }
 
     // Evaporation sink: thin cells (the frontier of a spreading flow, films) lose a
     // little mass each step, so free flow has a finite reach and spills dry up. Deep
-    // (>= EVAP_THRESHOLD) water is untouched, so ponds and channels persist.
+    // (>= EVAP_THRESHOLD) water is untouched, so ponds and channels persist. Only P columns can
+    // hold an eligible cell: becoming thin was a mass change that marked the column (and
+    // setEvaporation() marks all columns, covering cells that were already thin at the toggle).
     if (m_evaporate) {
-        const size_t n = m_mass.size();
-        for (size_t i = 0; i < n; ++i) {
-            float m = m_mass[i];
-            if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i] && !m_channel[i]) {
-                m_mass[i] = std::max(0.0f, m - EVAP_RATE); // channel cells never evaporate
-                changed = true;
+        for (int cz = 0; cz < m_sz; ++cz)
+        for (int cx = 0; cx < m_sx; ++cx) {
+            if (!m_colProcess[colIdx(cx, cz)]) continue;
+            for (int y = 0; y < m_sy; ++y) {
+                const size_t i = idx(cx, y, cz);
+                float m = m_mass[i];
+                if (m > 0.0f && m < EVAP_THRESHOLD && !m_solid[i] && !m_channel[i]) {
+                    m_mass[i] = std::max(0.0f, m - EVAP_RATE); // channel cells never evaporate
+                    changed = true;
+                    markCol(cx, cz);
+                }
             }
         }
     }
@@ -231,7 +319,7 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
     m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
     m_hasSources = false;
     for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }
-    m_settled = false;   // the field was relocated → re-settle from the new configuration
+    markAllCols();   // the field was relocated → re-settle from the new configuration
 }
 
 } // namespace Core

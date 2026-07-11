@@ -74,9 +74,12 @@ void WaterManager::update(float dt) {
     if (m_oceanDirty) rebuildOcean(); // re-flood once before stepping
     m_accum += std::min(dt, 0.25f);
     int steps = 0;
+    const unsigned long long sweepsBefore = m_sim.sweepsRun();
+    bool gpuStepped = false;
     while (m_accum >= STEP_DT && steps < MAX_STEPS_PER_UPDATE) {
         if (m_useGpu) {
             stepGpu();
+            gpuStepped = true;
             // The GPU stepper writes the mass field directly (bypassing WaterSimulation's tracked
             // mutators), so it must keep the field awake — otherwise switching back to the CPU stepper
             // would trust a stale "settled" flag and freeze the field mid-flow. (The settle-skip is a
@@ -89,7 +92,10 @@ void WaterManager::update(float dt) {
         ++steps;
     }
     if (steps == MAX_STEPS_PER_UPDATE) m_accum = 0.0f; // drop backlog after a stall
-    if (steps > 0) rebuildSurface();
+    // Rebuild the renderable surface only if a step actually ran (settled skips don't advance
+    // sweepsRun) — otherwise a fully-at-rest field pays this O(box) scan at 20 Hz for nothing.
+    // The GPU stepper doesn't advance sweepsRun, so it forces the rebuild explicitly.
+    if (steps > 0 && (gpuStepped || m_sim.sweepsRun() != sweepsBefore)) rebuildSurface();
 }
 
 void WaterManager::recenter(const glm::ivec3& newOrigin) {
@@ -125,6 +131,7 @@ bool WaterManager::followTo(const glm::vec3& focusWorld, int hysteresisCells) {
 }
 
 void WaterManager::rebuildSurface() {
+    ++m_surfaceRebuilds;
     m_surface.clear();
     m_waterfalls.clear();
     const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;

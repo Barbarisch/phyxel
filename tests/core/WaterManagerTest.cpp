@@ -153,6 +153,25 @@ TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {
     EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "pool outside the moved window should be gone";
 }
 
+// A fully settled field must not pay the O(box) surface rebuild every update tick: update() only
+// calls rebuildSurface() when a sweep actually ran (settled skips don't advance sweepsRun). Without
+// this, "settled water is free" was only true of the sim step — the 20 Hz surface scan remained.
+TEST(WaterManagerTest, SettledFieldSkipsSurfaceRebuild) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildBasinAndFill(wm);   // settled walled pool (40 updates)
+
+    const auto rebuildsAtRest = wm.surfaceRebuilds();
+    ASSERT_GT(rebuildsAtRest, 0ull) << "filling the basin should have rebuilt the surface";
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);   // all steps are settled skips
+    EXPECT_EQ(wm.surfaceRebuilds(), rebuildsAtRest)
+        << "settled field kept rebuilding its surface every tick";
+
+    wm.placeWater(glm::vec3(13.5f, 3.0f, 13.5f), 0.5f);  // disturbance
+    wm.update(0.1f);
+    EXPECT_GT(wm.surfaceRebuilds(), rebuildsAtRest)
+        << "disturbed field did not rebuild its surface — water would render stale";
+}
+
 // ─── Sea-level unification (WaterSystemV2 Phase A wrap-up) ────────────────────────────────────────
 // The sim's default sea level must be the SHARED engine constant (WorldConstants.h) — it used to
 // default to 0 while the sea-plane renderer defaulted to 16, so the plane drew a sea the sim didn't

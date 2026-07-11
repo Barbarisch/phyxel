@@ -119,6 +119,120 @@ TEST(WaterSimulation, WakeForcesTheNextStepToRun) {
     EXPECT_GT(sim.sweepsRun(), sweeps) << "wake() did not force the next step to run — GPU resume would freeze";
 }
 
+// ─── Per-column ACTIVE SET (WaterSystemV2 A2c part 2) ─────────────────────────────────────────────
+
+// The active set is a pure optimization: stepping with it must produce EXACTLY the field a full
+// sweep produces, step for step. The reference sim is forced to sweep every column each step by
+// wake() (which marks all columns dirty); the subject sim runs normally. The scenario exercises
+// every rule that moves mass — gravity off a shelf, horizontal leveling, pressure/compression in a
+// deep pool, a pinned source (spring), channels, and evaporation — so a divergence anywhere in the
+// dirty-propagation logic (a missed neighbor mark, a stale snapshot column) shows up as a per-cell
+// mismatch within a few steps.
+TEST(WaterSimulation, ActiveSetMatchesFullSweepExactly) {
+    auto build = [](WaterSimulation& sim) {
+        // Floor + a solid shelf at y=5 the water falls off; a walled deep pit for compression.
+        for (int z = 0; z < sim.sizeZ(); ++z)
+            for (int x = 0; x < sim.sizeX(); ++x) sim.setSolid(x, 0, z, true);
+        for (int z = 2; z <= 6; ++z)
+            for (int x = 2; x <= 6; ++x) sim.setSolid(x, 5, z, true);
+        for (int y = 1; y <= 4; ++y) {  // pit walls around x,z in [10,12]
+            for (int i = 9; i <= 13; ++i) {
+                sim.setSolid(i, y, 9, true); sim.setSolid(i, y, 13, true);
+                sim.setSolid(9, y, i, true); sim.setSolid(13, y, i, true);
+            }
+        }
+        sim.addWater(4, 8, 4, 2.0f);        // overfull blob on the shelf — spills off the edge
+        sim.addWater(11, 8, 11, 3.0f);      // fills the pit → compression → pressure path
+        sim.setSource(14, 6, 2, 1.0f);      // spring keeps injecting the whole run
+        sim.setChannel(2, 1, 10, true);     // channel cell (evaporation-exempt)
+        sim.addWater(2, 1, 10, 0.05f);      // thin water ON the channel — must persist
+        sim.addWater(2, 1, 12, 0.05f);      // thin water off-channel — must evaporate
+        sim.setEvaporation(true);
+    };
+    WaterSimulation active(16, 12, 16), full(16, 12, 16);
+    build(active); build(full);
+
+    for (int step = 0; step < 80; ++step) {
+        active.step();
+        full.wake();   // force a full sweep — the reference result
+        full.step();
+        for (int z = 0; z < 16; ++z)
+        for (int y = 0; y < 12; ++y)
+        for (int x = 0; x < 16; ++x) {
+            const float a = active.massAt(x, y, z), f = full.massAt(x, y, z);
+            ASSERT_FLOAT_EQ(a, f) << "active-set result diverged from the full sweep at step "
+                                  << step << " cell (" << x << "," << y << "," << z << ")";
+        }
+    }
+}
+
+// A local disturbance in a big settled field sweeps only its own neighborhood, not the whole box —
+// the property that makes a PARTIALLY-active region affordable (global settle-skip only helps when
+// EVERYTHING is at rest). The first sweep after a one-cell disturbance must touch exactly
+// 5 columns (the cell's column + its 4 neighbors); as the water spreads inside a small walled basin
+// the set may grow, but must stay far below the 4096-column box.
+TEST(WaterSimulation, LocalDisturbanceSweepsOnlyNearbyColumns) {
+    WaterSimulation sim(64, 16, 64);
+    for (int z = 0; z < 64; ++z) for (int x = 0; x < 64; ++x) sim.setSolid(x, 0, z, true);
+    for (int y = 1; y <= 4; ++y)      // walled 7x7 basin centred on (32,32)
+        for (int i = 28; i <= 36; ++i) {
+            sim.setSolid(i, y, 28, true); sim.setSolid(i, y, 36, true);
+            sim.setSolid(28, y, i, true); sim.setSolid(36, y, i, true);
+        }
+    // First sweep ever is FULL (everything starts dirty — nothing is known-settled yet).
+    sim.step();
+    EXPECT_EQ(sim.columnsProcessedLastSweep(), sim.columnCount());
+    int guard = 0;
+    while (!sim.settled() && guard++ < 100) sim.step();
+    ASSERT_TRUE(sim.settled()) << "empty field should settle immediately";
+
+    sim.addWater(32, 8, 32, 1.0f);    // one-cell disturbance inside the basin
+    sim.step();
+    EXPECT_EQ(sim.columnsProcessedLastSweep(), 5)
+        << "first sweep after a 1-cell disturbance should touch exactly its column + 4 neighbors";
+
+    int maxProcessed = 0;
+    int partialSweeps = 0;
+    guard = 0;
+    const auto t0 = std::chrono::steady_clock::now();
+    while (!sim.settled() && guard++ < 300) {
+        sim.step();
+        maxProcessed = std::max(maxProcessed, sim.columnsProcessedLastSweep());
+        ++partialSweeps;
+    }
+    const auto t1 = std::chrono::steady_clock::now();
+    ASSERT_TRUE(sim.settled()) << "the drop never re-settled";
+    EXPECT_FLOAT_EQ(sim.totalMass(), 1.0f) << "active-set sweep lost mass";
+    EXPECT_LE(maxProcessed, 300)
+        << "a basin-contained drop swept far outside its neighborhood";
+    EXPECT_LT(maxProcessed, sim.columnCount() / 4)
+        << "local disturbance degenerated into (near-)full sweeps";
+    // Concrete datapoint for the partially-active case the global settle-skip can't help with.
+    const double us = std::chrono::duration<double, std::micro>(t1 - t0).count() /
+                      std::max(partialSweeps, 1);
+    std::printf("[water-perf] 64x16x64 box (Debug): partially-active step %.1f us "
+                "(max %d of %d columns swept)\n", us, maxProcessed, sim.columnCount());
+}
+
+// Turning evaporation ON must wake a settled field: thin cells that settled while evaporation was
+// off only became sink-eligible by the toggle, and the settle-skip would otherwise bypass them
+// forever (they'd never dry). This was a real latent hole: setEvaporation() didn't clear the
+// settled flag.
+TEST(WaterSimulation, EvaporationToggleWakesSettledThinFilm) {
+    WaterSimulation sim(8, 8, 8);
+    addFloor(sim);
+    sim.addWater(4, 1, 4, 0.05f);     // a thin film (< EVAP_THRESHOLD), evaporation OFF
+    int guard = 0;
+    while (!sim.settled() && guard++ < 2000) sim.step();
+    ASSERT_TRUE(sim.settled());
+    ASSERT_GT(sim.totalMass(), 0.04f) << "film should persist while evaporation is off";
+
+    sim.setEvaporation(true);          // the toggle must wake the field...
+    for (int i = 0; i < 40; ++i) sim.step();
+    EXPECT_LT(sim.totalMass(), 1e-4f)
+        << "settled thin film never evaporated after the toggle — setEvaporation didn't wake the field";
+}
+
 // Water released high in a column ends up resting on the floor, top empties.
 TEST(WaterSimulation, FallsToFloor) {
     WaterSimulation sim(1, 10, 1);

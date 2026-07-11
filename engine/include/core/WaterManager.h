@@ -123,6 +123,9 @@ public:
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
     const WaterSimulation& sim() const { return m_sim; }
+    // Times rebuildSurface() has run (observability): lets tests prove a settled field skips the
+    // O(box) surface scan that update() would otherwise pay at STEP_HZ.
+    unsigned long long surfaceRebuilds() const { return m_surfaceRebuilds; }
 
     // Renderable water surface: one WaterSurfaceCell per surface cell (a water cell
     // whose cell above is ~empty) with a smoothed sloped top + column depth. Rebuilt
@@ -178,6 +181,7 @@ private:
     std::vector<WaterSurfaceCell> m_surface;   // cached renderable surface cells
     std::vector<glm::vec4>        m_waterfalls; // mist emitter points (lip xyz, drop w)
     float           m_accum = 0.0f;
+    unsigned long long m_surfaceRebuilds = 0;  // observability (see surfaceRebuilds())
 
     static constexpr float STEP_HZ = 20.0f;
     static constexpr float STEP_DT = 1.0f / STEP_HZ;

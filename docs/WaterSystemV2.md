@@ -34,10 +34,23 @@
 >   volume/level/world-position at EVERY recenter; a 100-recenter one-way walk with the boundary
 >   condition asserts the sea re-establishes at the same volume+level every stride. Red-verified by
 >   mutation (seam drift ±1 → caught at recenter #3; boundary seeding disabled → caught at flood).
+> - **A2c part 2 — per-COLUMN active set** (2026-07-10): a sweep now visits only columns whose mass
+>   changed since the last sweep + their N4 neighbors (P = dirty ∪ N4(dirty)); the double-buffer
+>   snapshot/write-back is restricted to W = P ∪ N4(P), eliminating the O(box) `m_next = m_mass`
+>   copy. Measured (Debug, 64×16×64): partially-active step ~169µs vs ~790µs full sweep, max 77 of
+>   4096 columns swept for a basin-contained drop. Equivalence is the load-bearing test
+>   (`ActiveSetMatchesFullSweepExactly`: active vs wake()-forced full sweep, per-cell equality over
+>   80 steps of a scenario exercising every flow rule). Also fixed two latent holes: `setEvaporation`
+>   didn't wake a settled field (thin films would never dry after the toggle), and
+>   `WaterManager::update` paid the O(box) `rebuildSurface()` at 20 Hz even when every step was a
+>   settled skip (now gated on sweepsRun advancing; the GPU stepper forces the rebuild explicitly).
+>   All four new tests red-verified by mutation. L4 smoke: same 7206.999 flood as pre-change,
+>   place_water evolves, GPU on→off switch keeps flowing (no freeze).
 >
 > **NOT done (do not assume these exist):**
-> - A2c remainder: finer per-cell active-set (settle-skip is GLOBAL — only fully-at-rest fields are
->   free; partially-active fields still pay the full O(box) sweep).
+> - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
+>   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift
+>   marks ALL columns (correct but unoptimized).
 > - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
 >   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
 >   water, and only where terrain is below sea level.

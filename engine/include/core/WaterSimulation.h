@@ -79,7 +79,9 @@ public:
     // the thin edge evaporates → finite extent) and dries up thin films, while deep
     // (full) water is spared so ponds persist. Disabled by default so the pure CA is
     // mass-conserving for tests; the live game (WaterManager) turns it on.
-    void setEvaporation(bool enabled) { m_evaporate = enabled; }
+    // Toggling wakes the whole field: a settled field can hold thin cells that only
+    // became evaporation-eligible by the toggle (they'd otherwise never dry).
+    void setEvaporation(bool enabled);
     bool evaporation() const { return m_evaporate; }
 
     static constexpr float EVAP_THRESHOLD = 0.1f;  // below this depth a cell evaporates
@@ -92,19 +94,32 @@ public:
     // no evaporation) marks the field SETTLED; subsequent steps then return immediately — O(1) instead
     // of the O(cell-count) sweep + double-buffer copy — until a disturbance (addWater / setSolid /
     // setSource / setChannel / fillOcean / shift) wakes it. This is the common case: still water and
-    // dry regions cost nothing. (A finer per-cell active-set that also speeds PARTIALLY-active fields
-    // is future work; this global skip handles fully-at-rest fields, which dominate.)
+    // dry regions cost nothing.
+    //
+    // ACTIVE SET (perf, per-column): a sweep only visits columns (x,z) whose mass changed since the
+    // last sweep, plus their N4 neighbors (P = dirty ∪ N4(dirty)). A cell can only start flowing if
+    // its own state or a horizontal neighbor's changed — vertical flow stays in-column — so a column
+    // untouched by the last sweep and with untouched neighbors would recompute the exact same
+    // below-MIN_FLOW transfers it did before; skipping it cannot change the result. The double-buffer
+    // snapshot/write-back is likewise restricted to W = P ∪ N4(P) (every possible flow destination),
+    // eliminating the O(box) m_next = m_mass copy. A PARTIALLY-active field (one dripping spring in a
+    // big region) now pays O(active columns × height), not O(box).
     void step(float flowSide = 1.0f);
 
     // True once the field has reached rest (last executed step moved no mass); a disturbance clears it.
     bool settled() const { return m_settled; }
-    // Force the field awake — the settle flag no longer reflects reality. MUST be called by any code
-    // that mutates m_mass OUTSIDE step()/the tracked mutators (notably the GPU stepper, which writes
-    // mass() directly): otherwise a later CPU step() trusts a stale "settled" and freezes the field.
-    void wake() { m_settled = false; }
+    // Force the field awake — the settle flag no longer reflects reality. Marks EVERY column dirty
+    // (the caller wrote cells we cannot attribute). MUST be called by any code that mutates m_mass
+    // OUTSIDE step()/the tracked mutators (notably the GPU stepper, which writes mass() directly):
+    // otherwise a later CPU step() trusts a stale "settled"/clean-column state and freezes the field.
+    void wake();
     // Count of steps that actually ran the sweep (skipped/settled steps don't increment it) — lets
     // tests prove that a settled field stops doing work.
     unsigned long long sweepsRun() const { return m_sweepsRun; }
+    // Active-set observability: columns visited by the last executed sweep (the P set), and the
+    // total column count — lets tests prove a local disturbance stays local.
+    int columnsProcessedLastSweep() const { return m_colsProcessed; }
+    int columnCount() const { return m_sx * m_sz; }
 
     // Translate the whole field by an integer cell `delta`: after the shift, the cell at local p
     // holds what was at local p+delta (so the WORLD content stays put while the grid window moves by
@@ -120,6 +135,12 @@ private:
         return static_cast<size_t>(x) + static_cast<size_t>(m_sx) *
                (static_cast<size_t>(y) + static_cast<size_t>(m_sy) * static_cast<size_t>(z));
     }
+    size_t colIdx(int x, int z) const {
+        return static_cast<size_t>(x) + static_cast<size_t>(m_sx) * static_cast<size_t>(z);
+    }
+    // Mark a column's mass as changed since the last sweep (mutators + in-sweep transfers).
+    void markCol(int x, int z) { m_colDirty[colIdx(x, z)] = 1; m_settled = false; }
+    void markAllCols(); // bulk disturbance (wake / fillOcean / shift / evaporation toggle)
 
     int m_sx, m_sy, m_sz;
     std::vector<float>   m_mass;
@@ -127,6 +148,10 @@ private:
     std::vector<float>   m_next;   // scratch buffer reused across steps
     std::vector<float>   m_source;  // per-cell pinned mass; < 0 means "not a source"
     std::vector<uint8_t> m_channel; // per-cell: 1 = channel (no evaporation)
+    std::vector<uint8_t> m_colDirty;   // per-column (x,z): mass changed since the last sweep
+    std::vector<uint8_t> m_colProcess; // scratch: sweep set P = dirty ∪ N4(dirty)
+    std::vector<uint8_t> m_colWrite;   // scratch: snapshot/write-back set W = P ∪ N4(P)
+    int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
     bool                 m_settled    = false; // last step moved no mass → skip until disturbed
