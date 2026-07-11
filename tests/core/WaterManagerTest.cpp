@@ -351,6 +351,78 @@ TEST(WaterManagerTest, RiverColumnsWithoutLoadedTerrainAreSkipped) {
         << "river inflow pinned into unloaded columns — water pouring into the void";
 }
 
+// ─── Runtime shoreline SNAP (the L3 rim-leak fix, water side) ─────────────────────────────────────
+// The coarse bake's wet/dry boundary sits far from the carved waterline; the snap expands each wet
+// level into adjacent baked-DRY columns whose in-band terrain top is BELOW that level, stopping at
+// terrain that rises to/above it. Snapped columns become PINNED water (sources) — the structural
+// difference from the old rim leak, whose water was unpinned creep that churned forever.
+namespace {
+bool isPinnedAtLocal(const WaterManager& wm, int lx, int ly, int lz) {
+    const auto& d = wm.dims();
+    const size_t i = static_cast<size_t>(lx) +
+                     static_cast<size_t>(d.x) * (static_cast<size_t>(ly) +
+                     static_cast<size_t>(d.y) * static_cast<size_t>(lz));
+    return wm.sim().sourceMask()[i] >= 0.0f;
+}
+}  // namespace
+
+// Vertical following is WATER-AWARE: if the baked table has water under the new footprint, the
+// band stays centered no higher than that water's surface — a viewer on a coastal clifftop must
+// not lift the box above the sea (measured live: camera y=45 at a shore → band 29..61, sea level
+// 16 below it, simulated ocean mass 0). Dry footprints still follow the camera (mountain rivers).
+TEST(WaterManagerTest, FollowToKeepsTheBandOnLocalWater) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    wm.setWaterTable([](float, float) { return 16.0f; });   // sea everywhere at level 16
+    // Clifftop viewer: focus y=45 would put the band at 37..53 — the clamp must hold it on the
+    // water instead (origin.y = floor(16) - dims.y/2 = 8 → band 8..24 covers the surface).
+    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 45.0f, 16.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(84, 8, 0));
+    // Re-calling with the same focus must not thrash (clamp lands on the current origin).
+    EXPECT_FALSE(wm.followTo(glm::vec3(100.0f, 45.0f, 16.0f), 8));
+
+    // Dry footprint (no table water) keeps pure camera-following.
+    WaterManager dry(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    dry.setWaterTable([](float, float) { return -1e30f; });
+    EXPECT_TRUE(dry.followTo(glm::vec3(100.0f, 72.0f, 16.0f), 8));
+    EXPECT_EQ(dry.origin(), glm::ivec3(84, 64, 0));
+}
+
+TEST(WaterManagerTest, ShorelineSnapPinsLowRimAndStopsAtHighGround) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    // A low shelf (top y=5) spans x 10..14 beside the baked-wet zone; a high wall (top y=12) at
+    // x=15; nothing beyond it. The bake calls everything x >= 10 DRY (the coarse boundary).
+    for (int x = 10; x <= 14; ++x)
+        for (int z = 0; z < 32; ++z) wm.setSolidWorld(x, 5, z, true);
+    for (int z = 0; z < 32; ++z)
+        for (int y = 0; y <= 12; ++y) wm.setSolidWorld(15, y, z, true);
+    wm.setWaterTable([](float wx, float) { return wx < 10.0f ? 8.0f : -1e30f; });
+    wm.update(0.1f);
+
+    // The shelf snapped: wet AND PINNED at the level, dry above it.
+    EXPECT_GT(wm.massAtWorld(glm::vec3(12.5f, 8.5f, 16.5f)), 0.9f) << "snapped rim not wet at level";
+    EXPECT_TRUE(isPinnedAtLocal(wm, 12, 8, 16))
+        << "rim water is unpinned creep, not snapped table water";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(12.5f, 9.5f, 16.5f)), 1e-3f) << "water above the level";
+    // Contained at the high wall — the snap must NOT climb terrain at/above the level.
+    EXPECT_FALSE(isPinnedAtLocal(wm, 15, 8, 16));
+    EXPECT_LT(wm.massAtWorld(glm::vec3(16.5f, 8.5f, 16.5f)), 1e-3f) << "water beyond the high wall";
+    // A properly-pinned shore SETTLES (the old rim leak churned indefinitely).
+    int guard = 0;
+    while (!wm.sim().settled() && guard++ < 200) wm.update(0.1f);
+    EXPECT_TRUE(wm.sim().settled()) << "snapped shoreline still churning";
+}
+
+// Columns with no in-band solid (void / not-yet-streamed terrain) are never snapped — pinning them
+// would hang floating water in the void, the same failure class the river bed guard prevents.
+TEST(WaterManagerTest, ShorelineSnapSkipsVoidColumns) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    wm.setWaterTable([](float wx, float) { return wx < 10.0f ? 8.0f : -1e30f; });
+    wm.update(0.1f);   // wet zone pins; everything x >= 10 is bottomless void
+    EXPECT_FALSE(isPinnedAtLocal(wm, 12, 8, 16))
+        << "a void column was snapped — floating pinned water";
+    EXPECT_FALSE(isPinnedAtLocal(wm, 30, 8, 16));
+}
+
 // ─── L3 bake-vs-terrain validation: rim leaks ─────────────────────────────────────────────────────
 // The validator flags exactly the observed live defect: a baked-DRY rim column whose carved surface
 // sits BELOW the adjacent water level — the CA levels water into it, so the lake/sea spreads beyond

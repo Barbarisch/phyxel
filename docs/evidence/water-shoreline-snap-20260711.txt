@@ -1,0 +1,55 @@
+=== SNAP RED baseline: pre-snap binary (HEAD 720ace0) at the coast Sat Jul 11 18:04:51 EDT 2026 ===
+[18:04:39.406] [INFO] [Water] [WATER] region followed viewer ? origin (318,29,468)
+--- mass, 10 samples @20s: the rim leak creep (evap on, tuned build) ---
+t+20s: 
+t+40s: 
+t+60s: 
+t+80s: 
+t+100s: 
+t+120s: 
+t+140s: 
+t+160s: 
+t+180s: 
+t+200s: 
+--- retry after streaming settled ---
+t+20s: TIMEOUT()
+t+40s: TIMEOUT()
+t+60s: TIMEOUT()
+t+80s: TIMEOUT()
+t+100s: TIMEOUT()
+t+120s: TIMEOUT()
+t+140s: TIMEOUT()
+t+160s: TIMEOUT()
+t+180s: TIMEOUT()
+t+200s: TIMEOUT()
+=== SNAP GREEN: post-snap binary at the same coast Sat Jul 11 18:32:25 EDT 2026 ===
+[18:32:10.540] [INFO] [Water] [WATER] region followed viewer ? origin (318,29,468)
+--- mass, 10 samples @20s: expect CONSTANT (the rim is pinned, not leaking) ---
+t+20s: 0.0
+t+40s: 0.0
+t+60s: 0.0
+t+80s: 0.0
+t+100s: 0.0
+t+120s: 0.0
+t+140s: 0.0
+t+160s: 0.0
+t+180s: 0.0
+t+200s: 0.0
+=== SNAP GREEN take 2: clamp + snap at the coast Sat Jul 11 18:41:39 EDT 2026 ===
+[18:41:23.791] [INFO] [Water] [WATER] region followed viewer ? origin (318,0,468)
+--- mass, 10 samples @20s: expect NONZERO and CONSTANT ---
+t+20s: 14353.0
+t+40s: 14353.0
+t+60s: 14353.0
+t+80s: 14353.0
+t+100s: 14353.0
+t+120s: 14353.0
+t+140s: 14353.0
+t+160s: 14353.0
+t+180s: 14353.0
+t+200s: 14353.0
+--- the previously-worst leak column (363,511), surface y=11: expect PINNED water 12..16, dry 17 ---
+y=12.5: 1.0
+y=15.5: 1.0
+y=16.5: 1.0
+y=17.5: 0.0

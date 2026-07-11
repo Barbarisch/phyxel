@@ -160,7 +160,32 @@
 >   rule in the generator), not per-spot patching. NOTE: keep `maxY` near the local terrain top —
 >   the default 200 over a 64² rect blows the 5s game-loop budget in Debug.
 >
+> - **Runtime shoreline SNAP + water-aware vertical follow** (2026-07-11, the L3 rim-leak fix,
+>   water side): in the table path, each wet level BFS-expands into adjacent baked-DRY columns
+>   whose in-band carved terrain top sits BELOW that level (stop at terrain ≥ level; columns with
+>   no in-band solid — void/unloaded — are never snapped). The waterline snaps from the coarse
+>   128 m cell boundary to the per-voxel contour and the shore becomes PINNED water — no more
+>   unpinned rim creep, and the coast SETTLES. The L4 for this exposed a second defect and fixed
+>   it: naive camera-Y following lifted the band above the sea whenever the viewer stood on a
+>   coastal clifftop (measured: camera y=45 → band 29..61, sea mass 0.0). followTo now clamps the
+>   band to local baked water when the footprint has any (sampled at stride 8); dry footprints
+>   (mountain rivers) still follow the camera. L4 (docs/evidence/water-shoreline-snap-20260711.txt):
+>   coast mass bit-identical 14353.0 across 10 samples over 200 s (zero creep), and the validator's
+>   worst-leak column (363,511) holds pinned water snapped exactly to its carved surface (wet
+>   y=12..16, dry 17). NOTE: `water_validate` still reports the RAW bake mismatch (by design — it
+>   measures the bake); the snap compensates at runtime. DISCLOSED: a fresh live pre-snap creep
+>   baseline could not be recorded — the engine APPCRASHed during the attempt (0xc0000005 in
+>   ucrtbased.dll, Windows Event Log 18:04:45, the recurring silent-exit); the snap's red is the
+>   unit-level mutation (rim unpinned + never settles) instead.
+>
 > **NOT done (do not assume these exist):**
+> - Shoreline-snap/clamp gaps (audit-found, undisclosed at first): (1) STRIDE-8 BLIND SPOT — the
+>   vertical-clamp's water scan samples the footprint every 8 units, so a pond smaller than ~8×8
+>   that misses the sample grid is invisible and the region reverts to camera-following over it
+>   (the same lost-sim defect class, for small water). (2) The clamp can pull origin.y down on a
+>   HORIZONTAL-only recenter (footprint changed → lower water found) — a vertical move the vHyst
+>   dead zone was meant to gate; untested. Both need a follow-up (finer scan or level-aware
+>   sampling; clamp-vs-hysteresis interaction test).
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift
 >   marks ALL columns (correct but unoptimized).
@@ -171,6 +196,12 @@
 > - **Far-teleport hang (NOT water):** teleporting the camera ~2.6 km in one jump after the world
 >   has streamed hung the main loop indefinitely (log frozen, CPU spinning, API dead — reproduced
 >   once, worked around by teleporting immediately at boot). Needs its own investigation.
+> - **Recurring silent APPCRASH (NOT water, signature captured 2026-07-11):** the engine exits with
+>   no stderr during post-teleport streaming churn — Windows Event Log shows 0xc0000005 (access
+>   violation) in `ucrtbased.dll` (Debug CRT — a bad-pointer memcpy/free called from engine code),
+>   fault offset 0x10ac87, e.g. 18:04:45 report b5fd8d81. At least 2-3 occurrences today. WER
+>   LocalDumps is NOT enabled — enable it (registry `HKLM\...\Windows Error Reporting\LocalDumps`)
+>   before the investigation session so the next crash leaves a .dmp.
 > - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
 >   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
 >   water, and only where terrain is below sea level.

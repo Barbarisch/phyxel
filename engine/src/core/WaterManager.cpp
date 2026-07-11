@@ -136,8 +136,27 @@ bool WaterManager::followTo(const glm::vec3& focusWorld, int hysteresisCells) {
     const bool moveXZ = std::abs(fx - cx) > hysteresisCells || std::abs(fz - cz) > hysteresisCells;
     const bool moveY  = std::abs(fy - cy) > vHyst;
     if (!moveXZ && !moveY) return false;         // inside both dead zones → don't thrash
-    const int newY = std::max(0, fy - m_dims.y / 2);   // never below the world floor band
-    recenter(glm::ivec3(fx - m_dims.x / 2, moveY ? newY : m_origin.y, fz - m_dims.z / 2));
+    int newY = moveY ? std::max(0, fy - m_dims.y / 2) : m_origin.y;
+    // WATER-AWARE vertical clamp: naive camera-following lifted the band above the sea whenever the
+    // viewer stood on a coastal clifftop (measured: camera y=45 at a shore → band 29..61, sea level
+    // 16 below it, simulated ocean mass 0). If the baked table has water anywhere under the box's
+    // new footprint, keep the band centered no higher than that water's surface — the sim exists
+    // for the water; a camera high above it needs no box at its own altitude. Dry footprints
+    // (mountains with no lake) still follow the camera, which is what rivers at altitude need.
+    if (m_tableFn) {
+        const int nox = fx - m_dims.x / 2, noz = fz - m_dims.z / 2;
+        float maxLevel = TABLE_DRY;
+        for (int lz = 0; lz < m_dims.z; lz += 8)
+            for (int lx = 0; lx < m_dims.x; lx += 8)
+                maxLevel = std::max(maxLevel, m_tableFn(static_cast<float>(nox + lx) + 0.5f,
+                                                        static_cast<float>(noz + lz) + 0.5f));
+        if (maxLevel > TABLE_DRY)
+            newY = std::min(newY,
+                            std::max(0, static_cast<int>(std::floor(maxLevel)) - m_dims.y / 2));
+    }
+    const glm::ivec3 newOrigin(fx - m_dims.x / 2, newY, fz - m_dims.z / 2);
+    if (newOrigin == m_origin) return false;     // clamp landed on the current origin — no move
+    recenter(newOrigin);
     return true;
 }
 
@@ -415,12 +434,56 @@ void WaterManager::rebuildOcean() {
     // lakes at their spill height, ocean at sea level — instead of the scalar/authored path.
     // recenter() re-runs this, so the table re-derives wherever the region travels.
     if (m_tableFn) {
-        m_sim.fillWaterTable([this](int lx, int lz) -> int {
-            const float wl = m_tableFn(static_cast<float>(m_origin.x + lx) + 0.5f,
-                                       static_cast<float>(m_origin.z + lz) + 0.5f);
-            if (wl <= TABLE_DRY) return INT_MIN;
-            return static_cast<int>(std::floor(wl)) - m_origin.y;
-        });
+        // Per-column baked levels (local grid Y; INT_MIN = dry), sampled once.
+        const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+        auto colIdx = [sx](int lx, int lz) {
+            return static_cast<size_t>(lx) + static_cast<size_t>(sx) * static_cast<size_t>(lz);
+        };
+        std::vector<int> lvl(static_cast<size_t>(sx) * sz);
+        for (int lz = 0; lz < sz; ++lz)
+            for (int lx = 0; lx < sx; ++lx) {
+                const float wl = m_tableFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                                           static_cast<float>(m_origin.z + lz) + 0.5f);
+                lvl[colIdx(lx, lz)] = (wl <= TABLE_DRY)
+                    ? INT_MIN : static_cast<int>(std::floor(wl)) - m_origin.y;
+            }
+        // RUNTIME SHORELINE SNAP (the L3 rim-leak fix, water side): the bake is 128 m/cell coarse,
+        // so its wet/dry boundary sits far from the carved waterline — the validator measured 65/65
+        // rim columns below the adjacent water level at a coast, and the CA leveled unpinned water
+        // into them forever (pins refill → the coast crept and never settled). Expand each wet
+        // level into adjacent DRY columns whose carved in-band terrain top sits BELOW that level,
+        // stopping where terrain rises to/above it — the waterline snaps from the coarse cell
+        // boundary to the actual per-voxel contour, and the shore becomes properly PINNED water.
+        // Columns with no in-band solid are skipped (unloaded terrain or open void — snapping them
+        // would pin floating water; same guard as the river beds). Terrain itself is untouched —
+        // the beach/coastal-band look is the generator-side follow-up.
+        {
+            auto topSolid = [&](int lx, int lz) -> int {
+                for (int y = sy - 1; y >= 0; --y)
+                    if (m_sim.isSolid(lx, y, lz)) return y;
+                return INT_MIN;
+            };
+            std::vector<glm::ivec2> queue;
+            queue.reserve(static_cast<size_t>(sx) * 2 + static_cast<size_t>(sz) * 2);
+            for (int lz = 0; lz < sz; ++lz)
+                for (int lx = 0; lx < sx; ++lx)
+                    if (lvl[colIdx(lx, lz)] != INT_MIN) queue.push_back({lx, lz});
+            static const int NX[4] = {1, -1, 0, 0}, NZ[4] = {0, 0, 1, -1};
+            for (size_t qi = 0; qi < queue.size(); ++qi) {
+                const glm::ivec2 c = queue[qi];
+                const int L = lvl[colIdx(c.x, c.y)];
+                for (int k = 0; k < 4; ++k) {
+                    const int nx = c.x + NX[k], nz = c.y + NZ[k];
+                    if (nx < 0 || nx >= sx || nz < 0 || nz >= sz) continue;
+                    if (lvl[colIdx(nx, nz)] != INT_MIN) continue;   // already wet/snapped
+                    const int t = topSolid(nx, nz);
+                    if (t == INT_MIN || t >= L) continue;           // void/unloaded or land above level
+                    lvl[colIdx(nx, nz)] = L;
+                    queue.push_back({nx, nz});
+                }
+            }
+        }
+        m_sim.fillWaterTable([&](int lx, int lz) -> int { return lvl[colIdx(lx, lz)]; });
         applySprings();       // authored springs still ride on top of the baked table
         applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
         rebuildSurface();
