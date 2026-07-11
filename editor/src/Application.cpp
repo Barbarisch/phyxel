@@ -7461,11 +7461,21 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             if (cmd.params.contains("enabled")) {
                 renderCoordinator->setGrassEnabled(cmd.params.value("enabled", true));
             }
+            // bladeStyle accepts 0/1 or "smooth"/"boxy".
+            int bladeStyle = -1;
+            if (cmd.params.contains("bladeStyle")) {
+                if (cmd.params["bladeStyle"].is_string()) {
+                    bladeStyle = (cmd.params["bladeStyle"] == "smooth") ? 0 : 1;
+                } else {
+                    bladeStyle = cmd.params.value("bladeStyle", -1);
+                }
+            }
             renderCoordinator->setGrassParams(
                 cmd.params.value("radius",          -1.0f),
                 cmd.params.value("bladeHeight",     -1.0f),
                 cmd.params.value("windStrength",    -1.0f),
-                cmd.params.value("bladesPerVoxel",  -1));
+                cmd.params.value("bladesPerVoxel",  -1),
+                bladeStyle);
             response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()}};
         }
         return true;
@@ -7484,6 +7494,25 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("cardsPerVoxel",  -1),
                 cmd.params.value("radius",         -1.0f));
             response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()}};
+        }
+        return true;
+
+    } else if (action == "set_wind") {
+        // Shared wind field (drives grass + foliage identically). Omitted fields unchanged.
+        // dirDegrees may legitimately be negative, so presence (not a sentinel) gates each field.
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            auto& ws = renderCoordinator->windSettings();
+            if (cmd.params.contains("dirDegrees")) ws.dirDegrees = cmd.params.value("dirDegrees", ws.dirDegrees);
+            if (cmd.params.contains("speed"))      ws.speed      = std::max(0.0f, cmd.params.value("speed", ws.speed));
+            if (cmd.params.contains("gustiness"))  ws.gustiness  = std::clamp(cmd.params.value("gustiness", ws.gustiness), 0.0f, 1.0f);
+            const auto& st = renderCoordinator->windState();
+            response = {{"success", true},
+                        {"dirDegrees", ws.dirDegrees}, {"speed", ws.speed}, {"gustiness", ws.gustiness},
+                        {"state", {{"dirX", st.dir.x}, {"dirZ", st.dir.y}, {"base", st.base},
+                                   {"gustAmp", st.gustAmp}, {"gustScale", st.gustScale},
+                                   {"gustSpeed", st.gustSpeed}}}};
         }
         return true;
 

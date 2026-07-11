@@ -5,6 +5,7 @@
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
+#include "graphics/WindSystem.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/GpuProfiler.h"
@@ -375,14 +376,23 @@ public:
     /// Far-terrain manager (debug tile building, params). Null if init failed.
     FarTerrainManager* getFarTerrainManager() { return farTerrainManager.get(); }
     // Runtime grass knobs (see /api/debug/grass). Negative/absent values leave a field unchanged.
+    // bladeStyle: 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon.
     void setGrassEnabled(bool on);
-    void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel);
+    void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
+                        int bladeStyle = -1);
     bool isGrassEnabled() const;
     // Runtime foliage knobs (see /api/debug/foliage). Negative/absent values leave a field unchanged.
     void setFoliageEnabled(bool on);
     void setFoliageParams(float cardSize, float windStrength, int cardsPerVoxel, float radius);
     bool isFoliageEnabled() const;
+    // Shared wind knobs (see /api/debug/wind). Settings are drift targets; State is the
+    // per-frame derived field the shaders consume (read-only, useful for round-trip checks).
+    WindSystem::Settings&    windSettings()      { return windSystem.settings(); }
+    const WindSystem::State& windState() const   { return windSystem.state(); }
 private:
+    // Global procedural wind — ticked once per drawFrame, then copied into BOTH vegetation
+    // pipelines' params so grass and foliage can never see diverging wind.
+    WindSystem windSystem;
 
     // Water surface. Default OFF; enabled + sea level come from the per-world game
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.

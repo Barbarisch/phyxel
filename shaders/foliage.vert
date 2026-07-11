@@ -1,9 +1,13 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "wind.glsl"
 
 // Leaf foliage cards. ONE instance per exposed billboarded-leaf subcube (FoliageInstanceData); this
 // shader fans it into `cardsPerVoxel` leaf cards, each a quad in a HASHED 3D orientation (crossed
 // cards filling the subcube volume → volumetric foliage from every angle). Rounded silhouette is
-// carved in foliage.frag. Gentle wind from ubo.elapsedTime. Sibling of grass.vert.
+// carved in foliage.frag. Wind = shared procedural gust field (wind.glsl): the sprig pivots about
+// its base coherently, plus per-card basis flutter. Sibling of grass.vert. ANY motion change here
+// must be mirrored in foliage_shadow.vert (shadows must track the rendered cards exactly).
 
 layout(location = 0) in uint inPacked;  // 0-4 x |5-9 y |10-14 z (cube local) |15-16 sx |17-18 sy |19-20 sz |21-24 sky
 layout(location = 1) in uint inTex;     // low16 = leaf texture index |16-19 R |20-23 G |24-27 B (block light)
@@ -27,10 +31,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(push_constant) uniform PushConstants {
     vec3  chunkBaseOffset;   // chunk world origin
     float cardSize;          // leaf card half-extent
-    float windStrength;
+    float windStrength;      // master wind amplitude (multiplies the shared field)
     float radius;            // safety cull cap (world units)
     uint  cardsPerVoxel;
-    uint  _pad;
+    // Shared wind field (WindSystem writes grass + foliage identically each frame).
+    float windDirX;
+    float windDirZ;
+    float windBase;          // steady bend strength
+    float gustAmp;           // gust amplitude on top of base
+    float gustScale;         // gust spatial frequency (1/world units)
+    float gustSpeed;         // gust front travel speed (world units/s)
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
@@ -94,12 +104,24 @@ void main() {
     vec3 jitter = (vec3(h0, h1, h2) - 0.5) * (2.0 / 3.0) * 0.55;
     vec3 center = subCenter + jitter;
 
-    // Gentle coherent wind: whole card drifts, tips more; phase varies with world position
-    // (hash-domain coords — sin() of a raw far coord is float garbage).
-    vec2 windDir = normalize(vec2(0.8, 0.35));
-    float phase = scHash.x * 0.5 + scHash.z * 0.45 + float(card);
-    float sway  = sin(ubo.elapsedTime * 1.3 + phase) * pc.windStrength;
-    center.xz  += windDir * sway;
+    // Shared procedural wind (wind.glsl). The MAIN bend samples the gust field at the SPRIG
+    // (subcube) position with no per-card term, so every card of a sprig moves together —
+    // sprig-to-sprig variation comes from the travelling gust field, not desynchronized noise
+    // (the Crysis main/detail split; the old `+ float(card)` phase read as jitter).
+    vec2 wd = vec2(pc.windDirX, pc.windDirZ);
+    float gust = windGustAt(scHash.xz, ubo.elapsedTime, wd, pc.gustScale, pc.gustSpeed);
+    float bend = (pc.windBase + pc.gustAmp * gust) * pc.windStrength;
+
+    // DETAIL flutter: oscillate the card basis a few degrees around nrm — leaves glint in
+    // gusts, stay still in calm air (every factor is 0 at wind speed 0). Angle is scaled by a
+    // normalized master amplitude (windStrength/0.05 default → 1) so the wind toggle kills it.
+    // Kept SLOW and small — fast random-phase card rotation reads as canopy jitter/shimmer.
+    float fphase = scHash.x * 1.7 + scHash.z * 1.3 + float(card) * 2.39;
+    float fang   = sin(ubo.elapsedTime * 2.1 + fphase) * 0.05
+                 * (pc.gustAmp * gust + 0.2 * pc.windBase) * clamp(pc.windStrength * 20.0, 0.0, 1.0);
+    float ca = cos(fang), sa = sin(fang);
+    vec3 rightW = right * ca + up * sa;
+    vec3 upW    = up * ca - right * sa;
 
     // Quad corners in card plane, [-1,1]^2.
     vec2 quad[6] = vec2[6](vec2(-1,-1), vec2(1,-1), vec2(1,1), vec2(-1,-1), vec2(1,1), vec2(-1,1));
@@ -111,7 +133,12 @@ void main() {
     float dist = length(ubo.cameraPosition - center);
     float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
 
-    vec3 worldPos = center + (q.x * right + q.y * up) * scale;
+    vec3 worldPos = center + (q.x * rightW + q.y * upW) * scale;
+    // Pivot about the sprig base: displacement ∝ height within the sprig, so the base stays
+    // anchored and tips sway — replaces the old rigid whole-card XZ drift that made canopies
+    // look like they were floating rather than being pushed.
+    float hFrac = clamp((worldPos.y - (subCenter.y - 0.55)) * 0.9, 0.0, 1.0);
+    worldPos.xz += wd * (bend * hFrac);
     vWorldPos    = worldPos;
     vShadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
     gl_Position  = ubo.viewProj * vec4(worldPos, 1.0);

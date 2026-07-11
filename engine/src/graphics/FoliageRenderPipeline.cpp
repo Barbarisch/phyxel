@@ -10,15 +10,22 @@
 namespace Phyxel {
 namespace Graphics {
 
-// Push constant layout — MUST match foliage.vert. Time + camera come from the UBO.
+// Push constant layout — MUST match foliage.vert AND foliage_shadow.vert. Time + camera come
+// from the UBO; the wind-field scalars come from the shared WindSystem via Params::wind.
 struct FoliagePush {
     glm::vec3 chunkBaseOffset;
     float     cardSize;
     float     windStrength;
     float     radius;
     uint32_t  cardsPerVoxel;
-    uint32_t  _pad;
+    float     windDirX;
+    float     windDirZ;
+    float     windBase;
+    float     gustAmp;
+    float     gustScale;
+    float     gustSpeed;
 };
+static_assert(sizeof(FoliagePush) == 52, "FoliagePush must match the foliage.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -296,6 +303,12 @@ void FoliageRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet ub
     pc.windStrength  = m_params.windStrength;
     pc.radius        = m_params.radius;
     pc.cardsPerVoxel = m_params.cardsPerVoxel;
+    pc.windDirX      = m_params.wind.dir.x;
+    pc.windDirZ      = m_params.wind.dir.y;
+    pc.windBase      = m_params.wind.base;
+    pc.gustAmp       = m_params.wind.gustAmp;
+    pc.gustScale     = m_params.wind.gustScale;
+    pc.gustSpeed     = m_params.wind.gustSpeed;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
@@ -322,6 +335,12 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.windStrength  = m_params.windStrength;
     pc.radius        = m_params.radius;
     pc.cardsPerVoxel = m_params.cardsPerVoxel;
+    pc.windDirX      = m_params.wind.dir.x;
+    pc.windDirZ      = m_params.wind.dir.y;
+    pc.windBase      = m_params.wind.base;
+    pc.gustAmp       = m_params.wind.gustAmp;
+    pc.gustScale     = m_params.wind.gustScale;
+    pc.gustSpeed     = m_params.wind.gustSpeed;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;

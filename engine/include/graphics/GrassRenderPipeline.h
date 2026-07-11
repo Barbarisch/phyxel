@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphics/WindSystem.h"
+
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <vector>
@@ -37,9 +39,14 @@ public:
         float    radius         = 48.0f;  ///< world units: grass drawn only within this of camera
         float    fadeRange      = 14.0f;  ///< world units of fade-to-zero height before the radius edge
         float    bladeHeight    = 0.32f;  ///< full-grown blade height (world units; character ≈ 1.75)
-        float    windStrength   = 0.13f;  ///< tip sway amplitude (scaled by blade height in-shader)
+        float    windStrength   = 0.13f;  ///< master wind amplitude (scaled by blade height in-shader)
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
-        uint32_t bladesPerVoxel = 20;     ///< procedural blades/voxel, grouped into tufts (~7/clump)
+        uint32_t bladesPerVoxel = 28;     ///< procedural blades/voxel, grouped into tufts (~7/clump)
+        uint32_t bladeStyle     = 1;      ///< 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon
+        /// Shared wind-field state — overwritten every frame by RenderCoordinator from the
+        /// single WindSystem (grass and foliage always see identical wind). Not user-tunable
+        /// here; tune via /api/debug/wind.
+        WindSystem::State wind;
     };
 
     /// One draw record per visible grass chunk (assembled by RenderCoordinator from the chunks that

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphics/WindSystem.h"
+
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <vector>
@@ -41,8 +43,12 @@ public:
         bool     enabled       = true;
         float    radius        = 512.0f; ///< safety cap (world units); large by default = "no fade"
         float    cardSize      = 0.42f;  ///< leaf card half-extent (world units; subcube ≈ 0.33)
-        float    windStrength  = 0.05f;  ///< canopy flutter amplitude (world units)
+        float    windStrength  = 0.05f;  ///< master wind amplitude (world units of sprig sway)
         uint32_t cardsPerVoxel = 5;      ///< leaf cards fanned per leaf subcube
+        /// Shared wind-field state — overwritten every frame by RenderCoordinator from the
+        /// single WindSystem (grass and foliage always see identical wind). Not user-tunable
+        /// here; tune via /api/debug/wind.
+        WindSystem::State wind;
     };
 
     /// One draw record per visible foliage chunk.

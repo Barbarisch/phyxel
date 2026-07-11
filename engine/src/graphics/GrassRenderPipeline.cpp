@@ -10,7 +10,8 @@
 namespace Phyxel {
 namespace Graphics {
 
-// Push constant layout — MUST match grass.vert. Time + camera position come from the UBO.
+// Push constant layout — MUST match grass.vert. Time + camera position come from the UBO;
+// the wind-field scalars come from the shared WindSystem via Params::wind.
 struct GrassPush {
     glm::vec3 chunkBaseOffset;   // world origin of the chunk
     float     bladeHeight;
@@ -19,7 +20,15 @@ struct GrassPush {
     float     fadeRange;
     float     growDuration;
     uint32_t  bladesPerVoxel;
+    float     windDirX;
+    float     windDirZ;
+    float     windBase;
+    float     gustAmp;
+    float     gustScale;
+    float     gustSpeed;
+    uint32_t  bladeStyle;
 };
+static_assert(sizeof(GrassPush) == 64, "GrassPush must match the grass.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -186,7 +195,7 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
 
-    const uint32_t vertsPerBlade = 6;
+    const uint32_t vertsPerBlade = 6;   // both styles are 1 quad; bladeStyle only changes silhouette
     const uint32_t vertexCount   = vertsPerBlade * m_params.bladesPerVoxel;
 
     GrassPush pc{};
@@ -196,6 +205,13 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.fadeRange      = m_params.fadeRange;
     pc.growDuration   = m_params.growDuration;
     pc.bladesPerVoxel = m_params.bladesPerVoxel;
+    pc.windDirX       = m_params.wind.dir.x;
+    pc.windDirZ       = m_params.wind.dir.y;
+    pc.windBase       = m_params.wind.base;
+    pc.gustAmp        = m_params.wind.gustAmp;
+    pc.gustScale      = m_params.wind.gustScale;
+    pc.gustSpeed      = m_params.wind.gustSpeed;
+    pc.bladeStyle     = m_params.bladeStyle;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;

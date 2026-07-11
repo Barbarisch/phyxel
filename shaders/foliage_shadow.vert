@@ -1,8 +1,10 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "wind.glsl"
 
 // Foliage leaf-card SHADOW caster. Same card fan/orientation/wind math as foliage.vert (cards
-// must shadow exactly where they render), but projected by the light-space matrix into the
-// shadow map. Pairs with foliage_shadow.frag which alpha-tests the leaf-forge cutout mask, so
+// must shadow exactly where they render — keep the wind block byte-identical), but projected
+// by the light-space matrix into the shadow map. Pairs with foliage_shadow.frag which alpha-tests the leaf-forge cutout mask, so
 // canopies cast DAPPLED shadows — before this pass, leaf voxels cast no shadows at all (the
 // mesher skips their solid faces; trunks alone shadowed the ground).
 
@@ -28,10 +30,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(push_constant) uniform PushConstants {
     vec3  chunkBaseOffset;   // chunk world origin
     float cardSize;          // leaf card half-extent
-    float windStrength;
+    float windStrength;      // master wind amplitude (multiplies the shared field)
     float radius;            // safety cull cap (world units)
     uint  cardsPerVoxel;
-    uint  _pad;
+    // Shared wind field (WindSystem writes grass + foliage identically each frame).
+    float windDirX;
+    float windDirZ;
+    float windBase;          // steady bend strength
+    float gustAmp;           // gust amplitude on top of base
+    float gustScale;         // gust spatial frequency (1/world units)
+    float gustSpeed;         // gust front travel speed (world units/s)
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
@@ -78,10 +86,17 @@ void main() {
     vec3 jitter = (vec3(h0, h1, h2) - 0.5) * (2.0 / 3.0) * 0.55;
     vec3 center = subCenter + jitter;
 
-    vec2 windDir = normalize(vec2(0.8, 0.35));
-    float phase = scHash.x * 0.5 + scHash.z * 0.45 + float(card);
-    float sway  = sin(ubo.elapsedTime * 1.3 + phase) * pc.windStrength;
-    center.xz  += windDir * sway;
+    // Wind block — byte-identical to foliage.vert (see comments there).
+    vec2 wd = vec2(pc.windDirX, pc.windDirZ);
+    float gust = windGustAt(scHash.xz, ubo.elapsedTime, wd, pc.gustScale, pc.gustSpeed);
+    float bend = (pc.windBase + pc.gustAmp * gust) * pc.windStrength;
+
+    float fphase = scHash.x * 1.7 + scHash.z * 1.3 + float(card) * 2.39;
+    float fang   = sin(ubo.elapsedTime * 2.1 + fphase) * 0.05
+                 * (pc.gustAmp * gust + 0.2 * pc.windBase) * clamp(pc.windStrength * 20.0, 0.0, 1.0);
+    float ca = cos(fang), sa = sin(fang);
+    vec3 rightW = right * ca + up * sa;
+    vec3 upW    = up * ca - right * sa;
 
     vec2 quad[6] = vec2[6](vec2(-1,-1), vec2(1,-1), vec2(1,1), vec2(-1,-1), vec2(1,1), vec2(-1,1));
     vec2 q = quad[corner];
@@ -91,6 +106,8 @@ void main() {
     float dist = length(ubo.cameraPosition - center);
     float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
 
-    vec3 worldPos = center + (q.x * right + q.y * up) * scale;
+    vec3 worldPos = center + (q.x * rightW + q.y * upW) * scale;
+    float hFrac = clamp((worldPos.y - (subCenter.y - 0.55)) * 0.9, 0.0, 1.0);
+    worldPos.xz += wd * (bend * hFrac);
     gl_Position = ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
 }

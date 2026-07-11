@@ -899,7 +899,8 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // POST /api/debug/grass — toggle / tune the grass blade layer at runtime (for FPS A/B + tuning)
     // Body: { "enabled": bool (opt), "radius": float, "bladeHeight": float,
-    //         "windStrength": float, "bladesPerVoxel": int } — omitted/negative fields unchanged.
+    //         "windStrength": float, "bladesPerVoxel": int,
+    //         "bladeStyle": "boxy"|"smooth" (or 1|0) } — omitted/negative fields unchanged.
     // ====================================================================
     srv.Post("/api/debug/grass", [this](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -922,6 +923,23 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("set_foliage", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/debug/wind — tune the shared wind field driving grass + foliage
+    // Body: { "dirDegrees": float, "speed": float (0=calm..1=storm), "gustiness": float (0..1) }
+    // — omitted fields unchanged. Echoes settings + the derived per-frame state.
+    // ====================================================================
+    srv.Post("/api/debug/wind", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_wind", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

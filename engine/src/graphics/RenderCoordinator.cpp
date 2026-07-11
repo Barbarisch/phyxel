@@ -595,13 +595,15 @@ void RenderCoordinator::setGrassEnabled(bool on) {
     if (grassPipeline) grassPipeline->params().enabled = on;
 }
 
-void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel) {
+void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
+                                       int bladeStyle) {
     if (!grassPipeline) return;
     auto& p = grassPipeline->params();
     if (radius       >= 0.0f) p.radius        = radius;
     if (bladeHeight  >= 0.0f) p.bladeHeight   = bladeHeight;
     if (windStrength >= 0.0f) p.windStrength  = windStrength;
     if (bladesPerVoxel > 0)   p.bladesPerVoxel = static_cast<uint32_t>(bladesPerVoxel);
+    if (bladeStyle == 0 || bladeStyle == 1) p.bladeStyle = static_cast<uint32_t>(bladeStyle);
 }
 
 bool RenderCoordinator::isGrassEnabled() const {
@@ -1539,6 +1541,13 @@ void RenderCoordinator::drawFrame() {
     static const auto renderStartTime = std::chrono::high_resolution_clock::now();
     float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
+
+    // Advance the shared wind field on the same clock the shaders scroll it with, and write
+    // its state into BOTH vegetation pipelines before any pass records push constants (the
+    // shadow pass below reads foliage params too) — single source of truth, no divergence.
+    windSystem.tick(elapsedTime);
+    if (grassPipeline)   grassPipeline->params().wind   = windSystem.state();
+    if (foliagePipeline) foliagePipeline->params().wind = windSystem.state();
     
     // Upload light data to GPU SSBO
     auto gpuLightData = lightManager.getGPUData();

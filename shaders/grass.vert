@@ -1,9 +1,16 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "wind.glsl"
 
 // Lightweight grass blades. ONE instance per grass-topped voxel (GrassInstanceData); this shader
-// procedurally fans it into `bladesPerVoxel` blades using gl_VertexIndex (6 verts / blade, no
-// vertex buffer). Wind sway + sprout-in growth use ubo.elapsedTime; distance fade uses
-// ubo.cameraPosition. See GrassRenderPipeline / the grass plan.
+// procedurally fans it into `bladesPerVoxel` blades using gl_VertexIndex (6 verts/blade, no
+// vertex buffer). Two silhouettes (pc.bladeStyle): BOXY voxel-aesthetic (default) = thin
+// elongated crisp RECTANGLE, rest height quantized to the 1/9-voxel microcube grid; SMOOTH
+// legacy = ribbon tapering to a point. Both share the SAME smooth wind motion — the shared
+// procedural gust field (wind.glsl, fed by the CPU WindSystem via push constants); the boxy
+// look is silhouette-only, never quantized motion (quantized offsets read as janky popping).
+// Sprout-in growth uses ubo.elapsedTime; distance fade uses ubo.cameraPosition.
+// See GrassRenderPipeline / docs/VegetationWindPlan.md.
 
 layout(location = 0) in uint inPacked;   // bits: 0-4 x |5-9 y |10-14 z |15-18 sky |19-22 R |23-26 G |27-30 B
 layout(location = 1) in uint inTex;      // low16 = grass top-face texture index (colour source)
@@ -29,11 +36,19 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(push_constant) uniform PushConstants {
     vec3  chunkBaseOffset;   // chunk world origin
     float bladeHeight;
-    float windStrength;
+    float windStrength;      // master wind amplitude (multiplies the shared field)
     float radius;            // grass drawn only within this distance of the camera
     float fadeRange;         // world units of height fade-out before the radius edge
     float growDuration;      // seconds for the sprout-in ramp
     uint  bladesPerVoxel;
+    // Shared wind field (WindSystem writes grass + foliage identically each frame).
+    float windDirX;
+    float windDirZ;
+    float windBase;          // steady bend strength
+    float gustAmp;           // gust amplitude on top of base
+    float gustScale;         // gust spatial frequency (1/world units)
+    float gustSpeed;         // gust front travel speed (world units/s)
+    uint  bladeStyle;        // 0 = smooth tapered ribbon, 1 = boxy rectangle (default)
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -115,14 +130,17 @@ void main() {
     vec2 q = quad[corner];
     float uCentered = q.x - 0.5;   // -0.5..0.5 across width
     float v = q.y;                 // 0 base .. 1 tip
+    bool boxy = (pc.bladeStyle == 1u);
 
-    vSide = uCentered * 2.0;       // -1..1 for the frag silhouette taper
     vGrad = v;
+    // Silhouette is the ONLY style difference: boxy = crisp full rectangle (vSide 0 defeats the
+    // frag taper discard); smooth = ribbon tapering to a point.
+    vSide = boxy ? 0.0 : uCentered * 2.0;
 
-    // Blade dimensions with per-blade variance. Thin blades so a dense tuft reads as many strands
-    // rather than a solid blob.
-    float bladeWidth  = 0.055;
+    // Blade height with per-blade variance. Boxy blades quantize the REST height to whole
+    // 1/9-voxel microcube steps — a STATIC voxel-grid trait; motion below stays smooth.
     float H = pc.bladeHeight * (0.65 + 0.6 * h2);
+    if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;
 
     // Sprout-in growth: staggered start per blade, then held at full height.
     float plant = h0 * pc.growDuration * 0.6;
@@ -134,22 +152,42 @@ void main() {
     float fade = 1.0 - clamp((dist - (pc.radius - pc.fadeRange)) / max(pc.fadeRange, 0.001), 0.0, 1.0);
     H *= fade * keep;   // keep = patch-coverage gate (0 collapses the blade)
 
-    // Horizontal blade orientation (yaw), width offset across the blade.
+    // Horizontal blade orientation (yaw), width offset across the blade. Thin blades so a dense
+    // tuft reads as many strands rather than a solid blob.
     float yaw = h3 * 6.2831853;
     vec2 dir = vec2(cos(yaw), sin(yaw));
+    float bladeWidth = boxy ? 0.06 : 0.055;
     vec3 widthOffset = vec3(dir.x, 0.0, dir.y) * (uCentered * bladeWidth);
 
-    // Coherent wind: whole field bends along a shared direction, phase varying with world position
-    // so it ripples. v*v → base stays planted, tip sways most. Phase from the hash-domain
-    // position: sin() of a raw 400k-coord is float garbage (all blades sway in lockstep).
-    vec2 windDir = normalize(vec2(0.85, 0.35));
-    float phase = (cellHash.x + root2.x) * 0.6 + (cellHash.z + root2.y) * 0.55;
-    float sway  = sin(ubo.elapsedTime * 1.7 + phase) * pc.windStrength;
-    // Scale sway by blade height so short blades bend proportionally, not wildly.
-    vec3 windOffset = vec3(windDir.x, 0.0, windDir.y) * (sway * v * v * H * 2.0);
+    // Shared procedural wind (wind.glsl): the blade bends downwind by the local gust-field
+    // strength — gust fronts travel across the whole field coherently instead of each blade
+    // running its own sine. Hash-domain coords (precision footgun, see cellHash above).
+    // TUNING (anti-jitter): the stiffness lag and flutter are deliberately SMALL — a wide lag
+    // spread or fast random-phase flutter desynchronizes neighboring blades back into the
+    // "randomish" shimmer this system exists to kill.
+    vec2 wd = vec2(pc.windDirX, pc.windDirZ);
+    float stiffness = h2;
+    float response  = mix(1.2, 0.8, stiffness);   // soft blades respond a touch more
+    float lag       = stiffness * 0.12;           // stiff blades trail the front slightly
+    float gust = windGustAt(cellHash.xz + root2, ubo.elapsedTime - lag, wd, pc.gustScale, pc.gustSpeed);
+    float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength;
+
+    // Gentle slow flutter perpendicular to the wind, amplitude ∝ local gust strength — calm air
+    // means calm grass (windBase+gustAmp are both 0 at speed 0, so everything below is exactly 0).
+    float phase   = (cellHash.x + root2.x) * 2.9 + (cellHash.z + root2.y) * 2.3 + h3 * 6.2831853;
+    float flutter = sin(ubo.elapsedTime * 2.7 + phase) * 0.10
+                  * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength;
+    // v*v → base stays planted, tip displaces most; scaled by blade height so short blades bend
+    // proportionally, not wildly. Identical for both silhouettes — motion is ALWAYS smooth.
+    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter;
+    vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (v * v * H * 2.0);
 
     vec3 worldPos = rootWorld + widthOffset + windOffset;
     worldPos.y   += v * H;
+    // Approximate length preservation: drop the tip as it displaces laterally so strong gusts
+    // read as the blade BENDING over, not stretching sideways.
+    float lat = length(windOffset.xz);
+    worldPos.y -= 0.4 * lat * lat / max(H, 0.001);
 
     // Colour-sample UV: a stable per-blade point in the grass tile (subtle per-blade variation).
     // Hash-domain coords again — fract() of a raw far coord is quantized.

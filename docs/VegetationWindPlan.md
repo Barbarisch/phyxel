@@ -1,6 +1,8 @@
 # Vegetation Plan — realistic grass & foliage (wind, geometry, interaction)
 
-**Status:** PLANNED (2026-07-09) · **Owner workstream:** rendering / vegetation
+**Status:** Phase 1 SHIPPED (2026-07-11) — shared WindSystem + travelling gust field live in
+grass/foliage/foliage-shadow; `/api/debug/wind` up. Phases 2–4 planned. · **Owner workstream:**
+rendering / vegetation
 **Related:** `docs/RenderOptimization.md`, grass blade layer (`GrassRenderPipeline`), leaf cards
 (`FoliageRenderPipeline`), `/api/debug/grass`, `/api/debug/foliage`.
 **User intent (verbatim goals):** wind that isn't "randomish"; grass that isn't "just a single
@@ -84,6 +86,37 @@ A single **`WindSystem`** (CPU, `Phyxel::Graphics`) owns global wind state and f
 
 **Gate:** vertex-cost delta within noise on the CharacterTestbed forest (engine-perf loop).
 **Shelve if:** never — this phase is pure math on existing vertices; no plausible perf failure.
+
+> **SHIPPED 2026-07-11.** `WindSystem.{h,cpp}` (ticked in `RenderCoordinator::drawFrame`, state
+> copied into both pipelines' `Params::wind` each frame), `shaders/wind.glsl` (`windGustAt`,
+> 2-octave value noise scrolled downwind), push-constant extension in all three vegetation
+> shaders + both pipeline `.cpp`s (`static_assert`ed sizes 60/52), `POST /api/debug/wind`
+> (`set_wind` in Application.cpp). Verified on CharacterTestbed: 5 CPU unit tests
+> (`tests/graphics/WindSystemTest.cpp` — determinism, zero-speed stillness, unit-dir wander
+> bounds, frame continuity, monotone scaling); API round-trip echoes settings + derived state
+> (state echo is one frame stale by design); **wind 0 → two viewport captures 2 s apart were
+> bit-identical (max pixel delta 0)**, storm → 7 % of viewport pixels moving; canopy shadows
+> track displaced cards; extremes (speed 100→clamped 2, gustiness 100→1, 10× master strengths,
+> negative dirDegrees) stable, no NaN/vanish; FPS calm 456 avg vs storm 470 avg = within noise.
+> Known v1 look: extreme bend rigidly offsets a whole canopy (sprig pivot, not trunk bending —
+> that's Phase 5); imperceptible at sane strengths. Gust-front *speed* (≈ gustSpeed·Δt) was
+> eyeballed via the storm captures, not measured — measure properly when Phase 2 tunes weather.
+>
+> **Post-ship tuning (2026-07-11, user feedback "very jittery"):** the first cut ran the
+> per-blade stiffness lag (−0.15..0.35 s) and flutter (6.1 rad/s grass / 5.3 rad/s foliage,
+> random phase) too hot — neighbors desynchronized back into shimmer. Now lag 0..0.12 s,
+> grass flutter 2.7 rad/s @ 0.10, foliage card flutter 2.1 rad/s @ 0.05. Treat these as
+> floors: motion realism must come from the travelling gust field, never from fast
+> per-blade/per-card noise.
+>
+> **Blade aesthetic (same day):** `bladeStyle` shipped in `/api/debug/grass` — **1 = boxy
+> (default): thin elongated crisp RECTANGLE** (vSide 0 defeats the frag taper; rest height
+> quantized to microcube steps; width 0.06), 0 = smooth tapered ribbon. Both share the SAME
+> smooth v² wind motion. Density default bladesPerVoxel 20 → 28. **The Phase 3 "stepped"
+> variant (stacked squares + quantized offsets) was BUILT AND REJECTED by the user** — rigid
+> stacked squares with popping quantized motion read as "super janky and pixelated." The
+> voxel aesthetic the user wants = boxy *silhouette* + smooth *motion*. Phase 3's remaining
+> value is the segmented/Bézier *smooth* blade + LOD bands; drop the stepped-motion idea.
 
 ### Phase 2 — gusts as weather
 
