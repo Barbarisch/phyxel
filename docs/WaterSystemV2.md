@@ -79,9 +79,17 @@
 >   `FullyPinnedOceanSettlesAndStopsSweeping` test, true red-before-green, + 3 pre-existing breach/
 >   dig tests). **Measured (Debug, table-flooded 64×32×64 open-ocean region):** settled ocean
 >   0.002–0.004 ms/frame (was ~6 ms on every step frame); a 5×8-mass splash burst ~3.3–3.8 ms on
->   step frames for ~2–3 s, then back to 0.002; heavy chunk-streaming churn still costs ~6 ms per
->   step frame (each chunk-load batch dirties the ocean → one full O(box) re-flood per update) —
->   REMAINING follow-up, not fixed.
+>   step frames for ~2–3 s, then back to 0.002. **CORRECTION (re-measured post-fix):** the commit
+>   message's "chunk-streaming churn still ~6 ms per step frame" claim was WRONG — that pre-fix
+>   measurement was the oscillation itself, and the proposed mechanism doesn't exist (chunk
+>   stream-in does NOT fire the per-voxel occupancy callback; only edits do — streamed solidity is
+>   only picked up by recenter's syncSolidsFromChunks). Post-fix flight over ocean with active
+>   streaming + 2 recenters: water 0.001–0.003 ms in all 18 samples (the one O(box) rebuild frame
+>   per recenter was NOT caught by sampling — bounded by the ~6 ms class, once per ~16 cells
+>   traveled). No rebuild coalescer needed. NEW correctness nuance exposed by the same code
+>   reading: a chunk that streams IN inside the water region doesn't update sim solidity until the
+>   next recenter/water_sync — table water pinned where terrain later loads stays until then
+>   (stale-solid window; follow-up).
 >
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
