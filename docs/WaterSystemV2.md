@@ -117,14 +117,29 @@
 >   behavior note: with evaporation off and full-mass edge pins, pools RISE until they spill —
 >   a slowly-filling river, not an instant stream; inflow-rate/evap tuning is open polish.
 >
+> - **Baked lake OBSERVED LIVE** (2026-07-11, closes the C1 verification gap): a multi-cell mountain
+>   lake at baked level 56.1376, found via `water_table_level` probing at (−3000,−3000) ≈ 4.3 km
+>   from spawn — level identical at every point of a 49-point grid (100-unit spacing) spanning
+>   600×600 units (a sparse sample; flat-per-basin is what Priority-Flood guarantees). With vertical
+>   following the region climbed to the lake and it filled to EXACTLY floor(level): at a column with
+>   lakebed surface y=50 (IN-band, origin.y=46), mass_at = 0.0 inside the solid lakebed (y=49/50),
+>   1.0 from y=51 through 56, 0.0 at y=57/58 — the fill respects terrain and stops at the level.
+>   Dense sample: 121/121 interior columns wet (mass 1.0) at y=55.5, 11/11 dry at y=57.5, zero
+>   anomalies. Raw probe responses archived at `docs/evidence/water-c1-lake-l4-20260711.txt`;
+>   screenshot 20260711_130111_270 shows the lake surface rendering at altitude (it does NOT show
+>   the region boundary). KNOWN Phase B gap (structural, from the renderer design — the flat plane
+>   only draws sea level): beyond the sim region a lake has no far representation at all. Also
+>   observed: the free camera drifted upward unattended (region origin crept 44→…→80 before
+>   settling; re-pinned; watch item, not water).
+>
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift
 >   marks ALL columns (correct but unoptimized).
-> - Phase C remainder: river flow-rate/evaporation tuning (see C2 note); lake fill is unit-proven
->   but not yet observed on a real baked lake in-engine; the L3 validation pass (river continuity /
->   lake containment vs the actually-carved terrain) is not built — a bake-vs-terrain mismatch would
->   leak a lake silently (live evidence: the sea levels into bake-dry shoreline flats).
+> - Phase C remainder: river flow-rate/evaporation tuning (see C2 note); the L3 validation pass
+>   (river continuity / lake containment vs the actually-carved terrain) is not built — a
+>   bake-vs-terrain mismatch would leak a lake silently (live evidence: the sea levels into
+>   bake-dry shoreline flats).
 > - **Far-teleport hang (NOT water):** teleporting the camera ~2.6 km in one jump after the world
 >   has streamed hung the main loop indefinitely (log frozen, CPU spinning, API dead — reproduced
 >   once, worked around by teleporting immediately at boot). Needs its own investigation.

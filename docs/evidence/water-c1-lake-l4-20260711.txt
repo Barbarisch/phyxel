@@ -1,0 +1,49 @@
+up
+LAKE candidate at (-3200,-3200): level=56.137596130371094
+LAKE candidate at (-3200,-2800): level=56.137596130371094
+LAKE candidate at (-2800,-3200): level=56.137596130371094
+LAKE candidate at (-2800,-2800): level=56.137596130371094
+LAKE candidate at (-2400,-1200): level=108.93791198730469
+LAKE candidate at (-1200,-2800): level=101.2369384765625
+LAKE candidate at (-1200,-400): level=131.45938110351563
+x=-3300:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-3200:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-3100:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-3000:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-2900:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-2800:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+x=-2700:  56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094 56.137596130371094
+=== lake L4 evidence Sat Jul 11 12:58:49 EDT 2026 ===
+--- water_stats over time ---
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":44,"z":-3032},"total_mass":23539.0,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":53,"z":-3032},"total_mass":16384.0,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3034,"y":71,"z":-3017},"total_mass":0.0,"water_table":true}
+--- point probes: lake interior column (-3000,-3000) ---
+y=50.5: "mass_at":0.0
+y=55.5: "mass_at":1.0
+y=56.5: "mass_at":1.0
+y=57.5: "mass_at":0.0
+y=58.5: "mass_at":0.0
+--- after re-pin (camera y=62) ---
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":53,"z":-3032},"total_mass":16384.0,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":53,"z":-3032},"total_mass":16384.0,"water_table":true}
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":53,"z":-3032},"total_mass":16384.0,"water_table":true}
+=== corrective lake L4 evidence Sat Jul 11 13:11:01 EDT 2026 ===
+region:
+{"dims":{"x":64,"y":32,"z":64},"origin":{"x":-3032,"y":46,"z":-3032},"total_mass":23539.0,"water_table":true}
+lakebed via get_terrain_height at (-3000,-3000): surface_y=50 (in-band, origin.y=46)
+--- IN-BAND solid-lakebed probes at column (-3000.5, -3000.5): expect 0.0 inside solid ---
+y=49.5 (inside solid lakebed): "mass_at":0.0
+y=50.5 (inside solid lakebed): "mass_at":0.0
+--- wet column above lakebed: expect 1.0 up to y=56 ---
+y=51.5: "mass_at":1.0
+y=54.5: "mass_at":1.0
+y=55.5: "mass_at":1.0
+y=56.5: "mass_at":1.0
+--- above the baked level: expect 0.0 ---
+y=57.5: "mass_at":0.0
+y=58.5: "mass_at":0.0
+--- dense fill sample: 121 columns (11x11, step 6, x/z -3030..-2970) at y=55.5, expect 1.0 each ---
+wet: 121 / 121; anomalies:
+--- same 11 columns along x at z=-3000, y=57.5 (above level), expect 0.0 each ---
+dry: 11 / 11; anomalies:
