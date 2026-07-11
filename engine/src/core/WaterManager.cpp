@@ -120,14 +120,24 @@ void WaterManager::recenter(const glm::ivec3& newOrigin) {
 }
 
 bool WaterManager::followTo(const glm::vec3& focusWorld, int hysteresisCells) {
-    const int cx = m_origin.x + m_dims.x / 2;   // current box centre (world), XZ only
+    const int cx = m_origin.x + m_dims.x / 2;   // current box centre (world)
+    const int cy = m_origin.y + m_dims.y / 2;
     const int cz = m_origin.z + m_dims.z / 2;
     const int fx = static_cast<int>(std::floor(focusWorld.x));
+    const int fy = static_cast<int>(std::floor(focusWorld.y));
     const int fz = static_cast<int>(std::floor(focusWorld.z));
-    if (std::abs(fx - cx) <= hysteresisCells && std::abs(fz - cz) <= hysteresisCells)
-        return false;                            // still inside the dead zone → don't thrash
-    // Re-centre the box on the focus horizontally; keep the Y origin (ground/sea band).
-    recenter(glm::ivec3(fx - m_dims.x / 2, m_origin.y, fz - m_dims.z / 2));
+    // Vertical dead zone is sized to the (shorter) box height. Vertical following exists so
+    // inland water WORKS at altitude: river beds/lakes sit wherever the terrain is (a 2.6 km
+    // inland order-3 valley floor measured y≈72), while a Y-anchored box only ever covered the
+    // sea band — every river above origin.y+dims.y stayed dry. The baked table made vertical
+    // travel safe: pins re-derive per column at any altitude (sea fills only where columns are
+    // wet; a box above sea level simply holds no ocean).
+    const int vHyst = std::max(4, m_dims.y / 4);
+    const bool moveXZ = std::abs(fx - cx) > hysteresisCells || std::abs(fz - cz) > hysteresisCells;
+    const bool moveY  = std::abs(fy - cy) > vHyst;
+    if (!moveXZ && !moveY) return false;         // inside both dead zones → don't thrash
+    const int newY = std::max(0, fy - m_dims.y / 2);   // never below the world floor band
+    recenter(glm::ivec3(fx - m_dims.x / 2, moveY ? newY : m_origin.y, fz - m_dims.z / 2));
     return true;
 }
 
@@ -319,6 +329,32 @@ void WaterManager::setWaterTable(std::function<float(float, float)> levelAt) {
     m_oceanDirty = true;   // re-derive the pins from (or without) the table on the next update
 }
 
+void WaterManager::setRiverQuery(std::function<bool(float, float)> riverAt) {
+    m_riverFn = std::move(riverAt);
+    m_oceanDirty = true;   // re-derive channel tags + edge inflows on the next update
+}
+
+void WaterManager::applyRiverInflows() {
+    if (!m_riverFn) return;
+    const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+    for (int lz = 0; lz < sz; ++lz)
+    for (int lx = 0; lx < sx; ++lx) {
+        if (!m_riverFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                       static_cast<float>(m_origin.z + lz) + 0.5f)) continue;
+        // The bed: the first open cell above a REAL solid cell (y-1 >= 0, so an unloaded column —
+        // open all the way down to the out-of-bounds floor — yields no bed and is skipped; the
+        // stream-in solidity sync re-runs this rebuild once its terrain arrives).
+        int bedY = -1;
+        for (int y = 1; y < sy; ++y) {
+            if (!m_sim.isSolid(lx, y, lz) && m_sim.isSolid(lx, y - 1, lz)) { bedY = y; break; }
+        }
+        if (bedY < 0) continue;
+        m_sim.setChannel(lx, bedY, lz, true);   // riverbed never evaporates dry
+        if (lx == 0 || lx == sx - 1 || lz == 0 || lz == sz - 1)
+            m_sim.setSource(lx, bedY, lz, WaterSimulation::MAX_MASS); // upstream inflow at the frontier
+    }
+}
+
 void WaterManager::rebuildOcean() {
     m_oceanDirty = false;
     // Baked water table bound (Phase C): derive every pin from the per-column baked levels —
@@ -331,7 +367,8 @@ void WaterManager::rebuildOcean() {
             if (wl <= TABLE_DRY) return INT_MIN;
             return static_cast<int>(std::floor(wl)) - m_origin.y;
         });
-        applySprings();     // authored springs still ride on top of the baked table
+        applySprings();       // authored springs still ride on top of the baked table
+        applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
         rebuildSurface();
         return;
     }
@@ -360,6 +397,7 @@ void WaterManager::rebuildOcean() {
     }
     m_sim.fillOcean(localSeeds, seaLevelLocalY); // clears all sources, then pins the ocean
     applySprings();                               // re-pin authored springs over the top
+    applyRiverInflows();                          // baked river channel tags + edge inflows (Phase C2)
     rebuildSurface();
 }
 

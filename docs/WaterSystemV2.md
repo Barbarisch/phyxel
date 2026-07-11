@@ -102,14 +102,32 @@
 >   (6923→9912 over 70 s) as the sea leveled into below-sea-level shoreline flats the coarse bake
 >   marks DRY — concrete live evidence for the open L3 bake-vs-terrain validation item.
 >
+> - **Phase C2 — RIVERS + vertical region following** (2026-07-11): `WaterManager::setRiverQuery`
+>   (bound to `FlowField::channelAt(...).hit` for streamed worlds) — every rebuild channel-tags each
+>   river column's bed cell (first open above REAL solid; unloaded columns skipped, no void-pour)
+>   and pins region-EDGE river columns at the bed as upstream inflow; the CA carries it downhill
+>   through the carved valley. `followTo` now follows the focus VERTICALLY too (dead zone
+>   max(4, dims.y/4), clamped ≥ 0) — the Y-anchored box only ever covered the sea band, so every
+>   inland river (measured: order-3 valley floor at y≈72, 2.6 km inland) stayed dry by construction;
+>   the baked table made vertical travel safe (pins re-derive per column at any altitude).
+>   `water_table_level` now also reports `river_order`/`river_channel` (probe tip: channels are only
+>   ~5 voxels wide — probe along hydro-CELL CENTRES, x/z = 128k − 16320). L4: region followed to
+>   origin (−2400,62,−2332) at the order-3 river, ~2000+ mass of river water entered via the
+>   frontier pins and pooled along the carved channel (screenshots 20260711_1103*). HONEST
+>   behavior note: with evaporation off and full-mass edge pins, pools RISE until they spill —
+>   a slowly-filling river, not an instant stream; inflow-rate/evap tuning is open polish.
+>
 > **NOT done (do not assume these exist):**
 > - Active-set follow-ups: the three O(columns) mask passes use Debug-checked `vector[]` and cap the
 >   win in Debug builds (a dirty-LIST would fix it); no Release-build measurement yet; recenter/shift
 >   marks ALL columns (correct but unoptimized).
-> - Phase C remainder: RIVERS are still dry (no channel tags / head springs from the FlowField bake);
->   lake fill is unit-proven but not yet observed on a real baked lake in-engine (the L4 world's
->   region only reached ocean); the L3 validation pass (river continuity / lake containment vs the
->   actually-carved terrain) is not built — a bake-vs-terrain mismatch would leak a lake silently.
+> - Phase C remainder: river flow-rate/evaporation tuning (see C2 note); lake fill is unit-proven
+>   but not yet observed on a real baked lake in-engine; the L3 validation pass (river continuity /
+>   lake containment vs the actually-carved terrain) is not built — a bake-vs-terrain mismatch would
+>   leak a lake silently (live evidence: the sea levels into bake-dry shoreline flats).
+> - **Far-teleport hang (NOT water):** teleporting the camera ~2.6 km in one jump after the world
+>   has streamed hung the main loop indefinitely (log frozen, CPU spinning, API dead — reproduced
+>   once, worked around by teleporting immediately at boot). Needs its own investigation.
 > - Phases **B, C, D** — none started. In particular **C (generation feeds water) is NOT built**: the
 >   procedurally-carved rivers are DRY channels; nothing auto-fills them. Only the flat sea plane shows
 >   water, and only where terrain is below sea level.

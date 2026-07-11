@@ -46,11 +46,12 @@ public:
     // procedural generator placed rivers/lakes). Mass is conserved for water that stays in-window.
     void recenter(const glm::ivec3& newOrigin);
 
-    // Keep the region centred on `focusWorld` (e.g. the camera/player) in the horizontal plane,
-    // recentering ONLY when the focus has drifted more than `hysteresisCells` from the current centre
-    // (a dead zone so it doesn't recenter every frame — that would thrash the re-flood/re-sync). The Y
-    // origin is preserved: the box stays anchored to its ground/sea band, not the camera's altitude.
-    // Returns true if it recentered. Call once per frame with the camera position (WaterSystemV2 A2).
+    // Keep the region centred on `focusWorld` (e.g. the camera/player), recentering ONLY when the
+    // focus has drifted past a dead zone (`hysteresisCells` horizontally; max(4, dims.y/4)
+    // vertically) so it doesn't recenter every frame. Vertical following (Phase C2) is what lets
+    // inland water work at altitude — river beds/lakes sit wherever the terrain is, and a
+    // Y-anchored box only ever covered the sea band. Y is clamped ≥ 0. Returns true if it
+    // recentered. Call once per frame with the camera position (WaterSystemV2 A2/C2).
     bool followTo(const glm::vec3& focusWorld, int hysteresisCells);
 
     // World-space helpers. Amount may be negative to remove water.
@@ -93,6 +94,19 @@ public:
     static constexpr float TABLE_DRY = -1e29f;
     void setWaterTable(std::function<float(float worldX, float worldZ)> levelAt);
     bool hasWaterTable() const { return static_cast<bool>(m_tableFn); }
+
+    // --- Baked RIVERS (WaterSystemV2 Phase C2) ---
+    // Bind a river-channel test (world column → is this on an order≥3 carved channel? —
+    // FlowField::channelAt(...).hit matches the contract). While bound, every rebuild channel-tags
+    // each river column's BED cell (the first open cell above real solid, so evaporation never dries
+    // the riverbed) and pins region-EDGE river columns at their bed as full sources — the moving
+    // window's stand-in for upstream inflow ("springs at river heads" for a region that rarely
+    // contains a true head): water enters at the frontier and the CA carries it downhill through
+    // the carved valley. Columns whose terrain isn't loaded yet have no real solid below → skipped
+    // (no floating pins); the chunk-stream-in solidity sync re-triggers the rebuild once the bed
+    // exists. Re-derived wherever the region travels, like the water table.
+    void setRiverQuery(std::function<bool(float worldX, float worldZ)> riverAt);
+    bool hasRiverQuery() const { return static_cast<bool>(m_riverFn); }
     // Query the bound table at a world column (TABLE_DRY when dry or no table bound) — debug/tooling
     // surface so the baked water can be probed without chunks being loaded there.
     float tableLevelAt(float worldX, float worldZ) const {
@@ -167,10 +181,12 @@ private:
     void rebuildSurface();
     void rebuildOcean(); // re-run the ocean flood-fill from the seeds
     void applySprings(); // (re-)pin authored springs after the ocean clears sources
+    void applyRiverInflows(); // channel-tag river beds + pin edge river columns (Phase C2)
 
     float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
                                                      // match the sea-plane renderer or they drift
     std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
+    std::function<bool(float, float)>  m_riverFn;    // baked river channels (Phase C2); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds

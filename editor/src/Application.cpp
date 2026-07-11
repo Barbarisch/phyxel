@@ -59,6 +59,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/Chunk.h"
 #include "core/WorldGenerator.h"
 #include "core/HydrologyMap.h"
+#include "core/FlowField.h"
 #include "core/VoxelTemplate.h"
 #include "physics/Material.h"
 #include "story/StoryWorldLoader.h"
@@ -5554,6 +5555,19 @@ void Application::autoLoadGameDefinition() {
                     } else {
                         waterManager->setWaterTable(nullptr);
                     }
+                    // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
+                    // upstream inflow at the region frontier, flowing downhill through the valley.
+                    if (w.value("bakedTable", true) && gen && gen->riverNetwork()) {
+                        waterManager->setRiverQuery([this](float wx, float wz) -> bool {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            const FlowField* f = g ? g->riverNetwork() : nullptr;
+                            return f && f->channelAt(wx, wz).hit;
+                        });
+                        LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
+                    } else {
+                        waterManager->setRiverQuery(nullptr);
+                    }
                 }
             }
 
@@ -10400,6 +10414,12 @@ void Application::registerWaterCommands() {
         r = {{"x", wx}, {"z", wz}, {"table_bound", waterManager->hasWaterTable()},
              {"wet", wl > Core::WaterManager::TABLE_DRY},
              {"level", wl > Core::WaterManager::TABLE_DRY ? wl : 0.0f}};
+        // River probe (Phase C2): Strahler order + whether an order≥3 channel covers this column.
+        const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (const FlowField* f = g ? g->riverNetwork() : nullptr) {
+            r["river_order"]   = f->orderAt(wx, wz);
+            r["river_channel"] = f->channelAt(wx, wz).hit;
+        }
     });
     reg.on("water_ocean_boundary", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);

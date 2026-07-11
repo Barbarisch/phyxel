@@ -84,19 +84,26 @@ TEST(WaterManagerTest, RecenterKeepsSpringInjecting) {
         << "spring stopped injecting after recenter — source re-projection (applySprings) was lost";
 }
 
-// followTo recenters the region on a focus (camera) only once it drifts past the hysteresis dead
-// zone, snaps the box to re-centre horizontally, and PRESERVES the Y origin (the box stays on its
-// ground/sea band, not the camera altitude).
-TEST(WaterManagerTest, FollowToRecentersPastHysteresisAndKeepsY) {
-    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));  // centre at world (16,8,16)
-    // Focus inside the dead zone (and high above) → no recenter.
-    EXPECT_FALSE(wm.followTo(glm::vec3(18.0f, 50.0f, 12.0f), 8));
+// followTo recenters the region on a focus (camera) only once it drifts past the dead zone —
+// horizontally (hysteresisCells) AND vertically (max(4, dims.y/4)). Vertical following (Phase C2)
+// is what lets inland rivers/lakes at altitude get water: a Y-anchored box only ever covered the
+// sea band, so a river bed at y≈72 could never be wet. Y origin clamps at 0.
+TEST(WaterManagerTest, FollowToRecentersPastHysteresisHorizontallyAndVertically) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));  // centre (16,8,16); vHyst 4
+    // Focus inside BOTH dead zones → no recenter.
+    EXPECT_FALSE(wm.followTo(glm::vec3(18.0f, 10.0f, 12.0f), 8));
     EXPECT_EQ(wm.origin(), glm::ivec3(0, 0, 0));
-    // Focus far in x → recenter so it is centred; Y origin preserved despite the y=50 camera height.
-    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 50.0f, 16.0f), 8));
-    EXPECT_EQ(wm.origin(), glm::ivec3(100 - 16, 0, 16 - 16));  // (84, 0, 0)
-    // Now inside the dead zone of the new centre (84+16=100) → no further move.
-    EXPECT_FALSE(wm.followTo(glm::vec3(103.0f, 5.0f, 18.0f), 8));
+    // Far in x AND high above → recenter horizontally and vertically at once.
+    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 72.0f, 16.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(100 - 16, 72 - 8, 16 - 16));  // (84, 64, 0)
+    // Inside both new dead zones (centre 100/72/16) → no further move.
+    EXPECT_FALSE(wm.followTo(glm::vec3(103.0f, 70.0f, 18.0f), 8));
+    // Pure VERTICAL drift (horizontal still) recenters too — a player climbing a mountain river.
+    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 30.0f, 16.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(84, 30 - 8, 0));
+    // Descending to the world floor clamps Y at 0 (never below the world band).
+    EXPECT_TRUE(wm.followTo(glm::vec3(100.0f, 2.0f, 16.0f), 8));
+    EXPECT_EQ(wm.origin(), glm::ivec3(84, 0, 0));
 }
 
 // The ocean BOUNDARY CONDITION seeds the sea from the region edges (no point seed needed) and, being
@@ -243,6 +250,44 @@ TEST(WaterManagerTest, UndisturbedSeaIsLeftToTheFlatPlaneNotPerCellRendered) {
         << "disturbed water above sea level must still render per-cell";
 }
 
+// ─── Baked RIVERS (Phase C2: channel tags + frontier inflow) ──────────────────────────────────────
+// A bound river query waters the carved channel: the bed cell of every river column is channel-
+// tagged, region-EDGE river columns are pinned as upstream inflow, and the CA carries the water
+// downhill through the region — over steps, along the bed — with no authored springs anywhere.
+TEST(WaterManagerTest, RiverInflowFlowsDownhillThroughTheRegion) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    // A descending staircase bed along x at z=16: solid shelves at y=6, y=4, y=2.
+    for (int x = 0; x <= 9; ++x)  wm.setSolidWorld(x, 6, 16, true);
+    for (int x = 10; x <= 19; ++x) wm.setSolidWorld(x, 4, 16, true);
+    for (int x = 20; x <= 31; ++x) wm.setSolidWorld(x, 2, 16, true);
+    // Channel walls so the flow follows the bed instead of spilling sideways off the shelves.
+    for (int x = 0; x <= 31; ++x)
+        for (int y = 2; y <= 8; ++y) { wm.setSolidWorld(x, y, 15, true); wm.setSolidWorld(x, y, 17, true); }
+
+    wm.setRiverQuery([](float, float wz) { return wz >= 16.0f && wz < 17.0f; });
+    wm.update(0.1f);   // rebuild: bed tags + the x=0 edge inflow pin
+
+    EXPECT_TRUE(wm.sim().isChannel(0, 7, 16)) << "river bed cell not channel-tagged";
+    ASSERT_GT(wm.totalMass(), 0.5f) << "edge inflow pin did not inject any water";
+
+    for (int i = 0; i < 150; ++i) wm.update(0.2f);   // let it run downstream (~600 steps)
+    EXPECT_GT(wm.massAtWorld(glm::vec3(25.5f, 3.5f, 16.5f)), 0.1f)
+        << "river water never reached the downstream shelf — inflow/flow broken";
+    EXPECT_LT(wm.massAtWorld(glm::vec3(5.5f, 12.5f, 16.5f)), 1e-3f)
+        << "water appeared far ABOVE the channel bed";
+}
+
+// River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
+// neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
+// region floor wherever chunks haven't streamed in yet.
+TEST(WaterManagerTest, RiverColumnsWithoutLoadedTerrainAreSkipped) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
+    wm.setRiverQuery([](float, float) { return true; });   // "river everywhere" — but no terrain
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f)
+        << "river inflow pinned into unloaded columns — water pouring into the void";
+}
+
 // ─── Stale-solid window (streamed chunks → water solidity) ────────────────────────────────────────
 // A chunk that streams in INSIDE the water region must push its solids into the sim: without it,
 // water flooded where terrain later loads stays INSIDE that terrain until the next recenter happens
@@ -314,7 +359,8 @@ TEST(WaterManagerTest, StressManyRecentersOverStandingLakeKeepInvariants) {
     int recenters = 0;
     for (int i = 0; i < 25; ++i) {
         for (const float fx : {26.5f, 6.5f}) {          // oscillate past the dead zone each time
-            const bool moved = wm.followTo(glm::vec3(fx, 50.0f, 16.5f), 4);
+            // focus y=8 = box centre → inside the vertical dead zone (pure horizontal stress)
+            const bool moved = wm.followTo(glm::vec3(fx, 8.0f, 16.5f), 4);
             ASSERT_TRUE(moved) << "iteration " << i << ": focus " << fx
                                << " did not trigger a recenter — the stress isn't stressing";
             ++recenters;
@@ -345,7 +391,8 @@ TEST(WaterManagerTest, StressLongWalkOceanBoundaryKeepsSeaAtEveryRecenter) {
     int recenters = 0;
     for (int step = 1; step <= 100; ++step) {
         const float fx = 8.0f + 8.0f * step;            // stride 8 > hysteresis 4 → recenter each step
-        if (!wm.followTo(glm::vec3(fx, 30.0f, 8.0f), 4)) continue;
+        // focus y=8 = box centre → vertical dead zone holds (pure horizontal long walk)
+        if (!wm.followTo(glm::vec3(fx, 8.0f, 8.0f), 4)) continue;
         ++recenters;
         wm.update(0.1f);  // the live loop steps every frame; fillOcean pins re-fill on the step
         ASSERT_NEAR(wm.totalMass(), volume, volume * 0.05f)
