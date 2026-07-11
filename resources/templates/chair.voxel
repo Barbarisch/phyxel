@@ -1,0 +1,54 @@
+# ==========================================================
+# ASSET METADATA
+# name:         chair
+# display_name: Chair (Dining)
+# description:  A walnut side chair — the head-of-table seat (stools are the common seat).
+# category:     furniture
+# subcategory:  seating
+# tags:         chair, seat, dining, hall, middling
+# materials:    WoodWalnut
+# facing:       +Z (back at z=0 -> against the wall at rot 0)
+# bounds:       0.44W x 0.89H x 0.44D m (grounded object_dimensions 'chair_dining')
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 0 WoodWalnut
+M 0 0 0 0 0 1 0 0 0 WoodWalnut
+M 0 0 0 0 0 0 0 1 0 WoodWalnut
+M 0 0 0 0 0 1 0 1 0 WoodWalnut
+M 0 0 0 0 0 0 0 2 0 WoodWalnut
+M 0 0 0 0 0 1 0 2 0 WoodWalnut
+M 0 0 0 0 1 0 0 0 0 WoodWalnut
+M 0 0 0 0 1 0 0 0 1 WoodWalnut
+M 0 0 0 0 1 0 0 0 2 WoodWalnut
+M 0 0 0 0 1 1 0 0 0 WoodWalnut
+M 0 0 0 0 1 0 0 1 0 WoodWalnut
+M 0 0 0 0 1 0 0 2 0 WoodWalnut
+M 0 0 0 0 2 0 0 0 0 WoodWalnut
+M 0 0 0 0 2 0 0 1 0 WoodWalnut
+M 0 0 0 0 1 0 1 0 0 WoodWalnut
+M 0 0 0 0 1 0 1 0 1 WoodWalnut
+M 0 0 0 0 1 0 1 0 2 WoodWalnut
+M 0 0 0 0 1 1 1 0 0 WoodWalnut
+M 0 0 0 0 2 0 1 0 0 WoodWalnut
+M 0 0 0 0 2 0 1 1 0 WoodWalnut
+M 0 0 0 0 1 0 2 0 0 WoodWalnut
+M 0 0 0 0 1 0 2 0 1 WoodWalnut
+M 0 0 0 0 1 0 2 0 2 WoodWalnut
+M 0 0 0 0 1 1 2 0 0 WoodWalnut
+M 0 0 0 0 2 0 2 0 0 WoodWalnut
+M 0 0 0 0 2 0 2 1 0 WoodWalnut
+M 0 0 0 1 0 0 0 0 0 WoodWalnut
+M 0 0 0 1 0 1 0 0 0 WoodWalnut
+M 0 0 0 1 0 0 0 1 0 WoodWalnut
+M 0 0 0 1 0 1 0 1 0 WoodWalnut
+M 0 0 0 1 0 0 0 2 0 WoodWalnut
+M 0 0 0 1 0 1 0 2 0 WoodWalnut
+M 0 0 0 1 1 0 0 0 0 WoodWalnut
+M 0 0 0 1 1 0 0 0 1 WoodWalnut
+M 0 0 0 1 1 0 0 0 2 WoodWalnut
+M 0 0 0 1 1 1 0 0 0 WoodWalnut
+M 0 0 0 1 1 0 0 1 0 WoodWalnut
+M 0 0 0 1 1 0 0 2 0 WoodWalnut
+M 0 0 0 1 2 0 0 0 0 WoodWalnut
+M 0 0 0 1 2 0 0 1 0 WoodWalnut

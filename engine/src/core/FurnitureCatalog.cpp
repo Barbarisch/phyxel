@@ -49,6 +49,10 @@ const std::map<std::string, std::string>& table() {
         {"well",       "well"},        // yard/square: masonry well-head (settlement placer, not rooms)
         {"woodpile",   "woodpile"},    // yard: firewood stack (rear toft — planYardProps)
         {"garden_bed", "garden_bed"},  // yard: raised kitchen-garden bed (rear toft — planYardProps)
+        {"chair",      "chair"},       // walnut side chair — the head-of-table seat (quality A)
+        {"stool",      "stool"},       // backless stool — THE common medieval seat (quality A)
+        {"wardrobe",   "wardrobe"},    // clothes press (canon-flagged post-medieval; middling+)
+        {"rug",        "rug"},         // woven floor rug, wool border (quality A)
     };
     return t;
 }

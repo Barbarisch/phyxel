@@ -81,6 +81,14 @@
     "resolution": 1024,
     "source": "ambientCG"
   },
+  "Linen": {
+    "assets": {
+      "all": "Fabric062"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
   "Log": {
     "assets": {
       "all": "Bark007"
@@ -142,7 +150,7 @@
       "all": "MetalPlates006"
     },
     "license": "CC0",
-    "resolution": 512,
+    "resolution": 1024,
     "source": "ambientCG"
   },
   "Sand": {
@@ -248,6 +256,14 @@
   "WoodWalnut": {
     "assets": {
       "all": "Wood051"
+    },
+    "license": "CC0",
+    "resolution": 1024,
+    "source": "ambientCG"
+  },
+  "Wool": {
+    "assets": {
+      "all": "Fabric019"
     },
     "license": "CC0",
     "resolution": 1024,

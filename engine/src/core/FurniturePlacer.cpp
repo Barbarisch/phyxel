@@ -28,10 +28,13 @@ struct Piece { std::string type; bool center; };
 std::vector<Piece> recipeFor(const std::string& purpose) {
     const std::string p = lower(purpose);
     auto has = [&](const char* k) { return p.find(k) != std::string::npos; };
-    if (has("taproom") || has("tap"))                return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"fireplace", false}, {"candle_stand", false}};
-    if (has("kitchen"))                              return {{"counter", false}, {"fireplace", false}};
-    if (has("bed") || has("chamber") || has("solar")) return {{"bed", false}, {"chest", false}};
-    if (has("hall") || has("living") || has("great")) return {{"fireplace", false}, {"table", true}, {"bench", false}};
+    // Quality-A additions (2026-07-10): stool = THE common medieval seat; the rug centres the
+    // chamber (its only centered piece, so no collision with a centered table); the wardrobe
+    // (canon-flagged post-medieval) joins the chamber set; a chair heads the hall table.
+    if (has("taproom") || has("tap"))                return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"stool", false}, {"fireplace", false}, {"candle_stand", false}};
+    if (has("kitchen"))                              return {{"counter", false}, {"fireplace", false}, {"stool", false}};
+    if (has("bed") || has("chamber") || has("solar")) return {{"bed", false}, {"chest", false}, {"stool", false}, {"wardrobe", false}, {"rug", true}};
+    if (has("hall") || has("living") || has("great")) return {{"fireplace", false}, {"table", true}, {"bench", false}, {"chair", false}};
     if (has("forge") || has("smith") || has("anvil"))    return {{"forge_hearth", false}, {"anvil", true}, {"bellows", false}, {"tool_rack", false}, {"barrel", false}};
     // bakehouse (bakery): the vented masonry bread oven on the back wall + a kneading counter + flour
     // barrels. The oven is fire-managed + gets a place_chimney stack (like the forge).

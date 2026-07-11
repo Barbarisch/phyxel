@@ -126,6 +126,20 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 6 (FURNITURE QUALITY A) SHIPPED 2026-07-10.** The first
+  SOFT/CLOTH materials: `Linen` (ambientCG Fabric062, pale plain weave) + `Wool` (Fabric019
+  knit, dyed madder red by `tools/tint_wool.py` — re-run after any Wool re-fetch, same
+  precedent as gen_birch_bark; the shader ignores colorTint so the albedo carries the dye).
+  `bed_single` REGENERATED (gen_bed): WoodWalnut frame/headboard + Linen mattress/sheet/pillow
+  + Wool coverlet + lie_0 anchor — the V4 red test FLIPPED to `RealBedMaterialIsClean`
+  (detector keeps teeth via the synthetic fixture). NEW assets (canon-proportioned,
+  conformance ok): `chair` (chair_dining), `stool` (THE common seat), `wardrobe` (canon-flagged
+  post-medieval), `rug` (rug_oriental field + Wool border; NEW flagged canon entry — 1-micro
+  slab disclosed). Catalog + recipes: chamber = bed/chest/stool/wardrobe/rug(centered),
+  hall += chair, taproom/kitchen += stool. L4: hall_house solar screenshot — bed with visible
+  linen+wool, wardrobe, rug; 13 fixtures 0 skipped. NEXT: Phase 7 furniture B (Mount
+  wall/ceiling, furnishing_recipes.json data recipes + wealth_tier).
+
 - **NO-FROZEN-ENGINE (async builds + progress) SHIPPED 2026-07-10 — STANDING USER DIRECTIVE:
   heavy work must never freeze the loop; progress must be visible.** The city L4 froze the
   window ~25 min (28 synchronous builds inside ONE processAPICommands drain, API lying "no
