@@ -126,7 +126,29 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **SETTLEMENT MORPHOLOGY v2 — PHASE 6 (FURNITURE QUALITY A) SHIPPED 2026-07-10.** The first
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 7 (FURNITURE QUALITY B) SHIPPED 2026-07-10 — ROADMAP
+  COMPLETE (all 7 phases).** Mounting + data recipes + wealth tiers:
+  1. **Mounting** — `FurniturePlacer::mountFor` (wall_lantern/tool_rack=Wall, chandelier=
+     Ceiling) + `mountedMicroY` (sconce at the grounded 60″ = surface+14 micro; tool_rack
+     reach = +9; chandelier = ceiling−tmplH−1 with a ≥18-micro head-clearance floor).
+     Chandeliers place at the room CENTRE with NO floor-cell reservation (hang over the
+     centred table). Consumer (`StructureBuildService`): footprint extraction now captures
+     micro HEIGHT (template scan + `overall_max[1]` sidecar fallback); the fixture spawn Y
+     is `mountedMicroY(type, surfMicroY, surfMicroY + story.height*9, tmplMicroH)`.
+  2. **Data recipes + tiers** — `resources/furnishing_recipes.json` (hardcoded map = fallback
+     for unlisted purposes); pieces carry `tiers:[humble|middling|high]`; RoomProgram gained
+     `wealthTier` (room_program.json `wealth_tier`: croft/longhouse humble, hall_house/tavern/
+     shops middling, manor_hall high — REASONED status mapping). Humble chamber = bed/chest/
+     stool; middling adds wardrobe+rug; taproom adds wall_lantern+chandelier at middling+.
+  3. **Red→green:** `FurnitureMountTest` ×3 + `RecipeDataTest` ×3 (red vs stubs first). L4:
+     tavern_2 (11×16×2, SettlementTest, not saved) — 33 fixtures 0 unfit; sconce ON the wall
+     beside the fireplace, chandelier under the ceiling over the table (screenshots +
+     registered bboxes: lantern y18-19 over a y17 floor, chandelier y19-20 under y≈20).
+  **Follow-ups:** default `tavern` alias footprint is too small for the full taproom ensemble
+  (bar/back_bar/fireplace unfit at default size — honest warns; give the alias a
+  typology-derived default footprint); explicit 11×16 trips a warn-but-allow program-validation
+  error (footprint vs bay grammar — inspect); mount heights for more types (shelving, signage
+  interior) as assets arrive. The first
   SOFT/CLOTH materials: `Linen` (ambientCG Fabric062, pale plain weave) + `Wool` (Fabric019
   knit, dyed madder red by `tools/tint_wool.py` — re-run after any Wool re-fetch, same
   precedent as gen_birch_bark; the shader ignores colorTint so the albedo carries the dye).

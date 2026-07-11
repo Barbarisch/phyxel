@@ -58,6 +58,9 @@ struct RoomProgram {
     int    stories = 1;                      ///< number of stories the typology generates (>=1)
     std::string upperPurpose;                ///< room purpose for AUTO-generated upper floors
                                              ///< (e.g. "bedchamber" = inn guest chambers); ""=generic
+    std::string wealthTier = "humble";       ///< "humble" | "middling" | "high" — drives the
+                                             ///< tier-filtered furnishing recipes (status, the
+                                             ///< real medieval driver of household goods)
 
     std::string entrance;                    ///< exterior-door wall rule: "long_wall" (cross-passage
                                              ///< dwellings) | "gable" (street-frontage shops) |

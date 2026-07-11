@@ -1,0 +1,77 @@
+{
+  "_comment": "Furnishing recipes (furniture quality B) — purpose -> pieces, replacing FurniturePlacer's hardcoded map (which remains the fallback for purposes absent here). `place`: \"wall\" (default; packs along a free wall, facing in) | \"center\" (room centre). `tiers`: which wealth tiers get the piece (absent = every tier); tiers come from the typology's room_program.json `wealth_tier` (croft/longhouse = humble, hall_house/tavern/shops = middling, manor_hall = high). Mount kind (floor/wall/ceiling) is per-TYPE placer data, not recipe data.",
+  "recipes": {
+    "taproom": [
+      {"type": "tavern_bar"},
+      {"type": "back_bar"},
+      {"type": "bar_stool"},
+      {"type": "tavern_table", "place": "center"},
+      {"type": "bench"},
+      {"type": "stool"},
+      {"type": "fireplace"},
+      {"type": "candle_stand"},
+      {"type": "wall_lantern", "tiers": ["middling", "high"]},
+      {"type": "chandelier", "tiers": ["middling", "high"]}
+    ],
+    "kitchen": [
+      {"type": "counter"},
+      {"type": "fireplace"},
+      {"type": "stool"}
+    ],
+    "bedchamber": [
+      {"type": "bed"},
+      {"type": "chest"},
+      {"type": "stool"},
+      {"type": "wardrobe", "tiers": ["middling", "high"]},
+      {"type": "rug", "place": "center", "tiers": ["middling", "high"]},
+      {"type": "wall_lantern", "tiers": ["high"]}
+    ],
+    "hall": [
+      {"type": "fireplace"},
+      {"type": "table", "place": "center"},
+      {"type": "bench"},
+      {"type": "chair", "tiers": ["middling", "high"]},
+      {"type": "rug", "tiers": ["high"]},
+      {"type": "chandelier", "tiers": ["high"]}
+    ],
+    "forge": [
+      {"type": "forge_hearth"},
+      {"type": "anvil", "place": "center"},
+      {"type": "bellows"},
+      {"type": "tool_rack"},
+      {"type": "barrel"}
+    ],
+    "bakehouse": [
+      {"type": "oven_bread"},
+      {"type": "counter"},
+      {"type": "barrel"},
+      {"type": "stool"}
+    ],
+    "shambles": [
+      {"type": "counter"},
+      {"type": "chopping_block", "place": "center"},
+      {"type": "meat_rail"},
+      {"type": "barrel"}
+    ],
+    "dispensary": [
+      {"type": "counter"},
+      {"type": "back_bar"},
+      {"type": "chest"},
+      {"type": "candle_stand"},
+      {"type": "wall_lantern", "tiers": ["middling", "high"]}
+    ],
+    "salesroom": [
+      {"type": "counter"},
+      {"type": "back_bar"},
+      {"type": "barrel"},
+      {"type": "chest"}
+    ],
+    "service": [
+      {"type": "barrel"},
+      {"type": "chest"}
+    ],
+    "default": [
+      {"type": "chest"}
+    ]
+  }
+}

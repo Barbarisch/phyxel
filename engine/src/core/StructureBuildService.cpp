@@ -525,27 +525,32 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                                                   : nullptr;
             if (t) {
                 int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
-                int uMaxX = 0, uMaxZ = 0;   // max MICRO index (for the true placed span)
-                auto acc = [&](const glm::ivec3& cube, int microX, int microZ) {
+                int uMaxX = 0, uMaxZ = 0, uMaxY = 0;   // max MICRO index (true placed span + height)
+                auto acc = [&](const glm::ivec3& cube, int microX, int microZ, int microY) {
                     mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
                     mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
                     uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
+                    uMaxY = std::max(uMaxY, microY);
                 };
                 for (const auto& c : t->cubes)
-                    acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8);
+                    acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8,
+                        c.relativePos.y * 9 + 8);
                 for (const auto& s : t->subcubes)
                     acc(s.parentRelativePos,
                         s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
-                        s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2);
+                        s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2,
+                        s.parentRelativePos.y * 9 + s.subcubePos.y * 3 + 2);
                 for (const auto& mc : t->microcubes)
                     acc(mc.parentRelativePos,
                         mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
-                        mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z);
+                        mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z,
+                        mc.parentRelativePos.y * 9 + mc.subcubePos.y * 3 + mc.microcubePos.y);
                 if (mxx >= mnx) {
                     fp.width = mxx - mnx + 1;
                     fp.depth = mxz - mnz + 1;
                     fp.microW = uMaxX;   // real micro extents (0-anchored templates)
                     fp.microD = uMaxZ;
+                    fp.microH = uMaxY + 1;   // micro HEIGHT (ceiling hang needs it)
                     got = true;
                 }
             }
@@ -554,8 +559,10 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 if (m.is_object() && m.contains("overall_max") &&
                     m["overall_max"].is_array() && m["overall_max"].size() >= 3) {
                     const double ex = m["overall_max"][0].get<double>();
+                    const double ey = m["overall_max"][1].get<double>();
                     const double ez = m["overall_max"][2].get<double>();
                     fp = footprintFromExtents(ex, ez);
+                    fp.microH = std::max(1, (int)std::lround(std::ceil(ey * 9.0)));
                     got = true;
                 }
             }
@@ -573,13 +580,26 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
         int fxSpawned = 0, fxSkipped = 0;
         std::vector<UnplacedFixture> unplaced;  // honest: pieces that didn't fit
         nlohmann::json fixturesJson = nlohmann::json::array();
+        // Furniture quality B: data recipes (tier-filtered) + the typology's wealth tier.
+        // Idempotent load; unknown purposes still fall back to the hardcoded map. A FAILED
+        // load is surfaced loudly (auditor finding): the hardcoded fallback has no tiers and
+        // no wall_lantern/chandelier, so silence here would quietly strip quality-B fixtures.
+        const bool recipesLoaded =
+            FurniturePlacer::loadRecipesFromFile("resources/furnishing_recipes.json");
+        if (!recipesLoaded)
+            LOG_WARN_FMT("StructureBuild",
+                         "furnishing_recipes.json failed to load — falling back to the "
+                         "hardcoded recipe map (no wealth tiers, no mounted fixtures)");
+        response["furnishing_recipes_loaded"] = recipesLoaded;
+        const std::string wealthTier = rp ? rp->wealthTier : "";
         for (size_t si = 0; si < program.stories.size(); ++si) {
             const auto& story = program.stories[si];
             // KI-2: per-story floor Y — else all furniture stacks on the ground floor.
             int storyFloorY = (si < floorYByStory.size()) ? floorYByStory[si] : floorY;
             auto placements = FurniturePlacer::furnish(
                 story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
-                &unplaced, extTMicro);   // extTMicro -> reserve the TRUE placed span
+                &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span
+                wealthTier);
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);
@@ -587,11 +607,20 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 const auto& pl = placements[k];
                 std::string tmpl = FurnitureCatalog::templateFor(pl.type);
                 if (tmpl.empty()) { ++fxSkipped; continue; }
-                // MICRO-PRECISE: inset off the wall + sit on the exact walkable surface.
+                // MICRO-PRECISE: inset off the wall + sit on the exact walkable surface —
+                // except MOUNTED fixtures: a sconce hangs at the grounded 60 in wall height,
+                // a chandelier below the ceiling with head clearance (mountedMicroY).
                 const int surfMicroY = (si < surfaceMicroYByStory.size())
                     ? surfaceMicroYByStory[si] : storyFloorY * 9;
+                const int ceilMicroY = surfMicroY + story.height * 9;
+                auto fpIt2 = fixtureFootprints.find(pl.type);
+                const int tmplMicroH = (fpIt2 != fixtureFootprints.end() &&
+                                        fpIt2->second.microH > 0)
+                    ? fpIt2->second.microH : 9;
+                const int baseMicroY = FurniturePlacer::mountedMicroY(
+                    pl.type, surfMicroY, ceilMicroY, tmplMicroH);
                 const glm::ivec3 microPos =
-                    FurniturePlacer::microWorldPos(pl, extTMicro, surfMicroY);
+                    FurniturePlacer::microWorldPos(pl, extTMicro, baseMicroY);
                 std::string fid = placedObjectManager->placeTemplateMicro(
                     tmpl, microPos, pl.rotation, objectId);
                 if (fid.empty()) { ++fxSkipped; continue; }

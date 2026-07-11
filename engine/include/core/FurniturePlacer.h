@@ -45,6 +45,7 @@ struct Footprint {
     int depth = 1;    ///< cubes into the room
     int microW = 0;   ///< template micro extent along x (max micro index; 0 = unknown -> width*9-1)
     int microD = 0;   ///< template micro extent along z
+    int microH = 0;   ///< template micro HEIGHT (ceiling-hung pieces need it; 0 = unknown)
 };
 
 /// The set of world CUBES a micro-placed template ACTUALLY occupies — the single source of truth for
@@ -90,11 +91,14 @@ public:
     /// reservation uses the TRUE placed cube span (placedCubeSpan) — the actual render extent including
     /// the micro-spill — instead of the bare footprint, so reservation == render (no overlaps). 0 keeps
     /// the legacy footprint reservation.
+    /// `wealthTier` ("humble" | "middling" | "high", from the typology's room_program
+    /// wealth_tier) filters tiered recipe pieces; "" = no filtering (every piece).
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
                                                    const glm::ivec3& origin, int floorY,
                                                    const std::map<std::string, Footprint>& footprints = {},
                                                    std::vector<UnplacedFixture>* unplaced = nullptr,
-                                                   int extTMicro = 0);
+                                                   int extTMicro = 0,
+                                                   const std::string& wealthTier = "");
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on
@@ -108,6 +112,28 @@ public:
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).
     static int facingIntoRoom(int inwardDx, int inwardDz);
+
+    // ---- MOUNTING (furniture quality B): sconces/racks hang on their wall at a grounded
+    // height; a chandelier hangs from the ceiling. Everything else sits on the floor. ----
+    enum class Mount { Floor, Wall, Ceiling };
+    /// The mount kind for a fixture type (placer-owned data, like the recipes).
+    static Mount mountFor(const std::string& type);
+    /// A fixture's ABSOLUTE base micro-Y:
+    ///   Floor   -> surfaceMicroY (unchanged).
+    ///   Wall    -> surfaceMicroY + the type's grounded mount offset (wall_lantern: 14 micro
+    ///              = the 60 in sconce mounting height; tool_rack: 9 micro ~ reach height).
+    ///   Ceiling -> ceilingMicroY - templateMicroH - 1 (a 1-micro drop), never lower than
+    ///              surfaceMicroY + 18 (head clearance: agent 16 micro + margin) — a low room
+    ///              lifts the piece flush instead of braining the character.
+    static int mountedMicroY(const std::string& type, int surfaceMicroY, int ceilingMicroY,
+                             int templateMicroH);
+
+    // ---- DATA RECIPES (furniture quality B): purpose -> pieces, tier-filtered. ----
+    /// Load resources/furnishing_recipes.json (idempotent; safe to call per build). When a
+    /// purpose has a data recipe it OVERRIDES the hardcoded map; unknown purposes fall back.
+    static bool loadRecipesFromFile(const std::string& path);
+    /// TESTING: drop any loaded data recipes (back to the hardcoded fallback).
+    static void clearRecipes();
 
     /// Convert a (cube-cell) placement to a MICRO-PRECISE world position (cube*9 + micro) so the piece
     /// sits flush against the wall's interior face and on the walkable surface — never inside the wall

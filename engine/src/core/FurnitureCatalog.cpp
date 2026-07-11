@@ -35,8 +35,8 @@ const std::map<std::string, std::string>& table() {
         {"back_bar",     "back_bar"},      // shelving behind the bar (bottles)
         {"bar_stool",    "bar_stool"},     // tall stool at the bar
         {"candle_stand", "candle_stand"},  // floor candelabra (emissive glow) — lighting
-        {"wall_lantern", "wall_lantern"},  // wall sconce lantern (awaiting wall placement)
-        {"chandelier",   "chandelier"},    // hanging candle ring (awaiting ceiling placement)
+        {"wall_lantern", "wall_lantern"},  // wall sconce lantern (Mount::Wall, 60 in mount height)
+        {"chandelier",   "chandelier"},    // hanging candle ring (Mount::Ceiling, hangs below ceiling)
         {"mug",          "mug"},           // tankard — table clutter (surface placement)
         {"bottle",       "bottle"},        // bottle — table/back-bar clutter
         {"forge_hearth", "forge_hearth"},  // smithy: the forge (firepot + chimney) — back wall
