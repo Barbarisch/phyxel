@@ -212,6 +212,7 @@ worlds/*.db
 worlds/*.db.*
 worlds/*.db-journal
 worlds/*.db-wal
+worlds/*.db-shm
 worlds/* - Copy.db
 
 # Shell crash dumps
