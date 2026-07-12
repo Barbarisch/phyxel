@@ -255,6 +255,37 @@ Animated: Jump (Space), Attack (Left Click), Crouch (Ctrl), Sprint (Shift), Dere
 
 Demo script: `scripts/world_gen.py` (`generate_pyramid`, `generate_platform`, `generate_glow_pillars`).
 
+### Terrain Generation v2 — procedural mountains, rivers & lakes (`Perlin`/`Mountains` + `world.streaming: true`)
+
+Height-based worlds layer an **art-directable, hydrology-aware terrain system** on top of the base
+noise. Full design: [`docs/TerrainGenerationV2.md`](docs/TerrainGenerationV2.md); the water runtime that
+fills it: [`docs/WaterSystemV2.md`](docs/WaterSystemV2.md). Two tiers:
+
+- **Layer-0 CoarseWorldModel** (`engine/{include,src}/core/CoarseWorldModel.*`) — a bounded, pure,
+  deterministic coarse model of continentalness + base elevation. **Continentalness** (a third climate
+  axis, contrast-expanded) drives landmass size; base elevation runs through a **recipe-overridable
+  height `Spline`** (`WorldRecipe::heightSpline`, round-trips through `world.db`) — the "how tall"
+  art-direction knob. **Mountains** are **ridged multifractal** (Musgrave), a broad massif band +
+  fine detail so peaks slope to the angle of repose instead of forming sheer columns (grandest peaks
+  ~384 voxels above sea level). `kSeaLevelY = 16` is the shared sea-level constant
+  (`engine/include/core/WorldConstants.h`) — consumed, never re-declared.
+- **Hydrology bake** (`HydrologyMap`, `FlowField`, `PriorityFlood` — terrain-v2 §P2) — over a bounded
+  256×256-cell / 128 m-per-cell region (~32 km), a Priority-Flood pass computes flat **lake & sea
+  water-surface levels** (basins fill to their spill), and flow accumulation + Strahler ordering trace
+  the **river network** (drainage → carve valleys → meander; order 5-6 trunk rivers across ~6.7 km
+  continents). River channels of **Strahler order ≥ 3** carve a parabolic bed; width/depth by order
+  (Doll et al. hydraulic geometry). Read from the live generator via
+  `ChunkManager::getStreamingGenerator()->hydrology()` / `->riverNetwork()`. Bake is memoized +
+  worker-copy-safe. **Requires `world.streaming: true`** (the bake lives on the streaming generator).
+- **Water runtime fills it** (Water System v2, `WaterManager`) — a player-following CA region reads the
+  bake and pins **oceans at sea level + lakes at their spill + rivers along their carved beds**; a
+  **runtime shoreline snap** conforms the coarse wet/dry boundary to the per-voxel carved contour;
+  evaporation bounds off-channel spill. game.json `water` block: `enabled`, `seaLevel`, `bakedTable`
+  (default true when a bake exists), `oceanBoundary`, `evaporation`. Debug: `water_stats`,
+  `water_table_level {x,z}`, `water_validate {x1,z1,x2,z2,maxY}` (L3 bake-vs-terrain rim-leak check).
+  **NOT built yet:** far/near render LOD for water beyond the sim region (Phase B); generator-side
+  coastal beach material. See the design docs for open items.
+
 ### Biomes, Flora & the World Recipe
 
 Height-based terrain (Perlin/Flat/Mountains/Caves) is **biome-aware** and gets **flora**:
