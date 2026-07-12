@@ -1,0 +1,29 @@
+{
+  "genre": "survival",
+  "description": "Systemic survival: needs, gathering/crafting, base-building, escalating threat, resource economy. Merges onto core.",
+  "milestones": {
+    "needs_model": { "required": "L3", "feel": "pending", "desc": "Hunger/thirst/temperature/stamina/fatigue drain + effects (Phyxel NPC-needs -> player)." },
+    "gathering_crafting": { "required": "L3", "feel": "pending", "desc": "Harvest -> craft loop (CraftingSystem + recipes).", "content": { "recipes": { "target": 12, "current": 0 } } },
+    "base_building": { "required": "L3", "feel": "pending", "desc": "Shelter / placement (structure gen, building tools)." },
+    "threat_escalation": { "required": "L4", "desc": "Nights / waves / spawns harden over time (HazardSystem + spawns)." },
+    "resource_economy": { "required": "L3", "desc": "Sources <-> sinks balanced; resource-loop-closure: no needed consumable sink without a reachable source." },
+    "death_penalty_model": { "required": "L3", "desc": "Death consequence: permadeath / drop-on-death / respawn penalty (decide early; ripples through save + balance)." },
+    "weather_exposure": { "required": "L3", "desc": "DayNight / weather as a survival threat (exposure, temperature)." },
+    "save_load": { "required": "L4", "desc": "ELEVATED to save-integrity: save -> reload -> deep-diff every persisted subsystem == identical." }
+  },
+  "content_targets": { "recipes": 12, "enemy_types": 5, "biomes": 3 },
+  "interaction_matrix_seed": [
+    { "a": "rain", "b": "campfire", "expect": "extinguishes" },
+    { "a": "cold", "b": "shelter", "expect": "warmth restored" },
+    { "a": "hunger=0", "b": "time", "expect": "health drains" },
+    { "a": "rest", "b": "enemy-nearby", "expect": "rest blocked" },
+    { "a": "encumbrance-over-limit", "b": "movement", "expect": "speed penalty applies" }
+  ],
+  "starter_scaffold": { "notes": "player + needs HUD + one craftable + a hostile night" },
+  "starter": {
+    "description": "Survival starter - natural terrain to gather and survive on. Build the loop with the farming-survival-loop recipe.",
+    "world": { "type": "Perlin", "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+    "player": { "type": "animated", "position": { "x": 8, "y": 22, "z": 8 } },
+    "camera": { "position": { "x": 8, "y": 30, "z": 24 }, "yaw": -180, "pitch": -30, "mode": "third_person" }
+  }
+}

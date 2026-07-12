@@ -1,0 +1,36 @@
+{
+  "genre": "rpg",
+  "description": "D&D-style RPG: character creation, quests, dialogue, turn-based combat, itemization, progression, factions, party. Merges onto core. Phyxel already ships most of the mechanics (validate wiring, not implement).",
+  "milestones": {
+    "character_creation": { "required": "L4", "feel": "pending", "desc": "Race/class/background/abilities/appearance flow + screen (CharacterSheet)." },
+    "quests": { "required": "L4", "desc": "Multi-step, branching, quest log (ObjectiveTracker + StoryEngine).", "content": { "quests": { "target": 20, "current": 0 } } },
+    "dialogue": { "required": "L3", "desc": "Branching + skill checks + consequence (DialogueSystem + DialogueSkillCheck).", "content": { "dialogue_nodes": { "target": 60, "current": 0 } } },
+    "combat": { "required": "L4", "feel": "pending", "combat_model": "turn_based", "desc": "Turn-based initiative (ActionEconomy / Initiative / AttackResolver / Conditions)." },
+    "itemization": { "required": "L3", "desc": "Loot tables, rarity, equip stats (RpgItem / LootTable / Equipment).", "content": { "items": { "target": 40, "current": 0 } } },
+    "progression": { "required": "L4", "feel": "pending", "desc": "XP / level / feats / spells (CharacterProgression / Spell*)." },
+    "factions_reputation": { "required": "L3", "desc": "Reputation affecting prices / dialogue / access (ReputationSystem)." },
+    "economy_merchants": { "required": "L3", "desc": "Currency + buy/sell sinks & sources (CurrencySystem)." },
+    "party_companions": { "required": "L3", "desc": "Party members / companions (Party)." },
+    "rest_camp": { "required": "L3", "desc": "Rest / camp advancing time & restoring resources (RestSystem + WorldClock)." },
+    "living_world": { "required": "L3", "desc": "NPC schedules / relationships / reactivity." },
+    "campaign_structure": { "required": "L3", "desc": "Arcs / encounters / journal (StoryEngine / EncounterBuilder / CampaignJournal).", "content": { "encounters": { "target": 12, "current": 0 } } },
+    "codex_journal": { "required": "L2", "desc": "Codex / lore / bestiary collection (CampaignJournal)." },
+    "world_map_travel": { "required": "L2", "optional": true, "desc": "World map / fast travel (optional)." },
+    "save_load": { "required": "L4", "desc": "ELEVATED to save-integrity: sheet, inventory, quests, NPC states, reputation, story vars round-trip identical." }
+  },
+  "content_targets": { "quests": 20, "items": 40, "enemy_types": 10, "dialogue_nodes": 60, "encounters": 12, "spells": 15 },
+  "interaction_matrix_seed": [
+    { "a": "reputation(faction)", "b": "merchant", "expect": "prices / dialogue options change" },
+    { "a": "condition(frozen)", "b": "fire-damage", "expect": "shatter / bonus" },
+    { "a": "poison", "b": "antidote", "expect": "cured" },
+    { "a": "quest-item", "b": "lost/consumed", "expect": "quest still completable (or item re-obtainable)" },
+    { "a": "skill-check", "b": "ability-score", "expect": "DC resolves against the right modifier" }
+  ],
+  "starter_scaffold": { "notes": "character-creation screen + one town + one NPC with a 2-step quest + one turn-based encounter" },
+  "starter": {
+    "description": "RPG starter - a small overworld. Add a town + NPC + first quest with the rpg-quest-chain recipe.",
+    "world": { "type": "Perlin", "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+    "player": { "type": "animated", "position": { "x": 8, "y": 22, "z": 8 } },
+    "camera": { "position": { "x": 8, "y": 28, "z": 22 }, "yaw": -180, "pitch": -28, "mode": "third_person" }
+  }
+}

@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "phyxel up"
+          },
+          {
+            "type": "command",
+            "command": "phyxel status"
           }
         ]
       }

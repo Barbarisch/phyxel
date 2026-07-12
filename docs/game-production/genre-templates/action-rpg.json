@@ -1,0 +1,23 @@
+{
+  "genre": "action-rpg",
+  "description": "The RPG set, but real-time combat + boss encounters + loot-driven build diversity. Merge with 'rpg' for the full set; this file overrides combat to real-time and adds action milestones.",
+  "milestones": {
+    "combat": { "required": "L4", "feel": "pending", "combat_model": "real_time", "desc": "Real-time combat: hit reactions, i-frames, dodge/roll, lock-on targeting, telegraphs, combos (a heavy feel milestone)." },
+    "boss_encounters": { "required": "L4", "feel": "pending", "desc": "Phased boss fights with telegraphed attacks.", "content": { "bosses": { "target": 3, "current": 0 } } },
+    "loot_build_diversity": { "required": "L3", "desc": "Loot drops enabling distinct viable builds (LootTable + itemization)." },
+    "enemy_scaling": { "required": "L3", "desc": "Enemy difficulty scales with progression / area." }
+  },
+  "content_targets": { "bosses": 3, "enemy_types": 12, "items": 40 },
+  "interaction_matrix_seed": [
+    { "a": "dodge-roll", "b": "attack-active-frames", "expect": "i-frames avoid damage" },
+    { "a": "lock-on", "b": "target-death", "expect": "target switches / releases cleanly" },
+    { "a": "combo", "b": "input-buffer", "expect": "buffered input chains next hit" }
+  ],
+  "starter_scaffold": { "notes": "real-time controller + one enemy + one dodge + one loot drop" },
+  "starter": {
+    "description": "Action-RPG starter - a flat arena for real-time combat prototyping.",
+    "world": { "type": "Flat", "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+    "player": { "type": "animated", "position": { "x": 8, "y": 17, "z": 8 } },
+    "camera": { "position": { "x": 8, "y": 26, "z": 22 }, "yaw": -180, "pitch": -32, "mode": "third_person" }
+  }
+}

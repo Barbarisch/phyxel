@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from . import paths
+from . import paths, production
 
 # The single portable MCP wiring every project commits. `phyxel-mcp` (a console script on
 # PATH) resolves the engine per-machine and reads the port from .phyxel/config.json.
@@ -92,9 +92,13 @@ def _write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def link(project_dir: Path, port: Optional[int] = None) -> dict:
+def link(project_dir: Path, port: Optional[int] = None,
+         genres: Optional[list] = None) -> dict:
     """Write the Claude-facing files into an existing project dir. Idempotent: reuses an
-    already-assigned port; never clobbers an existing CLAUDE.md."""
+    already-assigned port; never clobbers an existing CLAUDE.md / production.json / GAMEPLAN.md.
+
+    Also scaffolds the production tracker (.phyxel/production.json + GAMEPLAN.md) from `genres`
+    (core-only if empty). Best-effort — skipped with a note if the engine repo isn't resolvable."""
     project_dir = project_dir.expanduser().resolve()
     if not project_dir.is_dir():
         raise NotADirectoryError(f"{project_dir} is not a directory")
@@ -126,17 +130,30 @@ def link(project_dir: Path, port: Optional[int] = None) -> dict:
             CLAUDE_MD_TEMPLATE.format(name=project_dir.name, port=chosen), encoding="utf-8")
         actions.append("CLAUDE.md")
 
-    return {"project": str(project_dir), "port": chosen, "wrote": actions}
+    # Production tracker (new): production.json + GAMEPLAN.md from core + genre template(s).
+    prod = production.scaffold_production(project_dir, genres or [], name=project_dir.name)
+    if "wrote" in prod:
+        actions.extend(prod["wrote"])
+    else:
+        actions.append(f"production tracker skipped ({prod['skipped']})")
+
+    return {"project": str(project_dir), "port": chosen, "wrote": actions,
+            "genres": genres or []}
 
 
-def new(name: str, output_dir: Path, port: Optional[int] = None) -> dict:
-    """Create a minimal dev project (game.json + worlds/) then link it."""
+def new(name: str, output_dir: Path, port: Optional[int] = None,
+        genres: Optional[list] = None) -> dict:
+    """Create a minimal dev project (game.json + worlds/) then link it (incl. production tracker)."""
     output_dir = output_dir.expanduser().resolve()
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"{output_dir} already exists and is not empty")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     gj = dict(NEW_GAME_JSON)
+    # A genre starter (if any) sets a genre-appropriate world/player/camera over the flat default.
+    starter = production.starter_game(genres or [])
+    if starter:
+        gj.update(starter)
     gj["name"] = name
     _write_json(output_dir / "game.json", gj)
 
@@ -145,6 +162,6 @@ def new(name: str, output_dir: Path, port: Optional[int] = None) -> dict:
 
     (output_dir / "worlds").mkdir(exist_ok=True)
 
-    result = link(output_dir, port=port)
+    result = link(output_dir, port=port, genres=genres)
     result["created"] = True
     return result

@@ -1,0 +1,31 @@
+{
+  "genre": "core",
+  "description": "Universal milestones every game must address (all genres merge onto this).",
+  "stages": ["concept", "vertical_slice", "feature_complete", "content_complete", "shippable"],
+  "milestones": {
+    "design_brief": { "required": "L1", "desc": "GAMEPLAN.md filled: genre, demographic, core loop, win/lose stated." },
+    "world": { "required": "L4", "desc": "A playable world/level loads." },
+    "player": { "required": "L4", "desc": "Player + camera placed and controllable." },
+    "level_playability": { "required": "L3", "feel": "pending", "desc": "Walkable paths, collision boundaries, out-of-bounds/death volumes, gating (reachable = walkable)." },
+    "core_loop": { "required": "L4", "feel": "pending", "desc": "Primary mechanic implemented and playable." },
+    "win_condition": { "required": "L4", "desc": "Terminal trigger wired (show_victory / transition / quit)." },
+    "lose_condition": { "required": "L3", "desc": "Fail/death/respawn path wired." },
+    "main_menu": { "required": "L4", "desc": "Menu scene / shell with Start / Options / Quit." },
+    "pause_menu": { "required": "L3", "desc": "Resume / settings / quit-to-menu." },
+    "options": { "required": "L2", "desc": "Settings: audio / graphics / controls." },
+    "hud": { "required": "L3", "desc": "In-game HUD (health / score / objective) appropriate to the game." },
+    "intro": { "required": "L3", "desc": "Opening: cinematic or intro sequence." },
+    "tutorial": { "required": "L3", "desc": "Teaches the core loop (contextual, one mechanic at a time, repeatable) - distinct from intro." },
+    "victory_screen": { "required": "L3", "desc": "Win / results screen." },
+    "game_over_screen": { "required": "L3", "desc": "Fail screen." },
+    "audio": { "required": "L2", "desc": "Menu + gameplay music + core SFX (most-dropped scope - named explicitly)." },
+    "credits": { "required": "L2", "desc": "Credits screen / scene." },
+    "save_load": { "required": "L3", "desc": "Progress persistence (or explicit n/a with reason)." },
+    "difficulty_balance": { "required": "L4", "desc": "Win/lose reachable AND tuned; difficulty options where relevant (a play distribution)." },
+    "accessibility": { "required": "L2", "ordering_critical": true, "desc": "Remappable controls, subtitles, readable text size, no color-only info, flash safety, separate volume sliders." },
+    "localization_ready": { "required": "L2", "ordering_critical": true, "desc": "Strings externalized with stable IDs, Unicode font, ~35% text-expansion-tolerant UI - enforced BEFORE strings are authored." },
+    "perf_target": { "required": "L4", "desc": "Meets the project FPS / load budget." },
+    "qa_pass": { "required": "L4", "desc": "Playtest checklist + adversarial playtest clean." },
+    "package": { "required": "L4", "desc": "Builds + packages standalone clean." }
+  }
+}

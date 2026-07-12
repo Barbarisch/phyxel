@@ -11,17 +11,32 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import engine, paths, scaffold
+from . import engine, paths, scaffold, status
+
+
+def _split_genres(raw) -> list:
+    """Flatten repeatable + comma-separated --genre into a clean list (order preserved, deduped)."""
+    if not raw:
+        return []
+    out = []
+    for item in raw:
+        for g in str(item).split(","):
+            g = g.strip()
+            if g and g not in out:
+                out.append(g)
+    return out
 
 
 def _cmd_link(args: argparse.Namespace) -> int:
     target = Path(args.path).expanduser() if args.path else Path.cwd()
     try:
-        r = scaffold.link(target, port=args.port)
-    except (NotADirectoryError, OSError) as e:
+        r = scaffold.link(target, port=args.port, genres=_split_genres(args.genre))
+    except (NotADirectoryError, OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(f"phyxel: linked {r['project']} (api port {r['port']})")
+    if r.get("genres"):
+        print(f"        genres: {', '.join(r['genres'])} (+ core)")
     print(f"        wrote: {', '.join(r['wrote'])}")
     return 0
 
@@ -29,11 +44,13 @@ def _cmd_link(args: argparse.Namespace) -> int:
 def _cmd_new(args: argparse.Namespace) -> int:
     out = Path(args.output).expanduser() if args.output else (Path.cwd() / args.name)
     try:
-        r = scaffold.new(args.name, out, port=args.port)
-    except (FileExistsError, OSError) as e:
+        r = scaffold.new(args.name, out, port=args.port, genres=_split_genres(args.genre))
+    except (FileExistsError, OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(f"phyxel: created project {r['project']} (api port {r['port']})")
+    if r.get("genres"):
+        print(f"        genres: {', '.join(r['genres'])} (+ core)")
     print(f"        wrote: game.json, worlds/, {', '.join(r['wrote'])}")
     return 0
 
@@ -59,6 +76,25 @@ def _cmd_up(args: argparse.Namespace) -> int:
         print(f"phyxel: engine already running for {r['project']} on port {r['port']}")
     else:
         print(f"phyxel: launched engine for {r['project']} on port {r['port']} (pid {r['pid']})")
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    # Resolve project like `up`: explicit arg > session dir (hook) > cwd.
+    if args.path:
+        target = Path(args.path)
+    elif os.environ.get("CLAUDE_PROJECT_DIR"):
+        target = Path(os.environ["CLAUDE_PROJECT_DIR"])
+    else:
+        target = Path.cwd()
+    out = status.digest(target.expanduser())
+    if out is None:
+        # No tracker here (non-project dir, or a project not yet given one). Stay quiet on stdout
+        # so the SessionStart hook injects nothing; a hint on stderr for manual use.
+        print("phyxel status: no production tracker here "
+              "(link with `phyxel link --genre <g>`)", file=sys.stderr)
+        return 0
+    print(out)
     return 0
 
 
@@ -134,17 +170,27 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("link", help="add the Claude workflow files to an existing project")
     pl.add_argument("path", nargs="?", help="project directory (default: current directory)")
     pl.add_argument("--port", type=int, help="force a specific API port (else reuse/allocate)")
+    pl.add_argument("--genre", action="append",
+                    help="genre template(s) to seed the production tracker (repeatable or "
+                         "comma-separated: survival, rpg, action-rpg). Core is always included.")
     pl.set_defaults(func=_cmd_link)
 
     pn = sub.add_parser("new", help="create a minimal dev project, then link it")
     pn.add_argument("name", help="project name")
     pn.add_argument("--output", help="output directory (default: ./<name>)")
     pn.add_argument("--port", type=int, help="force a specific API port (else allocate)")
+    pn.add_argument("--genre", action="append",
+                    help="genre template(s) to seed the production tracker (repeatable or "
+                         "comma-separated: survival, rpg, action-rpg). Core is always included.")
     pn.set_defaults(func=_cmd_new)
 
     pu = sub.add_parser("up", help="ensure this project's engine instance is running")
     pu.add_argument("path", nargs="?", help="project directory (default: session/current dir)")
     pu.set_defaults(func=_cmd_up)
+
+    ps = sub.add_parser("status", help="print the production digest (what's done / next)")
+    ps.add_argument("path", nargs="?", help="project directory (default: session/current dir)")
+    ps.set_defaults(func=_cmd_status)
 
     pf = sub.add_parser("feedback", help="log a lesson/feature-request to the engine feedback inbox")
     pf.add_argument("text", help="the feedback (one concise paragraph)")
