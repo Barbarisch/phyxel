@@ -2,8 +2,11 @@
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
+#include "core/Subcube.h"
+#include "core/Microcube.h"
 #include <filesystem>
 #include <cstdlib>
+#include <sqlite3.h>
 
 namespace Phyxel {
 namespace Testing {
@@ -22,8 +25,12 @@ protected:
     }
 
     void TearDown() override {
-        if (std::filesystem::exists(dbPath)) {
-            std::filesystem::remove(dbPath);
+        // Main DB plus WAL sidecars and the migration backup.
+        for (const auto& suffix : {"", "-wal", "-shm", ".v1.bak"}) {
+            std::string path = dbPath + suffix;
+            if (std::filesystem::exists(path)) {
+                std::filesystem::remove(path);
+            }
         }
     }
 
@@ -462,6 +469,183 @@ TEST_F(WorldStorageTest, AllMaterialsRoundTrip) {
         ASSERT_NE(cube, nullptr) << "Missing cube for material: " << materials[i];
         EXPECT_EQ(cube->getMaterialName(), materials[i]);
     }
+
+    storage.close();
+}
+
+// ============================================================================
+// Storage v2 (palette+RLE blob) — red-before-green suite for
+// docs/LargeWorldScalePlan.md Phase 1. These tests are written against the
+// PUBLIC WorldStorage API and must fail on the v1 row-per-voxel format:
+//   - v1 schema has no tint/state columns → tint/state silently lost
+//   - v1 stores ~32k rows per solid chunk → multi-MB database
+//   - v1 has no legacy→blob migration on reopen
+// ============================================================================
+
+// --- Subcube tint + state round-trip (v1 drops both) ---
+
+TEST_F(WorldStorageTest, SubcubeTintAndStateRoundTrip) {
+    WorldStorage storage(dbPath);
+    ASSERT_TRUE(storage.initialize());
+
+    auto chunk = makeChunk(glm::ivec3(0, 0, 0));
+    ASSERT_TRUE(chunk->addSubcube(glm::ivec3(4, 5, 6), glm::ivec3(1, 2, 0),
+                                  "Wood", /*tint*/ 0x88CC44u, /*state*/ 3));
+    EXPECT_TRUE(storage.saveChunk(*chunk));
+
+    auto loaded = makeChunk(glm::ivec3(0, 0, 0));
+    EXPECT_TRUE(storage.loadChunk(glm::ivec3(0, 0, 0), *loaded));
+
+    auto subs = loaded->getStaticSubcubesAt(glm::ivec3(4, 5, 6));
+    ASSERT_EQ(subs.size(), 1u);
+    EXPECT_EQ(subs[0]->getMaterialName(), "Wood");
+    EXPECT_EQ(subs[0]->getLocalPosition(), glm::ivec3(1, 2, 0));
+    EXPECT_EQ(subs[0]->getTint(), 0x88CC44u);
+    EXPECT_EQ(subs[0]->getState(), 3);
+
+    storage.close();
+}
+
+// --- Microcube tint + state round-trip (v1 drops both) ---
+
+TEST_F(WorldStorageTest, MicrocubeTintAndStateRoundTrip) {
+    WorldStorage storage(dbPath);
+    ASSERT_TRUE(storage.initialize());
+
+    auto chunk = makeChunk(glm::ivec3(0, 0, 0));
+    ASSERT_TRUE(chunk->addMicrocube(glm::ivec3(10, 11, 12), glm::ivec3(0, 1, 2),
+                                    glm::ivec3(2, 0, 1), "Stone",
+                                    /*tint*/ 0x336699u, /*state*/ 4));
+    EXPECT_TRUE(storage.saveChunk(*chunk));
+
+    auto loaded = makeChunk(glm::ivec3(0, 0, 0));
+    EXPECT_TRUE(storage.loadChunk(glm::ivec3(0, 0, 0), *loaded));
+
+    ASSERT_EQ(loaded->getStaticMicrocubeCount(), 1u);
+    const auto& micro = loaded->getStaticMicrocubes()[0];
+    EXPECT_EQ(micro->getMaterialName(), "Stone");
+    EXPECT_EQ(micro->getSubcubeLocalPosition(), glm::ivec3(0, 1, 2));
+    EXPECT_EQ(micro->getMicrocubeLocalPosition(), glm::ivec3(2, 0, 1));
+    EXPECT_EQ(micro->getTint(), 0x336699u);
+    EXPECT_EQ(micro->getState(), 4);
+
+    storage.close();
+}
+
+// --- Size gate: a fully solid chunk must be a compact blob, not 32k rows ---
+// v1 measured red baseline: ~32,768 rows → multi-MB file. v2 (palette+RLE
+// blob): the chunk payload is a handful of runs; the whole DB including
+// schema overhead must stay under 256 KB.
+
+TEST_F(WorldStorageTest, SolidChunkDatabaseSizeUnder256KB) {
+    WorldStorage storage(dbPath);
+    ASSERT_TRUE(storage.initialize());
+
+    auto chunk = makeChunk(glm::ivec3(0, 0, 0));
+    for (int x = 0; x < 32; ++x)
+        for (int y = 0; y < 32; ++y)
+            for (int z = 0; z < 32; ++z)
+                chunk->addCube(glm::ivec3(x, y, z), "Stone");
+    ASSERT_TRUE(storage.saveChunk(*chunk));
+    storage.close();
+
+    // Measure the closed main DB file (WAL checkpointed on close).
+    size_t fileSize = std::filesystem::file_size(dbPath);
+    EXPECT_LE(fileSize, 256u * 1024u)
+        << "Solid chunk produced a " << fileSize
+        << "-byte DB — row-per-voxel format, not a compact blob";
+}
+
+// --- Legacy v1 rows must still load (fallback path) ---
+
+TEST_F(WorldStorageTest, LegacyRowFormatChunkStillLoads) {
+    WorldStorage storage(dbPath);
+    ASSERT_TRUE(storage.initialize());
+
+    // Craft a v1 row-format chunk directly (bypassing saveChunk, which will
+    // write the v2 blob format once Phase 1 lands).
+    const char* legacySQL =
+        "INSERT INTO chunks (chunk_x, chunk_y, chunk_z) VALUES (2, 0, 3);"
+        "INSERT INTO cubes (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z,"
+        " is_subdivided, is_visible, material) VALUES (2, 0, 3, 7, 8, 9, 0, 1, 'Metal');"
+        "INSERT INTO subcubes (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z,"
+        " sub_x, sub_y, sub_z, is_dynamic, material) VALUES (2, 0, 3, 1, 1, 1, 0, 2, 1, 0, 'Glass');";
+    char* err = nullptr;
+    ASSERT_EQ(sqlite3_exec(storage.getDb(), legacySQL, nullptr, nullptr, &err), SQLITE_OK)
+        << (err ? err : "unknown sqlite error");
+
+    auto loaded = makeChunk(glm::ivec3(64, 0, 96));
+    EXPECT_TRUE(storage.loadChunk(glm::ivec3(2, 0, 3), *loaded));
+
+    auto* cube = loaded->getCubeAt(glm::ivec3(7, 8, 9));
+    ASSERT_NE(cube, nullptr);
+    EXPECT_EQ(cube->getMaterialName(), "Metal");
+    auto subs = loaded->getStaticSubcubesAt(glm::ivec3(1, 1, 1));
+    ASSERT_EQ(subs.size(), 1u);
+    EXPECT_EQ(subs[0]->getMaterialName(), "Glass");
+
+    storage.close();
+}
+
+// --- Reopen migrates legacy rows to blobs (one-time, with .bak backup) ---
+
+TEST_F(WorldStorageTest, LegacyRowsMigrateToBlobsOnReopen) {
+    {
+        WorldStorage storage(dbPath);
+        ASSERT_TRUE(storage.initialize());
+        const char* legacySQL =
+            "INSERT INTO chunks (chunk_x, chunk_y, chunk_z) VALUES (0, 0, 0);"
+            "INSERT INTO cubes (chunk_x, chunk_y, chunk_z, local_x, local_y, local_z,"
+            " is_subdivided, is_visible, material) VALUES (0, 0, 0, 3, 4, 5, 0, 1, 'Ice');";
+        char* err = nullptr;
+        ASSERT_EQ(sqlite3_exec(storage.getDb(), legacySQL, nullptr, nullptr, &err), SQLITE_OK)
+            << (err ? err : "unknown sqlite error");
+        storage.close();
+    }
+
+    // Reopen: initialize() must migrate the legacy rows into blob format.
+    {
+        WorldStorage storage(dbPath);
+        ASSERT_TRUE(storage.initialize());
+
+        // Data survives the migration...
+        auto loaded = makeChunk(glm::ivec3(0, 0, 0));
+        EXPECT_TRUE(storage.loadChunk(glm::ivec3(0, 0, 0), *loaded));
+        auto* cube = loaded->getCubeAt(glm::ivec3(3, 4, 5));
+        ASSERT_NE(cube, nullptr);
+        EXPECT_EQ(cube->getMaterialName(), "Ice");
+
+        // ...and the legacy rows are gone (replaced by the blob).
+        sqlite3_stmt* stmt = nullptr;
+        ASSERT_EQ(sqlite3_prepare_v2(storage.getDb(),
+                                     "SELECT COUNT(*) FROM cubes;", -1, &stmt, nullptr),
+                  SQLITE_OK);
+        ASSERT_EQ(sqlite3_step(stmt), SQLITE_ROW);
+        int legacyRows = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+        EXPECT_EQ(legacyRows, 0) << "legacy cube rows were not migrated to blobs";
+
+        storage.close();
+    }
+
+    // A rollback-safety backup of the pre-migration DB must exist.
+    EXPECT_TRUE(std::filesystem::exists(dbPath + ".v1.bak"));
+    std::filesystem::remove(dbPath + ".v1.bak");
+}
+
+// --- WAL journal mode must be active (PRAGMA tuning) ---
+
+TEST_F(WorldStorageTest, DatabaseUsesWALJournalMode) {
+    WorldStorage storage(dbPath);
+    ASSERT_TRUE(storage.initialize());
+
+    sqlite3_stmt* stmt = nullptr;
+    ASSERT_EQ(sqlite3_prepare_v2(storage.getDb(), "PRAGMA journal_mode;", -1, &stmt, nullptr),
+              SQLITE_OK);
+    ASSERT_EQ(sqlite3_step(stmt), SQLITE_ROW);
+    std::string mode = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    sqlite3_finalize(stmt);
+    EXPECT_EQ(mode, "wal");
 
     storage.close();
 }

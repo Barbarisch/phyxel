@@ -1,5 +1,6 @@
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
+#include "core/ChunkBlobCodec.h"
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "utils/Logger.h"
@@ -52,6 +53,11 @@ bool WorldStorage::commitTransaction() { return false; }
 bool WorldStorage::rollbackTransaction() { return false; }
 bool WorldStorage::loadSubcubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
 bool WorldStorage::loadMicrocubesForChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
+bool WorldStorage::applyPragmas() { return false; }
+bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) { found = false; return false; }
+bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
+bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) { return false; }
+bool WorldStorage::migrateLegacyChunks() { return false; }
 bool WorldStorage::setMeta(const std::string& key, const std::string& value) { return false; }
 std::string WorldStorage::getMeta(const std::string& key) const { return ""; }
 bool WorldStorage::hasMeta(const std::string& key) const { return false; }
@@ -86,21 +92,53 @@ bool WorldStorage::initialize() {
     }
     
     LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Opened database: " << dbPath);
-    
+
+    // Tune the connection BEFORE any writes (WAL removes the fsync-per-commit
+    // stall; page_size only takes effect on brand-new databases).
+    applyPragmas();
+
     // Create tables if they don't exist
     if (!createTables()) {
         LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Failed to create tables");
         return false;
     }
-    
+
     // Prepare statements
     if (!prepareStatements()) {
         LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Failed to prepare statements");
         return false;
     }
-    
+
+    // One-time storage v1 → v2 migration (row-per-voxel → palette+RLE blobs)
+    if (!migrateLegacyChunks()) {
+        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] Legacy chunk migration failed — v1 rows left in place (loads fall back)");
+    }
+
     LOG_INFO("WorldStorage", "[WORLD_STORAGE] WorldStorage initialized successfully");
     return true;
+}
+
+bool WorldStorage::applyPragmas() {
+    if (!db) return false;
+    // page_size must be set before the first write to matter (new DBs only).
+    // WAL + synchronous=NORMAL: one fsync per checkpoint instead of per
+    // commit, and readers never block the writer (the streaming gen worker
+    // loads while the main thread saves, serialized by the caller's mutex).
+    const char* pragmas =
+        "PRAGMA page_size=8192;"
+        "PRAGMA journal_mode=WAL;"
+        "PRAGMA synchronous=NORMAL;"
+        "PRAGMA cache_size=-16384;"   // 16 MB page cache
+        "PRAGMA mmap_size=268435456;" // 256 MB memory-mapped I/O
+        "PRAGMA temp_store=MEMORY;"
+        "PRAGMA journal_size_limit=67108864;"; // cap the WAL at 64 MB after checkpoints
+    char* errorMsg = nullptr;
+    bool success = sqlite3_exec(db, pragmas, nullptr, nullptr, &errorMsg) == SQLITE_OK;
+    if (errorMsg) {
+        LOG_WARN_FMT("WorldStorage", "[WORLD_STORAGE] PRAGMA setup warning: " << errorMsg);
+        sqlite3_free(errorMsg);
+    }
+    return success;
 }
 
 bool WorldStorage::close() {
@@ -188,11 +226,27 @@ bool WorldStorage::createTables() {
             value TEXT
         );
 
-        -- Spatial indexing for fast chunk queries
-        CREATE INDEX IF NOT EXISTS idx_chunks_coord ON chunks(chunk_x, chunk_y, chunk_z);
-        CREATE INDEX IF NOT EXISTS idx_cubes_chunk ON cubes(chunk_x, chunk_y, chunk_z);
-        CREATE INDEX IF NOT EXISTS idx_subcubes_chunk ON subcubes(chunk_x, chunk_y, chunk_z);
-        CREATE INDEX IF NOT EXISTS idx_microcubes_chunk ON microcubes(chunk_x, chunk_y, chunk_z);
+        -- Storage v2: one palette+RLE blob per chunk (ChunkBlobCodec).
+        -- Replaces the row-per-voxel tables above, which remain only as the
+        -- legacy read/migration source. Counts are denormalized for stats.
+        CREATE TABLE IF NOT EXISTS chunk_blobs (
+            chunk_x INTEGER NOT NULL,
+            chunk_y INTEGER NOT NULL,
+            chunk_z INTEGER NOT NULL,
+            version INTEGER NOT NULL,
+            cube_count INTEGER NOT NULL DEFAULT 0,
+            subcube_count INTEGER NOT NULL DEFAULT 0,
+            microcube_count INTEGER NOT NULL DEFAULT 0,
+            data BLOB NOT NULL,
+            PRIMARY KEY (chunk_x, chunk_y, chunk_z)
+        );
+
+        -- The old secondary indexes duplicated each table's PRIMARY KEY
+        -- prefix (pure write cost + file size) — drop them.
+        DROP INDEX IF EXISTS idx_chunks_coord;
+        DROP INDEX IF EXISTS idx_cubes_chunk;
+        DROP INDEX IF EXISTS idx_subcubes_chunk;
+        DROP INDEX IF EXISTS idx_microcubes_chunk;
     )";
     
     char* errorMsg = nullptr;
@@ -295,7 +349,24 @@ bool WorldStorage::prepareStatements() {
     const char* deleteCubeSQL = R"(
         DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ? AND local_x = ? AND local_y = ? AND local_z = ?;
     )";
-    
+
+    // Storage v2 blob statements + cached legacy-row deletes (the old code
+    // re-prepared the per-chunk DELETEs on every save).
+    const char* insertBlobSQL = R"(
+        INSERT OR REPLACE INTO chunk_blobs
+        (chunk_x, chunk_y, chunk_z, version, cube_count, subcube_count, microcube_count, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+    )";
+    const char* selectBlobSQL = R"(
+        SELECT data FROM chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
+    )";
+    const char* deleteBlobSQL = R"(
+        DELETE FROM chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
+    )";
+    const char* deleteCubeRowsSQL = "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
+    const char* deleteSubcubeRowsSQL = "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
+    const char* deleteMicrocubeRowsSQL = "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
+
     // Prepare all statements
     return (sqlite3_prepare_v2(db, insertChunkSQL, -1, &insertChunkStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, insertCubeSQL, -1, &insertCubeStmt, nullptr) == SQLITE_OK &&
@@ -306,7 +377,13 @@ bool WorldStorage::prepareStatements() {
             sqlite3_prepare_v2(db, selectSubcubesSQL, -1, &selectSubcubesStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, selectMicrocubesSQL, -1, &selectMicrocubesStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteChunkSQL, -1, &deleteChunkStmt, nullptr) == SQLITE_OK &&
-            sqlite3_prepare_v2(db, deleteCubeSQL, -1, &deleteCubeStmt, nullptr) == SQLITE_OK);
+            sqlite3_prepare_v2(db, deleteCubeSQL, -1, &deleteCubeStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, insertBlobSQL, -1, &insertBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, selectBlobSQL, -1, &selectBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, deleteBlobSQL, -1, &deleteBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, deleteCubeRowsSQL, -1, &deleteCubeRowsStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, deleteSubcubeRowsSQL, -1, &deleteSubcubeRowsStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, deleteMicrocubeRowsSQL, -1, &deleteMicrocubeRowsStmt, nullptr) == SQLITE_OK);
 }
 
 void WorldStorage::finalizeStatements() {
@@ -320,6 +397,12 @@ void WorldStorage::finalizeStatements() {
     if (selectMicrocubesStmt) { sqlite3_finalize(selectMicrocubesStmt); selectMicrocubesStmt = nullptr; }
     if (deleteChunkStmt) { sqlite3_finalize(deleteChunkStmt); deleteChunkStmt = nullptr; }
     if (deleteCubeStmt) { sqlite3_finalize(deleteCubeStmt); deleteCubeStmt = nullptr; }
+    if (insertBlobStmt) { sqlite3_finalize(insertBlobStmt); insertBlobStmt = nullptr; }
+    if (selectBlobStmt) { sqlite3_finalize(selectBlobStmt); selectBlobStmt = nullptr; }
+    if (deleteBlobStmt) { sqlite3_finalize(deleteBlobStmt); deleteBlobStmt = nullptr; }
+    if (deleteCubeRowsStmt) { sqlite3_finalize(deleteCubeRowsStmt); deleteCubeRowsStmt = nullptr; }
+    if (deleteSubcubeRowsStmt) { sqlite3_finalize(deleteSubcubeRowsStmt); deleteSubcubeRowsStmt = nullptr; }
+    if (deleteMicrocubeRowsStmt) { sqlite3_finalize(deleteMicrocubeRowsStmt); deleteMicrocubeRowsStmt = nullptr; }
 }
 
 bool WorldStorage::saveChunk(const Chunk& chunk) {
@@ -343,236 +426,50 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         }
         ownTransaction = true;
     }
-    
-    try {
-        // CRITICAL: For dirty chunks, delete existing data first to handle deletions properly
-        const char* deleteCubesSQL = "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
-        const char* deleteSubcubesSQL = "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
-        const char* deleteMicrocubesSQL = "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?";
-        
-        sqlite3_stmt* deleteCubesStmt = nullptr;
-        sqlite3_stmt* deleteSubcubesStmt = nullptr;
-        sqlite3_stmt* deleteMicrocubesStmt = nullptr;
-        
-        if (sqlite3_prepare_v2(db, deleteCubesSQL, -1, &deleteCubesStmt, nullptr) != SQLITE_OK ||
-            sqlite3_prepare_v2(db, deleteSubcubesSQL, -1, &deleteSubcubesStmt, nullptr) != SQLITE_OK ||
-            sqlite3_prepare_v2(db, deleteMicrocubesSQL, -1, &deleteMicrocubesStmt, nullptr) != SQLITE_OK) {
-            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to prepare delete statements: " << sqlite3_errmsg(db));
-            if (ownTransaction) rollbackTransaction();
-            return false;
-        }
-        
-        // Delete old cubes
-        sqlite3_bind_int(deleteCubesStmt, 1, chunkCoord.x);
-        sqlite3_bind_int(deleteCubesStmt, 2, chunkCoord.y);
-        sqlite3_bind_int(deleteCubesStmt, 3, chunkCoord.z);
-        int deleteCubesResult = sqlite3_step(deleteCubesStmt);
-        int deletedCubes = sqlite3_changes(db);
-        sqlite3_finalize(deleteCubesStmt);
-        
-        // Delete old subcubes
-        sqlite3_bind_int(deleteSubcubesStmt, 1, chunkCoord.x);
-        sqlite3_bind_int(deleteSubcubesStmt, 2, chunkCoord.y);
-        sqlite3_bind_int(deleteSubcubesStmt, 3, chunkCoord.z);
-        int deleteSubcubesResult = sqlite3_step(deleteSubcubesStmt);
-        int deletedSubcubes = sqlite3_changes(db);
-        sqlite3_finalize(deleteSubcubesStmt);
-        
-        // Delete old microcubes
-        sqlite3_bind_int(deleteMicrocubesStmt, 1, chunkCoord.x);
-        sqlite3_bind_int(deleteMicrocubesStmt, 2, chunkCoord.y);
-        sqlite3_bind_int(deleteMicrocubesStmt, 3, chunkCoord.z);
-        int deleteMicrocubesResult = sqlite3_step(deleteMicrocubesStmt);
-        int deletedMicrocubes = sqlite3_changes(db);
-        sqlite3_finalize(deleteMicrocubesStmt);
-        
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Deleted " << deletedCubes << " old cubes, " << deletedSubcubes << " old subcubes, " << deletedMicrocubes << " old microcubes");
-        
-        // Insert/update chunk record
+
+    {
+        // Storage v2: the whole chunk becomes one palette+RLE blob row
+        // (ChunkBlobCodec) — replaces ~32k row inserts per solid chunk.
+        ChunkBlobCodec::Counts counts;
+        std::vector<uint8_t> blob = ChunkBlobCodec::encode(chunk, &counts);
+
+        // Chunk record (modified_at + chunkExists support)
         sqlite3_bind_int(insertChunkStmt, 1, chunkCoord.x);
         sqlite3_bind_int(insertChunkStmt, 2, chunkCoord.y);
         sqlite3_bind_int(insertChunkStmt, 3, chunkCoord.z);
-        
         if (sqlite3_step(insertChunkStmt) != SQLITE_DONE) {
             LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert chunk record: " << sqlite3_errmsg(db));
+            sqlite3_reset(insertChunkStmt);
             if (ownTransaction) rollbackTransaction();
             return false;
         }
         sqlite3_reset(insertChunkStmt);
-        
-        // Track which cubes have been saved to avoid duplicates and ensure parent cubes exist
-        std::unordered_set<glm::ivec3, IVec3Hash> savedCubeLocations;
-        
-        int savedCubes = 0;
-        
-        // Save each cube (only non-air blocks to maintain sparseness)
-        for (int x = 0; x < 32; ++x) {
-            for (int y = 0; y < 32; ++y) {
-                for (int z = 0; z < 32; ++z) {
-                    glm::ivec3 localPos(x, y, z);
-                    const Cube* cube = chunk.getCubeAt(localPos);
-                    if (cube && cube->isVisible()) {
-                        // Bind cube data
-                        sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
-                        sqlite3_bind_int(insertCubeStmt, 2, chunkCoord.y);
-                        sqlite3_bind_int(insertCubeStmt, 3, chunkCoord.z);
-                        sqlite3_bind_int(insertCubeStmt, 4, x);
-                        sqlite3_bind_int(insertCubeStmt, 5, y);
-                        sqlite3_bind_int(insertCubeStmt, 6, z);
-                        sqlite3_bind_int(insertCubeStmt, 7, 0); // isSubdivided - always false now (subcubes stored at chunk level)
-                        sqlite3_bind_int(insertCubeStmt, 8, cube->isVisible() ? 1 : 0);
-                        sqlite3_bind_text(insertCubeStmt, 9, cube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
-                        
-                        if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
-                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert cube at (" << x << "," << y << "," << z << "): " << sqlite3_errmsg(db));
-                            if (ownTransaction) rollbackTransaction();
-                            return false;
-                        }
-                        sqlite3_reset(insertCubeStmt);
-                        savedCubes++;
-                        savedCubeLocations.insert(localPos);
-                    }
-                }
-            }
+
+        // Blob upsert
+        sqlite3_bind_int(insertBlobStmt, 1, chunkCoord.x);
+        sqlite3_bind_int(insertBlobStmt, 2, chunkCoord.y);
+        sqlite3_bind_int(insertBlobStmt, 3, chunkCoord.z);
+        sqlite3_bind_int(insertBlobStmt, 4, ChunkBlobCodec::kCodecVersion);
+        sqlite3_bind_int(insertBlobStmt, 5, static_cast<int>(counts.cubes));
+        sqlite3_bind_int(insertBlobStmt, 6, static_cast<int>(counts.subcubes));
+        sqlite3_bind_int(insertBlobStmt, 7, static_cast<int>(counts.microcubes));
+        sqlite3_bind_blob(insertBlobStmt, 8, blob.data(), static_cast<int>(blob.size()), SQLITE_STATIC);
+        if (sqlite3_step(insertBlobStmt) != SQLITE_DONE) {
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert chunk blob: " << sqlite3_errmsg(db));
+            sqlite3_reset(insertBlobStmt);
+            if (ownTransaction) rollbackTransaction();
+            return false;
         }
-        
-        // Save static subcubes that are stored directly in the chunk
-        const auto& staticSubcubes = chunk.getStaticSubcubes();
-        int savedSubcubes = 0;
-        for (const auto& subcube : staticSubcubes) {
-            if (subcube && subcube->isVisible()) {
-                // Calculate parent cube local position from subcube's world position
-                glm::ivec3 parentWorldPos = subcube->getPosition();
-                glm::ivec3 parentLocalPos = parentWorldPos - chunkCoord * 32;
-                
-                // Validate parent position is within chunk bounds
-                if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
-                    parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
-                    parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
-                    
-                    // CRITICAL FIX: Ensure parent cube exists in DB (foreign key constraint)
-                    if (savedCubeLocations.find(parentLocalPos) == savedCubeLocations.end()) {
-                        // Insert placeholder cube (invisible, subdivided)
-                        sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
-                        sqlite3_bind_int(insertCubeStmt, 2, chunkCoord.y);
-                        sqlite3_bind_int(insertCubeStmt, 3, chunkCoord.z);
-                        sqlite3_bind_int(insertCubeStmt, 4, parentLocalPos.x);
-                        sqlite3_bind_int(insertCubeStmt, 5, parentLocalPos.y);
-                        sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
-                        sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
-                        sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
-                        sqlite3_bind_text(insertCubeStmt, 9, "Default", -1, SQLITE_STATIC);
-                        
-                        if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
-                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube: " << sqlite3_errmsg(db));
-                            if (ownTransaction) rollbackTransaction();
-                            return false;
-                        }
-                        sqlite3_reset(insertCubeStmt);
-                        savedCubeLocations.insert(parentLocalPos);
-                    }
-                    
-                    // Bind static subcube data to prepared statement
-                    sqlite3_bind_int(insertSubcubeStmt, 1, chunkCoord.x);
-                    sqlite3_bind_int(insertSubcubeStmt, 2, chunkCoord.y);
-                    sqlite3_bind_int(insertSubcubeStmt, 3, chunkCoord.z);
-                    sqlite3_bind_int(insertSubcubeStmt, 4, parentLocalPos.x);
-                    sqlite3_bind_int(insertSubcubeStmt, 5, parentLocalPos.y);
-                    sqlite3_bind_int(insertSubcubeStmt, 6, parentLocalPos.z);
-                    sqlite3_bind_int(insertSubcubeStmt, 7, subcube->getLocalPosition().x);
-                    sqlite3_bind_int(insertSubcubeStmt, 8, subcube->getLocalPosition().y);
-                    sqlite3_bind_int(insertSubcubeStmt, 9, subcube->getLocalPosition().z);
-                    sqlite3_bind_int(insertSubcubeStmt, 10, subcube->isDynamic() ? 1 : 0);
-                    sqlite3_bind_text(insertSubcubeStmt, 11, subcube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
-                    
-                    if (sqlite3_step(insertSubcubeStmt) != SQLITE_DONE) {
-                        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert static subcube at (" 
-                                  << parentLocalPos.x << "," << parentLocalPos.y << "," << parentLocalPos.z << ") sub(" 
-                                  << subcube->getLocalPosition().x << "," 
-                                  << subcube->getLocalPosition().y << "," 
-                                  << subcube->getLocalPosition().z << "): " 
-                                  << sqlite3_errmsg(db));
-                        if (ownTransaction) rollbackTransaction();
-                        return false;
-                    }
-                    sqlite3_reset(insertSubcubeStmt);
-                    savedSubcubes++;
-                }
-            }
-        }
-        
-        // Save static microcubes
-        const auto& staticMicrocubes = chunk.getStaticMicrocubes();
-        int savedMicrocubes = 0;
-        for (const auto& microcube : staticMicrocubes) {
-            if (microcube && microcube->isVisible()) {
-                // Calculate parent cube local position from microcube's parent position
-                glm::ivec3 parentWorldPos = microcube->getParentCubePosition();
-                glm::ivec3 parentLocalPos = parentWorldPos - chunkCoord * 32;
-                
-                // Validate parent position is within chunk bounds
-                if (parentLocalPos.x >= 0 && parentLocalPos.x < 32 &&
-                    parentLocalPos.y >= 0 && parentLocalPos.y < 32 &&
-                    parentLocalPos.z >= 0 && parentLocalPos.z < 32) {
-                    
-                    // CRITICAL FIX: Ensure parent cube exists in DB (foreign key constraint)
-                    if (savedCubeLocations.find(parentLocalPos) == savedCubeLocations.end()) {
-                        // Insert placeholder cube (invisible, subdivided)
-                        sqlite3_bind_int(insertCubeStmt, 1, chunkCoord.x);
-                        sqlite3_bind_int(insertCubeStmt, 2, chunkCoord.y);
-                        sqlite3_bind_int(insertCubeStmt, 3, chunkCoord.z);
-                        sqlite3_bind_int(insertCubeStmt, 4, parentLocalPos.x);
-                        sqlite3_bind_int(insertCubeStmt, 5, parentLocalPos.y);
-                        sqlite3_bind_int(insertCubeStmt, 6, parentLocalPos.z);
-                        sqlite3_bind_int(insertCubeStmt, 7, 1); // isSubdivided = true
-                        sqlite3_bind_int(insertCubeStmt, 8, 0); // isVisible = false
-                        sqlite3_bind_text(insertCubeStmt, 9, "Default", -1, SQLITE_STATIC);
-                        
-                        if (sqlite3_step(insertCubeStmt) != SQLITE_DONE) {
-                            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert placeholder cube for microcube: " << sqlite3_errmsg(db));
-                            if (ownTransaction) rollbackTransaction();
-                            return false;
-                        }
-                        sqlite3_reset(insertCubeStmt);
-                        savedCubeLocations.insert(parentLocalPos);
-                    }
-                    
-                    // Bind microcube data
-                    sqlite3_bind_int(insertMicrocubeStmt, 1, chunkCoord.x);
-                    sqlite3_bind_int(insertMicrocubeStmt, 2, chunkCoord.y);
-                    sqlite3_bind_int(insertMicrocubeStmt, 3, chunkCoord.z);
-                    sqlite3_bind_int(insertMicrocubeStmt, 4, parentLocalPos.x);
-                    sqlite3_bind_int(insertMicrocubeStmt, 5, parentLocalPos.y);
-                    sqlite3_bind_int(insertMicrocubeStmt, 6, parentLocalPos.z);
-                    sqlite3_bind_int(insertMicrocubeStmt, 7, microcube->getSubcubeLocalPosition().x);
-                    sqlite3_bind_int(insertMicrocubeStmt, 8, microcube->getSubcubeLocalPosition().y);
-                    sqlite3_bind_int(insertMicrocubeStmt, 9, microcube->getSubcubeLocalPosition().z);
-                    sqlite3_bind_int(insertMicrocubeStmt, 10, microcube->getMicrocubeLocalPosition().x);
-                    sqlite3_bind_int(insertMicrocubeStmt, 11, microcube->getMicrocubeLocalPosition().y);
-                    sqlite3_bind_int(insertMicrocubeStmt, 12, microcube->getMicrocubeLocalPosition().z);
-                    sqlite3_bind_text(insertMicrocubeStmt, 13, microcube->getMaterialName().c_str(), -1, SQLITE_TRANSIENT);
-                    
-                    if (sqlite3_step(insertMicrocubeStmt) != SQLITE_DONE) {
-                        LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] ERROR: Failed to insert microcube: " << sqlite3_errmsg(db));
-                        if (ownTransaction) rollbackTransaction();
-                        return false;
-                    }
-                    sqlite3_reset(insertMicrocubeStmt);
-                    savedMicrocubes++;
-                }
-            }
-        }
-        
-        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z 
-                  << ") - Saved " << savedCubes << " cubes, " << savedSubcubes << " subcubes, " << savedMicrocubes << " microcubes");
-        
-    } catch (...) {
-        LOG_ERROR("WorldStorage", "[WORLD_STORAGE] ERROR: Exception caught in saveChunk()");
-        if (ownTransaction) rollbackTransaction();
-        return false;
+        sqlite3_reset(insertBlobStmt);
+
+        // Drop any legacy v1 rows for this chunk (no-op once migrated)
+        deleteLegacyRows(chunkCoord);
+
+        LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
+                  << ") - Saved blob: " << blob.size() << " bytes (" << counts.cubes << " cubes, "
+                  << counts.subcubes << " subcubes, " << counts.microcubes << " microcubes)");
     }
-    
+
     if (ownTransaction) {
         bool commitResult = commitTransaction();
         if (!commitResult) {
@@ -589,10 +486,58 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
 
 bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     if (!db) return false;
-    
-    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Attempting to load chunk (" 
+
+    // Storage v2 blob first; legacy v1 rows only as fallback for unmigrated data.
+    bool blobFound = false;
+    bool loaded = loadChunkFromBlob(chunkCoord, chunk, blobFound);
+    if (blobFound) return loaded;
+
+    return loadChunkFromLegacyRows(chunkCoord, chunk);
+}
+
+bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) {
+    found = false;
+    if (!db || !selectBlobStmt) return false;
+
+    sqlite3_bind_int(selectBlobStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(selectBlobStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(selectBlobStmt, 3, chunkCoord.z);
+
+    bool decoded = false;
+    ChunkBlobCodec::Counts counts;
+    if (sqlite3_step(selectBlobStmt) == SQLITE_ROW) {
+        found = true;
+        const void* data = sqlite3_column_blob(selectBlobStmt, 0);
+        const int size = sqlite3_column_bytes(selectBlobStmt, 0);
+        decoded = ChunkBlobCodec::decode(static_cast<const uint8_t*>(data),
+                                         static_cast<size_t>(size), chunk, &counts);
+        if (!decoded) {
+            // Fail loudly rather than silently falling back / regenerating —
+            // a corrupt blob means saved player edits are at risk.
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] CORRUPT chunk blob at ("
+                      << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
+                      << "), " << size << " bytes — load failed");
+        }
+    }
+    sqlite3_reset(selectBlobStmt);
+
+    if (!found || !decoded) return false;
+
+    LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Loaded blob chunk ("
+              << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << "): "
+              << counts.cubes << " cubes, " << counts.subcubes << " subcubes, "
+              << counts.microcubes << " microcubes");
+
+    // Match v1 semantics: "loaded" means the chunk actually contained voxels.
+    return (counts.cubes + counts.subcubes + counts.microcubes) > 0;
+}
+
+bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk) {
+    if (!db) return false;
+
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Attempting to load chunk ("
               << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z << ")");
-    
+
     // Bind chunk coordinates
     sqlite3_bind_int(selectCubesStmt, 1, chunkCoord.x);
     sqlite3_bind_int(selectCubesStmt, 2, chunkCoord.y);
@@ -645,6 +590,115 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     return loadedCubes > 0 || chunk.getStaticSubcubeCount() > 0 || chunk.getStaticMicrocubeCount() > 0;
 }
 
+bool WorldStorage::deleteLegacyRows(const glm::ivec3& chunkCoord) {
+    if (!db) return false;
+    bool ok = true;
+    for (sqlite3_stmt* stmt : {deleteCubeRowsStmt, deleteSubcubeRowsStmt, deleteMicrocubeRowsStmt}) {
+        if (!stmt) { ok = false; continue; }
+        sqlite3_bind_int(stmt, 1, chunkCoord.x);
+        sqlite3_bind_int(stmt, 2, chunkCoord.y);
+        sqlite3_bind_int(stmt, 3, chunkCoord.z);
+        ok = (sqlite3_step(stmt) == SQLITE_DONE) && ok;
+        sqlite3_reset(stmt);
+    }
+    return ok;
+}
+
+bool WorldStorage::migrateLegacyChunks() {
+    if (!db) return false;
+
+    // Collect every chunk that still has v1 row-format data.
+    std::vector<glm::ivec3> legacy;
+    {
+        const char* sql =
+            "SELECT chunk_x, chunk_y, chunk_z FROM cubes "
+            "UNION SELECT chunk_x, chunk_y, chunk_z FROM subcubes "
+            "UNION SELECT chunk_x, chunk_y, chunk_z FROM microcubes;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            legacy.emplace_back(sqlite3_column_int(stmt, 0),
+                                sqlite3_column_int(stmt, 1),
+                                sqlite3_column_int(stmt, 2));
+        }
+        sqlite3_finalize(stmt);
+    }
+    if (legacy.empty()) return true;
+
+    // Rollback-safety: snapshot the pre-migration DB so an older engine
+    // binary can still open the world.
+    if (dbPath != ":memory:") {
+        try {
+            std::filesystem::copy_file(dbPath, dbPath + ".v1.bak",
+                                       std::filesystem::copy_options::overwrite_existing);
+            LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Pre-migration backup written: " << dbPath << ".v1.bak");
+        } catch (const std::exception& e) {
+            LOG_WARN_FMT("WorldStorage", "[WORLD_STORAGE] Could not write pre-migration backup: " << e.what());
+        }
+    }
+
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Migrating " << legacy.size()
+              << " legacy row-format chunk(s) to blob format (one-time)...");
+
+    if (!beginTransaction()) return false;
+    size_t migrated = 0;
+    for (const auto& coord : legacy) {
+        // A blob already present wins (e.g. a save happened before migration).
+        sqlite3_bind_int(selectBlobStmt, 1, coord.x);
+        sqlite3_bind_int(selectBlobStmt, 2, coord.y);
+        sqlite3_bind_int(selectBlobStmt, 3, coord.z);
+        bool hasBlob = sqlite3_step(selectBlobStmt) == SQLITE_ROW;
+        sqlite3_reset(selectBlobStmt);
+        if (hasBlob) {
+            deleteLegacyRows(coord);
+            continue;
+        }
+
+        Chunk temp(coord * 32);
+        temp.initializeForLoading();
+        loadChunkFromLegacyRows(coord, temp);
+
+        ChunkBlobCodec::Counts counts;
+        std::vector<uint8_t> blob = ChunkBlobCodec::encode(temp, &counts);
+
+        sqlite3_bind_int(insertBlobStmt, 1, coord.x);
+        sqlite3_bind_int(insertBlobStmt, 2, coord.y);
+        sqlite3_bind_int(insertBlobStmt, 3, coord.z);
+        sqlite3_bind_int(insertBlobStmt, 4, ChunkBlobCodec::kCodecVersion);
+        sqlite3_bind_int(insertBlobStmt, 5, static_cast<int>(counts.cubes));
+        sqlite3_bind_int(insertBlobStmt, 6, static_cast<int>(counts.subcubes));
+        sqlite3_bind_int(insertBlobStmt, 7, static_cast<int>(counts.microcubes));
+        sqlite3_bind_blob(insertBlobStmt, 8, blob.data(), static_cast<int>(blob.size()), SQLITE_STATIC);
+        if (sqlite3_step(insertBlobStmt) != SQLITE_DONE) {
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] Migration failed for chunk ("
+                      << coord.x << "," << coord.y << "," << coord.z << "): " << sqlite3_errmsg(db));
+            sqlite3_reset(insertBlobStmt);
+            rollbackTransaction();
+            return false;
+        }
+        sqlite3_reset(insertBlobStmt);
+        deleteLegacyRows(coord);
+
+        ++migrated;
+        if (migrated % 100 == 0) {
+            LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Migration progress: " << migrated
+                      << "/" << legacy.size() << " chunks");
+        }
+    }
+    if (!commitTransaction()) return false;
+
+    // Reclaim the freed row pages, otherwise the file keeps its v1 size.
+    size_t sizeBefore = getDatabaseSize();
+    compactDatabase();
+    // The VACUUM writes through the WAL — checkpoint + truncate it so the
+    // on-disk footprint actually shrinks even if the process is later killed.
+    sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nullptr, nullptr, nullptr);
+    LOG_INFO_FMT("WorldStorage", "[WORLD_STORAGE] Migration complete: " << migrated
+              << " chunk(s) converted to blob format; database " << sizeBefore
+              << " -> " << getDatabaseSize() << " bytes after VACUUM");
+    return true;
+}
+
 bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) {
     if (!db || !selectChunkStmt) return false;
     
@@ -661,8 +715,9 @@ bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) {
 bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) {
     if (!db || !deleteChunkStmt) return false;
     
-    // Delete associated microcubes, subcubes, and cubes before removing chunk record
+    // Delete associated blob, microcubes, subcubes, and cubes before removing chunk record
     const char* sql[] = {
+        "DELETE FROM chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?",
         "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?",
         "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?",
         "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?"
@@ -716,14 +771,16 @@ bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chu
     if (!db) return false;
     
     beginTransaction();
-    
+
     for (const auto& chunk : chunks) {
-        if (!saveChunk(chunk.get())) {
+        // false: already inside this batch's transaction (a nested BEGIN
+        // would fail and abort the whole batch)
+        if (!saveChunk(chunk.get(), false)) {
             rollbackTransaction();
             return false;
         }
     }
-    
+
     return commitTransaction();
 }
 
@@ -844,8 +901,9 @@ size_t WorldStorage::getChunkCount() {
 
 size_t WorldStorage::getTotalCubeCount() {
     if (!db) return 0;
-    
-    const char* sql = "SELECT COUNT(*) FROM cubes";
+
+    // Blob chunks carry a denormalized count; legacy rows count directly.
+    const char* sql = "SELECT (SELECT COALESCE(SUM(cube_count), 0) FROM chunk_blobs) + (SELECT COUNT(*) FROM cubes)";
     sqlite3_stmt* stmt;
     
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -890,6 +948,8 @@ bool WorldStorage::createNewWorld() {
     
     // Clear all existing data
     const char* clearTables = R"(
+        DELETE FROM chunk_blobs;
+        DELETE FROM microcubes;
         DELETE FROM subcubes;
         DELETE FROM cubes;
         DELETE FROM chunks;

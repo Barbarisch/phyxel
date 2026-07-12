@@ -89,11 +89,28 @@ private:
     sqlite3_stmt* selectMicrocubesStmt = nullptr;
     sqlite3_stmt* deleteChunkStmt = nullptr;
     sqlite3_stmt* deleteCubeStmt = nullptr;
-    
+    // Storage v2 (palette+RLE blob per chunk — docs/LargeWorldScalePlan.md Phase 1)
+    sqlite3_stmt* insertBlobStmt = nullptr;
+    sqlite3_stmt* selectBlobStmt = nullptr;
+    sqlite3_stmt* deleteBlobStmt = nullptr;
+    sqlite3_stmt* deleteCubeRowsStmt = nullptr;
+    sqlite3_stmt* deleteSubcubeRowsStmt = nullptr;
+    sqlite3_stmt* deleteMicrocubeRowsStmt = nullptr;
+
     // Helper methods
     bool createTables();
     bool prepareStatements();
     void finalizeStatements();
+    bool applyPragmas();
+
+    // Storage v2 helpers
+    bool loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found);
+    bool loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& chunk);
+    bool deleteLegacyRows(const glm::ivec3& chunkCoord);
+    /// One-time v1→v2 migration on open: every chunk that still has
+    /// row-format data is re-encoded as a blob; the pre-migration DB is
+    /// copied to "<db>.v1.bak" for binary-rollback safety.
+    bool migrateLegacyChunks();
     
     // Transaction helpers
     bool beginTransaction();
