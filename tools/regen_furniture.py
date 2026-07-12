@@ -860,6 +860,265 @@ def gen_hanging_sign():
     write("hanging_sign", header, m.emit_lines([]), m)
 
 
+def gen_bed():
+    # bed_single: the FIRST soft-material bed — the legacy asset's Sandstone/Sand "bedding" was
+    # the V4 material-plausibility red (21 Sand + 170 Sandstone voxels). Grounded
+    # (object_dimensions 'bed_single'): 1.9 L x 0.9 W, mattress_top ~0.5 m. WoodWalnut frame +
+    # headboard, LINEN mattress/sheet/pillow, WOOL coverlet (madder red) over the foot 2/3.
+    # Authored length along Z, HEADBOARD AT z=0 (wall side): placer rot-0 on a min-z wall puts
+    # the head against the wall and the foot into the room. lie_0 anchor at the mattress centre.
+    L, W = 17, 8            # 1.89 x 0.89 m
+    m = Model()
+    # frame: corner posts + side rails + slat deck
+    for (x, z) in [(0, 0), (W - 1, 0), (0, L - 1), (W - 1, L - 1)]:
+        for y in range(0, 4):
+            m.cells[(x, y, z)] = "WoodWalnut"
+    m.fill(0, W - 1, 2, 2, 0, L - 1, "WoodWalnut")       # deck/rails at y2
+    # headboard at the wall end (z0): full width, up to y7 (~0.78 m)
+    m.fill(0, W - 1, 3, 7, 0, 0, "WoodWalnut")
+    # mattress (Linen) y3, top face at y4/9 = 0.44 m (mattress_top ~0.5 within tol)
+    m.fill(0, W - 1, 3, 3, 1, L - 2, "Linen")
+    # top dressing y4: Linen sheet at the head third, Wool coverlet over the foot 2/3
+    m.fill(0, W - 1, 4, 4, 1, 5, "Linen")
+    m.fill(0, W - 1, 4, 4, 6, L - 2, "Wool")
+    # pillow (Linen) at the head
+    m.fill(1, W - 2, 5, 5, 1, 2, "Linen")
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         bed_single\n"
+        "# display_name: Bed (Single)\n"
+        "# description:  A single rope-frame bed — walnut frame, linen mattress and pillow, red wool coverlet.\n"
+        "# category:     furniture\n"
+        "# subcategory:  bed\n"
+        "# tags:         bed, sleep, bedchamber, linen, wool, common\n"
+        "# materials:    WoodWalnut, Linen, Wool\n"
+        "# facing:       +Z (headboard at z=0 -> against the wall at rot 0)\n"
+        "# bounds:       0.89W x 0.89H x 1.89D m (grounded object_dimensions 'bed_single' 1.9x0.9, mattress_top ~0.5)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    lie = [{
+        "point_id": "lie_0", "kind": "lie",
+        "local_position": [round((W - 1) / 2.0 / 9.0 + 0.055, 3), round(5 / 9.0, 3),
+                           round((L - 1) / 2.0 / 9.0 + 0.055, 3)],
+        "facing_yaw": 0.0,
+        "features": {"lie_top_y": round(5 / 9.0, 3)},
+    }]
+    write("bed_single", header, m.emit_lines([]), m, lie)
+
+
+def gen_chair():
+    # chair_dining: grounded (object_dimensions 'chair_dining'): seat_top 0.45 (4 micro top
+    # face 0.44), seat 0.45x0.4, back_top 0.9 (8 micro face 0.89). WoodWalnut. Authored with
+    # the BACK at z=0 (wall side): rot-0 on a min-z wall faces the chair into the room.
+    SW, SD, ST, BT = 4, 4, 4, 8
+    m = Model()
+    for (x, z) in [(0, 0), (SW - 1, 0), (0, SD - 1), (SW - 1, SD - 1)]:   # legs
+        for y in range(0, ST - 1):
+            m.cells[(x, y, z)] = "WoodWalnut"
+    m.fill(0, SW - 1, ST - 1, ST - 1, 0, SD - 1, "WoodWalnut")            # seat slab
+    m.fill(0, SW - 1, ST, BT - 1, 0, 0, "WoodWalnut")                     # backrest at z0
+    m.clear(1, SW - 2, ST, BT - 3, 0, 0)                                  # open back panel
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         chair\n"
+        "# display_name: Chair (Dining)\n"
+        "# description:  A walnut side chair — the head-of-table seat (stools are the common seat).\n"
+        "# category:     furniture\n"
+        "# subcategory:  seating\n"
+        "# tags:         chair, seat, dining, hall, middling\n"
+        "# materials:    WoodWalnut\n"
+        "# facing:       +Z (back at z=0 -> against the wall at rot 0)\n"
+        "# bounds:       0.44W x 0.89H x 0.44D m (grounded object_dimensions 'chair_dining')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("chair", header, m.emit_lines([]), m,
+          seat_anchor((SW - 1) / 2.0, ST, (SD - 1) / 2.0))
+
+
+def gen_stool():
+    # stool: THE common medieval seat. Grounded (object_dimensions 'stool'): seat_top 0.45,
+    # seat 0.35x0.35 (3 micro). WoodWalnut, four legs, no back.
+    S, ST = 3, 4
+    m = Model()
+    for (x, z) in [(0, 0), (S - 1, 0), (0, S - 1), (S - 1, S - 1)]:
+        for y in range(0, ST - 1):
+            m.cells[(x, y, z)] = "WoodWalnut"
+    m.fill(0, S - 1, ST - 1, ST - 1, 0, S - 1, "WoodWalnut")
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         stool\n"
+        "# display_name: Stool\n"
+        "# description:  A backless stool — the common medieval seat.\n"
+        "# category:     furniture\n"
+        "# subcategory:  seating\n"
+        "# tags:         stool, seat, common, bedchamber, taproom\n"
+        "# materials:    WoodWalnut\n"
+        "# facing:       +Z (radially symmetric)\n"
+        "# bounds:       0.33W x 0.44H x 0.33D m (grounded object_dimensions 'stool')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("stool", header, m.emit_lines([]), m,
+          seat_anchor((S - 1) / 2.0, ST, (S - 1) / 2.0))
+
+
+def gen_wardrobe():
+    # wardrobe / clothes press: grounded (object_dimensions 'wardrobe': 1.9 x 1.0 x 0.6,
+    # canon-FLAGGED POST-MEDIEVAL — medieval clothes storage is the chest; this is the
+    # middling+ tier piece). WoodWalnut carcass, double doors with a centre seam + Metal
+    # knobs on the FRONT (z-high, the placer's rot-0 room-facing side), low plinth.
+    W, H, D = 9, 17, 5
+    m = Model()
+    m.fill(0, W - 1, 0, 0, 0, D - 1, "WoodWalnut")                        # plinth
+    m.box_shell(0, W - 1, 1, H - 1, 0, D - 1, "WoodWalnut", faces=("x", "z", "ymax"))
+    front = D - 1
+    m.fill(1, W - 2, 2, H - 2, front, front, "WoodWalnut")                # door field
+    m.clear((W - 1) // 2, (W - 1) // 2, 2, H - 3, front, front)           # centre seam
+    m.cells[((W - 1) // 2 - 1, H // 2, front)] = "Metal"                  # knobs
+    m.cells[((W - 1) // 2 + 1, H // 2, front)] = "Metal"
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         wardrobe\n"
+        "# display_name: Wardrobe (Clothes Press)\n"
+        "# description:  A double-door walnut clothes press. (Canon-flagged POST-MEDIEVAL — the chest is the period store.)\n"
+        "# category:     furniture\n"
+        "# subcategory:  storage\n"
+        "# tags:         wardrobe, press, storage, bedchamber, middling\n"
+        "# materials:    WoodWalnut, Metal\n"
+        "# facing:       +Z (doors on the z-high face)\n"
+        "# bounds:       1.0W x 1.89H x 0.56D m (grounded object_dimensions 'wardrobe' 1.9x1.0x0.6)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("wardrobe", header, m.emit_lines([]), m)
+
+
+def gen_rug():
+    # rug: a woven floor rug (1-micro slab — the engine's thinnest possible; real rugs are
+    # thinner, disclosed). Canon 'rug' (INFERRED, added with this asset): 2.0 x 1.4 plan.
+    # Field = the patterned rug_oriental material, border ring = Wool.
+    W, D = 18, 13
+    m = Model()
+    m.fill(0, W - 1, 0, 0, 0, D - 1, "rug_oriental")
+    m.box_shell(0, W - 1, 0, 0, 0, D - 1, "Wool", faces=("x", "z"))
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         rug\n"
+        "# display_name: Rug (Woven)\n"
+        "# description:  A woven floor rug with a wool border — warmth underfoot for chamber and hall.\n"
+        "# category:     furniture\n"
+        "# subcategory:  furnishing\n"
+        "# tags:         rug, carpet, floor, chamber, hall, middling\n"
+        "# materials:    rug_oriental, Wool\n"
+        "# facing:       +Z (long side to the viewer)\n"
+        "# bounds:       2.0W x 0.11H x 1.44D m (object_dimensions 'rug', INFERRED plan; 1-micro slab disclosed)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("rug", header, m.emit_lines([]), m)
+
+
+def gen_well():
+    # well: a round masonry well-head (yard/square water source). Grounded (object_dimensions
+    # 'well', INFERRED-flagged): head wall ~0.9 m tall (8 micro), ~1.2 m outer diameter (11 micro).
+    # A Cobblestone ring, ~2 micro thick, hollow dark shaft (open air over a Stone bottom course) —
+    # NO windlass/posts: no grounded dims for them, and the head-wall canon caps height at ~1.1 m.
+    D, H = 11, 8
+    cx = cz = (D - 1) / 2.0
+    m = Model()
+    for x in range(D):
+        for z in range(D):
+            r = ((x - cx) ** 2 + (z - cz) ** 2) ** 0.5
+            if 3.4 <= r <= 5.2:
+                for y in range(H):
+                    m.cells[(x, y, z)] = "Cobblestone"
+            elif r < 3.4:
+                m.cells[(x, 0, z)] = "Stone"      # shaft bottom course (reads as a dark hole)
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         well\n"
+        "# display_name: Well (Well-Head)\n"
+        "# description:  A round masonry well-head — the shared village/yard water source.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         well, water, yard, village, square, common\n"
+        "# materials:    Cobblestone, Stone\n"
+        "# facing:       +Z (radially symmetric)\n"
+        "# bounds:       1.22W x 0.89H x 1.22D m (grounded object_dimensions 'well' 1.2 dia x 0.9 h)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("well", header, m.emit_lines([]), m)
+
+
+def gen_woodpile():
+    # woodpile: stacked firewood against a yard fence/wall. Grounded (object_dimensions 'woodpile',
+    # INFERRED-flagged): ~1.0 m tall stack (9 micro); width/depth unconstrained — 1.8 x 0.55 m reads
+    # as a household stack. Horizontal Log courses along X with a slight top taper, a couple of
+    # LogBirch sticks mixed in for read.
+    W, H, D = 16, 9, 5
+    m = Model()
+    for y in range(H):
+        inset = (H - 1 - y) // 4                   # top courses slightly narrower (stack taper)
+        for x in range(inset, W - inset):
+            for z in range(D):
+                mat = "LogBirch" if (x * 7 + y * 3 + z) % 11 == 0 else "Log"
+                m.cells[(x, y, z)] = mat
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         woodpile\n"
+        "# display_name: Woodpile (Firewood Stack)\n"
+        "# description:  Stacked firewood — a household fuel stack for the rear yard.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         woodpile, firewood, logs, yard, fuel, common\n"
+        "# materials:    Log, LogBirch\n"
+        "# facing:       +Z (long side to the viewer)\n"
+        "# bounds:       1.78W x 1.0H x 0.56D m (grounded object_dimensions 'woodpile' ~1 m stack)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("woodpile", header, m.emit_lines([]), m)
+
+
+def gen_garden_bed():
+    # garden_bed: a raised planting bed for the rear toft (kitchen-garden read). Grounded
+    # (object_dimensions 'garden_bed', INFERRED-flagged): ~0.3 m tall frame (3 micro); 2 x 1 m
+    # plan. Wood board frame, Dirt fill, a sparse row of Leaf sprigs (young plants) on top.
+    W, H, D = 18, 3, 9
+    m = Model()
+    m.box_shell(0, W - 1, 0, H - 1, 0, D - 1, "Wood", faces=("x", "z"))   # board frame
+    m.fill(1, W - 2, 0, H - 2, 1, D - 2, "Dirt")                          # soil fill
+    for x in range(2, W - 2, 4):                                          # planting rows
+        for z in (2, D - 3):
+            m.cells[(x, H - 1, z)] = "Leaf"
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         garden_bed\n"
+        "# display_name: Garden Bed (Raised Bed)\n"
+        "# description:  A raised kitchen-garden bed — board frame, soil, young plantings.\n"
+        "# category:     prop\n"
+        "# subcategory:  yard\n"
+        "# tags:         garden, bed, planting, yard, toft, kitchen-garden, common\n"
+        "# materials:    Wood, Dirt, Leaf\n"
+        "# facing:       +Z (long side to the viewer)\n"
+        "# bounds:       2.0W x 0.33H x 1.0D m (grounded object_dimensions 'garden_bed' ~0.3 m raised bed)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("garden_bed", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -884,3 +1143,11 @@ if __name__ == "__main__":
     gen_chopping_block()
     gen_meat_rail()
     gen_hanging_sign()
+    gen_well()
+    gen_woodpile()
+    gen_garden_bed()
+    gen_bed()
+    gen_chair()
+    gen_stool()
+    gen_wardrobe()
+    gen_rug()

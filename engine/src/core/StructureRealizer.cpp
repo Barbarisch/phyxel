@@ -228,6 +228,25 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     const int kJamb = 1, kLintel = 2;
                     const int w = std::max(1, p.width);
                     const int jambTop = oyTop - kLintel;
+                    // ---- finish_forge P3: window INFILL — no more open-air holes (the "ruin"
+                    // read). GROUNDED default = shuttered (glazing unaffordable pre-1558, croft
+                    // windows.size source); "glass" only where a typology cites it. Shutters are
+                    // plank leaves (trim material): CLOSED = a 1-micro leaf filling the clear
+                    // reveal; OPEN = the leaf folded back — two proud panels flanking the opening
+                    // on the facade, reveal stays air. Open/closed is a deterministic per-opening
+                    // hash (a lived-in street mixes both). Glass = a 1-micro Glass pane, closed.
+                    const bool isWin = (p.kind == "window");
+                    const bool shuttered = isWin && p.infill == "shuttered";
+                    const bool glazed    = isWin && p.infill == "glass";
+                    // Shutters are JOINERY — plank leaves regardless of wall material (a stone
+                    // house hangs wooden shutters; stone-trim "shutters" read as bricked-up).
+                    const std::string matLeaf =
+                        (matTrim.rfind("Wood", 0) == 0 || matTrim == "Log") ? matTrim : "WoodPlanks";
+                    unsigned h = static_cast<unsigned>(p.px) * 2654435761u
+                               + static_cast<unsigned>(p.pz) * 2246822519u
+                               + static_cast<unsigned>(yCubes) * 40503u;
+                    h ^= h >> 16; h *= 2246822519u; h ^= h >> 13;
+                    const bool leafClosed = glazed || (shuttered && (h & 1u) == 0u);
                     if (alongZ) {
                         int cx  = p.px - (p.px == W ? 1 : 0);
                         int fx0 = (p.px == 0) ? cx * 9 : cx * 9 + 9 - extT;   // wall band depth
@@ -235,10 +254,20 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                         c.fillMicroBox(fx0, oyBase, z0,          extT, jambTop - oyBase, kJamb, matTrim);
                         c.fillMicroBox(fx0, oyBase, z1 - kJamb,  extT, jambTop - oyBase, kJamb, matTrim);
                         c.fillMicroBox(fx0, jambTop, z0,         extT, kLintel, z1 - z0, matTrim);
-                        if (p.kind == "window") {
+                        if (isWin) {
                             int proudX = (p.px == 0) ? cx * 9 - 1 : cx * 9 + 9;
                             c.fillMicroBox(proudX, oyBase - 1, z0, 1, 2, z1 - z0, matTrim);      // proud ledge
                             c.fillMicroBox(fx0,    oyBase - 1, z0, extT, 1, z1 - z0, matTrim);   // sill board
+                            const int leafX = fx0 + extT / 2;                 // mid-reveal plane
+                            const int leafH = jambTop - oyBase;
+                            if (leafClosed) {
+                                c.fillMicroBox(leafX, oyBase, z0 + kJamb, 1, leafH,
+                                               (z1 - z0) - 2 * kJamb, glazed ? "Glass" : matLeaf);
+                            } else if (shuttered) {                           // folded back on the facade
+                                const int panelW = std::max(2, (z1 - z0) / 2);
+                                c.fillMicroBox(proudX, oyBase, z0 - panelW, 1, leafH, panelW, matLeaf);
+                                c.fillMicroBox(proudX, oyBase, z1,          1, leafH, panelW, matLeaf);
+                            }
                         }
                     } else {
                         int cz  = p.pz - (p.pz == D ? 1 : 0);
@@ -247,10 +276,20 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                         c.fillMicroBox(x0,         oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
                         c.fillMicroBox(x1 - kJamb, oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
                         c.fillMicroBox(x0,         jambTop, fz0, x1 - x0, kLintel, extT, matTrim);
-                        if (p.kind == "window") {
+                        if (isWin) {
                             int proudZ = (p.pz == 0) ? cz * 9 - 1 : cz * 9 + 9;
                             c.fillMicroBox(x0, oyBase - 1, proudZ, x1 - x0, 2, 1, matTrim);
                             c.fillMicroBox(x0, oyBase - 1, fz0,    x1 - x0, 1, extT, matTrim);
+                            const int leafZ = fz0 + extT / 2;
+                            const int leafH = jambTop - oyBase;
+                            if (leafClosed) {
+                                c.fillMicroBox(x0 + kJamb, oyBase, leafZ, (x1 - x0) - 2 * kJamb,
+                                               leafH, 1, glazed ? "Glass" : matLeaf);
+                            } else if (shuttered) {
+                                const int panelW = std::max(2, (x1 - x0) / 2);
+                                c.fillMicroBox(x0 - panelW, oyBase, proudZ, panelW, leafH, 1, matLeaf);
+                                c.fillMicroBox(x1,          oyBase, proudZ, panelW, leafH, 1, matLeaf);
+                            }
                         }
                     }
                 }
@@ -271,7 +310,8 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     }
                 }
             }
-            plan.openings.push_back({p.px, yCubes + sill, p.pz, p.width, p.height, 1, p.kind, "open"});
+            plan.openings.push_back({p.px, yCubes + sill, p.pz, p.width, p.height, 1, p.kind,
+                                     p.kind == "window" ? p.infill : std::string("open")});
         }
 
         base = wTop;                               // next story's floor sits on this wall top

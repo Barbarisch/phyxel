@@ -45,6 +45,7 @@
 #include "core/CommandRegistry.h"
 #include "core/EngineAPIServer.h"
 #include "core/JobSystem.h"
+#include "core/MainThreadJobs.h"
 #include "core/Inventory.h"
 #include "core/HealthComponent.h"
 #include "core/RespawnSystem.h"
@@ -262,6 +263,9 @@ private:
     std::unique_ptr<Core::EngineAPIServer> apiServer;
     std::chrono::steady_clock::time_point m_apiServerStartTime;
     std::unique_ptr<Core::JobSystem> jobSystem;
+    // [no-frozen-engine] main-thread work sliced into per-frame units with visible progress
+    // (settlement/structure builds); ticked in update() next to processCompletedJobs.
+    std::unique_ptr<Core::MainThreadJobs> mainThreadJobs;
     std::thread m_animWarmThread;  // background pre-parse of the default character .anim into the cache
     std::unique_ptr<Core::Inventory> inventory;
     std::unique_ptr<Core::GameEventLog> gameEventLog;

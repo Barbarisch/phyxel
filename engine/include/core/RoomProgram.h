@@ -36,6 +36,11 @@ struct WindowSpec {
     int    height = 0;           ///< opening height in cubes
     double perBay = 0.0;         ///< windows per structural bay on each qualifying wall
     std::string walls = "long";  ///< "long" (walls parallel to the long axis) | "all"
+    std::string infill = "shuttered";  ///< "shuttered" | "glass" — the GROUNDED default is
+                                 ///< shuttered: "openings are SHUTTERED AIR, never Glass —
+                                 ///< glazing unaffordable for ordinary households before
+                                 ///< Elizabeth I (1558+)" (croft windows.size source). A
+                                 ///< typology declares "glass" only with its own citation.
     bool valid() const { return width > 0 && height > 0 && perBay > 0.0; }
 };
 
@@ -53,6 +58,9 @@ struct RoomProgram {
     int    stories = 1;                      ///< number of stories the typology generates (>=1)
     std::string upperPurpose;                ///< room purpose for AUTO-generated upper floors
                                              ///< (e.g. "bedchamber" = inn guest chambers); ""=generic
+    std::string wealthTier = "humble";       ///< "humble" | "middling" | "high" — drives the
+                                             ///< tier-filtered furnishing recipes (status, the
+                                             ///< real medieval driver of household goods)
 
     std::string entrance;                    ///< exterior-door wall rule: "long_wall" (cross-passage
                                              ///< dwellings) | "gable" (street-frontage shops) |

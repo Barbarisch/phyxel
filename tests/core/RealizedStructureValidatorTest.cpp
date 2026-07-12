@@ -132,14 +132,18 @@ TEST(RealizedStructureValidatorTest, BedMaterialDetectorHasTeeth) {
     EXPECT_TRUE(RealizedStructureValidator::checkFurnitureMaterialPlausibility(
         "forge_hearth", {"Stone"}).ok());
 }
-// RED on real output: bed_single is built with Sandstone/Sand bedding (the user's defect #4).
-TEST(RealizedStructureValidatorTest, RealBedMaterialIsFlagged_RED) {
+// GREEN (furniture quality A, 2026-07-10): bed_single was REGENERATED with soft bedding —
+// WoodWalnut frame + Linen mattress/sheet/pillow + Wool coverlet (the first cloth materials).
+// This test was the RED that demanded it (the legacy asset carried 21 Sand + 170 Sandstone
+// bedding voxels); the detector keeps its teeth via BedMaterialDetectorHasTeeth's synthetic
+// {"Wood","Sandstone","Sand"} fixture above. Revert-repro: put Sandstone back in the bed and
+// this fails again.
+TEST(RealizedStructureValidatorTest, RealBedMaterialIsClean) {
     const auto mats = templateMaterials("bed_single");
     if (mats.empty()) GTEST_SKIP() << "bed_single.voxel not reachable from CWD";
     std::vector<std::string> v(mats.begin(), mats.end());
     auto rep = RealizedStructureValidator::checkFurnitureMaterialPlausibility("bed", v);
-    EXPECT_FALSE(rep.ok()) << "expected bed_single's stone/sand bedding to be flagged; materials were not";
-    if (!rep.ok()) std::cout << "[V4 fires] " << rep.summary() << "\n";
+    EXPECT_TRUE(rep.ok()) << "the regenerated soft-material bed still flags V4:\n" << rep.summary();
 }
 
 // ---- M1 flora emissive -----------------------------------------------------

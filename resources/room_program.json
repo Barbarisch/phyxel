@@ -1,9 +1,11 @@
 {
   "_comment": "Room Program canon — period-grounded room/building sizing for Structure Generation v2. MEDIEVAL frame: sizes derive from the BAY (the structural module between cross-frames) + house typology, NOT from modern residential area tables. Units = CUBES (1 cube = 1 m). Every value carries a `sources` entry (the grounding rule). 'bays' on a room = how many structural bays it occupies. See docs/structure-generation/StructureBrief.md + docs/structure-generation/StructureGenerationV2.md. Modern 1500/2100 sq ft figures DO NOT apply here.",
   "_units": "cubes (metres). bay_length/width in cubes; 'bays' = structural-bay count.",
+  "_wealth_tier_note": "wealth_tier (humble|middling|high) drives the tier-filtered furnishing recipes (resources/furnishing_recipes.json). REASONED status mapping, not a cited fact: peasant dwellings (croft/longhouse) = humble; the yeoman hall house + town trades (tavern/shops) = middling; the manor = high. Status, not function, is the real medieval driver of household goods.",
   "programs": {
     "croft": {
       "description": "Single-room peasant cottage — one 'house' room with a central hearth.",
+      "wealth_tier": "humble",
       "width_min": 4, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 3.0,
       "entrance": "long_wall",
       "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
@@ -20,6 +22,7 @@
     },
     "longhouse": {
       "description": "Peasant longhouse — dwelling end (inner room + hall) + cross passage + byre, under one roof.",
+      "wealth_tier": "humble",
       "width_min": 4, "width_max": 6, "bay_length": 4, "bays": 4, "proportion_max": 4.0,
       "rooms": [
         { "id": "inner",  "purpose": "bedchamber", "bays": 1 },
@@ -44,6 +47,7 @@
     },
     "hall_house": {
       "description": "Yeoman/gentry hall house — open hall (middle two bays) flanked by service (lower) and solar (upper) ends.",
+      "wealth_tier": "middling",
       "width_min": 6, "width_max": 8, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
       "rooms": [
         { "id": "service", "purpose": "service", "bays": 1 },
@@ -65,6 +69,7 @@
       }
     },
     "tavern": {
+      "wealth_tier": "middling",
       "_grounding_note": "The room PROGRAM (a public common room + kitchen + service/storage end) is grounded in the medieval-inn record. The BAY FRAME (4 bays, 2+1+1 split) is an explicit DESIGN DECISION by analogy to the grounded hall_house ground floor, NOT a measured inn — no inn-specific bay count was sourced (would need Pantin, 'Medieval Inns', Studies in Building History 1961). Upstairs lodging (guest chambers) is added by multi-story generation.",
       "description": "Town inn / tavern — ground floor: public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system. Upper floor: guest chambers (lodging), reached by a generated stair.",
       "width_min": 6, "width_max": 7, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
@@ -89,6 +94,7 @@
       }
     },
     "blacksmith": {
+      "wealth_tier": "middling",
       "_grounding_note": "Program (forge floor on the forge->anvil->quench work triangle + a customer-facing storefront/yard) grounded in the smithing record (Beautiful Iron, Wikipedia Forge). FOOTPRINT scale anchored to an EXCAVATED smithy: the Jamestown (James Fort) metalworking structure was 16x20 ft = 4.9x6.1 m (Historic Jamestowne archaeology, 2006). That grounds the forge-WORKSPACE scale (~5x6 m, one ~4 m bay wide); the 2nd bay (the customer storefront) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) -- the same honest basis as the tavern bay frame. (An earlier draft mis-cited the Anderson shop, Colonial Williamsburg; that text was not on the cited page -- corrected to Jamestown.) See docs/structure-generation/archetypes/blacksmith.md.",
       "description": "Village smithy -- open-fronted single-story timber-frame workshop: forge floor (forge on the vented back wall, anvil within a step, quench/slack tub beside it) + a customer-facing storefront/yard. Fire-managed: non-combustible around the forge.",
       "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
@@ -110,6 +116,7 @@
       }
     },
     "general_store": {
+      "wealth_tier": "middling",
       "_grounding_note": "Program (a street-facing SALESROOM at the front of the burgage plot + a STOREROOM behind) is grounded in the medieval urban-shop record: the front of a burgage plot facing the street was the business space (shop/workshop), with storage/living to the rear (RuralHistoria; burgageplots.info 'the burgage plot as a workplace'). FOOTPRINT scale anchored to documented burgage FRONTAGE: plot widths ran c. 5 m (one perch) to ~17 m, MODAL ~8 m / typical 2 perches ~10 m, lengths tens of metres (Tait, 'Burgage plot patterns and dimensions in four Scottish burghs', PSAS 138 (2009), journals.socantscot.org/.../view/9724). A general store = the NARROW end of that range (~5-6 m / 1-1.2 perch frontage), NOT the typical 8-10 m. The 2-bay depth (~8 m) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) and sits well within documented plot depths (tens of m) -- same honest basis as the tavern/blacksmith bay frame. (grounding-auditor 2026-06-28: corrected the PSAS citation from the Edinburgh-only paper /9686 to the four-burgh paper /9724, and the frontage floor from a 5.5 m misread of '5.5 yards' to ~5 m = one perch 5.03 m.)",
       "description": "Town general store / merchant's shop -- single-story timber building on a burgage frontage: a street-facing salesroom (sales counter + shelved goods + barrels) and a storeroom behind (stock: barrels, crates, coffers).",
       "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
@@ -129,6 +136,7 @@
       }
     },
     "bakery": {
+      "wealth_tier": "middling",
       "_grounding_note": "Program (a BAKEHOUSE with the masonry oven + a kneading/work surface, and a customer SALESROOM/shopfront selling the bread) is grounded in the medieval baking record: the bakehouse was the dedicated oven-room workspace (en.wikipedia.org/wiki/Bakehouse_(building)); commercial bakers baked and SOLD bread under the Assize of Bread, so a town bakery has a shopfront as well as the bakehouse (RuralHistoria burgage front-business pattern). FOOTPRINT on a burgage frontage like the general_store (documented 5-17 m, narrow-end shop ~6 m; Tait PSAS 138 (2009)). The OVEN is the grounded commercial dome (object_dimensions 'oven_bread': ~0.9 m interior, williamrubel.com), VENTED on the back wall + chimney (place_chimney), fire-managed like the forge. The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same honest basis as tavern/blacksmith/general_store.",
       "description": "Town bakery -- single-story timber building on a burgage frontage: a bakehouse (the vented masonry bread oven + a kneading counter + flour barrels) and a street salesroom selling the bread.",
       "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
@@ -148,6 +156,7 @@
       }
     },
     "apothecary": {
+      "wealth_tier": "middling",
       "_grounding_note": "Program (a DISPENSARY/shopfront -- a dispensing counter with shelves of labeled jars/bottles BEHIND it -- plus a rear STOREROOM for stock) is grounded in the apothecary-shop record: 'drug jars lined shelves behind the counter where prescriptions were made up', the apothecary moving between customers and stock (manyheadedmonster.com 'The World in a Jar' -- EARLY MODERN England c.1550-1800; larsdatter.com = period image refs). PERIOD CAVEAT: the cited prose is early modern; the counter + shelved-jars dispensary form is plausibly medieval (albarello drug jars predate 1550) but not directly attested medieval -- evidence for the LAYOUT (cf. the tavern's New-Inn TYPE cite). FOOTPRINT on a burgage frontage like the general_store (Tait PSAS 138 (2009); narrow shop ~5-6 m). All fixtures reuse grounded assets (counter; back_bar shelving, which carries jars/bottles; coffer; candelabra for the dim apothecary light). The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same basis as the other shops.",
       "description": "Town apothecary / herbalist -- single-story timber building on a burgage frontage: a dispensary (dispensing counter + shelves of jars/bottles behind + a coffer + a candelabra) and a rear storeroom of stock.",
       "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
@@ -167,6 +176,7 @@
       }
     },
     "butcher": {
+      "wealth_tier": "middling",
       "_grounding_note": "Program (a street-facing SHAMBLES shopfront -- a stall-board/display counter, the chopping block, a rail of meat hooks -- with a back room for slaughter/storage) is grounded in the medieval butcher record: the Shambles were streets of butchers' shops 'many complete with a slaughterhouse at the back', with low display windowsills (stall boards) and meat-HOOKS on the shop fronts (historyofyork.org.uk/themes/medieval/the-shambles; asparadventures.com York Shambles). The chopping BLOCK is an attested trade tool (choppingblocks.com) but NOT quoted in those Shambles pages; interior meat RAILS are a Victorian-era form (buildingourpast.com), a disclosed post-medieval analogy. FOOTPRINT on a burgage frontage like the other shops (Tait PSAS 138 (2009); narrow ~5-6 m). 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy).",
       "description": "Town butcher's shop (the shambles) -- single-story timber building on a burgage frontage: a shopfront (stall-board counter + chopping block + a rail of meat hooks) and a back room (slaughter/storage).",
       "width_min": 5, "width_max": 6, "bay_length": 4, "bays": 2, "proportion_max": 2.5,
@@ -187,6 +197,7 @@
     },
     "manor_hall": {
       "description": "Stone manor / great hall — large open hall, length 1.5-3x its width and higher than wide.",
+      "wealth_tier": "high",
       "width_min": 8, "width_max": 17, "bay_length": 5, "bays": 4, "proportion_min": 1.5, "proportion_max": 3.0,
       "rooms": [
         { "id": "screens", "purpose": "service", "bays": 1 },

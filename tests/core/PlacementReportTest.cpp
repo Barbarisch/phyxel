@@ -22,9 +22,13 @@ std::map<std::string, Footprint> taproomFootprints() {
     return {
         {"tavern_bar",   {3, 1}}, {"back_bar", {3, 1}}, {"bar_stool", {1, 1}},
         {"tavern_table", {2, 1}}, {"bench",    {2, 1}}, {"fireplace", {2, 1}},
-        {"candle_stand", {1, 1}},
+        {"candle_stand", {1, 1}}, {"stool",    {1, 1}},
     };
 }
+// The recipe's ACTUAL size — the accounting invariants below must not pin recipe CONTENT
+// (the taproom recipe legitimately grows, e.g. quality A added the stool), only that every
+// piece is placed or reported.
+size_t taproomRecipeSize() { return FurniturePlacer::requiredFurniture("taproom").size(); }
 ProgStory taproom(int w, int d) {
     ProgStory s; s.height = 3;
     ProgRoom r; r.id = "taproom"; r.purpose = "taproom"; r.rect = {0, 0, w, d};
@@ -57,8 +61,9 @@ TEST(PlacementReportTest, TaproomFullyFurnishedNoSilentDrop) {
     EXPECT_EQ(countType(out, "back_bar"), 1);
     EXPECT_EQ(countType(out, "tavern_table"), 1);
     EXPECT_EQ(countType(out, "fireplace"), 1);
+    EXPECT_EQ(countType(out, "stool"), 1);
     EXPECT_TRUE(unplaced.empty()) << "a normal taproom reported pieces it couldn't fit";
-    EXPECT_EQ(out.size(), 7u) << "expected all 7 recipe pieces in the taproom";
+    EXPECT_EQ(out.size(), taproomRecipeSize()) << "expected every recipe piece in the taproom";
 }
 
 // PACKING teeth: multiple pieces share a wall. The old cap was 4 wall pieces (one each) + 1 centre = 5
@@ -79,11 +84,12 @@ TEST(PlacementReportTest, UnfittablePiecesAreReportedNotDropped) {
     EXPECT_FALSE(unplaced.empty()) << "a tiny room dropped furniture silently (nothing reported)";
     EXPECT_TRUE(unplacedHas(unplaced, "tavern_bar")) << "the 3-wide bar can't fit a 2-wide room but wasn't reported";
     // EVERY recipe piece is accounted for: placed + unplaced == recipe size (nothing vanishes).
-    EXPECT_EQ(out.size() + unplaced.size(), 7u) << "pieces vanished (placed + unplaced != recipe)";
+    EXPECT_EQ(out.size() + unplaced.size(), taproomRecipeSize())
+        << "pieces vanished (placed + unplaced != recipe)";
 }
 
 // Without the out-param, furnish still works (back-compat) and simply doesn't report drops.
 TEST(PlacementReportTest, NullUnplacedIsSafe) {
     const auto out = FurniturePlacer::furnish(taproom(8, 7), glm::ivec3(0), 16, taproomFootprints());
-    EXPECT_EQ(out.size(), 7u);
+    EXPECT_EQ(out.size(), taproomRecipeSize());
 }

@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 #include "core/APICommandQueue.h"
 #include "core/JobSystem.h"
+#include "core/MainThreadJobs.h"
 
 namespace Phyxel {
 namespace Core {
@@ -71,6 +72,10 @@ public:
 
     /// Set the job system (can be set after construction)
     void setJobSystem(JobSystem* jobSystem) { m_jobSystem = jobSystem; }
+
+    /// [no-frozen-engine] main-thread sliced jobs (settlement/structure builds) — merged into
+    /// the /api/jobs listing + /api/job/{id} lookups so callers see ONE progress surface.
+    void setMainThreadJobs(MainThreadJobs* jobs) { m_mainThreadJobs = jobs; }
 
     /// Check if a port is available for binding (no other process using it).
     static bool isPortAvailable(int port);
@@ -308,6 +313,7 @@ private:
 
     APICommandQueue* m_commandQueue;
     JobSystem* m_jobSystem;
+    MainThreadJobs* m_mainThreadJobs = nullptr;
     int m_port;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_shouldStop{false};

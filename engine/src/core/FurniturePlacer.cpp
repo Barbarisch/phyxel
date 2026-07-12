@@ -3,10 +3,15 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
 #include <map>
 #include <set>
 #include <string>
 #include <utility>
+
+#include <nlohmann/json.hpp>
+
+#include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
@@ -24,29 +29,70 @@ const WallDef WALLS[4] = {{+1, 0}, {-1, 0}, {0, +1}, {0, -1}};
 
 struct Piece { std::string type; bool center; };
 
-// What furniture a room gets, by purpose. Casegoods back onto a wall; a table is centred.
-std::vector<Piece> recipeFor(const std::string& purpose) {
+// Map a room's free-text purpose onto the CANONICAL recipe key (the same substring rules the
+// old hardcoded map used, factored out so the data recipes share them).
+std::string canonicalPurpose(const std::string& purpose) {
     const std::string p = lower(purpose);
     auto has = [&](const char* k) { return p.find(k) != std::string::npos; };
-    if (has("taproom") || has("tap"))                return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"fireplace", false}, {"candle_stand", false}};
-    if (has("kitchen"))                              return {{"counter", false}, {"fireplace", false}};
-    if (has("bed") || has("chamber") || has("solar")) return {{"bed", false}, {"chest", false}};
-    if (has("hall") || has("living") || has("great")) return {{"fireplace", false}, {"table", true}, {"bench", false}};
-    if (has("forge") || has("smith") || has("anvil"))    return {{"forge_hearth", false}, {"anvil", true}, {"bellows", false}, {"tool_rack", false}, {"barrel", false}};
-    // bakehouse (bakery): the vented masonry bread oven on the back wall + a kneading counter + flour
-    // barrels. The oven is fire-managed + gets a place_chimney stack (like the forge).
-    if (has("bakehouse") || has("oven") || has("bake")) return {{"oven_bread", false}, {"counter", false}, {"barrel", false}};
-    // butcher's shop (shambles): a stall-board counter (street display) + the chopping block (the
-    // defining work fixture) + a meat rail of iron hooks + a stock barrel. New grounded assets.
-    if (has("shambles") || has("butcher")) return {{"counter", false}, {"chopping_block", true}, {"meat_rail", false}, {"barrel", false}};
-    // apothecary dispensary: a dispensing counter + shelves of jars/bottles behind (back_bar carries
-    // bottles) + a coffer + a candelabra for the dim apothecary light. Reuses grounded assets.
-    if (has("dispensary") || has("apothecary")) return {{"counter", false}, {"back_bar", false}, {"chest", false}, {"candle_stand", false}};
-    // shopfront / salesroom (general store, merchant): a sales counter + shelved goods on the back
-    // wall + stock barrels + a coffer (the strongbox/till). All reuse existing grounded assets.
-    if (has("sales") || has("shopfront") || has("shopfloor")) return {{"counter", false}, {"back_bar", false}, {"barrel", false}, {"chest", false}};
-    if (has("service") || has("pantry") || has("store")) return {{"barrel", false}, {"chest", false}};
+    if (has("taproom") || has("tap"))                          return "taproom";
+    if (has("kitchen"))                                        return "kitchen";
+    if (has("bed") || has("chamber") || has("solar"))          return "bedchamber";
+    if (has("hall") || has("living") || has("great"))          return "hall";
+    if (has("forge") || has("smith") || has("anvil"))          return "forge";
+    if (has("bakehouse") || has("oven") || has("bake"))        return "bakehouse";
+    if (has("shambles") || has("butcher"))                     return "shambles";
+    if (has("dispensary") || has("apothecary"))                return "dispensary";
+    if (has("sales") || has("shopfront") || has("shopfloor"))  return "salesroom";
+    if (has("service") || has("pantry") || has("store"))       return "service";
+    return "default";
+}
+
+// The legacy hardcoded map — the FALLBACK when no data recipe covers a purpose (never
+// tier-filtered: it predates tiers).
+std::vector<Piece> hardcodedRecipeFor(const std::string& canon) {
+    if (canon == "taproom")    return {{"tavern_bar", false}, {"back_bar", false}, {"bar_stool", false}, {"tavern_table", true}, {"bench", false}, {"stool", false}, {"fireplace", false}, {"candle_stand", false}};
+    if (canon == "kitchen")    return {{"counter", false}, {"fireplace", false}, {"stool", false}};
+    if (canon == "bedchamber") return {{"bed", false}, {"chest", false}, {"stool", false}, {"wardrobe", false}, {"rug", true}};
+    if (canon == "hall")       return {{"fireplace", false}, {"table", true}, {"bench", false}, {"chair", false}};
+    if (canon == "forge")      return {{"forge_hearth", false}, {"anvil", true}, {"bellows", false}, {"tool_rack", false}, {"barrel", false}};
+    if (canon == "bakehouse")  return {{"oven_bread", false}, {"counter", false}, {"barrel", false}};
+    if (canon == "shambles")   return {{"counter", false}, {"chopping_block", true}, {"meat_rail", false}, {"barrel", false}};
+    if (canon == "dispensary") return {{"counter", false}, {"back_bar", false}, {"chest", false}, {"candle_stand", false}};
+    if (canon == "salesroom")  return {{"counter", false}, {"back_bar", false}, {"barrel", false}, {"chest", false}};
+    if (canon == "service")    return {{"barrel", false}, {"chest", false}};
     return {{"chest", false}};
+}
+
+// DATA recipes (furniture quality B): loaded from resources/furnishing_recipes.json; a data
+// entry OVERRIDES the hardcoded map for its purpose. Each piece may declare `tiers` (which
+// wealth tiers receive it); absent tiers = every tier.
+struct DataPiece {
+    Piece piece;
+    std::vector<std::string> tiers;   // empty = all tiers
+};
+std::map<std::string, std::vector<DataPiece>>& dataRecipes() {
+    static std::map<std::string, std::vector<DataPiece>> r;
+    return r;
+}
+
+// What furniture a room gets, by purpose + wealth tier. Casegoods back onto a wall; a table
+// is centred; mounting (floor/wall/ceiling) is per-TYPE data (mountFor), not recipe data.
+std::vector<Piece> recipeFor(const std::string& purpose, const std::string& wealthTier) {
+    const std::string canon = canonicalPurpose(purpose);
+    const auto& data = dataRecipes();
+    auto it = data.find(canon);
+    if (it == data.end() && canon != "default") it = data.find("default");
+    if (it != data.end()) {
+        std::vector<Piece> out;
+        for (const auto& dp : it->second) {
+            if (!dp.tiers.empty() && !wealthTier.empty() &&
+                std::find(dp.tiers.begin(), dp.tiers.end(), wealthTier) == dp.tiers.end())
+                continue;   // this piece belongs to richer/poorer households
+            out.push_back(dp.piece);
+        }
+        return out;
+    }
+    return hardcodedRecipeFor(canon);
 }
 
 } // namespace
@@ -68,7 +114,9 @@ CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& 
 
 std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& purpose) {
     std::vector<std::string> types;
-    for (const auto& pc : recipeFor(purpose)) types.push_back(pc.type);
+    // Tier-agnostic UNION (empty tier = every piece) — the coverage gate must see the full
+    // vocabulary any tier could emit.
+    for (const auto& pc : recipeFor(purpose, "")) types.push_back(pc.type);
     return types;
 }
 
@@ -200,10 +248,68 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
                       p.worldPos.z * 9 - p.backDir.z * extTMicro);
 }
 
+// ---- MOUNTING (quality B): sconces/racks on the wall, the chandelier from the ceiling. ----
+FurniturePlacer::Mount FurniturePlacer::mountFor(const std::string& type) {
+    if (type == "wall_lantern" || type == "tool_rack") return Mount::Wall;
+    if (type == "chandelier") return Mount::Ceiling;
+    return Mount::Floor;
+}
+
+int FurniturePlacer::mountedMicroY(const std::string& type, int surfaceMicroY, int ceilingMicroY,
+                                   int templateMicroH) {
+    switch (mountFor(type)) {
+        case Mount::Wall:
+            // wall_lantern: the 60-72 in sconce mounting convention; 60 in = 1.52 m -> 14 micro
+            // (low end — a flame at face height). tool_rack: ~1.0 m working reach (INFERRED).
+            return surfaceMicroY + (type == "tool_rack" ? 9 : 14);
+        case Mount::Ceiling: {
+            // hang 1 micro below the ceiling; NEVER breach walk clearance (agent 16 + margin)
+            const int base = ceilingMicroY - std::max(0, templateMicroH) - 1;
+            return std::max(base, surfaceMicroY + 18);
+        }
+        default:
+            return surfaceMicroY;
+    }
+}
+
+bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
+    std::ifstream in(path);
+    if (!in.is_open()) return false;
+    nlohmann::json j;
+    try {
+        in >> j;
+    } catch (const std::exception& e) {
+        LOG_WARN_FMT("FurniturePlacer", "furnishing_recipes parse error in " << path << ": "
+                     << e.what());
+        return false;
+    }
+    if (!j.contains("recipes") || !j["recipes"].is_object()) return false;
+    auto& reg = dataRecipes();
+    reg.clear();
+    for (auto it = j["recipes"].begin(); it != j["recipes"].end(); ++it) {
+        if (!it.value().is_array()) continue;
+        std::vector<DataPiece> pieces;
+        for (const auto& e : it.value()) {
+            if (!e.is_object() || !e.contains("type")) continue;
+            DataPiece dp;
+            dp.piece.type = e["type"].get<std::string>();
+            dp.piece.center = e.value("place", std::string("wall")) == "center";
+            if (e.contains("tiers") && e["tiers"].is_array())
+                for (const auto& t : e["tiers"])
+                    if (t.is_string()) dp.tiers.push_back(t.get<std::string>());
+            pieces.push_back(std::move(dp));
+        }
+        reg[it.key()] = std::move(pieces);
+    }
+    return !reg.empty();
+}
+
+void FurniturePlacer::clearRecipes() { dataRecipes().clear(); }
+
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
-    std::vector<UnplacedFixture>* unplaced, int extTMicro) {
+    std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier) {
     std::vector<FurniturePlacement> out;
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
@@ -345,10 +451,24 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                              || roomPurpose.find("anvil") != std::string::npos;
         std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1}, tableCell{-1, -1};
 
-        for (const auto& piece : recipeFor(room.purpose)) {
+        for (const auto& piece : recipeFor(room.purpose, wealthTier)) {
             const Footprint fp = footprintOf(piece.type);
             const int width = std::max(1, fp.width);
             bool placed = false;
+
+            // CEILING-hung pieces (chandelier) float over the room centre and reserve NO floor
+            // cells — a chandelier belongs directly ABOVE the centred table, not in a fight with
+            // it for the same cells. Their Y is resolved by the consumer via mountedMicroY.
+            if (mountFor(piece.type) == Mount::Ceiling) {
+                FurniturePlacement p;
+                p.type = piece.type;
+                p.room = room.id;
+                p.rotation = 0;
+                p.backDir = glm::ivec3(0);
+                p.worldPos = glm::ivec3(origin.x + rx + rw / 2, floorY, origin.z + rz + rd / 2);
+                out.push_back(p);
+                continue;
+            }
 
             // Work-triangle clustering: the anvil hugs the forge; the quench (barrel) hugs the anvil.
             if (forgeFloor && piece.type == "anvil" && forgeCell.first >= 0)

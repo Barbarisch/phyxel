@@ -73,6 +73,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
 #include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
+#include "core/StreetPaver.h"         // build_settlement: planStreetPaving (streets as real geometry)
+#include "core/FurnitureCatalog.h"    // build_settlement: yard-prop type -> template resolution
 #include "core/FenceBuilder.h"        // build_settlement: thin grounded typed fences (picket/privacy)
 #include "core/DimensionCanon.h"      // build_settlement: grounded fence dims (object_dimensions.json)
 #include "core/BuildingProgramValidator.h"  // v2 pre-build validation gate (warn-but-allow)
@@ -542,6 +544,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             playCastVisual(spellId, animatedCharacter, targetPos, std::move(onRelease));
         });
     jobSystem = std::make_unique<Core::JobSystem>();
+    mainThreadJobs = std::make_unique<Core::MainThreadJobs>();
     // Warm the animation parse cache off-thread so the FIRST character spawn
     // doesn't pay the ~5s .anim parse on the main thread. Uses the exact path
     // string that spawn_entity defaults to, so the cache key matches.
@@ -550,6 +553,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     });
     int apiPort = (m_apiPortOverride > 0) ? m_apiPortOverride : engineConfig.apiPort;
     apiServer = std::make_unique<Core::EngineAPIServer>(apiCommandQueue.get(), apiPort, jobSystem.get());
+    apiServer->setMainThreadJobs(mainThreadJobs.get());
     m_apiServerStartTime = std::chrono::steady_clock::now();
 
     // Wire up read-only handlers (called directly on HTTP thread  --  must be thread-safe)
@@ -2789,7 +2793,46 @@ void Application::run() {
                 ImGui::End();
             }
         }
-        
+
+        // [no-frozen-engine] ACTIVE JOBS overlay: whenever sliced main-thread work (settlement/
+        // structure builds) or background jobs are running, show a progress bar — the user must
+        // never wonder whether the engine is frozen or working. Always on while jobs are active
+        // (not gated behind F1).
+        if ((mainThreadJobs && mainThreadJobs->anyActive()) ||
+            (jobSystem && jobSystem->hasActiveJobs())) {
+            ImGui::SetNextWindowPos(ImVec2(10, 80), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(340, 0), ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Active Jobs", nullptr,
+                             ImGuiWindowFlags_NoFocusOnAppearing |
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+                if (mainThreadJobs) {
+                    for (const auto& j : mainThreadJobs->listJson()) {
+                        if (j.value("state", "") != "running") continue;
+                        ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "%s",
+                                           j.value("label", "").c_str());
+                        const float frac = static_cast<float>(j.value("progress", 0.0));
+                        char buf[96];
+                        snprintf(buf, sizeof(buf), "%s (%llu/%llu)",
+                                 j.value("message", "").c_str(),
+                                 static_cast<unsigned long long>(j.value("units_done", 0ull)),
+                                 static_cast<unsigned long long>(j.value("units_total", 0ull)));
+                        ImGui::ProgressBar(frac, ImVec2(320, 0), buf);
+                    }
+                }
+                if (jobSystem) {
+                    for (const auto& s : jobSystem->listJobs()) {
+                        if (s.state != Core::JobState::Running &&
+                            s.state != Core::JobState::Pending &&
+                            s.state != Core::JobState::Completing) continue;
+                        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", s.type.c_str());
+                        ImGui::ProgressBar(s.progress, ImVec2(320, 0),
+                                           s.message.empty() ? nullptr : s.message.c_str());
+                    }
+                }
+            }
+            ImGui::End();
+        }
+
         // Check if distances were changed by UI
         if (currentRenderDistance != maxChunkRenderDistance) {
             setRenderDistance(currentRenderDistance);
@@ -3122,6 +3165,11 @@ void Application::update(float deltaTime) {
     // Process completed background jobs (finalize on main thread)
     if (jobSystem) {
         jobSystem->processCompletedJobs();
+    }
+    // [no-frozen-engine] run ONE sliced main-thread work unit per frame: heavy builds
+    // progress between rendered frames instead of freezing the loop for their whole span.
+    if (mainThreadJobs) {
+        mainThreadJobs->tick(1);
     }
 
     // Skip simulation when paused (API commands and jobs still process)
@@ -10528,10 +10576,33 @@ void Application::registerWaterCommands() {
     });
 }
 
+namespace {
+// Ground-top column scan shared by the settlement handler AND its sliced work units (units
+// outlive the handler's stack, so this lives at file scope). floraBlind skips Log*/Leaf* so
+// ELEVATION decisions (grading/seating/terracing/fences) never read a canopy as ground; the
+// raw scan is for "what physically occupies the column" (clearing).
+int settlementTopScan(ChunkManager* cm, int oy, int wx, int wz, bool floraBlind) {
+    if (!cm) return oy;
+    const int top = oy + 96;
+    for (int wy = top; wy >= 0 && wy >= top - 200; --wy)
+        if (cm->hasVoxelAt(glm::ivec3(wx, wy, wz))) {
+            if (floraBlind) {
+                if (const auto* c = cm->getCubeAt(glm::ivec3(wx, wy, wz))) {
+                    const std::string& m = c->getMaterialName();
+                    if (m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0) continue;
+                }
+            }
+            return wy;
+        }
+    return oy;
+}
+} // namespace
+
 // build_settlement — the engine composes a whole settlement in one call: subdivide_plots +
-// populate_plots (the tested layout) decide the plots/buildings, then ONE build_structure command is
-// queued per building (reusing the proven single-building v2 path; the builds run over the next
-// frame). Returns the plan synchronously. Productionizes the previously client-orchestrated hamlet.
+// populate_plots (the tested layout) decide the plots/buildings, then the heavy phases (terrace,
+// paving, fences, props, one v2 build per building) run as SLICED MainThreadJobs units with
+// visible progress ([no-frozen-engine]) — the response returns a job_id immediately. Pass
+// {"async": false} to run everything inline (tests/scripts that need the synchronous response).
 void Application::registerSettlementCommands() {
     auto& reg = m_commandRegistry;
     reg.on("build_settlement", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -10565,20 +10636,67 @@ void Application::registerSettlementCommands() {
             ox = p["position"].value("x", 0); oy = p["position"].value("y", 16); oz = p["position"].value("z", 0);
         }
 
+        // PROGRAM MODE (era + tier — resources/settlement_program.json): morphology, typology
+        // weights and plot sizing become tier DATA (the era key is the extension hook: only
+        // `medieval` ships; an unknown era/tier is a SURFACED error, never a silent default).
+        // Legacy calls (no era/tier param) take exactly the pre-program code paths.
+        const bool programMode = p.contains("tier") || p.contains("era");
+        const std::string era = p.value("era", std::string("medieval"));
+        const std::string tierName = p.value("tier", std::string("village"));
+        const unsigned seed = static_cast<unsigned>(p.value("seed", static_cast<int>(varietySeed)));
+        Core::SettlementProgramRegistry programReg;
+        const Core::SettlementTierPreset* tierP = nullptr;
+        if (programMode) {
+            if (!programReg.loadFromFile("resources/settlement_program.json")) {
+                r = {{"error", "settlement_program.json failed to load"}};
+                return;
+            }
+            tierP = programReg.get(era, tierName);
+            if (!tierP) {
+                r = {{"error", "unknown era/tier: " + era + "/" + tierName},
+                     {"known_eras", programReg.eras()}, {"known_tiers", programReg.tiers(era)}};
+                return;
+            }
+            if (tierP->morphology == "cluster") {
+                // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
+                // palette (weight-EXPANDED so pickBuildingVariant's uniform cycle honors the weights).
+                mix.clear();
+                for (const auto& [typ, wgt] : tierP->typologyWeights)
+                    for (int k = 0; k < wgt; ++k) mix.push_back(typ);
+                if (mix.empty()) mix = {"croft"};
+            }
+        }
+        // main_street AND semi_organic (the city) share the whole street-settlement pipeline —
+        // the city planner returns the same MainStreetLayout shape (axes + square + assigned).
+        const bool cityMode = tierP && tierP->morphology == "semi_organic";
+        const bool mainStreetMode = cityMode || (tierP && tierP->morphology == "main_street");
+        // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
+        // hall) — main-street mode sizes the PLOT from the typology up front (the burgage principle);
+        // legacy mode centres the natural footprint in its uniform plot below.
+        Core::RoomProgramRegistry roomReg;
+        roomReg.loadFromFile("resources/room_program.json");
+
         // ground top at a WORLD column = the top solid voxel (the seatStructure primitive). Shared by
         // the terrain buildability scan AND per-building seating.
-        auto groundTopAt = [&](int wx, int wz) -> int {
-            if (!chunkManager) return oy;
-            const int top = oy + 96;
-            for (int wy = top; wy >= 0 && wy >= top - 200; --wy)
-                if (chunkManager->hasVoxelAt(glm::ivec3(wx, wy, wz))) return wy;
-            return oy;
+        // Column scans (see settlementTopScan): raw = what occupies the column (clearing);
+        // flora-blind = the GROUND elevation (grading/seating/terracing/buildability/fences —
+        // L4 find 2026-07-09: canopy tops read as hills, trunks as cliffs).
+        auto groundTopAt = [this, oy](int wx, int wz) -> int {
+            return settlementTopScan(chunkManager, oy, wx, wz, /*floraBlind=*/false);
+        };
+        auto isFloraMat = [](const std::string& m) {
+            return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+        };
+        auto terrainTopAt = [this, oy](int wx, int wz) -> int {
+            return settlementTopScan(chunkManager, oy, wx, wz, /*floraBlind=*/true);
         };
 
         // TERRAIN MODE: analyse the live world's buildability and place plots on the buildable cells
         // (flat valleys + hilltops), skipping cliffs/steep. Else: the flat-plane grid.
         const bool terrain = p.value("terrain", false);
         Core::SettlementLayout layout;
+        Core::MainStreetLayout msl;   // program main-street plan (used when mainStreetMode)
+        int droppedPlots = 0;         // main-street plots dropped on unbuildable terrain (surfaced)
         if (terrain) {
             if (!chunkManager) { r = {{"error", "terrain mode needs a loaded world (no ChunkManager)"}}; return; }
             const int plotSize  = p.value("plot_size", 12);
@@ -10587,16 +10705,63 @@ void Application::registerSettlementCommands() {
             const int window    = std::max(1, plotSize / 2);
             const Core::BuildabilityMap site =
                 Core::analyzeSite(W, D, maxRelief,
-                                  [&](int x, int z) { return groundTopAt(ox + x, oz + z); },
+                                  [&](int x, int z) { return terrainTopAt(ox + x, oz + z); },
                                   {}, 1, window);
-            layout.plots = Core::selectBuildablePlots(site, plotSize, streetWidth, maxPlots);
-            LOG_INFO_FMT("Settlement", "terrain analyse " << W << "x" << D << ": buildable="
-                         << site.buildableFraction() << " -> " << layout.plots.size() << " plots");
-            if (layout.plots.empty()) {
-                r = {{"error", "terrain too steep — no buildable plots"},
-                     {"buildable_fraction", site.buildableFraction()}};
+            if (mainStreetMode) {
+                // The spine picks the FLATTEST straight alignment over the site, then plots whose
+                // footprint touches an unbuildable cell are dropped with a surfaced count
+                // (graceful degradation, TerrainAwareSettlement.md).
+                const Core::StreetAxisChoice pick =
+                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin);
+                msl = cityMode
+                    ? Core::planCityLayout(*tierP, W, D, roomReg, seed)   // city picks its own axes
+                    : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,
+                                                 pick.axis, pick.crossOffset);
+                std::vector<Core::AssignedPlot> keep;
+                for (const auto& ap : msl.assigned) {
+                    bool buildable = true;
+                    const Core::Rect& pr = ap.plot.rect;
+                    for (int z = pr.z; z < pr.z1() && buildable; ++z)
+                        for (int x = pr.x; x < pr.x1(); ++x) {
+                            if (x < 0 || z < 0 || x >= site.W || z >= site.D) { buildable = false; break; }
+                            const auto cls = site.at(x, z).cls;
+                            if (cls == Core::Buildability::TooSteep ||
+                                cls == Core::Buildability::Water) { buildable = false; break; }
+                        }
+                    if (buildable) keep.push_back(ap); else ++droppedPlots;
+                }
+                msl.assigned = std::move(keep);
+                msl.base.plots.clear();
+                for (const auto& ap : msl.assigned) msl.base.plots.push_back(ap.plot);
+                layout = msl.base;
+                LOG_INFO_FMT("Settlement", "main_street terrain: axis " << pick.axis << " offset "
+                             << pick.crossOffset << ", " << msl.assigned.size() << " plots ("
+                             << droppedPlots << " dropped unbuildable)");
+                if (msl.assigned.empty()) {
+                    r = {{"error", "terrain too steep — no buildable main-street plots"},
+                         {"buildable_fraction", site.buildableFraction()},
+                         {"dropped_plots", droppedPlots}};
+                    return;
+                }
+            } else {
+                layout.plots = Core::selectBuildablePlots(site, plotSize, streetWidth, maxPlots);
+                LOG_INFO_FMT("Settlement", "terrain analyse " << W << "x" << D << ": buildable="
+                             << site.buildableFraction() << " -> " << layout.plots.size() << " plots");
+                if (layout.plots.empty()) {
+                    r = {{"error", "terrain too steep — no buildable plots"},
+                         {"buildable_fraction", site.buildableFraction()}};
+                    return;
+                }
+            }
+        } else if (mainStreetMode) {
+            msl = cityMode ? Core::planCityLayout(*tierP, W, D, roomReg, seed)
+                           : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed);
+            if (!msl.ok) {
+                r = {{"error", "settlement footprint too small for a main street at tier '"
+                                + tierName + "'"}};
                 return;
             }
+            layout = msl.base;
         } else {
             layout = Core::subdividePlots(W, D, cols, rows, streetWidth, minBuilding);
             if (layout.plots.empty()) {
@@ -10604,74 +10769,101 @@ void Application::registerSettlementCommands() {
                 return;
             }
         }
-        const auto buildings = Core::populatePlots(layout, setback, minBuilding, typology);
+        // Buildings: main-street mode already assigned + sized every building from its typology
+        // (footprint = natural size, front at the drawn setback); legacy mode sites one per plot
+        // and sizes it in the queue loop below.
+        std::vector<Core::PlacedBuilding> buildings;
+        if (mainStreetMode) {
+            for (size_t i = 0; i < msl.assigned.size(); ++i) {
+                Core::PlacedBuilding b;
+                b.plotIndex = static_cast<int>(i);
+                b.footprint = msl.assigned[i].footprint;
+                b.typology = msl.assigned[i].typology;
+                buildings.push_back(b);
+            }
+        } else {
+            buildings = Core::populatePlots(layout, setback, minBuilding, typology);
+        }
         if (buildings.empty()) {
             r = {{"error", "no buildable plots (setback too large for the plots)"}};
             return;
         }
 
-        // Typology natural sizes: a building must be sized to its TYPOLOGY (croft small, hall a big
-        // hall), then centred in its plot — NOT stretched to fill the plot (that made 18-wide crofts /
-        // 169k-voxel mega-boxes that failed the typology width gate).
-        Core::RoomProgramRegistry roomReg;
-        roomReg.loadFromFile("resources/room_program.json");
+        // [no-frozen-engine] From here the heavy phases become sliced WORK UNITS (one per frame
+        // via MainThreadJobs) instead of running inline in one multi-minute frame. Shared bits
+        // that cross units live behind shared_ptrs; async is the DEFAULT ({"async": false} runs
+        // every unit inline for callers needing the full synchronous response).
+        std::vector<std::pair<std::string, std::function<void()>>> units;
+        auto pathsJsonP = std::make_shared<nlohmann::json>(nlohmann::json::object());
+        auto propsJsonP = std::make_shared<nlohmann::json>(nlohmann::json::object());
+        auto sharedPaved = std::make_shared<std::set<std::pair<int, int>>>();
 
-        // TERRACE (settlement pre-pass, terrain mode): treat each parcel (structure + its yard) as ONE
-        // unit and grade it into the terrain BEFORE any building seats — so the yard is flat, the floor
-        // lands flush (no step-in), and the perimeter fence sits on level ground. Median grade minimises
-        // earthwork; a skirt outside the plot ramps to natural terrain at <=1 step/cube so the fence
-        // never abuts a cliff. Applied per-plot (later plots grade over earlier skirts); runs before the
-        // build loop's groundTopAt seating, so buildings seat on the graded parcel. (floor_not_flush +
-        // yard_not_flat; must NOT reintroduce fence_along_cliff.)
+        // TERRACE (settlement pre-pass, terrain mode): treat each parcel (structure + its yard) as
+        // ONE unit and grade it into the terrain BEFORE any building seats — so the yard is flat,
+        // the floor lands flush, and the fence sits on level ground. One PARCEL = one work unit.
         if (terrain && chunkManager) {
-            const int SK = 4;                 // skirt width (cubes) blending plot grade -> natural terrain
-            long terracedCols = 0, tCut = 0, tFill = 0;
-            for (const auto& plot : layout.plots) {
-                const Core::Rect& pr = plot.rect;
-                const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
-                if (pw < 2 || pd < 2) continue;
-                std::vector<int> tops;
-                for (int x = px0; x < px0 + pw; ++x)
-                    for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(groundTopAt(x, z));
-                std::sort(tops.begin(), tops.end());
-                const int grade = tops[tops.size() / 2];          // median plot grade
-                std::vector<glm::ivec3> tcut;
-                Core::StructureResult tfill;
-                auto addT = [&](int x, int y, int z, const char* mat) {
-                    Core::VoxelPlacement vp; vp.position = glm::ivec3(x, y, z);
-                    vp.material = mat; vp.level = Core::VoxelLevel::Cube; tfill.voxels.push_back(vp);
-                };
-                for (int x = px0 - SK; x < px0 + pw + SK; ++x)
-                    for (int z = pz0 - SK; z < pz0 + pd + SK; ++z) {
-                        const bool inPlot = x >= px0 && x < px0 + pw && z >= pz0 && z < pz0 + pd;
-                        int target;
-                        if (inPlot) {
-                            target = grade;
-                        } else {                                   // skirt: ramp grade -> natural, <=1/cube
-                            const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
-                            const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
-                            const int dist = std::max(dx, dz);     // Chebyshev distance outside the plot
-                            const int nat = groundTopAt(x, z);
-                            target = (nat > grade) ? std::min(nat, grade + dist)
-                                                   : std::max(nat, grade - dist);
+            for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
+                const Core::Rect pr = layout.plots[pi].rect;   // by value into the unit
+                const std::string ph = "terracing parcel " + std::to_string(pi + 1) + "/" +
+                                       std::to_string(layout.plots.size());
+                units.push_back({ph, [this, pr, ox, oz, oy, terrainTopAt, groundTopAt]() {
+                    if (!chunkManager) return;
+                    const int SK = 4;             // skirt width blending plot grade -> natural
+                    const int px0 = ox + pr.x, pz0 = oz + pr.z, pw = pr.w, pd = pr.d;
+                    if (pw < 2 || pd < 2) return;
+                    std::vector<int> tops;
+                    for (int x = px0; x < px0 + pw; ++x)
+                        for (int z = pz0; z < pz0 + pd; ++z) tops.push_back(terrainTopAt(x, z));
+                    std::sort(tops.begin(), tops.end());
+                    const int grade = tops[tops.size() / 2];      // median plot grade
+                    std::vector<glm::ivec3> tcut;
+                    Core::StructureResult tfill;
+                    auto addT = [&](int x, int y, int z, const char* mat) {
+                        Core::VoxelPlacement vp; vp.position = glm::ivec3(x, y, z);
+                        vp.material = mat; vp.level = Core::VoxelLevel::Cube;
+                        tfill.voxels.push_back(vp);
+                    };
+                    for (int x = px0 - SK; x < px0 + pw + SK; ++x)
+                        for (int z = pz0 - SK; z < pz0 + pd + SK; ++z) {
+                            const bool inPlot = x >= px0 && x < px0 + pw && z >= pz0 && z < pz0 + pd;
+                            int target;
+                            if (inPlot) {
+                                target = grade;
+                            } else {               // skirt: ramp grade -> natural, <=1/cube
+                                const int dx = std::max({px0 - x, x - (px0 + pw - 1), 0});
+                                const int dz = std::max({pz0 - z, z - (pz0 + pd - 1), 0});
+                                const int dist = std::max(dx, dz);
+                                const int nat = terrainTopAt(x, z);
+                                target = (nat > grade) ? std::min(nat, grade + dist)
+                                                       : std::max(nat, grade - dist);
+                            }
+                            // cur stays RAW (flora-inclusive): everything above the graded target —
+                            // including a tree on the parcel — is cleared by the cut loop.
+                            const int cur = groundTopAt(x, z);
+                            if (target == cur) continue;
+                            for (int y = target + 1; y <= cur; ++y) tcut.push_back(glm::ivec3(x, y, z));
+                            for (int y = cur + 1; y < target; ++y) addT(x, y, z, "Dirt");
+                            tcut.push_back(glm::ivec3(x, target, z));   // resurface graded top
+                            addT(x, target, z, "Grass");
                         }
-                        const int cur = groundTopAt(x, z);
-                        if (target == cur) continue;               // already at target (flat / skirt tail)
-                        for (int y = target + 1; y <= cur; ++y) { tcut.push_back(glm::ivec3(x, y, z)); ++tCut; }
-                        for (int y = cur + 1; y < target; ++y) { addT(x, y, z, "Dirt"); ++tFill; }
-                        tcut.push_back(glm::ivec3(x, target, z));  // (re)surface the graded top as Grass
-                        addT(x, target, z, "Grass"); ++tFill;
-                        ++terracedCols;
-                    }
-                if (!tcut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, tcut);
-                if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
+                    if (!tcut.empty())         Core::StructureGenerator::removeVoxels(chunkManager, tcut);
+                    if (!tfill.voxels.empty()) Core::StructureGenerator::place(chunkManager, tfill);
+                    LOG_INFO_FMT("Settlement", "terrace: parcel graded (cut " << tcut.size()
+                                 << ", fill " << tfill.voxels.size() << ")");
+                }});
             }
-            if (terracedCols > 0) chunkManager->buildAllChunkPhysics();
-            LOG_INFO_FMT("Settlement", "terrace: graded " << layout.plots.size() << " parcels ("
-                         << terracedCols << " columns, cut " << tCut << " fill " << tFill << ")");
+            // one REGIONAL physics pass after ALL parcels (never whole-world, never per-parcel)
+            units.push_back({"terrace physics", [this, ox, oz, W, D, reqY = oy]() {
+                if (chunkManager)
+                    chunkManager->buildChunkPhysicsInRegion(
+                        glm::ivec3(ox - 8, 0, oz - 8), glm::ivec3(ox + W + 8, reqY + 96, oz + D + 8));
+            }});
         }
 
         nlohmann::json queued = nlohmann::json::array();
+        // Building units are collected separately and appended AFTER the street/fence/prop units:
+        // paving must run first (spur anchors sample ground — a built wall would read as terrain).
+        std::vector<std::pair<std::string, std::function<void()>>> buildingUnits;
         std::vector<glm::ivec3> doorCenters;  // per-building path anchor (footprint centre at seated ground)
         std::vector<glm::ivec4> bFoot;        // per-building footprint (x,z,w,d) — paths must not pave under it (V7)
         for (size_t i = 0; i < buildings.size(); ++i) {
@@ -10684,37 +10876,51 @@ void Application::registerSettlementCommands() {
             // terrain-BLIND red baseline for the seating invariant is REPRODUCIBLE (verify_terrain_seating.py
             // --seat-flat). This isolates the seating variable: same buildable plots, only `by` changes.
             // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
-            const Core::BuildingVariant var =
-                Core::pickBuildingVariant(static_cast<int>(i), mix, styles, varietySeed);
+            // Main-street mode pins the ASSIGNED typology (the plot was sized from it); style/shape
+            // still vary per plot.
+            const Core::BuildingVariant var = Core::pickBuildingVariant(
+                static_cast<int>(i),
+                mainStreetMode ? std::vector<std::string>{b.typology} : mix,
+                styles, varietySeed);
             // Natural footprint from the typology canon: long axis = bays * bay_length, short axis =
             // width_max; oriented along the plot's longer side, clamped to the plot, then CENTRED.
+            // (Main-street mode: b.footprint IS the natural, street-oriented footprint already —
+            // planMainStreetLayout sized the plot from the typology, so no resize here.)
             int bw = plotW, bd = plotD;
-            if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
-                const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                   : rp->widthMin));
-                if (plotW >= plotD) { bw = natLong; bd = natShort; }
-                else                { bw = natShort; bd = natLong; }
-                bw = std::min(std::max(1, bw), plotW);
-                bd = std::min(std::max(1, bd), plotD);
+            if (!mainStreetMode) {
+                if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
+                    const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                    const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                       : rp->widthMin));
+                    if (plotW >= plotD) { bw = natLong; bd = natShort; }
+                    else                { bw = natShort; bd = natLong; }
+                    bw = std::min(std::max(1, bw), plotW);
+                    bd = std::min(std::max(1, bd), plotD);
+                }
             }
             const int bx = plotX + (plotW - bw) / 2;   // centre the building in its plot
             const int bz = plotZ + (plotD - bd) / 2;
+            // Terrain seating happens INSIDE the building unit (post-terrace units); this value
+            // is the PLAN estimate used for path anchors + the response echo.
             const int by = (terrain && !seatFlat)
-                ? groundTopAt(bx + bw / 2, bz + bd / 2)
+                ? terrainTopAt(bx + bw / 2, bz + bd / 2)
                 : oy;
+            const bool seatInUnit = terrain && !seatFlat;
             // Street-facing front hint (OpeningsLayoutTest.FrontHint*): the entrance wall faces
             // the plot's street side. The building rect is axis-aligned in settlement coords, so
             // 'S' (street at -z) = its local z0 wall, etc. No street (terrain mode) = no hint.
             std::string front;
-            if (b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size()) {
-                switch (Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)) {
-                    case 'S': front = "z0"; break;
-                    case 'N': front = "z1"; break;
-                    case 'W': front = "x0"; break;
-                    case 'E': front = "x1"; break;
-                    default: break;
-                }
+            const char fside = mainStreetMode
+                ? msl.assigned[i].streetSide   // explicit: the side this plot ABUTS the main street
+                : ((b.plotIndex >= 0 && b.plotIndex < (int)layout.plots.size())
+                       ? Core::streetSideForPlot(layout, layout.plots[b.plotIndex].rect)
+                       : (char)0);
+            switch (fside) {
+                case 'S': front = "z0"; break;
+                case 'N': front = "z1"; break;
+                case 'W': front = "x0"; break;
+                case 'E': front = "x1"; break;
+                default: break;
             }
             nlohmann::json bp = {
                 {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
@@ -10724,10 +10930,34 @@ void Application::registerSettlementCommands() {
                 {"substructure", "slab"},
                 {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})}
             };
-            Core::APICommand sub;
-            sub.action = "build_structure";
-            sub.params = bp;
-            apiCommandQueue->push(std::move(sub));   // built next frame via the proven path
+            // [no-frozen-engine] one building = one work unit calling the SAME v2 pipeline the
+            // build_structure command uses (no queue-push: the whole queue drains in ONE frame,
+            // which is exactly the freeze this replaces). Terrain seating re-samples the graded
+            // ground at RUN time (terrace units precede building units).
+            const std::string ph = "building " + std::to_string(i + 1) + "/" +
+                                   std::to_string(buildings.size());
+            buildingUnits.push_back({ph, [this, bp, seatInUnit, bw, bd, oy]() mutable {
+                if (!chunkManager) return;
+                if (seatInUnit) {
+                    const int cx = bp["position"].value("x", 0) + bw / 2;
+                    const int cz = bp["position"].value("z", 0) + bd / 2;
+                    bp["position"]["y"] =
+                        settlementTopScan(chunkManager, oy, cx, cz, /*floraBlind=*/true);
+                }
+                Core::StructureBuildService::Deps deps;
+                deps.chunkManager  = chunkManager;
+                deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
+                deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
+                deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
+                deps.npcs          = npcManager ? &*npcManager : nullptr;
+                deps.pushUndo      = [this](const glm::ivec3& a, const glm::ivec3& b2,
+                                            const std::string& label) {
+                    pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b2, label);
+                };
+                const auto res = Core::StructureBuildService::buildV2(bp, deps);
+                if (res.contains("error"))
+                    LOG_WARN_FMT("Settlement", "building unit failed: " << res["error"].dump());
+            }});
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({bw, bd})},
                               {"typology", var.typology}, {"style", var.style}, {"shape", var.footprintShape}});
@@ -10737,40 +10967,148 @@ void Application::registerSettlementCommands() {
         LOG_INFO_FMT("Settlement", "build_settlement: " << layout.plots.size() << " plots, "
                      << buildings.size() << " buildings queued (" << layout.streets.size() << " streets)");
 
-        // PATH NETWORK (3c): connect the buildings into a walkable graded network over the live terrain.
-        // Anchors are each building's footprint-centre at its seated ground (micro = cube*9). The planner
-        // (MST + grade each edge to <= step-up risers) decides the routes; edges too steep for a straight
-        // ramp are reported, not dropped. (Voxel stamping of the surfaces: sub-slice 2.)
+        // CIRCULATION: main-street settlements pave the STREET NETWORK as real geometry (StreetPaver
+        // #39 slice 2 — full-width graded streets + a spur per front door, tier material, CUT columns
+        // honored); cluster/legacy terrain settlements keep the door-to-door MST ribbon (3c).
         nlohmann::json pathsJson = nlohmann::json::object();
-        if (terrain && chunkManager && doorCenters.size() >= 2) {
-            // Walkable surface micro = top FACE of the highest solid cube = (cube+1)*9.
-            auto surfMicro = [&](int wx, int wz) { return (groundTopAt(wx, wz) + 1) * 9; };
+        const Core::AgentBox abox;  // defaults match the engine character (step-up 4 micro)
+        // micro <-> cube helpers + the microcube stamper, shared by street paving, the MST ribbon,
+        // and the fences. Walkable surface micro = top FACE of the highest solid cube = (cube+1)*9.
+        // NOTE: all helpers below capture BY VALUE — they are copied into work units that
+        // outlive this handler's stack frame.
+        auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
+        auto rem9 = [](int v) { int r = v % 9; return r < 0 ? r + 9 : r; };
+        auto surfMicro = [terrainTopAt](int wx, int wz) { return (terrainTopAt(wx, wz) + 1) * 9; };
+        auto groundMicro = [surfMicro, fl9](int mx, int mz) { return surfMicro(fl9(mx), fl9(mz)); };
+        // [no-frozen-engine] BULK micro emit: collect placements into a StructureResult and let
+        // StructureGenerator::place() write them (direct chunk writes, bulk-deferred collision,
+        // dirty-marked remesh) instead of the per-voxel addMicrocubeWithMaterial wrapper — the
+        // wrapper made the city's 268k-column paving take 181 s on the main thread.
+        auto emitMicro = [fl9, rem9](Core::StructureResult& out, int mx, int my, int mz,
+                             const std::string& mat) {
+            Core::VoxelPlacement vp;
+            vp.level = Core::VoxelLevel::Microcube;
+            vp.position = glm::ivec3(fl9(mx), fl9(my), fl9(mz));
+            const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
+            vp.subcubePos = glm::ivec3(rx / 3, ry / 3, rz / 3);
+            vp.microcubePos = glm::ivec3(rx % 3, ry % 3, rz % 3);
+            vp.material = mat;
+            out.voxels.push_back(vp);
+        };
+        std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED — fences gap here (V1)
+
+        if (mainStreetMode && chunkManager) {
+            // STREET PAVING (Phase 2), as ONE work unit: grade + pave the full street width in the
+            // tier's material, plus a spur from every building's front-wall midpoint. CUT columns
+            // honored (terrain removed above the graded surface, then capped).
+            units.push_back({"grading + paving streets",
+                [this, tierStreetMat = tierP->street.material, msl, streets = layout.streets,
+                 bFoot, ox, oz, groundMicro, groundTopAt, isFloraMat, fl9, emitMicro, abox,
+                 pathsJsonP, sharedPaved]() {
+            if (!chunkManager) return;
+            auto& pathsJson = *pathsJsonP;
+            auto& pavedCols = *sharedPaved;
+            const std::string paveMat = tierStreetMat;
             std::vector<Core::DoorAnchor> doors;
-            for (const auto& d : doorCenters) doors.push_back({d.x * 9, d.z * 9, (d.y + 1) * 9});
-            const Core::AgentBox abox;  // defaults match the engine character (step-up 4 micro)
-            auto groundMicro = [&](int mx, int mz) { return surfMicro(mx / 9, mz / 9); };
+            for (const auto& ap : msl.assigned) {
+                const int fx = ox + ap.footprint.x, fz = oz + ap.footprint.z;
+                const int fw = ap.footprint.w, fdp = ap.footprint.d;
+                int dxm = 0, dzm = 0;   // micro, just OUTSIDE the front wall's midpoint
+                switch (ap.streetSide) {
+                    case 'S': dxm = (fx + fw / 2) * 9 + 4; dzm = fz * 9 - 5; break;
+                    case 'N': dxm = (fx + fw / 2) * 9 + 4; dzm = (fz + fdp) * 9 + 4; break;
+                    case 'W': dxm = fx * 9 - 5; dzm = (fz + fdp / 2) * 9 + 4; break;
+                    default:  dxm = (fx + fw) * 9 + 4; dzm = (fz + fdp / 2) * 9 + 4; break;  // 'E'
+                }
+                doors.push_back({dxm, dzm, groundMicro(dxm, dzm)});
+            }
+            const Core::PavingPlan pave = Core::planStreetPaving(
+                streets, glm::ivec2(ox, oz), doors, bFoot, groundMicro, abox, paveMat);
+            const double t0 = glfwGetTime();
+            // Pass A (read): stamp-start row per column against the ORIGINAL terrain.
+            std::vector<int> startRow(pave.columns.size());
+            for (size_t i = 0; i < pave.columns.size(); ++i) {
+                const auto& c = pave.columns[i];
+                startRow[i] = c.cut ? (c.surface / 9) * 9 : groundMicro(c.x, c.z);
+            }
+            // Pass B: remove the terrain cubes whose top face exceeds a cut column's surface,
+            // AND clear the road corridor of FLORA — a tree standing in the roadway (biome flora)
+            // is felled per cube column (Log*/Leaf* above the road surface), like a real road.
+            std::set<std::tuple<int, int, int>> cutCubes;
+            std::set<std::pair<int, int>> clearedCols;
+            for (const auto& c : pave.columns) {
+                const int cbx = fl9(c.x), cbz = fl9(c.z);
+                if (c.cut) {
+                    const int top = groundTopAt(cbx, cbz);
+                    for (int y = c.surface / 9; y <= top; ++y) cutCubes.insert({cbx, y, cbz});
+                }
+                if (clearedCols.insert({cbx, cbz}).second) {
+                    const int rawTop = groundTopAt(cbx, cbz);
+                    for (int y = c.surface / 9; y <= rawTop; ++y)
+                        if (const auto* cu = chunkManager->getCubeAt(glm::ivec3(cbx, y, cbz)))
+                            if (isFloraMat(cu->getMaterialName())) cutCubes.insert({cbx, y, cbz});
+                }
+            }
+            if (!cutCubes.empty()) {
+                std::vector<glm::ivec3> cuts;
+                cuts.reserve(cutCubes.size());
+                for (const auto& t : cutCubes)
+                    cuts.push_back({std::get<0>(t), std::get<1>(t), std::get<2>(t)});
+                Core::StructureGenerator::removeVoxels(chunkManager, cuts);
+            }
+            // Pass C (read, post-removal, pre-stamp): a removed cube may sit under a NEIGHBOUR
+            // column's paving (same cube column, different micro surface) — extend that column's
+            // stamp down to the new ground so no paving edge floats over a void.
+            for (size_t i = 0; i < pave.columns.size(); ++i)
+                startRow[i] = std::min(startRow[i], groundMicro(pave.columns[i].x, pave.columns[i].z));
+            // Pass D (write): BATCH every column [startRow .. surface] and place in one bulk call.
+            Core::StructureResult paveBatch;
+            for (size_t i = 0; i < pave.columns.size(); ++i) {
+                const auto& c = pave.columns[i];
+                pavedCols.insert({fl9(c.x), fl9(c.z)});
+                for (int my = startRow[i]; my <= c.surface; ++my)
+                    emitMicro(paveBatch, c.x, my, c.z, paveMat);
+            }
+            const long placedMicros =
+                Core::StructureGenerator::place(chunkManager, paveBatch).placed;
+            chunkManager->rebuildOccupancyFromChunks();
+            const double stampMs = (glfwGetTime() - t0) * 1000.0;
+            LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
+                         << pave.columns.size() << " columns (" << pave.levelCols << " level, "
+                         << pave.fillCols << " fill, " << pave.cutCols << " cut honored, "
+                         << cutCubes.size() << " cubes removed), spurs " << pave.spursPlanned
+                         << " ok / " << pave.spursFailed << " too steep, " << paveMat << ", "
+                         << static_cast<long>(stampMs) << " ms");
+            pathsJson = {{"paved_columns", static_cast<long>(pave.columns.size())},
+                         {"paved_microcubes", placedMicros},
+                         {"level_cols", pave.levelCols}, {"fill_cols", pave.fillCols},
+                         {"cut_cols_honored", pave.cutCols},
+                         {"cut_cubes_removed", static_cast<long>(cutCubes.size())},
+                         {"cut_cells_unpaved", 0},
+                         {"spurs", pave.spursPlanned}, {"spurs_too_steep", pave.spursFailed},
+                         {"material", paveMat}, {"stamp_ms", static_cast<long>(stampMs)}};
+            }});
+        } else if (terrain && chunkManager && doorCenters.size() >= 2) {
+            // MST door-to-door path network (cluster/legacy morphology), as ONE work unit.
+            units.push_back({"grading + paving paths",
+                [this, doorCenters, bFoot, ox, oy, groundMicro, surfMicro, fl9, emitMicro, abox,
+                 pathsJsonP, sharedPaved]() {
+            if (!chunkManager) return;
+            auto& pathsJson = *pathsJsonP;
+            auto& pavedCols = *sharedPaved;
+            const std::string paveMat = "Cobblestone";
+            std::vector<Core::DoorAnchor> doors;
+            for (const auto& d : doorCenters)
+                doors.push_back({d.x * 9, d.z * 9,
+                                 (settlementTopScan(chunkManager, oy, d.x, d.z, true) + 1) * 9});
             const Core::SettlementPaths net = Core::planSettlementPaths(doors, groundMicro, abox);
             LOG_INFO_FMT("Settlement", "paths: " << net.connected << "/" << net.edges
                          << " edges graded, " << net.failedEdges.size() << " too steep");
 
             // STAMP the graded path surfaces as voxels (sub-slice 2): a Cobblestone paving ribbon carved
-            // PERPENDICULAR to travel (±halfWidth). HONEST SCOPE — this stamps ONLY the FILL portion (where
-            // the graded surface S rises ABOVE the terrain): those microcubes sit in open air and place
-            // cleanly, forming the raised causeways. On LEVEL cells the terrain surface already is the
-            // walkable top (no voxel needed). On CUT cells (S below terrain) a microcube can't be added
-            // where a terrain CUBE already sits, and the terrain above S is NOT removed — so cut sections
-            // are NOT yet paved/walkable. Faithful level-replace + cut-removal (micro-subdividing terrain)
-            // is owed (Phase 4). micro -> (cube, subcube, microcube): 1 cube = 9 micro = 3 sub x 3 micro.
-            const std::string pave = "Cobblestone";
-            auto fl9 = [](int v) { return v >= 0 ? v / 9 : -((-v + 8) / 9); };
-            auto rem9 = [](int v) { int r = v % 9; return r < 0 ? r + 9 : r; };
-            auto stampMicro = [&](int mx, int my, int mz) -> bool {
-                const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
-                const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
-                chunkManager->ensureChunkAt(cube);
-                return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                    cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), pave);
-            };
+            // PERPENDICULAR to travel (±halfWidth). HONEST SCOPE — this stamps ONLY the FILL portion
+            // (where the graded surface S rises ABOVE the terrain); CUT cells stay unpaved on the MST
+            // ribbon (main-street settlements route through StreetPaver above, which honors cuts).
             // READ PASS: collect the unique corridor cells (perpendicular carve, deduped) with their target
             // surface S and the ORIGINAL terrain — BEFORE any stamping, so the paving we add doesn't raise
             // the terrain we measure against for later cells.
@@ -10794,7 +11132,6 @@ void Application::registerSettlementCommands() {
             // WRITE PASS: pave each cell. FILL/LEVEL (S>=terr) place a Cobblestone ribbon from the terrain
             // up to S — the top microcube sits in open air (no terrain cube to subdivide), so it is cheap.
             long placedFill = 0, levelPaved = 0, cut = 0;
-            std::set<std::pair<int, int>> pavedCols;   // CUBE columns actually PAVED (Cobblestone) — fences gap here (V1)
             // V7: a path must route AROUND buildings — never pave the footprint INTERIOR (inset 1 from the
             // walls so a path meeting the door at the perimeter is fine, matching the V7 detector).
             auto insideFootprint = [&](int cbx, int cbz) {
@@ -10804,6 +11141,7 @@ void Application::registerSettlementCommands() {
                 return false;
             };
             const double t0 = glfwGetTime();
+            Core::StructureResult levelBatch, fillBatch;   // bulk emit (see emitMicro note)
             for (const auto& kv : col) {
                 const int cx = static_cast<int>(kv.first >> 32), cz = static_cast<int>(static_cast<int32_t>(kv.first & 0xffffffffLL));
                 const int ccx = fl9(cx), ccz = fl9(cz);
@@ -10811,9 +11149,12 @@ void Application::registerSettlementCommands() {
                 const int S = kv.second.first, terr = kv.second.second;
                 if (S >= terr) {
                     pavedCols.insert({ccx, ccz});          // V1: only REALLY-paved columns gap the fence (not cut cells)
-                    for (int my = terr; my <= S; ++my) { if (stampMicro(cx, my, cz)) (S == terr ? ++levelPaved : ++placedFill); }
+                    for (int my = terr; my <= S; ++my)
+                        emitMicro(S == terr ? levelBatch : fillBatch, cx, my, cz, paveMat);
                 } else ++cut;  // S below terrain -> owed: removeMicrocube above S (36b)
             }
+            levelPaved = Core::StructureGenerator::place(chunkManager, levelBatch).placed;
+            placedFill = Core::StructureGenerator::place(chunkManager, fillBatch).placed;
             const double stampMs = (glfwGetTime() - t0) * 1000.0;
             chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
             LOG_INFO_FMT("Settlement", "paths: paved " << (placedFill + levelPaved) << " microcubes ("
@@ -10824,11 +11165,19 @@ void Application::registerSettlementCommands() {
                          {"paved_microcubes", placedFill + levelPaved}, {"level_caps", levelPaved},
                          {"fill_microcubes", placedFill}, {"cut_cells_unpaved", cut},
                          {"stamp_ms", static_cast<long>(stampMs)}};
+            }});
+        }
 
-            // FENCES + YARDS (#39, GROUNDED): a THIN typed fence (not a 1 m cube wall) along each parcel
-            // edge, built from the dimension canon (object_dimensions.json: fence_picket height 0.9 m,
-            // post_spacing 1.8 m, 2 rails) as posts + rails + pickets at MICROCUBE resolution (~0.11 m
-            // thick). Gate (a gap) faces the settlement centre / path network.
+        // FENCES + YARDS (#39, GROUNDED), as ONE work unit: a THIN typed fence along each parcel
+        // edge (canon picket dims), gate onto the parcel's street (main-street) or toward the
+        // settlement centre (scatter). Runs for terrain scatter AND any main-street settlement.
+        if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
+            units.push_back({"fencing parcels",
+                [this, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved]() {
+            if (!chunkManager) return;
+            auto& pathsJson = *pathsJsonP;
+            auto& pavedCols = *sharedPaved;
             Core::DimensionCanonRegistry fenceCanon;
             fenceCanon.loadFromFile("resources/object_dimensions.json");
             const Core::FenceType fenceType = Core::FenceType::Picket;
@@ -10845,22 +11194,24 @@ void Application::registerSettlementCommands() {
                 const long long k = (static_cast<long long>(cx) << 32) ^ (cz & 0xffffffffLL);
                 auto it = gtMemo.find(k);
                 if (it != gtMemo.end()) return it->second;
-                const int v = groundTopAt(cx, cz); gtMemo[k] = v; return v;
+                const int v = terrainTopAt(cx, cz); gtMemo[k] = v; return v;
             };
-            auto fenceMicro = [&](int mx, int my, int mz) {
-                const glm::ivec3 cube(fl9(mx), fl9(my), fl9(mz));
-                const int rx = rem9(mx), ry = rem9(my), rz = rem9(mz);
-                chunkManager->ensureChunkAt(cube);
-                return chunkManager->m_voxelModificationSystem.addMicrocubeWithMaterial(
-                    cube, glm::ivec3(rx / 3, ry / 3, rz / 3), glm::ivec3(rx % 3, ry % 3, rz % 3), "Log");
-            };
+            Core::StructureResult fenceBatch;   // bulk emit — one place() for ALL parcels
             long fenceMicros = 0; int parcels = 0;
-            for (const auto& pl : layout.plots) {
+            for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
+                const auto& pl = layout.plots[pi];
                 const Core::Rect& pr = pl.rect;
                 if (pr.w < 2 || pr.d < 2) continue;
-                const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
-                const char gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
-                                                                              : (scz > pcz ? 'N' : 'S');
+                // Gate side: a main-street parcel opens onto ITS street (the burgage frontage);
+                // a scatter parcel faces the settlement centroid / path network.
+                char gate;
+                if (mainStreetMode && pi < msl.assigned.size()) {
+                    gate = msl.assigned[pi].streetSide;
+                } else {
+                    const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
+                    gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
+                                                                       : (scz > pcz ? 'N' : 'S');
+                }
                 ++parcels;
                 // stamp one parcel edge: run along an axis at a fixed boundary cube row; leave the gate gap.
                 const int NDX[4] = {1, -1, 0, 0}, NDZ[4] = {0, 0, 1, -1};
@@ -10886,7 +11237,7 @@ void Application::registerSettlementCommands() {
                             if (std::abs(gtAt(ccx + NDX[k], ccz + NDZ[k]) - g0) >= 2) { cliff = true; break; }
                         if (cliff) continue;
                         const int base = (g0 + 1) * 9;                         // top face of terrain
-                        if (fenceMicro(wx, base + c.y, wz)) ++fenceMicros;
+                        emitMicro(fenceBatch, wx, base + c.y, wz, "Log");
                     }
                 };
                 // N/S run the full width (incl. corners); W/E EXCLUDE the corner rows so each corner is
@@ -10896,19 +11247,107 @@ void Application::registerSettlementCommands() {
                 stampEdge(false, pr.x,        pr.z + 1, pr.z1() - 1, 'W');
                 stampEdge(false, pr.x1() - 1, pr.z + 1, pr.z1() - 1, 'E');
             }
+            fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fenceMicros
                          << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
             pathsJson["parcels"] = parcels;
             pathsJson["fence_micros"] = fenceMicros;
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
+            }});
         }
 
-        r = {{"success", true},
-             {"settlement", {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
-                             {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}}},
-             {"paths", pathsJson},
-             {"queued_builds", queued}};
+        // YARD PROPS + the shared WELL (#29/#25 minimum slice), as ONE work unit: a woodpile
+        // behind each house + a kitchen-garden bed in the open toft (planYardProps); tier
+        // `public.well` anchors the market square (town) or the street verge (village).
+        // Skips are COUNTED, never silent.
+        if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
+            units.push_back({"yard props + well",
+                [this, msl, ox, oz, seed, terrainTopAt, pubWell = tierP->pub.well, propsJsonP]() {
+            if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
+            int propsPlaced = 0, propsSkipped = 0;
+            auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
+                const std::string tmpl = Core::FurnitureCatalog::templateFor(type);
+                if (tmpl.empty() || !objectTemplateManager->getTemplate(tmpl)) return false;
+                const int gy = terrainTopAt(cx, cz) + 1;             // stand on the ground/paving
+                return !placedObjectManager
+                            ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9), rot, "")
+                            .empty();
+            };
+            for (const auto& ap : msl.assigned)
+                for (const auto& yp : Core::planYardProps(ap, seed))
+                    (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
+                                                                           : ++propsSkipped);
+            if (pubWell) {
+                int wcx, wcz;
+                if (msl.hasSquare) {                  // the town well anchors the market square
+                    wcx = ox + msl.marketSquare.x + msl.marketSquare.w / 2;
+                    wcz = oz + msl.marketSquare.z + msl.marketSquare.d / 2;
+                } else {                              // village: the main street's verge, mid-length
+                    const Core::Rect& ms = msl.mainStreet;
+                    const bool msAlongX = ms.w >= ms.d;
+                    wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                    wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
+                }
+                (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
+            }
+            LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
+                         << propsSkipped << " skipped");
+            (*propsJsonP) = {{"placed", propsPlaced}, {"skipped", propsSkipped}};
+            }});
+        }
+
+        // Buildings LAST (site prep — terrace/streets/fences/props — must precede them).
+        for (auto& bu : buildingUnits) units.push_back(std::move(bu));
+
+        nlohmann::json programJson = nlohmann::json::object();
+        if (programMode && tierP) {
+            // Echo {era, tier, seed} so a live build is exactly reproducible (determinism contract).
+            programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
+                           {"morphology", tierP->morphology}};
+            if (mainStreetMode) {
+                programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
+                                              {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};
+                programJson["dropped_plots"] = droppedPlots;
+                if ((int)buildings.size() < tierP->buildingsMin)
+                    programJson["below_tier_min"] = tierP->buildingsMin;   // surfaced, not silent
+            }
+        }
+        const nlohmann::json settlementJson =
+            {{"plots", layout.plots.size()}, {"streets", layout.streets.size()},
+             {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}};
+
+        // [no-frozen-engine] async by DEFAULT: enqueue the units as a tracked MainThreadJob
+        // (one unit per frame, progress via /api/jobs + the Active Jobs overlay) and return the
+        // job id + plan immediately. {"async": false} runs every unit inline (full sync response).
+        const bool asyncBuild = p.value("async", true) && mainThreadJobs != nullptr;
+        if (asyncBuild) {
+            const std::string label = programMode
+                ? ("settlement " + era + "/" + tierName + " seed " + std::to_string(seed))
+                : "settlement (legacy params)";
+            const auto jobId = mainThreadJobs->start("build_settlement", label);
+            for (auto& u : units) mainThreadJobs->addUnit(jobId, u.first, std::move(u.second));
+            // final unit: fold the phase results into the job's payload
+            mainThreadJobs->addUnit(jobId, "finalizing",
+                [this, jobId, pathsJsonP, propsJsonP]() {
+                    if (mainThreadJobs)
+                        mainThreadJobs->mergeResult(jobId, {{"paths", *pathsJsonP},
+                                                            {"yard_props", *propsJsonP}});
+                });
+            mainThreadJobs->seal(jobId);
+            r = {{"success", true}, {"job_id", jobId}, {"async", true},
+                 {"settlement", settlementJson}, {"program", programJson},
+                 {"queued_builds", queued}};
+        } else {
+            for (auto& u : units)
+                if (u.second) u.second();
+            r = {{"success", true},
+                 {"settlement", settlementJson},
+                 {"program", programJson},
+                 {"paths", *pathsJsonP},
+                 {"yard_props", *propsJsonP},
+                 {"queued_builds", queued}};
+        }
     });
 }
 

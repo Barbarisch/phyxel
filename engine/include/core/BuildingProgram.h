@@ -50,6 +50,7 @@ struct ProgPortal {
     int         px = 0, pz = 0;  ///< min corner of the opening along its wall
     int         width = 2, height = 3;
     std::string kind = "door";   ///< door | arch | window
+    std::string infill = "open"; ///< window reveal fill: open | shuttered | glass (window only)
     bool        lockable = false;
     std::string key;             ///< required item id to unlock (door only)
 

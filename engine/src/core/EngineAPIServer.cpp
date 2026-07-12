@@ -1133,8 +1133,12 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // POST /api/settlement/build — Compose a whole settlement (the engine drives
-    // subdivide_plots + populate_plots, then queues one building build per plot).
-    // Body: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
+    // the layout, then queues one building build per plot).
+    // PROGRAM MODE (preferred): { "era":"medieval", "tier":"hamlet|village|town|city",
+    //         "seed":3, "position":{...}, "width":80, "depth":40, "terrain":bool }
+    //   — morphology/palette/plot sizing come from resources/settlement_program.json
+    //     (village = main-street burgage rows; unknown era/tier is a surfaced error).
+    // LEGACY: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
     //         "street_width":4, "setback":2, "min_building":8, "typology":"hall_house" }
     // ====================================================================
     srv.Post("/api/settlement/build", [this](const httplib::Request& req, httplib::Response& res) {
@@ -4321,6 +4325,14 @@ void EngineAPIServer::setupRoutes() {
         uint64_t jobId = std::stoull(req.matches[1].str());
         auto status = m_jobSystem->getJobStatus(jobId);
         if (!status) {
+            // [no-frozen-engine] main-thread sliced jobs share the same lookup surface
+            if (m_mainThreadJobs) {
+                json mt = m_mainThreadJobs->statusJson(jobId);
+                if (!mt.is_null()) {
+                    res.set_content(mt.dump(), "application/json");
+                    return;
+                }
+            }
             res.status = 404;
             res.set_content(json{{"error", "Job not found"}, {"job_id", jobId}}.dump(), "application/json");
             return;
@@ -4343,6 +4355,8 @@ void EngineAPIServer::setupRoutes() {
         for (auto& s : jobs) {
             jobArray.push_back(s.toJson());
         }
+        if (m_mainThreadJobs)                     // merged: ONE progress surface for callers
+            for (auto& mj : m_mainThreadJobs->listJson()) jobArray.push_back(mj);
         res.set_content(json{{"jobs", jobArray}, {"count", jobArray.size()}}.dump(), "application/json");
     });
 
@@ -4357,6 +4371,7 @@ void EngineAPIServer::setupRoutes() {
 
         uint64_t jobId = std::stoull(req.matches[1].str());
         bool cancelled = m_jobSystem->cancelJob(jobId);
+        if (!cancelled && m_mainThreadJobs) cancelled = m_mainThreadJobs->cancel(jobId);
         res.set_content(json{{"job_id", jobId}, {"cancelled", cancelled}}.dump(), "application/json");
     });
 

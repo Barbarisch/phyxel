@@ -868,12 +868,22 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
 int StructureGenerator::removeVoxels(ChunkManager* chunkManager, const std::vector<glm::ivec3>& positions) {
     if (!chunkManager) return 0;
 
+    // [no-frozen-engine] bulk-defer per-voxel collision exactly like place(): the naive loop
+    // paid collision work per removed cell (measured: excav=1042 ms for one building's cells).
+    // Each touched chunk enters bulk mode once; collisions rebuild once per chunk at the end.
+    std::map<Chunk*, bool> touched;
+    for (const auto& pos : positions)
+        if (Chunk* c = chunkManager->getChunkAtFast(pos))
+            if (touched.emplace(c, true).second) c->beginBulkOperation();
+
     int removed = 0;
     for (const auto& pos : positions) {
         if (chunkManager->removeCube(pos)) {
             removed++;
         }
     }
+
+    for (auto& [c, _] : touched) c->endBulkOperation();
     return removed;
 }
 

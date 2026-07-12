@@ -149,6 +149,153 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   - **NEXT:** terrain — coastal beach/soft-shoreline material rule, world.db bake persistence; water —
     per-cell active-set, wire setOceanBoundary live, unify dual sea-level (Application.cpp:5404 vs 5498),
     long-walk stress test, then Phases B (hybrid render + per-lake levels) and C (fill the rivers/lakes).
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 7 (FURNITURE QUALITY B) SHIPPED 2026-07-10 — ROADMAP
+  COMPLETE (all 7 phases).** Mounting + data recipes + wealth tiers:
+  1. **Mounting** — `FurniturePlacer::mountFor` (wall_lantern/tool_rack=Wall, chandelier=
+     Ceiling) + `mountedMicroY` (sconce at the grounded 60″ = surface+14 micro; tool_rack
+     reach = +9; chandelier = ceiling−tmplH−1 with a ≥18-micro head-clearance floor).
+     Chandeliers place at the room CENTRE with NO floor-cell reservation (hang over the
+     centred table). Consumer (`StructureBuildService`): footprint extraction now captures
+     micro HEIGHT (template scan + `overall_max[1]` sidecar fallback); the fixture spawn Y
+     is `mountedMicroY(type, surfMicroY, surfMicroY + story.height*9, tmplMicroH)`.
+  2. **Data recipes + tiers** — `resources/furnishing_recipes.json` (hardcoded map = fallback
+     for unlisted purposes); pieces carry `tiers:[humble|middling|high]`; RoomProgram gained
+     `wealthTier` (room_program.json `wealth_tier`: croft/longhouse humble, hall_house/tavern/
+     shops middling, manor_hall high — REASONED status mapping). Humble chamber = bed/chest/
+     stool; middling adds wardrobe+rug; taproom adds wall_lantern+chandelier at middling+.
+  3. **Red→green:** `FurnitureMountTest` ×3 + `RecipeDataTest` ×3 (red vs stubs first). L4:
+     tavern_2 (11×16×2, SettlementTest, not saved) — 33 fixtures 0 unfit; sconce ON the wall
+     beside the fireplace, chandelier under the ceiling over the table (screenshots +
+     registered bboxes: lantern y18-19 over a y17 floor, chandelier y19-20 under y≈20).
+  **Follow-ups:** default `tavern` alias footprint is too small for the full taproom ensemble
+  (bar/back_bar/fireplace unfit at default size — honest warns; give the alias a
+  typology-derived default footprint); explicit 11×16 trips a warn-but-allow program-validation
+  error (footprint vs bay grammar — inspect); mount heights for more types (shelving, signage
+  interior) as assets arrive. The first
+  SOFT/CLOTH materials: `Linen` (ambientCG Fabric062, pale plain weave) + `Wool` (Fabric019
+  knit, dyed madder red by `tools/tint_wool.py` — re-run after any Wool re-fetch, same
+  precedent as gen_birch_bark; the shader ignores colorTint so the albedo carries the dye).
+  `bed_single` REGENERATED (gen_bed): WoodWalnut frame/headboard + Linen mattress/sheet/pillow
+  + Wool coverlet + lie_0 anchor — the V4 red test FLIPPED to `RealBedMaterialIsClean`
+  (detector keeps teeth via the synthetic fixture). NEW assets (canon-proportioned,
+  conformance ok): `chair` (chair_dining), `stool` (THE common seat), `wardrobe` (canon-flagged
+  post-medieval), `rug` (rug_oriental field + Wool border; NEW flagged canon entry — 1-micro
+  slab disclosed). Catalog + recipes: chamber = bed/chest/stool/wardrobe/rug(centered),
+  hall += chair, taproom/kitchen += stool. L4: hall_house solar screenshot — bed with visible
+  linen+wool, wardrobe, rug; 13 fixtures 0 skipped. NEXT: Phase 7 furniture B (Mount
+  wall/ceiling, furnishing_recipes.json data recipes + wealth_tier).
+
+- **NO-FROZEN-ENGINE (async builds + progress) SHIPPED 2026-07-10 — STANDING USER DIRECTIVE:
+  heavy work must never freeze the loop; progress must be visible.** The city L4 froze the
+  window ~25 min (28 synchronous builds inside ONE processAPICommands drain, API lying "no
+  project loaded"). Response, all MEASURED-first (buildV2 now logs `[perf] phases ms` +
+  returns `timings_ms`):
+  1. **Perf fixes:** fixture spawns did a synchronous rebuildFaces+GPU-upload per touched
+     chunk (76% of a build — 11.8 s of 15.5) → `spawnTemplateMicro` now dirty-marks (budgeted
+     DirtyChunkTracker remesh); street/fence stamping went through the per-voxel mod-system
+     wrapper (city paving 181 s) → bulk `place()` batches (city 20.5 s); `removeVoxels` got
+     place()-style bulk collision deferral; pad/basement/grass dropped their REDUNDANT
+     whole-world `buildAllChunkPhysics()` (endBulkOperation already rebuilds the same shapes
+     per touched chunk — the explicit pass cost 18-61 s/building at ~140 chunks). NEW
+     `ChunkManager::buildChunkPhysicsInRegion` for future regional needs. Per building:
+     15.5 s → **3.9 s** (Debug, ~90-chunk world).
+  2. **MainThreadJobs** (`engine/core/MainThreadJobs.{h,cpp}`): heavy MAIN-THREAD work sliced
+     into per-frame units with {phase, done, total} progress; merged into /api/jobs +
+     /api/job/{id} + cancel (ids from 1,000,000); ticked next to processCompletedJobs; an
+     **Active Jobs ImGui overlay** (progress bars, auto-shows while jobs run).
+     `build_settlement` is ASYNC BY DEFAULT: planning inline → returns job_id immediately;
+     terrace-per-parcel / paving / fences / props / one-unit-per-building run sliced
+     ({"async": false} = old inline behavior). Buildings seat in-unit (post-terrace).
+  3. **L4 responsiveness contract PROVEN:** seed-3 city (32 units) built while a probe hit
+     /api/status every 2 s: **478 samples, 0 failures, worst latency 454 ms**; window rendered
+     throughout (mid-build screenshot); progress visible in /api/jobs + overlay; spurs 28/28.
+  **Follow-ups:** per-building cost still pad/grass-bound at city scale (double bulk-rebuild
+  per phase — coalesce remove+place bulk sessions); the 5s queueAndWait can still eat the
+  SUBMIT response if the loop is busy with another long frame (job discoverable via /api/jobs);
+  rebuildOccupancyFromChunks (paving/fence units) still whole-world; verify scripts expecting
+  the sync settlement response must pass {"async": false}.
+
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 4 (MARKET TOWN TIER) SHIPPED 2026-07-09.** `tier:"town"`
+  is live end-to-end: the main street WIDENS into a building-free market square at mid-length
+  (widened-street market form; paved plaza; the tier well anchors its centre), and each burgage
+  row gets a BACK LANE + end connectors — one connected paved circuit (the allocator RESERVES
+  the lane band in availDepth). `MarketTownLayoutTest` 5 tests red-first vs the village-only
+  planner (incl. an L3 probe walking street → square → back lane over the paving plan). Live
+  find fixed red-pinned: flush setback-0 doors read as failed "too steep" spurs (11/21) — now
+  trivially connected. L4: 140×60 seed-3 town = 21 buildings / 8 street rects / square + well +
+  lane circuit, top view + square close-up verified. NEXT per roadmap: Phase 6/7 furniture
+  quality (cloth materials + gen_bed → V4 green; mounting + data recipes + wealth tiers) or
+  Phase 5 semi-organic city (most aesthetic-iteration-heavy — plan says either order works).
+
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 3 (TOWN-READ DEFECTS) SHIPPED 2026-07-09.** Three slices:
+  (1) **KI-1 roof hover was ALREADY FIXED** (eaveSub floor-div, V1 green) — BuildKnownIssues.md
+  was stale; corrected. (2) **WINDOW INFILL** — open-air window holes gone: `WindowSpec.infill`
+  (grounded default "shuttered" — no glazing pre-1558; "glass" mechanism proven via synthetic
+  program, real content waits on a GROUNDED manor_hall windows spec) threads WindowSpec →
+  ProgPortal → realizer → assembly_plan; realizer paints plank leaves (JOINERY wood on any wall):
+  closed leaf in the reveal / open panels folded back on the facade, deterministic per-opening
+  hash. `WindowInfillTest` red via stash-repro of the pre-infill realizer. (3) **YARD PROPS** —
+  NEW deterministic assets `well`/`woodpile`/`garden_bed` (regen_furniture.py, canon
+  INFERRED-flagged, conformance ok; the old un-grounded "Stone Well" template was REPLACED);
+  pure `planYardProps` furnishes the rear toft (woodpile at the rear wall, garden bed in the
+  open toft; inset-1/outside-building/rear-side/non-overlap invariants, `YardPropsTest`
+  red-first); tier `public.well` puts the well on the main street's verge at mid-length.
+  L4: seed-3 village = 22 props 0 skipped, shutters visible street-level (closed + open mix),
+  well on the verge, roofs flush. **Follow-ups:** woodpile/fence Log MICRO-sampling reads
+  washed-white (texture sub-tiling at micro scale — asset/render follow-up); grounded window
+  size still owed (#10). ⚠ origin/main has diverged (22 remote commits vs 3 local) — needs a
+  pull/rebase decision next session.
+
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 2 (STREET PAVING) SHIPPED 2026-07-09.** Streets are REAL
+  geometry: NEW `StreetPaver.{h,cpp}` — pure `planStreetPaving` grades each street centerline
+  (`planTerrainPath`), broadcasts a LEVEL cross-section across the full width, spurs every front
+  door to the street; **CUT columns honored** (applier removes terrain cubes above the graded
+  surface, then caps — closes the old `cut_cells_unpaved` ~6% gap for street morphologies; MST
+  ribbon keeps it for cluster). Tier material (village=Gravel). Red-first: `StreetPaverTest` 6
+  tests, coverage + end-to-end TraversalProbe walk red vs a fill/level-only stub. Fence gates
+  open onto the parcel's street. **L4 caught two real bugs (both fixed red-first):**
+  `chooseStreetAxis` short-axis bias + edge offsets (per-cell scoring + `minPlotDepth`), and
+  **flora-as-terrain** — biome trees graded as hills/cliffs (3 spurs "too steep" on FLAT ground,
+  236 s stamp); fixed via flora-blind `terrainTopAt` for ALL elevation decisions + road-corridor
+  felling (Log*/Leaf* above road surface), family of 523e4d2. L4: flat+flora village 49k Gravel
+  columns 11/11 spurs 0 unpaved (street-level screenshot: level road, fenced frontages, 61 FPS);
+  hills 2673 cuts honored 0 unpaved. **Follow-ups:** grass blades poke through the thin paving
+  cap (blade layer reads the Grass cube under the road — cosmetic); stamp perf ~10-30 s Debug
+  (per-stamp cost in populated chunks); terrain villages on hostile Perlin degrade to 1-2 plots
+  (honest, but wants #38 site SELECTION); runtime walkability probe over live chunks owed.
+  Test world: SettlementTest (NOW saved — flat+flora at z 256-351 w/ paved village at z=280,
+  Perlin hills + 1-building terrain village at x 192-352 / z 256-351).
+
+- **SETTLEMENT MORPHOLOGY v2 — PHASE 1 SHIPPED 2026-07-09 (committed 96dae68).** The
+  7-phase roadmap lives at `C:\Users\jack\.claude\plans\keen-twirling-dove.md` (era-as-data →
+  main street → paving → structure defects → market town → semi-organic city → furniture
+  quality A/B); user decisions: era is a DATA field from day one (medieval only implemented),
+  streets become REAL paved geometry (Phase 2), furniture direction = QUALITY (key rooms).
+  **Phase 1 shipped:** NEW `resources/settlement_program.json` (eras.medieval.tiers hamlet/
+  village/town/city — morphology, weighted typology palettes, street widths NEEDS-RESEARCH-
+  flagged, burgage plot rules; Tait/Wharram Percy grounding) + `SettlementProgramRegistry`
+  (`SettlementProgram.{h,cpp}`, unknown era/tier = surfaced error, never silent) +
+  `planMainStreetLayout`/`drawTypology`/`chooseStreetAxis` in `SettlementLayout.{h,cpp}` —
+  burgage morphology: typology assigned FIRST (weighted deterministic), plot sized FROM its
+  grounded width (frontage = building frontage + 2×setback), "long_wall" dwellings long-wall-
+  to-street, shops/tavern GABLE-to-street; buildings natural size, never stretched. Wired into
+  `build_settlement` (`{era,tier,seed}` program mode; legacy params bit-compatible; response
+  echoes the determinism triple). **Red-before-green:** frontage/orientation invariants proven
+  red against a uniform-frontage stub (`MainStreetLayoutTest`, 10 tests) + `SettlementProgramTest`
+  (5 data gates incl. tier-palette referential integrity). **L4 verified:** flat 120×44 seed-3
+  village = 14 buildings both sides of the street, tavern+blacksmith in the palette (closes
+  that AgentContext open thread), 0 footprint-gate warnings, 0 fixtures skipped, street-level
+  + top screenshots good; whole furnished village = **60.7k visible faces** (greedy-mesh era —
+  a single tavern was 412k before). **Live L4 caught a real bug:** `chooseStreetAxis` compared
+  TOTAL band relief (short-axis bias) and allowed edge offsets (one-sided village) — fixed
+  per-cell scoring + `minPlotDepth` offset restriction, red tests pinned. **Known gaps:** the
+  5s queueAndWait window loses terrain-mode responses (logged in StructurePipelineGaps.md);
+  terrain villages on rough Perlin degrade to few plots (honest dropped_plots count); streets
+  are still UNPAVED (Phase 2: StreetPaver extraction, full-width paving, cut-cell fix, door
+  spurs replace MST in street morphologies, L3 end-to-end street walk). Test project:
+  `PhyxelProjects/SettlementTest`. 12 pre-existing unit failures (MaterialRegistry counts,
+  NavGrid/AStar step-up, FurnitureConformance audit, etc.) are UNRELATED to this diff —
+  settlement suites all green.
 
 - **STRUCTURE-GEN CONSOLIDATION SESSION — SHIPPED 2026-07-07/08 (commits 2750983, e2e586a,
   c49469d, b708372 on main).** Four arcs, each red-before-green + runtime-verified:

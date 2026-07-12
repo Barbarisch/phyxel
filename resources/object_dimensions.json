@@ -1,139 +1,622 @@
 {
-  "_comment": "DimensionCanon — real-world canonical dimensions for generated objects, in CUBES (1 cube = 1 m). Sibling of character_design_constraints.json. Furniture HEIGHTS are anthropometric (body-derived, period-stable, character-bounded); TYPES/footprints are medieval. Every archetype carries a primary `source` + a per-value `sources` map (the grounding rule). 'INFERRED' = reasonable estimate, low confidence; 'POST-MEDIEVAL' = anachronistic for the medieval frame, flagged. See docs/structure-generation/StructureGenerationV2.md + docs/structure-generation/StructureBrief.md.",
+  "_comment": "DimensionCanon \u2014 real-world canonical dimensions for generated objects, in CUBES (1 cube = 1 m). Sibling of character_design_constraints.json. Furniture HEIGHTS are anthropometric (body-derived, period-stable, character-bounded); TYPES/footprints are medieval. Every archetype carries a primary `source` + a per-value `sources` map (the grounding rule). 'INFERRED' = reasonable estimate, low confidence; 'POST-MEDIEVAL' = anachronistic for the medieval frame, flagged. See docs/structure-generation/StructureGenerationV2.md + docs/structure-generation/StructureBrief.md.",
   "_units": "cubes (metres). 'tol' = tolerance in cubes. 'anchors' = required interaction-point ids.",
   "archetypes": {
-    "fence_picket":   { "category": "fence", "description": "Picket fence ~3 ft", "height": 0.9, "tol": 0.15, "post_spacing": 1.8, "rails": 2, "gate_min_w": 1.0,
+    "fence_picket": {
+      "category": "fence",
+      "description": "Picket fence ~3 ft",
+      "height": 0.9,
+      "tol": 0.15,
+      "post_spacing": 1.8,
+      "rails": 2,
+      "gate_min_w": 1.0,
       "source": "classic picket fence 3-4 ft (garonfence.com)",
-      "sources": { "height": "classic picket 3-4 ft = 0.9-1.2 m (garonfence.com / freedomfenceandrailing.com)", "post_spacing": "wood-fence posts 6-8 ft = 1.8-2.4 m (American Fence Assoc.)", "_note": "MEDIEVAL equivalent = paling fence; picket is the same form" } },
-    "fence_privacy":  { "category": "fence", "description": "Solid privacy fence ~6 ft", "height": 1.8, "tol": 0.15, "solid": true, "post_spacing": 2.4, "gate_min_w": 1.0,
+      "sources": {
+        "height": "classic picket 3-4 ft = 0.9-1.2 m (garonfence.com / freedomfenceandrailing.com)",
+        "post_spacing": "wood-fence posts 6-8 ft = 1.8-2.4 m (American Fence Assoc.)",
+        "_note": "MEDIEVAL equivalent = paling fence; picket is the same form"
+      }
+    },
+    "fence_privacy": {
+      "category": "fence",
+      "description": "Solid privacy fence ~6 ft",
+      "height": 1.8,
+      "tol": 0.15,
+      "solid": true,
+      "post_spacing": 2.4,
+      "gate_min_w": 1.0,
       "source": "standard privacy fence 6 ft (freedomfenceandrailing.com)",
-      "sources": { "height": "privacy fence 6 ft (6-8 ft range) = 1.8-2.4 m (freedomfenceandrailing.com)", "post_spacing": "posts 6-8 ft (AFA)", "_note": "MEDIEVAL equivalent = wattle hurdle / close paling" } },
-    "fence_post_rail":{ "category": "fence", "description": "Post-and-rail ~4 ft", "height": 1.2, "tol": 0.15, "post_spacing": 2.7, "rails": 2,
+      "sources": {
+        "height": "privacy fence 6 ft (6-8 ft range) = 1.8-2.4 m (freedomfenceandrailing.com)",
+        "post_spacing": "posts 6-8 ft (AFA)",
+        "_note": "MEDIEVAL equivalent = wattle hurdle / close paling"
+      }
+    },
+    "fence_post_rail": {
+      "category": "fence",
+      "description": "Post-and-rail ~4 ft",
+      "height": 1.2,
+      "tol": 0.15,
+      "post_spacing": 2.7,
+      "rails": 2,
       "source": "post-and-rail (livestock/boundary)",
-      "sources": { "height": "INFERRED ~4 ft post-and-rail (no clean height source)", "post_spacing": "post spacing from AFA fencing guidance" } },
-
-    "gate_garden":    { "category": "gate", "description": "Garden gate in a fence line", "height": 1.0, "width": 1.0, "tol": 0.15, "clear_w": 0.9,
+      "sources": {
+        "height": "INFERRED ~4 ft post-and-rail (no clean height source)",
+        "post_spacing": "post spacing from AFA fencing guidance"
+      }
+    },
+    "gate_garden": {
+      "category": "gate",
+      "description": "Garden gate in a fence line",
+      "height": 1.0,
+      "width": 1.0,
+      "tol": 0.15,
+      "clear_w": 0.9,
       "source": "garden gate sized to the fence + character clearance",
-      "sources": { "clear_w": "matches a 36 in exterior door clear width 0.9 m (doors.com)", "height": "INFERRED ~fence height" } },
-
-    "chair_dining":   { "category": "furniture", "description": "Dining/side chair (medieval: rare, a lord's seat)", "seat_top": 0.45, "seat_depth": 0.4, "seat_width": 0.45, "back_top": 0.9, "tol": 0.08, "anchors": ["seat_0"],
+      "sources": {
+        "clear_w": "matches a 36 in exterior door clear width 0.9 m (doors.com)",
+        "height": "INFERRED ~fence height"
+      }
+    },
+    "chair_dining": {
+      "category": "furniture",
+      "description": "Dining/side chair (medieval: rare, a lord's seat)",
+      "seat_top": 0.45,
+      "seat_depth": 0.4,
+      "seat_width": 0.45,
+      "back_top": 0.9,
+      "tol": 0.08,
+      "anchors": [
+        "seat_0"
+      ],
       "source": "dining chair ergonomics (seat 17-20 in)",
-      "sources": { "seat_top": "dining chair seat 17-20 in = 0.43-0.51 m, body-derived/period-stable (hernest.com; lagoonfurnitures.com)", "back_top": "INFERRED typical chair back ~0.9 m", "seat_depth": "INFERRED ergonomic ~0.4 m", "seat_width": "INFERRED ergonomic ~0.45 m" } },
-    "stool":          { "category": "furniture", "description": "Backless stool (the common medieval seat)", "seat_top": 0.45, "seat_width": 0.35, "seat_depth": 0.35, "tol": 0.08, "anchors": ["seat_0"],
+      "sources": {
+        "seat_top": "dining chair seat 17-20 in = 0.43-0.51 m, body-derived/period-stable (hernest.com; lagoonfurnitures.com)",
+        "back_top": "INFERRED typical chair back ~0.9 m",
+        "seat_depth": "INFERRED ergonomic ~0.4 m",
+        "seat_width": "INFERRED ergonomic ~0.45 m"
+      }
+    },
+    "stool": {
+      "category": "furniture",
+      "description": "Backless stool (the common medieval seat)",
+      "seat_top": 0.45,
+      "seat_width": 0.35,
+      "seat_depth": 0.35,
+      "tol": 0.08,
+      "anchors": [
+        "seat_0"
+      ],
       "source": "stool seat height = chair seat (body-derived)",
-      "sources": { "seat_top": "seat 17-20 in = 0.43-0.51 m (dining chair ergonomics)", "seat_width": "INFERRED ~0.35 m", "seat_depth": "INFERRED ~0.35 m" } },
-    "bench":          { "category": "furniture", "description": "Bench / settle seat", "seat_top": 0.45, "seat_depth": 0.4, "length_min": 1.2, "height": 0.45, "depth": 0.4, "tol": 0.1, "anchors": ["seat_0"],
+      "sources": {
+        "seat_top": "seat 17-20 in = 0.43-0.51 m (dining chair ergonomics)",
+        "seat_width": "INFERRED ~0.35 m",
+        "seat_depth": "INFERRED ~0.35 m"
+      }
+    },
+    "bench": {
+      "category": "furniture",
+      "description": "Bench / settle seat",
+      "seat_top": 0.45,
+      "seat_depth": 0.4,
+      "length_min": 1.2,
+      "height": 0.45,
+      "depth": 0.4,
+      "tol": 0.1,
+      "anchors": [
+        "seat_0"
+      ],
       "source": "bench seat height = chair seat (body-derived)",
-      "sources": { "seat_top": "seat 17-20 in = 0.43-0.51 m (dining chair ergonomics)", "length_min": "INFERRED multi-person bench >= ~1.2 m" } },
-    "tavern_bar":     { "category": "furniture", "description": "Tavern serving counter (front bar)", "height": 1.07, "depth": 0.6, "tol": 0.15,
+      "sources": {
+        "seat_top": "seat 17-20 in = 0.43-0.51 m (dining chair ergonomics)",
+        "length_min": "INFERRED multi-person bench >= ~1.2 m"
+      }
+    },
+    "tavern_bar": {
+      "category": "furniture",
+      "description": "Tavern serving counter (front bar)",
+      "height": 1.07,
+      "depth": 0.6,
+      "tol": 0.15,
       "source": "bar counter 42 in; bar top 20-30 in deep (barstoolcomforts.com; morfurniture.com)",
-      "sources": { "height": "dedicated bar counter 42 in = 1.07 m, body-derived/ergonomic (barstoolcomforts.com; morfurniture.com). The 1/9 m micro grid lands at 1.111 m (nearest layer, +0.04).", "depth": "bar top depth 18-30 in = 0.46-0.76 m; ~24 in = 0.6 m (dimensions.com/element/bar-details)", "_note": "POST-MEDIEVAL / fantasy-tavern: a fixed bar counter is later than the medieval frame (period taverns served from barrels). Ergonomic heights are grounded; the bar FORM is a deliberate fantasy-tavern choice (user-requested)." } },
-    "back_bar":       { "category": "furniture", "description": "Back-bar shelving (bottles behind/above the bar)", "height": 1.85, "depth": 0.35, "tol": 0.15,
+      "sources": {
+        "height": "dedicated bar counter 42 in = 1.07 m, body-derived/ergonomic (barstoolcomforts.com; morfurniture.com). The 1/9 m micro grid lands at 1.111 m (nearest layer, +0.04).",
+        "depth": "bar top depth 18-30 in = 0.46-0.76 m; ~24 in = 0.6 m (dimensions.com/element/bar-details)",
+        "_note": "POST-MEDIEVAL / fantasy-tavern: a fixed bar counter is later than the medieval frame (period taverns served from barrels). Ergonomic heights are grounded; the bar FORM is a deliberate fantasy-tavern choice (user-requested)."
+      }
+    },
+    "back_bar": {
+      "category": "furniture",
+      "description": "Back-bar shelving (bottles behind/above the bar)",
+      "height": 1.85,
+      "depth": 0.35,
+      "tol": 0.15,
       "source": "INFERRED wall shelving ~1.8-1.9 m (cf. bookshelf 1.8 m)",
-      "sources": { "height": "INFERRED back-bar ~1.8-1.9 m wall shelving (cf. bookshelf archetype 1.8 m)", "depth": "INFERRED shallow bottle shelf ~0.35 m", "_note": "POST-MEDIEVAL / fantasy-tavern back bar — no period source; dims INFERRED from shelving." } },
-    "bar_stool":      { "category": "furniture", "description": "Tall backless bar stool", "height": 0.78, "width": 0.44, "depth": 0.44, "tol": 0.1, "anchors": ["seat_0"],
+      "sources": {
+        "height": "INFERRED back-bar ~1.8-1.9 m wall shelving (cf. bookshelf archetype 1.8 m)",
+        "depth": "INFERRED shallow bottle shelf ~0.35 m",
+        "_note": "POST-MEDIEVAL / fantasy-tavern back bar \u2014 no period source; dims INFERRED from shelving."
+      }
+    },
+    "bar_stool": {
+      "category": "furniture",
+      "description": "Tall backless bar stool",
+      "height": 0.78,
+      "width": 0.44,
+      "depth": 0.44,
+      "tol": 0.1,
+      "anchors": [
+        "seat_0"
+      ],
       "source": "bar stool seat 30 in for a 40-42 in counter (barstoolcomforts.com; dimensions.com)",
-      "sources": { "height": "bar-stool seat 30 in = 0.76 m for a 42 in bar (10-12 in seat-to-counter gap), body-derived (barstoolcomforts.com; dimensions.com). Built 0.778 m (nearest 1/9 m).", "width": "bar-stool seat width 16-22 in; this is a COMPACT stool at ~17 in = 0.44 m, slim end of the range (webstaurantstore.com/article/1045/bar-stool-dimensions.html; dimensions.com/element/stool-heights)", "depth": "SQUARE seat: depth = width 0.44 m by construction; bar-stool seat depth runs ~13-18 in (webstaurantstore.com)", "_note": "POST-MEDIEVAL: a tall bar stool pairs with the fantasy-tavern bar; ergonomic dims grounded." } },
-    "candle_stand":   { "category": "lighting", "description": "Floor candelabra / standing pricket candlestick", "height": 1.3, "width": 0.33, "depth": 0.33, "tol": 0.2,
+      "sources": {
+        "height": "bar-stool seat 30 in = 0.76 m for a 42 in bar (10-12 in seat-to-counter gap), body-derived (barstoolcomforts.com; dimensions.com). Built 0.778 m (nearest 1/9 m).",
+        "width": "bar-stool seat width 16-22 in; this is a COMPACT stool at ~17 in = 0.44 m, slim end of the range (webstaurantstore.com/article/1045/bar-stool-dimensions.html; dimensions.com/element/stool-heights)",
+        "depth": "SQUARE seat: depth = width 0.44 m by construction; bar-stool seat depth runs ~13-18 in (webstaurantstore.com)",
+        "_note": "POST-MEDIEVAL: a tall bar stool pairs with the fantasy-tavern bar; ergonomic dims grounded."
+      }
+    },
+    "candle_stand": {
+      "category": "lighting",
+      "description": "Floor candelabra / standing pricket candlestick",
+      "height": 1.3,
+      "width": 0.33,
+      "depth": 0.33,
+      "tol": 0.2,
       "source": "medieval standing pricket candlesticks / floor candelabra (period-appropriate); height INFERRED",
-      "sources": { "height": "INFERRED floor candelabra ~1.0-1.5 m (no precise source); medieval standing pricket candlesticks existed (period-appropriate, not anachronistic)", "width": "INFERRED splayed base ~0.33 m", "depth": "INFERRED ~0.33 m" } },
-    "wall_lantern":   { "category": "lighting", "description": "Wall-mounted lantern / sconce", "height": 0.4, "width": 0.33, "depth": 0.22, "tol": 0.15, "mount_height": 1.68,
+      "sources": {
+        "height": "INFERRED floor candelabra ~1.0-1.5 m (no precise source); medieval standing pricket candlesticks existed (period-appropriate, not anachronistic)",
+        "width": "INFERRED splayed base ~0.33 m",
+        "depth": "INFERRED ~0.33 m"
+      }
+    },
+    "wall_lantern": {
+      "category": "lighting",
+      "description": "Wall-mounted lantern / sconce",
+      "height": 0.4,
+      "width": 0.33,
+      "depth": 0.22,
+      "tol": 0.15,
+      "mount_height": 1.68,
       "source": "wall sconce mount 60-72 in (1800lighting.com); taper sconce ~12.5 in tall (amazon)",
-      "sources": { "height": "INFERRED ~0.4 m (UNVERIFIED) — an enclosed lantern body is bulkier than a bare sconce arm; cf. (not equal to) a taper WALL SCONCE 12.5 in = 0.32 m (WHW townhouse taper sconce, amazon)", "mount_height": "wall sconce mounted within 60-72 in = 1.52-1.83 m (1800lighting.com); 66 in = 1.68 m is the range midpoint — a PLACEMENT height, not a bound", "width": "INFERRED ~0.33 m", "depth": "INFERRED shallow ~0.22 m", "_note": "medieval horn/metal lanterns existed (period-appropriate)" } },
-    "chandelier":     { "category": "lighting", "description": "Hanging candle-ring chandelier (corona)", "height": 0.6, "diameter": 0.6, "tol": 0.2, "hang_height": 1.85,
+      "sources": {
+        "height": "INFERRED ~0.4 m (UNVERIFIED) \u2014 an enclosed lantern body is bulkier than a bare sconce arm; cf. (not equal to) a taper WALL SCONCE 12.5 in = 0.32 m (WHW townhouse taper sconce, amazon)",
+        "mount_height": "wall sconce mounted within 60-72 in = 1.52-1.83 m (1800lighting.com); 66 in = 1.68 m is the range midpoint \u2014 a PLACEMENT height, not a bound",
+        "width": "INFERRED ~0.33 m",
+        "depth": "INFERRED shallow ~0.22 m",
+        "_note": "medieval horn/metal lanterns existed (period-appropriate)"
+      }
+    },
+    "chandelier": {
+      "category": "lighting",
+      "description": "Hanging candle-ring chandelier (corona)",
+      "height": 0.6,
+      "diameter": 0.6,
+      "tol": 0.2,
+      "hang_height": 1.85,
       "source": "chandelier diameter ~1/2-2/3 table width (megcohomes.com; lightopia.com); medieval candle-corona",
-      "sources": { "diameter": "chandelier ~1/2 to 2/3 the table width; for a ~1 m tavern table -> ~0.5-0.6 m (megcohomes.com; lightopia.com)", "height": "INFERRED ring + chain ~0.6 m", "hang_height": "bottom of a dining chandelier 66-76 in = 1.68-1.93 m from the floor; ~1.85 m midpoint (megcohomes.com) — a PLACEMENT height, not a bound (the 7 ft figure is for entry halls with no table)", "_note": "medieval halls/churches used hanging candle coronas (period-appropriate)" } },
-    "mug":            { "category": "tableware", "description": "Drinking mug / tankard", "height": 0.13, "width": 0.095, "depth": 0.095, "tol": 0.05,
+      "sources": {
+        "diameter": "chandelier ~1/2 to 2/3 the table width; for a ~1 m tavern table -> ~0.5-0.6 m (megcohomes.com; lightopia.com)",
+        "height": "INFERRED ring + chain ~0.6 m",
+        "hang_height": "bottom of a dining chandelier 66-76 in = 1.68-1.93 m from the floor; ~1.85 m midpoint (megcohomes.com) \u2014 a PLACEMENT height, not a bound (the 7 ft figure is for entry halls with no table)",
+        "_note": "medieval halls/churches used hanging candle coronas (period-appropriate)"
+      }
+    },
+    "mug": {
+      "category": "tableware",
+      "description": "Drinking mug / tankard",
+      "height": 0.13,
+      "width": 0.095,
+      "depth": 0.095,
+      "tol": 0.05,
       "source": "pint pewter tankard 127-140 mm (englishpewter.com; studioburkedc.com); beer stein 14 cm (dimensions.com)",
-      "sources": { "height": "pint pewter tankard 130 mm (englishpewter.com straight-body); ~127 mm / 'a little over 5 in' (studioburkedc.com); beer stein 140 mm / 5.5 in (dimensions.com/element/beer-stein). Range 127-140 mm; target 130 mm.", "width": "tankard/stein dia ~80-95 mm (englishpewter.com 8 cm; dimensions.com beer-stein 9.5 cm)", "depth": "= width (round vessel)", "_note": "PERIOD-APPROPRIATE: wooden treen mugs / leather blackjacks / pewter tankards all medieval. Microcube floor (1/9 m) -> a single 0.11 m block." } },
-    "bottle":         { "category": "tableware", "description": "Bottle (wine/ale)", "height": 0.3, "width": 0.075, "depth": 0.075, "tol": 0.06,
+      "sources": {
+        "height": "pint pewter tankard 130 mm (englishpewter.com straight-body); ~127 mm / 'a little over 5 in' (studioburkedc.com); beer stein 140 mm / 5.5 in (dimensions.com/element/beer-stein). Range 127-140 mm; target 130 mm.",
+        "width": "tankard/stein dia ~80-95 mm (englishpewter.com 8 cm; dimensions.com beer-stein 9.5 cm)",
+        "depth": "= width (round vessel)",
+        "_note": "PERIOD-APPROPRIATE: wooden treen mugs / leather blackjacks / pewter tankards all medieval. Microcube floor (1/9 m) -> a single 0.11 m block."
+      }
+    },
+    "bottle": {
+      "category": "tableware",
+      "description": "Bottle (wine/ale)",
+      "height": 0.3,
+      "width": 0.075,
+      "depth": 0.075,
+      "tol": 0.06,
       "source": "standard 750 ml wine bottle 30 cm x 7.5 cm (dimensions.com)",
-      "sources": { "height": "standard 750 ml wine bottle 11.8 in = 30 cm (dimensions.com/element/wine-bottle-750-ml-standard)", "width": "750 ml bottle dia 2.95 in = 7.5 cm (dimensions.com)", "depth": "= width (round)", "_note": "MILD ANACHRONISM: glass bottles became common ~17th c; the medieval drink vessel = ceramic jug / leather bottell / costrel. Kept as a fantasy-tavern prop. Microcube floor -> 1 wide x 3 tall column." } },
-    "table_dining":   { "category": "furniture", "description": "Trestle / dining table", "top": 0.75, "height": 0.75, "depth": 0.84, "leg_inset_min": 0.1, "tol": 0.05, "anchors": ["surface"],
+      "sources": {
+        "height": "standard 750 ml wine bottle 11.8 in = 30 cm (dimensions.com/element/wine-bottle-750-ml-standard)",
+        "width": "750 ml bottle dia 2.95 in = 7.5 cm (dimensions.com)",
+        "depth": "= width (round)",
+        "_note": "MILD ANACHRONISM: glass bottles became common ~17th c; the medieval drink vessel = ceramic jug / leather bottell / costrel. Kept as a fantasy-tavern prop. Microcube floor -> 1 wide x 3 tall column."
+      }
+    },
+    "table_dining": {
+      "category": "furniture",
+      "description": "Trestle / dining table",
+      "top": 0.75,
+      "height": 0.75,
+      "depth": 0.84,
+      "leg_inset_min": 0.1,
+      "tol": 0.05,
+      "anchors": [
+        "surface"
+      ],
       "source": "dining table height 28-30 in; 15th-c Bruges trestle",
-      "sources": { "top": "CHARACTER-ERGONOMIC ~30 in / 0.75 m (modern dining height). Medieval trestle tables ran TALLER ~32-34 in / 0.81-0.87 m (earlyoakreproductions.co.uk; 30 in is Stuart/modern) — lowered for seating ergonomics + playability.", "height": "= top (overall table height = its surface) 0.75 m", "depth": "15th-c Bruges trestle oak top width 84 cm (thomasguild.blogspot.com)", "leg_inset_min": "INFERRED knee clearance" } },
-    "tavern_table":   { "category": "furniture", "description": "Long communal / refectory tavern table", "top": 0.75, "height": 0.75, "depth": 0.8, "length_min": 1.6, "tol": 0.1, "anchors": ["surface"],
+      "sources": {
+        "top": "CHARACTER-ERGONOMIC ~30 in / 0.75 m (modern dining height). Medieval trestle tables ran TALLER ~32-34 in / 0.81-0.87 m (earlyoakreproductions.co.uk; 30 in is Stuart/modern) \u2014 lowered for seating ergonomics + playability.",
+        "height": "= top (overall table height = its surface) 0.75 m",
+        "depth": "15th-c Bruges trestle oak top width 84 cm (thomasguild.blogspot.com)",
+        "leg_inset_min": "INFERRED knee clearance"
+      }
+    },
+    "tavern_table": {
+      "category": "furniture",
+      "description": "Long communal / refectory tavern table",
+      "top": 0.75,
+      "height": 0.75,
+      "depth": 0.8,
+      "length_min": 1.6,
+      "tol": 0.1,
+      "anchors": [
+        "surface"
+      ],
       "source": "dining-table height 28-30 in (body-derived); long refectory/communal form",
-      "sources": { "height": "CHARACTER-ERGONOMIC dining height ~30 in / 0.75 m (modern standard). NOTE: medieval trestle tables ran TALLER, ~32-34 in / 0.81-0.87 m (earlyoakreproductions.co.uk; 30 in is the Stuart/modern height) — lowered here to pair with bench seat 0.45 m + for playability.", "depth": "communal tables ~0.7-0.9 m wide for shared dishes (cf. 15th-c Bruges trestle 84 cm, thomasguild.blogspot.com); use ~0.8", "length_min": "INFERRED a long communal table seats 6-8 -> >= ~1.6 m" } },
-    "barrel":         { "category": "furniture", "description": "Storage cask / barrel (ale, wine, stores)", "height": 0.89, "diameter": 0.56, "tol": 0.15,
+      "sources": {
+        "height": "CHARACTER-ERGONOMIC dining height ~30 in / 0.75 m (modern standard). NOTE: medieval trestle tables ran TALLER, ~32-34 in / 0.81-0.87 m (earlyoakreproductions.co.uk; 30 in is the Stuart/modern height) \u2014 lowered here to pair with bench seat 0.45 m + for playability.",
+        "depth": "communal tables ~0.7-0.9 m wide for shared dishes (cf. 15th-c Bruges trestle 84 cm, thomasguild.blogspot.com); use ~0.8",
+        "length_min": "INFERRED a long communal table seats 6-8 -> >= ~1.6 m"
+      }
+    },
+    "barrel": {
+      "category": "furniture",
+      "description": "Storage cask / barrel (ale, wine, stores)",
+      "height": 0.89,
+      "diameter": 0.56,
+      "tol": 0.15,
       "source": "53-gal oak barrel 35 in tall, head dia ~22 in (thebarrelmill.com; motorcitybarrels.com)",
-      "sources": { "height": "53-gal oak barrel 35 in = 0.889 m (thebarrelmill.com 53-gal product spec)", "diameter": "head diameter ~22 in = 0.56 m (motorcitybarrels.com 53-gal); thebarrelmill gives 20-5/8 in = 0.52 m; bilge wider 24-28 in. Built ~head dia.", "_note": "The 53-gal form is a MODERN (19th-20th c) cask standard used as a generic large-cask PROXY; the medieval English ale barrel = 32 gal, beer barrel = 36 gal, physically smaller (Wikipedia, English brewery cask units). Coopered casks ARE period-appropriate; the exact 53-gal size is not." } },
-    "bed_single":     { "category": "furniture", "description": "Single bed (medieval: rope-frame + tester)", "mattress_top": 0.5, "length": 1.9, "width": 0.9, "tol": 0.1, "anchors": ["lie_0"],
+      "sources": {
+        "height": "53-gal oak barrel 35 in = 0.889 m (thebarrelmill.com 53-gal product spec)",
+        "diameter": "head diameter ~22 in = 0.56 m (motorcitybarrels.com 53-gal); thebarrelmill gives 20-5/8 in = 0.52 m; bilge wider 24-28 in. Built ~head dia.",
+        "_note": "The 53-gal form is a MODERN (19th-20th c) cask standard used as a generic large-cask PROXY; the medieval English ale barrel = 32 gal, beer barrel = 36 gal, physically smaller (Wikipedia, English brewery cask units). Coopered casks ARE period-appropriate; the exact 53-gal size is not."
+      }
+    },
+    "bed_single": {
+      "category": "furniture",
+      "description": "Single bed (medieval: rope-frame + tester)",
+      "mattress_top": 0.5,
+      "length": 1.9,
+      "width": 0.9,
+      "tol": 0.1,
+      "anchors": [
+        "lie_0"
+      ],
       "source": "single/twin bed 1.91 x 0.97 m (dimensions.com)",
-      "sources": { "length": "twin/single 75 in = 1.91 m; UK single 1.88 m (dimensions.com)", "width": "twin/single 38 in = 0.97 m; UK single 0.92 m (dimensions.com)", "mattress_top": "INFERRED frame + mattress sleeping surface ~0.5 m" } },
-    "chest":          { "category": "furniture", "description": "Medieval chest / coffer (the primary storage; doubles as seat/table)", "height": 0.7, "width": 1.2, "depth": 0.55, "tol": 0.15,
+      "sources": {
+        "length": "twin/single 75 in = 1.91 m; UK single 1.88 m (dimensions.com)",
+        "width": "twin/single 38 in = 0.97 m; UK single 0.92 m (dimensions.com)",
+        "mattress_top": "INFERRED frame + mattress sleeping surface ~0.5 m"
+      }
+    },
+    "chest": {
+      "category": "furniture",
+      "description": "Medieval chest / coffer (the primary storage; doubles as seat/table)",
+      "height": 0.7,
+      "width": 1.2,
+      "depth": 0.55,
+      "tol": 0.15,
       "source": "15th-c oak chests/coffers (larsdatter.com; 1stdibs medieval chests)",
-      "sources": { "height": "15th-c French chest 71.8 cm; another 70.5 cm -> ~0.7 m (larsdatter.com; 1stdibs)", "width": "15th-c chest 144.5 cm; smaller 80 cm -> ~0.8-1.45 m, use ~1.2 (1stdibs)", "depth": "15th-c chest 67.6 cm; another 43 cm -> ~0.55 m" } },
-    "bookshelf":      { "category": "furniture", "description": "Open bookshelf", "height": 1.8, "width": 0.9, "depth": 0.3, "tol": 0.15,
+      "sources": {
+        "height": "15th-c French chest 71.8 cm; another 70.5 cm -> ~0.7 m (larsdatter.com; 1stdibs)",
+        "width": "15th-c chest 144.5 cm; smaller 80 cm -> ~0.8-1.45 m, use ~1.2 (1stdibs)",
+        "depth": "15th-c chest 67.6 cm; another 43 cm -> ~0.55 m"
+      }
+    },
+    "bookshelf": {
+      "category": "furniture",
+      "description": "Open bookshelf",
+      "height": 1.8,
+      "width": 0.9,
+      "depth": 0.3,
+      "tol": 0.15,
       "source": "POST-MEDIEVAL: open shelving is later; medieval books = chest/aumbry/lectern",
-      "sources": { "_note": "POST-MEDIEVAL archetype; dims INFERRED from a later-period bookcase. For a medieval scene use 'chest' or an aumbry." } },
-    "wardrobe":       { "category": "furniture", "description": "Wardrobe / clothes press", "height": 1.9, "width": 1.0, "depth": 0.6, "tol": 0.15,
+      "sources": {
+        "_note": "POST-MEDIEVAL archetype; dims INFERRED from a later-period bookcase. For a medieval scene use 'chest' or an aumbry."
+      }
+    },
+    "wardrobe": {
+      "category": "furniture",
+      "description": "Wardrobe / clothes press",
+      "height": 1.9,
+      "width": 1.0,
+      "depth": 0.6,
+      "tol": 0.15,
       "source": "POST-MEDIEVAL (Renaissance+): medieval clothes storage = the chest",
-      "sources": { "_note": "POST-MEDIEVAL archetype; dims INFERRED. For a medieval scene use 'chest'." } },
-
-    "counter_kitchen":{ "category": "fixture", "description": "Kitchen work surface / dresser board", "top": 0.9, "height": 0.9, "depth": 0.6, "tol": 0.1,
+      "sources": {
+        "_note": "POST-MEDIEVAL archetype; dims INFERRED. For a medieval scene use 'chest'."
+      }
+    },
+    "counter_kitchen": {
+      "category": "fixture",
+      "description": "Kitchen work surface / dresser board",
+      "top": 0.9,
+      "height": 0.9,
+      "depth": 0.6,
+      "tol": 0.1,
       "source": "INFERRED: standard worktop ~0.9 m / medieval kitchen work table ~table height",
-      "sources": { "top": "INFERRED ~0.9 m worktop; needs a cleaner source", "height": "= top 0.9 m (overall = work surface, no upper)", "depth": "INFERRED ~0.6 m" } },
-    "hearth":         { "category": "fixture", "description": "Cooking hearth / fireplace", "height": 1.2, "width": 1.5, "depth": 0.6, "tol": 0.2,
+      "sources": {
+        "top": "INFERRED ~0.9 m worktop; needs a cleaner source",
+        "height": "= top 0.9 m (overall = work surface, no upper)",
+        "depth": "INFERRED ~0.6 m"
+      }
+    },
+    "hearth": {
+      "category": "fixture",
+      "description": "Cooking hearth / fireplace",
+      "height": 1.2,
+      "width": 1.5,
+      "depth": 0.6,
+      "tol": 0.2,
       "source": "INFERRED: medieval hearth/fireplace opening (varies widely)",
-      "sources": { "_note": "INFERRED; fireplace opening size varies by hall/cottage" } },
-    "basin":          { "category": "fixture", "description": "Wash basin / ewer stand (no medieval plumbing)", "rim_top": 0.85, "width": 0.5, "depth": 0.4, "tol": 0.1,
+      "sources": {
+        "_note": "INFERRED; fireplace opening size varies by hall/cottage"
+      }
+    },
+    "basin": {
+      "category": "fixture",
+      "description": "Wash basin / ewer stand (no medieval plumbing)",
+      "rim_top": 0.85,
+      "width": 0.5,
+      "depth": 0.4,
+      "tol": 0.1,
       "source": "INFERRED: wash basin at ~table height; material gap (water/plumbing)",
-      "sources": { "rim_top": "INFERRED ~0.85 m (table height); medieval = ewer + basin on a stand" } },
-    "tub":            { "category": "fixture", "description": "Wooden bathing tub", "rim_top": 0.6, "length": 1.5, "width": 0.7, "tol": 0.15,
+      "sources": {
+        "rim_top": "INFERRED ~0.85 m (table height); medieval = ewer + basin on a stand"
+      }
+    },
+    "tub": {
+      "category": "fixture",
+      "description": "Wooden bathing tub",
+      "rim_top": 0.6,
+      "length": 1.5,
+      "width": 0.7,
+      "tol": 0.15,
       "source": "INFERRED: medieval wooden bathing tub; material gap (water)",
-      "sources": { "_note": "INFERRED; medieval bath = a coopered wooden tub" } },
-
-    "anvil":          { "category": "fixture", "description": "Smith's anvil (on a stump)", "work_top": 0.8, "length": 0.6, "width": 0.25, "tol": 0.06,
+      "sources": {
+        "_note": "INFERRED; medieval bath = a coopered wooden tub"
+      }
+    },
+    "anvil": {
+      "category": "fixture",
+      "description": "Smith's anvil (on a stump)",
+      "work_top": 0.8,
+      "length": 0.6,
+      "width": 0.25,
+      "tol": 0.06,
       "source": "100-120 lb working anvil overall ~23.5-23.75 in long, base ~10 in; face at knuckle height ~31.5 in (centaurforge.com Emerson/JHM; beautifuliron.com). NOTE: the London-pattern anvil is ~16-17th c; a true MEDIEVAL anvil was a simpler block/stake-form -- modern dims used as a function/form proxy (ANACHRONISM, disclosed).",
-      "sources": { "work_top": "anvil face at knuckle height ~31.5 in = 0.80 m, anthropometric/period-invariant (beautifuliron.com/forge_planning.htm)", "length": "overall (horn-heel) ~23.5-23.75 in = 0.597-0.603 m: Emerson 100 lb 23.75 in (centaurforge.com/.../EMERSON100), JHM Legend 120 lb 23.5 in (centaurforge.com/.../AB120LEGEND)", "width": "base ~10 in = 0.25 m (JHM Legend 120 lb 10 in base; face ~4 in on the Emerson 100 lb)" } },
-    "forge_hearth":   { "category": "fixture", "description": "Blacksmith's forge hearth (back wall, vented)", "work_top": 0.8, "width": 1.0, "depth": 0.8, "tol": 0.15,
+      "sources": {
+        "work_top": "anvil face at knuckle height ~31.5 in = 0.80 m, anthropometric/period-invariant (beautifuliron.com/forge_planning.htm)",
+        "length": "overall (horn-heel) ~23.5-23.75 in = 0.597-0.603 m: Emerson 100 lb 23.75 in (centaurforge.com/.../EMERSON100), JHM Legend 120 lb 23.5 in (centaurforge.com/.../AB120LEGEND)",
+        "width": "base ~10 in = 0.25 m (JHM Legend 120 lb 10 in base; face ~4 in on the Emerson 100 lb)"
+      }
+    },
+    "forge_hearth": {
+      "category": "fixture",
+      "description": "Blacksmith's forge hearth (back wall, vented)",
+      "work_top": 0.8,
+      "width": 1.0,
+      "depth": 0.8,
+      "tol": 0.15,
       "source": "forge hearth at ~anvil/working height ~0.80 m, on the back wall (beautifuliron.com)",
-      "sources": { "work_top": "hearth ~level with the anvil ~0.80 m (beautifuliron.com)", "_note": "firepot opening ~9x13 in (0.23x0.33 m, two axes of one oblong pot) x ~4.5 in (0.11 m) deep (blksmth.com); shop hearth PAN 24x30 in = 0.61x0.76 m (centaurforge.com SVD); width 1.0 m AND depth 0.8 m = pan (0.61x0.76) + side/hood framing (DESIGN, framing extent not separately sourced); must be vented (chimney) + clear of combustibles" } },
-    "bellows":        { "category": "fixture", "description": "Great double-lung forge bellows (beside the forge)", "length": 1.5, "width": 0.3, "height": 0.35, "tol": 0.2,
+      "sources": {
+        "work_top": "hearth ~level with the anvil ~0.80 m (beautifuliron.com)",
+        "_note": "firepot opening ~9x13 in (0.23x0.33 m, two axes of one oblong pot) x ~4.5 in (0.11 m) deep (blksmth.com); shop hearth PAN 24x30 in = 0.61x0.76 m (centaurforge.com SVD); width 1.0 m AND depth 0.8 m = pan (0.61x0.76) + side/hood framing (DESIGN, framing extent not separately sourced); must be vented (chimney) + clear of combustibles"
+      }
+    },
+    "bellows": {
+      "category": "fixture",
+      "description": "Great double-lung forge bellows (beside the forge)",
+      "length": 1.5,
+      "width": 0.3,
+      "height": 0.35,
+      "tol": 0.2,
       "source": "great double-lung bellows; length INFERRED within the attested 4-6 ft range (persimmonforge: author's = 4 ft / 1.22 m, 'up to ~6 ft'); width/height/loft NOT sourced -- functional estimates. ANACHRONISM/proxy disclosed.",
-      "sources": { "length": "INFERRED 1.5 m: mid of the persimmonforge 4-6 ft (1.22-1.83 m) range for a great double-lung bellows (persimmonforge.blogspot.com 2013). The '~5 ft' figure was attributed to iforgeiron/topic/16236 which is not openly accessible -- treat as INFERRED, not cited.", "width": "INFERRED ~0.3 m widest chamber (functional estimate; no open source verifies)", "height": "INFERRED ~0.30-0.35 m loft (functional estimate; no open source verifies)", "_todo": "NEEDS-RESEARCH: Smith, The Blacksmith's Craft (1956); Horne, The Artist-Blacksmith (2002) for period bellows dims" } },
-    "tool_rack":      { "category": "fixture", "description": "Wall-mounted smith's tool rack (hammers, tongs)", "mount_height": 1.5, "width": 1.0, "depth": 0.15, "tol": 0.25,
+      "sources": {
+        "length": "INFERRED 1.5 m: mid of the persimmonforge 4-6 ft (1.22-1.83 m) range for a great double-lung bellows (persimmonforge.blogspot.com 2013). The '~5 ft' figure was attributed to iforgeiron/topic/16236 which is not openly accessible -- treat as INFERRED, not cited.",
+        "width": "INFERRED ~0.3 m widest chamber (functional estimate; no open source verifies)",
+        "height": "INFERRED ~0.30-0.35 m loft (functional estimate; no open source verifies)",
+        "_todo": "NEEDS-RESEARCH: Smith, The Blacksmith's Craft (1956); Horne, The Artist-Blacksmith (2002) for period bellows dims"
+      }
+    },
+    "tool_rack": {
+      "category": "fixture",
+      "description": "Wall-mounted smith's tool rack (hammers, tongs)",
+      "mount_height": 1.5,
+      "width": 1.0,
+      "depth": 0.15,
+      "tol": 0.25,
       "source": "wall-mounted rack at ~chest-to-head mount height; exact size to_ground (function-based)",
-      "sources": { "mount_height": "INFERRED ~1.4-1.7 m, analogy to the cited wall-mount/sconce precedent (object grounded by function, not a surveyed rack)", "_note": "to_ground: no surveyed smithy tool-rack dimension found" } },
-    "loom_horizontal":{ "category": "fixture", "description": "Horizontal treadle loom", "height": 1.75, "width": 1.0, "length": 2.0, "tol": 0.25,
+      "sources": {
+        "mount_height": "INFERRED ~1.4-1.7 m, analogy to the cited wall-mount/sconce precedent (object grounded by function, not a surveyed rack)",
+        "_note": "to_ground: no surveyed smithy tool-rack dimension found"
+      }
+    },
+    "loom_horizontal": {
+      "category": "fixture",
+      "description": "Horizontal treadle loom",
+      "height": 1.75,
+      "width": 1.0,
+      "length": 2.0,
+      "tol": 0.25,
       "source": "horizontal treadle loom 150-200 cm tall, width <= weaver's arm span (EXARC)",
-      "sources": { "height": "150-200 cm = 1.5-2.0 m (exarc.net treadle-loom model)", "width": "<= weaver's arm span ~0.6-1.0 m practical (geocities clothwidth)", "length": "INFERRED working length; a piece = 24 yd of assize broadcloth warp (British History Online)" } },
-    "tan_pit":        { "category": "fixture", "description": "Tannery tan/lime pit (oak-lined)", "diameter": 2.0, "depth": 1.0, "tol": 0.2,
+      "sources": {
+        "height": "150-200 cm = 1.5-2.0 m (exarc.net treadle-loom model)",
+        "width": "<= weaver's arm span ~0.6-1.0 m practical (geocities clothwidth)",
+        "length": "INFERRED working length; a piece = 24 yd of assize broadcloth warp (British History Online)"
+      }
+    },
+    "tan_pit": {
+      "category": "fixture",
+      "description": "Tannery tan/lime pit (oak-lined)",
+      "diameter": 2.0,
+      "depth": 1.0,
+      "tol": 0.2,
       "source": "excavated medieval tan pit 2 m dia x 1 m deep, oak-lined (Otley local history)",
-      "sources": { "diameter": "2 m diameter (otleylocalhistorybulletin.wordpress.com)", "depth": "1 m deep, curved oak planking + bark/lime traces (Otley; Dublin Blackpitts)" } },
-    "oven_bread":     { "category": "fixture", "description": "Masonry dome bread oven (vented, on the back wall)", "interior_diameter": 0.9, "dome_interior_height": 0.45, "mouth_ratio": 0.63, "work_top": 0.8, "width": 1.6, "depth": 1.4, "tol": 0.2,
+      "sources": {
+        "diameter": "2 m diameter (otleylocalhistorybulletin.wordpress.com)",
+        "depth": "1 m deep, curved oak planking + bark/lime traces (Otley; Dublin Blackpitts)"
+      }
+    },
+    "oven_bread": {
+      "category": "fixture",
+      "description": "Masonry dome bread oven (vented, on the back wall)",
+      "interior_diameter": 0.9,
+      "dome_interior_height": 0.45,
+      "mouth_ratio": 0.63,
+      "work_top": 0.8,
+      "width": 1.6,
+      "depth": 1.4,
+      "tol": 0.2,
       "source": "masonry dome oven: ~3 ft (90 cm) interior diameter (williamrubel.com 'All About Wood Fired Bread Ovens'); door ~63% of interior dome height for draught (Masonry oven, Wikipedia); 16 in dome height for a ~36 in oven (handprintpress.com)",
-      "sources": { "interior_diameter": "0.9 m / 3 ft: williamrubel.com/all-about-wood-fired-bread-ovens gives 'an oven three feet in diameter (90 cm)' -- in context a HOME/small oven ('more bread than a family can eat fresh'), used here as a conservative BASELINE for the bakery hearth (a true communal/commercial oven would be LARGER; williamrubel gives no diameter for its 150-lb-batch commercial oven). Disclosed: a home-oven figure as a lower bound, NOT a documented commercial size. (grounding-auditor 2026-06-28: corrected the 'communal/commercial' mislabel.)", "dome_interior_height": "INFERRED ~0.45 m: a 16 in (0.41 m) dome height is the standard for a ~36 in / 0.9 m oven (handprintpress.com 'oven dome height for different size ovens'); a commercial dome runs a little taller. (grounding-auditor 2026-06-28: corrected the source -- superiorclay.com's 16 in is the MIN interior DIAMETER, not the dome height.)", "mouth_ratio": "door/mouth height = ~63% of interior dome height for correct draught (en.wikipedia.org/wiki/Masonry_oven; Boily & Blanchette study) -> mouth ~0.28 m", "work_top": "the oven mouth/hearth sits at ~working height ~0.8 m (anthropometric, = anvil/forge working height; the baker peels at waist/chest height) -- DESIGN by analogy, no surveyed mouth-height source", "width": "1.6 m DESIGN: 0.9 m interior hearth + thick heat-retaining masonry walls each side (medieval ovens used thick masonry to hold heat; williamrubel/superiorclay) -- wall thickness not separately surveyed", "depth": "1.4 m DESIGN: 0.9 m hearth depth + thick rear masonry + the front mouth/hood arch; framing extent not separately sourced", "_note": "VENTED like the forge: backs onto an exterior wall + runs a chimney (place_chimney). Domestic vs communal/seigniorial sizes vary widely; this is the COMMERCIAL bakery scale." } },
-    "staddle_stone":  { "category": "fixture", "description": "Granary staddle stone (mushroom cap, rat-proof)", "height": 0.6, "tol": 0.1,
+      "sources": {
+        "interior_diameter": "0.9 m / 3 ft: williamrubel.com/all-about-wood-fired-bread-ovens gives 'an oven three feet in diameter (90 cm)' -- in context a HOME/small oven ('more bread than a family can eat fresh'), used here as a conservative BASELINE for the bakery hearth (a true communal/commercial oven would be LARGER; williamrubel gives no diameter for its 150-lb-batch commercial oven). Disclosed: a home-oven figure as a lower bound, NOT a documented commercial size. (grounding-auditor 2026-06-28: corrected the 'communal/commercial' mislabel.)",
+        "dome_interior_height": "INFERRED ~0.45 m: a 16 in (0.41 m) dome height is the standard for a ~36 in / 0.9 m oven (handprintpress.com 'oven dome height for different size ovens'); a commercial dome runs a little taller. (grounding-auditor 2026-06-28: corrected the source -- superiorclay.com's 16 in is the MIN interior DIAMETER, not the dome height.)",
+        "mouth_ratio": "door/mouth height = ~63% of interior dome height for correct draught (en.wikipedia.org/wiki/Masonry_oven; Boily & Blanchette study) -> mouth ~0.28 m",
+        "work_top": "the oven mouth/hearth sits at ~working height ~0.8 m (anthropometric, = anvil/forge working height; the baker peels at waist/chest height) -- DESIGN by analogy, no surveyed mouth-height source",
+        "width": "1.6 m DESIGN: 0.9 m interior hearth + thick heat-retaining masonry walls each side (medieval ovens used thick masonry to hold heat; williamrubel/superiorclay) -- wall thickness not separately surveyed",
+        "depth": "1.4 m DESIGN: 0.9 m hearth depth + thick rear masonry + the front mouth/hood arch; framing extent not separately sourced",
+        "_note": "VENTED like the forge: backs onto an exterior wall + runs a chimney (place_chimney). Domestic vs communal/seigniorial sizes vary widely; this is the COMMERCIAL bakery scale."
+      }
+    },
+    "staddle_stone": {
+      "category": "fixture",
+      "description": "Granary staddle stone (mushroom cap, rat-proof)",
+      "height": 0.6,
+      "tol": 0.1,
       "source": "staddle stones raise the granary ~600 mm, smooth overhanging cap (Building Conservation)",
-      "sources": { "height": "~600 mm raise (buildingconservation.com/articles/granaries); 12 stones in a 4x3 grid" } },
-
-    "door_interior":  { "category": "opening", "description": "Interior door clear opening", "clear_h": 2.03, "clear_w": 0.81, "tol": 0.1,
+      "sources": {
+        "height": "~600 mm raise (buildingconservation.com/articles/granaries); 12 stones in a 4x3 grid"
+      }
+    },
+    "door_interior": {
+      "category": "opening",
+      "description": "Interior door clear opening",
+      "clear_h": 2.03,
+      "clear_w": 0.81,
+      "tol": 0.1,
       "source": "standard interior door 32 in x 80 in (doors.com)",
-      "sources": { "clear_w": "interior door 32 in = 0.813 m (doors.com)", "clear_h": "interior door 80 in = 2.032 m (doors.com); also the character clearance floor" } },
-    "door_exterior":  { "category": "opening", "description": "Exterior/front door clear opening", "clear_h": 2.03, "clear_w": 0.9, "tol": 0.1,
+      "sources": {
+        "clear_w": "interior door 32 in = 0.813 m (doors.com)",
+        "clear_h": "interior door 80 in = 2.032 m (doors.com); also the character clearance floor"
+      }
+    },
+    "door_exterior": {
+      "category": "opening",
+      "description": "Exterior/front door clear opening",
+      "clear_h": 2.03,
+      "clear_w": 0.9,
+      "tol": 0.1,
       "source": "standard exterior door 36 in x 80 in (doors.com)",
-      "sources": { "clear_w": "exterior door 36 in = 0.914 m (doors.com)", "clear_h": "exterior door 80 in = 2.032 m (doors.com)" } },
-
-    "well":           { "category": "prop", "description": "Yard well-head", "height": 0.9, "diameter": 1.2, "tol": 0.2,
+      "sources": {
+        "clear_w": "exterior door 36 in = 0.914 m (doors.com)",
+        "clear_h": "exterior door 80 in = 2.032 m (doors.com)"
+      }
+    },
+    "well": {
+      "category": "prop",
+      "description": "Yard well-head",
+      "height": 0.9,
+      "diameter": 1.2,
+      "tol": 0.2,
       "source": "INFERRED: well-head at waist height for safety",
-      "sources": { "height": "INFERRED ~0.8-1.0 m well-head wall", "diameter": "INFERRED ~1-1.5 m" } },
-    "garden_bed":     { "category": "prop", "description": "Raised garden bed", "height": 0.3, "tol": 0.15,
+      "sources": {
+        "height": "INFERRED ~0.8-1.0 m well-head wall",
+        "diameter": "INFERRED ~1-1.5 m"
+      }
+    },
+    "garden_bed": {
+      "category": "prop",
+      "description": "Raised garden bed",
+      "height": 0.3,
+      "tol": 0.15,
       "source": "INFERRED: raised bed ~0.3 m",
-      "sources": { "height": "INFERRED ~0.3 m raised bed" } },
-    "woodpile":       { "category": "prop", "description": "Stacked firewood", "height": 1.0, "tol": 0.25,
+      "sources": {
+        "height": "INFERRED ~0.3 m raised bed"
+      }
+    },
+    "woodpile": {
+      "category": "prop",
+      "description": "Stacked firewood",
+      "height": 1.0,
+      "tol": 0.25,
       "source": "INFERRED: stacked firewood ~1 m",
-      "sources": { "height": "INFERRED ~1 m stack" } },
-
-    "chopping_block":  { "category": "fixture", "description": "Butcher's chopping block (heavy end-grain wood block on legs)", "work_top": 0.89, "width": 0.56, "depth": 0.56, "tol": 0.1,
+      "sources": {
+        "height": "INFERRED ~1 m stack"
+      }
+    },
+    "chopping_block": {
+      "category": "fixture",
+      "description": "Butcher's chopping block (heavy end-grain wood block on legs)",
+      "work_top": 0.89,
+      "width": 0.56,
+      "depth": 0.56,
+      "tol": 0.1,
       "source": "the butcher's thick wooden cutting block is an attested tool of the trade (end-grain log-section blocks; choppingblocks.com history); work height anthropometric ~ counter height. (grounding-auditor 2026-06-28: the cited York Shambles pages attest hooks/slaughterhouses, NOT a quotable block phrase -- removed a misattributed wooden-block quote; the block is INFERRED-ATTESTED.)",
-      "sources": { "work_top": "INFERRED ~0.89 m: butcher chops at work/counter height, anthropometric (cf. counter_kitchen 0.9 m; table 0.75 m) -- no surveyed medieval block height exists", "width": "INFERRED ~0.56 m heavy block top (no surveyed dimension)", "depth": "INFERRED ~0.56 m (square heavy block)", "_note": "the chopping block is the butcher's DEFINING work fixture, cf. the smith's anvil" } },
-    "meat_rail":       { "category": "fixture", "description": "Butcher's hanging meat rail (posts + top rail + iron hooks)", "height": 2.0, "width": 1.56, "depth": 0.33, "tol": 0.2,
+      "sources": {
+        "work_top": "INFERRED ~0.89 m: butcher chops at work/counter height, anthropometric (cf. counter_kitchen 0.9 m; table 0.75 m) -- no surveyed medieval block height exists",
+        "width": "INFERRED ~0.56 m heavy block top (no surveyed dimension)",
+        "depth": "INFERRED ~0.56 m (square heavy block)",
+        "_note": "the chopping block is the butcher's DEFINING work fixture, cf. the smith's anvil"
+      }
+    },
+    "meat_rail": {
+      "category": "fixture",
+      "description": "Butcher's hanging meat rail (posts + top rail + iron hooks)",
+      "height": 2.0,
+      "width": 1.56,
+      "depth": 0.33,
+      "tol": 0.2,
       "source": "MEDIEVAL: meat hung on HOOKS on the shop fronts / building overhangs (historyofyork.org.uk the-shambles: 'original butcher's meat-hooks attached to the shop fronts'; asparadventures.com York Shambles). Interior meat RAILS are attested for VICTORIAN / 19-20th c. butchers (buildingourpast.com) -- a disclosed POST-MEDIEVAL analogy carried forward for the rack form. (grounding-auditor 2026-06-28: separated the medieval hooks from the Victorian-era rails.)",
-      "sources": { "height": "INFERRED ~2.0 m: carcasses/joints hang clear of the floor + below head height to reach -- no surveyed rail height", "width": "INFERRED ~1.56 m rail span (DESIGN, one timber bay's worth of hanging room)", "depth": "INFERRED shallow ~0.33 m", "_note": "POST-MEDIEVAL / DESIGN: the FREESTANDING post-rack form + the interior RAIL are Victorian-era (buildingourpast.com) / a floor-placer convenience -- NOT medieval (medieval = EXTERIOR hooks on the shopfront); disclosed like the fantasy-tavern bar. The iron HOOKS are grounded; the hanging MEAT itself awaits a meat material (user's materials thread) -- not faked, like the sign's pictorial decal." } },
-    "hanging_sign":   { "category": "signage", "description": "Projecting pictorial trade sign on a wrought-iron bracket, hung over a shop entrance", "board_w": 0.8, "board_h": 0.6, "board_thick": 0.11, "projection": 0.8, "ground_clearance": 2.44, "tol": 0.15,
+      "sources": {
+        "height": "INFERRED ~2.0 m: carcasses/joints hang clear of the floor + below head height to reach -- no surveyed rail height",
+        "width": "INFERRED ~1.56 m rail span (DESIGN, one timber bay's worth of hanging room)",
+        "depth": "INFERRED shallow ~0.33 m",
+        "_note": "POST-MEDIEVAL / DESIGN: the FREESTANDING post-rack form + the interior RAIL are Victorian-era (buildingourpast.com) / a floor-placer convenience -- NOT medieval (medieval = EXTERIOR hooks on the shopfront); disclosed like the fantasy-tavern bar. The iron HOOKS are grounded; the hanging MEAT itself awaits a meat material (user's materials thread) -- not faked, like the sign's pictorial decal."
+      }
+    },
+    "hanging_sign": {
+      "category": "signage",
+      "description": "Projecting pictorial trade sign on a wrought-iron bracket, hung over a shop entrance",
+      "board_w": 0.8,
+      "board_h": 0.6,
+      "board_thick": 0.11,
+      "projection": 0.8,
+      "ground_clearance": 2.44,
+      "tol": 0.15,
       "source": "modern historic-district / projecting-sign code (clearance, area, projection are safety/anthropometric); the medieval FORM = a pictorial board on a wrought-iron bracket over the entrance, clearing head height",
-      "sources": { "ground_clearance": "projecting signs must clear >= 8 ft = 2.44 m above grade (Santa Clara UT 17.45.120, VERIFIED text: '>= 8 ft of ground clearance') -- anthropometric (clears head/horse), period-invariant. NOTE: some modern codes are STRICTER (Salt Lake City Ord. 61/2000 = 10 ft / 3.05 m; UK conservation shopfront guidance ~2.3-2.4 m); 2.44 m sits at/above the common 8 ft minimum. (grounding-auditor 2026-06-28: removed an incorrect 'SLC >= 8 ft' sub-cite (SLC is 10 ft) and an unsourced '2.6 m'.)", "board_w": "board sized so total area <= 12 sq ft = 1.11 m2 cap (Santa Clara UT / typical historic projecting-sign area limit); 0.8 x 0.6 = 0.48 m2 is well under", "board_h": "see board_w; 0.6 m board height keeps area 0.48 m2 < 1.11 m2 cap", "board_thick": "GRID-SNAP: a real sawn plank sign board is ~1-2 in / 25-50 mm (a carved board to ~3 in / 75 mm); snapped UP to the microcube floor 1/9 m = 0.111 m (one block, the minimum representable), so the rendered board is ~0.04-0.09 m thicker than a real plank -- a disclosed grid snap, not a grounded thickness", "projection": "projecting sign extends <= 48 in = 1.22 m from the building face incl. bracket (Santa Clara UT 17.45.120; common historic limit); 0.8 m arm is within it", "_note": "POST-MEDIEVAL CODE / PERIOD FORM: the numeric clearance/area/projection limits are modern sign-ordinance values (disclosed), but they are safety/anthropometric and the medieval principle is identical -- hanging pictorial trade signs on wrought-iron brackets over the street are well attested (illiterate clientele; size/projection regulation began 16th-18th c., e.g. 1669 French order, 1762-73 London). The PICTORIAL IMAGE itself = the DECAL system (backlog), not faked; this archetype is the BOARD + BRACKET geometry only, in existing materials (Wood board, Metal/Log bracket)." } }
+      "sources": {
+        "ground_clearance": "projecting signs must clear >= 8 ft = 2.44 m above grade (Santa Clara UT 17.45.120, VERIFIED text: '>= 8 ft of ground clearance') -- anthropometric (clears head/horse), period-invariant. NOTE: some modern codes are STRICTER (Salt Lake City Ord. 61/2000 = 10 ft / 3.05 m; UK conservation shopfront guidance ~2.3-2.4 m); 2.44 m sits at/above the common 8 ft minimum. (grounding-auditor 2026-06-28: removed an incorrect 'SLC >= 8 ft' sub-cite (SLC is 10 ft) and an unsourced '2.6 m'.)",
+        "board_w": "board sized so total area <= 12 sq ft = 1.11 m2 cap (Santa Clara UT / typical historic projecting-sign area limit); 0.8 x 0.6 = 0.48 m2 is well under",
+        "board_h": "see board_w; 0.6 m board height keeps area 0.48 m2 < 1.11 m2 cap",
+        "board_thick": "GRID-SNAP: a real sawn plank sign board is ~1-2 in / 25-50 mm (a carved board to ~3 in / 75 mm); snapped UP to the microcube floor 1/9 m = 0.111 m (one block, the minimum representable), so the rendered board is ~0.04-0.09 m thicker than a real plank -- a disclosed grid snap, not a grounded thickness",
+        "projection": "projecting sign extends <= 48 in = 1.22 m from the building face incl. bracket (Santa Clara UT 17.45.120; common historic limit); 0.8 m arm is within it",
+        "_note": "POST-MEDIEVAL CODE / PERIOD FORM: the numeric clearance/area/projection limits are modern sign-ordinance values (disclosed), but they are safety/anthropometric and the medieval principle is identical -- hanging pictorial trade signs on wrought-iron brackets over the street are well attested (illiterate clientele; size/projection regulation began 16th-18th c., e.g. 1669 French order, 1762-73 London). The PICTORIAL IMAGE itself = the DECAL system (backlog), not faked; this archetype is the BOARD + BRACKET geometry only, in existing materials (Wood board, Metal/Log bracket)."
+      }
+    },
+    "rug": {
+      "category": "furniture",
+      "description": "Woven floor rug (chamber/hall furnishing)",
+      "length": 2.0,
+      "width": 1.4,
+      "height": 0.11,
+      "tol": 0.15,
+      "source": "INFERRED: household rug ~2.0 x 1.4 m; height = the 1-micro engine floor (real rugs are thinner, disclosed)",
+      "sources": {
+        "length": "INFERRED ~2 m area rug",
+        "width": "INFERRED ~1.4 m",
+        "height": "ENGINE FLOOR: 1 microcube = 0.11 m minimum slab"
+      }
+    }
   }
 }

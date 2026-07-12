@@ -199,6 +199,11 @@ public:
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
     void rebuildAllChunkLighting(); // Re-bake + re-upload every chunk via the cross-chunk path (use after a global lighting-mode change)
     void buildAllChunkPhysics(); // Build collision + register occupancy grids for all chunks (call after bulk DB load)
+    // [no-frozen-engine] touched-chunk counterpart: rebuild collision ONLY for chunks
+    // intersecting [minWorld, maxWorld] (world cube coords). buildAllChunkPhysics is
+    // O(all chunks) and cost 17-64 s PER BUILDING at settlement scale (~140 chunks);
+    // per-build/regional work must never pay the whole world.
+    void buildChunkPhysicsInRegion(const glm::ivec3& minWorld, const glm::ivec3& maxWorld);
 
     // Initialize hash maps for all existing chunks (call after loading chunks)
     void initializeAllChunkVoxelMaps();

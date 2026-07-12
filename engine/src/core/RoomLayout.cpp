@@ -304,6 +304,7 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
                     if (blocked(px, pz)) continue;
                     ProgPortal w; w.a = "exterior"; w.b = room.id;
                     w.kind = "window"; w.width = spec.width; w.height = spec.height;
+                    w.infill = spec.infill;   // grounded reveal fill (shuttered default / glass)
                     w.px = px; w.pz = pz;
                     rl.portals.push_back(w);
                     break;

@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "woodpile",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.7777777777777777,
+    1.0,
+    0.5555555555555556
+  ],
+  "interaction_points": []
+}

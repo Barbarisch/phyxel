@@ -35,8 +35,8 @@ const std::map<std::string, std::string>& table() {
         {"back_bar",     "back_bar"},      // shelving behind the bar (bottles)
         {"bar_stool",    "bar_stool"},     // tall stool at the bar
         {"candle_stand", "candle_stand"},  // floor candelabra (emissive glow) — lighting
-        {"wall_lantern", "wall_lantern"},  // wall sconce lantern (awaiting wall placement)
-        {"chandelier",   "chandelier"},    // hanging candle ring (awaiting ceiling placement)
+        {"wall_lantern", "wall_lantern"},  // wall sconce lantern (Mount::Wall, 60 in mount height)
+        {"chandelier",   "chandelier"},    // hanging candle ring (Mount::Ceiling, hangs below ceiling)
         {"mug",          "mug"},           // tankard — table clutter (surface placement)
         {"bottle",       "bottle"},        // bottle — table/back-bar clutter
         {"forge_hearth", "forge_hearth"},  // smithy: the forge (firepot + chimney) — back wall
@@ -46,6 +46,13 @@ const std::map<std::string, std::string>& table() {
         {"oven_bread",   "oven_bread"},    // bakery: masonry dome bread oven (vented) — back wall
         {"chopping_block", "chopping_block"}, // butcher: the chopping block (defining work fixture)
         {"meat_rail",      "meat_rail"},      // butcher: freestanding rail of iron hooks (hanging meat)
+        {"well",       "well"},        // yard/square: masonry well-head (settlement placer, not rooms)
+        {"woodpile",   "woodpile"},    // yard: firewood stack (rear toft — planYardProps)
+        {"garden_bed", "garden_bed"},  // yard: raised kitchen-garden bed (rear toft — planYardProps)
+        {"chair",      "chair"},       // walnut side chair — the head-of-table seat (quality A)
+        {"stool",      "stool"},       // backless stool — THE common medieval seat (quality A)
+        {"wardrobe",   "wardrobe"},    // clothes press (canon-flagged post-medieval; middling+)
+        {"rug",        "rug"},         // woven floor rug, wool border (quality A)
     };
     return t;
 }

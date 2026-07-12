@@ -2951,6 +2951,68 @@
         "bottom": "wood_planks_bottom.png"
       },
       "resolution": 1024
+    },
+    {
+      "name": "Linen",
+      "category": "material",
+      "description": "Undyed plain-weave linen cloth - bedding, sheets, sacks (first soft/cloth material)",
+      "physics": {
+        "mass": 0.4,
+        "friction": 0.8,
+        "restitution": 0.02,
+        "linearDamping": 0.4,
+        "angularDamping": 0.5,
+        "breakForceMultiplier": 0.3,
+        "bondStrength": 0.4,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.92,
+          0.88,
+          0.78
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "linen_side_n.png",
+        "side_s": "linen_side_s.png",
+        "side_e": "linen_side_e.png",
+        "side_w": "linen_side_w.png",
+        "top": "linen_top.png",
+        "bottom": "linen_bottom.png"
+      },
+      "resolution": 1024
+    },
+    {
+      "name": "Wool",
+      "category": "material",
+      "description": "Dyed woven wool cloth - coverlets, blankets, upholstery (warm madder red)",
+      "physics": {
+        "mass": 0.4,
+        "friction": 0.8,
+        "restitution": 0.02,
+        "linearDamping": 0.4,
+        "angularDamping": 0.5,
+        "breakForceMultiplier": 0.3,
+        "bondStrength": 0.4,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.62,
+          0.28,
+          0.22
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "wool_side_n.png",
+        "side_s": "wool_side_s.png",
+        "side_e": "wool_side_e.png",
+        "side_w": "wool_side_w.png",
+        "top": "wool_top.png",
+        "bottom": "wool_bottom.png"
+      },
+      "resolution": 1024
     }
   ]
 }

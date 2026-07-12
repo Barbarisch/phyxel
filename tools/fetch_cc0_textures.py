@@ -83,6 +83,10 @@ ASSETS = {
     # these share the base grass/dirt tiles to stay sharp rather than upscaled-blurry).
     "GrassForest":  {"top": "Grass004", "side": "Ground003", "bottom": "Ground003"},
     "GrassSavanna": {"top": "Grass004", "side": "Ground003", "bottom": "Ground003"},
+    # Cloth (furniture quality A) — the first soft materials: bedding/sheets (Linen) and
+    # coverlets/blankets (Wool). Both plain woven fabrics from ambientCG's Fabric set.
+    "Linen":        {"all": "Fabric062"},
+    "Wool":         {"all": "Fabric019"},
 }
 
 FACE_GROUPS = {

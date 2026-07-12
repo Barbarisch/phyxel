@@ -316,6 +316,27 @@ void ChunkManager::buildAllChunkPhysics() {
     m_chunkInitializer.buildAllChunkPhysics();
 }
 
+void ChunkManager::buildChunkPhysicsInRegion(const glm::ivec3& minWorld, const glm::ivec3& maxWorld) {
+    if (!physicsWorld) return;
+    // floor-divide world cube -> chunk coord (negative-safe)
+    auto fd = [](int a) { int q = a / 32, r = a % 32; if (r != 0 && (r < 0)) --q; return q; };
+    const glm::ivec3 cMin(fd(minWorld.x), fd(minWorld.y), fd(minWorld.z));
+    const glm::ivec3 cMax(fd(maxWorld.x), fd(maxWorld.y), fd(maxWorld.z));
+    int n = 0;
+    for (auto& [coord, chunk] : chunkMap) {
+        if (!chunk) continue;
+        if (coord.x < cMin.x || coord.x > cMax.x || coord.y < cMin.y || coord.y > cMax.y ||
+            coord.z < cMin.z || coord.z > cMax.z)
+            continue;
+        chunk->setPhysicsWorld(physicsWorld);
+        chunk->createChunkPhysicsBody();   // same per-chunk registration the streaming path uses
+        ++n;
+    }
+    LOG_DEBUG_FMT("Chunk", "regional physics rebuild: " << n << " chunks in ["
+                  << cMin.x << "," << cMin.y << "," << cMin.z << "]..[" << cMax.x << ","
+                  << cMax.y << "," << cMax.z << "]");
+}
+
 void ChunkManager::initializeAllChunkVoxelMaps() {
     m_chunkInitializer.initializeAllChunkVoxelMaps();
 }

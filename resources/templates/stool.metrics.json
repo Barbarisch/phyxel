@@ -7,9 +7,29 @@
     0.0
   ],
   "overall_max": [
-    1.0,
-    1.0,
-    1.0
+    0.3333333333333333,
+    0.4444444444444444,
+    0.3333333333333333
   ],
-  "interaction_points": []
+  "interaction_points": [
+    {
+      "point_id": "seat_0",
+      "kind": "seat",
+      "local_position": [
+        0.167,
+        0.444,
+        0.167
+      ],
+      "facing_yaw": 0.0,
+      "features": {
+        "seat_top_y": 0.444,
+        "seat_center": [
+          0.167,
+          0.444,
+          0.167
+        ],
+        "backrest_present": false
+      }
+    }
+  ]
 }

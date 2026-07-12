@@ -13,10 +13,14 @@
 // bands are the corridors that L3 slice will probe.
 // ============================================================================
 
+#include <map>
+#include <string>
 #include <vector>
 
-#include "core/BuildingProgram.h"   // Rect
-#include "core/SiteAnalysis.h"      // BuildabilityMap (terrain-aware placement, Phase 2)
+#include "core/BuildingProgram.h"     // Rect
+#include "core/RoomProgram.h"         // RoomProgramRegistry (typology-sized frontage)
+#include "core/SettlementProgram.h"   // SettlementTierPreset (era/tier data presets)
+#include "core/SiteAnalysis.h"        // BuildabilityMap (terrain-aware placement, Phase 2)
 
 namespace Phyxel {
 namespace Core {
@@ -96,6 +100,92 @@ struct FencePlan {
 /// minus the building inside it (the fence doesn't touch the building). Returns ok=false if the parcel
 /// is too small for a gate. Deterministic. (place_fence #22 / zone_parcel #21.)
 FencePlan planParcelFence(const Rect& parcel, char gateSide, int gateWidth);
+
+// ============================================================================
+// Main-street morphology (lay_street_network #39 / site_settlement #38 partial)
+// — the row-village / burgage form: ONE street spine, plots allocated frontage-
+// by-frontage on BOTH sides, each plot's typology assigned FIRST (weighted
+// deterministic draw) and the plot sized FROM that typology's grounded width
+// (the burgage principle). Era/tier variation is DATA (SettlementTierPreset).
+// ============================================================================
+
+/// One plot with its pre-assigned, pre-sized building.
+struct AssignedPlot {
+    Plot        plot;        ///< the toft rect (settlement-local); abuts the street on `streetSide`
+    std::string typology;    ///< pre-assigned via the weighted draw (drives frontage)
+    char        streetSide;  ///< which side of THIS plot fronts the main street ('N'|'S'|'E'|'W')
+    int         setback;     ///< drawn yard depth (cubes): front yard AND side margins for this plot
+    Rect        footprint;   ///< building footprint: typology NATURAL size (never stretched),
+                             ///< front wall `setback` in from the street edge, centred on the frontage
+};
+
+struct MainStreetLayout {
+    SettlementLayout base;   ///< plots + street rects — legacy consumers (terrace/fence/path) iterate these
+    Rect mainStreet;         ///< the spine (distinguished for paving + the L3 end-to-end walk)
+    Rect marketSquare;       ///< the market place (town tier) — a WIDENED-main-street square at
+                             ///< mid-length (the common English market form); paved as a plaza,
+                             ///< building-free, the tier well's anchor. Valid iff hasSquare.
+    bool hasSquare = false;
+    std::vector<AssignedPlot> assigned;
+    bool ok = false;         ///< false = the footprint can't host a main street at this tier
+};
+
+/// Weighted deterministic typology draw for plot `plotIndex` (the settlement analog of
+/// pickBuildingVariant's hash). Empty/zero weights fall back to "hall_house". Deterministic in
+/// (plotIndex, seed, salt); `salt` lets a caller redraw when a pick doesn't fit its plot.
+std::string drawTypology(const std::map<std::string, int>& weights, int plotIndex, unsigned seed,
+                         unsigned salt = 0);
+
+/// Lay a main-street settlement into a W×D (cubes) footprint per the tier preset: a street spine
+/// along the LONG axis (or `axis` = 'X'|'Z' if forced; 0 = auto), plots on both sides sized from
+/// their assigned typology (frontage = building frontage + 2*setback; orientation per the typology's
+/// entrance rule: "long_wall" dwellings present their LONG wall to the street, gable/shop typologies
+/// their GABLE — the burgage read). `crossOffset` (-1 = centred) positions the spine on the cross
+/// axis (terrain mode passes the flattest alignment). Deterministic in (tier, W, D, seed).
+MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, int D,
+                                      const RoomProgramRegistry& rooms, unsigned seed,
+                                      char axis = 0, int crossOffset = -1);
+
+/// SEMI-ORGANIC CITY (city tier, site_settlement #38 growth axes + zone_districts #41): the
+/// "slightly organized, a little chaotic" quarter. Crossroads AXES — the main street and a cross
+/// street meeting at the market square — plus SECONDARY cross streets at seeded-JITTERED block
+/// intervals (the bounded chaos: axis-aligned rects, never free angles). Burgage rows front the
+/// main street in every block AND the central cross street beyond the main rows' band. Districts
+/// are DATA: inside `coreRing` of the square the typology draw uses `coreTypologyWeights` (trades
+/// cluster on the market); the fringe uses the base weights and +1 setback (looser edges).
+/// Returns the same MainStreetLayout shape (mainStreet = the main axis, marketSquare set), so the
+/// whole downstream pipeline (paver, fences, props, well) is shared. Deterministic in (tier,W,D,seed).
+MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
+                                const RoomProgramRegistry& rooms, unsigned seed);
+
+/// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
+struct YardProp {
+    std::string type;    ///< FurnitureCatalog type ("woodpile" | "garden_bed")
+    int cx = 0, cz = 0;  ///< min-corner cube position, settlement-local
+    int w = 1, d = 1;    ///< cube footprint (long axis along the rotated width)
+    int rotDeg = 0;      ///< 0 = long axis along X | 90 = along Z
+};
+
+/// Furnish an assigned plot's REAR TOFT (the yard behind the building, opposite the street):
+/// a woodpile near the building's rear wall + a kitchen-garden bed in the open toft.
+/// Invariants (YardPropsTest): every prop inside the plot INSET 1 cube (clear of the fence
+/// line), outside the building footprint, on the rear side (farther from the street than the
+/// building's rear wall), non-overlapping. A rear toft too small gets fewer/no props (honest
+/// degradation). Deterministic in (plot, seed).
+std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed);
+
+/// The flattest straight spine alignment for a main street over `site`: evaluates every axis-aligned
+/// band of `mainWidth` cells (both axes, every cross offset) by PER-CELL relief + unbuildable-cell
+/// penalty (per-cell, so the short axis gets no cell-count advantage), returns the minimum (stable
+/// tiebreak: the LONGER axis first, then lower offset). `minPlotDepth` restricts the offset search so
+/// at least that much plot room remains on BOTH sides of the band (clamped for small sites — never
+/// an empty search). Deterministic.
+struct StreetAxisChoice {
+    char axis = 'X';     ///< spine runs along X ('X') or Z ('Z')
+    int  crossOffset = 0;///< band start on the cross axis (site-cell coords)
+    long score = 0;      ///< per-cell relief x1000 + penalties (lower = flatter)
+};
+StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth = 0);
 
 } // namespace Core
 } // namespace Phyxel

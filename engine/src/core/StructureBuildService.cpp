@@ -1,6 +1,7 @@
 #include "core/StructureBuildService.h"
 
 #include <algorithm>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <filesystem>
@@ -52,12 +53,27 @@ nlohmann::json loadAssetMetricsSidecar(const std::string& templateName) {
     return nullptr;
 }
 
+// [no-frozen-engine] phase timing — MEASURE before optimizing: the city L4 froze the main
+// loop ~25 min across 28 synchronous builds; these numbers decide what gets regionalized,
+// bulk-pathed, or sliced. lap() returns ms since the last lap and restarts the clock.
+struct PhaseClock {
+    std::chrono::steady_clock::time_point t = std::chrono::steady_clock::now();
+    long long lap() {
+        const auto now = std::chrono::steady_clock::now();
+        const auto ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count();
+        t = now;
+        return ms;
+    }
+};
+
 struct PlaceOutcome {
     nlohmann::json response;
     std::string objectId;
     glm::ivec3 smin{INT_MAX, INT_MAX, INT_MAX}, smax{INT_MIN, INT_MIN, INT_MIN};
     int posX = 0, posY = 0, posZ = 0;
     bool ok = false;
+    long long msPlace = 0, msGrass = 0, msNav = 0;   // phase timings (perf triage)
 };
 
 // Shared placement tail: undo snapshot (optional), place, honest-zero check,
@@ -79,7 +95,9 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         deps.pushUndo(out.smin, out.smax,
                       "build_structure:" + params.value("type", std::string("unknown")));
 
+    PhaseClock pc;
     auto placement = StructureGenerator::place(chunkManager, structure);
+    out.msPlace = pc.lap();
 
     if (placement.placed == 0) {
         // Honest failure: nothing landed. Do NOT register a wall-less "ghost"
@@ -144,6 +162,7 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
         // the structure's ACTUAL bbox for terrain grass just below the floor and turn
         // it to Dirt so no grass blades emit under the building.
         if (!out.objectId.empty() && chunkManager) {
+            pc.lap();
             auto isG = [](const std::string& m) {
                 return m == "Grass" || m == "GrassForest" || m == "GrassSavanna";
             };
@@ -163,10 +182,10 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
                         }
                     }
             if (!gcut.empty()) {
-                StructureGenerator::removeVoxels(chunkManager, gcut);
+                StructureGenerator::removeVoxels(chunkManager, gcut);   // bulk-end rebuilds collision
                 StructureGenerator::place(chunkManager, gfill);
-                chunkManager->buildAllChunkPhysics();
             }
+            out.msGrass = pc.lap();
         }
     }
 
@@ -175,7 +194,9 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
     // flatten creates a cliff at the ring boundary (regressed fence_along_cliff 0->17).
 
     // Rebuild NavGrid for the affected region
+    pc.lap();
     if (deps.npcs) deps.npcs->onRegionChanged(out.smin, out.smax);
+    out.msNav = pc.lap();
 
     out.ok = true;
     return out;
@@ -232,6 +253,11 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     if (!chunkManager) return {{"error", "ChunkManager not available"}};
 
     nlohmann::json response = nlohmann::json::object();
+
+    // [no-frozen-engine] per-phase ms; logged + returned so the async triage is data-driven.
+    PhaseClock pc;
+    long long msSetup = 0, msOverlap = 0, msRealize = 0, msPad = 0, msExcav = 0,
+              msRegister = 0, msFixtures = 0;
 
     BuildingProgram program = BuildingProgram::fromJson(params);
 
@@ -302,6 +328,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
         reqY = params["position"].value("y", 16);
     }
 
+    msSetup = pc.lap();
     // CONTEXT-AWARE PLACEMENT: remove any existing structure whose footprint overlaps
     // this one BEFORE seating. Without this, a rebuild stacks: terrain seating samples
     // the old structure's voxels as "ground" and seats the new one on top of it.
@@ -321,8 +348,10 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
         }
     }
 
+    msOverlap = pc.lap();
     auto shell = StructureRealizer::realizeShell(program, style);
     if (!shell.ok) return {{"error", "realize failed: " + shell.error}};
+    msRealize = pc.lap();
 
     // prepare_pad (#2): LEVEL the bumpy terrain under the footprint to a flat build
     // pad — cut the high side, fill the low side to the median grade — then seat the
@@ -368,9 +397,12 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 clearToDirt(padLevel);
                 if (tops[i] < padLevel) clearToDirt(tops[i]);
             }
+            // No explicit physics rebuild: removeVoxels/place END their bulk ops with
+            // buildInitialCollisionShapes per touched chunk — the SAME rebuild an explicit
+            // buildChunkPhysicsInRegion would repeat (measured: the redundant pass cost
+            // 18-61 s per building at settlement scale).
             if (!cut.empty())         StructureGenerator::removeVoxels(chunkManager, cut);
             if (!fill.voxels.empty()) StructureGenerator::place(chunkManager, fill);
-            if (!cut.empty() || !fill.voxels.empty()) chunkManager->buildAllChunkPhysics();
             oy = padLevel + 1;        // foundation bottom rests on the flat pad
             LOG_INFO_FMT("StructureBuild", "prepare_pad: leveled footprint to y=" << padLevel
                          << " (cut " << cut.size() << ", fill " << fill.voxels.size() << ")");
@@ -387,13 +419,13 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                     for (int z = oz; z < oz + D; ++z)
                         for (int y = oy; y <= padLevel; ++y)
                             dig.push_back(glm::ivec3(x, y, z));
-                StructureGenerator::removeVoxels(chunkManager, dig);
-                chunkManager->buildAllChunkPhysics();
+                StructureGenerator::removeVoxels(chunkManager, dig);   // bulk-end rebuilds collision
                 LOG_INFO_FMT("StructureBuild", "excavate_basement: dug cellar " << depth
                              << " cubes below grade (" << dig.size() << " voxels)");
             }
         }
     }
+    msPad = pc.lap();
     StructureResult structure = StructureRealizer::toStructureResult(shell, glm::ivec3(ox, oy, oz));
     if (structure.voxels.empty())
         return {{"error", "Failed to generate structure (unknown type or invalid params)"}};
@@ -447,7 +479,9 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
         StructureGenerator::removeVoxels(chunkManager, cells);
     }
 
+    msExcav = pc.lap();
     PlaceOutcome out = placeAndRegisterImpl(structure, params, deps, planMeta, /*doSnapshot=*/false);
+    msRegister = pc.lap();
     // Merge pre-build fields (typology_unfit) into the outcome response.
     for (auto it = response.begin(); it != response.end(); ++it) out.response[it.key()] = it.value();
     response = out.response;
@@ -491,27 +525,32 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                                                   : nullptr;
             if (t) {
                 int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
-                int uMaxX = 0, uMaxZ = 0;   // max MICRO index (for the true placed span)
-                auto acc = [&](const glm::ivec3& cube, int microX, int microZ) {
+                int uMaxX = 0, uMaxZ = 0, uMaxY = 0;   // max MICRO index (true placed span + height)
+                auto acc = [&](const glm::ivec3& cube, int microX, int microZ, int microY) {
                     mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
                     mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
                     uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
+                    uMaxY = std::max(uMaxY, microY);
                 };
                 for (const auto& c : t->cubes)
-                    acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8);
+                    acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8,
+                        c.relativePos.y * 9 + 8);
                 for (const auto& s : t->subcubes)
                     acc(s.parentRelativePos,
                         s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
-                        s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2);
+                        s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2,
+                        s.parentRelativePos.y * 9 + s.subcubePos.y * 3 + 2);
                 for (const auto& mc : t->microcubes)
                     acc(mc.parentRelativePos,
                         mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
-                        mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z);
+                        mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z,
+                        mc.parentRelativePos.y * 9 + mc.subcubePos.y * 3 + mc.microcubePos.y);
                 if (mxx >= mnx) {
                     fp.width = mxx - mnx + 1;
                     fp.depth = mxz - mnz + 1;
                     fp.microW = uMaxX;   // real micro extents (0-anchored templates)
                     fp.microD = uMaxZ;
+                    fp.microH = uMaxY + 1;   // micro HEIGHT (ceiling hang needs it)
                     got = true;
                 }
             }
@@ -520,8 +559,10 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 if (m.is_object() && m.contains("overall_max") &&
                     m["overall_max"].is_array() && m["overall_max"].size() >= 3) {
                     const double ex = m["overall_max"][0].get<double>();
+                    const double ey = m["overall_max"][1].get<double>();
                     const double ez = m["overall_max"][2].get<double>();
                     fp = footprintFromExtents(ex, ez);
+                    fp.microH = std::max(1, (int)std::lround(std::ceil(ey * 9.0)));
                     got = true;
                 }
             }
@@ -539,13 +580,26 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
         int fxSpawned = 0, fxSkipped = 0;
         std::vector<UnplacedFixture> unplaced;  // honest: pieces that didn't fit
         nlohmann::json fixturesJson = nlohmann::json::array();
+        // Furniture quality B: data recipes (tier-filtered) + the typology's wealth tier.
+        // Idempotent load; unknown purposes still fall back to the hardcoded map. A FAILED
+        // load is surfaced loudly (auditor finding): the hardcoded fallback has no tiers and
+        // no wall_lantern/chandelier, so silence here would quietly strip quality-B fixtures.
+        const bool recipesLoaded =
+            FurniturePlacer::loadRecipesFromFile("resources/furnishing_recipes.json");
+        if (!recipesLoaded)
+            LOG_WARN_FMT("StructureBuild",
+                         "furnishing_recipes.json failed to load — falling back to the "
+                         "hardcoded recipe map (no wealth tiers, no mounted fixtures)");
+        response["furnishing_recipes_loaded"] = recipesLoaded;
+        const std::string wealthTier = rp ? rp->wealthTier : "";
         for (size_t si = 0; si < program.stories.size(); ++si) {
             const auto& story = program.stories[si];
             // KI-2: per-story floor Y — else all furniture stacks on the ground floor.
             int storyFloorY = (si < floorYByStory.size()) ? floorYByStory[si] : floorY;
             auto placements = FurniturePlacer::furnish(
                 story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
-                &unplaced, extTMicro);   // extTMicro -> reserve the TRUE placed span
+                &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span
+                wealthTier);
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);
@@ -553,11 +607,20 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 const auto& pl = placements[k];
                 std::string tmpl = FurnitureCatalog::templateFor(pl.type);
                 if (tmpl.empty()) { ++fxSkipped; continue; }
-                // MICRO-PRECISE: inset off the wall + sit on the exact walkable surface.
+                // MICRO-PRECISE: inset off the wall + sit on the exact walkable surface —
+                // except MOUNTED fixtures: a sconce hangs at the grounded 60 in wall height,
+                // a chandelier below the ceiling with head clearance (mountedMicroY).
                 const int surfMicroY = (si < surfaceMicroYByStory.size())
                     ? surfaceMicroYByStory[si] : storyFloorY * 9;
+                const int ceilMicroY = surfMicroY + story.height * 9;
+                auto fpIt2 = fixtureFootprints.find(pl.type);
+                const int tmplMicroH = (fpIt2 != fixtureFootprints.end() &&
+                                        fpIt2->second.microH > 0)
+                    ? fpIt2->second.microH : 9;
+                const int baseMicroY = FurniturePlacer::mountedMicroY(
+                    pl.type, surfMicroY, ceilMicroY, tmplMicroH);
                 const glm::ivec3 microPos =
-                    FurniturePlacer::microWorldPos(pl, extTMicro, surfMicroY);
+                    FurniturePlacer::microWorldPos(pl, extTMicro, baseMicroY);
                 std::string fid = placedObjectManager->placeTemplateMicro(
                     tmpl, microPos, pl.rotation, objectId);
                 if (fid.empty()) { ++fxSkipped; continue; }
@@ -762,10 +825,23 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             response["fixtures_unplaced"] = unfit;
         }
         // Metadata tags persist with the next world save (atomic with the voxels).
+        msFixtures = pc.lap();
         LOG_INFO_FMT("StructureBuild", "FurniturePlacer: engine placed " << fxSpawned
                      << " fixtures (" << fxSkipped << " skipped) into '" << objectId << "'");
     }
 
+    // [no-frozen-engine] the phase distribution this build actually spent (main-thread ms).
+    const long long msTotal = msSetup + msOverlap + msRealize + msPad + msExcav + msRegister +
+                              msFixtures;
+    LOG_INFO_FMT("StructureBuild", "[perf] phases ms: setup=" << msSetup << " overlap=" << msOverlap
+                 << " realize=" << msRealize << " pad=" << msPad << " excav=" << msExcav
+                 << " place+register=" << msRegister << " (place=" << out.msPlace << " grass="
+                 << out.msGrass << " nav=" << out.msNav << ") fixtures=" << msFixtures
+                 << " TOTAL=" << msTotal);
+    response["timings_ms"] = {{"setup", msSetup}, {"overlap", msOverlap}, {"realize", msRealize},
+                              {"pad", msPad}, {"excav", msExcav}, {"register", msRegister},
+                              {"place", out.msPlace}, {"grass", out.msGrass}, {"nav", out.msNav},
+                              {"fixtures", msFixtures}, {"total", msTotal}};
     return response;
 }
 
