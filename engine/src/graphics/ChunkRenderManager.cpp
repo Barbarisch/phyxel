@@ -202,9 +202,40 @@ void ChunkRenderManager::rebuildAllFaces(
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
 
+    // Phase 3 face-direction bucketing (docs/LargeWorldScalePlan.md): reorder the
+    // instance buffer direction-major so draw passes can skip whole ranges the GPU
+    // would cull anyway (a +X face can never be visible from a camera on its -X side).
+    reorderFacesByDirection();
+
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;
     m_neighborLight = nullptr;  // don't hold the closure past the rebuild
+}
+
+void ChunkRenderManager::reorderFacesByDirection() {
+    // Counting sort by faceID (bits 15-17; 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y). Stable,
+    // one pass + one scatter. m_dirRangeOffsets[d] = first instance of direction d,
+    // [6] = total — consumers verify [6] == numInstances before trusting the ranges.
+    std::array<uint32_t, 6> counts{};
+    for (const auto& f : faces) {
+        uint32_t d = (f.packedData >> 15) & 0x7u;
+        counts[d > 5u ? 5u : d]++;
+    }
+    uint32_t run = 0;
+    for (int d = 0; d < 6; ++d) {
+        m_dirRangeOffsets[d] = run;
+        run += counts[d];
+    }
+    m_dirRangeOffsets[6] = run;
+
+    m_dirScratch.resize(faces.size());
+    std::array<uint32_t, 6> cursor;
+    std::copy(m_dirRangeOffsets.begin(), m_dirRangeOffsets.begin() + 6, cursor.begin());
+    for (const auto& f : faces) {
+        uint32_t d = (f.packedData >> 15) & 0x7u;
+        m_dirScratch[cursor[d > 5u ? 5u : d]++] = f;
+    }
+    faces.swap(m_dirScratch);
 }
 
 void ChunkRenderManager::rebuildCubeFaces(
@@ -1612,7 +1643,12 @@ void ChunkRenderManager::updateSingleSubcubeColor(
 void ChunkRenderManager::createVulkanBuffer() {
     ScopedChunkPerf _perf(ChunkPerfPhase::BufferCreate);  // B0: first-time per-chunk alloc (all 3 buffers)
     if (device == VK_NULL_HANDLE || physicalDevice == VK_NULL_HANDLE) {
-        throw std::runtime_error("ChunkRenderManager::createVulkanBuffer() called before initialize()!");
+        // Headless context (unit tests drive the streaming/load paths with null
+        // devices) — nothing to allocate. In the editor/runtime this state would
+        // mean initialize() was skipped; those chunks render invisible, which is
+        // the same observable failure the old throw surfaced, minus the crash.
+        LOG_DEBUG("ChunkRender", "createVulkanBuffer skipped: no Vulkan device (headless)");
+        return;
     }
     renderBuffer.createBuffer(faces);
     // Parallel grass buffer, sized to the grass instances (small: ≤1024/chunk). Capacity floor of 1

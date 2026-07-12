@@ -173,7 +173,12 @@ TEST(FarTerrainMesherTest, BuildTile_EveryColumnCoveredOnceAtQuantizedHeight) {
                 }
             }
             ASSERT_EQ(covering, 1) << "column (" << i << "," << j << ") must have exactly one top";
-            EXPECT_FLOAT_EQ(coveredY, float(gt.at(i, j)))
+            // Tops sit at the quantized surface MINUS the compositing below-surface bias
+            // (docs/FarRepresentationProviders.md), so far tiles never rise above real
+            // chunk geometry. ring==1 for kKey, so the cross-ring term is zero.
+            const float expectedY = float(gt.at(i, j)) - FarTerrainMesher::kBelowSurfaceBias
+                                    - 0.01f * float(std::max(0, kKey.ring - 1));
+            EXPECT_FLOAT_EQ(coveredY, expectedY)
                 << "column (" << i << "," << j << ") top at wrong height";
         }
     }

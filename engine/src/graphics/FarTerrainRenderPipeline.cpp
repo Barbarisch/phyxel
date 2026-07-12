@@ -126,6 +126,20 @@ void FarTerrainRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2
     // pipeline's FRONT_BIT). Revisit if far tiles ever show up GPU-bound.
     rasterizer.cullMode    = VK_CULL_MODE_NONE;
     rasterizer.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    // Guaranteed real-chunk depth win (docs/FarRepresentationProviders.md, compositing
+    // layer). Far tiles are drawn AFTER the real chunks and INTENTIONALLY overlap them
+    // from distance 0 (so a diverging free camera never opens a hole). The depth buffer
+    // is the single arbiter of "what's nearest" — but only if far geometry never ties.
+    // A positive depth bias pushes ALL far geometry strictly behind coincident real-chunk
+    // surfaces in DEPTH space (angle-independent, unlike a world-Y offset — grazing views
+    // at distance were the worst-fighting case). This makes real chunks always win the
+    // overlap, so the near ring's coplanar `quantizeTop` tie can no longer flicker
+    // (was the medium-distance "shadow jitter": tile [flat-lit] vs real chunk [shadowed]
+    // fighting per-pixel as the camera moved). Coverage-skip is now a pure optimization.
+    rasterizer.depthBiasEnable         = VK_TRUE;
+    rasterizer.depthBiasConstantFactor = 64.0f;  // push back ~64 depth-units-of-last-place
+    rasterizer.depthBiasSlopeFactor    = 2.0f;   // extra push on grazing tiles (steep depth slope)
+    rasterizer.depthBiasClamp          = 0.0f;
 
     VkPipelineMultisampleStateCreateInfo multisample{};
     multisample.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;

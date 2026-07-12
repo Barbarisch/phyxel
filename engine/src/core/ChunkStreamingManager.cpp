@@ -9,6 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <vector>
 #include <utility>
 
@@ -47,6 +48,10 @@ void ChunkStreamingManager::stopAsyncGeneration() {
     }
     m_genPending.clear();
     m_workerGenerator.reset();
+    // Stream-in boot state belongs to the world being torn down.
+    m_dbBacklog.clear();
+    m_bootResident.clear();
+    m_dbWorkerMode = false;
 }
 
 void ChunkStreamingManager::disposalLoop() {
@@ -69,15 +74,18 @@ void ChunkStreamingManager::disposalLoop() {
 }
 
 void ChunkStreamingManager::maybeStartGenWorker() {
-    if (m_genWorker.joinable() || !m_generatorSnapshot || !m_finalizeGenerated) return;
+    if (m_genWorker.joinable() || !m_finalizeGenerated) return;
     // Snapshot lazily on the first pump: by now the game-definition loader has applied
     // recipe/terrain params to the live generator, so the copy is fully configured.
-    m_workerGenerator = m_generatorSnapshot();
-    if (!m_workerGenerator) return;
+    if (m_generatorSnapshot) m_workerGenerator = m_generatorSnapshot();
+    // Pure-DB worker mode (stream-in boot for DB-only worlds): run without a
+    // generator — the worker only loads from storage and drops misses.
+    if (!m_workerGenerator && !m_dbWorkerMode) return;
     m_stopGen = false;
     m_genWorker = std::thread([this] { genWorkerLoop(); });
     m_disposalThread = std::thread([this] { disposalLoop(); });
-    LOG_INFO("ChunkStreaming", "Async chunk-generation + disposal workers started");
+    LOG_INFO("ChunkStreaming", "Async chunk-generation + disposal workers started{}",
+             m_workerGenerator ? "" : " (pure DB-load mode, no generator)");
 }
 
 void ChunkStreamingManager::genWorkerLoop() {
@@ -113,11 +121,20 @@ void ChunkStreamingManager::genWorkerLoop() {
             }
             if (fromDb) {
                 chunk->markClean();  // loaded state is by definition persisted
-            } else {
+            } else if (m_workerGenerator) {
                 m_workerGenerator->generateChunk(*chunk, chunkCoord);
                 // Flora before maps/grid so canopy voxels are included in both. DB-loaded
                 // chunks were saved WITH their flora — no re-decoration.
                 if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *m_workerGenerator);
+            } else {
+                // Pure-DB mode: a miss means the coord has no saved data — drop it
+                // (report via m_genFailed so the pending mark is cleared; DB-only
+                // worlds never generate).
+                LOG_WARN("ChunkStreaming", "DB-load-only worker: no data for ({},{},{}) — dropped",
+                         chunkCoord.x, chunkCoord.y, chunkCoord.z);
+                std::lock_guard<std::mutex> lock(m_genResultMutex);
+                m_genFailed.push_back(chunkCoord);
+                continue;
             }
             chunk->initializeVoxelMaps();
             chunk->forcePhysicsRebuild();   // occupancy-grid fill; registration is main-thread
@@ -144,7 +161,11 @@ void ChunkStreamingManager::drainGeneratedChunks(const glm::vec3& position, floa
     {
         std::lock_guard<std::mutex> lock(m_genResultMutex);
         // Failed builds: clear their pending mark so the coord is retried later.
-        for (const glm::ivec3& c : m_genFailed) m_genPending.erase(c);
+        // (Boot-backlog coords are NOT retried — a pure-DB miss stays a miss.)
+        for (const glm::ivec3& c : m_genFailed) {
+            m_genPending.erase(c);
+            m_bootResident.erase(c);
+        }
         m_genFailed.clear();
         if (m_genResults.empty()) return;
         const size_t n = (m_maxChunksPerUpdate > 0)
@@ -158,9 +179,12 @@ void ChunkStreamingManager::drainGeneratedChunks(const glm::vec3& position, floa
     for (auto& chunk : ready) {
         glm::ivec3 chunkCoord = Utils::CoordinateUtils::worldToChunkCoord(chunk->getWorldOrigin());
         m_genPending.erase(chunkCoord);
+        // Boot-backlog chunks become resident regardless of camera distance
+        // (DB-only worlds keep full residency and never evict).
+        const bool fromBootBacklog = m_bootResident.erase(chunkCoord) > 0;
         if (getChunkAtCoord(chunkCoord)) continue;  // superseded (e.g. DB-loaded meanwhile)
         glm::vec3 center = glm::vec3(chunk->getWorldOrigin()) + glm::vec3(16.0f);
-        if (glm::length(center - position) > unloadRadius) continue;  // flew past it
+        if (!fromBootBacklog && glm::length(center - position) > unloadRadius) continue;  // flew past it
 
         auto tsD0 = std::chrono::steady_clock::now();
         auto devices = m_getDevices();
@@ -531,6 +555,84 @@ std::vector<glm::ivec3> ChunkStreamingManager::loadAllChunksFromDatabase() {
     
     LOG_INFO_FMT("ChunkStreaming", "Successfully loaded " << loadedChunks.size() << " chunks from database");
     return loadedChunks;
+}
+
+std::vector<glm::ivec3> ChunkStreamingManager::loadChunksNearAndDeferRest(
+    const glm::vec3& anchor, float nearRadius, bool deferRest) {
+    std::vector<glm::ivec3> nearLoaded;
+    if (!worldStorage) {
+        LOG_WARN("ChunkStreaming", "No world storage available - cannot load chunks from database");
+        return nearLoaded;
+    }
+
+    std::vector<glm::ivec3> chunkCoords = worldStorage->getAllChunkCoordinates();
+    if (chunkCoords.empty()) {
+        LOG_INFO("ChunkStreaming", "No chunks found in database");
+        return nearLoaded;
+    }
+
+    // Sort every DB coord by distance to the boot anchor, then split at nearRadius.
+    std::vector<std::pair<float, glm::ivec3>> byDistance;
+    byDistance.reserve(chunkCoords.size());
+    for (const auto& coord : chunkCoords) {
+        glm::vec3 center = glm::vec3(Utils::CoordinateUtils::chunkCoordToOrigin(coord)) + glm::vec3(16.0f);
+        byDistance.emplace_back(glm::length(center - anchor), coord);
+    }
+    std::sort(byDistance.begin(), byDistance.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    m_dbBacklog.clear();
+    m_bootResident.clear();
+    size_t misses = 0;
+    for (const auto& [distance, coord] : byDistance) {
+        if (distance <= nearRadius) {
+            // Synchronous near-set load: spawn area must be solid before first frame.
+            if (loadChunk(coord)) nearLoaded.push_back(coord);
+            else ++misses;  // empty chunk record — same as the old load-all path
+        } else if (deferRest) {
+            m_dbBacklog.push_back(coord);  // already nearest-first
+        }
+    }
+    m_dbWorkerMode = !m_dbBacklog.empty();
+
+    LOG_INFO_FMT("ChunkStreaming", "Stream-in boot: " << nearLoaded.size() << " chunk(s) loaded near anchor ("
+                 << misses << " empty), " << m_dbBacklog.size() << " deferred to background"
+                 << (deferRest ? "" : " [streaming world: far chunks load on approach]"));
+    return nearLoaded;
+}
+
+void ChunkStreamingManager::pumpDeferredDbLoads(const glm::vec3& position) {
+    if (m_dbBacklog.empty() && m_bootResident.empty()) return;
+    if (!worldStorage) { m_dbBacklog.clear(); m_bootResident.clear(); return; }
+
+    maybeStartGenWorker();
+    if (!asyncGenerationActive()) return;  // worker failed to start; retry next frame
+
+    // Feed the worker a bounded number of backlog coords at a time so camera-driven
+    // requests (streaming worlds) never queue behind hundreds of boot loads.
+    constexpr int kMaxBootInFlight = 4;
+    int inFlight = static_cast<int>(m_bootResident.size());
+    while (!m_dbBacklog.empty() && inFlight < kMaxBootInFlight) {
+        glm::ivec3 coord = m_dbBacklog.front();
+        m_dbBacklog.pop_front();
+        if (getChunkAtCoord(coord) || m_genPending.count(coord)) continue;
+        m_genPending.insert(coord);
+        m_bootResident.insert(coord);
+        {
+            std::lock_guard<std::mutex> lock(m_genRequestMutex);
+            m_genRequests.push_back(coord);
+        }
+        m_genCv.notify_one();
+        ++inFlight;
+    }
+
+    // Land finished chunks. Backlog chunks bypass the distance drop (see
+    // drainGeneratedChunks); radius only applies to any interleaved camera requests.
+    drainGeneratedChunks(position, std::numeric_limits<float>::max());
+
+    if (m_dbBacklog.empty() && m_bootResident.empty()) {
+        LOG_INFO("ChunkStreaming", "Stream-in boot complete: deferred background load finished");
+    }
 }
 
 bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {

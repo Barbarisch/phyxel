@@ -112,6 +112,45 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         }
     });
 
+    // Async worker wiring (generation snapshot + main-thread finalize). Wired
+    // UNCONDITIONALLY: streaming worlds get a generator via the snapshot; DB-only
+    // worlds get a null snapshot and the worker runs in pure DB-load mode for the
+    // stream-in boot backlog (docs/LargeWorldScalePlan.md Phase 2). The finalize
+    // (grid registration + remesh marks) is world-type-independent.
+    m_streamingManager.setAsyncGeneration(
+        [this]() -> std::unique_ptr<WorldGenerator> {
+            if (!m_streamingGenerationEnabled || !m_worldGenerator) return nullptr;
+            // Snapshot AFTER the loader applied recipe/params (lazy: first pump).
+            return std::make_unique<WorldGenerator>(*m_worldGenerator);
+        },
+        [this](Chunk& chunk, const glm::ivec3& chunkCoord) {
+            // Flora normally runs on the WORKER (setWorkerFloraDecorator); the
+            // main-thread decorator is only a fallback when no worker decorator is
+            // wired — and only for freshly GENERATED chunks (still DB-dirty from
+            // addCube). DB-loaded chunks were saved WITH their flora and arrive
+            // markClean'd; decorating them again would double the flora.
+            const bool wasGenerated = chunk.getIsDirty();
+            if (wasGenerated && !m_hasWorkerFlora && m_floraDecorator) m_floraDecorator(chunk, chunkCoord);
+            // Mark pristine: generated terrain + flora regenerate deterministically,
+            // so only player edits should hit the DB.
+            chunk.markClean();
+            if (!chunk.hasAnySolidVoxel()) return;  // pure air: nothing to collide/mesh
+            if (physicsWorld) {
+                chunk.setPhysicsWorld(physicsWorld);
+                chunk.registerPrebuiltPhysics();
+            }
+            markChunkForRemesh(&chunk);
+            // Neighbour re-culls are cosmetic (overdraw + border light, never
+            // holes) — idle tier, so they only run in quiet frames.
+            static const glm::ivec3 kFaceDirs2[6] = {
+                {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+            glm::ivec3 fc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
+            for (const glm::ivec3& d : kFaceDirs2) {
+                if (Chunk* adj = getChunkAtCoord(fc + d))
+                    markChunkForRemeshIdle(adj);
+            }
+        });
+
     // Setup dynamic object manager callbacks
     m_dynamicObjectManager.setCallbacks(
         // PhysicsWorldAccessFunc: Access physics world
@@ -220,40 +259,8 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     // (that runs on the worker).
     m_streamingManager.setMaxChunksPerUpdate(enabled ? 2 : 0);
 
-    // Async generation (Phase 1c): terrain fill + voxel maps + occupancy-grid fill on a
-    // dedicated worker with a PRIVATE generator copy; the main thread only initializes,
-    // uploads, inserts and finalizes (flora + grid registration + remesh marks).
-    if (enabled) {
-        m_streamingManager.setAsyncGeneration(
-            [this]() -> std::unique_ptr<WorldGenerator> {
-                if (!m_streamingGenerationEnabled || !m_worldGenerator) return nullptr;
-                // Snapshot AFTER the loader applied recipe/params (lazy: first pump).
-                return std::make_unique<WorldGenerator>(*m_worldGenerator);
-            },
-            [this](Chunk& chunk, const glm::ivec3& chunkCoord) {
-                // Flora normally runs on the WORKER (setWorkerFloraDecorator); the
-                // main-thread decorator is only a fallback when no worker decorator is
-                // wired. Then mark the whole chunk pristine: generated terrain + flora
-                // regenerate deterministically, so only player edits should hit the DB.
-                if (!m_hasWorkerFlora && m_floraDecorator) m_floraDecorator(chunk, chunkCoord);
-                chunk.markClean();
-                if (!chunk.hasAnySolidVoxel()) return;  // pure air: nothing to collide/mesh
-                if (physicsWorld) {
-                    chunk.setPhysicsWorld(physicsWorld);
-                    chunk.registerPrebuiltPhysics();
-                }
-                markChunkForRemesh(&chunk);
-                // Neighbour re-culls are cosmetic (overdraw + border light, never
-                // holes) — idle tier, so they only run in quiet frames.
-                static const glm::ivec3 kFaceDirs[6] = {
-                    {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-                glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
-                for (const glm::ivec3& d : kFaceDirs) {
-                    if (Chunk* adj = getChunkAtCoord(cc + d))
-                        markChunkForRemeshIdle(adj);
-                }
-            });
-    }
+    // Async worker wiring (snapshot + finalize) is set once in setupCallbacks();
+    // the snapshot lambda returns null while streaming generation is disabled.
     LOG_INFO_FMT("Chunk", "Streaming generation " << (enabled ? "ENABLED" : "disabled")
                  << " (type=" << static_cast<int>(type) << ", seed=" << seed
                  << ", asyncGen=" << (enabled ? 1 : 0) << ")");
@@ -289,6 +296,20 @@ bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
 
 std::vector<glm::ivec3> ChunkManager::loadAllChunksFromDatabase() {
     return m_streamingManager.loadAllChunksFromDatabase();
+}
+
+std::vector<glm::ivec3> ChunkManager::loadChunksNearAndDeferRest(const glm::vec3& anchor) {
+    // Streaming worlds don't defer: far DB chunks load on approach via the pump.
+    return m_streamingManager.loadChunksNearAndDeferRest(anchor, loadDistance,
+                                                         !m_streamingGenerationEnabled);
+}
+
+void ChunkManager::pumpDeferredDbLoads(const glm::vec3& position) {
+    m_streamingManager.pumpDeferredDbLoads(position);
+}
+
+bool ChunkManager::hasDeferredDbLoads() const {
+    return m_streamingManager.hasDeferredDbLoads();
 }
 
 bool ChunkManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {

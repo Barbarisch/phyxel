@@ -20,6 +20,12 @@ class FarTerrainMesher {
 public:
     static constexpr int kColumns    = 64;  ///< columns per tile side
     static constexpr int kSkirtSteps = 2;   ///< skirt depth in units of step
+    /// Every tile's geometry is pushed this far BELOW its quantized surface so far
+    /// terrain sits strictly under coincident real-chunk surfaces at all view angles
+    /// (docs/FarRepresentationProviders.md compositing layer; the pipeline depth bias
+    /// alone left flat top-down overlaps bleeding through). Coarser rings drop an extra
+    /// 0.01/ring for cross-ring ordering. Kept small — invisible on ±step-quantized LOD.
+    static constexpr float kBelowSurfaceBias = 0.5f;
 
     FarTerrainMesher(std::unique_ptr<WorldGenerator> generator, FarMaterialResolver resolver);
     ~FarTerrainMesher();

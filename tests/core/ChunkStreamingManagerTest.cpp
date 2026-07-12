@@ -2,9 +2,12 @@
 #include "core/ChunkStreamingManager.h"
 #include "core/Chunk.h"
 #include "core/WorldStorage.h"
+#include "core/WorldGenerator.h"
 #include <glm/glm.hpp>
+#include <chrono>
 #include <filesystem>
 #include <memory>
+#include <thread>
 #include <vector>
 
 using namespace Phyxel;
@@ -197,4 +200,56 @@ TEST(ChunkStreamingManagerTest, UpdateStreamingNoStorageDoesNothing) {
     ChunkStreamingManager csm;
     // Should not crash even without storage or callbacks
     csm.updateStreaming(glm::vec3(0.0f), 128.0f, 256.0f);
+}
+
+// ============================================================================
+// Stream-in boot (docs/LargeWorldScalePlan.md Phase 2)
+// ============================================================================
+
+TEST_F(ChunkStreamingCallbackTest, StreamInBootDefersFarChunksAndEventuallyLoadsAll) {
+    // Enable the async drain path (null generator snapshot → pure DB-load mode).
+    csm.setAsyncGeneration(
+        []() -> std::unique_ptr<WorldGenerator> { return nullptr; },
+        [](Chunk&, const glm::ivec3&) { /* headless finalize: no physics/remesh */ });
+
+    // Seed the DB: one chunk near the anchor, four far away.
+    const glm::ivec3 origins[] = {
+        {0, 0, 0}, {320, 0, 0}, {-320, 0, 0}, {0, 0, 320}, {320, 0, 320}};
+    for (const auto& origin : origins) {
+        auto chunk = makeChunk(origin);
+        chunk->addCube({1, 1, 1}, "Stone");
+        ASSERT_TRUE(csm.saveChunk(chunk.get()));
+    }
+    ASSERT_TRUE(chunks.empty());
+
+    // Boot: only the near chunk loads synchronously; the far four are deferred.
+    auto nearLoaded = csm.loadChunksNearAndDeferRest(glm::vec3(16.0f), 64.0f, true);
+    EXPECT_EQ(nearLoaded.size(), 1u);
+    EXPECT_EQ(chunks.size(), 1u);
+    EXPECT_TRUE(csm.hasDeferredDbLoads());
+
+    // Pump until the background load drains (worker thread — poll with timeout).
+    for (int i = 0; i < 1000 && csm.hasDeferredDbLoads(); ++i) {
+        csm.pumpDeferredDbLoads(glm::vec3(16.0f));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    EXPECT_FALSE(csm.hasDeferredDbLoads()) << "deferred boot backlog never drained";
+    EXPECT_EQ(chunks.size(), 5u) << "not every DB chunk became resident";
+    for (const auto& origin : origins) {
+        EXPECT_TRUE(chunkMap.count(origin / 32)) << "missing chunk at origin ("
+            << origin.x << "," << origin.y << "," << origin.z << ")";
+    }
+    csm.stopAsyncGeneration();
+}
+
+TEST_F(ChunkStreamingCallbackTest, StreamInBootStreamingWorldDropsFarInsteadOfDeferring) {
+    // Streaming worlds: far chunks are NOT queued (the pump loads them on approach).
+    auto far = makeChunk({320, 0, 0});
+    far->addCube({1, 1, 1}, "Stone");
+    ASSERT_TRUE(csm.saveChunk(far.get()));
+
+    auto nearLoaded = csm.loadChunksNearAndDeferRest(glm::vec3(16.0f), 64.0f, false);
+    EXPECT_TRUE(nearLoaded.empty());
+    EXPECT_FALSE(csm.hasDeferredDbLoads());
+    EXPECT_TRUE(chunks.empty());
 }

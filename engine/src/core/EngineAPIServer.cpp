@@ -947,6 +947,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/face_dir_cull — face-direction bucketing A/B (default ON)
+    // Body: { "enabled": bool }
+    // ====================================================================
+    srv.Post("/api/debug/face_dir_cull", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_face_dir_cull", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/debug/far_terrain — far-terrain LOD control/debug
     // Body: { "enabled": bool?, "maxDistance": float?, "debug_tile": bool?, "step": int? }
     // debug_tile builds+uploads the tile containing the camera (synchronous; test rig).

@@ -194,6 +194,13 @@ public:
     bool loadChunk(const glm::ivec3& chunkCoord);
     std::vector<glm::ivec3> loadAllChunksFromDatabase();  // Load all chunks that exist in the database
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
+
+    // Stream-in boot (docs/LargeWorldScalePlan.md Phase 2): load only the DB chunks
+    // near the anchor now; the rest arrive in the background (DB-only worlds) or on
+    // approach (streaming worlds). Pump every frame — no-op once drained.
+    std::vector<glm::ivec3> loadChunksNearAndDeferRest(const glm::vec3& anchor);
+    void pumpDeferredDbLoads(const glm::vec3& position);
+    bool hasDeferredDbLoads() const;
     
     // Post-loading face rebuilding (call after all chunks are loaded)
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling

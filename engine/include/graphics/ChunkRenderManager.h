@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "graphics/ChunkRenderBuffer.h"
+#include <array>
 #include <vector>
 #include <memory>
 #include <functional>
@@ -187,6 +188,12 @@ public:
     const std::vector<InstanceData>& getFaces() const { return faces; }
     uint32_t getNumInstances() const { return numInstances; }
 
+    /// Face-direction ranges (Phase 3 bucketing): after rebuildAllFaces the instance
+    /// buffer is direction-major; [d] = first instance of faceID d (0=+Z 1=-Z 2=+X
+    /// 3=-X 4=+Y 5=-Y), [6] = total. Consumers must verify [6] == getNumInstances()
+    /// before trusting the ranges (a chunk meshed before this feature reads all-zero).
+    const std::array<uint32_t, 7>& getFaceDirRanges() const { return m_dirRangeOffsets; }
+
     // --- Grass (lightweight blade layer) ---
     // Grass blade instances collected on the last rebuild — one per exposed grass-topped voxel
     // (see rebuildCubeFaces). The GPU grass buffer is created/updated alongside the face buffer.
@@ -291,6 +298,12 @@ private:
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)
     uint32_t numInstances;                     // Count of visible faces
     bool needsUpdate;                          // Flag for buffer updates
+
+    // Face-direction bucketing (Phase 3): direction-major reorder of `faces` +
+    // prefix offsets, rebuilt at the end of every rebuildAllFaces.
+    std::array<uint32_t, 7> m_dirRangeOffsets{};
+    std::vector<InstanceData> m_dirScratch;    // reused scatter buffer
+    void reorderFacesByDirection();
 
     // Grass blade instances (one per exposed grass-topped voxel), rebuilt with the faces and
     // uploaded to grassBuffer. Empty for chunks with no grass surface.

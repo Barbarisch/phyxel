@@ -111,13 +111,18 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
 
     const std::vector<WorldGenerator::Biome>& biomes = m_generator->getBiomes();
     static const std::string kFallbackMat = "Stone";
-    // Walls read the biome's below-surface materials, mirroring materialForColumn's
-    // depth rule (subsurface for shallow, deep for tall cliffs).
+    // Walls read the biome's below-surface materials. The old rule mirrored
+    // materialForColumn (< 4 → subsurface, else deep), but far-tile walls are
+    // QUANTIZATION steps — at ring step 4/8 every rolling hillside produced ≥4-tall
+    // walls, painting the whole far field with the grey deep material while the same
+    // terrain up close reads as tan dirt (user-reported jarring color band at the
+    // real-chunk boundary). Quantization steps of ordinary relief keep the
+    // subsurface tone; only genuinely tall cliff faces (> 12) read as deep rock.
     auto wallMatFor = [&](int biomeIdx, int height) -> const std::string& {
         if (biomes.empty()) return kFallbackMat;
         const WorldGenerator::Biome& b =
             biomes[size_t(std::clamp(biomeIdx, 0, int(biomes.size()) - 1))];
-        return (height < 4) ? b.subsurfaceMaterial : b.deepMaterial;
+        return (height <= 12) ? b.subsurfaceMaterial : b.deepMaterial;
     };
 
     QuadEmitter out(mesh);
@@ -278,16 +283,23 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
         flush(N);
     }
 
-    // Coarser rings sit a hair lower so cross-ring overlaps never z-fight: where two
-    // rings quantize a column to the same plane, the finer ring's geometry wins the
-    // depth test cleanly. Ring 1 stays unbiased (its overlap partner is real chunk
-    // geometry, which floor-quantization already keeps at-or-above the tile).
-    const float yBias = -0.01f * float(std::max(0, key.ring - 1));
-    if (yBias != 0.0f) {
-        for (FarVertex& v : mesh.vertices) v.pos.y += yBias;
-        mesh.minY += yBias;
-        mesh.maxY += yBias;
-    }
+    // Far tiles sit strictly BELOW the real surface (docs/FarRepresentationProviders.md,
+    // compositing layer). Two components:
+    //  - kBaseBelowSurface: a geometric push-down applied to EVERY ring (including the
+    //    finest, ring 1, which used to get zero). `quantizeTop` floors the real surface
+    //    plane to a step multiple, so at step-aligned columns the tile is exactly
+    //    COPLANAR with the real chunk surface. The pipeline depth bias alone only
+    //    reliably resolves that tie at grazing angles (slope-scaled); on flat terrain
+    //    viewed top-down the coplanar tiles bled up THROUGH the real grass as the
+    //    depth precision dropped with distance (user-reported "seam lines"). A real
+    //    ~0.5-voxel vertical gap makes real chunks win at ALL angles/distances within
+    //    the overlap zone. Invisible on far terrain (already ±step-quantized).
+    //  - the per-ring increment: cross-RING ordering, so where two rings quantize a
+    //    column to the same plane the finer ring wins cleanly.
+    const float yBias = -kBelowSurfaceBias - 0.01f * float(std::max(0, key.ring - 1));
+    for (FarVertex& v : mesh.vertices) v.pos.y += yBias;
+    mesh.minY += yBias;
+    mesh.maxY += yBias;
 
     return mesh;
 }

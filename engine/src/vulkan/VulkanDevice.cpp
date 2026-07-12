@@ -1799,8 +1799,9 @@ void VulkanDevice::bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipe
                            pipelineLayout, 0, 1, &descriptorSets[frameIndex], 0, nullptr);
 }
 
-void VulkanDevice::drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount) {
-    vkCmdDrawIndexed(commandBuffers[frameIndex], indexCount, instanceCount, 0, 0, 0);
+void VulkanDevice::drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount,
+                               uint32_t firstInstance) {
+    vkCmdDrawIndexed(commandBuffers[frameIndex], indexCount, instanceCount, 0, 0, firstInstance);
 }
 
 void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset) {

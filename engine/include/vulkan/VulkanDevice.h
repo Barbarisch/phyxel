@@ -273,7 +273,8 @@ public:
         void bindVertexBuffers(uint32_t frameIndex);
         void bindIndexBuffer(uint32_t frameIndex);
         void bindDescriptorSets(uint32_t frameIndex, VkPipelineLayout pipelineLayout);
-        void drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount);
+        void drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_t instanceCount,
+                         uint32_t firstInstance = 0);
 
         // D1 (docs/RenderDensityPlan.md): each chunk face-instance is drawn with the cube's 36
         // indices, but the shader collapses them onto the instance's single face quad → ~12

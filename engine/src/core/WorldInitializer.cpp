@@ -89,9 +89,13 @@ bool WorldInitializer::initialize() {
         LOG_WARN("WorldInitializer", "Failed to initialize world storage. Using temporary chunks.");
     }
     
-    // Try to load all chunks from database first
-    std::vector<glm::ivec3> loadedChunks = chunkManager->loadAllChunksFromDatabase();
-    
+    // Stream-in boot (docs/LargeWorldScalePlan.md Phase 2): load only the DB chunks
+    // near the initial camera now; the rest arrive in the background via the per-frame
+    // pumpDeferredDbLoads() (DB-only worlds) or on approach (streaming worlds).
+    // Anchor matches the initial camera position set below.
+    std::vector<glm::ivec3> loadedChunks =
+        chunkManager->loadChunksNearAndDeferRest(glm::vec3(50.0f, 50.0f, 50.0f));
+
     if (loadedChunks.empty()) {
         // No chunks in database - create initial world
         // LOG_INFO("WorldInitializer", "No chunks found in database - creating initial world");

@@ -223,10 +223,7 @@ void main() {
     // UV coordinates must match the vertex generation pattern for each face
     vec2 uv = vec2(0.0);
     
-    // Shadow coordinates: bias(clip [-1,1] -> UV [0,1]) * lightSpace, precombined on CPU
-    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
-
-    // Calculate normal based on faceID
+    // Calculate normal based on faceID (before shadowCoord: normal-offset needs it)
     if (faceID == 0u) outNormal = vec3(0.0, 0.0, 1.0);       // Front (+Z)
     else if (faceID == 1u) outNormal = vec3(0.0, 0.0, -1.0); // Back (-Z)
     else if (faceID == 2u) outNormal = vec3(1.0, 0.0, 0.0);  // Right (+X)
@@ -234,6 +231,15 @@ void main() {
     else if (faceID == 4u) outNormal = vec3(0.0, 1.0, 0.0);  // Top (+Y)
     else if (faceID == 5u) outNormal = vec3(0.0, -1.0, 0.0); // Bottom (-Y)
     else outNormal = vec3(0.0, 1.0, 0.0); // Default
+
+    // Shadow coordinates: bias(clip [-1,1] -> UV [0,1]) * lightSpace, precombined on CPU.
+    // NORMAL-OFFSET sampling: nudge the receiver ~2 shadow texels along its surface
+    // normal before the light-space transform. Kills the contested-texel acne combs on
+    // surfaces adjoining a drop edge (terrace crest bands), where one shadow texel mixes
+    // the wall's and the top surface's depths and the compare alternates pass/fail.
+    // 0.15u is small enough not to visibly detach contact shadows on 1u voxels.
+    const float kShadowNormalOffset = 0.15;
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos + outNormal * kShadowNormalOffset, 1.0);
     
     // Calculate base UV coordinates for the face (0.0 to 1.0 range)
     vec2 baseUV = vec2(0.0);

@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "core/WorldConstants.h"
+#include "utils/Frustum.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
 #include "utils/PerformanceMonitor.h"
@@ -102,7 +103,7 @@ public:
     void setMaxChunkRenderDistance(float distance) { maxChunkRenderDistance = distance; }
     void setChunkInclusionDistance(float distance) { chunkInclusionDistance = distance; }
 
-    // Occlusion culling (chunk visibility graph). Default OFF.
+    // Occlusion culling (chunk visibility graph). Default ON (Phase 3).
     void setOcclusionCullingEnabled(bool e) { m_occlusionCullingEnabled = e; }
     bool isOcclusionCullingEnabled() const { return m_occlusionCullingEnabled; }
     int  getLastOcclusionCulled() const { return m_lastOcclusionCulled; }
@@ -137,6 +138,11 @@ public:
     // ortho shadow volume in lightSpaceMatrix), not just the loose distance sphere. Correct — chunks
     // outside the shadow-map volume can't write to it. Default ON; toggle for A/B (138→fewer draws).
     static bool s_shadowFrustumCull;
+
+    // Phase 3 face-direction bucketing (docs/LargeWorldScalePlan.md): chunk instance
+    // buffers are direction-major; main + shadow passes submit only ranges the GPU
+    // wouldn't cull. Default ON; POST /api/debug/face_dir_cull toggles for A/B.
+    static bool s_faceDirCull;
 
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
@@ -314,12 +320,15 @@ private:
     // Preallocated to avoid per-frame heap allocation in renderStaticGeometry()
     std::vector<size_t> visibleChunkIndices;
 
-    // Occlusion culling (chunk visibility graph). Flag-gated, default OFF.
-    // applyOcclusionCulling() filters visibleChunkIndices to chunks reachable from
-    // the camera chunk through air-connected, frustum-visible chunks.
-    bool m_occlusionCullingEnabled = false;  // default OFF; PHYXEL_OCCLUSION=1 env var enables (debug)
+    // Occlusion culling (chunk visibility graph). ON by default (Phase 3,
+    // docs/LargeWorldScalePlan.md): applyOcclusionCulling() filters
+    // visibleChunkIndices to chunks reachable from the camera chunk through
+    // air (absent coords are pass-through, bounded by the view frustum) and
+    // air-connected chunks. Conservative — no false holes. PHYXEL_OCCLUSION=0
+    // env var / POST /api/debug/occlusion disables for A/B.
+    bool m_occlusionCullingEnabled = true;
     int  m_lastOcclusionCulled = 0;   // chunks removed by occlusion last frame (debug stat)
-    void applyOcclusionCulling(const glm::vec3& cameraPos);
+    void applyOcclusionCulling(const glm::vec3& cameraPos, const Utils::Frustum& cameraFrustum);
     // Scratch containers reused across applyOcclusionCulling() calls (cleared, not
     // reallocated, each frame — .clear() retains bucket/capacity). Avoids per-frame heap churn.
     std::unordered_map<int64_t, size_t> m_occCoordToIdx;

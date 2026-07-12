@@ -2501,8 +2501,11 @@ void Application::applyProjectSelection(const std::string& projectPath) {
         fs::create_directories(engineConfig.worldsDir);
         chunkManager->initializeWorldStorage(newDbPath);
 
-        // Load whatever the project's DB already has (may be empty for new projects)
-        auto loaded = chunkManager->loadAllChunksFromDatabase();
+        // Load whatever the project's DB already has near the camera now (may be
+        // empty for new projects); distant chunks stream in over the next frames
+        // (docs/LargeWorldScalePlan.md Phase 2) instead of blocking project open.
+        glm::vec3 bootAnchor = camera ? camera->getPosition() : glm::vec3(50.0f);
+        auto loaded = chunkManager->loadChunksNearAndDeferRest(bootAnchor);
         if (!loaded.empty()) {
             chunkManager->rebuildAllChunkFaces();
             chunkManager->initializeAllChunkVoxelMaps();
@@ -3716,6 +3719,11 @@ void Application::update(float deltaTime) {
         if (chunkManager->isStreamingGenerationEnabled()) {
             static int s_streamTick = 0;
             if (++s_streamTick >= 6) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
+        }
+        // Stream-in boot (Phase 2): land deferred DB chunks in the background.
+        // No-op once the boot backlog has drained.
+        if (chunkManager->hasDeferredDbLoads() && camera) {
+            chunkManager->pumpDeferredDbLoads(camera->getPosition());
         }
         auto tChunk2 = std::chrono::steady_clock::now();
         // Bullet dynamic object update  --  always runs in hybrid mode since
@@ -7420,15 +7428,25 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_face_dir_cull") {
+        // Phase 3 face-direction bucketing A/B toggle (default ON). Body: { "enabled": bool }
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_faceDirCull = cmd.params.value("enabled", true);
+        response = {{"success", true},
+                    {"enabled", Graphics::RenderCoordinator::s_faceDirCull}};
+        return true;
+
     } else if (action == "set_occlusion_culling") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
         } else {
-            bool enabled = cmd.params.value("enabled", false);
-            renderCoordinator->setOcclusionCullingEnabled(enabled);
+            // Only change state when "enabled" is present — an empty body is a
+            // state QUERY, not "turn it off" (occlusion defaults ON, Phase 3).
+            if (cmd.params.contains("enabled"))
+                renderCoordinator->setOcclusionCullingEnabled(cmd.params.value("enabled", true));
             response = {
                 {"success", true},
-                {"occlusion_culling", enabled},
+                {"occlusion_culling", renderCoordinator->isOcclusionCullingEnabled()},
                 {"last_culled_chunks", renderCoordinator->getLastOcclusionCulled()}
             };
         }

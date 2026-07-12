@@ -420,17 +420,21 @@ static bool buildDepthOnlyPipelineState(
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    // Front-face culling: record only the BACK faces of occluders into the shadow map.
-    // Voxel/character/kinematic casters are closed solids, so the light-facing (front) faces
-    // never self-shadow -> eliminates shadow acne. With acne gone we can drop the depth bias to
-    // near-zero, which removes peter-panning (detached/short shadows). This is the standard
-    // closed-geometry shadow technique and is what makes shadows reattach to bases + reach full
-    // length. (If casters were open/single-sided this would break; voxel geometry is closed.)
-    rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+    // CULL_NONE: record EVERY face of occluders into the shadow map. The previous
+    // front-face culling assumed "voxel geometry is closed" — it is NOT: mesh-time
+    // face culling strips all buried faces, so a solid hill has no underside. With
+    // front-culling, the light-facing tops (the real occluders) were discarded and
+    // only thin, light-grazing wall quads wrote depth — which rasterize sparsely in
+    // light space and produced comb/striped shadows whose spacing scaled with the
+    // shadow texel size (user-reported "shadow lines" on LodTest terraces; also the
+    // long-standing "no crisp shadows on streaming worlds"). Acne from the now-
+    // recorded front faces is handled by slope-scaled depth bias here + the
+    // receiver-side kShadowBias in voxel.frag.
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_TRUE;
-    rasterizer.depthBiasConstantFactor = 0.5f;   // modest; front-face culling already avoids most acne
-    rasterizer.depthBiasSlopeFactor = 1.0f;
+    rasterizer.depthBiasConstantFactor = 1.25f;
+    rasterizer.depthBiasSlopeFactor = 1.75f;
     rasterizer.depthBiasClamp = 0.0f;
 
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;

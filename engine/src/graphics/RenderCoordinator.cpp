@@ -77,8 +77,8 @@ RenderCoordinator::RenderCoordinator(
     , raycastVisualizer(raycastVisualizer)
     , scriptingSystem(scriptingSystem)
 {
-    // Debug knob: PHYXEL_OCCLUSION=1 enables the experimental chunk occlusion
-    // culling at startup (default OFF). Lets it be toggled without an API yet.
+    // Debug knob: occlusion culling is ON by default (Phase 3);
+    // PHYXEL_OCCLUSION=0 disables it at startup for A/B comparison.
     if (const char* e = std::getenv("PHYXEL_OCCLUSION"))
         m_occlusionCullingEnabled = (e[0] == '1');
 
@@ -378,10 +378,11 @@ size_t RenderCoordinator::renderStaticGeometry() {
             visibleChunkIndices.push_back(i);
         }
 
-        // LEVEL 2.5: Occlusion culling (chunk visibility graph). Flag-gated, OFF by
-        // default — removes frustum-visible chunks that are hidden behind solid chunks.
+        // LEVEL 2.5: Occlusion culling (chunk visibility graph) — removes
+        // frustum-visible chunks that are hidden behind solid chunks. ON by default
+        // (docs/LargeWorldScalePlan.md Phase 3); conservative, so no false holes.
         if (m_occlusionCullingEnabled) {
-            applyOcclusionCulling(cameraPos);
+            applyOcclusionCulling(cameraPos, cameraFrustum);
         }
 
         // Render only the visible chunks
@@ -403,14 +404,43 @@ size_t RenderCoordinator::renderStaticGeometry() {
             } else {
                 vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
             }
-            
+
             // Draw this chunk's static geometry
             // LEVEL 3: Face culling already applied (only visible faces in buffer)
-            vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+            // LEVEL 4: Face-direction bucketing (Phase 3) — submit only the faceID
+            // ranges that can point toward the camera; the rest would be culled by the
+            // rasterizer anyway (a +X face is never visible from its -X side). Falls
+            // back to a full draw if the ranges are stale (chunk mid-remesh) or the
+            // debug view wants everything (debug pipeline may render two-sided).
+            const auto& dirRanges = chunk->getFaceDirRanges();
+            if (!s_faceDirCull || debugModeEnabled ||
+                dirRanges[6] != chunk->getNumInstances()) {
+                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+            } else {
+                const glm::vec3 mn = chunk->getMinBounds();
+                const glm::vec3 mx = chunk->getMaxBounds();
+                uint32_t mask = 0;  // faceID order: 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y
+                if (cameraPos.z > mn.z - 0.5f) mask |= 1u << 0;
+                if (cameraPos.z < mx.z + 0.5f) mask |= 1u << 1;
+                if (cameraPos.x > mn.x - 0.5f) mask |= 1u << 2;
+                if (cameraPos.x < mx.x + 0.5f) mask |= 1u << 3;
+                if (cameraPos.y > mn.y - 0.5f) mask |= 1u << 4;
+                if (cameraPos.y < mx.y + 0.5f) mask |= 1u << 5;
+                int d = 0;
+                while (d < 6) {
+                    if (!(mask & (1u << d))) { ++d; continue; }
+                    int e = d;
+                    while (e + 1 < 6 && (mask & (1u << (e + 1)))) ++e;
+                    const uint32_t first = dirRanges[d];
+                    const uint32_t count = dirRanges[e + 1] - first;
+                    if (count) vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count, first);
+                    d = e + 1;
+                }
+            }
             renderedChunks++;
         }
     }
-    
+
     return renderedChunks;
 }
 
@@ -516,16 +546,24 @@ void RenderCoordinator::renderFarTerrain() {
 
 void RenderCoordinator::renderFoliage() {
     // Leaf cards ride on the chunks that survived static-geometry culling (visibleChunkIndices).
-    // Unlike grass there's no radius fade by default — trees keep their leaves at any distance; only
-    // frustum culling applies. Assembling the small draw list is the only per-frame CPU work.
+    // The params().radius bound (default 512u — generous, past today's inclusion distance) is now
+    // ENFORCED (Phase 3): it was declared but never applied, which would make leaf-card cost scale
+    // with render distance. Within the radius trees keep their leaves; beyond it the mid/far-field
+    // LOD representation owns trees (Phase 5).
     if (!foliagePipeline || !foliagePipeline->params().enabled || !chunkManager) return;
     if (visibleChunkIndices.empty()) return;
+
+    const glm::vec3 cameraPos = camera->getPosition();
+    const float radius = foliagePipeline->params().radius + 27.8f;  // chunk half-diagonal pad
+    const float radiusSq = radius * radius;
 
     std::vector<FoliageRenderPipeline::ChunkDraw> draws;
     draws.reserve(visibleChunkIndices.size());
     for (size_t chunkIndex : visibleChunkIndices) {
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
         if (!chunk || chunk->getFoliageCount() == 0) continue;
+        glm::vec3 center = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
+        if (glm::dot(center - cameraPos, center - cameraPos) > radiusSq) continue;
         glm::ivec3 origin = chunk->getWorldOrigin();
         draws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
                           glm::vec3(origin.x, origin.y, origin.z) });
@@ -895,7 +933,8 @@ void RenderCoordinator::renderDynamicSubcubes() {
 // visibleChunkIndices. Conservative by design (no directional/anti-wraparound
 // pruning yet): it can leave some occluded chunks in, but never culls a visible
 // one — so it cannot produce holes. Phase 1; flag-gated, OFF by default.
-void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
+void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos,
+                                              const Utils::Frustum& cameraFrustum) {
     m_lastOcclusionCulled = 0;
     if (!chunkManager || visibleChunkIndices.size() < 2) return;
 
@@ -921,6 +960,18 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
         coordToIdx[packCoord(coord)] = idx;
     }
 
+    // The walk is bounded to a NEAR-FIELD sphere, not the full inclusion distance:
+    // chunk-granularity occlusion only ever wins in interiors/caves near the camera,
+    // and the air volume inside a large-render-distance frustum is enormous — an
+    // unbounded air flood at 2048u view distance was a measured 360ms/frame (3 FPS).
+    // Chunks beyond the bound are simply KEPT (never occlusion-culled).
+    constexpr float kOcclusionMaxDist = 512.0f;
+    const float occlusionBound = std::min(chunkInclusionDistance, kOcclusionMaxDist);
+    // Hard budget on visited coords: if the walk still explodes (open vista at the
+    // bound), bail out and keep everything — occlusion is an optimization, never
+    // worth a frame hitch or a false hole.
+    constexpr size_t kMaxOcclusionNodes = 20000;
+
     // BFS outward from the camera's chunk. entryFace = -1 for the seed (you can see
     // out of your own chunk in any direction); thereafter sight must pass from the
     // entry face to the exit face through the chunk's air (facesConnected).
@@ -932,7 +983,30 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
     reached.insert(packCoord(camCoord));
     q.push({camCoord, -1});
 
+    // Early-exit target: once every frustum-visible chunk (within the bound) has been
+    // reached, further air-flooding cannot change the result. On open terrain this
+    // fires almost immediately (everything is reachable) — the flood only keeps
+    // going while some chunk remains unreached, which is exactly the cave/interior
+    // case where the walk is naturally small. Without this, the bounded air flood
+    // still cost ~4.7ms/frame in Debug for ZERO culling on open vistas.
+    // Only within-bound chunks participate in the exit count on BOTH sides — a
+    // beyond-bound chunk is kept unconditionally by the filter below, so counting
+    // one as "reached" would let the walk exit while a within-bound chunk was
+    // still unreached (a false hole).
+    std::unordered_set<int64_t> withinBound;
+    for (size_t idx : visibleChunkIndices) {
+        const Chunk* c = chunkManager->chunks[idx].get();
+        glm::vec3 ctr = (c->getMinBounds() + c->getMaxBounds()) * 0.5f;
+        if (glm::length(ctr - cameraPos) <= occlusionBound)
+            withinBound.insert(packCoord(toCoord(glm::vec3(c->getWorldOrigin()))));
+    }
+    const size_t visibleInBound = withinBound.size();
+    size_t visibleReached = withinBound.count(packCoord(camCoord)) ? 1 : 0;
+
+    bool budgetExceeded = false;
     while (!q.empty()) {
+        if (visibleReached >= visibleInBound) break;  // everything visible is reachable — done
+        if (reached.size() > kMaxOcclusionNodes) { budgetExceeded = true; break; }
         std::pair<glm::ivec3, int> node = q.front(); q.pop();
         const glm::ivec3 coord = node.first;
         const int entryFace = node.second;
@@ -943,19 +1017,35 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
             glm::ivec3 ncoord = coord + dirVec[d];
             int64_t key = packCoord(ncoord);
             if (reached.count(key)) continue;
-            if (!coordToIdx.count(key)) continue;  // outside the frustum set → prune
+            // Absent/air coords are pass-through (they can't occlude): the BFS must
+            // cross open sky between the camera and terrain, otherwise a camera two
+            // chunks above ground would cull the whole world. Bounded by the
+            // near-field sphere + frustum (see occlusionBound above).
+            if (!coordToIdx.count(key)) {
+                glm::vec3 nCenter = glm::vec3(ncoord * 32) + glm::vec3(16.0f);
+                if (glm::length(nCenter - cameraPos) > occlusionBound) continue;
+                Utils::AABB naabb(glm::vec3(ncoord * 32), glm::vec3(ncoord * 32) + glm::vec3(32.0f));
+                if (!cameraFrustum.intersects(naabb)) continue;
+            } else if (withinBound.count(key)) {
+                ++visibleReached;
+            }
             reached.insert(key);
             q.push({ncoord, d ^ 1});               // entered neighbor via opposite face
         }
     }
+    if (budgetExceeded) return;  // keep the full visible set — never trade holes/hitches for culling
 
-    // Keep only frustum-visible chunks the BFS reached.
+    // Keep only frustum-visible chunks the BFS reached; chunks beyond the near-field
+    // occlusion bound are always kept (the walk never extends that far).
     const size_t before = visibleChunkIndices.size();
     std::vector<size_t>& kept = m_occKept;
     kept.clear();
     kept.reserve(before);
     for (size_t idx : visibleChunkIndices) {
-        glm::ivec3 coord = toCoord(glm::vec3(chunkManager->chunks[idx]->getWorldOrigin()));
+        const Chunk* c = chunkManager->chunks[idx].get();
+        glm::vec3 center = (c->getMinBounds() + c->getMaxBounds()) * 0.5f;
+        if (glm::length(center - cameraPos) > occlusionBound) { kept.push_back(idx); continue; }
+        glm::ivec3 coord = toCoord(glm::vec3(c->getWorldOrigin()));
         if (reached.count(packCoord(coord))) kept.push_back(idx);
     }
     m_lastOcclusionCulled = static_cast<int>(before - kept.size());
@@ -966,9 +1056,19 @@ void RenderCoordinator::applyOcclusionCulling(const glm::vec3& cameraPos) {
 // shadow volume legitimately contains ~all chunks); kept as an opt-in for future cascade work.
 bool RenderCoordinator::s_shadowFrustumCull = false;
 
+// Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
+bool RenderCoordinator::s_faceDirCull = true;
+
 void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                                          const glm::vec3& cullCenter, float cullRadius) {
     if (!shadowMap) return;
+
+    // NOTE (Phase 3): face-direction bucketing is NOT applicable to the shadow pass.
+    // The 36-index draw makes every instance rasterize BOTH windings on its plane, so
+    // even toward-light faces write shadow depth — and terrain TOP faces are the
+    // primary occluders at high sun. A direction split here measurably shifted
+    // shadows (clean A/B pixel diff 0.33% >8/255); the main pass is where the
+    // bucketing win lives (single-winding 6-index quads → the skip is exact).
 
     shadowMap->beginRenderPass(commandBuffer);
 
@@ -1026,6 +1126,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              // 36-index cube REQUIRED here: the shadow pipeline front-culls (ShadowMap.cpp:429,
              // renders back faces of closed casters). A 6-index quad has ONE winding → front-culled →
              // the face casts no shadow. Do NOT use chunkIndexCount() in the shadow pass.
+             // (And do NOT direction-bucket here — see the note at the top of this function.)
              vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
              ++shadowChunks;
              shadowInstances += chunk->getNumInstances();
@@ -1156,11 +1257,18 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // Same shadow-sphere culling as the static chunks above.
     // -------------------------------------------------------------------------
     if (foliagePipeline && foliagePipeline->params().enabled && chunkManager) {
+        // Shadow casters clip to the SAME foliage radius as the visible pass (a card
+        // that is distance-culled from view shouldn't cast either), on top of the
+        // shadow-sphere cull.
+        const glm::vec3 camPos = camera ? camera->getPosition() : cullCenter;
+        const float folRadius = foliagePipeline->params().radius + 27.8f;
+        const float folRadiusSq = folRadius * folRadius;
         std::vector<FoliageRenderPipeline::ChunkDraw> foliageDraws;
         for (const auto& chunk : chunkManager->chunks) {
             if (!chunk || chunk->getFoliageCount() == 0) continue;
             glm::vec3 chunkCenter = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
             if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue;
+            if (glm::dot(chunkCenter - camPos, chunkCenter - camPos) > folRadiusSq) continue;
             glm::ivec3 origin = chunk->getWorldOrigin();
             foliageDraws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
                                      glm::vec3(origin.x, origin.y, origin.z) });
@@ -1388,6 +1496,25 @@ void RenderCoordinator::drawFrame() {
         // Pull the light back past the sphere so casters between the sun and the frustum (e.g. a
         // tall pillar just off-screen toward the sun) still register in the depth map.
         const float kCasterBack = 120.0f;
+
+        // Texel snapping (anti shadow-crawl, user-reported jitter while moving): the
+        // sphere center follows the camera CONTINUOUSLY, so the shadow volume — and
+        // every shadow edge — shifts by sub-texel amounts each frame and shimmers.
+        // Quantize the center's light-space XY to whole shadow-map texels so camera
+        // translation moves the volume in exact texel steps (edges stay put). The
+        // sphere fit already handles rotation invariance; this handles translation.
+        // The snap frame must be WORLD-ANCHORED (rotation-only, origin at the world
+        // origin): snapping in a frame built around the center itself is a no-op,
+        // because the center always maps to the same local point in its own frame.
+        const float kShadowMapSize = 4096.0f;  // matches the ShadowMap resolution in the ctor
+        const float texelSize = (2.0f * radius) / kShadowMapSize;
+        glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), lightDir, up);
+        glm::vec3 centerLS = glm::vec3(lightRot * glm::vec4(center, 1.0f));
+        centerLS.x = std::floor(centerLS.x / texelSize) * texelSize;
+        centerLS.y = std::floor(centerLS.y / texelSize) * texelSize;
+        center = glm::vec3(glm::inverse(lightRot) * glm::vec4(centerLS, 1.0f));
+        shadowCullCenter = center;
+
         glm::vec3 lightPos = center - lightDir * (radius + kCasterBack);
         glm::mat4 lightView = glm::lookAt(lightPos, center, up);
         // orthoRH_ZO → Vulkan [0,1] clip depth, matching the D32 shadow buffer and the [0,1]

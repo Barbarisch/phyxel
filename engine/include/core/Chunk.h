@@ -124,6 +124,8 @@ public:
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
     size_t getTotalSubcubeCount() const { return staticSubcubes.size(); }     // Only static subcubes remain in chunks
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
+    // Face-direction ranges for bucketed draws (Phase 3) — see ChunkRenderManager::getFaceDirRanges().
+    const std::array<uint32_t, 7>& getFaceDirRanges() const { return renderManager.getFaceDirRanges(); }
     bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
     // Occlusion graph query: can sight pass from face a to face b through this chunk?

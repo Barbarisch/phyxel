@@ -163,6 +163,21 @@ public:
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord);
     bool loadChunk(const glm::ivec3& chunkCoord);
 
+    // ---- Stream-in boot (docs/LargeWorldScalePlan.md Phase 2) ----
+    /// Boot-time replacement for loadAllChunksFromDatabase(): synchronously loads only
+    /// the DB chunks within nearRadius of `anchor` (returned, for the bulk face/physics
+    /// passes). The rest:
+    ///  - deferRest=true (DB-only worlds): queued nearest-first and loaded in the
+    ///    background via pumpDeferredDbLoads() — everything is eventually resident.
+    ///  - deferRest=false (streaming worlds): not queued at all; the streaming pump
+    ///    DB-loads them on approach like any other chunk.
+    std::vector<glm::ivec3> loadChunksNearAndDeferRest(const glm::vec3& anchor,
+                                                       float nearRadius, bool deferRest);
+    /// Drain the deferred boot backlog through the async worker (pure DB loads, no
+    /// generation). Call every frame; cheap no-op once the backlog and results are empty.
+    void pumpDeferredDbLoads(const glm::vec3& position);
+    bool hasDeferredDbLoads() const { return !m_dbBacklog.empty() || !m_bootResident.empty(); }
+
     // World persistence
     bool saveChunk(Chunk* chunk);
     bool saveAllChunks();
@@ -211,6 +226,17 @@ private:
     std::unordered_set<glm::ivec3, ChunkCoordHash> m_genPending;  // main thread only
     std::vector<glm::ivec3> m_genFailed;                // coords whose build threw (guarded by m_genResultMutex)
     std::atomic<bool> m_stopGen{false};
+
+    // ---- Stream-in boot state (Phase 2; main thread only) ----
+    // Distance-sorted DB coords still to load in the background after boot.
+    std::deque<glm::ivec3> m_dbBacklog;
+    // Backlog coords currently in flight or finished-but-undrained: their drain
+    // bypasses the unload-radius drop (they must become resident regardless of
+    // camera distance — DB-only worlds have no eviction).
+    std::unordered_set<glm::ivec3, ChunkCoordHash> m_bootResident;
+    // Lets the worker start with NO generator (pure DB loads; a miss is dropped,
+    // never generated).
+    bool m_dbWorkerMode = false;
 
     // Disposal worker: owns the off-thread destruction of evicted chunk husks. A
     // JOINABLE thread (stopped in stopAsyncGeneration/dtor), NOT detached — a detached
