@@ -28,9 +28,9 @@
   ],
   "starter_scaffold": { "notes": "character-creation screen + one town + one NPC with a 2-step quest + one turn-based encounter" },
   "starter": {
-    "description": "RPG starter - a small overworld. Add a town + NPC + first quest with the rpg-quest-chain recipe.",
-    "world": { "type": "Perlin", "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
-    "player": { "type": "animated", "position": { "x": 8, "y": 22, "z": 8 } },
-    "camera": { "position": { "x": 8, "y": 28, "z": 22 }, "yaw": -180, "pitch": -28, "mode": "third_person" }
+    "description": "RPG starter - a grassy overworld with trees. Uses type Flat (deterministic biome-grass surface at kSeaLevelY=16 + flora) so the player always spawns on solid grass - Perlin's seed-dependent surface height would bury a fixed spawn (see CLAUDE.md World Generation gotcha). Swap to streaming Perlin/Mountains once surface-aware spawning lands. Add a town + NPC + first quest with the rpg-quest-chain recipe.",
+    "world": { "type": "Flat", "seed": 2027, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+    "player": { "type": "animated", "position": { "x": 16, "y": 17, "z": 16 } },
+    "camera": { "position": { "x": 16, "y": 26, "z": 44 }, "yaw": -90, "pitch": -24, "mode": "third_person" }
   }
 }

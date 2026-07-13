@@ -21,9 +21,9 @@
   ],
   "starter_scaffold": { "notes": "player + needs HUD + one craftable + a hostile night" },
   "starter": {
-    "description": "Survival starter - natural terrain to gather and survive on. Build the loop with the farming-survival-loop recipe.",
-    "world": { "type": "Perlin", "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
-    "player": { "type": "animated", "position": { "x": 8, "y": 22, "z": 8 } },
-    "camera": { "position": { "x": 8, "y": 30, "z": 24 }, "yaw": -180, "pitch": -30, "mode": "third_person" }
+    "description": "Survival starter - a grassy clearing with scattered trees to gather. Uses type Flat (deterministic biome-grass surface at kSeaLevelY=16 + flora) so the player always spawns on solid grass - Perlin's surface height is seed-dependent and would bury a fixed spawn (see CLAUDE.md World Generation gotcha). Swap to streaming Perlin/Mountains for varied terrain once the game handles surface-aware spawning. Build the loop with the farming-survival-loop recipe.",
+    "world": { "type": "Flat", "seed": 4242, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+    "player": { "type": "animated", "position": { "x": 16, "y": 17, "z": 16 } },
+    "camera": { "position": { "x": 16, "y": 26, "z": 44 }, "yaw": -90, "pitch": -24, "mode": "third_person" }
   }
 }
