@@ -611,8 +611,16 @@ Each phase ships independently.
    until a runtime (L3/L4) validator or playtest — no false "done". Catches the silent-drop ship bugs
    (missing win trigger, empty design). Verified on the real Emberwake project. Runtime L3/L4 validators
    = Phase 6.
-4. **Durability core (§8).** `validatedAt`+`hash`, `op:"sweep"`, snapshot-per-milestone, golden baselines.
-   *Value: "done" stops rotting — the biggest structural fix.*
+4. **Durability core (§8). ✅ BUILT (2026-07-12, pure Python).** `validate`/`set`-done now stamp
+   `validatedAt` + a content-`hash` of the milestone's validation inputs (GAMEPLAN.md for design_brief,
+   else game.json). New `production(op="sweep")`: re-hashes every done milestone; on a changed input it
+   **self-heals** milestones the static validator still confirms at their recorded level (refresh hash +
+   timestamp, stay done) and flips the rest to **`stale`** (perishable — can't be re-confirmed
+   statically; needs a re-validate). The digest already surfaces `stale` (Phase 1). *Value: "done" stops
+   rotting — the biggest structural fix. Verified: a game.json edit staleifies a manual-L4 milestone; a
+   still-valid GAMEPLAN edit self-heals design_brief; gutting a GAMEPLAN section staleifies it.*
+   *Deferred (need the engine): snapshot-per-milestone (`create_snapshot`) + golden baselines
+   (screenshot/geometry-hash) — pull in with the Phase-6 runtime validators.*
 5. **Packaging soft-gate + `strictPackaging`.**
 6. **Runtime validators (L3/L4) + feel-pass gate + auditor discipline + human checkpoints.**
 7. **Completability + adversarial playtest (§9) + systemic-genre validators (§10)** —

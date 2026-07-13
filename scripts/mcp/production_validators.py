@@ -12,6 +12,7 @@ action executor). Multi-scene defs nest a `definition` per scene.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -157,3 +158,13 @@ def validate(project_dir, milestone: str) -> dict:
 
 def has_validator(milestone: str) -> bool:
     return milestone in REGISTRY
+
+
+def input_digest(project_dir, milestone: str) -> str:
+    """A content hash over the milestone's validation inputs (durability §8): GAMEPLAN.md for
+    design_brief, else game.json. Coarse-but-honest — any game.json edit changes the hash, and the
+    sweep self-heals still-passing static milestones while flagging the rest stale."""
+    pd = Path(project_dir)
+    f = (pd / "GAMEPLAN.md") if milestone == "design_brief" else (pd / "game.json")
+    data = f.read_bytes() if f.is_file() else b""
+    return "sha256:" + hashlib.sha256(data).hexdigest()[:16]

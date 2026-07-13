@@ -4325,6 +4325,8 @@ async def list_tools() -> list[Tool]:
                 "feel/note/reason, and/or the project focus/stage), 'validate' (run static L1/L2 "
                 "checks on game.json/GAMEPLAN.md — win-trigger wired, world/player present, design "
                 "filled — and auto-write validated+status; omit 'milestone' to validate all), "
+                "'sweep' (durability/regression: re-hash every done milestone's inputs — a changed "
+                "game.json/GAMEPLAN self-heals if still valid, else flips to STALE), "
                 "'add_milestone'/'remove_milestone' (project-specific milestones), 'advance_stage' "
                 "(move to the next production stage). "
                 "A milestone is complete when status=done AND validated>=required AND feel in {n/a,"
@@ -4334,8 +4336,8 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "op": {"type": "string",
-                            "enum": ["status", "report", "set", "validate", "add_milestone",
-                                     "remove_milestone", "advance_stage"],
+                            "enum": ["status", "report", "set", "validate", "sweep",
+                                     "add_milestone", "remove_milestone", "advance_stage"],
                             "description": "The operation to perform."},
                     "milestone": {"type": "string", "description": "Milestone name (set/add/remove)."},
                     "status": {"type": "string",

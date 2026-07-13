@@ -15,7 +15,8 @@ _LEVELS = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 STATUSES = ("todo", "in_progress", "done", "n/a", "blocked", "stale")
 FEELS = ("n/a", "pending", "passed")
 STAGES = ("concept", "vertical_slice", "feature_complete", "content_complete", "shippable")
-OPS = ("status", "report", "set", "validate", "add_milestone", "remove_milestone", "advance_stage")
+OPS = ("status", "report", "set", "validate", "sweep",
+       "add_milestone", "remove_milestone", "advance_stage")
 
 
 def _path(project_dir) -> Path:
@@ -34,6 +35,19 @@ def save(project_dir, data: dict) -> None:
     p = _path(project_dir)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _stamp(project_dir, m: dict, milestone: str) -> None:
+    """Durability (§8): record when + against-what a milestone was validated, so a later input
+    change can flip it stale on the next sweep."""
+    import production_validators as pv
+    m["validatedAt"] = _now_iso()
+    m["hash"] = pv.input_digest(project_dir, milestone)
 
 
 def _lvl(x) -> int:
@@ -164,6 +178,10 @@ def op_set(project_dir, prod, a: dict) -> dict:
         if m.get("status") == "n/a" and not m.get("reason"):
             return {"ok": False,
                     "error": f"milestone '{mname}' set to n/a but has no 'reason' — pass reason=..."}
+        # Durability: stamp when a milestone is (re)validated or marked done, so later input
+        # changes can flip it stale on the next sweep.
+        if a.get("validated") is not None or m.get("status") == "done":
+            _stamp(project_dir, m, mname)
         changed.append(mname)
     if not changed:
         return {"ok": False, "error": "nothing to set — pass milestone (+status/validated/feel/...), "
@@ -251,16 +269,50 @@ def op_validate(project_dir, prod, a: dict) -> dict:
                 m["status"] = "done"
         elif m.get("status") == "todo":
             m["status"] = "in_progress"
+        _stamp(project_dir, m, name)
         changed.append(name)
     save(project_dir, prod)
     return {"ok": True, "validated": changed, "results": results,
             "digest": _digest(project_dir, prod)}
 
 
+def op_sweep(project_dir, prod, a: dict) -> dict:
+    """Durability/regression (§8): for every DONE milestone with a recorded input `hash`, recompute
+    it. If the inputs changed since validation: re-run the static validator — if it still confirms
+    the recorded `validated` level, self-heal (refresh hash + validatedAt, stays done); otherwise
+    flip the milestone to `stale` (its validation is perishable and can't be re-confirmed statically —
+    needs a re-validate / runtime re-check). Surfaces regressions the moment work touches a milestone's
+    inputs. Milestones without a stored hash (never validated through the tool) are skipped."""
+    import production_validators as pv
+    ms: dict = prod.get("milestones", {})
+    checked, stale, refreshed = 0, [], []
+    for name, m in ms.items():
+        if m.get("status") != "done" or not m.get("hash"):
+            continue
+        checked += 1
+        current = pv.input_digest(project_dir, name)
+        if current == m["hash"]:
+            continue  # inputs unchanged — still valid
+        if pv.has_validator(name):
+            v = pv.validate(project_dir, name)
+            if v.get("ok") and _lvl(v["reached"]) >= _lvl(m.get("validated", "L0")):
+                m["hash"] = current
+                m["validatedAt"] = _now_iso()
+                refreshed.append(name)
+                continue
+        m["status"] = "stale"
+        m["note"] = "stale: validation inputs changed since validatedAt — re-validate"
+        stale.append(name)
+    save(project_dir, prod)
+    return {"ok": True, "checked": checked, "stale": stale, "refreshed": refreshed,
+            "digest": _digest(project_dir, prod)}
+
+
 _HANDLERS = {
     "status": op_status, "report": op_report,
-    "set": op_set, "validate": op_validate, "add_milestone": op_add_milestone,
-    "remove_milestone": op_remove_milestone, "advance_stage": op_advance_stage,
+    "set": op_set, "validate": op_validate, "sweep": op_sweep,
+    "add_milestone": op_add_milestone, "remove_milestone": op_remove_milestone,
+    "advance_stage": op_advance_stage,
 }
 
 
