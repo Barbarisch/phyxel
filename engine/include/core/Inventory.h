@@ -17,12 +17,20 @@ struct ItemStack {
     int count = 1;              // Quantity in the stack
     int maxStack = 64;          // Maximum stack size
     int durability = -1;        // Current durability (-1 = not applicable / indestructible)
+    std::string instanceUuid;   // Stable per-instance id for UNIQUE items (empty for fungible stacks)
 
     /// Backward-compat alias: treat itemId as material name.
     const std::string& material() const { return itemId; }
 
+    /// A distinguishable individual (non-stackable or durability-bearing) that should carry a stable
+    /// instance uuid — as opposed to a fungible commodity that merges by itemId. Drives when a uuid is
+    /// minted (give/spawn/pickup) and, via canMerge, guarantees such a stack keeps its own slot.
+    bool isUnique() const { return maxStack <= 1 || durability >= 0; }
+
     bool canMerge(const ItemStack& other) const {
-        return itemId == other.itemId && count < maxStack && durability < 0 && other.durability < 0;
+        // A stack carrying an instance uuid NEVER merges — merging would silently collapse identity.
+        return itemId == other.itemId && count < maxStack && durability < 0 && other.durability < 0
+            && instanceUuid.empty() && other.instanceUuid.empty();
     }
 
     int spaceLeft() const { return maxStack - count; }
@@ -30,6 +38,7 @@ struct ItemStack {
     nlohmann::json toJson() const {
         nlohmann::json j = {{"material", itemId}, {"count", count}, {"max_stack", maxStack}};
         if (durability >= 0) j["durability"] = durability;
+        if (!instanceUuid.empty()) j["uuid"] = instanceUuid;
         return j;
     }
 };
@@ -62,6 +71,11 @@ public:
 
     /// Add items to inventory. Returns the number of items that couldn't fit.
     int addItem(const std::string& material, int count = 1);
+
+    /// Add a specific stack (carrying durability / instance uuid). If the stack is unique
+    /// (isUnique) and lacks an instance uuid, one is minted. Unique stacks take their own empty
+    /// slot and never merge. Returns true if placed, false if the inventory is full.
+    bool addItemStack(const ItemStack& stack);
 
     /// Remove items from inventory. Returns the number actually removed.
     int removeItem(const std::string& material, int count = 1);

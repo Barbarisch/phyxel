@@ -1,5 +1,7 @@
 #include "core/Inventory.h"
 
+#include "core/Uuid.h"
+
 namespace Phyxel {
 namespace Core {
 
@@ -47,6 +49,37 @@ int Inventory::addItem(const std::string& material, int count) {
     }
 
     return remaining; // Items that couldn't fit
+}
+
+bool Inventory::addItemStack(const ItemStack& stack) {
+    ItemStack s = stack;
+    if (s.isUnique()) {
+        // Unique items each occupy their own slot and carry a stable instance uuid.
+        if (s.instanceUuid.empty()) s.instanceUuid = Uuid::generate();
+        for (auto& slot : m_slots) {
+            if (!slot) { slot = s; return true; }
+        }
+        return false;  // inventory full
+    }
+    // Fungible: merge into existing stacks, then fill empties (uuid stays empty).
+    int remaining = s.count;
+    for (auto& slot : m_slots) {
+        if (remaining <= 0) break;
+        if (slot && slot->canMerge(s)) {
+            int toAdd = std::min(remaining, slot->spaceLeft());
+            slot->count += toAdd;
+            remaining -= toAdd;
+        }
+    }
+    for (auto& slot : m_slots) {
+        if (remaining <= 0) break;
+        if (!slot) {
+            int toAdd = std::min(remaining, s.maxStack);
+            slot = ItemStack{s.itemId, toAdd, s.maxStack};
+            remaining -= toAdd;
+        }
+    }
+    return remaining == 0;
 }
 
 int Inventory::removeItem(const std::string& material, int count) {
@@ -167,6 +200,9 @@ void Inventory::fromJson(const nlohmann::json& j) {
                 if (slotJ.contains("durability")) {
                     stack.durability = slotJ.value("durability", -1);
                 }
+                stack.instanceUuid = slotJ.value("uuid", "");
+                // Lazy backfill: a unique item saved before instance uuids existed gets one on load.
+                if (stack.instanceUuid.empty() && stack.isUnique()) stack.instanceUuid = Uuid::generate();
                 m_slots[idx] = stack;
             }
         }
