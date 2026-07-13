@@ -4,13 +4,15 @@ static validators (production_validators) can only inspect files. Sync urllib ca
 base URL; results are applied ONLY when the engine has the same project loaded that the tracker
 belongs to (else the runtime state describes a different game).
 
-This is the first of the runtime validators — `world` L4. More (menus render, a win trigger actually
-fires, a playtest reaches victory) need more engine API surface + synthetic-input injection (logged as
-an engine feature request); they slot into this same registry.
+Runtime validators so far: `world` L4 (world loads + renders + player present) and `player` L4
+(player is CONTROLLABLE — proven by injecting forward movement via /api/input/inject and confirming
+the player moved). More (menus render, a win trigger actually fires, a playtest reaches victory) slot
+into this same registry as the engine API grows (trigger-fire + screen-state, TraversalProbe-at-scale).
 """
 from __future__ import annotations
 
 import json
+import time
 import urllib.request
 from pathlib import Path
 
@@ -23,6 +25,30 @@ def _get(base, path, timeout=8):
             return json.loads(r.read().decode())
     except Exception:
         return None
+
+
+def _post(base, path, body, timeout=8):
+    try:
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(f"{base}{path}", data=data,
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except Exception:
+        return None
+
+
+def _player_pos(base):
+    """Horizontal (x,z) + y of the 'player' entity, or None if absent."""
+    state = _get(base, "/api/state")
+    for e in (state or {}).get("entities", []):
+        if e.get("id") == "player":
+            p = e.get("position") or e
+            try:
+                return (float(p.get("x")), float(p.get("y")), float(p.get("z")))
+            except (TypeError, ValueError):
+                return None
+    return None
 
 
 def _V(reached, ok, evidence):
@@ -43,7 +69,41 @@ def rv_world(base):
               f"runtime: world not confirmed (faces={faces}, chunks={chunks}, player={has_player})")
 
 
-RUNTIME_REGISTRY = {"world": rv_world}
+def rv_player(base):
+    """L4: the player is CONTROLLABLE — inject forward movement and confirm the player actually moves.
+
+    Uses synthetic input injection (the /api/input/inject route). Honest by construction: if the
+    player doesn't move (no player entity, game not in a controllable state, injection ignored by a
+    capturing menu), it reports not-confirmed rather than a false 'done'. This is a SIDE-EFFECTING
+    validator (it moves the player), so it only runs when explicitly targeted — never in a run-all sweep.
+    """
+    p0 = _player_pos(base)
+    if p0 is None:
+        return _V("L0", False, "runtime: no 'player' entity present — cannot confirm control")
+    hold = 1.0
+    resp = _post(base, "/api/input/inject", {"keys": ["W", "MoveForward"], "hold": hold})
+    if resp is None or not resp.get("success"):
+        return _V("L2", False, "runtime: inject_input route unavailable or failed (engine rebuilt?)")
+    time.sleep(hold + 0.4)  # let the held key drive movement, then auto-release + settle
+    p1 = _player_pos(base)
+    if p1 is None:
+        return _V("L2", False, "runtime: player entity vanished during control test")
+    dx, dz = p1[0] - p0[0], p1[2] - p0[2]
+    dist = (dx * dx + dz * dz) ** 0.5
+    if dist > 0.3:
+        return _V("L4", True,
+                  f"runtime: player controllable — moved {dist:.2f}u on injected forward "
+                  f"({p0[0]:.1f},{p0[2]:.1f})->({p1[0]:.1f},{p1[2]:.1f})")
+    return _V("L2", False,
+              f"runtime: injected forward but player did not move (dist={dist:.2f}u) — "
+              f"is it in a controllable playing state?")
+
+
+RUNTIME_REGISTRY = {"world": rv_world, "player": rv_player}
+
+# Validators with runtime side effects (they drive input / move the player). Excluded from the
+# default run-all so a routine `validate`/`sweep` never perturbs the game — only run when targeted.
+SIDE_EFFECTING = {"player"}
 
 
 def engine_project(base):
@@ -64,7 +124,9 @@ def run(project_dir, base_url, milestone=None) -> dict:
 
     prod = pt.load(project_dir)
     ms = prod.get("milestones", {})
-    targets = [milestone] if milestone else list(RUNTIME_REGISTRY)
+    # Run-all excludes side-effecting validators (e.g. `player`, which moves the character);
+    # those only run when explicitly named via `milestone`.
+    targets = [milestone] if milestone else [n for n in RUNTIME_REGISTRY if n not in SIDE_EFFECTING]
     upgraded, results = [], []
     for name in targets:
         fn = RUNTIME_REGISTRY.get(name)

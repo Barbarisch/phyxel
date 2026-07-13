@@ -633,6 +633,34 @@ async def list_tools() -> list[Tool]:
             }
         ),
 
+        Tool(
+            name="inject_input",
+            description=(
+                "Inject synthetic keyboard/mouse input into the running game so you can verify the "
+                "player is actually CONTROLLABLE (moves, jumps, attacks) without a human at the keyboard. "
+                "Each injected key/button is held for `hold` seconds then auto-releases, so a single call "
+                "yields a clean press->release. To test movement: read the player position (get_player_state), "
+                "inject the movement key with a hold (e.g. 1.0s), wait, then read the position again and "
+                "confirm it changed. Key names use the settings vocabulary ('W','A','S','D','Space','LShift', "
+                "'LCtrl',...); an action name like 'MoveForward'/'Jump' also works (resolved to its current "
+                "binding, rebind-robust). Mouse buttons: 'LEFT','RIGHT','MIDDLE' (LEFT = attack in gameplay). "
+                "Note: injected input obeys the same UI gating as real input — it is ignored while a menu/"
+                "console is capturing the keyboard, so make sure the game is in the playing state first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keys": {"type": "array", "items": {"type": "string"},
+                             "description": "Key/action names to hold, e.g. [\"W\",\"Space\"] or [\"MoveForward\",\"Jump\"]"},
+                    "mouse": {"type": "array", "items": {"type": "string", "enum": ["LEFT", "RIGHT", "MIDDLE"]},
+                              "description": "Mouse buttons to hold, e.g. [\"LEFT\"] for attack"},
+                    "hold": {"type": "number", "description": "Seconds to hold before auto-release (default 0.1; use ~1.0 to walk a visible distance)"},
+                    "release_all": {"type": "boolean", "description": "Immediately clear all active injections (ignores keys/mouse)"}
+                },
+                "required": []
+            }
+        ),
+
         # ================================================================
         # Scripting
         # ================================================================
@@ -4647,6 +4675,20 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "control_scheme" in args:
             body["control_scheme"] = args["control_scheme"]
         return await api_post("/api/camera", body)
+
+    # --- Synthetic input injection ---
+    elif name == "inject_input":
+        body: dict[str, Any] = {}
+        if args.get("release_all"):
+            body["release_all"] = True
+        else:
+            if "keys" in args:
+                body["keys"] = args["keys"]
+            if "mouse" in args:
+                body["mouse"] = args["mouse"]
+            if "hold" in args:
+                body["hold"] = args["hold"]
+        return await api_post("/api/input/inject", body)
 
     # --- Scripting ---
     elif name == "run_script":

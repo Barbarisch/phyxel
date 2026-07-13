@@ -731,6 +731,25 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/input/inject — Inject synthetic keyboard/mouse input
+    // Body: { "keys": ["W","Space"], "mouse": ["LEFT"], "hold": 0.5 }
+    //   or: { "release_all": true }
+    // Drives WASD/jump/attack into the running game so an agent can verify
+    // player controllability without a physical keyboard (game-production L4).
+    // ====================================================================
+    srv.Post("/api/input/inject", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("inject_input", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/script — Execute a Python script snippet
     // Body: { "code": "phyxel.get_app().create_physics_character(0, 20, 0)" }
     // ====================================================================

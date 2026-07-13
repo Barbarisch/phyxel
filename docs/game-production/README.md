@@ -34,8 +34,20 @@ server (re)starts — a fresh session picks them up automatically. To use it: `p
 `op="validate"` / `op="sweep"`, etc.
 
 **To resume:** read this doc + the memory note *project_game_production_workflow* + `docs/feedback/inbox.md`.
-The remaining phases are **6 (rest)** and **7**, and most of both are **gated on one engine feature** —
-**synthetic input injection** (an MCP tool to drive WASD/keys), already logged in the feedback inbox.
+The remaining phases are **6 (rest)** and **7**.
+
+> **UPDATE 2026-07-13 — the #1 blocker is SHIPPED: synthetic input injection.** The engine now exposes
+> `POST /api/input/inject` + the `inject_input` MCP tool (drive WASD/jump/attack; each key auto-releases
+> after a `hold` budget). Implemented as a virtual key/mouse overlay in `InputManager` that every
+> physical-input reader funnels through, so injected input drives both control schemes, the camera, and
+> registered actions — and **bypasses the ImGui/console UI gate** so a headless agent can control the
+> game with no viewport click. First payoff: the runtime validator **`player` → L4** (`rv_player` in
+> `production_runtime.py`) injects forward movement and confirms the player actually moved — live-verified
+> on Emberwake (`player` in_progress/L3 → **done/L4**; jump arc + attack + `release_all` also verified).
+> This unblocks the rest of Phase 6's playthrough validators (`core_loop`, `intro`/`tutorial`, menu
+> *navigation*, `qa_pass`) and Phase 7's adversarial playtest core. **Secondary needs still open** (each
+> unlocks one validator, none input-gated): an FPS field (`perf_target`), a trigger-fire + screen-state
+> API (`win`/`lose_condition`), and TraversalProbe-at-game-scale (Phase 7 completability).
 
 ### What Phase 6 (rest) needs
 The runtime framework exists (`scripts/mcp/production_runtime.py`, `world`→L4). Adding validators:
@@ -681,11 +693,15 @@ Each phase ships independently.
    **`world` → L4** (a world is loaded AND renders — `/api/render/stats` visible faces+chunks — AND the
    player is present in `/api/state`), stamped like the static path. Live-verified on Emberwake: `world`
    todo/L0 → **L4/done**, evidence "runtime: world renders (116 faces, 6 chunks) + player present".
+   **UPDATE 2026-07-13:** the **synthetic-input-injection** engine feature is now SHIPPED
+   (`POST /api/input/inject` + `inject_input` MCP tool + the `InputManager` overlay), and a second
+   runtime validator **`player` → L4** (`rv_player`) uses it — injects forward movement and confirms the
+   player moved (live-verified on Emberwake: in_progress/L3 → done/L4). `player` L4 is no longer open.
    *Remaining Phase 6 (follow-ups): more runtime validators (menu renders, a win trigger actually fires,
    playtest-to-victory), the feel-pass gate, auditor discipline + human checkpoints, and the deferred
-   snapshot/golden-baseline durability. Several are blocked on the logged **synthetic-input-injection**
-   engine feature (can't drive WASD to confirm controllability/playthrough) — hence `player` L4 stays
-   open.*
+   snapshot/golden-baseline durability. The playthrough validators (`core_loop` L4, `intro`/`tutorial`,
+   menu navigation, `qa_pass`) can now be built on the injection primitive; the win/lose ones still want
+   the trigger-fire + screen-state API.*
 7. **Completability + adversarial playtest (§9) + systemic-genre validators (§10)** —
    reachability/softlock + fresh-session exploratory playtest + replay regression + the
    **interaction-matrix**, **resource-loop-closure**, **save-integrity**, and **progression-pacing**
@@ -750,9 +766,13 @@ tools/phyxel-gamedev/
 scripts/mcp/
   production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
   production_validators.py      <- static L1/L2 milestone validators + input hashes (Phase 3/4) ✅
-  production_runtime.py         <- runtime L3/L4 validators (drive the engine); world L4 (Phase 6) ✅
-  phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass (Phase 2/6) ✅
-engine/  (Phases 3–7, engine-side)
+  production_runtime.py         <- runtime L3/L4 validators (drive the engine); world L4 + player L4 (Phase 6) ✅
+  phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass + `inject_input` tool (Phase 2/6) ✅
+engine/{include,src}/input/InputManager.*  <- synthetic-input overlay: injectKey/injectMouseButton/
+                                             releaseAllInjected (Phase 6, input-injection) ✅
+engine/src/core/EngineAPIServer.cpp        <- POST /api/input/inject route (Phase 6) ✅
+editor/src/Application.cpp                  <- `inject_input` command (registerCameraCommands) (Phase 6) ✅
+engine/  (Phases 3–7, engine-side, remaining)
   MilestoneValidator registry + completability/TraversalProbe-at-game-scale
   + /api/production/validate route (only the validators that must introspect the running game)
   + regression sweep

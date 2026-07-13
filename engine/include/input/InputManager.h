@@ -67,6 +67,25 @@ public:
     bool isMouseButtonPressed(int button) const;
     glm::vec2 getMouseDelta() const { return glm::vec2(mouseDeltaX, mouseDeltaY); }
     void resetMouseDelta() { mouseDeltaX = 0; mouseDeltaY = 0; }
+
+    // --- Synthetic input injection (headless agent / production playtest) -----
+    // A virtual key/mouse overlay that is OR'd into EVERY physical-input query
+    // (isKeyPressed / isActionPressed / processCameraMovement / processKeyboard-
+    // Actions / currentModifiers / isMouseButtonPressed), so an injected key reads
+    // exactly as if physically held — driving both control schemes, camera, and
+    // registered actions with no separate code path. Each injection holds for a
+    // seconds budget; processInput() ticks it down and auto-releases at zero, so a
+    // single injectKey() call yields a clean press->release without the caller
+    // having to time two requests. Used by the game-production tracker to confirm
+    // player controllability (`player`/`core_loop` L4) without a human keyboard.
+    //
+    // THREADING: mutated + read on the MAIN thread only (the API server queues
+    // inject commands through APICommandQueue, executed in the game loop), so no
+    // locking is needed. holdSeconds <= 0 is floored to a short tap.
+    void injectKey(int glfwKey, float holdSeconds);
+    void injectMouseButton(int glfwButton, float holdSeconds);
+    void releaseAllInjected();
+    size_t injectedCount() const { return injectedKeys_.size() + injectedButtons_.size(); }
     
     // Action registration (Application registers what happens on key press)
     void registerAction(int key, const std::string& name, ActionCallback callback);
@@ -135,6 +154,16 @@ private:
     // Input processing helpers
     void processCameraMovement(float deltaTime);
     void processKeyboardActions();
+
+    // Injection overlay helpers — every physical-input read funnels through these
+    // so injected keys/buttons are indistinguishable from real hardware state.
+    bool keyHeld(int key) const;       // injected OR glfwGetKey == GLFW_PRESS
+    bool mouseHeld(int button) const;  // injected OR glfwGetMouseButton == GLFW_PRESS
+    void tickInjection(float deltaTime); // decrement holds, drop expired
+
+    // Injected key/button -> seconds remaining. Main-thread only (see injectKey).
+    std::unordered_map<int, float> injectedKeys_;
+    std::unordered_map<int, float> injectedButtons_;
     
     // Update camera front vector from yaw/pitch
     void updateCameraVectors();

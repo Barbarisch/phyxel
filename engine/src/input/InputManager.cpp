@@ -73,42 +73,107 @@ void InputManager::cleanup() {
 
 void InputManager::processInput(float deltaTime) {
     if (!window) return;
-    
+
+    // Age out any synthetic injections FIRST so a just-expired hold releases this
+    // frame (before the camera/action reads below observe it).
+    tickInjection(deltaTime);
+
     // Process camera movement (WASD + Space/Shift)
     processCameraMovement(deltaTime);
-    
+
     // Process keyboard actions (function keys, etc.)
     processKeyboardActions();
 }
 
-void InputManager::processCameraMovement(float deltaTime) {
-    if (scriptingConsoleMode) return;
-    if (ImGui::GetIO().WantCaptureKeyboard) return;
+// ---------------------------------------------------------------------------
+// Synthetic input injection overlay
+// ---------------------------------------------------------------------------
 
+bool InputManager::keyHeld(int key) const {
+    // Injected input ALWAYS wins — it bypasses the scripting-console / ImGui gate
+    // that suppresses physical input. A headless agent driving the game has no
+    // viewport to click to clear ImGui keyboard focus, so its injected keys must
+    // reach gameplay regardless of editor UI focus (mirrors how scanPressedKey
+    // deliberately bypasses the same gate). Physical keys stay gated as before.
+    if (injectedKeys_.find(key) != injectedKeys_.end()) return true;
+    if (!window) return false;
+    if (scriptingConsoleMode) return false;
+    if (ImGui::GetIO().WantCaptureKeyboard) return false;
+    return glfwGetKey(window, key) == GLFW_PRESS;
+}
+
+bool InputManager::mouseHeld(int button) const {
+    // Injected mouse buttons bypass the UI gate (see keyHeld). Physical buttons
+    // keep the existing rule: blocked only when a real UI panel — not the 3D
+    // viewport — has the mouse.
+    if (injectedButtons_.find(button) != injectedButtons_.end()) return true;
+    if (!window) return false;
+    if (scriptingConsoleMode) return false;
+    if (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered) return false;
+    return glfwGetMouseButton(window, button) == GLFW_PRESS;
+}
+
+void InputManager::tickInjection(float deltaTime) {
+    for (auto it = injectedKeys_.begin(); it != injectedKeys_.end();) {
+        it->second -= deltaTime;
+        if (it->second <= 0.0f) it = injectedKeys_.erase(it);
+        else ++it;
+    }
+    for (auto it = injectedButtons_.begin(); it != injectedButtons_.end();) {
+        it->second -= deltaTime;
+        if (it->second <= 0.0f) it = injectedButtons_.erase(it);
+        else ++it;
+    }
+}
+
+void InputManager::injectKey(int glfwKey, float holdSeconds) {
+    if (glfwKey == GLFW_KEY_UNKNOWN) return;
+    if (holdSeconds <= 0.0f) holdSeconds = 0.1f;  // floor to a few frames so edge-
+                                                  // triggered actions + one movement
+                                                  // step reliably register.
+    injectedKeys_[glfwKey] = holdSeconds;
+    LOG_DEBUG("InputManager", "Injected key {} for {:.2f}s", glfwKey, holdSeconds);
+}
+
+void InputManager::injectMouseButton(int glfwButton, float holdSeconds) {
+    if (holdSeconds <= 0.0f) holdSeconds = 0.1f;
+    injectedButtons_[glfwButton] = holdSeconds;
+    LOG_DEBUG("InputManager", "Injected mouse button {} for {:.2f}s", glfwButton, holdSeconds);
+}
+
+void InputManager::releaseAllInjected() {
+    injectedKeys_.clear();
+    injectedButtons_.clear();
+}
+
+void InputManager::processCameraMovement(float deltaTime) {
+    // NOTE: no blanket early-return on the console/ImGui gate anymore — keyHeld()
+    // applies that gate per-key to PHYSICAL input while letting SYNTHETIC injection
+    // through, so an agent can drive the free camera even with an ImGui panel focused.
     float speed = cameraSpeed * deltaTime;
 
-    // Forward/Backward (W/S)
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+    // Forward/Backward (W/S) — keyHeld() folds in synthetic injection.
+    if (keyHeld(GLFW_KEY_W)) {
         cameraPos += speed * cameraFront;
     }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+    if (keyHeld(GLFW_KEY_S)) {
         cameraPos -= speed * cameraFront;
     }
 
     // Left/Right (A/D)
     glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+    if (keyHeld(GLFW_KEY_A)) {
         cameraPos -= right * speed;
     }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+    if (keyHeld(GLFW_KEY_D)) {
         cameraPos += right * speed;
     }
 
     // Up/Down (Space/Z)
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+    if (keyHeld(GLFW_KEY_SPACE)) {
         cameraPos += cameraUp * speed;
     }
-    if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+    if (keyHeld(GLFW_KEY_Z)) {
         cameraPos -= cameraUp * speed;
     }
 }
@@ -120,18 +185,22 @@ void InputManager::processKeyboardActions() {
 
     // Process all registered key actions
     for (auto& [keyCombo, action] : keyActions) {
+        // Synthetic injection bypasses the console/ImGui gates below (an agent that
+        // injected this key wants the action to fire regardless of editor UI focus).
+        const bool injected = injectedKeys_.find(keyCombo.key) != injectedKeys_.end();
+
         // In scripting console mode, only allow the toggle key (Grave Accent)
-        if (scriptingConsoleMode && keyCombo.key != GLFW_KEY_GRAVE_ACCENT) {
+        if (!injected && scriptingConsoleMode && keyCombo.key != GLFW_KEY_GRAVE_ACCENT) {
             continue;
         }
 
         // When ImGui captures keyboard, only allow ESC
-        if (imguiWantsKeyboard && keyCombo.key != GLFW_KEY_ESCAPE) {
+        if (!injected && imguiWantsKeyboard && keyCombo.key != GLFW_KEY_ESCAPE) {
             continue;
         }
 
-        int keyState = glfwGetKey(window, keyCombo.key);
-        
+        int keyState = keyHeld(keyCombo.key) ? GLFW_PRESS : GLFW_RELEASE;
+
         // Check if key is pressed
         if (keyState == GLFW_PRESS) {
             // Check if this is a new press (not a repeat)
@@ -338,12 +407,10 @@ int InputManager::getActionModifiers(const std::string& action) const {
 int InputManager::currentModifiers() const {
     if (!window) return 0;
     int mods = 0;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
-        glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) mods |= GLFW_MOD_CONTROL;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) mods |= GLFW_MOD_SHIFT;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||
-        glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS) mods |= GLFW_MOD_ALT;
+    // keyHeld() so an injected LShift/LCtrl/LAlt satisfies a modified action combo.
+    if (keyHeld(GLFW_KEY_LEFT_CONTROL) || keyHeld(GLFW_KEY_RIGHT_CONTROL)) mods |= GLFW_MOD_CONTROL;
+    if (keyHeld(GLFW_KEY_LEFT_SHIFT)   || keyHeld(GLFW_KEY_RIGHT_SHIFT))   mods |= GLFW_MOD_SHIFT;
+    if (keyHeld(GLFW_KEY_LEFT_ALT)     || keyHeld(GLFW_KEY_RIGHT_ALT))     mods |= GLFW_MOD_ALT;
     return mods;
 }
 
@@ -403,28 +470,17 @@ void InputManager::setYawPitch(float newYaw, float newPitch) {
 }
 
 bool InputManager::isKeyPressed(int key) const {
-    if (!window) return false;
-    // If scripting console is open, block all key queries to prevent game input leakage
-    // Exception: We might want to allow some keys, but generally the console consumes input.
-    // The toggle key (Grave Accent) is handled via registerAction/processKeyboardActions which bypasses this.
-    if (scriptingConsoleMode) return false;
-    if (ImGui::GetIO().WantCaptureKeyboard) return false;
-
-    return glfwGetKey(window, key) == GLFW_PRESS;
+    // keyHeld() is the single gate authority: injected input bypasses the
+    // scripting-console / ImGui-keyboard gate; physical input still respects it
+    // (so the console/text-field input-leak protection is unchanged for hardware).
+    return keyHeld(key);
 }
 
 bool InputManager::isMouseButtonPressed(int button) const {
-    if (!window) return false;
-    // If scripting console is open, block mouse button queries
-    if (scriptingConsoleMode) return false;
-    // Same rule as the mouse-callback path (see handleMouseButton): the
-    // editor's 3D view lives inside an ImGui viewport window, so ImGui
-    // "wants" the mouse whenever the cursor is over it — but gameplay clicks
-    // there must still register (attack/heavy via the control schemes).
-    // Only block when a real UI panel has the mouse.
-    if (ImGui::GetIO().WantCaptureMouse && !m_viewportHovered) return false;
-
-    return glfwGetMouseButton(window, button) == GLFW_PRESS;
+    // mouseHeld() is the single gate authority: injected buttons bypass the UI
+    // gate; physical buttons are blocked only when a real UI panel (not the 3D
+    // viewport) has the mouse — the attack/heavy-via-scheme rule is unchanged.
+    return mouseHeld(button);
 }
 
 } // namespace Input

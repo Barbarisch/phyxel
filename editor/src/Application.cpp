@@ -15,6 +15,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "core/MaterialRegistry.h"
+#include "core/GameSettings.h"   // Core::stringToKey for inject_input
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
@@ -12122,6 +12123,59 @@ void Application::registerCameraCommands() {
             }
         }
         if (!modeError) r = {{"success", true}, {"rig", gameplayRigOverride_}, {"control_scheme", cameraCtl_.schemeName()}};
+    });
+
+    // Synthetic input injection — drive WASD/jump/attack into the running game so
+    // an agent (the game-production tracker) can confirm player controllability
+    // without a human keyboard. Body:
+    //   { "keys": ["W","Space"], "mouse": ["LEFT"], "hold": 0.5 }   // hold seconds
+    //   { "release_all": true }                                      // clear holds
+    // Key names use the settings vocabulary (Core::stringToKey: "W","Space",
+    // "LShift",...); a token that isn't a key name is tried as an ACTION name
+    // (e.g. "MoveForward") and resolved to its current binding, so injection stays
+    // rebind-robust. Mouse: "LEFT"/"RIGHT"/"MIDDLE".
+    reg.on("inject_input", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!inputManager) { r = {{"error", "InputManager not available"}}; return; }
+
+        if (cmd.params.value("release_all", false)) {
+            inputManager->releaseAllInjected();
+            r = {{"success", true}, {"released", true}, {"active_injections", inputManager->injectedCount()}};
+            return;
+        }
+
+        const float hold = cmd.params.value("hold", 0.1f);
+        nlohmann::json injected = nlohmann::json::array();
+        nlohmann::json unresolved = nlohmann::json::array();
+
+        if (cmd.params.contains("keys") && cmd.params["keys"].is_array()) {
+            for (const auto& k : cmd.params["keys"]) {
+                if (!k.is_string()) continue;
+                const std::string name = k.get<std::string>();
+                int key = Core::stringToKey(name);
+                if (key == GLFW_KEY_UNKNOWN) key = inputManager->getActionKey(name); // action fallback
+                if (key != GLFW_KEY_UNKNOWN) { inputManager->injectKey(key, hold); injected.push_back(name); }
+                else unresolved.push_back(name);
+            }
+        }
+        if (cmd.params.contains("mouse") && cmd.params["mouse"].is_array()) {
+            for (const auto& m : cmd.params["mouse"]) {
+                if (!m.is_string()) continue;
+                std::string name = m.get<std::string>();
+                std::string up = name;
+                for (auto& c : up) c = static_cast<char>(::toupper(c));
+                int btn = (up == "LEFT")   ? GLFW_MOUSE_BUTTON_LEFT
+                        : (up == "RIGHT")  ? GLFW_MOUSE_BUTTON_RIGHT
+                        : (up == "MIDDLE") ? GLFW_MOUSE_BUTTON_MIDDLE : -1;
+                if (btn >= 0) { inputManager->injectMouseButton(btn, hold); injected.push_back("Mouse" + up); }
+                else unresolved.push_back(name);
+            }
+        }
+
+        r = {{"success", true},
+             {"injected", injected},
+             {"hold", hold},
+             {"active_injections", inputManager->injectedCount()}};
+        if (!unresolved.empty()) r["unresolved"] = unresolved;
     });
 
     reg.on("create_camera_slot", [this](const Core::APICommand& cmd, nlohmann::json& r) {
