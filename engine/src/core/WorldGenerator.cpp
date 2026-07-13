@@ -157,6 +157,12 @@ constexpr float kMeanderAmp  = 55.0f;
 // the snow line and alpine gate fall out of real physics instead of a hand-picked Y threshold.
 constexpr float kTempSpanC   = 35.0f;
 constexpr float kSnowTemp01  = 5.0f / kTempSpanC;   // 0 °C freezing == (0−(−5))/35 ≈ 0.143 normalized
+// Alpine treeline: BELOW this effective temperature the ground is bare permanent snowpack (no trees);
+// BETWEEN kTreelineTemp01 and kSnowTemp01 snow lies on forested ground (taiga — boreal conifers grow
+// well below 0 °C, so snow cover and trees coexist here). −8 °C mean-annual proxy for the cold-limit
+// of trees (Körner alpine-treeline synthesis; growing-season heat sum). Bounded-by-analogy in this
+// compressed seasonless model; sets the SnowGrass(taiga) → Snow(bare cap) split, not just appearance.
+constexpr float kTreelineTemp01 = -3.0f / kTempSpanC;  // −8 °C == (−8−(−5))/35 ≈ −0.086 normalized
 // Environmental lapse rate 6.5 °C/km (ICAO/US Standard Atmosphere) × the P0 vertical compression
 // (~15 m per terrain-voxel, near the Mont-Blanc end of the grounded 12.5–23 m range) = 0.0975
 // °C/voxel; normalized by the 35 °C span → snow emerges from temperature+altitude, physically:
@@ -599,8 +605,10 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             col.surfaceMat = "Sand";    // ocean floor / seabed (water itself arrives in P2)
         } else if (slope > kRockSlope) {
             col.surfaceMat = "Stone";   // too steep for soil to hold → exposed rock / scree
+        } else if (effTemp < kTreelineTemp01) {
+            col.surfaceMat = "Snow";       // above treeline: bare permanent snowpack (blocks flora)
         } else if (effTemp < kSnowTemp01) {
-            col.surfaceMat = "Ice";     // permanent snow (Ice = closest palette material; see follow-up)
+            col.surfaceMat = "SnowGrass";  // snow lies on forested ground (taiga) — conifers persist
         }
         // else: keep the biome surface material set above (moderate, gently-sloped land).
     }
@@ -637,13 +645,14 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
     const Biome& biome = m_biomes[col.biomeIndex];
 
     // Physical surface gate (P1): flora follows the surfaced material, not just the biome, so trees
-    // don't grow on the seabed, bare-rock cliffs, or snow above the treeline. A snow (Ice) surface
-    // that came from the lapse-rate override on a NON-snow biome blocks flora; a biome whose OWN
-    // surface is Ice (Snow biome = boreal conifers) keeps its trees. sampleColumn already applied
-    // the override to col.surfaceMat. (docs/TerrainGenerationV2.md §P1)
+    // don't grow on the seabed, bare-rock cliffs, or snow above the treeline. The lapse-rate override
+    // stamps "Snow" (pure alpine snowpack) on ANY column above the treeline -- including the Snow
+    // biome's own high ground -- and that blocks flora. The Snow biome's lower ground is "SnowGrass"
+    // (snow-dusted soil), which is NOT gated, so boreal conifers still grow there. sampleColumn
+    // already applied the override to col.surfaceMat. (docs/TerrainGenerationV2.md §P1)
     if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;              // seabed / underwater
     if (col.surfaceMat == "Stone") return false;                                // cliff (slope override; no biome surfaces Stone)
-    if (col.surfaceMat == "Ice" && biome.surfaceMaterial != "Ice") return false; // snow-capped non-snow biome
+    if (col.surfaceMat == "Snow") return false;                                 // alpine permanent-snow cap (above treeline)
     // P2: no trees in a carved river channel, nor on land that sits below a lake/sea surface (the
     // water runtime will flood it). Keeps flora off the water line. (docs/TerrainGenerationV2.md §P2)
     if (col.riverOrder > 0) return false;                                       // carved riverbed
@@ -733,7 +742,7 @@ void WorldGenerator::initDefaultBiomes() {
     // CENTRE (temp+moisture+continentalness); height params blend smoothly across biomes. These
     // defaults use the full continentalness range (0..1) so they're chosen on temp+moisture alone.
     m_biomes = {
-        {"Snow",    "Ice",        "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f,  0.0f, 1.0f, 1.3f,  6.0f, "",      0.0f},
+        {"Snow",    "SnowGrass",  "Stone",     "Stone", 0.0f, 0.3f, 0.0f, 1.0f,  0.0f, 1.0f, 1.3f,  6.0f, "",      0.0f},
         {"Desert",  "Sand",       "Sandstone", "Stone", 0.6f, 1.0f, 0.0f, 0.35f, 0.0f, 1.0f, 0.5f, -2.0f, "",      0.0f},
         {"Savanna", "GrassSavanna","Dirt",     "Stone", 0.7f, 1.0f, 0.35f, 0.6f, 0.0f, 1.0f, 0.7f,  0.0f, "Dirt",  0.3f},
         {"Forest",  "GrassForest","Dirt",      "Stone", 0.3f, 0.7f, 0.6f, 1.0f,  0.0f, 1.0f, 1.0f,  1.0f, "Dirt",  0.6f},
@@ -1040,9 +1049,9 @@ std::string WorldGenerator::getMaterialForPosition(const glm::ivec3& worldPos, f
 
     if (depthFromSurface < 0.5f) {
         // Surface layer: grass-topped dirt
-        // Mountains above 45 get snow (Ice)
+        // Mountains above 45 get snow-capped
         if (surfaceHeight > 45.0f && generationType == GenerationType::Mountains) {
-            return "Ice";
+            return "Snow";
         }
         return "Grass";
     } else if (depthFromSurface < 4.0f) {

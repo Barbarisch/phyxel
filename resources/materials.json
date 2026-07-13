@@ -3013,6 +3013,68 @@
         "bottom": "wool_bottom.png"
       },
       "resolution": 1024
+    },
+    {
+      "name": "Snow",
+      "category": "material",
+      "description": "Settled snowpack (alpine snow line / permanent snow above treeline)",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.2,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.45,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.94,
+          0.96,
+          0.99
+        ],
+        "metallic": 0.0,
+        "roughness": 0.95
+      },
+      "textures": {
+        "side_n": "snow_side_n.png",
+        "side_s": "snow_side_s.png",
+        "side_e": "snow_side_e.png",
+        "side_w": "snow_side_w.png",
+        "top": "snow_top.png",
+        "bottom": "snow_bottom.png"
+      },
+      "varied": false
+    },
+    {
+      "name": "SnowGrass",
+      "category": "material",
+      "description": "Snow-dusted subarctic/boreal ground (Snow biome surface)",
+      "physics": {
+        "mass": 2.0,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.5,
+        "bondStrength": 0.45,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          0.9,
+          0.92,
+          0.96
+        ],
+        "metallic": 0.0,
+        "roughness": 0.9
+      },
+      "textures": {
+        "side_n": "snowgrass_side_n.png",
+        "side_s": "snowgrass_side_s.png",
+        "side_e": "snowgrass_side_e.png",
+        "side_w": "snowgrass_side_w.png",
+        "top": "snowgrass_top.png",
+        "bottom": "snowgrass_bottom.png"
+      },
+      "varied": false
     }
   ]
 }

@@ -60,24 +60,28 @@ TEST(TerrainBiomeTest, NewBiomesSelectedInTheirNiches) {
 
 TEST(TerrainBiomeTest, FloraDoesNotLandOnCliffsSnowOrSeabed) {
     // The flora gate: planFlora must not place plants where sampleColumn surfaced the ground as a
-    // bare-rock cliff (Stone), a snow cap on a non-snow biome (Ice override), or the seabed (below
-    // sea level). Verifies the invariant on planFlora's real output; RED before the gate was added.
+    // bare-rock cliff (Stone), the bare permanent snow cap above the treeline ("Snow"), or the seabed
+    // (below sea level). Snow-dusted taiga ground ("SnowGrass", below the treeline) DOES keep its
+    // conifers, so it is deliberately NOT gated. Verifies the invariant on planFlora's real output.
     WorldGenerator g(WorldGenerator::GenerationType::Mountains, 4242u);  // has cliffs + snow + basins
     auto placements = g.planFlora(-300, -300, 300, 300, 8);
     ASSERT_GT(placements.size(), 100u) << "no flora produced to check";
 
-    long onSeabed = 0, onCliff = 0, onSnow = 0;
+    long onSeabed = 0, onCliff = 0, onSnow = 0, onTaiga = 0;
     for (const auto& p : placements) {
         auto cs = g.sampleSurface(p.worldX, p.worldZ);
         if (cs.surfaceY < 16) ++onSeabed;
         if (cs.surfaceMat == "Stone") ++onCliff;
-        if (cs.surfaceMat == "Ice" && g.getBiomes()[cs.biomeIndex].surfaceMaterial != "Ice") ++onSnow;
+        if (cs.surfaceMat == "Snow") ++onSnow;           // bare alpine cap — must be empty
+        if (cs.surfaceMat == "SnowGrass") ++onTaiga;     // snowy taiga — trees ALLOWED here
     }
-    std::printf("[flora] placements=%zu onSeabed=%ld onCliff=%ld onSnow=%ld\n",
-                placements.size(), onSeabed, onCliff, onSnow);
+    std::printf("[flora] placements=%zu onSeabed=%ld onCliff=%ld onSnow=%ld onTaiga=%ld\n",
+                placements.size(), onSeabed, onCliff, onSnow, onTaiga);
     EXPECT_EQ(onSeabed, 0) << "plants on the seabed";
     EXPECT_EQ(onCliff, 0) << "plants on bare-rock cliffs";
-    EXPECT_EQ(onSnow, 0) << "plants on snowcaps (non-snow biome)";
+    EXPECT_EQ(onSnow, 0) << "plants on the bare permanent-snow cap (above treeline)";
+    // Sanity: snow-dusted taiga is reachable and keeps its trees (proves the gate isn't over-blocking).
+    EXPECT_GT(onTaiga, 0) << "no trees on snowy taiga ground — SnowGrass over-gated";
 }
 
 }  // namespace

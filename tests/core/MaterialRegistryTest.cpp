@@ -52,15 +52,16 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    // resources/materials.json currently defines 99 materials (grew from the original 27 with biome
-    // variants, cloth Linen/Wool etc.). Keep in sync with the "materials" array length in materials.json.
-    EXPECT_EQ(registry_->getMaterialCount(), 99);
+    // resources/materials.json currently defines 101 materials (grew from the original 27 with biome
+    // variants, cloth Linen/Wool, Snow + SnowGrass etc.). Keep in sync with the "materials" array
+    // length in materials.json.
+    EXPECT_EQ(registry_->getMaterialCount(), 101);
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    // 99 materials × 6 face textures = 594 texture slots. Keep in sync with materials.json.
-    EXPECT_EQ(registry_->getTextureCount(), 594);
+    // 101 materials × 6 face textures = 606 texture slots. Keep in sync with materials.json.
+    EXPECT_EQ(registry_->getTextureCount(), 606);
     // Total splits across the two resolution classes (512 + 1024).
     EXPECT_EQ(registry_->getTextureCount(0) + registry_->getTextureCount(1),
               registry_->getTextureCount());
@@ -229,7 +230,7 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
     auto names = registry_->getAllMaterialNames();
-    EXPECT_EQ(static_cast<int>(names.size()), 99);  // = materials.json "materials" array length
+    EXPECT_EQ(static_cast<int>(names.size()), 101);  // = materials.json "materials" array length
 }
 
 // ============================================================================

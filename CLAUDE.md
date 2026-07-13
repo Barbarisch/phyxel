@@ -169,6 +169,8 @@ where it breaks pattern continuity at voxel edges.
 | Grass        | 1.8  | 0.7      | 0.1         | Grass-topped dirt (terrain surface) |
 | GrassForest  | 1.8  | 0.7      | 0.1         | Deep forest grass (biome variant) |
 | GrassSavanna | 1.8  | 0.7      | 0.1         | Dry golden savanna grass (biome variant) |
+| SnowGrass    | 2.0  | 0.6      | 0.1         | Snow-dusted taiga ground — Snow-biome surface, keeps conifers (matte; white top, snow-crust dirt sides) |
+| Snow         | 0.3  | 0.2      | 0.1         | Bare permanent snowpack — alpine cap above the treeline, blocks flora (matte white all faces) |
 | Stone        | 6.0  | 0.8      | 0.05        | Dense smooth stone |
 | Cobblestone  | 5.0  | 0.9      | 0.05        | Rounded street setts, grassy joints (settlement `dry_stone`) |
 | StoneBricks  | 6.0  | 0.8      | 0.05        | Rough-hewn dressed blocks (settlement `ashlar`, Poly Haven, 1024px) |

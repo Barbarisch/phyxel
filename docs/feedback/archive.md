@@ -445,3 +445,22 @@ document that API-driven encounters must use `next_turn`.
 > smoke-test harness for generated games (input-injection tool + vision-judged checklist baked into
 > session instructions — HIGH PRIORITY), and the editor multi-scene `setupGameHud` gap. NOT yet
 > implemented — this is the to-do list for the next engine-dev push.
+
+## 2026-07-12 — Emberwake — feature-request
+Snowy grass block material + texture for snowy/tundra biomes. Survival games set in snow (e.g. the Emberwake dogfood) need snow-topped ground, but today there is no SnowGrass material and no snow biome in biomes.json (Perlin worlds render bare stone/grass). Add a snow-grass material (snow top + snow-dusted sides, matching the coursed-vs-varied rules) and a snowy/tundra biome so snow worlds generate correctly.
+
+> **RESOLVED (2026-07-13, terrain-gen Increment 4, uncommitted→committed this change):** Added two
+> grounded materials — **SnowGrass** (snow-dusted taiga ground: white top, snow-crust-over-dirt sides;
+> the Snow biome's surface; keeps conifers) and **Snow** (bare permanent snowpack: matte white all
+> faces; the alpine cap above the treeline; blocks flora). The premise was partly outdated — a **Snow
+> biome already existed** in biomes.json, but it (and the lapse-rate alpine override) surfaced the
+> glassy **Ice** material. Replaced Ice with SnowGrass/Snow and added a second, colder threshold
+> `kTreelineTemp01` (−8 °C) below the 0 °C snow line so the override bands forest → SnowGrass (taiga) →
+> Snow (bare cap). Textures via `tools/gen_snow_textures.py`; physics grounded (grounding-auditor:
+> settled-snowpack density, packed-snow friction, near-neutral albedo, matte roughness). Verified:
+> 5 terrain tests red→green (bareSnow 14695 / 0 treeline violations; flora onSnow 0 / onTaiga 83),
+> full suite 2771 pass / 0 fail (MaterialRegistry counts synced 99→101), L4 runtime (Mountains
+> generator placed SnowGrass on a cold peak, matte white, zero Ice), solution-auditor PASS.
+> NOTE: existing worlds keep Ice unless regenerated (biomes bake into world.db on first load). Docs:
+> `docs/TerrainGenerationV2.md` Increment 4 + CLAUDE.md Materials table. NOT done: a distinct Tundra
+> snow treatment / snow-specific Gravel — Tundra still relies on the lapse override.

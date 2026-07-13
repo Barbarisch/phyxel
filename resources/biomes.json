@@ -3,7 +3,7 @@
   "biomes": [
     {
       "name": "Snow",
-      "surface": "Ice",
+      "surface": "SnowGrass",
       "subsurface": "Stone",
       "deep": "Stone",
       "temp": [
