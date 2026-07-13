@@ -68,3 +68,28 @@ likewise round-tripped: spawn → save_world → DB row present → relaunch →
   in-session launcher project switch — mirrors the existing `PlacedObjectManager` limitation.
 - The 1-arg `spawn_entity` (no explicit type) registers with an empty typeTag (pre-existing behavior);
   restored entities carry their persisted `type`.
+
+---
+
+# UUID Phase 3 — L4 runtime evidence (item-instance identity)
+
+`spawn_item` of a non-stackable item mints + returns an instance uuid and persists it on the prop:
+
+```
+POST /api/items/spawn {"item":"iron_sword","x":22,"y":40,"z":22}
+-> { "success":true, "item":"iron_sword", "prop_id":"item_iron_sword_1",
+     "instance_uuid":"fb7c2480-c588-469f-a556-845c90d5290b" }
+
+get_placed_object("item_iron_sword_1"):
+  category:"item",
+  metadata: { "itemId":"iron_sword", "displayName":"Iron Sword",
+              "instanceUuid":"fb7c2480-c588-469f-a556-845c90d5290b" },
+  uuid: "660bbbd0-abde-4f7e-bbee-3fc2e041ad90"   (Phase-1 PlacedObject uuid, distinct)
+```
+
+Proves: mint on spawn, uuid returned, and persisted in the prop's placed-object metadata (which rides
+the Phase-1 placed_objects blob, so it survives reload; ItemPropManager::rebuildFromPlacedObjects
+restores it into the Prop). The drop→pickup and equip→unequip carry-through are unit-tested
+(InventoryUuidTest, EquipmentUuidTest, 53 green with the existing suites). (give_item returned
+overflow here only because StructGenTest's player inventory was pre-filled — the unique branch
+correctly reported it, not a code fault.)

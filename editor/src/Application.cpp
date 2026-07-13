@@ -86,6 +86,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
+#include "core/Uuid.h"
 #include "core/EquipmentSystem.h"
 #include "core/CombatSystem.h"
 #include "core/Cube.h"
@@ -1713,13 +1714,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         auto pickupHandler = std::make_unique<Core::PickupInteractionHandler>();
         pickupHandler->setPickupCallback([this](const std::string& objectId) {
             if (!itemPropManager || !inventory) return;
-            std::string itemId = itemPropManager->pickupProp(objectId);
+            std::string instanceUuid;
+            std::string itemId = itemPropManager->pickupProp(objectId, &instanceUuid);
             if (itemId.empty()) return;
-            int leftover = inventory->addItem(itemId, 1);
-            if (leftover > 0) {
-                // Inventory full: put the prop back where it was.
+            bool full;
+            if (!instanceUuid.empty()) {
+                // Unique item: restore the SAME instance identity into the inventory.
+                Core::ItemStack s;
+                s.itemId = itemId;
+                s.instanceUuid = instanceUuid;
+                if (const auto* d = Core::ItemRegistry::instance().getItem(itemId)) s.maxStack = d->maxStack;
+                full = !inventory->addItemStack(s);
+            } else {
+                full = (inventory->addItem(itemId, 1) > 0);
+            }
+            if (full) {
+                // Inventory full: put the prop back (with its instance uuid intact).
                 if (animatedCharacter)
-                    itemPropManager->spawnProp(itemId, animatedCharacter->getPosition());
+                    itemPropManager->spawnProp(itemId, animatedCharacter->getPosition(),
+                                               0.0f, true, instanceUuid);
                 return;
             }
             LOG_INFO("Application", "Picked up '{}' from prop '{}'", itemId, objectId);
@@ -8116,7 +8129,8 @@ void Application::dropHeldItem() {
     glm::vec3 dropPos = animatedCharacter->getPosition() + front * 1.2f + glm::vec3(0, 0.5f, 0);
 
     std::string propId = itemPropManager->spawnProp(itemId, dropPos,
-                                                    glm::degrees(yaw), /*snapToGround=*/true);
+                                                    glm::degrees(yaw), /*snapToGround=*/true,
+                                                    stack->instanceUuid);  // carry instance identity out
     if (propId.empty()) return;
 
     inventory->consumeSelected();
@@ -8200,12 +8214,20 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
                 + glm::vec3(std::sin(yaw) * 1.5f, 0.5f, std::cos(yaw) * 1.5f);
         }
         float yawDeg = cmd.params.value("yaw", 0.0f);
-        std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg);
+        // A non-stackable spawned item is a distinct instance — mint a uuid (or honor a supplied one)
+        // so it carries stable identity into pickup.
+        std::string instanceUuid = cmd.params.value("instance_uuid", "");
+        if (instanceUuid.empty()) {
+            if (const auto* d = Core::ItemRegistry::instance().getItem(itemId); d && d->maxStack <= 1)
+                instanceUuid = Core::Uuid::generate();
+        }
+        std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg, true, instanceUuid);
         if (propId.empty()) {
             response = {{"error", "Failed to spawn item prop (unknown/not-holdable item or missing template): " + itemId}};
         } else {
             const auto* obj = placedObjectManager ? placedObjectManager->get(propId) : nullptr;
             response = {{"success", true}, {"item", itemId}, {"prop_id", propId}};
+            if (!instanceUuid.empty()) response["instance_uuid"] = instanceUuid;
             if (obj) response["position"] = {{"x", obj->position.x}, {"y", obj->position.y}, {"z", obj->position.z}};
         }
         return true;
@@ -13345,7 +13367,8 @@ void Application::processAPICommands() {
                             if (!def) {
                                 response = {{"error", "Item not found: " + itemId}};
                             } else {
-                                bool ok = npc->getEquipment().equip(*def);
+                                const std::string instUuid = cmd.params.value("instance_uuid", "");
+                                bool ok = npc->getEquipment().equip(*def, instUuid);
                                 if (ok) {
                                     // Attach weapon visual to right_hand bone
                                     auto* animChar = npc->getAnimatedCharacter();
@@ -13358,6 +13381,8 @@ void Application::processAPICommands() {
                                     }
                                     response = {{"success", true}, {"entityId", entityId}, {"itemId", itemId},
                                                 {"slot", Core::equipSlotToString(def->equipSlot)}};
+                                    const std::string eu = npc->getEquipment().getInstanceUuid(def->equipSlot);
+                                    if (!eu.empty()) response["instance_uuid"] = eu;
                                     if (gameEventLog) {
                                         gameEventLog->emit("item_equipped", {
                                             {"entityId", entityId}, {"itemId", itemId},
@@ -13392,6 +13417,8 @@ void Application::processAPICommands() {
                             if (slot == Core::EquipSlot::None) {
                                 response = {{"error", "Invalid slot: " + slotStr}};
                             } else {
+                                // Recover the instance identity BEFORE unequip clears it.
+                                const std::string removedUuid = npc->getEquipment().getInstanceUuid(slot);
                                 auto removedItem = npc->getEquipment().unequip(slot);
                                 if (removedItem) {
                                     // Remove weapon visual
@@ -13401,6 +13428,7 @@ void Application::processAPICommands() {
                                     }
                                     response = {{"success", true}, {"entityId", entityId},
                                                 {"slot", slotStr}, {"removedItemId", *removedItem}};
+                                    if (!removedUuid.empty()) response["removed_instance_uuid"] = removedUuid;
                                     if (gameEventLog) {
                                         gameEventLog->emit("item_unequipped", {
                                             {"entityId", entityId}, {"slot", slotStr},
@@ -14891,6 +14919,21 @@ void Application::processAPICommands() {
                     int count = cmd.params.value("count", 1);
                     if (material.empty()) {
                         response = {{"error", "Missing 'material' field"}};
+                    } else if (const auto* def = Core::ItemRegistry::instance().getItem(material);
+                               def && def->maxStack <= 1) {
+                        // Non-stackable item: each is its own instance with a stable minted uuid.
+                        int given = 0;
+                        nlohmann::json uuids = nlohmann::json::array();
+                        for (int i = 0; i < count; ++i) {
+                            Core::ItemStack s;
+                            s.itemId = material; s.maxStack = 1;
+                            s.instanceUuid = Core::Uuid::generate();
+                            if (!inventory->addItemStack(s)) break;
+                            ++given;
+                            uuids.push_back(s.instanceUuid);
+                        }
+                        response = {{"success", true}, {"material", material}, {"given", given},
+                                    {"overflow", count - given}, {"instance_uuids", uuids}};
                     } else {
                         int overflow = inventory->addItem(material, count);
                         response = {{"success", true}, {"material", material},

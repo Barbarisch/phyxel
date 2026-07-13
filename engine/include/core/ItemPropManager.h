@@ -36,6 +36,7 @@ public:
         std::string placedObjectId;
         std::string itemId;
         std::string kinId;        ///< KinematicVoxelManager object id
+        std::string instanceUuid; ///< Item-instance uuid for a UNIQUE dropped item (empty for commodities)
     };
 
     void setDependencies(PlacedObjectManager* placed, ObjectTemplateManager* templates,
@@ -51,13 +52,16 @@ public:
     /// Returns the placed-object id, or "" on failure (unknown/not-holdable
     /// item, missing template).
     std::string spawnProp(const std::string& itemId, const glm::vec3& position,
-                          float yawDeg = 0.0f, bool snapToGround = true);
+                          float yawDeg = 0.0f, bool snapToGround = true,
+                          const std::string& instanceUuid = "");
 
     /// Remove a prop (kinematic group + placed-object entry).
     bool removeProp(const std::string& placedObjectId);
 
-    /// Pick a prop up: removes it and returns its itemId ("" if not a prop).
-    std::string pickupProp(const std::string& placedObjectId);
+    /// Pick a prop up: removes it and returns its itemId ("" if not a prop). If outInstanceUuid is
+    /// given, it receives the item-instance uuid (empty for a commodity) so the caller can restore
+    /// the same instance identity into the inventory.
+    std::string pickupProp(const std::string& placedObjectId, std::string* outInstanceUuid = nullptr);
 
     /// Tear down render state when a placed object is removed by someone else
     /// (PlacedObjectManager preRemove hook). Idempotent.

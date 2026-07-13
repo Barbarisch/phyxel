@@ -18,7 +18,14 @@ public:
     /// Equip an item into its designated slot. Returns false if slot mismatch.
     bool equip(const ItemDefinition& item);
 
+    /// Equip carrying a per-instance uuid (for a UNIQUE item), so unequip returns the SAME instance.
+    bool equip(const ItemDefinition& item, const std::string& instanceUuid);
+
+    /// Item-instance uuid equipped in a slot (empty if none / not a unique item).
+    std::string getInstanceUuid(EquipSlot slot) const;
+
     /// Unequip whatever is in the given slot. Returns the item ID if something was removed.
+    /// (Read getInstanceUuid(slot) BEFORE unequipping to recover the instance identity.)
     std::optional<std::string> unequip(EquipSlot slot);
 
     /// Get the item in a slot (nullptr if empty).
@@ -48,6 +55,7 @@ public:
 
 private:
     std::unordered_map<EquipSlot, ItemDefinition> m_slots;
+    std::unordered_map<EquipSlot, std::string> m_instanceUuids;  ///< per-slot item-instance uuid
     OnEquipmentChanged m_onChanged;
 };
 

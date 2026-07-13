@@ -94,7 +94,7 @@ const VoxelTemplate* ItemPropManager::resolveItemTemplate(const std::string& tem
 }
 
 std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec3& position,
-                                       float yawDeg, bool snapToGround) {
+                                       float yawDeg, bool snapToGround, const std::string& instanceUuid) {
     if (!m_placed || !m_kinematic) return "";
 
     const auto* def = ItemRegistry::instance().getItem(itemId);
@@ -163,7 +163,9 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
         return "";
     }
 
-    m_props[placedId] = {placedId, itemId, kinId};
+    // Persist the item-instance uuid on the prop's placed object so drop→reload→pickup keeps identity.
+    if (!instanceUuid.empty()) m_placed->setMetadata(placedId, "instanceUuid", instanceUuid);
+    m_props[placedId] = {placedId, itemId, kinId, instanceUuid};
     registerPropEffects(m_props[placedId]);
     LOG_INFO("ItemPropManager", "Spawned item prop '{}' as '{}' at ({}, {}, {})",
              itemId, placedId, pos.x, pos.y, pos.z);
@@ -195,10 +197,11 @@ bool ItemPropManager::removeProp(const std::string& placedObjectId) {
     return true;
 }
 
-std::string ItemPropManager::pickupProp(const std::string& placedObjectId) {
+std::string ItemPropManager::pickupProp(const std::string& placedObjectId, std::string* outInstanceUuid) {
     auto it = m_props.find(placedObjectId);
     if (it == m_props.end()) return "";
     std::string itemId = it->second.itemId;
+    if (outInstanceUuid) *outInstanceUuid = it->second.instanceUuid;
     removeProp(placedObjectId);
     return itemId;
 }
@@ -235,7 +238,7 @@ void ItemPropManager::rebuildFromPlacedObjects() {
 
         std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform,
                                              "", false, surfaceFromTemplate(*tmpl));
-        m_props[obj.id] = {obj.id, itemId, kinId};
+        m_props[obj.id] = {obj.id, itemId, kinId, obj.metadata.value("instanceUuid", std::string())};
         registerPropEffects(m_props[obj.id]);
         ++rebuilt;
     }

@@ -53,7 +53,9 @@ int Inventory::addItem(const std::string& material, int count) {
 
 bool Inventory::addItemStack(const ItemStack& stack) {
     ItemStack s = stack;
-    if (s.isUnique()) {
+    // A stack is an individual if the item is unique OR it already carries an instance uuid
+    // (e.g. one restored on pickup) — either way it must keep its own slot and its identity.
+    if (s.isUnique() || !s.instanceUuid.empty()) {
         // Unique items each occupy their own slot and carry a stable instance uuid.
         if (s.instanceUuid.empty()) s.instanceUuid = Uuid::generate();
         for (auto& slot : m_slots) {

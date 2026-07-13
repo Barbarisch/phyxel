@@ -5,6 +5,10 @@ namespace Phyxel {
 namespace Core {
 
 bool EquipmentSlots::equip(const ItemDefinition& item) {
+    return equip(item, "");
+}
+
+bool EquipmentSlots::equip(const ItemDefinition& item, const std::string& instanceUuid) {
     if (item.equipSlot == EquipSlot::None) {
         LOG_WARN("Equipment", "Item '{}' has no equip slot", item.id);
         return false;
@@ -19,8 +23,15 @@ bool EquipmentSlots::equip(const ItemDefinition& item) {
     }
 
     m_slots[item.equipSlot] = item;
+    if (instanceUuid.empty()) m_instanceUuids.erase(item.equipSlot);
+    else m_instanceUuids[item.equipSlot] = instanceUuid;
     if (m_onChanged) m_onChanged(item.equipSlot, item.id);
     return true;
+}
+
+std::string EquipmentSlots::getInstanceUuid(EquipSlot slot) const {
+    auto it = m_instanceUuids.find(slot);
+    return (it != m_instanceUuids.end()) ? it->second : std::string();
 }
 
 std::optional<std::string> EquipmentSlots::unequip(EquipSlot slot) {
@@ -29,6 +40,7 @@ std::optional<std::string> EquipmentSlots::unequip(EquipSlot slot) {
 
     std::string itemId = it->second.id;
     m_slots.erase(it);
+    m_instanceUuids.erase(slot);
     if (m_onChanged) m_onChanged(slot, "");
     return itemId;
 }
@@ -44,6 +56,7 @@ bool EquipmentSlots::hasItem(EquipSlot slot) const {
 
 void EquipmentSlots::clear() {
     m_slots.clear();
+    m_instanceUuids.clear();
 }
 
 std::unordered_map<EquipSlot, std::string> EquipmentSlots::getAllEquipped() const {
