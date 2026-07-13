@@ -8128,9 +8128,16 @@ void Application::dropHeldItem() {
     glm::vec3 front(std::sin(yaw), 0.0f, std::cos(yaw));
     glm::vec3 dropPos = animatedCharacter->getPosition() + front * 1.2f + glm::vec3(0, 0.5f, 0);
 
+    // Carry the instance identity out with the item. BUT in creative mode the drop does NOT consume
+    // the source stack (consumeSelected no-ops) — so it's a COPY, and reusing the same uuid would put
+    // two items with one identity in the world. Give a creative copy its own fresh uuid; a real
+    // (consuming) drop moves the same uuid.
+    std::string dropUuid = stack->instanceUuid;
+    if (inventory->isCreativeMode() && !dropUuid.empty()) dropUuid = Core::Uuid::generate();
+
     std::string propId = itemPropManager->spawnProp(itemId, dropPos,
                                                     glm::degrees(yaw), /*snapToGround=*/true,
-                                                    stack->instanceUuid);  // carry instance identity out
+                                                    dropUuid);
     if (propId.empty()) return;
 
     inventory->consumeSelected();

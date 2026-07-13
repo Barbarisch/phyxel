@@ -93,3 +93,26 @@ restores it into the Prop). The drop→pickup and equip→unequip carry-through 
 (InventoryUuidTest, EquipmentUuidTest, 53 green with the existing suites). (give_item returned
 overflow here only because StructGenTest's player inventory was pre-filled — the unique branch
 correctly reported it, not a code fault.)
+
+## Phase 3 — full drop→pickup round-trip (survival) + creative copy uniqueness
+
+Survival (creative OFF) — a true MOVE preserves the instance uuid, no duplication:
+```
+give_item iron_sword           -> instance_uuids: ["890c8a74-ff95-4de1-8080-1db955a103b5"]
+get_inventory                  -> slot 0 iron_sword uuid 890c8a74...   (give mint == stored)
+select_hotbar_slot 0; drop_item
+get_inventory (after drop)     -> iron_sword slots: []                 (consumed — true move)
+POST /api/interact  (pickup)   -> {"success":true,"triggered":true}
+get_inventory (after pickup)   -> slot 0 iron_sword uuid 890c8a74...   (SAME uuid, ONE item)
+```
+
+Creative (ON) — a drop is a COPY and gets its OWN fresh uuid (no two items share identity):
+```
+inventory sword uuid           890c8a74-...
+drop_item (creative, no consume)
+inventory still has            890c8a74-...   (original kept)
+dropped prop item_iron_sword_2 instanceUuid = 946006cd-...  (DISTINCT fresh uuid)
+```
+The creative case was a bug found by running this round-trip: reusing the same uuid on a
+non-consuming (creative) drop put two items under one identity. Fixed in dropHeldItem — a creative
+copy mints a fresh uuid; a real consuming drop moves the same uuid.
