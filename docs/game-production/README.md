@@ -645,9 +645,14 @@ Each phase ships independently.
    reachability/softlock + fresh-session exploratory playtest + replay regression + the
    **interaction-matrix**, **resource-loop-closure**, **save-integrity**, and **progression-pacing**
    checks (§10.3/10.5/10.6). Content-manifest counting (§10.4) is cheap and can land as early as Phase 3.
-8. **Guided-process skill (`/gamedev-next`) + recipe library (§4d) + creator→auditor→tester sub-agent
-   pairing.** Seed genre-primed recipes (farming-survival-loop, rpg-quest-chain, turn-based-encounter,
-   real-time-combat, save-integrity…) so every session builds a given feature the same way.
+8. **Guided-process skill (`gamedev-next`) + recipe library (§4d). ✅ BUILT (2026-07-12).**
+   `tools/phyxel-gamedev/skills/gamedev-next/SKILL.md` — the §7 production loop as an invocable skill
+   (orient/**stale-first** → sweep → pick → **design-first** → build → **validate red-before-green** →
+   record → **checkpoint**), driving the `production` tool + recipes + the domain skills, with the
+   **creator ≠ certifier ≠ tester** discipline and "log engine gaps via /feedback". Auto-discovered by the
+   phyxel-gamedev plugin (no manifest change). Recipe library grown to 6 (added `menus-and-screens` —
+   the required-UI screens). *Follow-up: creator→auditor→tester as actual sub-agents (vs the discipline
+   the skill states); more recipes.*
 
 **Recommended first slice: Phase 0 + 1** — artifact + auto-onboarding + a running starter game, no engine
 C++, all in `tools/phyxel-cli` + data. Validate the schema on a real project before the engine-side work.
@@ -696,7 +701,7 @@ tools/phyxel-cli/phyxel_cli/
   status.py                     <- `phyxel status` digest reader, stale-first (Phase 1) ✅
 tools/phyxel-gamedev/
   hooks/hooks.json              <- SessionStart also injects the digest (Phase 1) ✅
-  skills/gamedev-next/          <- guided-process skill (Phase 8)
+  skills/gamedev-next/SKILL.md  <- guided-process skill (Phase 8) ✅
 scripts/mcp/
   production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
   production_validators.py      <- static L1/L2 milestone validators + input hashes (Phase 3/4) ✅
