@@ -20,6 +20,51 @@
 
 ---
 
+## 0. Status & next-session pickup (as of 2026-07-12)
+
+**Shipped & on `main` (each deterministically verified, `world` L4 live-verified):** Phases **0, 1, 2,
+3, 4, 5, 8** in full + Phase **6**'s first slice. The tracker works end-to-end: scaffold a genre-seeded
+checklist → auto-onboard every session (SessionStart digest) → agent-update via the `production` MCP tool
+→ static-validate → keep-honest-over-time (sweep/stale) → packaging soft-gate → the `gamedev-next` guided
+loop → and confirm the world functionally at runtime. Dogfooded on **Emberwake** (survival), which logged
+6 engine feature-requests to `docs/feedback/inbox.md`.
+
+**One standing acceptance step:** the `production` MCP tool + its runtime pass load only when the MCP
+server (re)starts — a fresh session picks them up automatically. To use it: `production(op="status")` /
+`op="validate"` / `op="sweep"`, etc.
+
+**To resume:** read this doc + the memory note *project_game_production_workflow* + `docs/feedback/inbox.md`.
+The remaining phases are **6 (rest)** and **7**, and most of both are **gated on one engine feature** —
+**synthetic input injection** (an MCP tool to drive WASD/keys), already logged in the feedback inbox.
+
+### What Phase 6 (rest) needs
+The runtime framework exists (`scripts/mcp/production_runtime.py`, `world`→L4). Adding validators:
+- **Not input-gated (buildable now, need modest engine API):** `perf_target` L4 → an **FPS field** on
+  `/api/render/stats` or `/api/status` (none today); `save_load` L4 (save-integrity) → drive state via
+  MCP, `save_world`, reload, **deep-diff** the persisted subsystems; `win_condition`/`lose_condition` L3
+  → an **event-firing API** (fire a trigger's `when` event) + a **screen-state query** (is victory/
+  game-over showing); `hud` L3 → render-check via `get_render_stats`/screenshot; **snapshot-per-milestone**
+  → wire the `production` tool to call `create_snapshot` on completion; **golden baselines** →
+  screenshot/geometry-hash per milestone.
+- **Input-gated (need synthetic input injection):** `player` L4 (WASD control), `core_loop` L4, `intro`/
+  `tutorial`, menu *navigation*, `qa_pass` — anything requiring an actual playthrough.
+- Plus the **feel-pass gate** (a presence checklist: sound-on-input, easing, coyote/buffer) — mostly the
+  `gamedev-next` skill's discipline; could become a lightweight validator.
+
+### What Phase 7 needs
+- **Completability / softlock check** → expose `TraversalProbe` **at game scale** (is the win state
+  reachable from the start and from representative mid-game states). Engine work; not input-gated per se.
+- **Adversarial playtest by a fresh non-builder agent** + **replay regression suite** + **balance as a
+  play distribution** → all require **synthetic input injection** (the agent must *play* the game to
+  break it / record & replay traces). This is Phase 7's core and is fully gated on that feature.
+
+**Bottom line:** the biggest unlock for 6+7 is the **input-injection engine feature**; secondary needs are
+an FPS endpoint, a trigger-event-firing + screen-state API, and exposing TraversalProbe on the game graph.
+Until those land, further validators would have to guess or fake — don't. Build them *after* the engine
+features (track them via `/triage-feedback`).
+
+---
+
 ## 1. The vision (restated)
 
 The standard usage path we're designing for:
