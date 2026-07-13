@@ -78,6 +78,47 @@ TEST(EntityRegistryUuidTest, DuplicateExplicitUuidRejected) {
     EXPECT_EQ(reg.getEntity(u), &e1) << "original entity's uuid mapping was clobbered by the duplicate";
 }
 
+TEST(EntityRegistryUuidTest, SamePointerReRegisterDropsOldRegistration) {
+    // The respawn mechanism: createAnimatedCharacter self-registers the entity as "animated_N",
+    // then the explicit registerEntity(...,uuid) re-registers the SAME pointer under the real id.
+    // The throwaway registration (and its auto-minted uuid) must be fully gone.
+    Core::EntityRegistry reg;
+    TestEntity e;
+    ASSERT_TRUE(reg.registerEntity(&e, "animated_7", "animated"));
+    const std::string throwawayUuid = reg.getUuid("animated_7");
+    const std::string want = Core::Uuid::generate();
+    ASSERT_TRUE(reg.registerEntity(&e, "persist_probe", "animated", want));
+
+    EXPECT_EQ(reg.getEntity("animated_7"), nullptr) << "throwaway registration not dropped";
+    EXPECT_EQ(reg.size(), 1u) << "duplicate registration for the same pointer";
+    EXPECT_EQ(reg.getEntity("persist_probe"), &e);
+    EXPECT_EQ(reg.getEntity(want), &e);
+    EXPECT_EQ(reg.getUuid("persist_probe"), want);
+    EXPECT_EQ(reg.getEntity(throwawayUuid), nullptr) << "throwaway uuid leaked in the index";
+}
+
+TEST(EntityRegistryUuidTest, AutoIdReseededPastRestoredEntities) {
+    // The persistence churn bug: a fresh process restarts m_nextAutoId at 1, so after restoring
+    // an auto-id ("entity_1") from a save, the NEXT auto-id spawn must not regenerate the same id
+    // (which would collide, silently fail to register the new entity, and misattribute the
+    // restored entity's uuid to it). Two registry instances model two process lifetimes.
+    Core::EntityRegistry reg1;
+    TestEntity a;
+    const std::string id1 = reg1.registerEntity(&a);      // auto id, e.g. "entity_1"
+    const std::string uuid1 = reg1.getUuid(id1);
+    ASSERT_FALSE(id1.empty());
+
+    Core::EntityRegistry reg2;                             // fresh m_nextAutoId{1}
+    TestEntity restored, fresh;
+    ASSERT_TRUE(reg2.registerEntity(&restored, id1, "animated", uuid1));  // respawn on reload
+    const std::string id2 = reg2.registerEntity(&fresh);                  // new auto-id spawn
+    ASSERT_FALSE(id2.empty()) << "new auto-id spawn silently failed (id collision with restored entity)";
+    EXPECT_NE(id2, id1) << "auto-id counter not reseeded past the restored entity";
+    EXPECT_EQ(reg2.getEntity(id1), &restored) << "restored entity clobbered by the new spawn";
+    EXPECT_EQ(reg2.getEntity(id2), &fresh);
+    EXPECT_NE(reg2.getUuid(id2), uuid1) << "new spawn misattributed the restored entity's uuid";
+}
+
 TEST(EntityRegistryUuidTest, UuidsUniqueAcrossManyEntities) {
     Core::EntityRegistry reg;
     std::vector<std::unique_ptr<TestEntity>> ents;

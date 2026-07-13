@@ -17,7 +17,7 @@ bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id
 
 std::string EntityRegistry::registerEntity(Scene::Entity* entity) {
     std::string id = "entity_" + std::to_string(m_nextAutoId.fetch_add(1));
-    registerEntity(entity, id, "");
+    if (!registerEntity(entity, id, "")) return "";  // don't hand back an id we failed to register
     return id;
 }
 
@@ -65,6 +65,16 @@ bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id
     m_entities[id] = EntityEntry{entity, typeTag, u};
     m_reverseMap[entity] = id;
     m_uuidToId[u] = id;
+
+    // Keep the auto-id counter ahead of any explicitly-registered "entity_N" id (e.g. one
+    // restored from persistence on reload) so a later auto-generated id can't collide with it.
+    // Mirrors PlacedObjectManager's counter-reseed-on-load. (Under m_mutex — plain load/store ok.)
+    if (id.rfind("entity_", 0) == 0) {
+        try {
+            const uint64_t n = std::stoull(id.substr(7));
+            if (n + 1 > m_nextAutoId.load()) m_nextAutoId.store(n + 1);
+        } catch (...) {}
+    }
 
     LOG_DEBUG("EntityRegistry", "Registered entity '{}' (type: {})", id, (typeTag.empty() ? "none" : typeTag));
     return true;

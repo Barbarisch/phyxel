@@ -1892,6 +1892,30 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             placedObjectManager->recomputeAllInteractionPoints();
             // Item props restored from the DB need their kinematic render groups back.
             if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
+
+            // Respawn runtime-spawned entities (Phase 2b) with their persisted uuids, via the
+            // same factory spawn_entity uses. createAnimatedCharacter rebinds `animatedCharacter`
+            // (it's the player factory), so save/restore it — the authored player is set up
+            // separately from game.json and must not be hijacked by a restored ad-hoc entity.
+            if (entityRegistry) {
+                // createAnimatedCharacter is the player factory: it rebinds animatedCharacter and
+                // seizes control/camera. Snapshot and restore those so restoring ad-hoc entities
+                // neither hijacks the (later-created) authored player nor steals input focus.
+                auto* savedPlayer = animatedCharacter;
+                const auto savedControl = currentControlTarget;
+                m_runtimeEntities.clear();
+                for (const auto& rec : Core::RuntimeEntityStore::loadFromDb(ws->getDb())) {
+                    const std::string anim = rec.animFile.empty()
+                        ? std::string("resources/animated_characters/humanoid.anim") : rec.animFile;
+                    Scene::Entity* spawned = createAnimatedCharacter(rec.position, anim);
+                    if (spawned) {
+                        entityRegistry->registerEntity(spawned, rec.id, rec.type, rec.uuid);
+                        m_runtimeEntities[rec.uuid] = rec;
+                    }
+                }
+                animatedCharacter = savedPlayer;
+                currentControlTarget = savedControl;
+            }
         }
     }
 
@@ -12529,9 +12553,9 @@ void Application::processAPICommands() {
 
                 Scene::Entity* spawned = nullptr;
                 std::string entityType = type;
+                std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
 
                 if (type == "physics" || type == "spider" || type == "animated") {
-                    std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
                     spawned = createAnimatedCharacter(glm::vec3(x, y, z), animFile);
                     entityType = "animated";
                 } else {
@@ -12547,7 +12571,12 @@ void Application::processAPICommands() {
                     } else {
                         entityRegistry->registerEntity(spawned, id, entityType);
                     }
-                    response = {{"success", true}, {"id", id}, {"uuid", entityRegistry->getUuid(id)},
+                    const std::string spawnedUuid = entityRegistry->getUuid(id);
+                    // Record the spawn recipe so this runtime entity persists across
+                    // save/reload with the same uuid (Phase 2b). Positions refreshed at save.
+                    m_runtimeEntities[spawnedUuid] =
+                        Core::RuntimeEntity{spawnedUuid, id, entityType, animFile, glm::vec3(x, y, z)};
+                    response = {{"success", true}, {"id", id}, {"uuid", spawnedUuid},
                                 {"type", entityType},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}}};
                     if (gameEventLog) {
@@ -12609,6 +12638,7 @@ void Application::processAPICommands() {
                         }
                         // Clear named pointers if they match
                         if (entity == animatedCharacter) animatedCharacter = nullptr;
+                        m_runtimeEntities.erase(entityRegistry->getUuid(id));  // capture uuid before unregister
                         entityRegistry->unregisterEntity(id);
                         response = {{"success", true}, {"id", id}};
                         if (gameEventLog) {
@@ -13105,6 +13135,17 @@ void Application::processAPICommands() {
                             auto* ws = chunkManager->m_streamingManager.getWorldStorage();
                             if (ws) {
                                 placedObjectManager->saveToDb(ws->getDb());
+                                // Persist runtime-spawned entities (Phase 2b): refresh their
+                                // last position from the live entity, then write the recipes.
+                                if (entityRegistry) {
+                                    std::vector<Core::RuntimeEntity> rvec;
+                                    rvec.reserve(m_runtimeEntities.size());
+                                    for (auto& [uuid, rec] : m_runtimeEntities) {
+                                        if (auto* e = entityRegistry->getEntity(uuid)) rec.position = e->getPosition();
+                                        rvec.push_back(rec);
+                                    }
+                                    Core::RuntimeEntityStore::saveToDb(ws->getDb(), rvec);
+                                }
                             }
                         }
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");

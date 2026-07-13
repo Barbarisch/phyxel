@@ -25,6 +25,7 @@
 #include "core/ForceSystem.h"
 // WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
+#include "core/RuntimeEntityStore.h"
 #include "core/AudioSystem.h"
 #include "scripting/ScriptingSystem.h"
 #include "ai/AISystem.h"
@@ -360,6 +361,11 @@ private:
     // main loop will dereference a dangling pointer after a File > Open switch.
     std::vector<std::unique_ptr<Scene::Entity>> entities;
     Scene::AnimatedVoxelCharacter* animatedCharacter = nullptr;
+
+    // Spawn recipes for RUNTIME-spawned entities (spawn_entity), keyed by uuid, so they
+    // persist across save/reload with the same stable id. Authored NPCs/player come from
+    // game.json and are NOT tracked here. Positions refreshed from the live entity at save.
+    std::unordered_map<std::string, Core::RuntimeEntity> m_runtimeEntities;
 
     // Shared input->character->camera driver for the animated character (same
     // path the standalone games use). The active rig is derived from CameraMode
