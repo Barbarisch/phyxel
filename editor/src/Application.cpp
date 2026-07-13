@@ -10474,6 +10474,99 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    // Fire a trigger on demand — lets an agent test win/lose wiring WITHOUT
+    // playing to the condition (game-production win_condition/lose_condition L3).
+    //   { "id": "win" }                          -> run THAT trigger's `then`
+    //       actions immediately through the host executor (synchronous, so the
+    //       effects — scene transition / objective complete / story var — are
+    //       observable in the very next state query).
+    //   { "event": "player_jumped", "data": {} } -> replay the real when->then
+    //       path: feed the event; matching triggers fire, actions drain next frame.
+    // NOTE: show_victory/show_credits are standalone-shell-only; in the editor
+    // host they no-op (see the ActionExecutor) — use transition_scene to a menu
+    // scene for an editor-observable terminal, or inspect `executed` below.
+    if (action == "fire_trigger") {
+        if (!triggerSystem) { response = {{"error", "TriggerSystem not available"}}; return true; }
+        const std::string id  = cmd.params.value("id", "");
+        const std::string evt = cmd.params.value("event", "");
+        if (!id.empty()) {
+            nlohmann::json triggers = triggerSystem->listTriggers();
+            const nlohmann::json* found = nullptr;
+            for (const auto& t : triggers) {
+                if (t.value("id", std::string()) == id) { found = &t; break; }
+            }
+            if (!found) {
+                response = {{"success", false}, {"error", "No trigger with id '" + id + "'"}};
+                return true;
+            }
+            nlohmann::json executed = nlohmann::json::array();
+            if (found->contains("then") && (*found)["then"].is_array()) {
+                for (const auto& a : (*found)["then"]) {
+                    triggerSystem->executeHostAction(a, id);
+                    executed.push_back(a.value("type", std::string("?")));
+                }
+            }
+            response = {{"success", true}, {"id", id}, {"mode", "direct"},
+                        {"executed", executed},
+                        {"note", "ran the trigger's then-actions immediately via the host executor"}};
+            return true;
+        }
+        if (!evt.empty()) {
+            nlohmann::json data = cmd.params.value("data", nlohmann::json::object());
+            triggerSystem->onEvent(evt, data);
+            response = {{"success", true}, {"event", evt}, {"mode", "event"},
+                        {"note", "event fed; matching triggers' actions drain on the next frame"}};
+            return true;
+        }
+        response = {{"success", false},
+                    {"error", "Provide 'id' (fire that trigger's actions) or 'event' (replay a when-event)"}};
+        return true;
+    }
+
+    // Synthesized screen-state query (game-production win/lose observation).
+    // The editor process serves the API but has NO standalone-shell GameScreen/
+    // ScreenState, so we derive a coarse screen from the signals that DO exist
+    // here: scene-type (world/menu/cutscene), pause, transition, and visible
+    // overlay menus. A packaged game's shell owns a richer GameScreen state.
+    if (action == "get_screen_state") {
+        std::string sceneId, sceneType = "world";
+        bool transitioning = false;
+        auto* sm = runtime ? runtime->getSceneManager() : nullptr;
+        if (sm && !sm->getActiveSceneId().empty()) {
+            sceneId = sm->getActiveSceneId();
+            transitioning = sm->isTransitioning();
+            const auto* s = sm->getActiveScene();
+            if (s) {
+                using ST = Phyxel::Core::SceneType;
+                sceneType = (s->sceneType == ST::Menu)     ? "menu"
+                          : (s->sceneType == ST::Cutscene) ? "cutscene" : "world";
+            }
+        }
+        // Visible NON-HUD screens = real menus (pause/inventory/main). HUD overlays
+        // (name prefix "hud_") are always-on gameplay widgets, NOT menus — excluding
+        // them keeps normal play reading as "playing" rather than "menu_overlay".
+        nlohmann::json menus = nlohmann::json::array();
+        bool anyMenu = false;
+        if (renderCoordinator && renderCoordinator->getUISystem()) {
+            for (auto& [name, visible] : renderCoordinator->getUISystem()->getScreenList()) {
+                if (visible && name.rfind("hud_", 0) != 0) { menus.push_back(name); anyMenu = true; }
+            }
+        }
+        std::string screen;
+        if      (transitioning)          screen = "loading";
+        else if (gamePaused)             screen = "paused";
+        else if (sceneType == "menu")    screen = "menu";
+        else if (sceneType == "cutscene")screen = "cutscene";
+        else if (anyMenu)                screen = "menu_overlay";
+        else                             screen = "playing";
+        response = {{"success", true}, {"screen", screen},
+                    {"scene_id", sceneId}, {"scene_type", sceneType},
+                    {"paused", gamePaused}, {"transitioning", transitioning},
+                    {"visible_menus", menus},
+                    {"note", "editor-synthesized; a packaged shell exposes a richer GameScreen state"}};
+        return true;
+    }
+
     if (action == "spawn_for_test") {
         // Rebuild the currently-loaded character (IE mode: m_ieChar; project mode:
         // animatedCharacter) with the morphology in `appearance`. Used by the

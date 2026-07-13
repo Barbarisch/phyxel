@@ -2519,6 +2519,27 @@ void EngineAPIServer::setupRoutes() {
                             "application/json");
         }
     });
+    // POST /api/triggers/fire — fire a trigger on demand (test win/lose wiring).
+    // Body: { "id": "win" }  OR  { "event": "player_jumped", "data": {} }
+    srv.Post("/api/triggers/fire", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params;
+            if (!req.body.empty()) params = json::parse(req.body);
+            json result = queueAndWait("fire_trigger", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+    // GET /api/screen/state — synthesized current screen state (playing/paused/
+    // menu/cutscene/loading) + scene id/type + visible menus. Lets an agent
+    // observe the result of a win/lose trigger without a human at the screen.
+    srv.Get("/api/screen/state", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_screen_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
 
     // POST /api/interaction/can_interact — Read-only compatibility query.
     // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }

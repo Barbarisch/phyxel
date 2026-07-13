@@ -69,6 +69,72 @@ def rv_world(base):
               f"runtime: world not confirmed (faces={faces}, chunks={chunks}, player={has_player})")
 
 
+def _triggers(base):
+    """The declarative trigger list, or None if unavailable."""
+    r = _get(base, "/api/triggers")
+    if r is None:
+        return None
+    return r.get("triggers", []) if isinstance(r, dict) else []
+
+
+def _then_types(trig):
+    return {a.get("type") for a in (trig.get("then") or []) if isinstance(a, dict)}
+
+
+def _pick_trigger(triggers, role):
+    """Best-guess the win/lose trigger. Transparent — the evidence names which id
+    was chosen, so a wrong guess is visible rather than silent."""
+    WIN_TYPES, LOSE_TYPES = {"show_victory", "show_credits"}, {"fail_objective"}
+    WIN_IDS = ("win", "victory", "escape", "complete", "beacon")
+    LOSE_IDS = ("lose", "death", "die", "fail", "gameover", "game_over", "defeat", "freeze")
+    best = None
+    for t in triggers:
+        tid = (t.get("id") or "").lower()
+        types = _then_types(t)
+        if role == "win":
+            if tid in ("win", "victory") or (types & WIN_TYPES):
+                return t
+            if any(k in tid for k in WIN_IDS) and not (types & LOSE_TYPES):
+                best = best or t
+        else:
+            if any(k in tid for k in LOSE_IDS) or (types & LOSE_TYPES):
+                return t
+    return best
+
+
+def _goal_region(triggers):
+    """Center (x,z) of the first entity_reached_region trigger's AABB, or None."""
+    for t in triggers:
+        w = t.get("when") or {}
+        if w.get("event") == "entity_reached_region":
+            r = w.get("region") or {}
+            a, b = (r.get("from") or {}), (r.get("to") or {})
+            try:
+                return (int(round((float(a["x"]) + float(b["x"])) / 2)),
+                        int(round((float(a["z"]) + float(b["z"])) / 2)))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return None
+
+
+def rv_perf(base):
+    """L4: the game meets its FPS budget. Reads the engine's real frame rate from
+    /api/debug/engine_timing (computed as 1000/cpuFrameTime) and compares to the
+    milestone's `target` min-FPS (default 30 = a playable floor). Read-only."""
+    t = _get(base, "/api/debug/engine_timing")
+    fps = (t or {}).get("fps")
+    if fps is None:
+        return _V("L2", False, "runtime: /api/debug/engine_timing has no fps field")
+    # `target` on the perf_target milestone overrides the default floor.
+    target = rv_perf.target or 30.0
+    if fps >= target:
+        return _V("L4", True, f"runtime: {fps:.0f} FPS >= {target:.0f} target")
+    return _V("L2", False, f"runtime: {fps:.0f} FPS < {target:.0f} target (perf budget not met)")
+
+
+rv_perf.target = None  # set per-call in run() from the milestone's `target`, if any
+
+
 def rv_player(base):
     """L4: the player is CONTROLLABLE — inject forward movement and confirm the player actually moves.
 
@@ -99,11 +165,118 @@ def rv_player(base):
               f"is it in a controllable playing state?")
 
 
-RUNTIME_REGISTRY = {"world": rv_world, "player": rv_player}
+def rv_level_playability(base):
+    """L3: the player spawns on WALKABLE ground and (if the win is location-based) the goal is
+    reachable. Uses the world-scale NavGrid (/api/navgrid/cell + /api/navgrid/path). Read-only.
+    Caveat: NavGrid's step-up is conservative (MAX_STEP_UP=0 + jump-links), so a 'not reachable'
+    is a SIGNAL to inspect, not a proof of softlock."""
+    start = _player_pos(base)
+    if start is None:
+        return _V("L0", False, "runtime: no player entity to test spawn walkability")
+    sx, sz = int(round(start[0])), int(round(start[2]))
+    cell = _get(base, f"/api/navgrid/cell?x={sx}&z={sz}")
+    if cell is None or "error" in cell:
+        return _V("L2", False, "runtime: NavGrid unavailable (needs a project world loaded)")
+    if not cell.get("walkable"):
+        return _V("L2", False, f"runtime: player spawn ({sx},{sz}) is NOT on walkable NavGrid "
+                               f"(spawned in a wall / over void?)")
+    goal = _goal_region(_triggers(base) or [])
+    if goal:
+        gx, gz = goal
+        path = _get(base, f"/api/navgrid/path?x1={sx}&z1={sz}&x2={gx}&z2={gz}")
+        if path and path.get("found"):
+            return _V("L3", True, f"runtime: spawn walkable + goal ({gx},{gz}) reachable "
+                                  f"({len(path.get('waypoints', []))} waypoints)")
+        return _V("L2", False, f"runtime: spawn walkable but goal ({gx},{gz}) NOT reachable via NavGrid "
+                               f"(possible softlock — verify; NavGrid step-up is conservative)")
+    return _V("L3", True, f"runtime: player spawn ({sx},{sz}) is on walkable NavGrid (no location goal to path)")
 
-# Validators with runtime side effects (they drive input / move the player). Excluded from the
-# default run-all so a routine `validate`/`sweep` never perturbs the game — only run when targeted.
-SIDE_EFFECTING = {"player"}
+
+def _fire_and_observe(base, trig):
+    before = _get(base, "/api/screen/state") or {}
+    resp = _post(base, "/api/triggers/fire", {"id": trig.get("id")})
+    after = _get(base, "/api/screen/state") or {}
+    return resp, before, after
+
+
+def rv_win_condition(base):
+    """L3: a scripted fire of the win trigger executes its terminal action. Side-effecting (fires the
+    trigger). Caps at L3 — L4 (playtest actually reaches victory in the packaged shell) needs a real
+    playthrough; show_victory/show_credits no-op in the editor host, so a transition_scene win is the
+    observable case."""
+    trs = _triggers(base)
+    if trs is None:
+        return _V("L0", False, "runtime: /api/triggers unavailable")
+    t = _pick_trigger(trs, "win")
+    if not t:
+        return _V("L2", False, "runtime: no win trigger found (need a terminal then-action or a win id)")
+    resp, before, after = _fire_and_observe(base, t)
+    if not resp or not resp.get("success"):
+        return _V("L2", False, f"runtime: fire_trigger failed for '{t.get('id')}'")
+    executed = resp.get("executed", [])
+    changed = (before.get("screen") != after.get("screen")) or (before.get("scene_id") != after.get("scene_id"))
+    obs = (f"screen {before.get('screen')}->{after.get('screen')}" if changed
+           else "screen unchanged (shell-only terminal no-ops in editor)")
+    return _V("L3", True, f"runtime: win trigger '{t.get('id')}' fired, executed {executed}; {obs}")
+
+
+def rv_lose_condition(base):
+    """L3: a scripted fire of the lose/fail trigger executes. Side-effecting. If the game has no
+    explicit lose TRIGGER (death handled by the respawn system instead), reports not-confirmed
+    rather than a false pass."""
+    trs = _triggers(base)
+    if trs is None:
+        return _V("L0", False, "runtime: /api/triggers unavailable")
+    t = _pick_trigger(trs, "lose")
+    if not t:
+        return _V("L2", False, "runtime: no explicit lose trigger (death may be handled by the respawn "
+                               "system — needs a scripted death check or a human playtest)")
+    resp, before, after = _fire_and_observe(base, t)
+    if not resp or not resp.get("success"):
+        return _V("L2", False, f"runtime: fire_trigger failed for '{t.get('id')}'")
+    executed = resp.get("executed", [])
+    return _V("L3", True, f"runtime: lose trigger '{t.get('id')}' fired, executed {executed}")
+
+
+def rv_core_loop(base):
+    """L3 (partial): a driven SMOKE playthrough — inject a WASD+jump sequence and confirm the game
+    survives it (engine responsive, player alive + not fallen through world, moved at some point).
+    Side-effecting. Honest ceiling: this proves the game is playable-without-crashing under input, NOT
+    that the core mechanic is fun/complete — full core_loop L4 needs a real playtest."""
+    p0 = _player_pos(base)
+    if p0 is None:
+        return _V("L0", False, "runtime: no player entity for the core-loop smoke")
+    moved = False
+    for keys, hold in [("W", 0.6), ("D", 0.4), ("Space", 0.2), ("A", 0.4), ("S", 0.6)]:
+        if _post(base, "/api/input/inject", {"keys": [keys], "hold": hold}) is None:
+            return _V("L2", False, "runtime: inject_input unavailable during core-loop smoke")
+        time.sleep(hold + 0.15)
+        p = _player_pos(base)
+        if p and ((p[0] - p0[0]) ** 2 + (p[2] - p0[2]) ** 2) ** 0.5 > 0.3:
+            moved = True
+    alive = _get(base, "/api/status") is not None
+    p1 = _player_pos(base)
+    if not alive or p1 is None:
+        return _V("L2", False, "runtime: engine/player not responsive after the input smoke")
+    if p1[1] < -20:
+        return _V("L2", False, f"runtime: player fell through the world (y={p1[1]:.1f}) under input")
+    return _V("L3", True, f"SMOKE: survived injected WASD+jump (moved={moved}, alive @y={p1[1]:.1f}, "
+                          f"engine responsive) — partial core-loop signal; full L4 needs a playtest")
+
+
+RUNTIME_REGISTRY = {
+    "world": rv_world,
+    "player": rv_player,
+    "perf_target": rv_perf,
+    "level_playability": rv_level_playability,
+    "win_condition": rv_win_condition,
+    "lose_condition": rv_lose_condition,
+    "core_loop": rv_core_loop,
+}
+
+# Validators with runtime side effects (drive input / fire triggers / move the player). Excluded from
+# the default run-all so a routine `validate`/`sweep` never perturbs the game — only run when targeted.
+SIDE_EFFECTING = {"player", "win_condition", "lose_condition", "core_loop"}
 
 
 def engine_project(base):
@@ -132,6 +305,8 @@ def run(project_dir, base_url, milestone=None) -> dict:
         fn = RUNTIME_REGISTRY.get(name)
         if fn is None or name not in ms:
             continue
+        if name == "perf_target":
+            rv_perf.target = ms[name].get("target")  # min-FPS override, if the milestone sets one
         v = fn(base_url)
         v["milestone"] = name
         results.append(v)

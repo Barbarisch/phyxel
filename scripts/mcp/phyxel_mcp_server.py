@@ -2232,6 +2232,35 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="fire_trigger",
+            description="Fire a gameplay trigger ON DEMAND to test win/lose wiring without playing to the "
+                        "condition. Two modes: pass `id` to run THAT trigger's `then` actions immediately "
+                        "(synchronous — effects like transition_scene / complete_objective / set_story_variable "
+                        "are observable in the very next state query, and the response lists what `executed`); "
+                        "OR pass `event` (+ optional `data`) to replay the real when->then path (matching "
+                        "triggers fire, actions drain next frame). NOTE: show_victory/show_credits only render "
+                        "in a packaged standalone game; in the editor they no-op — use transition_scene to a "
+                        "menu scene for an editor-observable win, then confirm via get_screen_state.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id":    {"type": "string", "description": "Fire this trigger's then-actions immediately"},
+                    "event": {"type": "string", "description": "Or replay a when-event name (e.g. 'player_jumped')"},
+                    "data":  {"type": "object", "description": "Event payload for the `event` mode"}
+                }
+            }
+        ),
+        Tool(
+            name="get_screen_state",
+            description="Query the current game screen state: 'playing' | 'paused' | 'menu' | 'cutscene' | "
+                        "'loading' | 'menu_overlay', plus the active scene id/type and any visible overlay "
+                        "menus. Use after fire_trigger to confirm a win/lose terminal actually changed the "
+                        "screen (e.g. transition_scene to a menu scene -> screen 'menu'). NOTE: in the editor "
+                        "this is synthesized from scene-type + pause + menu visibility (the editor has no "
+                        "standalone-shell Victory/Credits screen); a packaged game exposes a richer state.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
             name="damage_player",
             description="Deal damage to the player. If health reaches 0, triggers death sequence.",
             inputSchema={
@@ -5287,6 +5316,19 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "remove_trigger":
         return await api_post("/api/triggers/remove", {"id": args.get("id", "")})
+
+    elif name == "fire_trigger":
+        body: dict[str, Any] = {}
+        if "id" in args:
+            body["id"] = args["id"]
+        if "event" in args:
+            body["event"] = args["event"]
+        if "data" in args:
+            body["data"] = args["data"]
+        return await api_post("/api/triggers/fire", body)
+
+    elif name == "get_screen_state":
+        return await api_get("/api/screen/state")
 
     elif name == "damage_player":
         return await api_post("/api/game/health", {

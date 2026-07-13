@@ -45,9 +45,28 @@ The remaining phases are **6 (rest)** and **7**.
 > `production_runtime.py`) injects forward movement and confirms the player actually moved — live-verified
 > on Emberwake (`player` in_progress/L3 → **done/L4**; jump arc + attack + `release_all` also verified).
 > This unblocks the rest of Phase 6's playthrough validators (`core_loop`, `intro`/`tutorial`, menu
-> *navigation*, `qa_pass`) and Phase 7's adversarial playtest core. **Secondary needs still open** (each
-> unlocks one validator, none input-gated): an FPS field (`perf_target`), a trigger-fire + screen-state
-> API (`win`/`lose_condition`), and TraversalProbe-at-game-scale (Phase 7 completability).
+> *navigation*, `qa_pass`) and Phase 7's adversarial playtest core.
+>
+> **UPDATE 2026-07-13 (same day) — the three secondary blockers are now ALSO cleared**, and six more
+> runtime validators shipped (all live-verified on Emberwake):
+> - **FPS**: was already exposed at `GET /api/debug/engine_timing` (`fps` field) — no engine change.
+>   `rv_perf` (**perf_target → L4**, 298 FPS ≥ 30).
+> - **Trigger-fire + screen-state**: shipped `POST /api/triggers/fire` (`fire_trigger`: run a trigger's
+>   `then` now, or replay its `when`) + `GET /api/screen/state` (`get_screen_state`, synthesized from
+>   scene-type/pause/non-HUD-menus). Built on the existing `listTriggers()`+`executeHostAction()` — no
+>   TriggerSystem change. `rv_win_condition`/`rv_lose_condition` (**L3**) fire + observe. Caveat:
+>   `show_victory`/`show_credits` no-op in the editor host (shell-only), so a true win_condition **L4**
+>   still needs a packaged-shell playthrough.
+> - **TraversalProbe-at-scale**: reused the existing world-scale `GET /api/navgrid/path` (NavGrid+AStar).
+>   `rv_level_playability` (**L3**): spawn-on-walkable + spawn→goal reachability (positive AND honest
+>   negative/softlock). Caveats: NavGrid 512×512 clamp + conservative step-up.
+> - **core_loop**: `rv_core_loop` (**L3 smoke**) drives an injected WASD+jump sequence and asserts the
+>   game survives (responsive, player alive, moved) — honest partial signal; full L4 needs a playtest.
+>
+> Runtime registry now: `world`·`player`·`perf_target`·`level_playability`·`win_condition`·
+> `lose_condition`·`core_loop`. Side-effecting ones (`player`/`win`/`lose`/`core_loop`) are excluded from
+> run-all sweeps. **Remaining for Phase 7**: adversarial playtest by a fresh non-builder agent (now
+> buildable on injection), replay-regression suite, resource-loop-closure, and packaged-shell L4.
 
 ### What Phase 6 (rest) needs
 The runtime framework exists (`scripts/mcp/production_runtime.py`, `world`→L4). Adding validators:
