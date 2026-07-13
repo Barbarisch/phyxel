@@ -589,7 +589,17 @@ Each phase ships independently.
    session is auto-oriented; ASCII-only (survives hook stdout / Windows consoles); silent in non-tracker
    dirs. No engine required. Verified against fresh + progressed trackers. *Value: the headline vision —
    every session knows what's done/next — zero engine code.*
-2. **`production(op=…)` rollup + `phyxel://production` resource** (status/set/add/report/advance_stage).
+2. **`production(op=…)` rollup tool. ✅ BUILT (2026-07-12).** One MCP tool `production` in the MCP
+   server (`scripts/mcp/phyxel_mcp_server.py`) backed by a self-contained `scripts/mcp/production_tracker.py`
+   — **pure file ops on `.phyxel/production.json`, no engine/`/api` routes** (the design's engine-route
+   plan was over-built; production.json is just a project file). Ops: `status` (the digest), `report`
+   (full ledger + incomplete-required), `set` (milestone status/validated/feel/note/reason/evidence +
+   project focus/stage), `add_milestone`/`remove_milestone`, `advance_stage`. Validates inputs (status/
+   L-level/feel enums; n/a needs a reason). Project resolved: explicit arg > `PHYXEL_PROJECT` env > the
+   engine's loaded project. Removes the dogfood's JSON hand-editing. Verified: all ops + error paths on
+   the real Emberwake tracker. *Acceptance owed: the tool loads when the MCP server (re)starts — a live
+   session must reconnect to invoke it.* `phyxel://production` **resource deferred** (the SessionStart
+   digest already covers cold-session orientation; the server declares no resources yet).
 3. **Static validators (L1/L2) + `op:"validate"` + report.** Catches silent-drop ship bugs.
 4. **Durability core (§8).** `validatedAt`+`hash`, `op:"sweep"`, snapshot-per-milestone, golden baselines.
    *Value: "done" stops rotting — the biggest structural fix.*
@@ -651,9 +661,13 @@ tools/phyxel-cli/phyxel_cli/
 tools/phyxel-gamedev/
   hooks/hooks.json              <- SessionStart also injects the digest (Phase 1) ✅
   skills/gamedev-next/          <- guided-process skill (Phase 8)
-engine/  (Phases 2–7)
+scripts/mcp/
+  production_tracker.py         <- production.json ops (status/set/add/report/advance) (Phase 2) ✅
+  phyxel_mcp_server.py          <- `production` MCP tool wired in (Phase 2) ✅
+engine/  (Phases 3–7, engine-side)
   MilestoneValidator registry + completability/TraversalProbe-at-game-scale
-  + /api/production/* routes + production(op) MCP rollup + regression sweep
+  + /api/production/validate route (only the validators that must introspect the running game)
+  + regression sweep
 tools/package_game.py           <- completeness soft-gate + stale check (Phase 5)
 ```
 

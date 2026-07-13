@@ -45,6 +45,11 @@ from mcp.server.stdio import stdio_server
 import base64
 from mcp.types import Tool, TextContent, ImageContent
 
+# Local same-dir module: game-production milestone-tracker ops (reads/writes .phyxel/production.json;
+# no engine needed — it's a project file). docs/game-production/README.md.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import production_tracker  # noqa: E402
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -4306,6 +4311,56 @@ async def list_tools() -> list[Tool]:
                 "required": ["id"]
             }
         ),
+
+        # ================================================================
+        # Game-production tracker (.phyxel/production.json) — no engine needed
+        # ================================================================
+        Tool(
+            name="production",
+            description=(
+                "Read/update the game-production milestone tracker (.phyxel/production.json) — the "
+                "checklist that carries a game to shippable. Ops: 'status' (the stale-first digest: "
+                "stage, done/total, NEXT, ordering-critical, focus), 'report' (full ledger + which "
+                "required milestones are incomplete), 'set' (update a milestone's status/validated/"
+                "feel/note/reason, and/or the project focus/stage), 'add_milestone'/'remove_milestone' "
+                "(project-specific milestones), 'advance_stage' (move to the next production stage). "
+                "A milestone is complete when status=done AND validated>=required AND feel in {n/a,"
+                "passed}. status: todo|in_progress|done|n/a|blocked|stale (n/a needs a reason). "
+                "validated: L0..L4. Project = the loaded project by default; override with 'project'."),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "op": {"type": "string",
+                            "enum": ["status", "report", "set", "add_milestone",
+                                     "remove_milestone", "advance_stage"],
+                            "description": "The operation to perform."},
+                    "milestone": {"type": "string", "description": "Milestone name (set/add/remove)."},
+                    "status": {"type": "string",
+                               "enum": ["todo", "in_progress", "done", "n/a", "blocked", "stale"],
+                               "description": "New milestone status (set)."},
+                    "validated": {"type": "string", "enum": ["L0", "L1", "L2", "L3", "L4"],
+                                  "description": "Achieved validation depth (set)."},
+                    "feel": {"type": "string", "enum": ["n/a", "pending", "passed"],
+                             "description": "Axis-C juice-pass state (set), for interactive milestones."},
+                    "required": {"type": "string", "enum": ["L0", "L1", "L2", "L3", "L4"],
+                                 "description": "Target validation depth (add_milestone; default L1)."},
+                    "note": {"type": "string", "description": "Free-form note (set/add_milestone)."},
+                    "reason": {"type": "string",
+                               "description": "Why a milestone is n/a (required when status=n/a)."},
+                    "evidence": {"type": "string", "description": "Proof of validation (set)."},
+                    "focus": {"type": "string", "description": "Set the project's one-line focus (set)."},
+                    "stage": {"type": "string",
+                              "enum": ["concept", "vertical_slice", "feature_complete",
+                                       "content_complete", "shippable"],
+                              "description": "Set/advance the production stage (set/advance_stage)."},
+                    "optional": {"type": "boolean",
+                                 "description": "Mark an added milestone optional (excluded from %)."},
+                    "project": {"type": "string",
+                                "description": "Project dir (default: the loaded project / PHYXEL_PROJECT)."}
+                },
+                "required": ["op"]
+            }
+        ),
     ]
 
 
@@ -4352,6 +4407,8 @@ _NO_PROJECT_TOOLS = {
     "list_templates",
     # D&D stateless tools — no engine needed
     "roll_dice", "check_dc",
+    # Game-production tracker — pure file ops on .phyxel/production.json (resolves its own project)
+    "production",
 }
 
 
@@ -4378,6 +4435,23 @@ async def _check_project_loaded() -> dict | None:
         return None  # Can't reach engine — other errors will surface naturally
 
 
+async def _resolve_project_dir(args: dict) -> str | None:
+    """Resolve the project dir for the production tracker: explicit 'project' arg > PHYXEL_PROJECT
+    env (set by phyxel-mcp per project) > the engine's loaded project. None if unresolvable."""
+    if args.get("project"):
+        return args["project"]
+    env = os.environ.get("PHYXEL_PROJECT")
+    if env:
+        return env
+    try:
+        info = await api_get("/api/project/info")
+        if "error" not in info and info.get("project_dir"):
+            return info["project_dir"]
+    except Exception:
+        pass
+    return None
+
+
 async def _dispatch_tool(name: str, args: dict) -> dict:
     """Dispatch a tool call to the appropriate API endpoint."""
 
@@ -4386,6 +4460,17 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         project_err = await _check_project_loaded()
         if project_err is not None:
             return project_err
+
+    # --- Game-production tracker (pure file ops on .phyxel/production.json; no engine) ---
+    if name == "production":
+        project_dir = await _resolve_project_dir(args)
+        if not project_dir:
+            return {"error": "no project resolved — pass 'project', set PHYXEL_PROJECT, or load a "
+                             "project (open_project / launch_engine --project)"}
+        try:
+            return production_tracker.handle(args.get("op"), project_dir, args)
+        except (FileNotFoundError, ValueError) as e:
+            return {"error": str(e)}
 
     # --- Status & State ---
     if name == "engine_status":
