@@ -116,3 +116,18 @@ dropped prop item_iron_sword_2 instanceUuid = 946006cd-...  (DISTINCT fresh uuid
 The creative case was a bug found by running this round-trip: reusing the same uuid on a
 non-consuming (creative) drop put two items under one identity. Fixed in dropHeldItem — a creative
 copy mints a fresh uuid; a real consuming drop moves the same uuid.
+
+## Phase 3 — equip→unequip handler carries the instance uuid
+
+```
+POST /api/entity/npc_equip_probe/equip {"itemId":"iron_sword","instance_uuid":"11111111-2222-4333-8444-555566667777"}
+-> { success:true, itemId:"iron_sword", slot:"MainHand",
+     instance_uuid:"11111111-2222-4333-8444-555566667777" }        (carried IN + echoed)
+
+POST /api/entity/npc_equip_probe/unequip {"slot":"MainHand"}
+-> { success:true, removedItemId:"iron_sword", slot:"MainHand",
+     removed_instance_uuid:"11111111-2222-4333-8444-555566667777" } (SAME uuid comes back OUT)
+```
+Closes the equip/unequip handler-level gap: the item-instance identity survives the equip→unequip
+cycle through the real API handlers (not just the EquipmentSlots primitive). Required a route fix —
+the /api/entity/:id/equip route was not forwarding instance_uuid to the equip_item command.

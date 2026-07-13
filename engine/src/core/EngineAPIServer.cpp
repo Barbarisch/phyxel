@@ -3663,6 +3663,7 @@ void EngineAPIServer::setupRoutes() {
             return;
         }
         json params = {{"entityId", entityId}, {"itemId", body["itemId"]}};
+        if (body.contains("instance_uuid")) params["instance_uuid"] = body["instance_uuid"];  // carry item-instance identity
         json result = queueAndWait("equip_item", params);
         res.set_content(result.dump(), "application/json");
     });
