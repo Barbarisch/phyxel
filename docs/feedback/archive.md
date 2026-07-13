@@ -464,3 +464,21 @@ Snowy grass block material + texture for snowy/tundra biomes. Survival games set
 > NOTE: existing worlds keep Ice unless regenerated (biomes bake into world.db on first load). Docs:
 > `docs/TerrainGenerationV2.md` Increment 4 + CLAUDE.md Materials table. NOT done: a distinct Tundra
 > snow treatment / snow-specific Gravel — Tundra still relies on the lapse override.
+
+## 2026-07-12 — Emberwake — feature-request
+Stable UUID / persistent-ID system for items, structures, placed objects, and entities. Every item/structure/object/entity should get a persistent unique identifier so a user OR the LLM can query, modify, or remove a SPECIFIC one by ID (e.g. get_object(uuid) / move / rotate / remove_object(uuid)), instead of addressing things by position/type/index which is ambiguous and brittle. Underpins reliable agent-driven world editing and lets the game-production tracker reference specific world content precisely.
+
+> **RESOLVED (2026-07-13, shipped to main, commits 0013285…521a640):** Stable RFC-4122 v4 UUIDs across
+> all four categories, in six audited slices. **Phase 0** `Core::Uuid` (generate + strict isValid, the
+> strictness makes resolve-by-either-id unambiguous). **Phase 1** placed objects/structures: `PlacedObject.uuid`
+> + a `resolveIdLocked` choke point so every placed-object tool resolves by legacy id OR uuid; rides the
+> placed_objects blob; lazy backfill. **Phase 2a** entities: `EntityEntry.uuid` + resolve; spawn_entity
+> returns it. **Phase 2b** runtime-entity persistence: new `RuntimeEntityStore` (runtime_entities table) +
+> respawn-with-same-uuid on load (found+fixed a real m_nextAutoId reload-collision bug). **Phase 3** item
+> instances: `ItemStack.instanceUuid` (mint rule + canMerge gate so uuid-stacks never merge), carried
+> through drop→prop→pickup, equip→unequip, give/spawn mint+return (found+fixed a real creative-drop uuid
+> duplication + an unwired equip route by running the L4). Full suite 2798 pass / 0 fail; L4 evidence in
+> docs/evidence/uuid-phase2b-L4.md (entity persistence, item drop/pickup survival+creative, equip/unequip).
+> Each slice solution-auditor-gated (core/1/2a/2b PASS; 3-wiring re-audit PARTIAL-PASS with the equip-handler
+> gap then closed by the prescribed L4). Minor follow-up left: an explicit by-instance-uuid GET on get_item
+> (get_inventory already surfaces per-slot uuids). Memory: [[uuid-identifier-workstream]].

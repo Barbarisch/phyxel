@@ -24,9 +24,6 @@ MCP input-injection tool for controllability verification (surfaced by the game-
 RETRACTED: operator error, terrain-gen v2 works correctly. I had claimed Perlin made a "flat stone plane at y31"; the truth is I generated only LOW chunk layers (chunk y=0..1, world y 0-63) via generate_world / a game.json `world` from/to range, but the v2 surface sits HIGH (kSeaLevelY=16, peaks ~384 above), so my range was entirely DEEP UNDERGROUND → solid Stone (materialForColumn: depth>=4 = deepMaterial). Verified correct once I generated a tall enough range: varied surface_y (74 / 75 / 96 across a small area) with proper Grass/Dirt-over-Stone layering. OPTIONAL usability nit for engine-dev (low priority, NOT a bug): static generation (generate_world / a shallow game.json from/to y-range) silently yields underground stone with no hint the surface is far above — an auto-surface-follow or a warning would prevent this trap. Documenting the gotcha in CLAUDE.md.
 
 ## 2026-07-12 — Emberwake — feature-request
-Stable UUID / persistent-ID system for items, structures, placed objects, and entities. Every item/structure/object/entity should get a persistent unique identifier so a user OR the LLM can query, modify, or remove a SPECIFIC one by ID (e.g. get_object(uuid) / move / rotate / remove_object(uuid)), instead of addressing things by position/type/index which is ambiguous and brittle. Underpins reliable agent-driven world editing and lets the game-production tracker reference specific world content precisely.
-
-## 2026-07-12 — Emberwake — feature-request
 Expose average FPS / frame time via the HTTP API (e.g. an 'fps'/'frameTimeMs' field on /api/render/stats or /api/status). Today /api/render/stats has mesh + chunk-update timings but no actual frame FPS, so the game-production tracker cannot runtime-validate the perf_target milestone. Needed for production(op=validate) runtime perf checks.
 
 ## 2026-07-12 — Emberwake — feature-request
