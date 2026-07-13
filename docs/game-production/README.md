@@ -464,6 +464,41 @@ L3/L4 validation *is* the screenshot/PIE loop every practitioner cited: `launch_
 the scenario → `screenshot`/`get_visual_diagnostic`/`get_render_stats` → auditor reads evidence → record.
 This is where Phyxel is already ahead of the median MCP server — we make it the backbone of `op:"validate"`.
 
+### 6.6 Where the game runs during validation — editor `--project`, NOT the packaged standalone (a real fidelity gap)
+
+**All runtime validators today drive the game inside the *editor* host** (`phyxel.exe --project <dir>` — the
+dev-tool executable loading the real world DB + `game.json`), **not the packaged standalone shell** a player
+actually runs. This is a *constraint, not a preference*: **only the editor process hosts the HTTP API server**
+(`EngineAPIServer` is instantiated solely at `editor/src/Application.cpp`; the standalone shell that
+`package_game.py` produces does not run it). No API server in the shell ⇒ no way to drive or observe a packaged
+build ⇒ we test the game's systems in a dev harness instead.
+
+`--project` is a *good* proxy — same engine, same world, same `game.json`, same gameplay systems — so most
+functional behavior is **high-fidelity** and regressions are caught. But it is **not** the real play condition,
+and the divergences are exactly why several validators **honestly cap at L3, never L4**:
+
+| | Editor `--project` (what we validate in) | Packaged standalone (real play) |
+|---|---|---|
+| `show_victory` / `show_credits` | **no-op** (logs a warning) | renders the real Victory/Credits screen |
+| `GameScreen` / `ScreenState` | **absent** — `get_screen_state` is *synthesized* from scene-type + pause + non-HUD menus | the real Intro→MainMenu→Playing→Victory state machine |
+| input gating | ImGui panels hold keyboard focus → injected input must **bypass** the UI gate | no editor panels; input flows normally |
+| UI overlays | editor panels + game HUD | only the game's own UI |
+
+- **High-fidelity in the editor** (validators trustworthy at their stated depth): world load/render, player
+  controllability & movement (injection), FPS/perf, NavGrid reachability/completability, trigger *wiring*
+  fires, collision/physics — same engine systems either way.
+- **Low-fidelity / not observable in the editor** (the blind spot): the shell screen-state *flow*
+  (menu → play → victory/game-over → credits) and anything the editor host stubs out. We can confirm a win
+  trigger *fires and dispatches its terminal action*; we cannot confirm the victory *screen renders*.
+
+**The clean fix (raises the L3 caps to genuine L4):** let the standalone shell **optionally host the API
+server** behind a `--test`/`--api` flag, then run the same injection + screen-state + trigger-fire validators
+against the *actual packaged game*. That also lets the Phase 7 adversarial playtest run against real play
+conditions instead of the editor proxy. Logged as an engine feature-request in `docs/feedback/inbox.md`
+(2026-07-13). Until it lands, **read every runtime "done" as "verified in the editor harness"** — and gate
+the shell-flow milestones (`intro`, `victory_screen`, `game_over_screen`, menu *navigation*, and true
+`win_condition` L4) on a packaged-shell playtest, human or (once the flag exists) API-driven.
+
 ---
 
 ## 7. The interactive process (per-session lifecycle)
