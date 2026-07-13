@@ -629,7 +629,18 @@ Each phase ships independently.
    projects package unchanged). Verified: soft-warn vs strict-block vs no-tracker vs all-complete
    ("ready to ship") vs stale-detection. (The `strictPackaging` flag works for any caller — it's read
    inside `package_game()`; `--strict` is the CLI override.)
-6. **Runtime validators (L3/L4) + feel-pass gate + auditor discipline + human checkpoints.**
+6. **Runtime validators (L3/L4). PARTIAL — framework + first validator BUILT (2026-07-12).**
+   `scripts/mcp/production_runtime.py` drives the RUNNING engine over its HTTP API to confirm milestones
+   *functionally*; wired into `production(op="validate")` so validate ALSO runs a runtime pass when the
+   engine is up with **this** project (guarded on `/api/project/info` project match). First validator:
+   **`world` → L4** (a world is loaded AND renders — `/api/render/stats` visible faces+chunks — AND the
+   player is present in `/api/state`), stamped like the static path. Live-verified on Emberwake: `world`
+   todo/L0 → **L4/done**, evidence "runtime: world renders (116 faces, 6 chunks) + player present".
+   *Remaining Phase 6 (follow-ups): more runtime validators (menu renders, a win trigger actually fires,
+   playtest-to-victory), the feel-pass gate, auditor discipline + human checkpoints, and the deferred
+   snapshot/golden-baseline durability. Several are blocked on the logged **synthetic-input-injection**
+   engine feature (can't drive WASD to confirm controllability/playthrough) — hence `player` L4 stays
+   open.*
 7. **Completability + adversarial playtest (§9) + systemic-genre validators (§10)** —
    reachability/softlock + fresh-session exploratory playtest + replay regression + the
    **interaction-matrix**, **resource-loop-closure**, **save-integrity**, and **progression-pacing**
@@ -688,8 +699,9 @@ tools/phyxel-gamedev/
   skills/gamedev-next/          <- guided-process skill (Phase 8)
 scripts/mcp/
   production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
-  production_validators.py      <- static L1/L2 milestone validators on game.json (Phase 3) ✅
-  phyxel_mcp_server.py          <- `production` MCP tool wired in (Phase 2) ✅
+  production_validators.py      <- static L1/L2 milestone validators + input hashes (Phase 3/4) ✅
+  production_runtime.py         <- runtime L3/L4 validators (drive the engine); world L4 (Phase 6) ✅
+  phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass (Phase 2/6) ✅
 engine/  (Phases 3–7, engine-side)
   MilestoneValidator registry + completability/TraversalProbe-at-game-scale
   + /api/production/validate route (only the validators that must introspect the running game)

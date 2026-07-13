@@ -4324,7 +4324,9 @@ async def list_tools() -> list[Tool]:
                 "required milestones are incomplete), 'set' (update a milestone's status/validated/"
                 "feel/note/reason, and/or the project focus/stage), 'validate' (run static L1/L2 "
                 "checks on game.json/GAMEPLAN.md — win-trigger wired, world/player present, design "
-                "filled — and auto-write validated+status; omit 'milestone' to validate all), "
+                "filled — and auto-write validated+status; omit 'milestone' to validate all; ALSO "
+                "runs runtime L3/L4 checks — e.g. the world actually renders + player present — when "
+                "the engine is running with this project), "
                 "'sweep' (durability/regression: re-hash every done milestone's inputs — a changed "
                 "game.json/GAMEPLAN self-heals if still valid, else flips to STALE), "
                 "'add_milestone'/'remove_milestone' (project-specific milestones), 'advance_stage' "
@@ -4473,9 +4475,25 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             return {"error": "no project resolved — pass 'project', set PHYXEL_PROJECT, or load a "
                              "project (open_project / launch_engine --project)"}
         try:
-            return production_tracker.handle(args.get("op"), project_dir, args)
+            res = production_tracker.handle(args.get("op"), project_dir, args)
         except (FileNotFoundError, ValueError) as e:
             return {"error": str(e)}
+        # Runtime (L3/L4) validation pass: for op=validate, if the engine is running with THIS
+        # project, drive it to confirm milestones functionally (e.g. the world actually renders)
+        # and merge the upgrades into the response.
+        if args.get("op") == "validate" and isinstance(res, dict):
+            try:
+                import production_runtime
+                loop = asyncio.get_event_loop()
+                rt = await loop.run_in_executor(
+                    None, production_runtime.run, project_dir, ENGINE_API_URL, args.get("milestone"))
+                res["runtime"] = rt
+                if rt.get("ran") and rt.get("upgraded"):
+                    fresh = production_tracker.load(project_dir)
+                    res["digest"] = production_tracker.op_status(project_dir, fresh)["digest"]
+            except Exception as e:
+                res["runtime"] = {"ran": False, "error": str(e)}
+        return res
 
     # --- Status & State ---
     if name == "engine_status":
