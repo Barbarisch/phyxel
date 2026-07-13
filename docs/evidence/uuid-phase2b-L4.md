@@ -119,15 +119,26 @@ copy mints a fresh uuid; a real consuming drop moves the same uuid.
 
 ## Phase 3 — equip→unequip handler carries the instance uuid
 
+Raw captured HTTP responses against the live engine (phyxel.exe --project StructGenTest, port 8090),
+after a route fix — `/api/entity/:id/equip` was not forwarding `instance_uuid` to the equip_item command.
+
 ```
-POST /api/entity/npc_equip_probe/equip {"itemId":"iron_sword","instance_uuid":"11111111-2222-4333-8444-555566667777"}
--> { success:true, itemId:"iron_sword", slot:"MainHand",
-     instance_uuid:"11111111-2222-4333-8444-555566667777" }        (carried IN + echoed)
+spawn_npc {"name":"equip_probe","position":{"x":24,"y":40,"z":24}}
+-> { "success":true, "name":"equip_probe", "driveMode":"animated", ... }   (entity id = npc_equip_probe)
+
+POST /api/entity/npc_equip_probe/equip
+     {"itemId":"iron_sword","instance_uuid":"11111111-2222-4333-8444-555566667777"}
+-> {"entityId":"npc_equip_probe","instance_uuid":"11111111-2222-4333-8444-555566667777",
+    "itemId":"iron_sword","slot":"MainHand","success":true}                (carried IN + echoed)
 
 POST /api/entity/npc_equip_probe/unequip {"slot":"MainHand"}
--> { success:true, removedItemId:"iron_sword", slot:"MainHand",
-     removed_instance_uuid:"11111111-2222-4333-8444-555566667777" } (SAME uuid comes back OUT)
+-> {"entityId":"npc_equip_probe","removedItemId":"iron_sword",
+    "removed_instance_uuid":"11111111-2222-4333-8444-555566667777",
+    "slot":"MainHand","success":true}                                     (SAME uuid comes back OUT)
 ```
+
 Closes the equip/unequip handler-level gap: the item-instance identity survives the equip→unequip
-cycle through the real API handlers (not just the EquipmentSlots primitive). Required a route fix —
-the /api/entity/:id/equip route was not forwarding instance_uuid to the equip_item command.
+cycle through the real API handlers (not just the EquipmentSlots primitive). RED/GREEN (from source
+trace, EngineAPIServer.cpp:3665 + EquipmentSystem.cpp:equip): pre-fix the route dropped instance_uuid,
+so the handler coerced it to "" and the response could never carry a uuid; the one-line forward makes
+it flow through. Underlying EquipmentSlots carry is unit-tested (EquipmentUuidTest, 24/24 with *Equip*).
