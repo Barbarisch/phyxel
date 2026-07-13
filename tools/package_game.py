@@ -257,6 +257,60 @@ def copy_file_safe(src: Path, dst: Path) -> bool:
     return True
 
 
+def _check_production_completeness(project_dir, result, strict_cli: bool = False) -> None:
+    """Soft-gate (docs/game-production/README.md §6.4): if the project has a production tracker,
+    warn on incomplete or STALE required milestones — or BLOCK (errors) if strictPackaging/--strict.
+    No tracker → skip. Read-only: recomputes staleness from input hashes WITHOUT mutating
+    production.json (use `production(op=sweep)` for a persisted sweep)."""
+    if project_dir is None:
+        return
+    if not (Path(project_dir) / ".phyxel" / "production.json").is_file():
+        return
+    mcp_dir = Path(__file__).resolve().parent.parent / "scripts" / "mcp"
+    try:
+        if str(mcp_dir) not in sys.path:
+            sys.path.insert(0, str(mcp_dir))
+        import production_tracker as pt
+        import production_validators as pv
+        prod = pt.load(project_dir)
+        rep = pt.op_report(project_dir, prod)
+    except Exception as e:
+        result["warnings"].append(f"production tracker present but could not be read: {e}")
+        return
+
+    incomplete = list(rep["incomplete_required"])
+    stale = list(rep["stale"])
+    # Read-only fresh staleness: a done milestone whose validation inputs changed since validatedAt.
+    for mname, m in prod.get("milestones", {}).items():
+        if m.get("status") == "done" and m.get("hash") \
+                and pv.input_digest(project_dir, mname) != m["hash"] and mname not in stale:
+            stale.append(mname)
+
+    strict = bool(prod.get("strictPackaging")) or strict_cli
+    result["completeness"] = {
+        "stage": rep["stage"], "pct_complete": rep["pct_complete"], "complete": rep["complete"],
+        "total_required": rep["total_required"], "incomplete_required": incomplete,
+        "stale": stale, "strict": strict,
+    }
+    header = (f"production completeness: stage={rep['stage']} "
+              f"{rep['complete']}/{rep['total_required']} required ({rep['pct_complete']}%)")
+    if not incomplete and not stale:
+        result["warnings"].append(header + " — all required milestones complete, ready to ship")
+        return
+    result["warnings"].append(header)
+    sink = result["errors"] if strict else result["warnings"]
+    tag = "BLOCKING" if strict else "soft"
+    if incomplete:
+        sink.append(f"completeness [{tag}] {len(incomplete)} required milestone(s) incomplete: "
+                    f"{', '.join(incomplete)}")
+    if stale:
+        sink.append(f"completeness [{tag}] {len(stale)} milestone(s) STALE (re-validate first): "
+                    f"{', '.join(stale)}")
+    if not strict:
+        result["warnings"].append("(soft gate — packaging proceeds; set strictPackaging:true in "
+                                  "production.json or pass --strict to block)")
+
+
 def package_game(
     name: str,
     output_dir: Path,
@@ -268,6 +322,7 @@ def package_game(
     window_title: str | None = None,
     project_dir: Path | None = None,
     world_db_path: Path | None = None,
+    strict: bool = False,
 ) -> dict:
     """
     Package a complete standalone game directory.
@@ -588,6 +643,9 @@ def package_game(
     )
     files_copied += 1
 
+    # ── Production-completeness soft-gate (game-production tracker) ──────
+    _check_production_completeness(project_dir, result, strict_cli=strict)
+
     # ── Done ────────────────────────────────────────────────────────────
     result["success"] = len(result["errors"]) == 0
     result["files_copied"] = files_copied
@@ -653,6 +711,12 @@ def main() -> None:
         help="Window title (default: game name)",
         default=None,
     )
+    parser.add_argument(
+        "--strict",
+        help="Block packaging (error) on incomplete/stale required production milestones "
+             "(default: soft-warn; overrides production.json strictPackaging)",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -715,6 +779,7 @@ def main() -> None:
         window_title=args.title,
         project_dir=project_dir,
         world_db_path=world_db_path,
+        strict=args.strict,
     )
 
     if result["warnings"]:

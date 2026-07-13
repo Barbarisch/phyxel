@@ -621,7 +621,14 @@ Each phase ships independently.
    still-valid GAMEPLAN edit self-heals design_brief; gutting a GAMEPLAN section staleifies it.*
    *Deferred (need the engine): snapshot-per-milestone (`create_snapshot`) + golden baselines
    (screenshot/geometry-hash) — pull in with the Phase-6 runtime validators.*
-5. **Packaging soft-gate + `strictPackaging`.**
+5. **Packaging soft-gate + `strictPackaging`. ✅ BUILT (2026-07-12).** `tools/package_game.py` now runs
+   a completeness check (reusing `production_tracker`/`production_validators`): if the project has a
+   tracker, it **WARNS** on incomplete or STALE required milestones and prints the report, blocking
+   (errors) only when `production.json` has `strictPackaging:true` or `--strict` is passed. **Read-only**
+   — recomputes staleness from input hashes without mutating `production.json`. No tracker → skips (older
+   projects package unchanged). Verified: soft-warn vs strict-block vs no-tracker vs all-complete
+   ("ready to ship") vs stale-detection. (The `strictPackaging` flag works for any caller — it's read
+   inside `package_game()`; `--strict` is the CLI override.)
 6. **Runtime validators (L3/L4) + feel-pass gate + auditor discipline + human checkpoints.**
 7. **Completability + adversarial playtest (§9) + systemic-genre validators (§10)** —
    reachability/softlock + fresh-session exploratory playtest + replay regression + the
