@@ -48,6 +48,12 @@ bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id
         m_reverseMap.erase(reverseIt);
     }
 
+    // An explicitly-supplied uuid (restore path) must be unique — reject a clash with a
+    // live entity rather than silently clobbering the existing uuid→id mapping.
+    if (!uuid.empty() && m_uuidToId.count(uuid)) {
+        LOG_WARN("EntityRegistry", "Explicit uuid already in use, rejecting: {}", uuid);
+        return false;
+    }
     // Mint a stable uuid when none is supplied (create path); keep the caller's when
     // restoring a persisted/authored entity so its identity survives reload.
     std::string u = uuid;
