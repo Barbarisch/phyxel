@@ -29,3 +29,12 @@ RETRACTED: operator error, terrain-gen v2 works correctly. I had claimed Perlin 
 ## 2026-07-12 — Emberwake — feature-request
 Stable UUID / persistent-ID system for items, structures, placed objects, and entities. Every item/structure/object/entity should get a persistent unique identifier so a user OR the LLM can query, modify, or remove a SPECIFIC one by ID (e.g. get_object(uuid) / move / rotate / remove_object(uuid)), instead of addressing things by position/type/index which is ambiguous and brittle. Underpins reliable agent-driven world editing and lets the game-production tracker reference specific world content precisely.
 
+## 2026-07-12 — Emberwake — feature-request
+Expose average FPS / frame time via the HTTP API (e.g. an 'fps'/'frameTimeMs' field on /api/render/stats or /api/status). Today /api/render/stats has mesh + chunk-update timings but no actual frame FPS, so the game-production tracker cannot runtime-validate the perf_target milestone. Needed for production(op=validate) runtime perf checks.
+
+## 2026-07-12 — Emberwake — feature-request
+API to fire a declarative trigger's 'when' event on demand AND query the current shell screen state (playing / victory / game_over / menu / pause). Lets the game-production tracker runtime-validate win_condition/lose_condition (the trigger actually fires -> the victory/game-over screen shows) without a human. Ties into the triggers[] {when,then} system (TriggerSystem) + the ScreenState shell. Pairs with the logged input-injection request.
+
+## 2026-07-12 — Emberwake — feature-request
+Expose the structure-gen TraversalProbe (character-box reachability) at whole-GAME/level scale via the API: given the loaded game, is the win/goal state reachable from the start AND from representative mid-game states (softlock / completability check). Underpins the game-production Phase 7 completability validator (an all-green milestone checklist can still be an unwinnable game). Also useful: resource-loop-closure for survival (no needed consumable without a reachable source).
+
