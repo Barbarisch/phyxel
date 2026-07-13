@@ -600,7 +600,17 @@ Each phase ships independently.
    the real Emberwake tracker. *Acceptance owed: the tool loads when the MCP server (re)starts — a live
    session must reconnect to invoke it.* `phyxel://production` **resource deferred** (the SessionStart
    digest already covers cold-session orientation; the server declares no resources yet).
-3. **Static validators (L1/L2) + `op:"validate"` + report.** Catches silent-drop ship bugs.
+3. **Static validators (L1/L2) + `op:"validate"`. ✅ BUILT (2026-07-12).**
+   `scripts/mcp/production_validators.py` — a registry of pure-JSON validators on `game.json`/
+   `GAMEPLAN.md` (grounded in the real trigger/scene schemas): `design_brief` (GAMEPLAN core sections
+   filled), `world`/`player` (blocks present), `win_condition` (a trigger with a terminal `then` action
+   — show_victory/transition_scene/quit_game), `main_menu` (menu scene vs default shell), `hud`,
+   `credits`. `production(op="validate")` runs one or all, writes `validated`+`evidence` back (never
+   downgrading a manual level) and advances `status` (done when reached≥required+feel ok, else
+   in_progress). **Honest by construction:** static caps at L1/L2, so L4 milestones stay `in_progress`
+   until a runtime (L3/L4) validator or playtest — no false "done". Catches the silent-drop ship bugs
+   (missing win trigger, empty design). Verified on the real Emberwake project. Runtime L3/L4 validators
+   = Phase 6.
 4. **Durability core (§8).** `validatedAt`+`hash`, `op:"sweep"`, snapshot-per-milestone, golden baselines.
    *Value: "done" stops rotting — the biggest structural fix.*
 5. **Packaging soft-gate + `strictPackaging`.**
@@ -662,7 +672,8 @@ tools/phyxel-gamedev/
   hooks/hooks.json              <- SessionStart also injects the digest (Phase 1) ✅
   skills/gamedev-next/          <- guided-process skill (Phase 8)
 scripts/mcp/
-  production_tracker.py         <- production.json ops (status/set/add/report/advance) (Phase 2) ✅
+  production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
+  production_validators.py      <- static L1/L2 milestone validators on game.json (Phase 3) ✅
   phyxel_mcp_server.py          <- `production` MCP tool wired in (Phase 2) ✅
 engine/  (Phases 3–7, engine-side)
   MilestoneValidator registry + completability/TraversalProbe-at-game-scale

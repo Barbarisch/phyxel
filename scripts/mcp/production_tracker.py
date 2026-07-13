@@ -15,7 +15,7 @@ _LEVELS = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 STATUSES = ("todo", "in_progress", "done", "n/a", "blocked", "stale")
 FEELS = ("n/a", "pending", "passed")
 STAGES = ("concept", "vertical_slice", "feature_complete", "content_complete", "shippable")
-OPS = ("status", "report", "set", "add_milestone", "remove_milestone", "advance_stage")
+OPS = ("status", "report", "set", "validate", "add_milestone", "remove_milestone", "advance_stage")
 
 
 def _path(project_dir) -> Path:
@@ -222,9 +222,44 @@ def op_advance_stage(project_dir, prod, a: dict) -> dict:
             "digest": _digest(project_dir, prod)}
 
 
+def op_validate(project_dir, prod, a: dict) -> dict:
+    """Run static (L1/L2) validators and write results back. With a milestone, validate just that
+    one; without, validate every tracked milestone that has a static validator. Writes `validated`
+    (never downgrading a manually-higher level) + `evidence`, and advances status: done when a
+    milestone reaches its required depth (+feel ok), else in_progress. L3/L4 stay for runtime phases."""
+    import production_validators as pv
+    ms: dict = prod.get("milestones", {})
+    if a.get("milestone"):
+        if a["milestone"] not in ms:
+            raise ValueError(f"unknown milestone '{a['milestone']}'")
+        targets = [a["milestone"]]
+    else:
+        targets = [n for n in ms if pv.has_validator(n)]
+    results, changed = [], []
+    for name in targets:
+        v = pv.validate(project_dir, name)
+        results.append(v)
+        m = ms.get(name)
+        if m is None or not v.get("static") or not v.get("ok"):
+            continue
+        if _lvl(v["reached"]) > _lvl(m.get("validated", "L0")):
+            m["validated"] = v["reached"]
+        m["evidence"] = v["evidence"]
+        req = m.get("required", "L1")
+        if _lvl(m.get("validated")) >= _lvl(req) and _feel_ok(m):
+            if m.get("status") in ("todo", "in_progress"):
+                m["status"] = "done"
+        elif m.get("status") == "todo":
+            m["status"] = "in_progress"
+        changed.append(name)
+    save(project_dir, prod)
+    return {"ok": True, "validated": changed, "results": results,
+            "digest": _digest(project_dir, prod)}
+
+
 _HANDLERS = {
     "status": op_status, "report": op_report,
-    "set": op_set, "add_milestone": op_add_milestone,
+    "set": op_set, "validate": op_validate, "add_milestone": op_add_milestone,
     "remove_milestone": op_remove_milestone, "advance_stage": op_advance_stage,
 }
 

@@ -4322,8 +4322,11 @@ async def list_tools() -> list[Tool]:
                 "checklist that carries a game to shippable. Ops: 'status' (the stale-first digest: "
                 "stage, done/total, NEXT, ordering-critical, focus), 'report' (full ledger + which "
                 "required milestones are incomplete), 'set' (update a milestone's status/validated/"
-                "feel/note/reason, and/or the project focus/stage), 'add_milestone'/'remove_milestone' "
-                "(project-specific milestones), 'advance_stage' (move to the next production stage). "
+                "feel/note/reason, and/or the project focus/stage), 'validate' (run static L1/L2 "
+                "checks on game.json/GAMEPLAN.md — win-trigger wired, world/player present, design "
+                "filled — and auto-write validated+status; omit 'milestone' to validate all), "
+                "'add_milestone'/'remove_milestone' (project-specific milestones), 'advance_stage' "
+                "(move to the next production stage). "
                 "A milestone is complete when status=done AND validated>=required AND feel in {n/a,"
                 "passed}. status: todo|in_progress|done|n/a|blocked|stale (n/a needs a reason). "
                 "validated: L0..L4. Project = the loaded project by default; override with 'project'."),
@@ -4331,7 +4334,7 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "op": {"type": "string",
-                            "enum": ["status", "report", "set", "add_milestone",
+                            "enum": ["status", "report", "set", "validate", "add_milestone",
                                      "remove_milestone", "advance_stage"],
                             "description": "The operation to perform."},
                     "milestone": {"type": "string", "description": "Milestone name (set/add/remove)."},
