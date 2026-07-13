@@ -269,6 +269,14 @@ fills it: [`docs/WaterSystemV2.md`](docs/WaterSystemV2.md). Two tiers:
   fine detail so peaks slope to the angle of repose instead of forming sheer columns (grandest peaks
   ~384 voxels above sea level). `kSeaLevelY = 16` is the shared sea-level constant
   (`engine/include/core/WorldConstants.h`) — consumed, never re-declared.
+- **GOTCHA — the surface is HIGH, so static generation must reach it.** Because the surface can sit
+  hundreds of voxels above `kSeaLevelY=16`, **`generate_world` / a `game.json` `world` from/to range
+  only fills the chunk range you name** — a shallow *low* range (e.g. chunk `y=0` only, world y 0-31)
+  generates the **deep underground** (solid `Stone`, `materialForColumn` depth≥4 = deepMaterial), NOT
+  the grass surface, which may be up at y~75-380. Symptoms of this mistake: a "flat stone plane" whose
+  `surface_y` equals the top of your generated range. Fixes: use **`world.streaming: true`** (streams
+  chunks at the real surface — also required for hydrology), OR generate a tall enough vertical chunk
+  range, OR query `get_terrain_height` and spawn/aim the camera at the true `surfaceY`.
 - **Hydrology bake** (`HydrologyMap`, `FlowField`, `PriorityFlood` — terrain-v2 §P2) — over a bounded
   256×256-cell / 128 m-per-cell region (~32 km), a Priority-Flood pass computes flat **lake & sea
   water-surface levels** (basins fill to their spill), and flow accumulation + Strahler ordering trace
