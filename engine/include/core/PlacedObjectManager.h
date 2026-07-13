@@ -165,7 +165,8 @@ struct InteractionPoint {
 
 /// Metadata for a placed object (template or structure) in the world.
 struct PlacedObject {
-    std::string id;                  ///< Unique ID, e.g. "test_chair_3"
+    std::string id;                  ///< Legacy human-readable ID, e.g. "test_chair_3" (map key / parentId ref)
+    std::string uuid;                ///< Stable RFC-4122 v4 UUID (persistent, non-semantic) — see Core::Uuid
     std::string templateName;        ///< Template or structure type name
     std::string category;            ///< "template" or "structure"
     std::string parentId;            ///< Parent object ID (empty = root/world)
@@ -272,8 +273,8 @@ public:
     /// Rotate a placed object (re-voxelizes at same position with new rotation).
     bool rotate(const std::string& id, int newRotation);
 
-    /// Get a placed object by ID.
-    const PlacedObject* get(const std::string& id) const;
+    /// Get a placed object by its legacy id OR its uuid (resolve-by-either).
+    const PlacedObject* get(const std::string& idOrUuid) const;
 
     /// Merge one key/value into an object's metadata blob (persisted to SQLite via saveToDb).
     /// Returns false if the id is unknown. Used to tag a placed fixture with its semantic identity
@@ -381,6 +382,18 @@ private:
     /// Generate a unique ID for a template/structure placement.
     std::string generateId(const std::string& baseName);
 
+    /// Insert a freshly-built object (m_mutex held): mint a stable uuid if it has
+    /// none (create paths) or keep the one restored from JSON (load path), guard
+    /// uuid uniqueness, index it in m_uuidToId, then store keyed by the legacy id.
+    void insertObjectLocked(PlacedObject&& obj);
+
+    /// Resolve a caller-supplied "id or uuid" to the canonical legacy id (m_mutex
+    /// held). A strict-v4 uuid resolves via m_uuidToId (empty string if unknown);
+    /// anything else is treated as a legacy id verbatim. This is how every public
+    /// entry point accepts either form. Relies on Core::Uuid::isValid's strictness
+    /// so a legacy base_N id can never be misread as a uuid.
+    std::string resolveIdLocked(const std::string& idOrUuid) const;
+
     /// Clear voxels in a bounding box region (cubes + subcubes + microcubes).
     void clearRegion(const glm::ivec3& min, const glm::ivec3& max);
 
@@ -397,6 +410,7 @@ private:
 
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, PlacedObject> m_objects;
+    std::unordered_map<std::string, std::string> m_uuidToId;  ///< uuid → legacy id (resolve-by-uuid index)
     std::unordered_map<std::string, int> m_idCounters;  ///< Per-template name counters for ID generation
     std::unordered_map<std::string, std::vector<InteractionPointDef>> m_templateDefs; ///< Catalog interaction defs
 

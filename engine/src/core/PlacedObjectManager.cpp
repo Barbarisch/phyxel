@@ -1,5 +1,6 @@
 #include "core/PlacedObjectManager.h"
 #include "core/ChunkManager.h"
+#include "core/Uuid.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/SnapshotManager.h"
 #include "core/VoxelTemplate.h"
@@ -24,6 +25,7 @@ namespace Core {
 nlohmann::json PlacedObject::toJson() const {
     return {
         {"id", id},
+        {"uuid", uuid},
         {"template_name", templateName},
         {"category", category},
         {"parent_id", parentId},
@@ -38,6 +40,11 @@ nlohmann::json PlacedObject::toJson() const {
 PlacedObject PlacedObject::fromJson(const nlohmann::json& j) {
     PlacedObject obj;
     obj.id = j.value("id", "");
+    // Lazy backfill: worlds saved before uuids existed have no "uuid" field — mint
+    // one on load so pre-existing objects become addressable by uuid. It persists
+    // on the next save_world (no eager write — respects the ghost-record rule).
+    obj.uuid = j.value("uuid", "");
+    if (obj.uuid.empty()) obj.uuid = Core::Uuid::generate();
     obj.templateName = j.value("template_name", "");
     obj.category = j.value("category", "template");
     obj.parentId = j.value("parent_id", "");
@@ -81,6 +88,25 @@ std::string PlacedObjectManager::generateId(const std::string& baseName) {
     int& counter = m_idCounters[baseName];
     ++counter;
     return baseName + "_" + std::to_string(counter);
+}
+
+void PlacedObjectManager::insertObjectLocked(PlacedObject&& obj) {
+    // m_mutex must already be held by caller.
+    if (obj.uuid.empty()) obj.uuid = Core::Uuid::generate();
+    // v4 collision is astronomically unlikely, but never silently overwrite an
+    // existing identity — re-mint on the (practically impossible) clash.
+    while (m_uuidToId.count(obj.uuid)) obj.uuid = Core::Uuid::generate();
+    m_uuidToId[obj.uuid] = obj.id;
+    m_objects[obj.id] = std::move(obj);
+}
+
+std::string PlacedObjectManager::resolveIdLocked(const std::string& idOrUuid) const {
+    // m_mutex must already be held by caller.
+    if (Core::Uuid::isValid(idOrUuid)) {
+        auto it = m_uuidToId.find(idOrUuid);
+        return (it != m_uuidToId.end()) ? it->second : std::string();  // unknown uuid → no match
+    }
+    return idOrUuid;  // legacy base_N id (or "") — used verbatim
 }
 
 // ============================================================================
@@ -661,7 +687,7 @@ std::string PlacedObjectManager::placeTemplate(const std::string& templateName,
         obj.metadata["kinematic_part_ids"] = kinematicIds;
     }
 
-    m_objects[id] = std::move(obj);
+    insertObjectLocked(std::move(obj));
 
     LOG_INFO_FMT("PlacedObjectManager", "Placed template '" << templateName
                  << "' as '" << id << "' at (" << place.x << "," << place.y << "," << place.z
@@ -705,7 +731,7 @@ std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateN
     obj.boundingMin = bmin;
     obj.boundingMax = bmax;
     obj.createdAt = std::chrono::system_clock::now();
-    m_objects[id] = std::move(obj);
+    insertObjectLocked(std::move(obj));
     LOG_INFO_FMT("PlacedObjectManager", "Placed template (micro) '" << templateName << "' as '" << id
                  << "' at micro (" << worldMicro.x << "," << worldMicro.y << "," << worldMicro.z
                  << ") rot=" << rotation << (parentId.empty() ? "" : " parent=" + parentId));
@@ -734,7 +760,7 @@ std::string PlacedObjectManager::registerStructure(const std::string& typeName,
     obj.boundingMax = bboxMax;
     obj.createdAt = std::chrono::system_clock::now();
 
-    m_objects[id] = std::move(obj);
+    insertObjectLocked(std::move(obj));
 
     LOG_INFO_FMT("PlacedObjectManager", "Registered structure '" << typeName
                  << "' as '" << id << "' bbox (" << bboxMin.x << "," << bboxMin.y << "," << bboxMin.z
@@ -766,7 +792,7 @@ std::string PlacedObjectManager::registerItemProp(const std::string& itemId,
 
     obj.interactionPoints.push_back(makeItemPickupPoint(obj));
 
-    m_objects[id] = std::move(obj);
+    insertObjectLocked(std::move(obj));
 
     LOG_INFO_FMT("PlacedObjectManager", "Registered item prop '" << itemId << "' as '" << id
                  << "' at (" << position.x << "," << position.y << "," << position.z << ")");
@@ -786,9 +812,10 @@ InteractionPoint PlacedObjectManager::makeItemPickupPoint(const PlacedObject& ob
     return pickup;
 }
 
-bool PlacedObjectManager::remove(const std::string& id) {
+bool PlacedObjectManager::remove(const std::string& idOrUuid) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    const std::string id = resolveIdLocked(idOrUuid);
     auto it = m_objects.find(id);
     if (it == m_objects.end()) return false;
 
@@ -825,15 +852,17 @@ bool PlacedObjectManager::remove(const std::string& id) {
                      << obj.boundingMin.x << "," << obj.boundingMin.y << "," << obj.boundingMin.z
                      << ")-(" << obj.boundingMax.x << "," << obj.boundingMax.y << "," << obj.boundingMax.z << ")");
 
+        m_uuidToId.erase(obj.uuid);
         m_objects.erase(removeIt);
     }
 
     return true;
 }
 
-bool PlacedObjectManager::move(const std::string& id, const glm::ivec3& newPosition) {
+bool PlacedObjectManager::move(const std::string& idOrUuid, const glm::ivec3& newPosition) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    const std::string id = resolveIdLocked(idOrUuid);
     auto it = m_objects.find(id);
     if (it == m_objects.end()) return false;
 
@@ -906,9 +935,10 @@ bool PlacedObjectManager::move(const std::string& id, const glm::ivec3& newPosit
     return true;
 }
 
-bool PlacedObjectManager::rotate(const std::string& id, int newRotation) {
+bool PlacedObjectManager::rotate(const std::string& idOrUuid, int newRotation) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    const std::string id = resolveIdLocked(idOrUuid);
     auto it = m_objects.find(id);
     if (it == m_objects.end()) return false;
 
@@ -949,16 +979,16 @@ bool PlacedObjectManager::rotate(const std::string& id, int newRotation) {
     return true;
 }
 
-const PlacedObject* PlacedObjectManager::get(const std::string& id) const {
+const PlacedObject* PlacedObjectManager::get(const std::string& idOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_objects.find(id);
+    auto it = m_objects.find(resolveIdLocked(idOrUuid));
     return (it != m_objects.end()) ? &it->second : nullptr;
 }
 
-bool PlacedObjectManager::setMetadata(const std::string& id, const std::string& key,
+bool PlacedObjectManager::setMetadata(const std::string& idOrUuid, const std::string& key,
                                       const nlohmann::json& value) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_objects.find(id);
+    auto it = m_objects.find(resolveIdLocked(idOrUuid));
     if (it == m_objects.end()) return false;
     it->second.metadata[key] = value;
     return true;
@@ -987,9 +1017,9 @@ std::vector<std::string> PlacedObjectManager::getAt(const glm::ivec3& worldPos) 
     return result;
 }
 
-bool PlacedObjectManager::clearVoxelsOnly(const std::string& id) {
+bool PlacedObjectManager::clearVoxelsOnly(const std::string& idOrUuid) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_objects.find(id);
+    auto it = m_objects.find(resolveIdLocked(idOrUuid));
     if (it == m_objects.end()) return false;
     clearRegion(it->second.boundingMin, it->second.boundingMax);
     return true;
@@ -998,6 +1028,7 @@ bool PlacedObjectManager::clearVoxelsOnly(const std::string& id) {
 void PlacedObjectManager::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_objects.clear();
+    m_uuidToId.clear();
 }
 
 nlohmann::json PlacedObjectManager::toJson() const {
@@ -1012,6 +1043,7 @@ nlohmann::json PlacedObjectManager::toJson() const {
 void PlacedObjectManager::fromJson(const nlohmann::json& j) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_objects.clear();
+    m_uuidToId.clear();
 
     if (!j.is_array()) return;
     for (const auto& item : j) {
@@ -1028,7 +1060,7 @@ void PlacedObjectManager::fromJson(const nlohmann::json& j) {
                     }
                 } catch (...) {}
             }
-            m_objects[obj.id] = std::move(obj);
+            insertObjectLocked(std::move(obj));  // indexes uuid → id (uuid already restored/backfilled)
         }
     }
 }
@@ -1038,9 +1070,11 @@ size_t PlacedObjectManager::count() const {
     return m_objects.size();
 }
 
-bool PlacedObjectManager::setParent(const std::string& id, const std::string& parentId) {
+bool PlacedObjectManager::setParent(const std::string& idOrUuid, const std::string& parentIdOrUuid) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    const std::string id = resolveIdLocked(idOrUuid);
+    const std::string parentId = parentIdOrUuid.empty() ? std::string() : resolveIdLocked(parentIdOrUuid);
     auto it = m_objects.find(id);
     if (it == m_objects.end()) return false;
 
@@ -1067,8 +1101,9 @@ bool PlacedObjectManager::setParent(const std::string& id, const std::string& pa
     return true;
 }
 
-std::vector<PlacedObject> PlacedObjectManager::getChildren(const std::string& parentId) const {
+std::vector<PlacedObject> PlacedObjectManager::getChildren(const std::string& parentIdOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
+    const std::string parentId = parentIdOrUuid.empty() ? std::string() : resolveIdLocked(parentIdOrUuid);
     std::vector<PlacedObject> result;
     for (const auto& [id, obj] : m_objects) {
         if (obj.parentId == parentId) {
@@ -1078,8 +1113,9 @@ std::vector<PlacedObject> PlacedObjectManager::getChildren(const std::string& pa
     return result;
 }
 
-std::vector<PlacedObject> PlacedObjectManager::getDescendants(const std::string& rootId) const {
+std::vector<PlacedObject> PlacedObjectManager::getDescendants(const std::string& rootIdOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
+    const std::string rootId = resolveIdLocked(rootIdOrUuid);
     std::vector<PlacedObject> result;
 
     std::function<void(const std::string&)> collect = [&](const std::string& parentId) {
@@ -1094,9 +1130,10 @@ std::vector<PlacedObject> PlacedObjectManager::getDescendants(const std::string&
     return result;
 }
 
-nlohmann::json PlacedObjectManager::getTree(const std::string& rootId) const {
+nlohmann::json PlacedObjectManager::getTree(const std::string& rootIdOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    const std::string rootId = resolveIdLocked(rootIdOrUuid);
     auto it = m_objects.find(rootId);
     if (it == m_objects.end()) return nullptr;
 

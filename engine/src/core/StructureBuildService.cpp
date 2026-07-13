@@ -151,6 +151,8 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
             params.value("type", std::string("structure")),
             glm::ivec3(out.posX, out.posY, out.posZ), 0, out.smin, out.smax, parentId);
         out.response["object_id"] = out.objectId;
+        if (const auto* structObj = placedObjectManager->get(out.objectId))
+            out.response["object_uuid"] = structObj->uuid;  // stable id for later query/move/remove
         if (!out.objectId.empty() && !planMeta.is_null())
             placedObjectManager->setMetadata(out.objectId, "assembly_plan", planMeta);
         // NOT persisted here: records save WITH the chunks (save_world / scene save),
