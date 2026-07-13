@@ -59,7 +59,13 @@ public:
     std::string registerEntity(Scene::Entity* entity);
 
     /// Register an entity with an ID and a type tag (e.g., "player", "npc", "enemy").
+    /// A stable RFC-4122 v4 uuid is minted for the entity (see Core::Uuid).
     bool registerEntity(Scene::Entity* entity, const std::string& id, const std::string& typeTag);
+
+    /// Register with an EXPLICIT uuid (empty → mint one). Used to restore a persisted
+    /// entity or an authored NPC with the same uuid it had before reload.
+    bool registerEntity(Scene::Entity* entity, const std::string& id, const std::string& typeTag,
+                        const std::string& uuid);
 
     /// Unregister an entity by ID.
     /// Returns false if the ID was not found.
@@ -72,11 +78,14 @@ public:
     // Lookup
     // ========================================================================
 
-    /// Get an entity by ID. Returns nullptr if not found.
-    Scene::Entity* getEntity(const std::string& id) const;
+    /// Get an entity by its legacy id OR its uuid (resolve-by-either). nullptr if not found.
+    Scene::Entity* getEntity(const std::string& idOrUuid) const;
 
     /// Get the ID of an entity. Returns empty string if not registered.
     std::string getEntityId(Scene::Entity* entity) const;
+
+    /// Get the stable uuid for an entity's legacy id (or uuid). Empty if not registered.
+    std::string getUuid(const std::string& idOrUuid) const;
 
     /// Check if an ID is registered.
     bool hasEntity(const std::string& id) const;
@@ -122,11 +131,17 @@ private:
     struct EntityEntry {
         Scene::Entity* entity = nullptr;
         std::string typeTag;
+        std::string uuid;               ///< Stable RFC-4122 v4 identifier (see Core::Uuid)
     };
+
+    /// Resolve a caller-supplied "id or uuid" to the canonical legacy id (m_mutex held).
+    /// A strict-v4 uuid resolves via m_uuidToId; anything else is a legacy id verbatim.
+    std::string resolveIdLocked(const std::string& idOrUuid) const;
 
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, EntityEntry> m_entities;
     std::unordered_map<Scene::Entity*, std::string> m_reverseMap; // entity → id
+    std::unordered_map<std::string, std::string> m_uuidToId;      // uuid → id
     std::atomic<uint64_t> m_nextAutoId{1};
 };
 

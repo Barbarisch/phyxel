@@ -12547,7 +12547,8 @@ void Application::processAPICommands() {
                     } else {
                         entityRegistry->registerEntity(spawned, id, entityType);
                     }
-                    response = {{"success", true}, {"id", id}, {"type", entityType},
+                    response = {{"success", true}, {"id", id}, {"uuid", entityRegistry->getUuid(id)},
+                                {"type", entityType},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}}};
                     if (gameEventLog) {
                         gameEventLog->emit("entity_spawned", {

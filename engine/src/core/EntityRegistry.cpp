@@ -1,6 +1,7 @@
 #include "core/EntityRegistry.h"
 #include "scene/Entity.h"
 #include "core/HealthComponent.h"
+#include "core/Uuid.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -21,6 +22,11 @@ std::string EntityRegistry::registerEntity(Scene::Entity* entity) {
 }
 
 bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id, const std::string& typeTag) {
+    return registerEntity(entity, id, typeTag, "");
+}
+
+bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id, const std::string& typeTag,
+                                    const std::string& uuid) {
     if (!entity) {
         LOG_WARN("EntityRegistry", "Attempted to register null entity with id: {}", id);
         return false;
@@ -33,32 +39,44 @@ bool EntityRegistry::registerEntity(Scene::Entity* entity, const std::string& id
         return false;
     }
 
-    // Remove any previous registration for this entity pointer
+    // Remove any previous registration for this entity pointer (drop its uuid index too)
     auto reverseIt = m_reverseMap.find(entity);
     if (reverseIt != m_reverseMap.end()) {
+        auto oldIt = m_entities.find(reverseIt->second);
+        if (oldIt != m_entities.end()) m_uuidToId.erase(oldIt->second.uuid);
         m_entities.erase(reverseIt->second);
         m_reverseMap.erase(reverseIt);
     }
 
-    m_entities[id] = EntityEntry{entity, typeTag};
+    // Mint a stable uuid when none is supplied (create path); keep the caller's when
+    // restoring a persisted/authored entity so its identity survives reload.
+    std::string u = uuid;
+    if (u.empty()) {
+        u = Core::Uuid::generate();
+        while (m_uuidToId.count(u)) u = Core::Uuid::generate();
+    }
+
+    m_entities[id] = EntityEntry{entity, typeTag, u};
     m_reverseMap[entity] = id;
+    m_uuidToId[u] = id;
 
     LOG_DEBUG("EntityRegistry", "Registered entity '{}' (type: {})", id, (typeTag.empty() ? "none" : typeTag));
     return true;
 }
 
-bool EntityRegistry::unregisterEntity(const std::string& id) {
+bool EntityRegistry::unregisterEntity(const std::string& idOrUuid) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    auto it = m_entities.find(id);
+    auto it = m_entities.find(resolveIdLocked(idOrUuid));
     if (it == m_entities.end()) {
         return false;
     }
 
     m_reverseMap.erase(it->second.entity);
+    m_uuidToId.erase(it->second.uuid);
     m_entities.erase(it);
 
-    LOG_DEBUG("EntityRegistry", "Unregistered entity: {}", id);
+    LOG_DEBUG("EntityRegistry", "Unregistered entity: {}", idOrUuid);
     return true;
 }
 
@@ -70,6 +88,8 @@ bool EntityRegistry::unregisterEntity(Scene::Entity* entity) {
         return false;
     }
 
+    auto entIt = m_entities.find(it->second);
+    if (entIt != m_entities.end()) m_uuidToId.erase(entIt->second.uuid);
     m_entities.erase(it->second);
     m_reverseMap.erase(it);
     return true;
@@ -79,10 +99,25 @@ bool EntityRegistry::unregisterEntity(Scene::Entity* entity) {
 // Lookup
 // ============================================================================
 
-Scene::Entity* EntityRegistry::getEntity(const std::string& id) const {
+std::string EntityRegistry::resolveIdLocked(const std::string& idOrUuid) const {
+    // m_mutex must already be held by caller.
+    if (Core::Uuid::isValid(idOrUuid)) {
+        auto it = m_uuidToId.find(idOrUuid);
+        return (it != m_uuidToId.end()) ? it->second : std::string();  // unknown uuid → no match
+    }
+    return idOrUuid;  // legacy id ("player" / "entity_N" / "npc_<name>") — used verbatim
+}
+
+Scene::Entity* EntityRegistry::getEntity(const std::string& idOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_entities.find(id);
+    auto it = m_entities.find(resolveIdLocked(idOrUuid));
     return (it != m_entities.end()) ? it->second.entity : nullptr;
+}
+
+std::string EntityRegistry::getUuid(const std::string& idOrUuid) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_entities.find(resolveIdLocked(idOrUuid));
+    return (it != m_entities.end()) ? it->second.uuid : std::string();
 }
 
 std::string EntityRegistry::getEntityId(Scene::Entity* entity) const {
@@ -148,6 +183,7 @@ json EntityRegistry::toJson() const {
     for (const auto& [id, entry] : m_entities) {
         json obj;
         obj["id"] = id;
+        obj["uuid"] = entry.uuid;
         obj["type"] = entry.typeTag;
         if (entry.entity) {
             auto pos = entry.entity->getPosition();
@@ -158,15 +194,17 @@ json EntityRegistry::toJson() const {
     return arr;
 }
 
-json EntityRegistry::entityToJson(const std::string& id) const {
+json EntityRegistry::entityToJson(const std::string& idOrUuid) const {
     std::lock_guard<std::mutex> lock(m_mutex);
+    const std::string id = resolveIdLocked(idOrUuid);
     auto it = m_entities.find(id);
     if (it == m_entities.end()) {
-        return json{{"error", "Entity not found: " + id}};
+        return json{{"error", "Entity not found: " + idOrUuid}};
     }
 
     json obj;
     obj["id"] = id;
+    obj["uuid"] = it->second.uuid;
     obj["type"] = it->second.typeTag;
     if (it->second.entity) {
         auto pos = it->second.entity->getPosition();
@@ -204,6 +242,7 @@ void EntityRegistry::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_entities.clear();
     m_reverseMap.clear();
+    m_uuidToId.clear();
     LOG_INFO("EntityRegistry", "Cleared all entity registrations");
 }
 
