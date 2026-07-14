@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.15)
 set(INTEGRATION_TEST_SOURCES
     IntegrationTestFixture.cpp
     ChunkManagerIntegrationTest.cpp
+    CoherentCollapseIntegrationTest.cpp
     PhysicsIntegrationTest.cpp
     SceneIntegrationTest.cpp
     VulkanIntegrationTest.cpp

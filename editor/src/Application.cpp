@@ -11910,7 +11910,9 @@ void Application::registerEffectsCommands() {
         }
         float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
         bool collapse = cmd.params.value("collapse", true);
-        bool coherent = cmd.params.value("coherent", true);
+        // Coherent topple is OPT-IN (default false) until the DamageSystem-level glue has
+        // automated coverage — until then the shipped scatter path stays the default.
+        bool coherent = cmd.params.value("coherent", false);
         Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
         // Coherent collapse: a severed component topples as ONE rigid slab via the
         // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire

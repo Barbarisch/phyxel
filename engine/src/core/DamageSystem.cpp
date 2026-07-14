@@ -392,9 +392,6 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     }
     if (frag.empty()) return false;
 
-    // Committed: remove the cells (no debris), then topple as one rigid slab.
-    for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
-
     auto worldMass = [](const Core::KinematicVoxel& vx) {
         float vol = vx.scale.x * vx.scale.y * vx.scale.z;
         const auto* def = Core::MaterialRegistry::instance().getMaterial(vx.materialName);
@@ -402,18 +399,24 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
         return std::max(density * vol, 0.001f);   // mass floor (H4 / auditor 1e-6 note)
     };
 
+    // Spawn the body FIRST (physicalize copies the geometry — it does not need the world
+    // cells cleared). Only if it succeeds do we remove the world cells. If it fails, the
+    // cells are untouched, so we return false and the caller scatters them — NO silent
+    // geometry loss (the "silent-drop" class bug the auditor flagged).
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
     uint32_t bid = m_fragMgr->spawn(id, std::move(frag), glm::mat4(1.0f),
                                     glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f), worldMass);
-    if (bid != 0) {
-        res.debrisSpawned += 1;   // one coherent body
-        LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid slab (body {})",
-                 component.size(), bid);
-    } else {
-        LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells removed)",
+    if (bid == 0) {
+        LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells) -> scatter",
                  component.size());
+        return false;   // cells NOT removed -> caller falls back to per-cell scatter
     }
-    return true;   // cells consumed either way — don't double-process as scatter
+
+    for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
+    res.debrisSpawned += 1;   // one coherent body
+    LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid slab (body {})",
+             component.size(), bid);
+    return true;
 }
 
 void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
@@ -479,7 +482,8 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
 
         // Detached: topple as ONE coherent rigid slab if enabled + gatherable + within
         // budget (P1.2b), else scatter each cell as falling debris (the shipped path).
-        if (coherent && collapseComponentCoherent(component, res)) {
+        if (coherent && totalDetached < MAX_COLLAPSE &&
+            collapseComponentCoherent(component, res)) {
             totalDetached += static_cast<int>(component.size());
         } else {
             for (const glm::ivec3& v : component) {
