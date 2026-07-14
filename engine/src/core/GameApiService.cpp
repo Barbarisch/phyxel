@@ -222,8 +222,20 @@ void GameApiService::registerCommands() {
              {"transitioning", transitioning}, {"visible_menus", menus}, {"source", "shell"}};
     });
 
+    reg.on("ui_click", [this](const APICommand& cmd, json& r) {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { r = {{"error", "UISystem not available"}}; return; }
+        float x = cmd.params.value("x", 0.0f), y = cmd.params.value("y", 0.0f);
+        bool consumed = ui->injectClick(glm::vec2(x, y));  // click a menu/HUD button
+        r = {{"success", true}, {"consumed", consumed}, {"x", x}, {"y", y}};
+    });
+
     reg.on("navgrid_cell", [this](const APICommand& cmd, json& r) {
-        if (!npcManager || !npcManager->getNavGrid()) { r = {{"error", "NavGrid not available"}}; return; }
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        // Lazily build the NavGrid on first use (the world is loaded by now, and
+        // pump() runs this on the game-loop thread so buildNavGrid is safe here).
+        if (!npcManager->getNavGrid()) npcManager->buildNavGrid();
+        if (!npcManager->getNavGrid()) { r = {{"error", "NavGrid unavailable"}}; return; }
         int x = cmd.params.value("x", 0), z = cmd.params.value("z", 0);
         const auto* cell = npcManager->getNavGrid()->getCell(x, z);
         if (cell) r = {{"x", cell->x}, {"z", cell->z}, {"walkable", cell->walkable},
@@ -232,7 +244,9 @@ void GameApiService::registerCommands() {
     });
 
     reg.on("navgrid_path", [this](const APICommand& cmd, json& r) {
-        if (!npcManager || !npcManager->getPathfinder()) { r = {{"error", "Pathfinder not available"}}; return; }
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        if (!npcManager->getNavGrid()) npcManager->buildNavGrid();  // lazy build (see navgrid_cell)
+        if (!npcManager->getPathfinder()) { r = {{"error", "Pathfinder not available"}}; return; }
         int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
         int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
         auto res = npcManager->getPathfinder()->findPath(

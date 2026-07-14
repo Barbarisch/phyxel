@@ -284,6 +284,10 @@ float EngineRuntime::beginFrame() {
 
 void EngineRuntime::endFrame() {
     performanceProfiler_->endFrame();
+    // Feed the frame delta into PerformanceMonitor so getCurrentFrameTiming()/fps
+    // is populated for standalone games too (the editor does this in its own loop).
+    // Powers an in-game FPS readout and the test API's /api/debug/engine_timing.
+    if (performanceMonitor_) performanceMonitor_->updateFrameTiming(lastDeltaTime_);
     ++frameCount_;
 }
 

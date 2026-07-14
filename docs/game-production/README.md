@@ -515,13 +515,22 @@ conditions instead of the editor proxy.
 > generated+compiled standalone (`ApiTestGame --test 8091`):** the API hosts on the real packaged game and
 > **`get_screen_state` reports the REAL `GameScreen` state (`"intro"`)** — the exact fidelity the editor
 > can't give (where `show_victory` no-ops and state is synthesized); real entities+UUIDs, `inject_input`,
-> and `player_state` all work. **Follow-ups to fully close the in-Playing playthrough loop:** a `ui_click`
-> endpoint (menu navigation → advance intro→Playing; menus don't consume injected `InputManager` keys),
-> build the NavGrid in the standalone (navgrid endpoints report "not available" until then), and populate
-> `PerformanceMonitor` in `EngineRuntime` (fps reads 0 on the intro screen). Until those land, **read every
-> runtime "done" as "verified in the editor harness"**, and gate the shell-flow milestones (`intro`,
-> `victory_screen`, `game_over_screen`, menu *navigation*, true `win_condition` L4) on a packaged-shell
-> playtest — now API-drivable via `--test`, pending the three follow-ups for a fully automated pass.
+> and `player_state` all work.
+>
+> **UPDATE — the three follow-ups are BUILT (2026-07-13):** (1) **`ui_click`** endpoint (`injectClick`) —
+> VERIFIED: clicking the menu buttons drove the **real** screen-state machine intro→menu→**Playing** on the
+> standalone, after which injected movement moved the player. (2) **fps** — `EngineRuntime::endFrame` now
+> calls `PerformanceMonitor::updateFrameTiming`, so `/api/debug/engine_timing` reports a real rate on a
+> standalone (VERIFIED: 1214 fps). (3) **NavGrid** — the generated game now wires
+> `npcManager_->setChunkManager(...)` (was missing) and the navgrid handlers lazy-build; VERIFIED the fix
+> reaches the correct path (logs report "no chunks loaded" — the wiring works — on the empty test world;
+> `buildNavGrid`-with-chunks is independently proven on the editor path). **Remaining test-harness plumbing
+> (not engine code):** a populated standalone world to demo navgrid end-to-end (prebake needs a running
+> engine), and wiring the game-production *validators* to target a standalone (they currently guard on a
+> source-project-dir match; a standalone reports `project_info.standalone=true`). With those, the shell-flow
+> milestones (`intro`, `victory_screen`, `game_over_screen`, menu *navigation*, true `win_condition` L4)
+> become fully API-drivable against the real build. Until validator-targeting lands, **read editor-harness
+> runtime "done" as such**; the `--test` standalone is now the higher-fidelity target for a shell playtest.
 
 ---
 

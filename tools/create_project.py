@@ -538,6 +538,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             entityRegistry_ = std::make_unique<Phyxel::Core::EntityRegistry>();
             npcManager_ = std::make_unique<Phyxel::Core::NPCManager>();
             npcManager_->setPhysicsWorld(engine.getPhysicsWorld());
+            npcManager_->setChunkManager(engine.getChunkManager());  // NavGrid needs a chunk source (pathfinding + test-API reachability)
             npcManager_->setEntityRegistry(entityRegistry_.get());
 
             dialogueSystem_ = std::make_unique<Phyxel::UI::DialogueSystem>();
