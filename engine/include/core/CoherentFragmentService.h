@@ -2,10 +2,18 @@
 
 #include <vector>
 #include <functional>
+#include <string>
 #include <glm/glm.hpp>
-#include "core/KinematicVoxelManager.h"   // KinematicVoxel
+#include <glm/gtc/quaternion.hpp>
+#include "core/KinematicVoxelManager.h"   // KinematicVoxel, KinematicVoxelManager
 
 namespace Phyxel {
+
+namespace Physics {
+    class VoxelDynamicsWorld;
+    class VoxelRigidBody;
+}
+
 namespace Core {
 
 /// One box of a compound rigid-body fragment (a greedy-merged run of voxels).
@@ -13,6 +21,14 @@ struct FragmentBox {
     glm::vec3 center;       ///< center in the fragment's local space
     glm::vec3 halfExtents;
     float     mass;         ///< aggregate mass of the voxels this box covers
+};
+
+/// Handle to a fragment that has been turned into a live falling rigid body.
+struct PhysicalizedFragment {
+    Physics::VoxelRigidBody* body = nullptr;   ///< the compound rigid body (owned by VoxelDynamicsWorld)
+    std::string              kineticObjId;      ///< KinematicVoxelManager render id ("" if no renderer)
+    glm::mat4                transform{1.0f};   ///< world transform placed at the fragment COM
+    bool ok() const { return body != nullptr; }
 };
 
 /// Budget governing coherent fragments (docs/DestructionSystemV2.md §8, §5.G).
@@ -45,6 +61,35 @@ public:
     static std::vector<FragmentBox> mergeVoxelsToBoxes(
         const std::vector<KinematicVoxel>& voxels,
         const std::function<float(const KinematicVoxel&)>& voxelMass);
+
+    /// Turn a connected set of local-space voxels into a coherent FALLING rigid body:
+    /// greedy-merge (above) -> compound VoxelRigidBody in `voxelWorld` -> optional
+    /// KinematicVoxelObject in `kinematic` for rendering. The body is re-centered on
+    /// its mass-weighted COM; `objectTransform` maps the voxels' local frame to world.
+    ///
+    ///   voxelMass          — per-voxel mass model (furniture: material.mass*0.05;
+    ///                        world: material.mass*voxelVolume). See H4.
+    ///   finalizeTotalMass  — optional raw->final total-mass remap applied after merge
+    ///                        (furniture clamps clamp(raw*0.05, 0.5, 10); world passes
+    ///                        nullptr = identity). Per-box mass is renormalized to it.
+    ///
+    /// Returns {body, kineticObjId, transform}; body == nullptr on failure (empty
+    /// input, no world, or createBody failure). Does NOT enforce FragmentBudget — the
+    /// caller decides budget/fallback before calling.
+    static PhysicalizedFragment physicalize(
+        Physics::VoxelDynamicsWorld* voxelWorld,
+        KinematicVoxelManager* kinematic,
+        const std::string& idHint,
+        std::vector<KinematicVoxel> voxels,
+        const glm::mat4& objectTransform,
+        const glm::vec3& initialLinVel,
+        const glm::vec3& initialAngVel,
+        const std::function<float(const KinematicVoxel&)>& voxelMass,
+        const std::function<float(float)>& finalizeTotalMass = nullptr,
+        float restitution = 0.2f,
+        float friction    = 0.6f,
+        float linearDamp  = 0.4f,
+        float angularDamp = 0.5f);
 };
 
 } // namespace Core

@@ -11,6 +11,9 @@
 #include <gtest/gtest.h>
 #include "core/CoherentFragmentService.h"
 #include "core/KinematicVoxelManager.h"
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelRigidBody.h"
+#include <glm/gtc/matrix_transform.hpp>
 #include <numeric>
 
 using namespace Phyxel::Core;
@@ -144,4 +147,94 @@ TEST(CoherentFragmentServiceTest, MassModelIsCallerSupplied) {
     ASSERT_EQ(small.size(), 1u);
     EXPECT_NEAR(big[0].mass,   1.0f,   1e-4f);
     EXPECT_NEAR(small[0].mass, 0.125f, 1e-4f);
+}
+
+// ============================================================================
+// physicalize() — voxel set -> falling compound rigid body (P1.2)
+// ============================================================================
+
+namespace {
+// A solid 2x2x2 block of unit cubes -> merges to one box, mass 8 under unitMass.
+std::vector<KinematicVoxel> block2x2x2() {
+    std::vector<KinematicVoxel> v;
+    for (int x = 0; x < 2; ++x)
+        for (int y = 0; y < 2; ++y)
+            for (int z = 0; z < 2; ++z)
+                v.push_back(cube((float)x, (float)y, (float)z));
+    return v;
+}
+} // namespace
+
+TEST(CoherentFragmentServiceTest, PhysicalizeCreatesBodyAndRender) {
+    Phyxel::Physics::VoxelDynamicsWorld world;
+    KinematicVoxelManager kin;   // null physics world is fine (skipCollider path)
+
+    auto pf = CoherentFragmentService::physicalize(
+        &world, &kin, "frag", block2x2x2(), glm::mat4(1.0f),
+        glm::vec3(0.0f), glm::vec3(0.0f), unitMass);
+
+    ASSERT_TRUE(pf.ok());
+    EXPECT_FALSE(pf.kineticObjId.empty());
+    EXPECT_EQ(kin.count(), 1u);
+    EXPECT_EQ(world.getBodyCount(), 1u);
+    // 8 unit cubes merge to ONE box, so the body has a single local box, mass 8.
+    EXPECT_EQ(pf.body->getLocalBoxes().size(), 1u);
+    EXPECT_NEAR(pf.body->getTotalMass(), 8.0f, 1e-3f);
+    // Body sits at the COM (0.5,0.5,0.5) for objectTransform = identity.
+    EXPECT_NEAR(pf.body->position.x, 0.5f, 1e-3f);
+    EXPECT_NEAR(pf.body->position.y, 0.5f, 1e-3f);
+    EXPECT_NEAR(pf.body->position.z, 0.5f, 1e-3f);
+}
+
+TEST(CoherentFragmentServiceTest, PhysicalizeAppliesInitialVelocity) {
+    Phyxel::Physics::VoxelDynamicsWorld world;
+    KinematicVoxelManager kin;
+    auto pf = CoherentFragmentService::physicalize(
+        &world, &kin, "frag", block2x2x2(), glm::mat4(1.0f),
+        glm::vec3(1.0f, -2.0f, 3.0f), glm::vec3(0.0f, 0.5f, 0.0f), unitMass);
+    ASSERT_TRUE(pf.ok());
+    EXPECT_NEAR(pf.body->linearVelocity.x,  1.0f, 1e-4f);
+    EXPECT_NEAR(pf.body->linearVelocity.y, -2.0f, 1e-4f);
+    EXPECT_NEAR(pf.body->linearVelocity.z,  3.0f, 1e-4f);
+    EXPECT_NEAR(pf.body->angularVelocity.y, 0.5f, 1e-4f);
+}
+
+TEST(CoherentFragmentServiceTest, PhysicalizeBodyFallsUnderGravity) {
+    Phyxel::Physics::VoxelDynamicsWorld world;
+    world.setGravity(glm::vec3(0.0f, -9.81f, 0.0f));
+    KinematicVoxelManager kin;
+
+    // Place the block high, no floor -> it should fall (proves it's a live dynamic body).
+    glm::mat4 high = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 100.0f, 0.0f));
+    auto pf = CoherentFragmentService::physicalize(
+        &world, &kin, "frag", block2x2x2(), high,
+        glm::vec3(0.0f), glm::vec3(0.0f), unitMass);
+    ASSERT_TRUE(pf.ok());
+    float startY = pf.body->position.y;
+    for (int i = 0; i < 60; ++i) world.stepSimulation(1.0f / 60.0f);  // ~1s
+    EXPECT_LT(pf.body->position.y, startY - 1.0f) << "body did not fall under gravity";
+}
+
+TEST(CoherentFragmentServiceTest, PhysicalizeFinalizeMassRemap) {
+    Phyxel::Physics::VoxelDynamicsWorld world;
+    KinematicVoxelManager kin;
+    // Remap total mass to a fixed 3.0 regardless of the raw merged mass (8).
+    auto pf = CoherentFragmentService::physicalize(
+        &world, &kin, "frag", block2x2x2(), glm::mat4(1.0f),
+        glm::vec3(0.0f), glm::vec3(0.0f), unitMass,
+        [](float) { return 3.0f; });
+    ASSERT_TRUE(pf.ok());
+    EXPECT_NEAR(pf.body->getTotalMass(), 3.0f, 1e-3f);
+}
+
+TEST(CoherentFragmentServiceTest, PhysicalizeRejectsEmptyOrNullWorld) {
+    Phyxel::Physics::VoxelDynamicsWorld world;
+    KinematicVoxelManager kin;
+    EXPECT_FALSE(CoherentFragmentService::physicalize(
+        nullptr, &kin, "f", block2x2x2(), glm::mat4(1.0f),
+        glm::vec3(0.0f), glm::vec3(0.0f), unitMass).ok());
+    EXPECT_FALSE(CoherentFragmentService::physicalize(
+        &world, &kin, "f", {}, glm::mat4(1.0f),
+        glm::vec3(0.0f), glm::vec3(0.0f), unitMass).ok());
+    EXPECT_EQ(kin.count(), 0u);   // nothing registered on failure
 }

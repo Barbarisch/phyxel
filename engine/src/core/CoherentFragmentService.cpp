@@ -1,5 +1,8 @@
 #include "core/CoherentFragmentService.h"
+#include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelRigidBody.h"
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -117,6 +120,71 @@ std::vector<FragmentBox> CoherentFragmentService::mergeVoxelsToBoxes(
     }
 
     return result;
+}
+
+PhysicalizedFragment CoherentFragmentService::physicalize(
+    Physics::VoxelDynamicsWorld* voxelWorld,
+    KinematicVoxelManager* kinematic,
+    const std::string& idHint,
+    std::vector<KinematicVoxel> voxels,
+    const glm::mat4& objectTransform,
+    const glm::vec3& initialLinVel,
+    const glm::vec3& initialAngVel,
+    const std::function<float(const KinematicVoxel&)>& voxelMass,
+    const std::function<float(float)>& finalizeTotalMass,
+    float restitution, float friction, float linearDamp, float angularDamp)
+{
+    PhysicalizedFragment out;
+    if (!voxelWorld || voxels.empty()) return out;
+
+    auto boxes = mergeVoxelsToBoxes(voxels, voxelMass);
+    if (boxes.empty()) return out;
+
+    // Mass-weighted center of mass of the merged boxes.
+    float rawMass = 0.0f;
+    glm::vec3 com(0.0f);
+    for (const auto& b : boxes) { rawMass += b.mass; com += b.center * b.mass; }
+    if (rawMass > 0.0f) com /= rawMass;
+
+    // Optional total-mass remap (furniture clamp; world identity), renormalized per box.
+    float finalMass = finalizeTotalMass ? finalizeTotalMass(rawMass) : rawMass;
+    float massScale = (rawMass > 1e-6f) ? (finalMass / rawMass) : 1.0f;
+
+    std::vector<Physics::LocalBox> localBoxes;
+    localBoxes.reserve(boxes.size());
+    for (const auto& b : boxes) {
+        Physics::LocalBox lb;
+        lb.offset      = b.center - com;   // body frame is centered on the COM
+        lb.halfExtents = b.halfExtents;
+        lb.mass        = b.mass * massScale;
+        localBoxes.push_back(lb);
+    }
+
+    // The body sits at the COM in world space; orientation comes from the object.
+    glm::mat4 transform = glm::translate(objectTransform, com);
+    glm::vec3 worldPos  = glm::vec3(transform[3]);
+    glm::quat orient    = glm::quat_cast(objectTransform);
+
+    Physics::VoxelRigidBody* body = voxelWorld->createBody(
+        localBoxes, worldPos, orient, restitution, friction, linearDamp, angularDamp);
+    if (!body) return out;
+
+    body->linearVelocity  = initialLinVel;
+    body->angularVelocity = initialAngVel;
+    body->wake();
+
+    // Re-center the render voxels on the COM so their shared transform aligns.
+    for (auto& v : voxels) v.localPos -= com;
+
+    std::string kinId;
+    if (kinematic) {
+        kinId = kinematic->add(idHint, std::move(voxels), transform, idHint, true);
+    }
+
+    out.body         = body;
+    out.kineticObjId = kinId;
+    out.transform    = transform;
+    return out;
 }
 
 } // namespace Core

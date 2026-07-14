@@ -618,59 +618,33 @@ int DynamicFurnitureManager::shatter(const std::string& placedObjectId,
 
             std::string fragId = origId + "_frag" + std::to_string(fi);
 
-            // Compute fragment COM and merged boxes
-            auto fragBoxes = mergeVoxelsGreedy(fragVoxels);
-            float fragRawMass = 0.0f;
-            glm::vec3 fragCOM(0.0f);
-            for (const auto& mb : fragBoxes) {
-                fragRawMass += mb.mass;
-                fragCOM     += mb.center * mb.mass;
-            }
-            if (fragRawMass > 0.0f) fragCOM /= fragRawMass;
-
-            float fragMass = std::clamp(fragRawMass * 0.05f, 0.5f, 10.0f);
-
-            std::vector<Physics::LocalBox> localBoxes;
-            localBoxes.reserve(fragBoxes.size());
-            for (const auto& mb : fragBoxes) {
-                Physics::LocalBox lb;
-                lb.offset      = mb.center - fragCOM;
-                lb.halfExtents = mb.halfExtents;
-                lb.mass        = mb.mass * (fragMass / std::max(fragRawMass, 1e-6f));
-                localBoxes.push_back(lb);
-            }
-
-            glm::mat4 fragTransform = glm::translate(origTransform, fragCOM);
-            glm::vec3 fragWorldPos  = glm::vec3(fragTransform[3]);
-            glm::quat fragOrient    = glm::quat_cast(origTransform);
-
-            DynamicFurnitureObject fragObj;
-            fragObj.placedObjectId = fragId;
-            fragObj.templateName   = "";
-            fragObj.totalMass      = fragMass;
-
-            fragObj.rigidBody = voxelWorld->createBody(localBoxes, fragWorldPos, fragOrient,
-                                                        0.2f, 0.6f, 0.4f, 0.5f);
-            if (!fragObj.rigidBody) continue;
-
-            // Inherit velocity + scatter
+            // Scatter direction from the fragment's (unweighted) voxel centroid,
+            // computed before the voxels are moved into physicalize().
             glm::vec3 fragCenter(0.0f);
             for (const auto& v : fragVoxels) fragCenter += v.localPos;
             fragCenter /= static_cast<float>(fragVoxels.size());
             glm::vec3 scatter = glm::normalize(fragCenter - localContact) * 2.0f;
 
-            fragObj.rigidBody->linearVelocity  = linearVel + scatter + glm::vec3(0.0f, 1.0f, 0.0f);
-            fragObj.rigidBody->angularVelocity = angularVel;
-            fragObj.rigidBody->wake();
+            // Coherent falling body via the shared service (docs/DestructionSystemV2.md
+            // §5.B). Furniture mass model preserved: material.mass*0.05 per voxel, then
+            // clamp(raw*0.05, 0.5, 10) total — identical to the pre-refactor inline path.
+            auto pf = CoherentFragmentService::physicalize(
+                voxelWorld, m_kinematic, fragId, std::move(fragVoxels), origTransform,
+                linearVel + scatter + glm::vec3(0.0f, 1.0f, 0.0f), angularVel,
+                [&reg](const KinematicVoxel& v) {
+                    return reg.getPhysics(v.materialName).mass * 0.05f;
+                },
+                [](float raw) { return std::clamp(raw * 0.05f, 0.5f, 10.0f); },
+                0.2f, 0.6f, 0.4f, 0.5f);
+            if (!pf.ok()) continue;
 
-            fragObj.currentTransform = fragTransform;
-
-            for (auto& v : fragVoxels) {
-                v.localPos -= fragCOM;
-            }
-
-            fragObj.kineticObjId = m_kinematic->add(fragId, std::move(fragVoxels),
-                                                     fragTransform, fragId, true);
+            DynamicFurnitureObject fragObj;
+            fragObj.placedObjectId   = fragId;
+            fragObj.templateName     = "";
+            fragObj.rigidBody        = pf.body;
+            fragObj.totalMass        = pf.body->getTotalMass();
+            fragObj.currentTransform = pf.transform;
+            fragObj.kineticObjId     = pf.kineticObjId;
 
             m_active[fragId] = std::move(fragObj);
             ++fragmentCount;
