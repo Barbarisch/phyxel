@@ -459,15 +459,32 @@ sign-off. Ordered so the load-bearing engine work (0–1) precedes the feel laye
 Recommended first build: **Phase 0 → Phase 1** (foundation + core), because they unblock everything and
 are the honest engine work; then Phase 2 gives the visible, feedback-closing payoff.
 
-**Progress + reorder (2026-07-14).** Shipped & auditor-PASS: Phase 0 (`fd38d2c`), P1.1 shared merge
-(`c9b2f87`/`108ac7a`), **P1.2a `physicalize`** — the "voxel set → falling compound rigid body" primitive,
-with furniture refactored onto it (`7c4406f`). **Reorder forced by H12:** the remaining P1.2b (route
-`collapseUnsupported` → `physicalize` for a visible world topple) is **blocked on a persistent fragment
-lifecycle owner** (`CoherentFragmentManager`: ticks body→render each frame, settles without re-bake).
-`DamageSystem` is per-call so can't tick; furniture's owner re-staticizes. So the next step is a minimal
-slice of **Phase 1b** (the lifecycle owner) BEFORE P1.2b — physicalize's output needs an owner before the
-world topple can render/fall/settle. Furniture already works because it has its owner
-(`DynamicFurnitureManager`).
+**Progress (2026-07-14) — Phase 1 core complete, all auditor-PASS.**
+- Phase 0 data-driven break profiles (`fd38d2c`).
+- P1.1 shared greedy merge (`c9b2f87`/`108ac7a`).
+- P1.2a `physicalize` — the "voxel set → falling compound rigid body" primitive, furniture refactored
+  onto it (`7c4406f`).
+- P1b `CoherentFragmentManager` (`9988114`) — the persistent lifecycle owner H12 exposed: ticks
+  body→render each frame, no re-bake. (H12: `DamageSystem` is per-call so can't tick; furniture's owner
+  re-staticizes — so world fragments needed their own owner first.)
+- **P1.2b coherent world collapse** (`4199aae` + audit-fix `586bd06`) — `collapseUnsupported`'s severed
+  components route into `CoherentFragmentManager` and topple as ONE rigid slab (opt-in `coherent` flag,
+  default off; scatter stays the shipped default). Proven: live L4 (a floating wall split → one slab)
+  **and** an automated integration A/B (`tests/integration/CoherentCollapseIntegrationTest.cpp`: flag
+  ON → 1 body, OFF → scatter, on a real Vulkan `ChunkManager`). The first audit FAILed it (silent
+  geometry-loss on spawn-failure, default-on vs framed-off, no automated test); all three fixed +
+  re-audited PASS.
+
+**Residuals (disclosed, non-blocking):** (a) a coherent commit is atomic, so one component up to
+`COHERENT_MAX_VOXELS` can overshoot the `MAX_COLLAPSE` cap by its size in one shot; (b) the integration
+test asserts "a body + cells cleared" but not the exact "gathered count == severed count" invariant
+(§10 Phase-1 acceptance) — geometry correctness is source-verified, not yet test-asserted at that
+granularity; (c) microcube coherent gathering is deferred to Phase 2 (a micro-only cell falls back to
+scatter); (d) **H1 still stands** — a big tree/canopy over `MAX_FLOOD` is misclassified as main-mass and
+won't sever (Phase 2 needs object-aware tree ID).
+
+**Remaining in Phase 1:** P1.3 — the Release benchmark to replace the placeholder `FragmentBudget`
+ceilings + `COHERENT_MAX_VOXELS` with grounded numbers.
 
 ---
 
