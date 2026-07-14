@@ -225,6 +225,13 @@ def rv_win_condition(base):
     if not resp or not resp.get("success"):
         return _V("L2", False, f"runtime: fire_trigger failed for '{t.get('id')}'")
     executed = resp.get("executed", [])
+    after_screen = after.get("screen", "")
+    # On a STANDALONE the real GameScreen machine runs, so a win that actually reaches the
+    # victory/credits screen is genuine L4. The editor host synthesizes state and no-ops
+    # show_victory, so it never reports these and correctly stays at L3.
+    if after_screen in ("victory", "credits"):
+        return _V("L4", True, f"runtime: win trigger '{t.get('id')}' fired -> real screen '{after_screen}' "
+                              f"(executed {executed})")
     changed = (before.get("screen") != after.get("screen")) or (before.get("scene_id") != after.get("scene_id"))
     obs = (f"screen {before.get('screen')}->{after.get('screen')}" if changed
            else "screen unchanged (shell-only terminal no-ops in editor)")
@@ -307,20 +314,46 @@ SIDE_EFFECTING = {"player", "win_condition", "lose_condition", "core_loop", "qa_
 
 
 def engine_project(base):
-    """The project_dir the running engine has loaded, or None if not running / no project."""
+    """Identify what the running engine has loaded. Returns:
+      - an editor project_dir string (editor `--project` host), or
+      - {"standalone": True, "game": <name>} for a packaged game's `--test` API host, or
+      - None if not running / no project.
+    A standalone has no source-project dir; it reports its game name via project_info."""
     p = _get(base, "/api/project/info")
-    return p.get("project_dir") if (p and "error" not in p) else None
+    if not p or "error" in p:
+        return None
+    if p.get("standalone"):
+        return {"standalone": True, "game": p.get("game", "")}
+    return p.get("project_dir")
+
+
+def _target_matches(loaded, project_dir):
+    """Does the running engine correspond to the tracker's project? Editor: same dir. Standalone:
+    the game name matches the project dir's basename (a standalone can't report the source path)."""
+    if loaded is None:
+        return False, "engine not running / no project loaded"
+    if isinstance(loaded, dict) and loaded.get("standalone"):
+        game = (loaded.get("game") or "").lower()
+        want = Path(project_dir).name.lower()
+        if game != want:
+            return False, f"standalone game '{loaded.get('game')}' != project '{Path(project_dir).name}'"
+        return True, "standalone"
+    if Path(loaded).resolve() != Path(project_dir).resolve():
+        return False, f"engine has a different project loaded ({loaded})"
+    return True, "editor"
 
 
 def run(project_dir, base_url, milestone=None) -> dict:
-    """Run runtime validators against the engine at `base_url`, applying results ONLY if the engine's
-    loaded project matches `project_dir`. Writes reached levels + evidence back to production.json
-    (same rules as static validate: never downgrade; done when reached>=required + feel ok)."""
+    """Run runtime validators against the engine at `base_url`, applying results ONLY if the running
+    engine corresponds to `project_dir` (editor dir OR a matching standalone --test host). Writes
+    reached levels + evidence back to production.json (never downgrade; done when reached>=required +
+    feel ok). Against a STANDALONE the real shell runs, so win/lose can reach genuine L4 (a real
+    victory/credits screen) where the editor caps at L3."""
     loaded = engine_project(base_url)
-    if not loaded:
-        return {"ran": False, "reason": "engine not running / no project loaded — runtime validators skipped"}
-    if Path(loaded).resolve() != Path(project_dir).resolve():
-        return {"ran": False, "reason": f"engine has a different project loaded ({loaded}) — skipped"}
+    ok, why = _target_matches(loaded, project_dir)
+    if not ok:
+        return {"ran": False, "reason": why + " — runtime validators skipped"}
+    on_standalone = isinstance(loaded, dict) and loaded.get("standalone")
 
     prod = pt.load(project_dir)
     ms = prod.get("milestones", {})
@@ -350,4 +383,5 @@ def run(project_dir, base_url, milestone=None) -> dict:
         pt._stamp(project_dir, m, name)
         upgraded.append(name)
     pt.save(project_dir, prod)
-    return {"ran": True, "engine": base_url, "upgraded": upgraded, "results": results}
+    return {"ran": True, "engine": base_url, "target": "standalone" if on_standalone else "editor",
+            "upgraded": upgraded, "results": results}

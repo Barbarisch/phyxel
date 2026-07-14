@@ -524,13 +524,18 @@ conditions instead of the editor proxy.
 > standalone (VERIFIED: 1214 fps). (3) **NavGrid** — the generated game now wires
 > `npcManager_->setChunkManager(...)` (was missing) and the navgrid handlers lazy-build; VERIFIED the fix
 > reaches the correct path (logs report "no chunks loaded" — the wiring works — on the empty test world;
-> `buildNavGrid`-with-chunks is independently proven on the editor path). **Remaining test-harness plumbing
-> (not engine code):** a populated standalone world to demo navgrid end-to-end (prebake needs a running
-> engine), and wiring the game-production *validators* to target a standalone (they currently guard on a
-> source-project-dir match; a standalone reports `project_info.standalone=true`). With those, the shell-flow
-> milestones (`intro`, `victory_screen`, `game_over_screen`, menu *navigation*, true `win_condition` L4)
-> become fully API-drivable against the real build. Until validator-targeting lands, **read editor-harness
-> runtime "done" as such**; the `--test` standalone is now the higher-fidelity target for a shell playtest.
+> `buildNavGrid`-with-chunks is independently proven on the editor path).
+>
+> **VALIDATOR-TARGETING DONE (2026-07-13):** `production_runtime` now targets a standalone. `engine_project`
+> returns `{standalone, game}` for a `--test` host; `run()` matches the standalone's game name against the
+> tracker's project-dir basename (a standalone can't report the source path) and applies results to that
+> tracker. Against a standalone the **real shell** runs, so `rv_win_condition` reaches genuine **L4** when
+> `get_screen_state` shows a real `victory`/`credits` screen (the editor synthesizes state + no-ops
+> `show_victory`, so it correctly stays L3). VERIFIED live: `run(ApiTestGame, :8094)` → `ran, target:
+> standalone`, and **`perf_target` reached L4 (1267 fps) against the real packaged game**. So the runtime
+> validators are now drivable against the actual build, not just the editor proxy. **Only remaining is
+> test-data plumbing** (a populated standalone world to demo navgrid/level-playability/win-to-victory
+> end-to-end — the throwaway `ApiTestGame` has empty terrain; the mechanisms are all in place).
 
 ---
 
