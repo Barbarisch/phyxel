@@ -509,6 +509,23 @@ trees do **not** fell yet, and *why*:
 - **Reverted** the three experimental flood changes to keep the audited baseline clean; they're captured
   here as the starting hypothesis, not committed.
 
+**P2.2 SHIPPED (2026-07-14, test-first, auditor-PASS) — trees fell.** Redid it the right way:
+`collapseUnsupported` is now **tree-object-aware** (`920cded` + audit-fix `ac54085`):
+- a tree cell (`Log`/`Leaf`) never spreads the flood **into terrain** — so a canopy brushing a hill or a
+  trunk flanked by a slope can't anchor a severed top;
+- a tree is rooted **only** through its trunk — a `Log` with terrain directly below (or `yAnchor`);
+- a pure-tree component floods to `TREE_MAX_FLOOD` (a big canopy isn't ground).
+Developed **test-first** headless (`tests/integration/TreeCollapseIntegrationTest.cpp`, materialed trees
+via the new `ChunkManager::addCubeWithMaterial`): `OverhangCanopy` red→green (canopy stayed 245 → falls),
+`EmbeddedTrunk` (flanked trunk), `StandingTree_AdjacentTerrainBlast` (a real over-detach guard). The
+solution-auditor **mutation-confirmed** all three rules (removing the leaf-skip → OverhangCanopy red at
+245; removing the rooted-anchor → StandingTree red, tree wrongly falls) — genuine falsifiable coverage.
+**Live-confirmed**: a rooted `Log`+`Leaf` tree, trunk chopped → `coherent collapse: 335 cells → 1 rigid
+slab`, canopy toppled and fell as one body onto the slope, rooted stump stayed. **Closes the core of
+feedback #2 for clean/rooted trees.** Remaining: microcube-only leaf cells still scatter (P2.1 —
+`cellMaterial` reads only the first-level subcube); degenerate hill-embedded wild trees; big-tree
+coherence needs a higher `COHERENT_MAX_VOXELS` (P1.3 benchmark); directional hinge (P2.3).
+
 ---
 
 ## 11. Open questions (decisions to make before/at each phase)
