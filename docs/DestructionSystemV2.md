@@ -459,6 +459,16 @@ sign-off. Ordered so the load-bearing engine work (0–1) precedes the feel laye
 Recommended first build: **Phase 0 → Phase 1** (foundation + core), because they unblock everything and
 are the honest engine work; then Phase 2 gives the visible, feedback-closing payoff.
 
+**Progress + reorder (2026-07-14).** Shipped & auditor-PASS: Phase 0 (`fd38d2c`), P1.1 shared merge
+(`c9b2f87`/`108ac7a`), **P1.2a `physicalize`** — the "voxel set → falling compound rigid body" primitive,
+with furniture refactored onto it (`7c4406f`). **Reorder forced by H12:** the remaining P1.2b (route
+`collapseUnsupported` → `physicalize` for a visible world topple) is **blocked on a persistent fragment
+lifecycle owner** (`CoherentFragmentManager`: ticks body→render each frame, settles without re-bake).
+`DamageSystem` is per-call so can't tick; furniture's owner re-staticizes. So the next step is a minimal
+slice of **Phase 1b** (the lifecycle owner) BEFORE P1.2b — physicalize's output needs an owner before the
+world topple can render/fall/settle. Furniture already works because it has its owner
+(`DynamicFurnitureManager`).
+
 ---
 
 ## 11. Open questions (decisions to make before/at each phase)
@@ -538,6 +548,7 @@ than a one-shot consolidation**.
 | **H9** | Incremental-harvest yield rounds to zero — `floor(harvestedVoxels × perVoxel)` loses fractional yield per small chop. | Spec bug | Phase 3 | Accumulate fractional yield across chops. |
 | **H10** | Stand on a frozen log, then chop it → it reactivates, occupancy clears, char↔dynamic-body collision is absent → player clips through the log they stood on. | Logical (edge) | Phase 1b | Needs char↔reactivated-body handling, or delay occupancy-clear until the body actually moves. |
 | **H11** | Should terrain topple *coherently* at all? Overhangs are huge (worst budget fit) and a cliff frozen as a non-grid "object" is odd. | Open design question | Phase 1 | Consider restricting coherent fells to discrete objects (trees/walls/furniture); terrain stays scatter. |
+| **H12** | **World coherent fragments need a persistent lifecycle OWNER** (tick body→render transform each frame; settle WITHOUT re-bake). `DamageSystem` is per-call/transient so cannot own the tick; `DynamicFurnitureManager` re-staticizes on settle (rejected re-bake). Discovered building P1.2b. | **CONFIRMED (code)** — `Application.cpp:11909` constructs `DamageSystem` per call; furniture ticks via `DynamicFurnitureManager::update()` which re-staticizes. | **Phase 1b BEFORE P1.2b** | Build a minimal `CoherentFragmentManager` (owns bodies, ticks transform, no-rebake settle → later frozen/retired). physicalize (P1.2a) is the primitive; this manager owns its outputs. Reorders the roadmap: the world topple needs this owner first. |
 
 **Net:** the unify-furniture-fracture *architecture* holds, but the tree vertical slice (H1, H3) and the
 retirement tier (H4, H6, H7, H8) each carry real new work the earlier sections understated. This table
