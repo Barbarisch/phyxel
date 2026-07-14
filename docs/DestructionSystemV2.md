@@ -1,0 +1,544 @@
+# Destruction System v2 — Breakable Objects (design)
+
+> Status: **design, awaiting build-order approval** (2026-07-14). Supersedes and continues
+> [`docs/DestructionSystem.md`](DestructionSystem.md) (the P1–P5 roadmap; P1–P3 shipped). This
+> document extends that energy/toughness core into a **general, tactile breakable-objects system**
+> spanning trees, structures, furniture, and terrain — the four "feel" qualities the user asked for:
+> **coherent fracture/topple · progressive damage · tool-driven impact · gatherable aftermath.**
+>
+> **Nothing here is built yet.** This is the plan we review before writing code. Numbers marked
+> *(needs grounding)* are placeholders to be set by the grounding-auditor, not decisions.
+
+---
+
+## 1. Goal & scope
+
+Make things in the world break in a **realistic, tactile** way — and mean four specific things by that:
+
+| Feel quality | What it means | Today |
+|---|---|---|
+| **Coherent fracture / topple** | A cut tree falls as a *trunk*; a severed wall drops as a *slab* — pieces stay rigid, tumble, and settle. Not a particle spray, not a vanish. | **Missing** (roadmap P5). Severed pieces scatter as independent particles. |
+| **Progressive damage** | Cracks appear, hits accumulate, materials chip / splinter / powder differently. You feel each blow land. | **Partial.** Accumulation model exists (cube-only); *visible* cracks (P4) do not. |
+| **Tool-driven impact** | What you hold matters (axe vs pick vs fist); a real swing with wind-up + impact, not an instant delete. | **Missing.** Break is a keypress with (mostly) zero impulse; no tool affinity, no swing. |
+| **Gatherable aftermath** | Broken things leave *persistent, pickup-able* resources (logs, rubble, shards) that feed crafting/survival. | **Missing.** Debris times out (25–30 s) and vanishes. |
+
+Scope — **all four** thing-types must be breakable, but their representations differ, so each needs a
+different amount of object-awareness work (§6):
+
+- **Trees & flora** — the driving case (Emberwake woodcutting). Anonymous baked voxels.
+- **Structures & walls** — bbox-tracked shells; walls are anonymous voxels.
+- **Furniture & props** — already the most object-aware (furniture shatter works).
+- **Terrain / ground** — anonymous chunk cells; energy-damage already breaks it.
+
+This is **engine-generator work**, not hand-placement: everything routes through the destruction
+service and physics, never through hand-authored per-case scripts.
+
+---
+
+## 2. Current state (the honest baseline)
+
+What is **shipped and working** (cited, verified from source):
+
+- **Energy-vs-toughness core** — `DamageSystem::applyDamage(center, radius, energy, type, dir, supportY, collapse)`
+  (`engine/src/core/DamageSystem.cpp:91`). Two-phase: scan+decide against the pre-blast grid (so
+  shielding is instantaneous), then apply removals + spawn debris. Radial falloff + ray-marched
+  shielding (`solidVoxelsBetween`, `:51`).
+- **Per-voxel toughness & tiered shatter** — overkill ratio `r = energy/toughness` picks intact cube
+  (`r < s1`) → subcubes 1/3 (`s1 ≤ r < s2`) → microcubes 1/9 (`r ≥ s2`). `responseFor()` (`:24`).
+- **Damage accumulation** — `Cube::addDamage` / `getAccumulatedDamage`; sub-threshold hits chip
+  through over multiple blows (`DamageSystem.cpp:168`). **Cube-only** (sub-voxel cells break in one pass).
+- **Structural collapse** — `collapseUnsupported` (`:335`) flood-fills connectivity from the rim of the
+  hole; a component that can't reach the main mass (floods past `MAX_FLOOD=3000`) or a designer anchor
+  (`supportY`) is severed and dropped. **But** the drop is `dropDetachedCell` (`:302`) = independent
+  particle scatter, **not** a coherent falling piece.
+- **Furniture coherent fracture** — `DynamicFurnitureManager::shatter` (`DynamicFurnitureManager.cpp:644`):
+  `findConnectedComponents` (BFS, `:549`) → `mergeVoxelsGreedy` → `VoxelDynamicsWorld::createBody`
+  (compound `VoxelRigidBody`). **Fragments ≥ `MIN_FRAGMENT_VOXELS=4` become real rigid bodies that
+  fall coherently.** Smaller ones become GPU particles. Capped `MAX_DYNAMIC_FURNITURE=16`.
+- **Coherent-fragment primitive** — `VoxelRigidBody` (`engine/include/physics/VoxelRigidBody.h`): a
+  compound of `LocalBox`es with computed COM/mass/inertia, stepped by the CPU `VoxelDynamicsWorld`.
+  "A single broken voxel has one LocalBox. A piece of furniture has several" (`:12`).
+- **Debris backends** — `GpuParticlePhysics` (Vulkan AVBD, warm-started, 10 000 particles / 60 000
+  faces, the scalable path) and `VoxelDynamicsWorld` (CPU sequential-impulse, soft ~500 bodies).
+- **Render density** — the ~412k-face wall is **mostly resolved**: sub/micro greedy-merge is default-on
+  (`ChunkRenderManager.cpp:25`), ~5–8× recovery. *Live* debris uses the dynamic pipeline (particle/
+  kinematic), not the static greedy-mesher.
+
+**The single most important fact for this design:** the *coherent falling piece* mechanism the user
+wants **already exists** in `DynamicFurnitureManager::shatter`. It is fenced inside furniture. The core
+of v2 is **generalizing it** and routing `collapseUnsupported`'s severed components into it instead of
+`dropDetachedCell`.
+
+Known dead/orphaned code (do not build on): the `Cube::Bond` 6-direction graph
+(`engine/include/core/Cube.h`) is only consumed by the dropped `ForceSystem` mouse path — it is **not**
+wired into any live break decision. `DestructionSystem.md` chose flood-fill connectivity over bonds;
+v2 keeps that choice (§9).
+
+---
+
+## 3. The gap — what "realistic tactile" needs that's missing
+
+1. **Coherent fragments for the WORLD, not just furniture.** `collapseUnsupported` identifies the
+   severed set correctly; it just needs to hand that set to the furniture-style `createBody` path.
+2. **Object-awareness for trees.** A tree is anonymous log/leaf voxels (`ObjectTemplateManager.cpp:430`
+   stamps flora straight into chunks; no registry entry). To "fell a tree" we must identify the
+   connected tree voxels at runtime (flood-fill). **Caveat (audited, §14-H1):** the existing collapse
+   flood is *terrain-tuned* — a component that exceeds `MAX_FLOOD=3000` is treated as the supported main
+   mass, so a large tree/canopy severed at the trunk would be **misclassified as ground and refuse to
+   fall**. Tree felling therefore needs its own object-aware identification (flood by material/tag with
+   its own budget), not a straight reuse of `collapseUnsupported`.
+3. **Directional topple, not just fall.** A rigid body severed at its base and released under gravity
+   already gets angular velocity from its offset COM, but a tree should *hinge* about its cut, not
+   free-drop. Needs a small torque/pivot bias.
+4. **Data-driven material break behavior.** Only 5 materials (Stone/Glass/Wood/Metal/Dirt) have tuned
+   `toughness/s1/s2/absorption`, hardcoded as C++ `if`-chains (`DamageSystem.cpp:37-47`). The other
+   ~96 fall back to `bondStrength*120`. These belong in `materials.json`.
+5. **Gatherable settle.** Debris must be able to *become* a persistent resource item on settling,
+   instead of always timing out.
+6. **Tool + swing layer.** An equippable tool that drives the damage energy, plus a swing animation and
+   an impact event (ties the open axe/swing feedback, `docs/feedback/inbox.md:15`).
+7. **Visible progressive damage.** Cracks/darkening on damaged-but-unbroken voxels (P4).
+
+---
+
+## 4. Architecture — the unifying model
+
+A single pipeline serves all four feels × four scopes. The insight is that **"break" is always the
+same three-stage flow**, and the four feels are layers on it:
+
+```
+   DAMAGE SOURCE                 FRACTURE DECISION            PHYSICALIZE                AFTERMATH
+   ─────────────                 ─────────────────            ───────────                ─────────
+   tool swing / spell / ──►  DamageSystem::applyDamage  ──►  CoherentFragmentService ──►  settle → resource
+   collision / explosion         (energy vs toughness,        (voxel set → compound        item (gatherable)
+        │                         tiered shatter,              VoxelRigidBody) OR            OR fine debris
+        │                         connectivity collapse)       GpuParticle scatter          times out
+        │                              │                          │  (budget-gated)
+        └── tool affinity ────────────┘                          └── render: kinematic
+            (axe→Wood ×N)                                             faces / particles
+                                       │
+                                  Cube damage state ──► crack/darken shader (progressive)
+```
+
+**Four new/changed pieces** (everything else reuses shipped code):
+
+- **(A) Data-driven `MaterialBreakProfile`** — move `toughness/brittleness/absorption` (and a new
+  `resourceYield`) into `materials.json`; `DamageSystem::responseFor` reads them; delete the hardcoded
+  exemplars. *Foundation — unblocks tuning all 101 materials and grounding.*
+- **(B) `CoherentFragmentService`** — extract the furniture "connected voxel set → compound
+  `VoxelRigidBody`" routine (`findConnectedComponents` + `mergeVoxelsGreedy` + `createBody`) into a
+  standalone service callable from **world voxels** (not just kinematic furniture voxels). One code
+  path, one body budget, used by furniture shatter AND world collapse. *The core new capability.*
+- **(C) Fracture routing in `collapseUnsupported`** — severed component whose size ≤ budget →
+  CoherentFragmentService (falls as one rigid slab/trunk); over budget or tiny → existing
+  `dropDetachedCell` scatter (unchanged fallback). *Delivers toppling walls & trees.*
+- **(D) `BreakAftermath` (gatherable)** — a settled fell persists as a full physical object; harvesting
+  it (chop/gather) emits **resource items** per the material/object yield table. *Delivers the survival
+  loop.*
+- **(G) Fragment retirement tier** — settled fells FREEZE out of the physics solver to functionally-
+  static (grid-free: arbitrary transform kept, faces merged, occupancy stamped) and reactivate lazily on
+  interaction. *The scalability key — makes a large permanent population of full-fidelity fells
+  affordable without downgrading them (§5.G).*
+
+Plus two **feel layers** on top:
+
+- **(E) Tool + swing interaction** — `AxeTool` (RpgItem) + a chop/swing animation family + an impact
+  hook that computes energy from `tool × material affinity` and calls `applyDamage` at the hovered
+  voxel. Progressive multi-hit.
+- **(F) Damage visualization** — per-`Cube` normalized damage (0..1) surfaced to `static_voxel.vert` /
+  `voxel.frag` as a crack overlay / darkening (P4).
+
+---
+
+## 5. Component designs
+
+### (A) Data-driven `MaterialBreakProfile`
+Add to each material's `physics` block in `resources/materials.json`:
+```jsonc
+"break": {
+  "toughness":   110.0,   // energy to break one voxel   (needs grounding per material)
+  "brittleS1":   1.8,     // overkill ratio → subcubes
+  "brittleS2":   4.0,     // overkill ratio → microcubes
+  "absorption":  0.9,     // shielding loss per solid voxel
+  "resourceYield": { "item": "log", "perVoxel": 0.02 }  // §D (needs grounding)
+}
+```
+`responseFor()` reads `def->break.*` with the current `bondStrength*120` formula as the fallback for
+materials without a `break` block. Delete the 5 C++ exemplars. **Validation:** L2 unit test — a
+material's JSON `break` block round-trips to the exact `MatResponse` (red: today `responseFor` ignores
+JSON; green: reads it). Grounding-auditor sets the 101 values before ship.
+
+### (B) `CoherentFragmentService` — the core
+A standalone service (`engine/{include,src}/core/CoherentFragmentService.*`) with one primary entry:
+```cpp
+// Turn a connected set of FINE voxels into a coherent falling rigid body.
+// `voxels` are individual cubes/subcubes/microcubes (each with its own scale +
+// local offset), NOT whole-cell placeholders — see "Voxel tiers" below.
+// Returns the created VoxelRigidBody id, or nullopt if over budget / too small
+// (caller then falls back to particle scatter).
+std::optional<uint32_t> physicalize(
+    const std::vector<KinematicVoxel>& voxels,  // mixed cube/subcube/microcube, local-space
+    const glm::vec3& initialVelocity,
+    const glm::vec3& initialAngularVel,
+    const FragmentBudget& budget);
+```
+Internals follow `DynamicFurnitureManager::shatter:705-771`:
+`mergeVoxelsGreedy(voxels)` → `LocalBox`es around the COM → `voxelWorld->createBody(...)` → render via a
+`KinematicVoxelObject` (`KinematicVoxelManager::add`). `DynamicFurnitureManager::shatter` is then
+**refactored to call this service** so there is exactly one implementation. **Do NOT lift the tuning
+verbatim (audited, §14-H4):** the furniture path bakes in furniture-scale constants — mass clamp
+`[0.5, 10.0]`, raw-mass scale `0.05`, scatter `×2.0`, fixed `+(0,1,0)` pop (`DynamicFurnitureManager.cpp:726,755,757`).
+A redwood trunk under those caps to 10 mass and hops like a stool. Mass/velocity must be **parameterized
+by fragment scale**, not copied. This also means the "one implementation" is really *one back-half
+(`physicalize`) + two front-halves*: furniture supplies already-kinematic voxels; world collapse must
+gather sub-voxel geometry from chunks (above).
+
+**Voxel tiers (cube / subcube / microcube) — explicit.** The compound-body + kinematic-render path is
+already resolution-agnostic: `KinematicVoxel` and `LocalBox` each carry a `scale`, and furniture
+fragments already comprise subcube/microcube geometry. The subtlety is the **source**: furniture
+rebuilds fine geometry from its template, but a WORLD fragment (a tree, a subcube wall) has no template.
+So collapse routing (C) must **gather the real sub-voxel geometry out of the chunk** — for each detached
+cell, enumerate its actual subcubes/microcubes (`Chunk::getStaticSubcubesAt` + the microcube accessor),
+emit one `KinematicVoxel` per fine voxel at its correct local offset+scale, and pass the whole set to
+`physicalize`. This is the difference between a toppling tree that *looks like the tree tipping over*
+(its own subcubes/microcubes preserved) and one that turns into a blocky proxy. It also means a fragment
+body can carry many small boxes — feeding the render-face and body-mass budgets (§8).
+
+`FragmentBudget` governs the CPU-body cap (§8): max active coherent bodies, max voxels/body, and an
+over-budget policy (fall back to `GpuParticle` scatter — the current behavior). **Validation:** L2
+(fragment geometry == input cells, mass/COM/inertia finite & centered), L3 (`TraversalProbe`/settle
+sim: the body falls, contacts terrain, comes to rest without interpenetration or NaN), L4 (runtime).
+
+### (C) Fracture routing in collapse
+In `collapseUnsupported`, when a component is detached (`:398`), instead of the per-cell
+`dropDetachedCell` loop:
+1. remove all component cells from chunks (as today, so occupancy clears — both grids, §8),
+2. if `component.size() ≤ budget.maxVoxelsPerBody` and a body slot is free → gather the removed cells
+   as `VoxelCell`s and call `CoherentFragmentService::physicalize(...)` with a downward + slight
+   outward velocity;
+3. else → existing `dropDetachedCell` scatter (unchanged).
+
+This is **behind a flag** (`applyDamage(..., coherentFragments=true)`) so the old scatter remains the
+tested fallback and A/B is possible. **Validation:** L4 — `apply_damage` mid-height on a stone wall →
+the top section topples as ONE rigid slab (assert: 1 new rigid body, voxel count == severed count),
+vs. the flag off (N particles).
+
+### (D) `BreakAftermath` — the settled object IS the gatherable (harvest by interaction)
+**Decision (§11.2):** a settled piece does **not** auto-compact into a loose item pile; it **stays a
+full physical object** (persistent sleeping `VoxelRigidBody`, `lifetime=FLT_MAX`, like furniture at
+rest). So the aftermath is not a conversion event — it's an **interaction target**:
+- On settle (`VoxelRigidBody::isAsleep`, `SLEEP_TIME=1.2s`), the fell body is registered as a persistent
+  `PlacedObject` (category `item`/`debris`) so it survives, is addressable, and carries its
+  `MaterialBreakProfile.resourceYield`.
+- **Harvesting** the settled object (chop it further with a tool, or a "gather" interaction) removes
+  voxels from it and emits `floor(harvestedVoxels × perVoxel)` resource items into the inventory /
+  as pickup props (item props are never chunk-baked — `ItemPropManager.h:26` — so they persist). A
+  whole felled trunk thus becomes logs *as you work it*, not instantly.
+- **No lifetime timeout** for settled coherent objects — they persist until harvested or destroyed
+  (this is what "stay a full physical object" requires). Fine *scatter* debris (the < MIN_FRAGMENT
+  particle fallback) still times out as today.
+
+**Cost this imposes (see §8):** every unharvested fell permanently holds a body slot + render group, so
+the fell/harvest budget is now a persistent-population problem, not a transient one. **Validation:** L4
+loop — fell tree → persistent settled log object → harvest → inventory count == yield, body slot freed
+only on full harvest.
+
+### (E) Tool + swing (ties feedback #1)
+- **Item** — an `axe` `RpgItemDefinition` (`resources/rpg/`) with a `templateFile` model and break-
+  relevant stats (a `chopPower` + optional per-material affinity table, e.g. axe×Wood ≫ axe×Stone).
+- **Animation** — a chop/swing `.anim` family (wind-up → impact → recover), alongside the existing
+  melee families (`docs/` melee_anim_families).
+- **Impact hook** — on the impact frame, raycast from the tool, and at the hit voxel call the damage
+  path with `energy = chopPower × affinity(tool, materialAtHit)`. **Progressive model (audited, §14-H3):**
+  `Cube::addDamage` accumulation is **cube-only** — trees are sub-voxel cells with no accumulation field,
+  so multi-hit chopping of a tree cannot reuse it. Model chopping **geometrically instead**: each swing
+  carves a wedge of trunk voxels, and the sever/topple triggers when the trunk cross-section is fully
+  cut through (a connectivity event), not when accumulated energy crosses a threshold. (Cube-only
+  accumulation still serves full-cube targets like walls.)
+- Left-click is already melee/attack (`InputController.cpp:361`); the axe swing slots into that verb
+  when an axe is equipped. **Validation:** L4 — equip axe, swing at tree, assert N swings sever it
+  (matches the material toughness), fists do not.
+
+### (F) Damage visualization (P4)
+`Cube` already stores accumulated damage. Surface a normalized `damage01 = accumulated/toughness` into
+the static voxel instance data (spare bits or a parallel per-voxel buffer) and blend a crack overlay /
+darken in `voxel.frag`. Purely additive; no gameplay change. **Validation:** L2 (damage state correct
+after N sub-threshold hits) + L4 visual (`get_visual_diagnostic` before/after: pixels change on a
+grazed voxel; the framed-demo integrity rule applies — confirm by pixel diff, not "looks cracked").
+
+### (G) Fragment lifecycle & retirement — "cheap at rest" (the scalability key)
+The mechanism that makes a large *permanent* population of settled full-fidelity fells affordable. A
+coherent fragment moves through three states:
+
+- **ACTIVE** — a live `VoxelRigidBody` in `VoxelDynamicsWorld`: simulated, in broadphase (falling,
+  tumbling, being pushed). Counts against the CPU-body budget.
+- **SLEEPING** — came to rest; body retained but skipped in the solver (`VoxelRigidBody::isAsleep`),
+  still in broadphase so a contact can wake it. A short transition state.
+- **FROZEN / RETIRED** — after sleeping stably & untouched for `T_retire` seconds: **removed from
+  `VoxelDynamicsWorld` entirely** (frees the body slot AND the broadphase entry), its kinematic faces
+  greedy-merged once, its rest-pose footprint stamped into a collision-only occupancy region, and its
+  geometry+transform kept as plain data. A frozen fragment is now **functionally static** — it costs
+  roughly what static geometry costs (merged faces to draw, occupancy to stand on, zero solver/
+  broadphase cost). This is a **grid-free** freeze: the arbitrary rest transform is preserved (unlike
+  furniture re-staticization, which snaps to the chunk grid).
+
+**Reactivation is lazy & on-demand.** A frozen fragment rebuilds into an ACTIVE `VoxelRigidBody` from
+its stored geometry the instant something interacts with it — a tool chop, a push, or a nearby
+blast/impact (AABB/raycast test) — clearing its occupancy stamp on the way. So the object stays a
+*permanent, full, interactive physical object* (satisfying the §9 decision) while only paying live-
+physics cost during the brief windows it's actually moving.
+
+**Why this is the budget fix:** the CPU-body ceiling now bounds only **ACTIVE + SLEEPING** (a small,
+transient count), NOT the total settled population — which is instead bounded by render (merged faces)
+and occupancy/memory, far higher ceilings. This is a generalization of the existing furniture
+`activate()`/`deactivate()` pattern (`DynamicFurnitureManager`), made grid-free.
+
+**Bounded subtlety — reactivation cascade:** waking one fragment in a stack must wake the frozen ones
+resting on/against it (a neighbor-overlap query at reactivation), or piles won't collapse correctly.
+Bound the cascade depth per interaction. **Validation:** L2 (frozen fragment has 0 solver/broadphase
+presence; face count drops after merge; occupancy matches rest pose) + L3 (chop a frozen log →
+reactivates → moves; a stack partially collapses) + L4 (accumulate M frozen fells → FPS ≥ threshold and
+active-body count stays near zero at rest — the persistent-population gate, §12).
+
+---
+
+## 6. Per-scope behavior
+
+| Scope | Object-awareness needed | How it breaks in v2 |
+|---|---|---|
+| **Terrain** | None (anonymous cells). | Energy damage as today; large severed overhangs *can* now topple coherently (C) within budget, else scatter. |
+| **Structures / walls** | Low — flood-fill already severs sections. | A blasted/undermined wall section topples as a coherent slab (B+C). Structure bbox stays in `PlacedObjectManager` but its voxels are gone — **decide** whether to update/retire the registry entry (§11). |
+| **Furniture** | Already object-aware. | Existing `shatter` refactored onto CoherentFragmentService (B); gains gatherable aftermath (D). Mostly consolidation + polish. |
+| **Trees / flora** | **High** — must identify "the tree" at runtime. | Chop accumulates damage at the cut (E); once severed, flood-fill the connected log/leaf set above the cut and topple it as one body (B+C) with a hinge bias (§3.3); settle → logs (D). |
+
+Trees are the hardest and the driving case, so they get the vertical slice first (§10 Phase 2).
+
+---
+
+## 7. Data & grounding
+
+Everything sized must cite a real source (project HARD RULE — grounding-auditor). Values needing
+grounding **before** the relevant phase ships:
+
+- **Material break profiles** (toughness/brittleS1/S2/absorption) for all 101 materials — extend the
+  5 tuned exemplars, ground the rest against relative real-world hardness/toughness (e.g. wood vs stone
+  vs glass fracture energy ratios), not grid-convenience.
+- **Resource yields** — how many logs a tree of a given voxel count yields; how much rubble a wall
+  section yields. Ground against tree-volume→timber and masonry conventions, not vibes.
+- **Tool chop power & affinities** — axe-vs-wood effectiveness, swings-to-fell. Ground against the
+  chosen toughness scale so "N swings to fell a small oak" is a deliberate, defensible number.
+- **Fragment budgets** — max coherent bodies, max voxels/body: ground against the measured CPU
+  physics ceiling (§8), not guessed.
+
+The doc does **not** invent these; it names them as grounding tasks.
+
+---
+
+## 8. Performance & constraints (hard limits this design must respect)
+
+- **CPU rigid-body ceiling** — `VoxelDynamicsWorld`'s only recorded ceiling is a **Debug-build,
+  synthetic worst-case** (500 bodies piled at one point = 0.7 FPS, `docs/DynamicVoxelPhysics.md:141`,
+  via `tools/perf_stress_test.py --mode voxel`). This is **not** a Release number, **not** a regression
+  test, and the same doc notes real-gameplay limits are "significantly higher." So treat "~500" as an
+  order-of-magnitude prior, **not** a measured hard ceiling. Coherent fragments are CPU bodies → **a
+  forest of simultaneously toppling trees could still blow whatever the real ceiling is.** **The
+  primary mitigation is the retirement tier (§5.G):** settled fells FREEZE out of the solver, so this
+  ceiling bounds only ACTIVE+SLEEPING bodies (a small transient count), not the total settled
+  population. On top of that, `FragmentBudget` caps concurrently-active coherent bodies; over budget →
+  particle scatter or a cheap "fade+poof"; distant trees fell with a reduced-fidelity path (LOD).
+  **Grounding gate (Phase 1 prerequisite):**
+  before `FragmentBudget.maxActiveBodies` is set, re-run the stress test against a **Release** build and
+  encode the result as an automated assertion in `tests/benchmark/` (so the ceiling can't silently
+  drift the way a hand-copied doc number can). This budget is a first-class design constraint, not an
+  afterthought.
+- **GPU particle cap** — 10 000 particles / 60 000 faces. The scatter fallback lives here; fine.
+- **Render density (resurfaces in the KINEMATIC pipeline).** The static greedy-mesh fix does **not**
+  cover fell fragments: coherent bodies render as **kinematic faces** (`KinematicFaceData`, pre-computed
+  per-face, **not** greedy-merged). With the chosen model (full-fidelity + *permanent* settled objects),
+  a forest floor of felled full-geometry logs accumulates un-merged kinematic faces **forever** — the
+  412k-face problem returns via a different pipeline. **New required deliverable:** once a fragment is
+  permanently at rest (geometry frozen), **greedy-merge its kinematic faces in place** (a one-shot
+  consolidation — still a dynamic object at an arbitrary transform, just cheaper to draw). This is the
+  render answer that lets "permanent full-fidelity settled" be affordable. The distance/budget LOD
+  (proxy geometry for far/over-budget fells) is the other half.
+- **Standable settled fragments (NEW required deliverable).** The character grounds on the static
+  occupancy grid, not on dynamic bodies, so "must be standable/blocking" (§11.2b decision) needs one of:
+  (a) character↔`VoxelRigidBody` OBB collision (absent today — larger lift), or (b) a **settled-footprint
+  occupancy stamp**: when a fell sleeps, voxelize its rest-pose footprint into a collision-only
+  occupancy region (axis-aligned approximation — visuals stay the true angled geometry, only the
+  standable surface is grid-approximated). (b) is the smaller path and keeps geometry un-re-baked;
+  recommend (b) for v1, revisit (a) if the approximation feels wrong underfoot.
+- **Two occupancy grids** — every voxel removal must update **both** the CPU grid and the GPU grid
+  (`updateOccupancyVoxel` already does; any new removal path must too) or debris/characters fall
+  through the world (`docs/AgentContext.md` invariant).
+- **Settling "popcorn"** — the debris no-sleep/popcorn problem is a known *parked* issue; coherent
+  bodies use `VoxelRigidBody` sleeping (`SLEEP_TIME=1.2s`) which is better-behaved, but the aftermath
+  conversion (D) must trigger on real sleep, and we should watch for coherent bodies that never settle.
+
+---
+
+## 9. Design decisions (carried forward + new)
+
+Carried from `DestructionSystem.md` (unchanged): radial+shielding propagation · damage accumulation ·
+anchor = connected-to-main-mass · everything destructible by default · `ForceSystem` mouse path
+dropped.
+
+New for v2:
+- **Flood-fill connectivity, not the `Cube::Bond` graph.** Bonds are orphaned and redundant with
+  occupancy flood-fill for connectivity. Reviving them is *not* a prerequisite for coherent fragments
+  (furniture proves this — it uses component BFS, not bonds). Bonds could later encode *pre-authored
+  weak points* (a tree's designed cut-line) but that is an optional refinement, not v1.
+- **One coherent-fragment implementation.** Furniture shatter and world collapse must share
+  `CoherentFragmentService` — no second copy of the merge/createBody logic.
+- **Coherent fragments are opt-in per call** (flag), so the shipped scatter path stays the tested
+  fallback throughout.
+
+Locked by the 2026-07-14 decisions (user chose the highest-fidelity option on each):
+- **No re-bake** — settled material stays in dynamic/kinematic space; the integer static grid would
+  misalign an arbitrarily-angled rest pose.
+- **Standable/blocking settled fragments** — requires the settled-footprint occupancy stamp (or
+  character↔rigid-body collision); now a required deliverable, not a mitigation (§8).
+- **Settled = permanent full physical object** — no lifetime timeout; each unharvested fell holds a
+  body slot + render group, so the budget is a *persistent-population* problem. Resources come from
+  **harvesting** the settled object (interaction), not an auto-conversion on sleep.
+- **Full-fidelity topple + distance/budget LOD** — real subcube/microcube geometry preserved; far or
+  over-budget fells use a proxy. Forces the kinematic-face freeze-time greedy-merge (§8).
+
+---
+
+## 10. Phased roadmap (proposed — this is the "then decide")
+
+Each phase: functional contract · required validation layer (L1 artifact / L2 structural invariant /
+L3 agent-simulation / L4 runtime) · a red-before-green test · a scale/stress test · solution-auditor
+sign-off. Ordered so the load-bearing engine work (0–1) precedes the feel layers.
+
+- **✅ Phase 0 — Data-driven material break model (A). SHIPPED 2026-07-14 (solution-auditor PASS).**
+  `MaterialRegistry` parses an optional per-material `"break"` block (`toughness`/`brittleS1`/
+  `brittleS2`/`absorption`) into `MaterialDef::breakProfile`; `DamageSystem::responseFor` consumes it,
+  with the `bondStrength*120` fallback for materials without a block. The 5 hardcoded C++ exemplars are
+  deleted; the 5 `break` blocks in `materials.json` are byte-identical to the old literals (auditor
+  git-diffed). L2 test `tests/core/DamageSystemBreakProfileTest.cpp` (7 cases: parse, consume, fallback,
+  all-101 finite) — red-before-green independently reproduced by the auditor (revert parse wiring →
+  3 fail, `Metal`=114 fallback; restore → 7/7). Full suite 2805/0. **Grounding follow-up (separate
+  task, non-blocking):** the other ~96 materials + re-grounding the 5 still need grounding-auditor
+  values (§7); Phase 0 delivered the *mechanism*, not the tuned table.
+- **Phase 1 — CoherentFragmentService + collapse routing (B, C).** *Contract:* a severed connected
+  component ≤ budget falls as ONE rigid body; furniture shatter uses the same service. *Depth:* L2
+  (fragment == component, mass/COM correct) + L3 (settles, no interpenetration/NaN) + L4 (`apply_damage`
+  a wall → coherent slab topples). *Stress:* sever a 3000-voxel overhang (cap boundary); N walls at once
+  vs. the body budget — assert budget honored, no false-scatter of in-budget pieces, no over-budget CPU
+  collapse. *The core deliverable.*
+- **Phase 1b — Fragment retirement tier (§5.G): freeze + standability + lazy reactivation** (required by
+  the 2026-07-14 decisions; the scalability key). *Contract:* a fell at rest (i) persists with no
+  lifetime timeout, (ii) freezes out of the solver to functionally-static (body slot + broadphase entry
+  freed), (iii) becomes standable/blocking via a settled-footprint occupancy stamp, (iv) has its
+  kinematic faces greedy-merged in place, and (v) reactivates into a full rigid body on interaction
+  (chop/push/blast), with bounded neighbor-wake. *Depth:* L2 (frozen = 0 solver/broadphase presence;
+  face count drops; occupancy matches rest pose) + L3 (chop a frozen log → reactivates & moves; a stack
+  partially collapses) + L4 (character stands on a settled log; FPS with M frozen logs present).
+  *Stress:* accumulate M permanent settled fells → assert FPS ≥ threshold, face count bounded, AND
+  active-body count ≈ 0 at rest — the persistent-population gate (§12).
+- **Phase 2 — Tree fell/topple vertical slice (trees, B+C + hinge).** *Contract:* flood-fill identifies
+  the tree above a cut; it topples (hinges) and settles as a trunk. *Depth:* L3 (topple sim: base
+  pivots, no ground-clip) + L4 (Emberwake tree). *Stress:* fell a giant megaflora (voxel count ≫
+  MIN_FRAGMENT) and a tiny bush (< MIN_FRAGMENT → graceful scatter); a stand of trees (budget). *Closes
+  feedback #2.*
+- **Phase 3 — Gatherable aftermath (D).** *Contract:* harvesting a persistent settled object (chop/
+  gather) emits grounded resource items and shrinks/frees the object as worked. *Depth:* L4 loop test
+  (harvested voxels → inventory count == yield; slot frees on full harvest). *Stress:* fell a forest,
+  harvest all, assert Σ items == Σ yields and no leaked bodies. *Grounded yields required.*
+- **Phase 4 — Tool + swing (E, ties feedback #1).** *Contract:* equipped axe swing severs a tree in a
+  grounded number of chops; tool/material affinity respected; fists ineffective on wood. *Depth:* L4.
+  *Stress:* chop-spam (churn), wrong-tool, mid-swing tool-swap.
+- **Phase 5 — Damage visualization (F, P4).** *Contract:* damaged-but-unbroken voxels show cracks/
+  darken scaling with accumulated damage. *Depth:* L2 (state) + L4 (pixel-diff visual, not "looks
+  cracked"). *Stress:* many partially-damaged voxels (render cost).
+- **Cross-cutting (any phase that touches it):** persistence of broken/damaged state + spawned resource
+  props to the world DB; the two-occupancy-grid invariant on every new removal path.
+
+Recommended first build: **Phase 0 → Phase 1** (foundation + core), because they unblock everything and
+are the honest engine work; then Phase 2 gives the visible, feedback-closing payoff.
+
+---
+
+## 11. Open questions (decisions to make before/at each phase)
+
+1. **Structure registry on partial destruction** — when a wall of a `PlacedObjectManager` structure is
+   blown away, do we (a) leave the bbox entry stale, (b) shrink/retire it, or (c) ignore (structures
+   are cosmetic to the registry)? Affects save/load fidelity.
+2. **Re-bake / standable / persistence — DECIDED 2026-07-14 (§9).** No re-bake; settled fragments are
+   permanent full physical objects in dynamic space; standable/blocking via a settled-footprint
+   occupancy stamp (§8, the recommended path (b)); resources come from harvesting the settled object.
+   The remaining sub-decision is deferred to Phase 1b implementation: whether standability uses true
+   character↔rigid-body collision (path a) or the occupancy stamp (path b) — start with (b).
+3. **Budget over-flow behavior** — over the *live* body budget mid-fell, is it particle scatter (loses
+   the coherent look) or a cheap animated fade (keeps the look, no physics)? Separately, over the
+   *persistent* settled population cap, do we refuse new fells, or demote the oldest settled object to a
+   cheaper proxy (contradicts "permanent" — flag to user)? Recommend scatter for live overflow; decide
+   settled-cap behavior when the Phase-1 benchmark sets the real ceiling.
+4. **Persistence scope** — do damaged-but-unbroken cracks survive reload (needs per-voxel damage in the
+   world DB), or only fully-broken state? `DestructionSystem.md` lists damage persistence as
+   cross-cutting/optional.
+5. **Grounding sources** — sign off the real-world references for toughness ratios, tree→log yields,
+   and swings-to-fell before those numbers ship (grounding-auditor).
+
+---
+
+## 12. Risks
+
+- **The persistent-population budget** (compounded by the 2026-07-14 decisions) — *largely answered by
+  the retirement tier (§5.G), but must be proven at scale.* "Standable + permanent + full-fidelity"
+  would, without retirement, make every unharvested fell a forever rigid body + forever un-merged render
+  group + occupancy stamp, a population that only grows. The retirement tier removes the two runaway
+  costs (solver body + un-merged faces) by freezing settled fells to functionally-static; what remains
+  is render (merged faces) + occupancy + memory, plus reactivation-cascade cost. **Mandatory and now
+  designed:** retirement/freeze (§5.G), freeze-time greedy-merge, distance/budget LOD, a cap on
+  concurrently-ACTIVE fells, and the Phase-1 Release re-benchmark. **The gate that must actually pass
+  (Phase 1b/§10):** M frozen fells present → FPS ≥ threshold AND active-body count ≈ 0 at rest. If that
+  fails at forest scale, the fallbacks are far-distance culling of frozen collision and pile-merging
+  adjacent frozen fragments — surface to the user before shipping a slideshow.
+- **Coherent bodies that never settle** would leak the budget and never convert to resources. Aftermath
+  (D) must handle a "stuck awake" timeout.
+- **Refactor risk** — folding furniture shatter onto the shared service must not regress the working
+  furniture path; it gets its own red-before-green regression test.
+- **Integrity discipline** — visual claims ("topples nicely", "looks cracked") are NOT
+  self-verifiable; every such claim needs a measurable check (body count, voxel count, pixel-diff) or
+  the user's eyes, per the standing integrity rule.
+
+---
+
+## 13. Files (anticipated touch-set)
+
+- New: `engine/{include,src}/core/CoherentFragmentService.*`, `BreakAftermath` (likely in
+  `DamageSystem`/`ItemPropManager` seam), tests under `tests/core/`, `tests/integration/`.
+- Changed: `engine/src/core/DamageSystem.cpp` (JSON profiles, collapse routing), `MaterialRegistry` +
+  `resources/materials.json` (`break` block), `engine/src/core/DynamicFurnitureManager.cpp` (refactor
+  onto the service), `resources/rpg/` (axe), a chop `.anim`, `voxel.frag`/`static_voxel.vert` (cracks).
+- Docs: this file; update `docs/DestructionSystem.md` status; roadmap note in `docs/AgentContext.md`.
+
+---
+
+## 14. Known design holes (audited 2026-07-14, solution-auditor)
+
+Self-critique of this doc, with each code-grounded claim independently verified against source. These
+are **must-resolve-before-phase** items — the design is not "reuse the collapse pass and it's nearly
+free." H1/H3 mean the **tree slice needs real new work**; H4/H6/H7/H8 mean the **retirement tier is more
+than a one-shot consolidation**.
+
+| # | Hole | Status | Gates | Fix direction |
+|---|---|---|---|---|
+| **H1** | `collapseUnsupported`'s `MAX_FLOOD=3000` tags any big severed component as supported main-mass → **a large tree/canopy won't fall** (`DamageSystem.cpp:372`). | **CONFIRMED (code)** | Phase 2 | Object-aware tree flood (by material/tag, own budget), not the terrain-tuned collapse cap. |
+| **H2** | Felled trees respawn on chunk stream-in. | **REFUTED (code)** — dirty-flag + load-before-generate already handles it; removal paths mark dirty, both load paths check storage first (`ChunkStreamingManager.cpp:114,645`). | Phase 2 | Downgraded: only confirm no dev/debug force-regenerate route bypasses the guard (static-read caveat: not runtime-tested). |
+| **H3** | Progressive chopping can't use `Cube::addDamage` — accumulation is **cube-only**; trees are sub-voxel (`DamageSystem.cpp:167`, no `addDamage` on Subcube/Microcube). | **CONFIRMED (code)** | Phase 2/4 | Model chop as geometric cross-section removal (sever = connectivity event), not energy accumulation. |
+| **H4** | Reusing furniture shatter's mass/velocity constants verbatim breaks at tree/wall scale — clamp `[0.5,10]`, scale `0.05`, scatter `×2`, `+(0,1,0)` (`DynamicFurnitureManager.cpp:726,755,757`). | **CONFIRMED (code)** | Phase 1 | Parameterize mass/velocity by fragment scale. |
+| **H5** | "Full fidelity" vs. `maxVoxelsPerBody` budget collide on the hero case — a giant tree is most likely to exceed the per-body cap and scatter instead of toppling. | Logical (design tension) | Phase 1/2 | Raise per-body cap for discrete objects, or a multi-body articulated fell; measure single big-tree solver cost. |
+| **H6** | Freeze-time "greedy-merge kinematic faces in place" is a **new** algorithm — the greedy mesher is static-grid-only; kinematic path only culls, never merges (`KinematicVoxelManager.cpp:151`); `mergeVoxelsGreedy` merges physics boxes, not faces. | **CONFIRMED (code)** | Phase 1b | Build a mixed-resolution local-space face-merge (physics-box merge is a partial ingredient). |
+| **H7** | Frozen fragments are removed from the physics broadphase, so reactivation ("nearby blast") has **no spatial index** to query them. | Design omission | Phase 1b | The retirement pool needs its own lightweight spatial index. |
+| **H8** | Standability occupancy-stamp reintroduces the grid-misalignment we froze to avoid — visual is the true angled log, collision is a blocky grid stamp (float/clip), plus set/clear bookkeeping against the *shared terrain* occupancy grid. | Logical (design tension) | Phase 1b | Accept blocky collision for v1, or invest in char↔OBB collision; track stamp-owned cells for clean clear. |
+| **H9** | Incremental-harvest yield rounds to zero — `floor(harvestedVoxels × perVoxel)` loses fractional yield per small chop. | Spec bug | Phase 3 | Accumulate fractional yield across chops. |
+| **H10** | Stand on a frozen log, then chop it → it reactivates, occupancy clears, char↔dynamic-body collision is absent → player clips through the log they stood on. | Logical (edge) | Phase 1b | Needs char↔reactivated-body handling, or delay occupancy-clear until the body actually moves. |
+| **H11** | Should terrain topple *coherently* at all? Overhangs are huge (worst budget fit) and a cliff frozen as a non-grid "object" is odd. | Open design question | Phase 1 | Consider restricting coherent fells to discrete objects (trees/walls/furniture); terrain stays scatter. |
+
+**Net:** the unify-furniture-fracture *architecture* holds, but the tree vertical slice (H1, H3) and the
+retirement tier (H4, H6, H7, H8) each carry real new work the earlier sections understated. This table
+is the honest scope.
