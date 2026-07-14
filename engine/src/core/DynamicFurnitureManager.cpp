@@ -1,5 +1,6 @@
 #include "core/DynamicFurnitureManager.h"
 #include "core/MaterialRegistry.h"
+#include "core/CoherentFragmentService.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/ItemPropManager.h"
 #include "core/PlacedObjectManager.h"
@@ -409,119 +410,23 @@ std::vector<KinematicVoxel> DynamicFurnitureManager::buildVoxelsFromTemplate(
 std::vector<DynamicFurnitureManager::MergedBox> DynamicFurnitureManager::mergeVoxelsGreedy(
     const std::vector<KinematicVoxel>& voxels)
 {
-    if (voxels.empty()) return {};
+    // Delegates to the shared CoherentFragmentService (docs/DestructionSystemV2.md
+    // §5.B) so furniture fracture and world collapse use ONE greedy-merge. Furniture
+    // keeps its light "PIECE_MASS" model: each voxel weighs material.mass * 0.05,
+    // regardless of size. (World fragments use a volume-weighted model instead — H4.)
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
-
-    float minScale = 1.0f;
-    for (const auto& v : voxels) {
-        minScale = std::min(minScale, v.scale.x);
-    }
-
-    const float cellSize = minScale;
-    const float invCell  = 1.0f / cellSize;
-
-    glm::vec3 boundsMin(1e9f), boundsMax(-1e9f);
-    for (const auto& v : voxels) {
-        glm::vec3 vmin = v.localPos - v.scale * 0.5f;
-        glm::vec3 vmax = v.localPos + v.scale * 0.5f;
-        boundsMin = glm::min(boundsMin, vmin);
-        boundsMax = glm::max(boundsMax, vmax);
-    }
-
-    glm::ivec3 gridSize = glm::ivec3(glm::ceil((boundsMax - boundsMin) * invCell)) + glm::ivec3(1);
-
-    constexpr int MAX_GRID_DIM = 64;
-    if (gridSize.x > MAX_GRID_DIM || gridSize.y > MAX_GRID_DIM || gridSize.z > MAX_GRID_DIM) {
-        std::vector<MergedBox> result;
-        result.reserve(voxels.size());
-        for (const auto& v : voxels) {
-            const auto& mat = reg.getPhysics(v.materialName);
-            float volume = v.scale.x * v.scale.y * v.scale.z;
-            result.push_back({v.localPos, v.scale * 0.5f, mat.mass * volume});
-        }
-        return result;
-    }
-
-    const int gx = gridSize.x, gy = gridSize.y, gz = gridSize.z;
-    std::vector<uint8_t> grid(gx * gy * gz, 0);
-    std::vector<float> cellMass(gx * gy * gz, 0.0f);
-
-    auto gridIdx = [&](int x, int y, int z) -> int {
-        return z + y * gz + x * (gy * gz);
-    };
-
-    for (const auto& v : voxels) {
-        glm::vec3 vmin = v.localPos - v.scale * 0.5f;
-        glm::vec3 vmax = v.localPos + v.scale * 0.5f;
-        glm::ivec3 gmin = glm::ivec3(glm::floor((vmin - boundsMin) * invCell));
-        glm::ivec3 gmax = glm::ivec3(glm::floor((vmax - boundsMin) * invCell - glm::vec3(0.001f)));
-        gmin = glm::clamp(gmin, glm::ivec3(0), gridSize - glm::ivec3(1));
-        gmax = glm::clamp(gmax, glm::ivec3(0), gridSize - glm::ivec3(1));
-
-        const auto& mat = reg.getPhysics(v.materialName);
-        constexpr float PIECE_MASS = 0.05f;
-        int cellCount = (gmax.x - gmin.x + 1) * (gmax.y - gmin.y + 1) * (gmax.z - gmin.z + 1);
-        float massPerCell = (cellCount > 0) ? (mat.mass * PIECE_MASS) / cellCount : 0.0f;
-
-        for (int x = gmin.x; x <= gmax.x; ++x)
-            for (int y = gmin.y; y <= gmax.y; ++y)
-                for (int z = gmin.z; z <= gmax.z; ++z) {
-                    int idx = gridIdx(x, y, z);
-                    grid[idx] = 1;
-                    cellMass[idx] += massPerCell;
-                }
-    }
+    constexpr float PIECE_MASS = 0.05f;
+    auto boxes = CoherentFragmentService::mergeVoxelsToBoxes(
+        voxels,
+        [&](const KinematicVoxel& v) {
+            return reg.getPhysics(v.materialName).mass * PIECE_MASS;
+        });
 
     std::vector<MergedBox> result;
-
-    for (int x = 0; x < gx; ++x) {
-        for (int y = 0; y < gy; ++y) {
-            for (int z = 0; z < gz; ++z) {
-                if (grid[gridIdx(x, y, z)] != 1) continue;
-
-                int zEnd = z;
-                while (zEnd + 1 < gz && grid[gridIdx(x, y, zEnd + 1)] == 1) ++zEnd;
-
-                int yEnd = y;
-                bool canExpandY = true;
-                while (canExpandY && yEnd + 1 < gy) {
-                    for (int zz = z; zz <= zEnd; ++zz) {
-                        if (grid[gridIdx(x, yEnd + 1, zz)] != 1) { canExpandY = false; break; }
-                    }
-                    if (canExpandY) ++yEnd;
-                }
-
-                int xEnd = x;
-                bool canExpandX = true;
-                while (canExpandX && xEnd + 1 < gx) {
-                    for (int yy = y; yy <= yEnd; ++yy) {
-                        for (int zz = z; zz <= zEnd; ++zz) {
-                            if (grid[gridIdx(xEnd + 1, yy, zz)] != 1) { canExpandX = false; break; }
-                        }
-                        if (!canExpandX) break;
-                    }
-                    if (canExpandX) ++xEnd;
-                }
-
-                float boxMass = 0.0f;
-                for (int xx = x; xx <= xEnd; ++xx)
-                    for (int yy = y; yy <= yEnd; ++yy)
-                        for (int zz = z; zz <= zEnd; ++zz) {
-                            int idx = gridIdx(xx, yy, zz);
-                            grid[idx] = 2;
-                            boxMass += cellMass[idx];
-                        }
-
-                glm::vec3 boxMin = boundsMin + glm::vec3(x, y, z) * cellSize;
-                glm::vec3 boxMax = boundsMin + glm::vec3(xEnd + 1, yEnd + 1, zEnd + 1) * cellSize;
-                glm::vec3 center = (boxMin + boxMax) * 0.5f;
-                glm::vec3 halfExtents = (boxMax - boxMin) * 0.5f;
-
-                result.push_back({center, halfExtents, boxMass});
-            }
-        }
+    result.reserve(boxes.size());
+    for (const auto& b : boxes) {
+        result.push_back({ b.center, b.halfExtents, b.mass });
     }
-
     return result;
 }
 
