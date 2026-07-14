@@ -22,29 +22,21 @@ float DamageSystem::frand() {
 float DamageSystem::frand(float lo, float hi) { return lo + (hi - lo) * frand(); }
 
 DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialName) const {
-    // Base toughness from the material's bondStrength; per-material brittleness
-    // (s1/s2 — lower = shatters into fine pieces more readily) and absorption.
-    float bond = 0.5f;
     const auto* def = Core::MaterialRegistry::instance().getMaterial(materialName);
-    if (def) bond = std::max(0.05f, def->physics.bondStrength);
 
+    // Data-driven: a material with a "break" block in materials.json supplies its
+    // toughness + brittleness (s1/s2) + absorption directly (see docs/DestructionSystemV2.md
+    // §5.A). Materials WITHOUT a break block fall back to a bondStrength-derived toughness
+    // with balanced brittleness — the same formula the old hardcoded default used.
+    if (def && def->breakProfile.hasProfile) {
+        const auto& b = def->breakProfile;
+        return MatResponse{ b.toughness, b.brittleS1, b.brittleS2, b.absorption };
+    }
+
+    float bond = def ? std::max(0.05f, def->physics.bondStrength) : 0.5f;
     MatResponse r;
-    // Default (balanced) — toughness derived from bondStrength for unlisted materials.
     r.toughness = bond * 120.0f;
     r.s1 = 2.5f; r.s2 = 6.0f; r.absorption = 0.6f;
-
-    // Tuned exemplars — distinct toughness + brittleness so materials FEEL different.
-    if (materialName == "Stone") {        // tough, brittle → shatters fine, shields well
-        r.toughness = 110.0f; r.s1 = 1.8f; r.s2 = 4.0f; r.absorption = 0.9f;
-    } else if (materialName == "Glass") { // weak, extremely brittle → powders instantly
-        r.toughness = 35.0f;  r.s1 = 1.3f; r.s2 = 2.2f; r.absorption = 0.3f;
-    } else if (materialName == "Wood") {  // medium, ductile → stays chunky, light shielding
-        r.toughness = 70.0f;  r.s1 = 3.5f; r.s2 = 9.0f; r.absorption = 0.45f;
-    } else if (materialName == "Metal") { // toughest, ductile → resists, big chunks, strong shield
-        r.toughness = 200.0f; r.s1 = 4.5f; r.s2 = 11.0f; r.absorption = 1.2f;
-    } else if (materialName == "Dirt") {  // weak, crumbly → subcubes easily, low shield
-        r.toughness = 45.0f;  r.s1 = 1.6f; r.s2 = 4.0f; r.absorption = 0.4f;
-    }
     return r;
 }
 

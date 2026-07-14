@@ -46,15 +46,19 @@ public:
                              float supportY = NO_SUPPORT,
                              bool  collapse = true);
 
-private:
-    // Per-material destruction response (the tunable knobs).
+    // Per-material destruction response (the tunable knobs). Public + queryable so
+    // Phase 0 can unit-test that materials.json "break" profiles drive it (data-driven).
     struct MatResponse {
         float toughness;    // energy needed to break one voxel
         float s1;           // overkill ratio: >= s1 → shatter to subcubes
         float s2;           // overkill ratio: >= s2 → shatter to microcubes
         float absorption;   // shielding: energy lost per solid voxel in the way
     };
+    // Resolve a material's break response: reads its materials.json "break" block
+    // when present, else a bondStrength-derived fallback. docs/DestructionSystemV2.md §5.A.
     MatResponse responseFor(const std::string& materialName) const;
+
+private:
 
     // Count solid voxels strictly between two world points (shielding ray-march).
     int solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) const;

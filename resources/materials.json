@@ -57,6 +57,12 @@
         "metallic": 0.0,
         "roughness": 0.8
       },
+      "break": {
+        "toughness": 45.0,
+        "brittleS1": 1.6,
+        "brittleS2": 4.0,
+        "absorption": 0.4
+      },
       "textures": {
         "side_n": "dirt_side_n.png",
         "side_s": "dirt_side_s.png",
@@ -118,6 +124,12 @@
         ],
         "metallic": 0.0,
         "roughness": 0.8
+      },
+      "break": {
+        "toughness": 110.0,
+        "brittleS1": 1.8,
+        "brittleS2": 4.0,
+        "absorption": 0.9
       },
       "textures": {
         "side_n": "stone_side_n.png",
@@ -276,6 +288,12 @@
         "metallic": 0.0,
         "roughness": 0.7
       },
+      "break": {
+        "toughness": 70.0,
+        "brittleS1": 3.5,
+        "brittleS2": 9.0,
+        "absorption": 0.45
+      },
       "textures": {
         "side_n": "wood_side_n.png",
         "side_s": "wood_side_s.png",
@@ -400,6 +418,12 @@
         "metallic": 0.0,
         "roughness": 0.05
       },
+      "break": {
+        "toughness": 35.0,
+        "brittleS1": 1.3,
+        "brittleS2": 2.2,
+        "absorption": 0.3
+      },
       "textures": {
         "side_n": "glass_side_n.png",
         "side_s": "glass_side_s.png",
@@ -430,6 +454,12 @@
         ],
         "metallic": 0.8,
         "roughness": 0.4
+      },
+      "break": {
+        "toughness": 200.0,
+        "brittleS1": 4.5,
+        "brittleS2": 11.0,
+        "absorption": 1.2
       },
       "textures": {
         "side_n": "metal_side_n.png",
