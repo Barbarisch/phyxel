@@ -20,14 +20,28 @@
 
 ---
 
-## 0. Status & next-session pickup (as of 2026-07-12)
+## 0. Status & next-session pickup (as of 2026-07-14)
 
 **Shipped & on `main` (each deterministically verified, `world` L4 live-verified):** Phases **0, 1, 2,
-3, 4, 5, 8** in full + Phase **6**'s first slice. The tracker works end-to-end: scaffold a genre-seeded
-checklist → auto-onboard every session (SessionStart digest) → agent-update via the `production` MCP tool
-→ static-validate → keep-honest-over-time (sweep/stale) → packaging soft-gate → the `gamedev-next` guided
-loop → and confirm the world functionally at runtime. Dogfooded on **Emberwake** (survival), which logged
-6 engine feature-requests to `docs/feedback/inbox.md`.
+3, 4, 5, 8** in full + Phase **6** (runtime validators) + Phase **7**'s first slices. The tracker works
+end-to-end: scaffold a genre-seeded checklist → auto-onboard every session (SessionStart digest) →
+agent-update via the `production` MCP tool → static-validate → keep-honest-over-time (sweep/stale) →
+packaging soft-gate → the `gamedev-next` guided loop → and confirm milestones functionally at runtime.
+Dogfooded on **Emberwake** (survival), which logged 6 engine feature-requests to `docs/feedback/inbox.md`.
+
+> **BIG UPDATE 2026-07-13/14 — the runtime-validation + real-play-fidelity spine is now complete.**
+> Since 2026-07-12 the whole "drive & observe the running game" layer shipped, each engine feature
+> live-verified (details in §6.6 / §9 and the memory note):
+> - **Synthetic input injection** (`inject_input`) — drive WASD/jump/attack; overlay in `InputManager`.
+> - **Trigger-fire + screen-state** (`fire_trigger`, `get_screen_state`) — test win/lose wiring.
+> - **Runtime validators** (`production_runtime.py`): `world`/`player`/`perf_target` **L4**;
+>   `level_playability`/`win_condition`/`lose_condition`/`core_loop`/`qa_pass` **L3**. `qa_pass` runs the
+>   **adversarial playtest + trace-replay harness** (`production_playtest.py`, §9).
+> - **Standalone test-API host** (`GameApiService` + `GameShell`, gated by `--test`) — the keystone
+>   fidelity fix (§6.6): validators now drive the **real packaged game**, which owns a real
+>   `GameScreen`, so `perf_target` hit **L4 on a live standalone** and `win_condition` can reach L4 on a
+>   real victory screen (editor stays L3). **Remaining is test-data** (a populated standalone world) +
+>   the broader Phase-7 items (fresh-agent exploration loop, `difficulty_balance`, resource-loop-closure).
 
 **One standing acceptance step:** the `production` MCP tool + its runtime pass load only when the MCP
 server (re)starts — a fresh session picks them up automatically. To use it: `production(op="status")` /
@@ -883,17 +897,23 @@ scripts/mcp/
   production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
   production_validators.py      <- static L1/L2 milestone validators + input hashes (Phase 3/4) ✅
   production_runtime.py         <- runtime L3/L4 validators (drive the engine): world/player/perf_target L4,
-                                   level_playability/win/lose/core_loop/qa_pass L3 (Phase 6/7) ✅
+                                   level_playability/win/lose/core_loop/qa_pass L3; + standalone targeting (Phase 6/7) ✅
   production_playtest.py        <- adversarial probes + trace-replay harness (Phase 7, §9) ✅
-  phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass + `inject_input` tool (Phase 2/6) ✅
+  phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass + `inject_input`/`fire_trigger`/
+                                   `get_screen_state` tools (Phase 2/6) ✅
 engine/{include,src}/input/InputManager.*  <- synthetic-input overlay: injectKey/injectMouseButton/
                                              releaseAllInjected (Phase 6, input-injection) ✅
-engine/src/core/EngineAPIServer.cpp        <- POST /api/input/inject route (Phase 6) ✅
-editor/src/Application.cpp                  <- `inject_input` command (registerCameraCommands) (Phase 6) ✅
-engine/  (Phases 3–7, engine-side, remaining)
-  MilestoneValidator registry + completability/TraversalProbe-at-game-scale
-  + /api/production/validate route (only the validators that must introspect the running game)
-  + regression sweep
+engine/{include,src}/core/GameApiService.*  <- standalone (`--test`) API host; ui_click/navgrid/inject/
+                                              screen-state against a game's own subsystems (§6.6) ✅
+engine/include/core/GameShell.h + .cpp     <- hosts GameApiService (startTestApi/pumpTestApi/stopTestApi + api* hooks) ✅
+engine/include/core/EngineConfig.h         <- `testApiEnabled` (default false; `--test` flips it) ✅
+engine/src/core/EngineRuntime.cpp          <- endFrame() updateFrameTiming (fps for standalones) ✅
+editor/src/Application.cpp                  <- `inject_input`/`fire_trigger`/`get_screen_state` commands ✅
+engine/src/core/EngineAPIServer.cpp        <- /api/input/inject, /api/triggers/fire, /api/screen/state routes ✅
+tools/create_project.py                    <- generated main.cpp `--test` parse + game api* hooks + lifecycle ✅
+engine/  (Phase 7, engine-side, remaining)
+  completability/TraversalProbe-at-game-scale (NavGrid path already serves reachability)
+  + resource-loop-closure; fresh-agent adversarial-playtest orchestration (process, not code)
 tools/package_game.py           <- completeness soft-gate + stale check (Phase 5)
 ```
 

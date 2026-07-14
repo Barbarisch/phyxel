@@ -449,6 +449,15 @@ python tools/package_game.py MyGame --project-dir path/to/MyGame    # package
 - Output: `Documents/PhyxelProjects/<GameName>/` (self-contained)
 - See `docs/GameCreationGuide.md` for full workflow
 
+**Standalone test API (`--test`):** a packaged game can optionally host the HTTP API so an automated
+harness (the game-production runtime validators / adversarial playtest) drives + observes the **real
+shipped build** — not the editor proxy. Run `MyGame.exe --test [port]` (default off; localhost bind;
+dev/test builds only — never ship it enabled). Implemented by `Core::GameApiService` (hosted by
+`GameShell`, gated on `EngineConfig::testApiEnabled`), which serves the harness subset (`/api/state`,
+`inject_input`, `get_screen_state`, `fire_trigger`, `navgrid_*`, `ui_click`, `engine_timing`, …) against
+the game's own subsystems. Unlike the editor host, the standalone owns a real `GameScreen`/`ScreenState`,
+so win/lose validation can reach genuine L4. Design: `docs/game-production/README.md` §6.6.
+
 ## Project Structure
 
 ```
@@ -469,7 +478,7 @@ docs/            # Documentation
 
 ## Key Engine Subsystems
 
-**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over the custom CPU `VoxelDynamicsWorld` — Bullet removed), RenderPipeline/RenderCoordinator (Vulkan instanced)
+**Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090; hosted by the editor, and — via `GameApiService`/`GameShell` behind `--test` — optionally by a standalone game), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over the custom CPU `VoxelDynamicsWorld` — Bullet removed), RenderPipeline/RenderCoordinator (Vulkan instanced)
 
 **Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), CraftingSystem, DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
 
