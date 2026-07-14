@@ -97,21 +97,32 @@ TEST_F(TreeCollapseIntegrationTest, EmbeddedTrunk_CutTrunk_TopDetaches) {
     EXPECT_TRUE(solid(9, 10, 10)) << "flanking hill fell";
 }
 
-TEST_F(TreeCollapseIntegrationTest, StandingTree_NearbyTerrainBlast_TreeStays) {
+TEST_F(TreeCollapseIntegrationTest, StandingTree_AdjacentTerrainBlast_TreeStays) {
     if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
 
-    // A rooted standing tree; blast a terrain cell at the far edge of the floor. The
-    // tree must NOT over-detach (a nearby terrain hit shouldn't fell a rooted tree).
-    putBox(4, 3, 4, 16, 3, 16, "Stone");    // wide floor
+    // A rooted tree with a terrain pillar FLUSH against the trunk. Blasting the pillar
+    // high up (y=7, well above yAnchor=3, so there is no yAnchor short-circuit) makes the
+    // collapse flood actually REACH the tree from the pillar rim. The tree must NOT
+    // over-detach — it stays up via the rooted-trunk anchor (a Log with terrain below).
+    // (If the rooted-trunk check were removed, the tree's pure-tree flood would find no
+    // anchor and the whole tree would wrongly fall — so this genuinely guards it.)
+    putBox(6, 3, 6, 14, 3, 14, "Stone");    // floor (supportY=3 anchor)
     putBox(10, 4, 10, 10, 12, 10, "Log");   // trunk
-    putBox(7, 12, 7, 13, 16, 13, "Leaf");   // canopy
+    putBox(7, 12, 7, 13, 14, 13, "Leaf");   // canopy
+    putBox(11, 4, 10, 11, 10, 10, "Stone"); // terrain pillar flush against the trunk (x11 vs x10)
 
     DamageSystem dmg(chunkManager.get(), nullptr);
-    dmg.applyDamage(glm::vec3(5.5f, 3.5f, 5.5f), 1.5f, 500.0f, "force",
+    // radius 1.0: removes the pillar cell at (11,7,10) (which borders the trunk, so the
+    // trunk is seeded) but the trunk at (10,7,10) is at distance 1.0 → falloff 0 → NOT
+    // broken. So the flood reaches an INTACT tree and must decide to keep it.
+    dmg.applyDamage(glm::vec3(11.5f, 7.5f, 10.5f), 1.0f, 500.0f, "force",
                     glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ false);
 
-    EXPECT_TRUE(solid(10, 8, 10)) << "trunk fell from a distant terrain blast (over-detach)";
-    EXPECT_GT(countSolid(7, 12, 7, 13, 16, 13), 200) << "canopy fell from a distant blast (over-detach)";
+    EXPECT_TRUE(solid(10, 7, 10)) << "trunk at blast height missing (should be grazed, not broken)";
+    EXPECT_TRUE(solid(10, 9, 10)) << "trunk over-detached (flood reached the tree and dropped it)";
+    // Canopy box is 7*3*7 = 147 cells; a fully-standing tree keeps ~all of them, a
+    // wrongly-detached one drops to near 0 — so >140 is a clean over-detach guard.
+    EXPECT_GT(countSolid(7, 12, 7, 13, 14, 13), 140) << "canopy over-detached";
 }
 
 } // namespace Testing
