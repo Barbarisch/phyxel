@@ -4,11 +4,28 @@
 #include "graphics/Camera.h"
 #include "input/InputManager.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "utils/Logger.h"
 
 #include <nlohmann/json.hpp>
 
 namespace Phyxel {
 namespace Core {
+
+void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string& name) {
+    gameApi_.runtime          = &engine;
+    gameApi_.renderCoordinator = apiRenderCoordinator();
+    gameApi_.npcManager       = apiNPCManager();
+    gameApi_.triggers         = apiTriggerSystem();
+    gameApi_.screen           = apiScreen();
+    gameApi_.entityRegistry   = apiEntityRegistry();
+    gameApi_.playerProvider   = [this]() { return apiPlayer(); };
+    gameApi_.projectName      = name;
+    if (gameApi_.start(port))
+        LOG_WARN("GameShell", "*** TEST API ENABLED on 127.0.0.1:{} — dev/test build, do NOT ship ***", port);
+}
+
+void GameShell::pumpTestApi() { gameApi_.pump(); }
+void GameShell::stopTestApi() { gameApi_.stop(); }
 
 void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
                                      Scene::AnimatedVoxelCharacter* character) {

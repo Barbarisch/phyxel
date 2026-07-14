@@ -2,14 +2,20 @@
 
 #include "core/GameCallbacks.h"
 #include "core/GameplayCameraController.h"
+#include "core/GameApiService.h"
 
 #include <string>
 
 namespace Phyxel {
+namespace Graphics { class RenderCoordinator; }
 namespace Scene { class AnimatedVoxelCharacter; }
+namespace UI { class GameScreen; }
 namespace Core {
 
 class EngineRuntime;
+class NPCManager;
+class TriggerSystem;
+class EntityRegistry;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
 // instead of GameCallbacks, so shell behavior lives in the engine and fixes
@@ -42,10 +48,30 @@ protected:
     // orthoScale, pitch clamps) before it takes effect.
     virtual void onCameraRigResolved(Graphics::CameraRig& rig) {}
 
+    // --- Opt-in standalone test API (GameApiService) -------------------------
+    // Lets an automated harness drive/observe the REAL packaged game (not the
+    // editor proxy). DEV/TEST ONLY — the generated main.cpp calls startTestApi
+    // only when `--test`/`config.testApiEnabled` is set. A game exposes its own
+    // subsystems to the API by overriding the api* hooks below (default null →
+    // that endpoint reports "not available"). Call the three lifecycle methods
+    // from onInitialize / onUpdate / onShutdown respectively.
+    void startTestApi(EngineRuntime& engine, int port, const std::string& name);
+    void pumpTestApi();     // drain queued commands — call once per frame in onUpdate
+    void stopTestApi();
+    bool testApiRunning() const { return gameApi_.isRunning(); }
+
+    virtual Graphics::RenderCoordinator* apiRenderCoordinator() { return nullptr; }
+    virtual NPCManager*                  apiNPCManager()        { return nullptr; }
+    virtual TriggerSystem*               apiTriggerSystem()     { return nullptr; }
+    virtual UI::GameScreen*              apiScreen()            { return nullptr; }
+    virtual EntityRegistry*              apiEntityRegistry()    { return nullptr; }
+    virtual Scene::AnimatedVoxelCharacter* apiPlayer()          { return nullptr; }
+
 private:
     GameplayCameraController cameraController_;
     std::string cameraResolvedScene_;
     bool cameraResolved_ = false;
+    GameApiService gameApi_;
 };
 
 } // namespace Core

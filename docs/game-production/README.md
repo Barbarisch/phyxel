@@ -503,10 +503,25 @@ and the divergences are exactly why several validators **honestly cap at L3, nev
 **The clean fix (raises the L3 caps to genuine L4):** let the standalone shell **optionally host the API
 server** behind a `--test`/`--api` flag, then run the same injection + screen-state + trigger-fire validators
 against the *actual packaged game*. That also lets the Phase 7 adversarial playtest run against real play
-conditions instead of the editor proxy. Logged as an engine feature-request in `docs/feedback/inbox.md`
-(2026-07-13). Until it lands, **read every runtime "done" as "verified in the editor harness"** — and gate
-the shell-flow milestones (`intro`, `victory_screen`, `game_over_screen`, menu *navigation*, and true
-`win_condition` L4) on a packaged-shell playtest, human or (once the flag exists) API-driven.
+conditions instead of the editor proxy.
+
+> **BUILT 2026-07-13 (foundation + fidelity win verified).** `engine/{include,src}/core/GameApiService.*` —
+> a self-contained, reusable API host that wires the ~10 harness endpoints (`/api/state`,
+> `engine_timing`, `get_render_stats`, `inject_input`, `get_screen_state`, `list_triggers`/`fire_trigger`,
+> `get_player_state`, `navgrid_*`, `project_info`) against **non-owning pointers** to a game's own
+> subsystems. `GameShell` hosts it (`startTestApi`/`pumpTestApi`/`stopTestApi` + `api*` virtual hooks the
+> game overrides); `EngineConfig.testApiEnabled` (default false); the generated `main.cpp` flips it on only
+> for `--test [port]` and binds localhost. Zero editor changes. **Verified end-to-end on a freshly
+> generated+compiled standalone (`ApiTestGame --test 8091`):** the API hosts on the real packaged game and
+> **`get_screen_state` reports the REAL `GameScreen` state (`"intro"`)** — the exact fidelity the editor
+> can't give (where `show_victory` no-ops and state is synthesized); real entities+UUIDs, `inject_input`,
+> and `player_state` all work. **Follow-ups to fully close the in-Playing playthrough loop:** a `ui_click`
+> endpoint (menu navigation → advance intro→Playing; menus don't consume injected `InputManager` keys),
+> build the NavGrid in the standalone (navgrid endpoints report "not available" until then), and populate
+> `PerformanceMonitor` in `EngineRuntime` (fps reads 0 on the intro screen). Until those land, **read every
+> runtime "done" as "verified in the editor harness"**, and gate the shell-flow milestones (`intro`,
+> `victory_screen`, `game_over_screen`, menu *navigation*, true `win_condition` L4) on a packaged-shell
+> playtest — now API-drivable via `--test`, pending the three follow-ups for a fully automated pass.
 
 ---
 

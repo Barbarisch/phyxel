@@ -208,6 +208,17 @@ def create_project(
         f"    void onHandleInput(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onShutdown() override;",
         "",
+        "    // Expose this game's subsystems to the opt-in standalone test API",
+        "    // (GameShell::startTestApi, dev/test only). Null hooks stay 'not available'.",
+        "    Phyxel::Graphics::RenderCoordinator* apiRenderCoordinator() override { return renderCoordinator_.get(); }",
+        "    Phyxel::UI::GameScreen* apiScreen() override { return &screen_; }",
+        "    Phyxel::Core::TriggerSystem* apiTriggerSystem() override { return &triggers_; }",
+        "    Phyxel::Scene::AnimatedVoxelCharacter* apiPlayer() override { return playerCharacter_; }",
+        *([
+            "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
+            "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
+        ] if (has_npcs or game_definition) else []),
+        "",
         "private:",
         f"    bool loadGameDefinition(Phyxel::Core::EngineRuntime& engine);",
         f"    Phyxel::Scene::Entity* spawnEntity(const std::string& type, const glm::vec3& pos, const std::string& animFile);",
@@ -231,6 +242,9 @@ def create_project(
         #include "core/EngineConfig.h"
         #include "utils/Logger.h"
 
+        #include <cstdlib>
+        #include <string>
+
         int main(int argc, char* argv[]) {{
             // Write a log next to the exe so a packaged game that exits early is
             // diagnosable (boot errors land in {name_lower}.log instead of nowhere).
@@ -239,6 +253,18 @@ def create_project(
 
             Phyxel::Core::EngineConfig config;
             Phyxel::Core::EngineConfig::loadFromFile("engine.json", config);
+
+            // DEV/TEST ONLY: `--test` (or `--api`) [port] enables the in-game HTTP
+            // API so an automated harness (game-production validators / adversarial
+            // playtest) can drive + observe THIS real build. Off by default — never
+            // pass it in a build a player runs. Binds to localhost.
+            for (int i = 1; i < argc; ++i) {{
+                std::string a = argv[i];
+                if (a == "--test" || a == "--api") {{
+                    config.testApiEnabled = true;
+                    if (i + 1 < argc && argv[i + 1][0] != '-') config.apiPort = std::atoi(argv[++i]);
+                }}
+            }}
 
             Phyxel::Core::EngineRuntime engine;
             if (!engine.initialize(config)) {{
@@ -987,6 +1013,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
             lastDt_ = dt;  // remembered for menu-scene animations rendered in onRender
 
+            // Opt-in standalone test API (dev/test only, `--test`). Start it lazily on
+            // the first frame — by now onInitialize has wired every subsystem the API
+            // exposes — then drain queued commands each frame (cheap no-op when off).
+            if (engine.getConfig().testApiEnabled && !testApiRunning())
+                startTestApi(engine, engine.getConfig().apiPort, "{class_name}");
+            pumpTestApi();
+
             // Pump scene transitions every frame, in EVERY screen state — menu-scene
             // buttons and triggers set the transition; this advances it.
             if (auto* sceneMgr = engine.getSceneManager()) {{
@@ -1319,6 +1352,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            stopTestApi();  // stop the test API before tearing down subsystems it references
             settings_.saveToFile("settings.json");
             renderCoordinator_.reset();
             entities_.clear();

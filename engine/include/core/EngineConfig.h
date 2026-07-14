@@ -42,6 +42,11 @@ struct EngineConfig {
     // -- Network ----------------------------------------------------------
     int         apiPort       = 8090;
     bool        enableHTTPAPI = true;
+    // Opt-in HTTP test API for STANDALONE (packaged) games — lets an automated
+    // harness drive/observe the real shipped build (GameApiService / GameShell).
+    // DEV/TEST ONLY: default false so a shipped player never exposes it; the
+    // generated `main.cpp` flips it on only for `--test`/`--api`. Binds localhost.
+    bool        testApiEnabled = false;
 
     // -- Optional subsystems ----------------------------------------------
     bool        enablePython  = true;
