@@ -3401,6 +3401,10 @@ void Application::update(float deltaTime) {
         kinematicAnimator->update(deltaTime);
     }
 
+    // Tick coherent world-collapse fragments (sync body->render, reap removed). Cheap
+    // no-op until apply_damage's coherent path has spawned any (docs/DestructionSystemV2.md P1.2b).
+    coherentFragmentManager.update(deltaTime);
+
     // Update dynamic furniture (sync physics transforms, re-staticize on rest)
     if (dynamicFurnitureManager) {
         dynamicFurnitureManager->update(deltaTime);
@@ -11906,10 +11910,19 @@ void Application::registerEffectsCommands() {
         }
         float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
         bool collapse = cmd.params.value("collapse", true);
+        bool coherent = cmd.params.value("coherent", true);
         Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
+        // Coherent collapse: a severed component topples as ONE rigid slab via the
+        // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
+        // its deps lazily — the voxel world is live by the time damage is applied.
+        if (coherent && physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+            coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
+            dmg.setFragmentManager(&coherentFragmentManager);
+        }
+        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent);
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
-             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned}};
+             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
+             {"coherent_bodies", coherentFragmentManager.count()}};
     });
 
     reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {

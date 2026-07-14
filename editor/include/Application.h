@@ -77,6 +77,7 @@
 #include "core/KinematicAnimator.h"
 #include "core/DoorManager.h"
 #include "core/DynamicFurnitureManager.h"
+#include "core/CoherentFragmentManager.h"
 #include "core/ItemPropManager.h"
 #include "core/ItemEffectSystem.h"
 #include "core/LocationRegistry.h"
@@ -328,6 +329,9 @@ private:
     std::unique_ptr<Core::KinematicAnimator>     kinematicAnimator;
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
+    // Coherent world-collapse fragments (docs/DestructionSystemV2.md §5.G) — owns + ticks
+    // physicalize'd slabs from apply_damage's coherent path. Deps set lazily at first use.
+    Core::CoherentFragmentManager coherentFragmentManager;
 
     // Items: world props + held-in-hand presentation + declarative effects
     std::unique_ptr<Core::ItemPropManager> itemPropManager;

@@ -2,10 +2,13 @@
 #include "core/ChunkManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/GpuParticlePhysics.h"
+#include "core/CoherentFragmentManager.h"
+#include "core/KinematicVoxelManager.h"
 #include "core/Cube.h"
 #include "core/Chunk.h"
 #include "core/Subcube.h"
 #include "utils/Logger.h"
+#include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -82,7 +85,7 @@ void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float
 
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
-                                       float supportY, bool collapse) {
+                                       float supportY, bool collapse, bool coherentFragments) {
     DamageResult res;
     if (!m_cm || radius <= 0.0f || energy <= 0.0f) return res;
 
@@ -258,7 +261,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
 
     // P3/P4: collapse any voxel groups the blast severed from the main mass.
     if (collapse && !removed.empty()) {
-        collapseUnsupported(removed, supportY, res);
+        collapseUnsupported(removed, supportY, res, coherentFragments);
     }
     auto t2 = Clock::now();
 
@@ -324,8 +327,97 @@ int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
     return 1;
 }
 
+// Gather one cell's static geometry (a full cube OR its subcubes) as world-centered
+// KinematicVoxels for a coherent slab. Returns false if the cell holds content we can't
+// gather coherently yet (micro-only cell) — the caller then scatters the whole component.
+// NOTE (P1.2b): microcubes are NOT gathered into the slab; a subdivided cell's microcubes
+// are omitted from the rigid body (the cell is still fully cleared on removal). Walls are
+// cube/subcube so this is EXACT for them; tree micro-geometry is Phase 2.
+static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
+                             std::vector<Core::KinematicVoxel>& out) {
+    if (Cube* c = cm->getCubeAt(wp)) {
+        Core::KinematicVoxel v;
+        v.localPos     = glm::vec3(wp) + glm::vec3(0.5f);
+        v.scale        = glm::vec3(1.0f);
+        v.materialName = c->getMaterialName();
+        out.push_back(std::move(v));
+        return true;
+    }
+    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+    if (!ch) return false;
+    auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
+    if (subs.empty()) return false;   // micro-only / empty -> not coherently gatherable yet
+    for (Subcube* s : subs) {
+        if (!s) continue;
+        float sc = s->getScale();
+        Core::KinematicVoxel v;
+        // Subcube at grid slot g (0..2) spans [wp+g*sc, wp+(g+1)*sc]; center = wp+(g+0.5)*sc.
+        v.localPos     = glm::vec3(wp) + (glm::vec3(s->getLocalPosition()) + 0.5f) * sc;
+        v.scale        = glm::vec3(sc);
+        v.materialName = s->getMaterialName();
+        out.push_back(std::move(v));
+    }
+    return true;
+}
+
+// Remove one cell's content (cube or subdivision) WITHOUT spawning debris, keeping both
+// occupancy grids + the chunk mesh in sync (mirrors dropDetachedCell's removal half).
+static void removeCellContent(ChunkManager* cm, const glm::ivec3& wp) {
+    if (cm->getCubeAt(wp)) {
+        cm->removeCubeFast(wp);
+        cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+        return;
+    }
+    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+    if (!ch) return;
+    if (ch->clearSubdivisionAt(ChunkManager::worldToLocalCoord(wp))) {
+        cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+        cm->markChunkDirty(ch);
+    }
+}
+
+bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& component,
+                                             DamageResult& res) {
+    if (!m_fragMgr || !m_fragMgr->ready() ||
+        static_cast<int>(component.size()) > COHERENT_MAX_VOXELS) {
+        return false;
+    }
+
+    // Gather the whole component's geometry first; if any cell isn't coherently
+    // gatherable, bail (scatter) BEFORE removing anything.
+    std::vector<Core::KinematicVoxel> frag;
+    frag.reserve(component.size());
+    for (const glm::ivec3& v : component) {
+        if (!gatherCellVoxels(m_cm, v, frag)) return false;
+    }
+    if (frag.empty()) return false;
+
+    // Committed: remove the cells (no debris), then topple as one rigid slab.
+    for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
+
+    auto worldMass = [](const Core::KinematicVoxel& vx) {
+        float vol = vx.scale.x * vx.scale.y * vx.scale.z;
+        const auto* def = Core::MaterialRegistry::instance().getMaterial(vx.materialName);
+        float density = def ? std::max(0.05f, def->physics.mass) : 1.0f;
+        return std::max(density * vol, 0.001f);   // mass floor (H4 / auditor 1e-6 note)
+    };
+
+    std::string id = "collapse_" + std::to_string(m_fragSeq++);
+    uint32_t bid = m_fragMgr->spawn(id, std::move(frag), glm::mat4(1.0f),
+                                    glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f), worldMass);
+    if (bid != 0) {
+        res.debrisSpawned += 1;   // one coherent body
+        LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid slab (body {})",
+                 component.size(), bid);
+    } else {
+        LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells removed)",
+                 component.size());
+    }
+    return true;   // cells consumed either way — don't double-process as scatter
+}
+
 void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
-                                       DamageResult& res) {
+                                       DamageResult& res, bool coherent) {
     const int yAnchor = static_cast<int>(std::floor(supportY));
     std::unordered_set<int64_t> visited;   // every solid voxel enqueued by any flood
     std::unordered_set<int64_t> anchored;  // voxels proven connected to the supported main mass
@@ -385,11 +477,15 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
             continue;
         }
 
-        // Detached: drop the whole component as falling debris. Each cell may
-        // be a full cube or a sub-voxel subdivision (dropDetachedCell handles both).
-        for (const glm::ivec3& v : component) {
-            if (totalDetached >= MAX_COLLAPSE) break;
-            totalDetached += dropDetachedCell(v, res);
+        // Detached: topple as ONE coherent rigid slab if enabled + gatherable + within
+        // budget (P1.2b), else scatter each cell as falling debris (the shipped path).
+        if (coherent && collapseComponentCoherent(component, res)) {
+            totalDetached += static_cast<int>(component.size());
+        } else {
+            for (const glm::ivec3& v : component) {
+                if (totalDetached >= MAX_COLLAPSE) break;
+                totalDetached += dropDetachedCell(v, res);
+            }
         }
     }
     res.voxelsBroken += totalDetached;

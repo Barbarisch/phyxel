@@ -8,6 +8,7 @@ namespace Phyxel {
 
 class ChunkManager;
 class GpuParticlePhysics;
+namespace Core { class CoherentFragmentManager; }
 
 // Result of one area-damage application.
 struct DamageResult {
@@ -44,7 +45,13 @@ public:
                              const std::string& damageType = "force",
                              const glm::vec3& direction = glm::vec3(0.0f),
                              float supportY = NO_SUPPORT,
-                             bool  collapse = true);
+                             bool  collapse = true,
+                             bool  coherentFragments = false);
+
+    // Sink for coherent-collapse: when set (and coherentFragments=true), a severed
+    // component small enough is toppled as ONE rigid slab via this manager instead of
+    // scattered into particles (docs/DestructionSystemV2.md §5.B, P1.2b). Non-owning.
+    void setFragmentManager(Core::CoherentFragmentManager* m) { m_fragMgr = m; }
 
     // Per-material destruction response (the tunable knobs). Public + queryable so
     // Phase 0 can unit-test that materials.json "break" profiles drive it (data-driven).
@@ -64,8 +71,16 @@ private:
     int solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) const;
 
     // P3: detach connected voxel groups bordering the removed set that can't reach
-    // an anchor (solid voxel at Y <= supportY). Detached voxels fall as debris.
-    void collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY, DamageResult& res);
+    // an anchor (solid voxel at Y <= supportY). Detached voxels fall as debris — or,
+    // when `coherent` and a fragment manager is set, a small severed component topples
+    // as ONE coherent rigid slab (P1.2b) instead of scattering.
+    void collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
+                             DamageResult& res, bool coherent);
+
+    // Try to topple one severed component as a coherent rigid slab via m_fragMgr.
+    // Returns true if it was physicalized (cells removed + body spawned); false if
+    // the caller should fall back to per-cell scatter. `count` is added to res on success.
+    bool collapseComponentCoherent(const std::vector<glm::ivec3>& component, DamageResult& res);
 
     // Remove ALL content at one world cell — a full cube OR a sub-voxel
     // subdivision (subcubes/microcubes, e.g. a tree) — and spawn falling
@@ -82,7 +97,9 @@ private:
 
     ChunkManager*       m_cm  = nullptr;
     GpuParticlePhysics* m_gpu = nullptr;
+    Core::CoherentFragmentManager* m_fragMgr = nullptr;  // coherent-collapse sink (optional)
     uint32_t            m_rng = 0x51ED2700u;
+    uint32_t            m_fragSeq = 0;   // unique-id counter for coherent collapse bodies
 
     // Tunables
     static constexpr float FALLOFF_P     = 1.5f;   // distance falloff sharpness
@@ -92,6 +109,9 @@ private:
     static constexpr int   MICROCUBE_PIECES = 24;
     static constexpr int   MAX_FLOOD        = 3000; // cap per connected-component flood
     static constexpr int   MAX_COLLAPSE     = 6000; // cap total detached voxels per blast
+    // Coherent collapse: a severed component up to this many cells topples as one rigid
+    // slab; bigger falls back to scatter. Placeholder until the P1.3 Release benchmark.
+    static constexpr int   COHERENT_MAX_VOXELS = 2000;
 };
 
 } // namespace Phyxel
