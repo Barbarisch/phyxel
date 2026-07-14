@@ -4,10 +4,14 @@ static validators (production_validators) can only inspect files. Sync urllib ca
 base URL; results are applied ONLY when the engine has the same project loaded that the tracker
 belongs to (else the runtime state describes a different game).
 
-Runtime validators so far: `world` L4 (world loads + renders + player present) and `player` L4
-(player is CONTROLLABLE — proven by injecting forward movement via /api/input/inject and confirming
-the player moved). More (menus render, a win trigger actually fires, a playtest reaches victory) slot
-into this same registry as the engine API grows (trigger-fire + screen-state, TraversalProbe-at-scale).
+Runtime validators: `world`/`player`/`perf_target` L4; `level_playability`/`win_condition`/
+`lose_condition`/`core_loop`/`qa_pass` L3. `qa_pass` runs the adversarial playtest harness
+(production_playtest) — capped at L3 (augments, not replaces, a human playtest). Side-effecting ones
+(player/win/lose/core_loop/qa_pass — they drive input or fire triggers) are excluded from run-all
+sweeps and only run when explicitly targeted.
+
+WINDOWS/urllib PERF: resolving "localhost" via urllib costs ~2s/call (IPv6 fallback); _norm() forces
+127.0.0.1 so multi-call validators (esp. the playtest) don't balloon — see _norm.
 """
 from __future__ import annotations
 
@@ -19,9 +23,16 @@ from pathlib import Path
 import production_tracker as pt  # same-dir; pt does NOT import this module (no cycle)
 
 
+def _norm(base):
+    # WINDOWS/urllib GOTCHA: resolving "localhost" via urllib costs ~2s/call (IPv6
+    # fallback), vs ~0.015s for 127.0.0.1 — a 130x tax that silently balloons any
+    # multi-call validator (a 60-call playtest went 172s -> ~2s). Force the literal.
+    return base.replace("localhost", "127.0.0.1")
+
+
 def _get(base, path, timeout=8):
     try:
-        with urllib.request.urlopen(f"{base}{path}", timeout=timeout) as r:
+        with urllib.request.urlopen(f"{_norm(base)}{path}", timeout=timeout) as r:
             return json.loads(r.read().decode())
     except Exception:
         return None
@@ -30,7 +41,7 @@ def _get(base, path, timeout=8):
 def _post(base, path, body, timeout=8):
     try:
         data = json.dumps(body).encode()
-        req = urllib.request.Request(f"{base}{path}", data=data,
+        req = urllib.request.Request(f"{_norm(base)}{path}", data=data,
                                      headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode())
@@ -264,6 +275,21 @@ def rv_core_loop(base):
                           f"engine responsive) — partial core-loop signal; full L4 needs a playtest")
 
 
+def rv_qa_pass(base):
+    """L3: an adversarial playtest (production_playtest) finds no game-breaking issue — the
+    defensive/illegal-branch coverage a goal-pursuing build agent misses. Runs deterministic
+    probes (fall-through, world-edge, input-churn, softlock). Side-effecting (drives lots of input).
+    HONEST CEILING: a scripted playtest finds ~60-75% of human-found bugs, so this AUGMENTS but never
+    REPLACES a human playtest — it caps at L3, so qa_pass (required L4) stays in_progress until a human
+    signs off. Any probe that finds a bug reports it (ok=False) rather than a false pass."""
+    import production_playtest as pp
+    rep = pp.run_playtest(base)
+    if rep["clean"]:
+        return _V("L3", True, f"adversarial playtest clean ({pp.summary(rep)}) — augments, not replaces, "
+                              f"a human playtest")
+    return _V("L2", False, "adversarial playtest FOUND ISSUES: " + " | ".join(rep["bugs"]))
+
+
 RUNTIME_REGISTRY = {
     "world": rv_world,
     "player": rv_player,
@@ -272,11 +298,12 @@ RUNTIME_REGISTRY = {
     "win_condition": rv_win_condition,
     "lose_condition": rv_lose_condition,
     "core_loop": rv_core_loop,
+    "qa_pass": rv_qa_pass,
 }
 
 # Validators with runtime side effects (drive input / fire triggers / move the player). Excluded from
 # the default run-all so a routine `validate`/`sweep` never perturbs the game — only run when targeted.
-SIDE_EFFECTING = {"player", "win_condition", "lose_condition", "core_loop"}
+SIDE_EFFECTING = {"player", "win_condition", "lose_condition", "core_loop", "qa_pass"}
 
 
 def engine_project(base):

@@ -65,8 +65,17 @@ The remaining phases are **6 (rest)** and **7**.
 >
 > Runtime registry now: `world`·`player`·`perf_target`·`level_playability`·`win_condition`·
 > `lose_condition`·`core_loop`. Side-effecting ones (`player`/`win`/`lose`/`core_loop`) are excluded from
-> run-all sweeps. **Remaining for Phase 7**: adversarial playtest by a fresh non-builder agent (now
-> buildable on injection), replay-regression suite, resource-loop-closure, and packaged-shell L4.
+> run-all sweeps.
+>
+> **UPDATE 2026-07-13 (Phase 7 started) — the adversarial playtest + trace-replay harness is BUILT**
+> (`scripts/mcp/production_playtest.py`; `qa_pass` → L3 via `rv_qa_pass`). Deterministic game-agnostic
+> probes (stability/world-edge/input-churn/softlock) drive input and assert invariants a goal-pursuing
+> build agent skips; authored `.phyxel/playtest_traces/*.json` replay for regression. Verified
+> red-before-green on Emberwake (healthy→clean; unreachable goal→softlock flagged; failing assert→caught).
+> Fixed a `localhost`/urllib perf trap that taxed every validator (172s→21s playtest). See §9.
+> **Remaining for Phase 7**: the *fresh-agent exploration* as a repeatable process (capturing repros as
+> traces), `difficulty_balance` as a play distribution, resource-loop-closure, and running all this against
+> the real packaged shell (needs the standalone API-host flag, §6.6).
 
 ### What Phase 6 (rest) needs
 The runtime framework exists (`scripts/mcp/production_runtime.py`, `world`→L4). Adding validators:
@@ -565,6 +574,30 @@ branches). So an all-green game can be **unwinnable, softlocked, trivially easy,
 Honest ceiling: LLM test agents find ~60–75% of human-found bugs — this augments the human playtest gate,
 it doesn't replace it.
 
+> **BUILT 2026-07-13 — the adversarial playtest + trace-replay harness** (`scripts/mcp/production_playtest.py`),
+> wired as the `qa_pass` runtime validator (`production_runtime.rv_qa_pass`, **capped at L3** — augments,
+> never replaces, the human playtest, so `qa_pass` (req L4) stays in_progress until a human signs off).
+> Two parts:
+> - **Deterministic adversarial probes** (game-agnostic, drive input via `/api/input/inject`, assert
+>   invariants a goal-pursuing build agent skips): `stability` (churn movement+jumps → never fall through
+>   / go non-finite / hang), `world_edge` (sustained drive per direction → stays finite+grounded+responsive),
+>   `input_churn` (overlapping key+mouse bursts → no crash/wedge), `softlock` (win goal still NavGrid-reachable
+>   from the current position). Each returns ok=True/False/None(n/a); `run_playtest` is "clean" only if every
+>   probe that ran passed. Verified red-before-green on Emberwake (healthy → 3/3 clean; unreachable goal →
+>   softlock flagged; failing trace assert → caught + aborts).
+> - **Trace replay** (regression): authored `{do:…}` step sequences (inject/mouse/wait/fire/assert) in
+>   `<project>/.phyxel/playtest_traces/*.json`, replayed each build and diffed — so a bug found once (by a
+>   probe or a fresh-agent exploration) becomes a repro that can't silently return.
+>
+> **The "fresh non-builder agent" half is a *process*, not code:** a session spawns a fresh agent (different
+> context, no build bias) that plays the game via the injection/query tools, tries to break it, and captures
+> each confirmed repro as a `playtest_traces/*.json` trace feeding the regression suite. The deterministic
+> probes are the mechanical floor under that exploration. **Perf note / gotcha:** `urllib` resolving
+> `localhost` on Windows costs ~2s/call (IPv6 fallback) — a 60-call playtest ran **172s → ~21s** after
+> forcing `127.0.0.1` in the runtime helpers (the residual ~21s is the deliberate movement time). **Still
+> open**: `difficulty_balance` as a play distribution, resource-loop-closure, and running these against the
+> real packaged shell (needs the standalone API-host flag, §6.6).
+
 ---
 
 ## 10. Target genres: survival · RPG/D&D · action-RPG (primary focus)
@@ -820,7 +853,9 @@ tools/phyxel-gamedev/
 scripts/mcp/
   production_tracker.py         <- production.json ops (status/set/validate/report/...) (Phase 2/3) ✅
   production_validators.py      <- static L1/L2 milestone validators + input hashes (Phase 3/4) ✅
-  production_runtime.py         <- runtime L3/L4 validators (drive the engine); world L4 + player L4 (Phase 6) ✅
+  production_runtime.py         <- runtime L3/L4 validators (drive the engine): world/player/perf_target L4,
+                                   level_playability/win/lose/core_loop/qa_pass L3 (Phase 6/7) ✅
+  production_playtest.py        <- adversarial probes + trace-replay harness (Phase 7, §9) ✅
   phyxel_mcp_server.py          <- `production` MCP tool + runtime-validate pass + `inject_input` tool (Phase 2/6) ✅
 engine/{include,src}/input/InputManager.*  <- synthetic-input overlay: injectKey/injectMouseButton/
                                              releaseAllInjected (Phase 6, input-injection) ✅
