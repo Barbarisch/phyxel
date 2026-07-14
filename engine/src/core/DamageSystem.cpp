@@ -7,6 +7,7 @@
 #include "core/Cube.h"
 #include "core/Chunk.h"
 #include "core/Subcube.h"
+#include "core/Microcube.h"
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -327,12 +328,9 @@ int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
     return 1;
 }
 
-// Gather one cell's static geometry (a full cube OR its subcubes) as world-centered
-// KinematicVoxels for a coherent slab. Returns false if the cell holds content we can't
-// gather coherently yet (micro-only cell) — the caller then scatters the whole component.
-// NOTE (P1.2b): microcubes are NOT gathered into the slab; a subdivided cell's microcubes
-// are omitted from the rigid body (the cell is still fully cleared on removal). Walls are
-// cube/subcube so this is EXACT for them; tree micro-geometry is Phase 2.
+// Gather one cell's static geometry — a full cube, its subcubes, AND its microcubes —
+// as world-centered KinematicVoxels for a coherent slab (full micro resolution, P2.1).
+// Returns false only if the cell has no gatherable content (caller scatters the component).
 static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
                              std::vector<Core::KinematicVoxel>& out) {
     if (Cube* c = cm->getCubeAt(wp)) {
@@ -345,9 +343,9 @@ static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
     }
     Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
     if (!ch) return false;
-    auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
-    if (subs.empty()) return false;   // micro-only / empty -> not coherently gatherable yet
-    for (Subcube* s : subs) {
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    bool any = false;
+    for (Subcube* s : ch->getStaticSubcubesAt(lp)) {
         if (!s) continue;
         float sc = s->getScale();
         Core::KinematicVoxel v;
@@ -356,8 +354,25 @@ static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
         v.scale        = glm::vec3(sc);
         v.materialName = s->getMaterialName();
         out.push_back(std::move(v));
+        any = true;
     }
-    return true;
+    // Microcubes (1/9): slot within cell = sub*3 + mic (0..8 per axis); center at +0.5/9.
+    for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+            for (int sz = 0; sz < 3; ++sz) {
+                for (Microcube* m : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
+                    if (!m) continue;
+                    Core::KinematicVoxel v;
+                    glm::vec3 fine = glm::vec3(sx, sy, sz) * 3.0f
+                                   + glm::vec3(m->getMicrocubeLocalPosition());
+                    v.localPos     = glm::vec3(wp) + (fine + 0.5f) / 9.0f;
+                    v.scale        = glm::vec3(1.0f / 9.0f);
+                    v.materialName = m->getMaterialName();
+                    out.push_back(std::move(v));
+                    any = true;
+                }
+            }
+    return any;
 }
 
 // Remove one cell's content (cube or subdivision) WITHOUT spawning debris, keeping both
@@ -376,12 +391,21 @@ static void removeCellContent(ChunkManager* cm, const glm::ivec3& wp) {
     }
 }
 
-// Material of a world cell's content (cube or first subcube), "" if empty.
+// Material of a world cell's content (cube, first subcube, or first MICROCUBE — fine
+// trees are micro-resolution, P2.1), "" if empty.
 static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp) {
     if (Cube* c = cm->getCubeAt(wp)) return c->getMaterialName();
     if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
-        auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        auto subs = ch->getStaticSubcubesAt(lp);
         if (!subs.empty() && subs[0]) return subs[0]->getMaterialName();
+        // Micro-only cell: scan the 27 subcube slots for the first microcube.
+        for (int sx = 0; sx < 3; ++sx)
+            for (int sy = 0; sy < 3; ++sy)
+                for (int sz = 0; sz < 3; ++sz) {
+                    auto mics = ch->getMicrocubesAt(lp, {sx, sy, sz});
+                    if (!mics.empty() && mics[0]) return mics[0]->getMaterialName();
+                }
     }
     return {};
 }
@@ -410,6 +434,18 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     }
     if (frag.empty()) return false;
 
+    // "Leaves shed, wood topples" (2026-07-14 decision): only WOOD forms the coherent
+    // rigid body; leaf voxels scatter as debris. (Standing leaves render as foliage
+    // cards; the kinematic pipeline has no card support, and shedding is what a felled
+    // tree does anyway.) A leaf-only component returns false -> the caller's per-cell
+    // scatter IS the leaf poof.
+    std::vector<Core::KinematicVoxel> wood, leaves;
+    wood.reserve(frag.size());
+    for (auto& v : frag) {
+        (v.materialName.rfind("Leaf", 0) == 0 ? leaves : wood).push_back(std::move(v));
+    }
+    if (wood.empty()) return false;
+
     auto worldMass = [](const Core::KinematicVoxel& vx) {
         float vol = vx.scale.x * vx.scale.y * vx.scale.z;
         const auto* def = Core::MaterialRegistry::instance().getMaterial(vx.materialName);
@@ -421,8 +457,9 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     // cells cleared). Only if it succeeds do we remove the world cells. If it fails, the
     // cells are untouched, so we return false and the caller scatters them — NO silent
     // geometry loss (the "silent-drop" class bug the auditor flagged).
+    const size_t woodCount = wood.size();
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
-    uint32_t bid = m_fragMgr->spawn(id, std::move(frag), glm::mat4(1.0f),
+    uint32_t bid = m_fragMgr->spawn(id, std::move(wood), glm::mat4(1.0f),
                                     glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f), worldMass);
     if (bid == 0) {
         LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells) -> scatter",
@@ -431,9 +468,16 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     }
 
     for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
+    // Shed the leaves: light fluttering debris from each leaf voxel's world center.
+    for (const auto& lv : leaves) {
+        if (res.debrisSpawned >= MAX_DEBRIS) break;
+        glm::vec3 vel(frand(-0.8f, 0.8f), frand(-0.6f, 0.2f), frand(-0.8f, 0.8f));
+        spawnDebris(lv.localPos, vel, lv.scale.x, lv.materialName);
+        res.debrisSpawned++;
+    }
     res.debrisSpawned += 1;   // one coherent body
-    LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid slab (body {})",
-             component.size(), bid);
+    LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid body ({} wood voxels, {} leaves shed)",
+             component.size(), woodCount, leaves.size());
     return true;
 }
 
