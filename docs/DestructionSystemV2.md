@@ -526,6 +526,20 @@ feedback #2 for clean/rooted trees.** Remaining: microcube-only leaf cells still
 `cellMaterial` reads only the first-level subcube); degenerate hill-embedded wild trees; big-tree
 coherence needs a higher `COHERENT_MAX_VOXELS` (P1.3 benchmark); directional hinge (P2.3).
 
+**P2.1 SHIPPED (2026-07-14, test-first, auditor-PASS) — microcube resolution + "leaves shed, wood
+topples"** (`d978a53`). Ground truth first: standing leaves are voxel-backed foliage CARDS
+(`FoliageRenderPipeline` draws per exposed leaf subcube; the data stays in the chunk grid), and the
+kinematic pipeline has **no** card support — so a cohering canopy would render as solid blocks mid-fall.
+User decision: **leaves shed, wood topples** — only wood forms the rigid body (at full microcube
+resolution), Leaf* voxels scatter as light debris; a leaf-only component scatters entirely (the leaf
+poof). Changes: `cellMaterial` sees micro-only cells (27-slot scan); `gatherCellVoxels` gathers
+microcubes (center `wp+(sub*3+mic+0.5)/9`, verified against `Microcube::getWorldPosition`);
+`collapseComponentCoherent` partitions wood/leaf. Both tests were RED on baseline (canopy stayed 75/75;
+0 bodies) → GREEN; the auditor mutation-tested both rules independently (PASS), 8/8 integration + full
+suite 2824/0. **Disclosed behavior change:** Leaf voxels that previously cohered into slabs now shed.
+**Residuals:** leaves past `MAX_DEBRIS`=4000 in one blast lose geometry silently past the cap
+(pre-existing cap class, boundary untested); live visual pass of the shed look pending.
+
 ---
 
 ## 11. Open questions (decisions to make before/at each phase)
