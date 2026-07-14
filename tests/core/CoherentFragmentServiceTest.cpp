@@ -115,6 +115,24 @@ TEST(CoherentFragmentServiceTest, MixedResolutionConservesMass) {
     EXPECT_NEAR(totalMass, 2.0f, 1e-4f);
 }
 
+TEST(CoherentFragmentServiceTest, FallbackPathIsReachableAndPerVoxel) {
+    // A spatially-sparse mixed-resolution set trips the >64 fine-cell fallback: one
+    // lone microcube (scale 1/9) forces cellSize=1/9, and 8 unit cubes at x=0..7 span
+    // (8.0 * 9) = 72 cells > MAX_GRID_DIM(64). The fallback emits ONE box per voxel
+    // (no merging) — so 9 boxes, whereas the merge path would fuse the contiguous run
+    // into a SINGLE box (verified by mutation: raising MAX_GRID_DIM makes this 1). Documents
+    // that furniture CAN reach the fallback (it is NOT gated out by voxel count), and
+    // pins the fallback's per-voxel, caller-mass-model behavior.
+    std::vector<KinematicVoxel> vox;
+    for (int x = 0; x < 8; ++x) vox.push_back(cube((float)x, 0, 0, 1.0f));  // span 8 units
+    vox.push_back(cube(0, 0, 0, 1.0f/9.0f));                                 // forces cellSize=1/9
+    auto boxes = CoherentFragmentService::mergeVoxelsToBoxes(vox, unitMass);
+    EXPECT_EQ(boxes.size(), vox.size());   // per-voxel => fallback fired (merge would give <9)
+    float totalMass = 0.0f;
+    for (const auto& b : boxes) totalMass += b.mass;
+    EXPECT_NEAR(totalMass, (float)vox.size(), 1e-4f);  // unitMass model => mass == voxel count
+}
+
 TEST(CoherentFragmentServiceTest, MassModelIsCallerSupplied) {
     // Volume-weighted model (the "world" model): a cube weighs 8x a subcube of 1/2 scale.
     auto volMass = [](const KinematicVoxel& v) {
