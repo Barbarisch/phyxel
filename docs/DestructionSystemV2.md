@@ -486,6 +486,29 @@ won't sever (Phase 2 needs object-aware tree ID).
 **Remaining in Phase 1:** P1.3 — the Release benchmark to replace the placeholder `FragmentBudget`
 ceilings + `COHERENT_MAX_VOXELS` with grounded numbers.
 
+**Phase 2 findings (2026-07-14, live-scoped; code reverted to baseline).** Confirmed live that real
+trees do **not** fell yet, and *why*:
+- **H1 is real and confirmed.** Chopping a real tree's trunk leaves the canopy **floating** — the log
+  shows `totalDetached=0` (the severed top is misclassified as supported main-mass because it exceeds
+  `MAX_FLOOD`). Screenshot showed the tell-tale floating canopy over a cut trunk.
+- **A material-aware flood cap works for the CLEAN case.** A tweak (`TREE_MAX_FLOOD`, pure `Log`/`Leaf`
+  components don't count "big" as "main mass") **did** detach a controlled floating 3584-cell pure-`Leaf`
+  blob (log `collapse: 3528 voxels detached and fell`) — impossible under the old cap. So the H1
+  misclassification fix is sound for clean/floating trees.
+- **But real trees have harder connectivity.** Three flood-logic iterations (material-cap → leaf-doesn't-
+  root → downward-`Log`-root-only) all **failed to fell the real test tree**, and a scan revealed *why*:
+  that tree is partially **hill-embedded** (sparse trunk, terrain flanking it) and its canopy overhangs
+  terrain — so the "severed top" reaches ground through multiple non-trunk paths. It was also a poor
+  test case (its canopy wasn't even where I aimed).
+- **Lesson / method for next time:** real tree felling needs a proper **tree-object identification** pass
+  (flood the connected `Log`/`Leaf`, anchor ONLY via a trunk rooted to ground, ignore incidental
+  leaf/side terrain contact), developed **test-first** against controlled materialed trees (now enabled:
+  `ChunkManager`/`Chunk::addCube(localPos, material)` + a materialed-tree integration fixture) with the
+  flood's *supported-reason* logged — NOT live trial-and-error on 2-minute engine reboots. The
+  microcube-gather (P2.1) and hinge (P2.3) come after detachment reliably works.
+- **Reverted** the three experimental flood changes to keep the audited baseline clean; they're captured
+  here as the starting hypothesis, not committed.
+
 ---
 
 ## 11. Open questions (decisions to make before/at each phase)
