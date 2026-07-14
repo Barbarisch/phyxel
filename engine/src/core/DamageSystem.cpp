@@ -376,6 +376,24 @@ static void removeCellContent(ChunkManager* cm, const glm::ivec3& wp) {
     }
 }
 
+// Material of a world cell's content (cube or first subcube), "" if empty.
+static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp) {
+    if (Cube* c = cm->getCubeAt(wp)) return c->getMaterialName();
+    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+        auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
+        if (!subs.empty() && subs[0]) return subs[0]->getMaterialName();
+    }
+    return {};
+}
+// TREE material = trunk (Log*) or canopy (Leaf*), vs terrain (Phase 2 tree-object flood).
+static bool isTreeCell(ChunkManager* cm, const glm::ivec3& wp) {
+    std::string m = cellMaterial(cm, wp);
+    return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+}
+static bool isLogCell(ChunkManager* cm, const glm::ivec3& wp) {
+    return cellMaterial(cm, wp).rfind("Log", 0) == 0;
+}
+
 bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& component,
                                              DamageResult& res) {
     if (!m_fragMgr || !m_fragMgr->ready() ||
@@ -451,19 +469,38 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         visited.insert(packVoxel(seed.x, seed.y, seed.z));
         bool supported = false;
 
+        bool hasTerrain = false;   // does this component contain a non-tree (terrain) cell?
         while (!stack.empty()) {
             glm::ivec3 v = stack.back(); stack.pop_back();
             if (v.y <= yAnchor) { supported = true; break; }   // reached the designer anchor
             component.push_back(v);
-            // Flooded past the cap → this is the MAIN MASS → treat as anchored.
-            if (static_cast<int>(component.size()) > MAX_FLOOD) { supported = true; break; }
+
+            const bool vTree = isTreeCell(m_cm, v);
+            if (!vTree) hasTerrain = true;
+            // TREE-OBJECT anchor (Phase 2): a tree is rooted to the ground ONLY through its
+            // trunk — a Log with terrain directly below. Incidental leaf-or-side terrain
+            // contact must NOT anchor a severed top, so a tree cell never propagates the
+            // flood into terrain (below); only this rooted-trunk check anchors a tree.
+            if (vTree && isLogCell(m_cm, v)) {
+                glm::ivec3 below(v.x, v.y - 1, v.z);
+                if (m_cm->hasVoxelAt(below) && !isTreeCell(m_cm, below)) { supported = true; break; }
+            }
+            // Flooded past the cap → the MAIN MASS. Terrain uses MAX_FLOOD; a pure-tree
+            // component (a big canopy) is not ground, so it floods to the higher tree cap.
+            const int cap = hasTerrain ? MAX_FLOOD : TREE_MAX_FLOOD;
+            if (static_cast<int>(component.size()) > cap) { supported = true; break; }
             for (const auto& n : NB) {
                 glm::ivec3 nb = v + n;
                 int64_t key = packVoxel(nb.x, nb.y, nb.z);
                 // Reached a voxel already proven part of the main mass → supported.
                 if (anchored.count(key)) { supported = true; break; }
                 if (visited.count(key)) continue;
-                if (m_cm->hasVoxelAt(nb)) { visited.insert(key); stack.push_back(nb); }
+                if (m_cm->hasVoxelAt(nb)) {
+                    // A tree cell does not spread the flood into terrain (leaf/side contact
+                    // must not anchor a severed top); trunk/terrain spread normally.
+                    if (vTree && !isTreeCell(m_cm, nb)) continue;
+                    visited.insert(key); stack.push_back(nb);
+                }
             }
             if (supported) break;
         }

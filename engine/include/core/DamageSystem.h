@@ -107,7 +107,10 @@ private:
     static constexpr int   MAX_DEBRIS    = 4000;   // cap per applyDamage (keep < particle cap)
     static constexpr int   SUBCUBE_PIECES   = 12;  // pieces spawned per shattered cube
     static constexpr int   MICROCUBE_PIECES = 24;
-    static constexpr int   MAX_FLOOD        = 3000; // cap per connected-component flood
+    static constexpr int   MAX_FLOOD        = 3000; // cap per connected-component flood (terrain = main mass past this)
+    // A PURE-TREE (Log/Leaf) component isn't ground, so "big" ≠ "main mass" for it — a large
+    // canopy floods to this higher cap and is anchored only by a rooted trunk (Phase 2).
+    static constexpr int   TREE_MAX_FLOOD   = 20000;
     static constexpr int   MAX_COLLAPSE     = 6000; // cap total detached voxels per blast
     // Coherent collapse: a severed component up to this many cells topples as one rigid
     // slab; bigger falls back to scatter. Placeholder until the P1.3 Release benchmark.
