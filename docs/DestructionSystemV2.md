@@ -538,7 +538,22 @@ microcubes (center `wp+(sub*3+mic+0.5)/9`, verified against `Microcube::getWorld
 0 bodies) → GREEN; the auditor mutation-tested both rules independently (PASS), 8/8 integration + full
 suite 2824/0. **Disclosed behavior change:** Leaf voxels that previously cohered into slabs now shed.
 **Residuals:** leaves past `MAX_DEBRIS`=4000 in one blast lose geometry silently past the cap
-(pre-existing cap class, boundary untested); live visual pass of the shed look pending.
+(pre-existing cap class, boundary untested); live visual pass of the shed look pending (first look:
+shed leaf debris renders as DARK clumps — leaf cutout texture on solid dynamic voxels; polish
+candidate: tint/lighten or shrink leaf debris).
+
+**P2.3 SHIPPED (2026-07-14, test-first, auditor-PASS) — directional hinge topple** (`23d8960`).
+A severed piece is seeded with a rotation about the cut instead of free-dropping. Pivot = mass-weighted
+centroid of the wood's lowest 1-unit band (≈ the cut face). Tip direction precedence (user: asymmetry
+matters beyond the hinge): **1. mass asymmetry** (horizontal COM offset off the pivot — top-heavy side
+wins) → **2. chop direction** (the damage `direction` bias) → **3. away from blast center** → 4. straight
+drop (old behavior). Seed `ω = up×tipDir · 0.35·√(3g/L)` clamped [0.2,1.5] (rod-topple rate form —
+grounded; 0.35/clamps disclosed feel-constants) and `v = ω×(COM−pivot)` so the initial motion IS a hinge
+rotation; the subsequent tumble follows the body's real inertia tensor (asymmetric pieces tumble
+asymmetrically for free). Tests red→green (`AsymmetricTop_TipsTowardItsHeavySide`,
+`SymmetricTop_TipsAlongChopDirection`); auditor mutation-killed both the asymmetry rule and the whole
+seed (exact predicted zeros), re-derived the math, reproduced 10/10. **Phase 2 (trees) is COMPLETE:**
+P2.0 scoping → P2.2 tree-object flood → P2.1 micro + leaf-shed → P2.3 hinge.
 
 ---
 
