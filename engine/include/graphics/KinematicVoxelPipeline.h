@@ -40,7 +40,9 @@ public:
     void cleanup();
 
     /// Maximum total face instances across all kinematic objects combined.
-    static constexpr size_t MAX_TOTAL_FACES = 8192;
+    /// 131072 × 40 B ≈ 5 MB — a felled large tree is ~5-10k faces after mixed-
+    /// scale culling; 8192 silently dropped whole felled trees from rendering.
+    static constexpr size_t MAX_TOTAL_FACES = 131072;
 
     struct ObjectRange {
         uint32_t startFace = 0;

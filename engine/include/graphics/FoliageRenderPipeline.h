@@ -1,10 +1,13 @@
 #pragma once
 
 #include "graphics/WindSystem.h"
+#include "core/KinematicVoxelManager.h"   // KinematicVoxelObject (kinematic foliage, F3)
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include <string>
+#include <unordered_map>
 
 namespace Phyxel {
 namespace Graphics {
@@ -68,11 +71,29 @@ public:
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D extent);
 
+    // ---- KINEMATIC foliage (F3): leaf cards riding moving coherent fragments ----
+    // A felled tree's canopy stays card-rendered while it falls: instances live in a
+    // shared buffer with per-object ranges (mirrors KinematicVoxelPipeline); each draw
+    // pushes model = currentTransform * translate(foliageOrigin). No wind, no shadow
+    // casting (v1, disclosed). Call initializeKinematic AFTER initialize().
+    bool initializeKinematic(VkRenderPass renderPass, VkExtent2D extent,
+                             VkDescriptorSetLayout uboDescriptorSetLayout);
+    /// Rebuild the shared kinematic-foliage instance buffer (call on manager dirty).
+    void rebuildKinematicBuffer(
+        const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects);
+    /// Draw kinematic foliage. Call in the scene pass after the chunk foliage.
+    void renderKinematic(
+        VkCommandBuffer cmd, VkDescriptorSet uboSet,
+        const std::unordered_map<std::string, Core::KinematicVoxelObject>& objects);
+
+    static constexpr size_t MAX_KINEMATIC_FOLIAGE = 16384;  ///< shared instance cap
+
     Params&       params()       { return m_params; }
     const Params& params() const { return m_params; }
 
 private:
     void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
+    uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props) const;
 
     VkDevice         m_device         = VK_NULL_HANDLE;
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
@@ -80,6 +101,14 @@ private:
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
     VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;  // depth-only cutout caster (may be null)
     Params           m_params;
+
+    // Kinematic foliage state (F3)
+    struct KinRange { uint32_t first = 0, count = 0; };
+    VkPipelineLayout m_kinPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline       m_kinPipeline       = VK_NULL_HANDLE;
+    VkBuffer         m_kinBuffer         = VK_NULL_HANDLE;
+    VkDeviceMemory   m_kinBufferMemory   = VK_NULL_HANDLE;
+    std::unordered_map<std::string, KinRange> m_kinRanges;
 };
 
 } // namespace Graphics

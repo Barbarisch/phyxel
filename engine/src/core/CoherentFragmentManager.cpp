@@ -5,7 +5,9 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include "utils/Logger.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace Phyxel {
@@ -63,8 +65,14 @@ uint32_t CoherentFragmentManager::spawn(
     return pf.body->id;
 }
 
-void CoherentFragmentManager::update(float /*dt*/) {
+void CoherentFragmentManager::update(float dt) {
     if (!m_world || !m_kinematic) return;
+
+    // Diagnostics: fragment bodies are few and their behavior (topple/settle/jam) is
+    // hard to observe externally — log state ~every 2 s while any fragment is awake.
+    m_logTimer += dt;
+    const bool logNow = (m_logTimer >= 2.0f);
+    if (logNow) m_logTimer = 0.0f;
 
     // Sync live bodies; reap fragments whose body the world has removed.
     m_frags.erase(
@@ -75,6 +83,15 @@ void CoherentFragmentManager::update(float /*dt*/) {
                 return true;
             }
             m_kinematic->setTransform(f.kinId, bodyToTransform(b));
+            if (logNow) {
+                glm::vec3 bodyUp = b->orientation * glm::vec3(0.0f, 1.0f, 0.0f);
+                float tiltDeg = glm::degrees(std::acos(glm::clamp(bodyUp.y, -1.0f, 1.0f)));
+                LOG_INFO_FMT("CoherentFragment", "body " << f.bodyId
+                             << " pos(" << b->position.x << "," << b->position.y << "," << b->position.z
+                             << ") tilt=" << tiltDeg << "deg |w|=" << glm::length(b->angularVelocity)
+                             << " |v|=" << glm::length(b->linearVelocity)
+                             << (b->isAsleep ? " ASLEEP" : " awake"));
+            }
             return false;
         }),
         m_frags.end());

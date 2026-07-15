@@ -1,6 +1,7 @@
 #include "core/CoherentFragmentService.h"
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelRigidBody.h"
+#include "utils/Logger.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -187,6 +188,8 @@ PhysicalizedFragment CoherentFragmentService::physicalize(
     glm::vec3 worldPos  = glm::vec3(transform[3]);
     glm::quat orient    = glm::quat_cast(objectTransform);
 
+    LOG_INFO("CoherentFragment", "physicalize '{}': {} collision boxes from {} collision voxels",
+             idHint, localBoxes.size(), collisionVoxels.size());
     Physics::VoxelRigidBody* body = voxelWorld->createBody(
         localBoxes, worldPos, orient, restitution, friction, linearDamp, angularDamp);
     if (!body) return out;
@@ -200,7 +203,10 @@ PhysicalizedFragment CoherentFragmentService::physicalize(
 
     std::string kinId;
     if (kinematic) {
-        kinId = kinematic->add(idHint, std::move(voxels), transform, idHint, true);
+        // Pass the world->local shift (the COM): billboarded-leaf voxels with grid
+        // identity then render as FOLIAGE CARDS on the moving fragment (F3).
+        kinId = kinematic->add(idHint, std::move(voxels), transform, idHint, true,
+                               KinematicSurface{}, com);
     }
 
     out.body         = body;

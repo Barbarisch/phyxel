@@ -547,13 +547,58 @@ A severed piece is seeded with a rotation about the cut instead of free-dropping
 centroid of the wood's lowest 1-unit band (≈ the cut face). Tip direction precedence (user: asymmetry
 matters beyond the hinge): **1. mass asymmetry** (horizontal COM offset off the pivot — top-heavy side
 wins) → **2. chop direction** (the damage `direction` bias) → **3. away from blast center** → 4. straight
-drop (old behavior). Seed `ω = up×tipDir · 0.35·√(3g/L)` clamped [0.2,1.5] (rod-topple rate form —
-grounded; 0.35/clamps disclosed feel-constants) and `v = ω×(COM−pivot)` so the initial motion IS a hinge
+drop (old behavior). Seed `ω = up×tipDir · 0.8·√(3g/L)` clamped [0.5,2.5] (rod-topple rate form —
+grounded; 0.8/clamps disclosed feel-constants; originally 0.35/[0.2,1.5], raised during F4 because a
+flat-cut trunk's base contacts damped the weaker seed and the tree balanced upright asleep) and
+`v = ω×(COM−pivot)` so the initial motion IS a hinge
 rotation; the subsequent tumble follows the body's real inertia tensor (asymmetric pieces tumble
 asymmetrically for free). Tests red→green (`AsymmetricTop_TipsTowardItsHeavySide`,
 `SymmetricTop_TipsAlongChopDirection`); auditor mutation-killed both the asymmetry rule and the whole
 seed (exact predicted zeros), re-derived the math, reproduced 10/10. **Phase 2 (trees) is COMPLETE:**
 P2.0 scoping → P2.2 tree-object flood → P2.1 micro + leaf-shed → P2.3 hinge.
+
+**Post-demo fixes F1–F6 (2026-07-14/15)** — the live DestructionDemo (flat world + forge trees +
+structures) broke the N=1-tested pipeline repeatedly; each fix is red-before-green:
+
+- **F1 (`e539402`) — support flows through WOOD only; leaves are cargo, never debris.** The demo's
+  floating birch (leaf-bridge to a rooted neighbor) + canopy-as-voxel-debris. Leaf cells are excluded
+  from the support flood; a multi-source BFS assigns each leaf to its nearest wood (STAND wins ties);
+  detached wood carries its canopy IN the fragment; orphan leaves are removed silently. Leaves never
+  spawn voxel debris anywhere (user contract: leaves are foliage cards, never voxels).
+- **F2 (`0e73d94`) — bounded collision boxes.** The 4-FPS pine was ONE body with 2005 collision boxes
+  (the >64-grid merge fell back to per-voxel). physicalize gained a render/collision split: render
+  keeps every fine voxel, collision = one unit box per WOOD cell, greedy-merged (`LongMicroBranch_…`
+  asserts ≤12 boxes for a 10-cell branch).
+- **F3 — kinematic foliage: a falling tree keeps its card canopy.** Leaf voxels riding a fragment are
+  partitioned out of the solid face build into per-object card instances (`foliage_kinematic.vert`,
+  push-constant model matrix, hashes seeded on stable local coords), drawn from a shared buffer with
+  the body's live transform. Verified live: the felled birch lies with green cards along it.
+- **F4 — acceptance (the user's contract): "a tiny explosion at the base → the tree falls over; no
+  voxel shower."** First live run balanced upright asleep (flat-cut base contacts damped the 0.35
+  seed) → seed raised to 0.8/[0.5,2.5] (disclosed feel-tune, doc above). Second run: one r2.0 cut →
+  `coherent collapse: … -> 1 rigid body`, tilt 90.0° settled ASLEEP, chips-only debris, FPS 59–75.
+- **F5 — MIXED log+leaf cells are wood-floodable (the ghost-canopy bug).** F4's fell left most of the
+  canopy floating at the original position (probe: 340 real voxels). Root cause: cells were classified
+  by their FIRST sub-voxel, but forge trees mix micro-Log branches and micro-Leaf foliage in the same
+  cells — leaf-first mixed cells read "leaf", the wood flood skipped them, and all branch wood beyond
+  was unreachable (the flood's completeness guarantee silently broke). Fix: content predicates
+  (`scanCellTree` — any Log ⇒ wood-floodable; leaf-pure ⇒ cargo). Red test
+  `MixedLogLeafCells_WholeCanopyFalls` (leaf-first barrier cell: upper wood + 20-cell canopy floated,
+  fragment carried 2 wood/0 leaves) → green (nothing floats; fragment = exactly 5 wood + 18 leaves,
+  the mixed cell's own foliage riding in-component).
+- **F6 — support flows through STRUCTURAL wood only.** F5's any-wood transmission over-corrected:
+  live, the pine stood after a base cut (its ground-touching micro-wood skirt/flare became rooted
+  anchors) and the birch hung off the oak through twig-to-twig canopy contact. Physically, an ~11 cm
+  twig cannot hold a multi-ton trunk. **Structural = log at cube (1 m) or subcube (1/3 m ≈ 33 cm
+  limb) granularity**; micro-only twig wood is CARGO like leaves — transmits no support, never
+  anchors, rides its nearest wood. Two mechanisms complete the model: a **cascade** (structural wood
+  reachable only through a cargo/twig gap gets its own support flood, looping until nothing new
+  turns up — otherwise limbs beyond twig gaps float like the pre-F5 ghost canopy), and **wood-bearing
+  orphans** (severed twig clusters with no structural wood nearby) fall as their own coherent pieces
+  instead of vanishing. Red tests `GroundTouchingTwigSkirt_DoesNotAnchor` +
+  `TwigBridgeBetweenTrees_DoesNotTransmitSupport` (both reproduced the live failures exactly) →
+  green; `MixedLogLeafCells` updated — a twig gap now yields two bodies (the twig can't rigidly bind
+  them), same 5 wood + 18 leaf totals.
 
 ---
 

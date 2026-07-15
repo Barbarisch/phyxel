@@ -66,6 +66,7 @@ private:
 
     Physics::VoxelDynamicsWorld* m_world     = nullptr;
     KinematicVoxelManager*       m_kinematic = nullptr;
+    float                        m_logTimer  = 0.0f;   ///< throttles the diagnostic state log
 };
 
 } // namespace Core

@@ -356,5 +356,179 @@ TEST_F(TreeCollapseIntegrationTest, SymmetricTop_TipsAlongChopDirection) {
     EXPECT_GT(body->linearVelocity.z, 0.0f) << "COM not moving along the chop direction";
 }
 
+// ============================================================================
+// Fix F5 (post-demo) — MIXED log+leaf cells must be wood-floodable
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, MixedLogLeafCells_WholeCanopyFalls) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Forge trees MIX micro-Log branch wood and micro-Leaf foliage in the SAME cell.
+    // First-sub-voxel classification labels a leaf-first mixed cell "leaf", the wood
+    // flood skips it, and every branch beyond it is unreachable — left FLOATING when
+    // the trunk below is severed (the live DestructionDemo floating-canopy bug:
+    // only 80+76 of a full birch detached; a blast probe on the "ghost" canopy broke
+    // 340 real voxels). A cell containing ANY wood must transmit the wood flood.
+    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor (yAnchor 3)
+    putBox(10, 4, 10, 10, 7, 10, "Log");     // rooted trunk, y4..7
+    // BARRIER mixed cell at (10,8,10): Leaf micro in the LOWEST-ordered subcube slot
+    // (found first by a first-voxel scan), Log micro deeper in the cell.
+    ASSERT_TRUE(putMicro({10, 8, 10}, {0, 0, 0}, {0, 0, 0}, "Leaf"));
+    ASSERT_TRUE(putMicro({10, 8, 10}, {1, 1, 1}, {1, 1, 1}, "Log"));
+    putBox(10, 9, 10, 10, 10, 10, "Log");    // upper branch wood, reachable ONLY through the mixed cell
+    putBox(9, 10, 9, 11, 11, 11, "Leaf");    // canopy around the upper wood
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Sever the trunk at y5 (r=1.0 removes only that cube; neighbours survive).
+    dmg.applyDamage(glm::vec3(10.5f, 5.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    // The WHOLE top must go: trunk above the cut, the mixed cell, the upper wood, and
+    // the canopy — nothing floats.
+    EXPECT_FALSE(solid(10, 6, 10)) << "trunk above the cut floats";
+    EXPECT_FALSE(solid(10, 8, 10)) << "mixed log+leaf cell floats (classified leaf, skipped by wood flood)";
+    EXPECT_FALSE(solid(10, 9, 10)) << "upper wood floats — unreachable past the mixed cell";
+    EXPECT_EQ(countSolid(9, 8, 9, 11, 11, 11), 0)
+        << "canopy left floating (the DestructionDemo ghost-canopy bug)";
+    // And it fell as coherent pieces, not a shower. The twig-scale mixed cell can't
+    // rigidly bind the two wood chunks (F6: micro wood transmits no support), so the
+    // trunk piece and the upper piece fall as TWO bodies — the twig and canopy riding
+    // their nearest wood.
+    ASSERT_EQ(mgr.count(), 2u) << "severed pieces did not cohere";
+    ASSERT_EQ(kin.getObjects().size(), 2u);
+    int wood = 0, leaf = 0;
+    for (const auto& [id, obj] : kin.getObjects()) {
+        for (const auto& v : obj.voxels) {
+            if (v.materialName.rfind("Leaf", 0) == 0) ++leaf; else ++wood;
+        }
+    }
+    // Wood: trunk y6..7 (2) + the mixed cell's Log micro (1) + upper wood y9..10 (2).
+    // Leaves: 17 canopy cubes (3x2x3 region minus the Log cell) + the mixed cell's
+    // Leaf micro = 18 — the mixed cell's own foliage rides along.
+    EXPECT_EQ(wood, 5) << "wood missing from the fragments";
+    EXPECT_EQ(leaf, 18) << "canopy did not ride the fragments";
+}
+
+// ============================================================================
+// Fix F6 — support flows through STRUCTURAL wood only (cube/subcube cross-
+// section). Micro-only "twig" wood neither transmits support nor anchors.
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, GroundTouchingTwigSkirt_DoesNotAnchor) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // The live pine: after a base cut, a drooping micro-wood skirt (twig cells reaching
+    // the ground) kept the whole tree "rooted" — an ~11cm twig column held a multi-ton
+    // trunk up. Twig wood must not anchor.
+    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor (yAnchor 3)
+    putBox(10, 4, 10, 10, 10, 10, "Log");    // rooted 1x1 trunk, y4..10
+    // Micro-wood skirt: a twig chain from the trunk at y6 down to a ground-touching
+    // cell at (11,4,10) (terrain directly below -> a rooted anchor under pre-F6 rules).
+    for (int y = 4; y <= 6; ++y)
+        for (int m = 0; m < 4; ++m)
+            ASSERT_TRUE(putMicro({11, y, 10}, {1, 1, 1}, {m % 3, m / 3, 1}, "LogPine"));
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Sever the trunk at y5 (r=1.0 removes only that cube; the skirt cells survive).
+    dmg.applyDamage(glm::vec3(10.5f, 5.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    // The top must FALL: the surviving skirt (micro wood touching the ground) must not
+    // hold it up.
+    EXPECT_FALSE(solid(10, 6, 10)) << "trunk floats — twig skirt anchored the tree";
+    EXPECT_FALSE(solid(10, 8, 10)) << "upper trunk floats";
+    EXPECT_EQ(countSolid(10, 6, 10, 10, 10, 10), 0) << "severed top stayed up";
+    EXPECT_GE(mgr.count(), 1u) << "severed top did not cohere";
+    // The rooted stump below the cut stays.
+    EXPECT_TRUE(solid(10, 4, 10)) << "rooted stump fell";
+}
+
+TEST_F(TreeCollapseIntegrationTest, TwigBridgeBetweenTrees_DoesNotTransmitSupport) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // The live birch: interpenetrating canopies touch twig-to-twig. Cutting tree B's
+    // trunk left it hanging off tree A's branches through micro-wood contact. Twig
+    // wood must not transmit support between trees.
+    putBox(4, 3, 4, 18, 3, 16, "Stone");     // floor (yAnchor 3)
+    putBox(8, 4, 10, 8, 10, 10, "Log");      // tree A trunk (rooted)
+    putBox(13, 4, 10, 13, 10, 10, "Log");    // tree B trunk (rooted)
+    // Twig bridge: micro-wood cells linking A's top to B's top (x9..12 at y10).
+    for (int x = 9; x <= 12; ++x)
+        for (int m = 0; m < 4; ++m)
+            ASSERT_TRUE(putMicro({x, 10, 10}, {1, 1, 1}, {m % 3, m / 3, 1}, "Log"));
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Cut B's trunk at y6 (r=1.0 removes only that cube).
+    dmg.applyDamage(glm::vec3(13.5f, 6.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    // B's severed top must FALL — the twig bridge into rooted A must not hold it.
+    EXPECT_FALSE(solid(13, 8, 10)) << "B's top floats — twig bridge transmits support";
+    EXPECT_EQ(countSolid(13, 7, 10, 13, 10, 10), 0) << "B's severed top stayed up";
+    // A is untouched: trunk intact top to bottom.
+    EXPECT_TRUE(solid(8, 10, 10)) << "A's trunk top was taken down";
+    EXPECT_TRUE(solid(8, 4, 10))  << "A's trunk base was taken down";
+    // B's rooted stump below the cut stays.
+    EXPECT_TRUE(solid(13, 4, 10)) << "B's rooted stump fell";
+}
+
+// ============================================================================
+// Fix F7 — support never flows between different tree SPECIES. Structural
+// limb-to-limb contact between two trees is touching, not attachment.
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, CrossSpeciesLimbContact_DoesNotTransmitSupport) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // The live birch: after a full base cut it stayed up because its structural limbs
+    // touch the oak's structural limbs (the flood walked 269 cells into the oak's
+    // rooted trunk). Cube/subcube-grade wood of DIFFERENT species is never one
+    // organism — contact must not transmit support.
+    putBox(4, 3, 4, 18, 3, 16, "Stone");        // floor (yAnchor 3)
+    putBox(8, 4, 10, 8, 10, 10, "Log");         // oak trunk (rooted)
+    putBox(9, 10, 10, 10, 10, 10, "Log");       // oak limb toward +X (structural)
+    putBox(13, 4, 10, 13, 10, 10, "LogBirch");  // birch trunk (rooted)
+    putBox(11, 10, 10, 12, 10, 10, "LogBirch"); // birch limb toward -X — TOUCHES the oak
+                                                // limb cube-to-cube at x10|x11
+    // Cut the birch trunk at y6 (r=1.0 removes only that cube).
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    dmg.applyDamage(glm::vec3(13.5f, 6.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    // The birch's severed top must FALL — resting on the oak's limb is not support.
+    EXPECT_FALSE(solid(13, 8, 10)) << "birch top floats — cross-species limb contact transmits support";
+    EXPECT_EQ(countSolid(13, 7, 10, 13, 10, 10), 0) << "birch severed top stayed up";
+    EXPECT_EQ(countSolid(11, 10, 10, 12, 10, 10), 0) << "birch limb stayed up";
+    // The oak is untouched: trunk + limb intact.
+    EXPECT_TRUE(solid(8, 10, 10))  << "oak trunk was taken down";
+    EXPECT_TRUE(solid(10, 10, 10)) << "oak limb was taken down";
+    // The birch's rooted stump below the cut stays.
+    EXPECT_TRUE(solid(13, 4, 10)) << "birch rooted stump fell";
+}
+
 } // namespace Testing
 } // namespace Phyxel

@@ -262,6 +262,13 @@ RenderCoordinator::RenderCoordinator(
             shadowMap->getRenderPass(),
             VkExtent2D{shadowMap->getWidth(), shadowMap->getHeight()});
     }
+    if (foliagePipeline) {
+        // Kinematic foliage (F3): felled trees keep their card canopy while falling.
+        foliagePipeline->initializeKinematic(
+            postProcessor->getSceneRenderPass(),
+            vulkanDevice->getSwapChainExtent(),
+            vulkanDevice->getDescriptorSetLayout());
+    }
 
     // Far-terrain LOD tiles (blocky heightmap columns beyond the real-chunk radius).
     farTerrainPipeline = std::make_unique<FarTerrainRenderPipeline>();
@@ -1770,6 +1777,8 @@ void RenderCoordinator::drawFrame() {
     if (kinematicPipeline && m_kinematicObjects) {
         if (m_kinematicObjects->consumeBufferDirty()) {
             kinematicPipeline->rebuildBuffer(m_kinematicObjects->getObjects());
+            // Kinematic foliage rides the same object set — rebuild its instances too.
+            if (foliagePipeline) foliagePipeline->rebuildKinematicBuffer(m_kinematicObjects->getObjects());
         }
         if (!m_kinematicObjects->getObjects().empty()) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "KinematicVoxels");
@@ -1778,6 +1787,13 @@ void RenderCoordinator::drawFrame() {
                 m_kinematicObjects->getObjects(),
                 vulkanDevice->getDescriptorSet(currentFrame)
             );
+            // Falling canopies: card-rendered leaves on moving fragments (F3).
+            if (foliagePipeline) {
+                foliagePipeline->renderKinematic(
+                    vulkanDevice->getCommandBuffer(currentFrame),
+                    vulkanDevice->getDescriptorSet(currentFrame),
+                    m_kinematicObjects->getObjects());
+            }
         }
     }
 
