@@ -530,13 +530,27 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     // cells are untouched, so we return false and the caller scatters them — NO silent
     // geometry loss (the "silent-drop" class bug the auditor flagged).
     const size_t woodCount = wood.size(), leafCount = leaves.size();
-    // Fragment = wood + canopy cargo (leaves ride; F3 renders them as foliage cards).
+    // COLLISION PROXY (F2): one unit box per WOOD cell of the component, greedy-merged —
+    // a big fell is tens of boxes, not thousands of per-fine-voxel boxes (the 2005-box
+    // pine that tanked the demo to 4 FPS). Canopy cargo gets NO collision. Disclosed
+    // coarseness: a sparsely-filled cell collides as a full cell, and box mass is
+    // density x cell rather than the fine sum (hinge feel uses the fine wood above).
+    std::vector<Core::KinematicVoxel> collision;
+    collision.reserve(component.size());
+    for (const glm::ivec3& c : component) {
+        Core::KinematicVoxel v;
+        v.localPos     = glm::vec3(c) + glm::vec3(0.5f);
+        v.scale        = glm::vec3(1.0f);
+        v.materialName = cellMaterial(m_cm, c);
+        collision.push_back(std::move(v));
+    }
+    // Fragment render = wood + canopy cargo (leaves ride; F3 renders them as cards).
     std::vector<Core::KinematicVoxel> fragVoxels = std::move(wood);
     fragVoxels.insert(fragVoxels.end(),
                       std::make_move_iterator(leaves.begin()),
                       std::make_move_iterator(leaves.end()));
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
-    uint32_t bid = m_fragMgr->spawn(id, std::move(fragVoxels), glm::mat4(1.0f),
+    uint32_t bid = m_fragMgr->spawn(id, std::move(fragVoxels), collision, glm::mat4(1.0f),
                                     linVel, angVel, worldMass);
     if (bid == 0) {
         LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells) -> scatter",

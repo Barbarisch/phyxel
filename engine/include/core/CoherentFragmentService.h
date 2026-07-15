@@ -90,6 +90,28 @@ public:
         float friction    = 0.6f,
         float linearDamp  = 0.4f,
         float angularDamp = 0.5f);
+
+    /// F2 variant: SEPARATE collision proxy. `renderVoxels` (full fine fidelity) drive
+    /// the kinematic render; `collisionVoxels` (typically one unit box per world CELL of
+    /// the component's wood) drive the rigid body's boxes — so a big fell is tens of
+    /// merged boxes, not thousands of per-voxel boxes (the 2005-box pine that tanked the
+    /// demo). COM comes from the collision boxes; the render voxels are re-centered on
+    /// the same COM so they stay aligned. Canopy cargo is render-only (no collision).
+    static PhysicalizedFragment physicalize(
+        Physics::VoxelDynamicsWorld* voxelWorld,
+        KinematicVoxelManager* kinematic,
+        const std::string& idHint,
+        std::vector<KinematicVoxel> renderVoxels,
+        const std::vector<KinematicVoxel>& collisionVoxels,
+        const glm::mat4& objectTransform,
+        const glm::vec3& initialLinVel,
+        const glm::vec3& initialAngVel,
+        const std::function<float(const KinematicVoxel&)>& voxelMass,
+        const std::function<float(float)>& finalizeTotalMass = nullptr,
+        float restitution = 0.2f,
+        float friction    = 0.6f,
+        float linearDamp  = 0.4f,
+        float angularDamp = 0.5f);
 };
 
 } // namespace Core

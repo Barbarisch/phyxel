@@ -39,6 +39,30 @@ uint32_t CoherentFragmentManager::spawn(
     return pf.body->id;
 }
 
+uint32_t CoherentFragmentManager::spawn(
+    const std::string& idHint,
+    std::vector<KinematicVoxel> renderVoxels,
+    const std::vector<KinematicVoxel>& collisionVoxels,
+    const glm::mat4& objectTransform,
+    const glm::vec3& initialLinVel,
+    const glm::vec3& initialAngVel,
+    const std::function<float(const KinematicVoxel&)>& voxelMass)
+{
+    if (!ready()) return 0;
+
+    auto pf = CoherentFragmentService::physicalize(
+        m_world, m_kinematic, idHint, std::move(renderVoxels), collisionVoxels,
+        objectTransform, initialLinVel, initialAngVel, voxelMass,
+        /*finalizeTotalMass*/ nullptr);
+    if (!pf.ok()) return 0;
+
+    // Persistent: never auto-expire (the 2026-07-14 "permanent settled object" decision).
+    pf.body->lifetime = std::numeric_limits<float>::max();
+
+    m_frags.push_back({ pf.body->id, pf.kineticObjId });
+    return pf.body->id;
+}
+
 void CoherentFragmentManager::update(float /*dt*/) {
     if (!m_world || !m_kinematic) return;
 

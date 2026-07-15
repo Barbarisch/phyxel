@@ -134,10 +134,32 @@ PhysicalizedFragment CoherentFragmentService::physicalize(
     const std::function<float(float)>& finalizeTotalMass,
     float restitution, float friction, float linearDamp, float angularDamp)
 {
-    PhysicalizedFragment out;
-    if (!voxelWorld || voxels.empty()) return out;
+    // Single-list form (furniture): the same voxels drive collision AND render.
+    const std::vector<KinematicVoxel> collision = voxels;   // copy; render list is moved below
+    return physicalize(voxelWorld, kinematic, idHint, std::move(voxels), collision,
+                       objectTransform, initialLinVel, initialAngVel,
+                       voxelMass, finalizeTotalMass,
+                       restitution, friction, linearDamp, angularDamp);
+}
 
-    auto boxes = mergeVoxelsToBoxes(voxels, voxelMass);
+PhysicalizedFragment CoherentFragmentService::physicalize(
+    Physics::VoxelDynamicsWorld* voxelWorld,
+    KinematicVoxelManager* kinematic,
+    const std::string& idHint,
+    std::vector<KinematicVoxel> renderVoxels,
+    const std::vector<KinematicVoxel>& collisionVoxels,
+    const glm::mat4& objectTransform,
+    const glm::vec3& initialLinVel,
+    const glm::vec3& initialAngVel,
+    const std::function<float(const KinematicVoxel&)>& voxelMass,
+    const std::function<float(float)>& finalizeTotalMass,
+    float restitution, float friction, float linearDamp, float angularDamp)
+{
+    PhysicalizedFragment out;
+    if (!voxelWorld || renderVoxels.empty() || collisionVoxels.empty()) return out;
+    std::vector<KinematicVoxel> voxels = std::move(renderVoxels);   // render list
+
+    auto boxes = mergeVoxelsToBoxes(collisionVoxels, voxelMass);
     if (boxes.empty()) return out;
 
     // Mass-weighted center of mass of the merged boxes.

@@ -253,6 +253,44 @@ TEST_F(TreeCollapseIntegrationTest, InterlockedCanopies_CutTrunk_TopStillFalls) 
 }
 
 // ============================================================================
+// Fix F2 (post-demo) — bounded collision boxes for big fragments
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, LongMicroBranch_FellsWithBoundedCollisionBoxes) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+    ASSERT_EQ(voxelWorld->getBodyCount(), 0u);
+
+    // A floating micro-resolution branch spanning 10 cells (90 fine cells > the 64 merge
+    // grid). On the pre-F2 code the merge falls back to ONE COLLISION BOX PER VOXEL —
+    // the 2005-box pine that tanked the demo to 4 FPS. The fell must produce a body
+    // with a BOUNDED box count (cell-resolution collision), while the render keeps
+    // every fine voxel.
+    for (int x = 20; x <= 29; ++x)
+        for (int m = 0; m < 4; ++m)
+            ASSERT_TRUE(putMicro({x, 25, 25}, {1, 1, 1}, {m % 3, m / 3, 1}, "Log"));
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Blast the first cell only; the remaining 9 cells (36 micro voxels) detach.
+    dmg.applyDamage(glm::vec3(20.5f, 25.5f, 25.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), DamageSystem::NO_SUPPORT, /*collapse*/ true, /*coherent*/ true);
+
+    ASSERT_EQ(mgr.count(), 1u) << "branch did not cohere";
+    auto* body = voxelWorld->getBodyById(1);
+    ASSERT_NE(body, nullptr);
+    EXPECT_LE(body->getLocalBoxes().size(), 12u)
+        << "collision box count unbounded (per-voxel fallback — the 2005-box pine bug)";
+    // Render fidelity preserved: all 36 fine voxels in the kinematic object.
+    ASSERT_EQ(kin.getObjects().size(), 1u);
+    EXPECT_EQ(kin.getObjects().begin()->second.voxels.size(), 36u);
+}
+
+// ============================================================================
 // P2.3 — directional hinge topple (asymmetry decides the fall direction)
 // ============================================================================
 

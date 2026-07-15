@@ -39,6 +39,17 @@ public:
                    const glm::vec3& initialAngVel,
                    const std::function<float(const KinematicVoxel&)>& voxelMass);
 
+    /// F2 variant: separate collision proxy (see CoherentFragmentService::physicalize) —
+    /// render keeps full fine fidelity while the rigid body's boxes come from the coarse
+    /// collision list (bounded box count for big fells).
+    uint32_t spawn(const std::string& idHint,
+                   std::vector<KinematicVoxel> renderVoxels,
+                   const std::vector<KinematicVoxel>& collisionVoxels,
+                   const glm::mat4& objectTransform,
+                   const glm::vec3& initialLinVel,
+                   const glm::vec3& initialAngVel,
+                   const std::function<float(const KinematicVoxel&)>& voxelMass);
+
     /// Sync each fragment's rigid-body transform into the renderer; drop fragments
     /// whose body has been removed by the physics world.
     void update(float dt);
