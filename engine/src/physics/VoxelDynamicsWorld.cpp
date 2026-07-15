@@ -259,15 +259,26 @@ void VoxelDynamicsWorld::generateContacts() {
                     bMax.y < oMin.y || bMin.y > oMax.y ||
                     bMax.z < oMin.z || bMin.z > oMax.z) continue;
 
-                if (body->isAsleep) {
-                    body->isAsleep   = false;
-                    body->sleepTimer = 0.0f;
-                }
-
                 OccupiedBox box{obs.center, obs.halfExtents};
                 size_t before = m_contacts.size();
                 for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
                     VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
+
+                // Wake ONLY on a real generated contact from a MOVING obstacle.
+                // The old rule woke (and reset the sleep timer of) any body whose
+                // AABB merely overlapped an obstacle — a character standing near a
+                // felled tree held its huge fragment awake forever, and the awake
+                // body's per-frame contact generation ate ~870 ms/frame.
+                const bool touched = m_contacts.size() > before;
+                const bool obsMoving = glm::dot(obs.velocity, obs.velocity) > 1e-4f;
+                if (touched && body->isAsleep && obsMoving) {
+                    body->isAsleep   = false;
+                    body->sleepTimer = 0.0f;
+                }
+                if (body->isAsleep) {
+                    m_contacts.resize(before);   // sleeping body: discard, nothing to solve
+                    continue;
+                }
                 for (size_t k = before; k < m_contacts.size(); ++k)
                     m_contacts[k].obstacleVelocity = obs.velocity;
             }
@@ -357,6 +368,22 @@ void VoxelDynamicsWorld::updateSleepState(float dt) {
             } else {
                 body->sleepTimer = 0.0f;
                 body->isAsleep   = false;
+            }
+            // Position fallback: still in place for SLEEP_POS_TIME → sleep, even
+            // when solver jitter keeps the velocity test from ever passing.
+            if (!body->isAsleep) {
+                const glm::vec3 d = body->position - body->sleepRefPos;
+                if (glm::dot(d, d) < VoxelRigidBody::SLEEP_POS_EPS * VoxelRigidBody::SLEEP_POS_EPS) {
+                    body->sleepPosTimer += dt;
+                    if (body->sleepPosTimer >= VoxelRigidBody::SLEEP_POS_TIME) {
+                        body->isAsleep        = true;
+                        body->linearVelocity  = glm::vec3(0.0f);
+                        body->angularVelocity = glm::vec3(0.0f);
+                    }
+                } else {
+                    body->sleepRefPos   = body->position;
+                    body->sleepPosTimer = 0.0f;
+                }
             }
         }
     });

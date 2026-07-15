@@ -335,6 +335,43 @@
       "resolution": 1024
     },
     {
+      "name": "LogHeartwood",
+      "category": "material",
+      "description": "Raw cut oak \u2014 the inside of a chopped trunk (end grain top/bottom, long grain sides)",
+      "resolution": 1024,
+      "physics": {
+        "mass": 0.7,
+        "friction": 0.6,
+        "restitution": 0.2,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 0.8,
+        "bondStrength": 0.6,
+        "angularVelocityScale": 1.2,
+        "colorTint": [
+          0.84,
+          0.72,
+          0.54
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8
+      },
+      "break": {
+        "toughness": 70.0,
+        "brittleS1": 3.5,
+        "brittleS2": 9.0,
+        "absorption": 0.45
+      },
+      "textures": {
+        "side_n": "heartwood_side_n.png",
+        "side_s": "heartwood_side_s.png",
+        "side_e": "heartwood_side_e.png",
+        "side_w": "heartwood_side_w.png",
+        "top": "heartwood_top.png",
+        "bottom": "heartwood_bottom.png"
+      }
+    },
+    {
       "name": "Bricks",
       "category": "material",
       "description": "Red clay bricks with mortar joints",

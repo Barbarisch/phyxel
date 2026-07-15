@@ -1402,6 +1402,14 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::setAnimationState(AnimatedCharacterState state) {
         if (state == currentState) return;
+        // The updateStateMachine tracer only sees INTERNAL transitions; external
+        // aborts of a swing (any caller yanking the FSM out of Attack) were
+        // invisible — log them so a dying swing names its killer.
+        if (currentState == AnimatedCharacterState::Attack &&
+            state != AnimatedCharacterState::Attack) {
+            LOG_INFO("Character", "External Attack exit -> {} (t={} hitFired={})",
+                     stateToString(state), stateTimer, m_hitFrameFired);
+        }
         currentState = state;
         stateTimer = 0.0f;
         // Forcing Attack directly (API / scripted trigger) must set up a real swing
@@ -2553,6 +2561,11 @@ namespace Scene {
                 if (!m_hitFrameFired && scaledDur > 0.0f &&
                     stateTimer / scaledDur >= hitFrac) {
                     m_hitFrameFired = true;
+                    // Swing-feel diagnosis: a fire at t far below the clip's real
+                    // hit time means scaledDur was stale (wrong clip duration) and
+                    // the bite is happening with the arm still at windup.
+                    LOG_INFO("Character", "hit frame: clip='{}' t={} scaledDur={} frac={}",
+                             m_currentAttackClip, stateTimer, scaledDur, stateTimer / scaledDur);
                     if (m_onHitFrame) m_onHitFrame();
                 }
 

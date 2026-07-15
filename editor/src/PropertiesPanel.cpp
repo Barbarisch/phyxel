@@ -472,6 +472,18 @@ void PropertiesPanel::renderPlacedObjectInspector(const std::string& id) {
     ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.7f, 1.0f), "%s", obj->id.c_str());
     ImGui::Separator();
 
+    // Stable UUID, click-to-copy — so a specific object can be referenced
+    // unambiguously (bug reports, agent sessions, by-uuid APIs).
+    if (!obj->uuid.empty()) {
+        ImGui::Text("UUID: %s", obj->uuid.c_str());
+        if (ImGui::IsItemClicked()) ImGui::SetClipboardText(obj->uuid.c_str());
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Click to copy");
+        ImGui::SameLine();
+        ImGui::PushID("uuidcopy");
+        if (ImGui::SmallButton("copy")) ImGui::SetClipboardText(obj->uuid.c_str());
+        ImGui::PopID();
+    }
+
     ImGui::Text("Template: %s", obj->templateName.c_str());
     ImGui::Text("Category: %s", obj->category.c_str());
     ImGui::Text("Origin: %d, %d, %d", obj->position.x, obj->position.y, obj->position.z);
@@ -672,6 +684,11 @@ void PropertiesPanel::renderPlacedObjectSection(const glm::ivec3& worldPos) {
         if (!obj) continue;
 
         ImGui::Text("ID: %s", obj->id.c_str());
+        if (!obj->uuid.empty()) {
+            ImGui::Text("UUID: %s", obj->uuid.c_str());
+            if (ImGui::IsItemClicked()) ImGui::SetClipboardText(obj->uuid.c_str());
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Click to copy");
+        }
         ImGui::Text("Template: %s", obj->templateName.c_str());
         ImGui::Text("Category: %s", obj->category.c_str());
         ImGui::Text("Origin: %d, %d, %d", obj->position.x, obj->position.y, obj->position.z);

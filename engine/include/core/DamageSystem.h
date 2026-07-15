@@ -65,6 +65,49 @@ public:
     // when present, else a bondStrength-derived fallback. docs/DestructionSystemV2.md §5.A.
     MatResponse responseFor(const std::string& materialName) const;
 
+    // STRUCTURAL wood test at any granularity (F6): true when the cell holds Log*
+    // at cube or subcube cross-section (micro-only twig wood is cargo, not trunk).
+    // Exposed for gameplay callers (axe chop) so trunk detection/measurement agrees
+    // with the support flood's notion of a trunk. When `logMaterial` is non-null and
+    // the cell is structural wood, it receives the wood's material name (e.g.
+    // "LogBirch") for events/VFX.
+    static bool isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
+                                     std::string* logMaterial = nullptr);
+
+    // ---- Axe-chop kerf: FRACTURE, not blast (docs/DestructionSystemV2.md §5.E) ----
+    // Carve one axe bite into the trunk cross-section at hitCell's height, entering
+    // from the chopDir side (the chopper's side). STATELESS: each call bites
+    // `kerfDepth` world-units from the CURRENT notch frontier (the first structural
+    // wood along chopDir from hitCell), so repeated swings deepen the cut with no
+    // caller-side bookkeeping. The bite is a slot carved at MICROCUBE resolution:
+    // bitten cubes/subcubes are subdivided, micros inside the slot are removed, and
+    // surviving wood on the cut faces is re-materialed to LogHeartwood (raw cut
+    // wood). Enclosed hollow cells inside the trunk shell at the cut plane are
+    // filled with heartwood first, so the kerf exposes solid wood — trees are
+    // shells by construction. NO energy blast and NO debris scatter: after carving,
+    // the swing's carved cells seed the ordinary support-collapse pass, so the
+    // moment the kerf (plus cargo-thin remnants) stops carrying support, the tree
+    // releases and topples — coherently (one hinged rigid body) when a fragment
+    // manager is set and coherentFragments=true.
+    struct ChopKerfResult {
+        bool  carved = false;      // structural wood found at the plane, something carved
+        bool  severed = false;     // the cut released a component (the tree fell)
+        int   microsRemoved = 0;   // micro-resolution voxels removed this call
+        int   cellsEmptied = 0;    // whole cells that ended empty
+        float fullDepth = 0.0f;    // cross-section extent along the chop direction
+        float cutFraction = 0.0f;  // kerfDepth / fullDepth, clamped to [0,1]
+        DamageResult collapse;     // bookkeeping from the release pass
+    };
+    // `contactPoint` (optional): the blade's actual impact position — the notch
+    // line centers there (height AND lateral offset, clamped into the trunk) and
+    // the splinters fly from there, so the bite reads exactly where the axe
+    // visibly lands. Each bite throws a few micro SPLINTERS back toward the
+    // chopper (tactile feedback; ≤6 pieces, nothing like a blast). Pass y <
+    // -1e8 (the default) for "unknown" — the slot then centers on the hit cell.
+    ChopKerfResult carveChopKerf(const glm::ivec3& hitCell, const glm::vec3& chopDir,
+                                 float kerfDepth, bool coherentFragments = true,
+                                 const glm::vec3& contactPoint = glm::vec3(0.0f, -1.0e9f, 0.0f));
+
 private:
 
     // Count solid voxels strictly between two world points (shielding ray-march).
@@ -75,9 +118,10 @@ private:
     // when `coherent` and a fragment manager is set, a small severed component topples
     // as ONE coherent rigid slab (P1.2b) instead of scattering. `impactCenter`/`impactDir`
     // carry the blast context down for the hinge-topple direction (P2.3).
-    void collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
-                             DamageResult& res, bool coherent,
-                             const glm::vec3& impactCenter, const glm::vec3& impactDir);
+    // Returns the number of voxels detached (0 = everything stayed supported).
+    int collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
+                            DamageResult& res, bool coherent,
+                            const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
     // Try to topple one severed component as a coherent rigid slab via m_fragMgr.
     // `leafCargo` = canopy cells assigned to this component (F1): they ride the fragment

@@ -351,6 +351,8 @@ static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
         v.localPos     = glm::vec3(wp) + glm::vec3(0.5f);
         v.scale        = glm::vec3(1.0f);
         v.materialName = c->getMaterialName();
+        v.gridCell     = wp;                    // foliage identity (F3): cube-leaf sprig
+        v.gridSlot     = glm::ivec3(1);         //   sits at the cube centre slot (1,1,1)
         out.push_back(std::move(v));
         return true;
     }
@@ -366,6 +368,8 @@ static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
         v.localPos     = glm::vec3(wp) + (glm::vec3(s->getLocalPosition()) + 0.5f) * sc;
         v.scale        = glm::vec3(sc);
         v.materialName = s->getMaterialName();
+        v.gridCell     = wp;                    // foliage identity (F3)
+        v.gridSlot     = s->getLocalPosition();
         out.push_back(std::move(v));
         any = true;
     }
@@ -381,6 +385,8 @@ static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
                     v.localPos     = glm::vec3(wp) + (fine + 0.5f) / 9.0f;
                     v.scale        = glm::vec3(1.0f / 9.0f);
                     v.materialName = m->getMaterialName();
+                    v.gridCell     = wp;                    // foliage identity (F3):
+                    v.gridSlot     = glm::ivec3(sx, sy, sz); //   micro -> parent subcube sprig
                     out.push_back(std::move(v));
                     any = true;
                 }
@@ -422,18 +428,496 @@ static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp) {
     }
     return {};
 }
-// TREE material = trunk (Log*) or canopy (Leaf*), vs terrain (Phase 2 tree-object flood).
+// Content scan of a cell for tree materials (F5). Fine trees MIX micro-Log branch wood
+// and micro-Leaf foliage in the SAME cell, so classifying a cell by its FIRST sub-voxel
+// (the old cellMaterial approach) mislabels leaf-first mixed cells as "leaf" — the wood
+// support flood skips them and every branch beyond is unreachable, leaving a floating
+// ghost canopy when the trunk is severed. Classify by CONTENT instead: any Log present
+// makes the cell wood-floodable (its in-cell leaves ride the fragment via the gather
+// partition); only leaf-PURE cells are cargo.
+struct CellTreeScan {
+    bool log       = false;   ///< any Log content (cube, subcube, or microcube)
+    bool leaf      = false;   ///< any Leaf content
+    bool structLog = false;   ///< Log at CUBE or SUBCUBE granularity (see below)
+    std::string logSpecies;   ///< suffix after "Log" of the first log found (valid iff log)
+    std::string leafSpecies;  ///< suffix after "Leaf" of the first leaf found (valid iff leaf)
+};
+// A cell's tree SPECIES: its wood's, else its foliage's ("" = plain oak Log/Leaf).
+static const std::string& cellSpecies(const CellTreeScan& s) {
+    return s.log ? s.logSpecies : s.leafSpecies;
+}
+static CellTreeScan scanCellTree(ChunkManager* cm, const glm::ivec3& wp) {
+    CellTreeScan s;
+    // F6 — STRUCTURAL wood = log at cube (1 m) or subcube (1/3 m) cross-section. A
+    // limb ≥ ~33 cm across can carry a trunk's load; micro-only wood (≤ 1/9 m ≈ 11 cm
+    // twigs) cannot hold a multi-ton tree up, so it neither transmits support nor
+    // anchors (the live pine stood on a ground-touching twig skirt without this).
+    auto classify = [&s](const std::string& m, bool structural) {
+        if (m.rfind("Log", 0) == 0) {
+            if (!s.log) s.logSpecies = m.substr(3);
+            s.log = true;
+            if (structural) s.structLog = true;
+        } else if (m.rfind("Leaf", 0) == 0) {
+            if (!s.leaf) s.leafSpecies = m.substr(4);
+            s.leaf = true;
+        }
+    };
+    if (Cube* c = cm->getCubeAt(wp)) { classify(c->getMaterialName(), true); return s; }
+    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+    if (!ch) return s;
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+        if (sc) classify(sc->getMaterialName(), true);
+        if (s.structLog && s.leaf) return s;   // nothing more to learn
+    }
+    for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+            for (int sz = 0; sz < 3; ++sz)
+                for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
+                    if (mc) classify(mc->getMaterialName(), false);
+                    if (s.log && s.leaf) return s;   // structLog is final past subcubes
+                }
+    return s;
+}
+// TREE cell = contains trunk (Log*) or canopy (Leaf*) material (Phase 2 tree-object flood).
 static bool isTreeCell(ChunkManager* cm, const glm::ivec3& wp) {
-    std::string m = cellMaterial(cm, wp);
-    return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+    CellTreeScan s = scanCellTree(cm, wp);
+    return s.log || s.leaf;
 }
+// Any Log content (used by the rooted-trunk anchor check).
 static bool isLogCell(ChunkManager* cm, const glm::ivec3& wp) {
-    return cellMaterial(cm, wp).rfind("Log", 0) == 0;
+    return scanCellTree(cm, wp).log;
 }
-// Canopy. Leaves are CARGO: they never transmit support (they hang off wood, they do
-// not hold trees up — F1), and they never become voxel debris (they are foliage).
-static bool isLeafCell(ChunkManager* cm, const glm::ivec3& wp) {
-    return cellMaterial(cm, wp).rfind("Leaf", 0) == 0;
+// Structural wood (F6): log at cube/subcube granularity — the support graph.
+static bool isStructuralLogCell(ChunkManager* cm, const glm::ivec3& wp) {
+    return scanCellTree(cm, wp).structLog;
+}
+// CARGO cell (F1 + F6): tree matter with NO structural wood — leaf foliage and/or
+// micro-only twig wood. Cargo hangs off structural wood: it never transmits support,
+// never anchors, and its leaves never become voxel debris (they are foliage). A cell
+// with a structural log inside is NOT cargo — its wood carries support.
+static bool isCargoCell(ChunkManager* cm, const glm::ivec3& wp) {
+    CellTreeScan s = scanCellTree(cm, wp);
+    return (s.log || s.leaf) && !s.structLog;
+}
+
+bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
+                                        std::string* logMaterial) {
+    if (!cm) return false;
+    // Structural = Log* at cube or subcube cross-section (F6). Micro-only twig
+    // wood is cargo: it cannot carry a trunk's load, so it is not a choppable
+    // trunk and must not read as one.
+    auto structuralWood = [&](const std::string& m) {
+        if (m.rfind("Log", 0) != 0) return false;
+        if (logMaterial) *logMaterial = m;
+        return true;
+    };
+    if (Cube* c = cm->getCubeAt(wp)) return structuralWood(c->getMaterialName());
+    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+        for (Subcube* sc : ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp)))
+            if (sc && structuralWood(sc->getMaterialName())) return true;
+    }
+    return false;
+}
+
+DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,
+                                                         const glm::vec3& chopDir,
+                                                         float kerfDepth,
+                                                         bool coherentFragments,
+                                                         const glm::vec3& contactPoint) {
+    ChopKerfResult out;
+    if (!m_cm || kerfDepth <= 0.0f) return out;
+    glm::vec2 dir2(chopDir.x, chopDir.z);
+    if (glm::length(dir2) < 1e-3f) return out;
+    dir2 = glm::normalize(dir2);
+    const glm::vec2 lat2(-dir2.y, dir2.x);
+    static const glm::ivec3 H4[4] = {{1,0,0},{-1,0,0},{0,0,1},{0,0,-1}};
+    const char* kHeartwood = "LogHeartwood";
+
+    // ---- anchor at the notch frontier: the swing bites from wherever the cut
+    // already reached. The entry cell empties as the notch deepens, so probe a
+    // few cells along the chop direction for the first structural wood left.
+    glm::ivec3 anchor = hitCell;
+    if (!isStructuralWoodCell(m_cm, anchor)) {
+        bool found = false;
+        for (int k = 1; k <= 6 && !found; ++k) {
+            const glm::ivec3 p(hitCell.x + static_cast<int>(std::round(dir2.x * k)), hitCell.y,
+                               hitCell.z + static_cast<int>(std::round(dir2.y * k)));
+            if (isStructuralWoodCell(m_cm, p)) { anchor = p; found = true; }
+        }
+        if (!found) return out;
+    }
+
+    // ---- the trunk cross-section at the hit height (bounded horizontal flood) ----
+    std::vector<glm::ivec3> cells;
+    {
+        std::vector<glm::ivec3> stack{anchor};
+        std::unordered_set<int> seen{64 | (64 << 8)};
+        while (!stack.empty() && cells.size() < 64) {
+            const glm::ivec3 v = stack.back(); stack.pop_back();
+            cells.push_back(v);
+            for (const auto& n : H4) {
+                const glm::ivec3 nb = v + n, d = nb - anchor;
+                if (std::abs(d.x) > 4 || std::abs(d.z) > 4) continue;
+                if (!seen.insert((64 + d.x) | ((64 + d.z) << 8)).second) continue;
+                if (isStructuralWoodCell(m_cm, nb)) stack.push_back(nb);
+            }
+        }
+    }
+
+    // ---- fill the enclosed hollow at the cut plane: trees are SHELLS by
+    // construction, so without this the kerf opens into empty space. A cell ringed
+    // by structural wood on all four sides becomes solid heartwood before carving.
+    {
+        glm::ivec3 lo = cells[0], hi = cells[0];
+        for (const auto& c : cells) { lo = glm::min(lo, c); hi = glm::max(hi, c); }
+        for (int x = lo.x; x <= hi.x; ++x)
+        for (int z = lo.z; z <= hi.z; ++z) {
+            const glm::ivec3 wp(x, hitCell.y, z);
+            if (m_cm->hasVoxelAt(wp)) continue;
+            bool enclosed = true;
+            for (const auto& hdir : H4) {
+                bool found = false;
+                for (int k = 1; k <= 3 && !found; ++k)
+                    found = isStructuralWoodCell(m_cm, wp + hdir * k);
+                if (!found) { enclosed = false; break; }
+            }
+            if (!enclosed) continue;
+            if (Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+                if (ch->addCube(ChunkManager::worldToLocalCoord(wp), kHeartwood)) {
+                    m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, true);
+                    m_cm->updateAfterCubePlace(wp);
+                    cells.push_back(wp);
+                }
+            }
+        }
+    }
+
+    // ---- kerf frame ----
+    // Center the notch LINE on the blade's actual impact point when the caller
+    // knows it (height clamped into the hit row, lateral offset clamped into the
+    // trunk) — the bite starts exactly where the axe visibly lands.
+    const bool hasContact = contactPoint.y > -1.0e8f;
+    const float kerfY = hasContact
+        ? std::min(hitCell.y + 0.8f, std::max(hitCell.y + 0.2f, contactPoint.y))
+        : hitCell.y + 0.5f;
+    float farD = -1e9f;
+    glm::vec2 centroid(0.0f);
+    for (const auto& c : cells) {
+        const glm::vec2 cc(c.x + 0.5f, c.z + 0.5f);
+        centroid += cc;
+        farD = std::max(farD, glm::dot(cc, dir2) + 0.5f);
+    }
+    centroid /= static_cast<float>(cells.size());
+    float latOff = 0.0f;
+    if (hasContact) {
+        const float raw = glm::dot(glm::vec2(contactPoint.x, contactPoint.z) - centroid, lat2);
+        latOff = std::min(1.5f, std::max(-1.5f, raw));
+    }
+
+    // The frontier (nearD) is measured from the REMAINING WOOD inside the axe's
+    // CORE CHANNEL only (a blade-sized window on the kerf line) — a partially
+    // carved front cell must not pin the bite to re-carve the same region, and
+    // the untouched side/top walls of the notch must not pin the frontier to the
+    // entry face (they are outside the core channel by definition).
+    const float coreHalfW = 0.35f, coreHalfH = 0.30f;
+    auto inCore = [&](const glm::vec3& p) {
+        return std::fabs(glm::dot(glm::vec2(p.x, p.z) - centroid, lat2) - latOff) <= coreHalfW &&
+               std::fabs(p.y - kerfY) <= coreHalfH;
+    };
+    float nearD = 1e9f;
+    for (const auto& c : cells) {
+        Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
+        if (!ch) continue;
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
+        if (ch->getCubeAtFast(lp)) {
+            // full cube: cell-granular test — does the core channel cross it?
+            const glm::vec2 cc(c.x + 0.5f, c.z + 0.5f);
+            if (std::fabs(glm::dot(cc - centroid, lat2)) <= coreHalfW + 0.5f &&
+                std::fabs((c.y + 0.5f) - kerfY) <= coreHalfH + 0.5f)
+                nearD = std::min(nearD, glm::dot(cc, dir2) - 0.5f);
+            continue;
+        }
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+            if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
+            const glm::vec3 sctr = glm::vec3(c) + glm::vec3(sc->getLocalPosition()) / 3.0f
+                                 + glm::vec3(1.0f / 6.0f);
+            if (!inCore(sctr)) continue;
+            nearD = std::min(nearD, glm::dot(glm::vec2(sctr.x, sctr.z), dir2) - 1.0f / 6.0f);
+        }
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz)
+            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
+                if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
+                const glm::vec3 mctr = glm::vec3(c) + glm::vec3(sx, sy, sz) / 3.0f
+                    + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f + glm::vec3(1.0f / 18.0f);
+                if (!inCore(mctr)) continue;
+                nearD = std::min(nearD, glm::dot(glm::vec2(mctr.x, mctr.z), dir2) - 1.0f / 18.0f);
+            }
+    }
+    // Core channel already cut through on this line: don't bail — clamp the
+    // frontier so the frame math stays sane, let the slot carve nothing, and the
+    // rim-sliver fallback below pulverizes whatever the blade actually struck.
+    if (nearD > farD) nearD = farD - 0.01f;
+    out.fullDepth = farD - nearD;   // REMAINING depth (frontier -> far face)
+    out.cutFraction = std::min(1.0f, kerfDepth / out.fullDepth);
+    // let the apex pass the far face so a full-depth cut truly severs
+    const float depth = std::min(kerfDepth, out.fullDepth + 0.2f);
+    const float remaining = out.fullDepth;
+
+    // AXE-BLADE-SIZED bite, not a slab: the notch starts ~2 subcubes wide and
+    // ~2 subcubes tall and only FLARES OPEN as the cut gets close to breaking
+    // through (a feller widens the notch to finish; and the support flood can
+    // only release the tree once the cut spans the trunk). Width/height are
+    // driven by the REMAINING depth, so the shape needs no stored state.
+    const float spanHalfW = [&] {
+        float w = 0.55f;
+        for (const auto& c : cells)
+            w = std::max(w, std::fabs(glm::dot(glm::vec2(c.x + 0.5f, c.z + 0.5f) - centroid, lat2)) + 0.55f);
+        return w;
+    }();
+    const float open = std::min(1.0f, std::max(0.0f, (1.8f - remaining) / 1.5f)); // 0 fresh -> 1 nearly through
+    const float halfW = std::max(0.35f, spanHalfW * open);
+    const float mouthHalfH = 0.30f + 0.20f * open;      // 0.6 m opening -> full row when finishing
+    const float apexHalfH = 0.06f;
+    const float tipLen = std::min(0.45f, depth * 0.5f);
+
+    // The axe removes wood where the BLADE is: with a known contact point the
+    // bite window hugs it (±~0.5 m along the cut), so a stationary chopper
+    // cannot excavate beyond arm's reach — cutting deeper requires stepping in
+    // (design feedback: one spot chunked out a cavern). Without contact info
+    // (headless callers) the window is the classic frontier bite.
+    float dLo = -8.0f, dHi = depth;
+    if (hasContact) {
+        const float contactD =
+            glm::dot(glm::vec2(contactPoint.x, contactPoint.z), dir2) - nearD;
+        dLo = contactD - 0.55f;
+        dHi = std::min(depth, contactD + 0.45f);
+    }
+
+    auto insideWedge = [&](const glm::vec3& p) {
+        const glm::vec2 p2(p.x, p.z);
+        const float d = glm::dot(p2, dir2) - nearD;
+        if (d < dLo || d > dHi) return false;
+        if (std::fabs(glm::dot(p2 - centroid, lat2) - latOff) > halfW) return false;
+        const float tipStart = dHi - tipLen;
+        const float t = std::min(1.0f, std::max(0.0f, (d - tipStart) / tipLen));
+        const float halfH = mouthHalfH + (apexHalfH - mouthHalfH) * t;
+        return std::fabs(p.y - kerfY) <= halfH;
+    };
+
+    auto isWoodMat = [](const std::string& m) { return m.rfind("Log", 0) == 0; };
+    auto subCenter = [](const glm::ivec3& wp, const glm::ivec3& s) {
+        return glm::vec3(wp) + glm::vec3(s) / 3.0f + glm::vec3(1.0f / 6.0f);
+    };
+    auto microCenter = [](const glm::ivec3& wp, const glm::ivec3& s, const glm::ivec3& mm) {
+        return glm::vec3(wp) + glm::vec3(s) / 3.0f + glm::vec3(mm) / 9.0f + glm::vec3(1.0f / 18.0f);
+    };
+
+    // ---- carve ----
+    std::vector<glm::ivec3> seedCells;              // carved cells → collapse seeds
+    std::unordered_set<Chunk*> touched;
+    for (const glm::ivec3& wp : cells) {
+        Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+        if (!ch) continue;
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+
+        // quick reject: 27 sample points across the cell
+        bool cellTouched = false;
+        for (int cx = 0; cx <= 2 && !cellTouched; ++cx)
+        for (int cy = 0; cy <= 2 && !cellTouched; ++cy)
+        for (int cz = 0; cz <= 2 && !cellTouched; ++cz)
+            cellTouched = insideWedge(glm::vec3(wp) + glm::vec3(cx, cy, cz) * 0.5f);
+        if (!cellTouched) continue;
+
+        // a full cube in the wedge's path becomes 27 subcubes first
+        if (ch->getCubeAtFast(lp)) {
+            ch->subdivideAt(lp);
+            m_cm->updateAfterCubeSubdivision(wp);
+        }
+
+        bool carvedHere = false;
+
+        // carve one micro slot: remove micros inside the wedge, then repaint
+        // survivors whose face touches the cut as raw heartwood
+        auto carveMicroSlot = [&](const glm::ivec3& s) {
+            std::vector<glm::ivec3> toRemove;
+            for (Microcube* mc : ch->getMicrocubesAt(lp, s)) {
+                if (!mc || !isWoodMat(mc->getMaterialName())) continue;
+                const glm::ivec3 mm = mc->getMicrocubeLocalPosition();
+                if (insideWedge(microCenter(wp, s, mm))) toRemove.push_back(mm);
+            }
+            for (const auto& mm : toRemove) {
+                if (ch->removeMicrocube(lp, s, mm)) { ++out.microsRemoved; carvedHere = true; }
+            }
+            if (toRemove.empty()) return;
+            static const glm::vec3 A[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+            for (Microcube* mc : ch->getMicrocubesAt(lp, s)) {
+                if (!mc || !isWoodMat(mc->getMaterialName())) continue;
+                const glm::vec3 c = microCenter(wp, s, mc->getMicrocubeLocalPosition());
+                for (const auto& a : A)
+                    if (insideWedge(c + a * (1.0f / 9.0f))) { mc->setMaterialName(kHeartwood); break; }
+            }
+        };
+
+        // subcube pass (pointer list copied by value; removing the current one is safe)
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+            if (!sc || !isWoodMat(sc->getMaterialName())) continue;
+            const glm::ivec3 s = sc->getLocalPosition();
+            int in = 0, samples = 0;
+            for (int cx = 0; cx <= 1; ++cx)
+            for (int cy = 0; cy <= 1; ++cy)
+            for (int cz = 0; cz <= 1; ++cz) {
+                const glm::vec3 p = glm::vec3(wp) +
+                    (glm::vec3(s) + glm::vec3(cx, cy, cz) * 0.94f + glm::vec3(0.03f)) / 3.0f;
+                ++samples; if (insideWedge(p)) ++in;
+            }
+            ++samples; if (insideWedge(subCenter(wp, s))) ++in;
+            if (in == 0) continue;
+            if (in == samples) {                       // fully inside → whole subcube goes
+                if (ch->removeSubcube(lp, s)) { out.microsRemoved += 27; carvedHere = true; }
+                continue;
+            }
+            ch->subdivideSubcubeAt(lp, s);             // partial → refine and carve micros
+            carveMicroSlot(s);
+        }
+        // slots that were already micro-resolution before this call
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz)
+            carveMicroSlot({sx, sy, sz});
+
+        if (!carvedHere) continue;
+        out.carved = true;
+        seedCells.push_back(wp);
+        touched.insert(ch);
+
+        // fully emptied? clear the subdivision placeholder + occupancy
+        bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
+        for (int sx = 0; sx < 3 && !any; ++sx)
+        for (int sy = 0; sy < 3 && !any; ++sy)
+        for (int sz = 0; sz < 3 && !any; ++sz)
+            any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
+        if (!any) {
+            ch->clearSubdivisionAt(lp);
+            m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+            ++out.cellsEmptied;
+        }
+    }
+    // Remove ALL wood content from one cell (the axe shatters it outright).
+    // Returns micro-equivalents removed. Used for rim slivers and neck shear.
+    auto pulverizeCellWood = [&](const glm::ivec3& wp) -> int {
+        Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+        if (!ch) return 0;
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        int removed = 0;
+        if (ch->getCubeAtFast(lp)) {
+            ch->subdivideAt(lp);
+            m_cm->updateAfterCubeSubdivision(wp);
+        }
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+            if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
+            if (ch->removeSubcube(lp, sc->getLocalPosition())) removed += 27;
+        }
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            std::vector<glm::ivec3> rm;
+            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz}))
+                if (mc && mc->getMaterialName().rfind("Log", 0) == 0)
+                    rm.push_back(mc->getMicrocubeLocalPosition());
+            for (const auto& mm : rm)
+                if (ch->removeMicrocube(lp, {sx, sy, sz}, mm)) ++removed;
+        }
+        if (removed > 0) {
+            seedCells.push_back(wp);
+            touched.insert(ch);
+            bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
+            for (int sx = 0; sx < 3 && !any; ++sx)
+            for (int sy = 0; sy < 3 && !any; ++sy)
+            for (int sz = 0; sz < 3 && !any; ++sz)
+                any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
+            if (!any) {
+                ch->clearSubdivisionAt(lp);
+                m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
+                ++out.cellsEmptied;
+            }
+        }
+        return removed;
+    };
+
+    // Rim-sliver fallback: the blade stops at its FIRST contact — often a
+    // remnant sliver on the notch lip that survived earlier bites because it
+    // sits outside the slot's window. If the slot removed nothing, pulverize
+    // the contacted cell's wood outright so the cut always progresses.
+    if (out.microsRemoved == 0) {
+        const int removed = pulverizeCellWood(anchor);
+        if (removed > 0) { out.microsRemoved += removed; out.carved = true; }
+    }
+
+    // NECK SHEAR: a tree cannot hang on a splinter. If the remaining structural
+    // cross-section at the cut plane is a few subcubes' worth (≲ 0.1 m² of wood
+    // carrying tons of tree), the neck shears — remnants break away and the
+    // release below decides the fall. Counted at subcube granularity.
+    {
+        int neckSubcubes = 0;
+        std::vector<glm::ivec3> neckCells;
+        for (const glm::ivec3& c : cells) {
+            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
+            if (!ch) continue;
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
+            int n = 0;
+            if (ch->getCubeAtFast(lp)) n += 9;   // full cube = full 3x3 column area
+            for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+                if (sc && sc->getMaterialName().rfind("Log", 0) == 0) ++n;
+            if (n > 0) { neckSubcubes += n; neckCells.push_back(c); }
+        }
+        if (out.microsRemoved > 0 && neckSubcubes > 0 && neckSubcubes <= 6) {
+            int sheared = 0;
+            for (const glm::ivec3& c : neckCells) sheared += pulverizeCellWood(c);
+            if (sheared > 0) {
+                out.microsRemoved += sheared;
+                LOG_INFO("DamageSystem", "kerf neck shear: {} subcubes of neck snapped at the cut", neckSubcubes);
+            }
+        }
+    }
+    for (Chunk* ch : touched) m_cm->markChunkDirty(ch);
+
+    // ---- tactile splinters: a few micro chips fly off the notch mouth back
+    // toward the chopper. Deliberately FEW (≤6) — impact feedback, not a blast.
+    if (out.microsRemoved > 0) {
+        const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
+        // Splinters fly from the actual blade contact when known, else from the
+        // notch mouth on the (offset) kerf line.
+        const glm::vec2 mouth2 = centroid + lat2 * latOff
+                               + dir2 * (nearD - glm::dot(centroid, dir2));
+        const glm::vec3 mouth = hasContact
+            ? glm::vec3(contactPoint.x, kerfY, contactPoint.z)
+            : glm::vec3(mouth2.x, kerfY, mouth2.y);
+        const int n = std::min(6, out.microsRemoved);
+        for (int i = 0; i < n; ++i) {
+            const glm::vec3 jit(frand(-0.15f, 0.15f), frand(-0.1f, 0.2f), frand(-0.15f, 0.15f));
+            const glm::vec3 vel = -dir3 * frand(1.5f, 3.0f)
+                                + glm::vec3(0.0f, frand(1.0f, 2.2f), 0.0f)
+                                + glm::vec3(frand(-0.8f, 0.8f), 0.0f, frand(-0.8f, 0.8f));
+            spawnDebris(mouth + jit - dir3 * 0.15f, vel, 1.0f / 9.0f, kHeartwood);
+            ++out.collapse.debrisSpawned;
+        }
+    }
+
+    // ---- release: no blast — the ordinary support pass decides. While structural
+    // wood still bridges the kerf the tree stays anchored; the swing that cuts it
+    // through (micro-thin remnants are cargo and carry nothing) releases the tree,
+    // which topples coherently about the cut with the chop direction as tip bias.
+    if (!seedCells.empty()) {
+        const glm::vec3 kerfCenter(centroid.x, kerfY, centroid.y);
+        const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
+        const int detached = collapseUnsupported(seedCells, NO_SUPPORT, out.collapse,
+                                                 coherentFragments, kerfCenter, dir3);
+        out.severed = detached > 0;
+    }
+    return out;
 }
 
 bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& component,
@@ -520,7 +1004,11 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     glm::vec3 linVel(0.0f, -1.0f, 0.0f), angVel(0.0f);
     if (tipDir != glm::vec3(0.0f)) {
         float L = std::max(1.0f, maxY - minY + 1.0f);
-        float w = glm::clamp(0.35f * std::sqrt(3.0f * 9.81f / L), 0.2f, 1.5f);
+        // Seed factor 0.8 of the rod-topple rate (was 0.35): live observation — a tall
+        // flat-cut trunk drops onto its stump and the base contacts damp a weak seed to
+        // sleep, leaving the tree balanced upright instead of felling. Disclosed tune on
+        // the grounded sqrt(3g/L) form.
+        float w = glm::clamp(0.8f * std::sqrt(3.0f * 9.81f / L), 0.5f, 2.5f);
         angVel = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), tipDir) * w;
         linVel = glm::cross(angVel, com - pivot);
     }
@@ -566,9 +1054,9 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     return true;
 }
 
-void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
-                                       DamageResult& res, bool coherent,
-                                       const glm::vec3& impactCenter, const glm::vec3& impactDir) {
+int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
+                                      DamageResult& res, bool coherent,
+                                      const glm::vec3& impactCenter, const glm::vec3& impactDir) {
     const int yAnchor = static_cast<int>(std::floor(supportY));
     std::unordered_set<int64_t> visited;   // every solid voxel enqueued by any flood
     std::unordered_set<int64_t> anchored;  // voxels proven connected to the supported main mass
@@ -586,118 +1074,173 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         }
     }
 
-    // F1 — SUPPORT FLOWS THROUGH WOOD ONLY. Leaf cells are excluded from the support
-    // flood entirely (they hang off wood; they must not hold a tree up, and must not
-    // bridge support between interlocked canopies). They are assigned afterwards as
-    // CARGO to whichever wood they are nearest: detached wood takes its canopy with it;
-    // standing wood keeps its canopy. Leaves never become voxel debris (foliage).
+    // F1/F6 — SUPPORT FLOWS THROUGH STRUCTURAL WOOD ONLY. Cargo cells (leaves + micro-
+    // only twig wood) are excluded from the support flood entirely: they hang off
+    // structural wood, they must not hold a tree up, and they must not bridge support
+    // between interpenetrating canopies (the live birch hung off the oak twig-to-twig).
+    // They are assigned afterwards as CARGO to whichever wood they are nearest.
+    //
+    // CASCADE (F6): structural wood reachable only THROUGH cargo cells (a limb beyond a
+    // twig gap) is invisible to the rim flood — after collecting the cargo region, any
+    // unvisited structural cell adjacent to it becomes a new support seed, and the loop
+    // repeats until nothing new turns up. Without this, such wood floats exactly like
+    // the pre-F5 ghost canopy.
     std::vector<glm::ivec3> stack;
     std::vector<glm::ivec3> component;
     std::vector<std::vector<glm::ivec3>> detachedComponents;
-    std::vector<glm::ivec3> leafSeeds;               // rim leaves (orphan-cargo entry points)
+    std::vector<glm::ivec3> cargoSeeds;              // rim cargo cells (region entry points)
     std::unordered_set<int64_t> detachedSet;         // cells of all detached components
 
-    for (const glm::ivec3& seed : seeds) {
-        if (totalDetached >= MAX_COLLAPSE) break;
-        if (visited.count(packVoxel(seed.x, seed.y, seed.z))) continue;
-        if (isLeafCell(m_cm, seed)) { leafSeeds.push_back(seed); continue; }  // cargo pass
+    std::unordered_map<int64_t, glm::ivec3> region;  // the cargo region (grows per round)
+    std::deque<glm::ivec3> rq;
+    auto addRegion = [&](const glm::ivec3& p) {
+        if (!m_cm->hasVoxelAt(p) || !isCargoCell(m_cm, p)) return;
+        int64_t k = packVoxel(p.x, p.y, p.z);
+        if (region.count(k)) return;
+        region[k] = p;
+        rq.push_back(p);
+    };
+    size_t regionDoneComps = 0;   // components whose neighborhood is already in the region
 
-        // Flood-fill this connected solid component (bounded), checking for an anchor.
-        component.clear();
-        stack.clear();
-        stack.push_back(seed);
-        visited.insert(packVoxel(seed.x, seed.y, seed.z));
-        bool supported = false;
+    while (!seeds.empty() && totalDetached < MAX_COLLAPSE) {
+        // ---- Support floods for this round's seeds.
+        for (const glm::ivec3& seed : seeds) {
+            if (totalDetached >= MAX_COLLAPSE) break;
+            if (visited.count(packVoxel(seed.x, seed.y, seed.z))) continue;
+            if (isCargoCell(m_cm, seed)) { cargoSeeds.push_back(seed); continue; }  // cargo pass
 
-        bool hasTerrain = false;   // does this component contain a non-tree (terrain) cell?
-        while (!stack.empty()) {
-            glm::ivec3 v = stack.back(); stack.pop_back();
-            if (v.y <= yAnchor) { supported = true; break; }   // reached the designer anchor
-            component.push_back(v);
+            // Flood-fill this connected solid component (bounded), checking for an anchor.
+            component.clear();
+            stack.clear();
+            stack.push_back(seed);
+            visited.insert(packVoxel(seed.x, seed.y, seed.z));
+            bool supported = false;
+            const char* why = "?";              // which anchor rule fired (flood diagnostics)
+            glm::ivec3 whyAt(0);
 
-            const bool vTree = isTreeCell(m_cm, v);
-            if (!vTree) hasTerrain = true;
-            // TREE-OBJECT anchor (Phase 2): a tree is rooted to the ground ONLY through its
-            // trunk — a Log with terrain directly below. Incidental leaf-or-side terrain
-            // contact must NOT anchor a severed top, so a tree cell never propagates the
-            // flood into terrain (below); only this rooted-trunk check anchors a tree.
-            if (vTree && isLogCell(m_cm, v)) {
-                glm::ivec3 below(v.x, v.y - 1, v.z);
-                if (m_cm->hasVoxelAt(below) && !isTreeCell(m_cm, below)) { supported = true; break; }
+            bool hasTerrain = false;   // does this component contain a non-tree (terrain) cell?
+            while (!stack.empty()) {
+                glm::ivec3 v = stack.back(); stack.pop_back();
+                if (v.y <= yAnchor) { supported = true; why = "designer-anchor"; whyAt = v; break; }
+                component.push_back(v);
+
+                const bool vTree = isTreeCell(m_cm, v);
+                if (!vTree) hasTerrain = true;
+                // TREE-OBJECT anchor (Phase 2): a tree is rooted to the ground ONLY through its
+                // trunk — a Log with terrain directly below. Incidental leaf-or-side terrain
+                // contact must NOT anchor a severed top, so a tree cell never propagates the
+                // flood into terrain (below); only this rooted-trunk check anchors a tree.
+                if (vTree && isLogCell(m_cm, v)) {
+                    glm::ivec3 below(v.x, v.y - 1, v.z);
+                    if (m_cm->hasVoxelAt(below) && !isTreeCell(m_cm, below)) {
+                        supported = true; why = "rooted-trunk"; whyAt = v; break;
+                    }
+                }
+                // Flooded past the cap → the MAIN MASS. Terrain uses MAX_FLOOD; a pure-tree
+                // component (a big canopy) is not ground, so it floods to the higher tree cap.
+                const int cap = hasTerrain ? MAX_FLOOD : TREE_MAX_FLOOD;
+                if (static_cast<int>(component.size()) > cap) {
+                    supported = true; why = hasTerrain ? "flood-cap-terrain" : "flood-cap-tree"; whyAt = v; break;
+                }
+                for (const auto& n : NB) {
+                    glm::ivec3 nb = v + n;
+                    int64_t key = packVoxel(nb.x, nb.y, nb.z);
+                    // Reached a voxel already proven part of the main mass → supported.
+                    if (anchored.count(key)) { supported = true; why = "main-mass"; whyAt = nb; break; }
+                    if (visited.count(key)) continue;
+                    if (m_cm->hasVoxelAt(nb)) {
+                        if (isCargoCell(m_cm, nb)) continue;              // cargo NEVER transmits support
+                        if (vTree && !isTreeCell(m_cm, nb)) continue;     // tree ↛ terrain (side contact)
+                        visited.insert(key); stack.push_back(nb);
+                    }
+                }
+                if (supported) break;
             }
-            // Flooded past the cap → the MAIN MASS. Terrain uses MAX_FLOOD; a pure-tree
-            // component (a big canopy) is not ground, so it floods to the higher tree cap.
-            const int cap = hasTerrain ? MAX_FLOOD : TREE_MAX_FLOOD;
-            if (static_cast<int>(component.size()) > cap) { supported = true; break; }
-            for (const auto& n : NB) {
-                glm::ivec3 nb = v + n;
-                int64_t key = packVoxel(nb.x, nb.y, nb.z);
-                // Reached a voxel already proven part of the main mass → supported.
-                if (anchored.count(key)) { supported = true; break; }
-                if (visited.count(key)) continue;
-                if (m_cm->hasVoxelAt(nb)) {
-                    if (isLeafCell(m_cm, nb)) continue;               // leaves NEVER transmit support
-                    if (vTree && !isTreeCell(m_cm, nb)) continue;     // tree ↛ terrain (side contact)
-                    visited.insert(key); stack.push_back(nb);
+            // Flood diagnostics: which anchor kept a piece standing (or that it fell) is
+            // otherwise invisible — this is the first thing to read when a tree stands
+            // after a cut or terrain over-collapses.
+            LOG_DEBUG("DamageSystem", "support flood: seed ({},{},{}) -> {} cells {}",
+                      seed.x, seed.y, seed.z, component.size(),
+                      supported ? (std::string(why) + " at (" + std::to_string(whyAt.x) + "," +
+                                   std::to_string(whyAt.y) + "," + std::to_string(whyAt.z) + ")")
+                                : std::string("DETACHED"));
+
+            if (supported) {
+                // Record this flood (processed component + the unprocessed frontier still
+                // on the stack) as anchored. A flood that hits the MAX_FLOOD cap stops
+                // early, leaving a visited frontier; without marking it anchored, that
+                // frontier walls the rest of the connected ground into sub-cap pockets
+                // that later seeds mistake for severed islands and drop — carving false
+                // straight-line trenches across supported terrain.
+                for (const glm::ivec3& v : component) anchored.insert(packVoxel(v.x, v.y, v.z));
+                for (const glm::ivec3& v : stack)     anchored.insert(packVoxel(v.x, v.y, v.z));
+                continue;
+            }
+
+            // Big detachments are usually wrong (a whole tree released by a nick):
+            // dump the root row's anchor state so the failed rooted-trunk check is
+            // diagnosable from the log instead of by guesswork.
+            if (component.size() > 50) {
+                int minY = INT_MAX;
+                for (const glm::ivec3& v : component) minY = std::min(minY, v.y);
+                int logged = 0;
+                for (const glm::ivec3& v : component) {
+                    if (v.y != minY || logged >= 6) continue;
+                    const glm::ivec3 below(v.x, v.y - 1, v.z);
+                    const Cube* bc = m_cm->getCubeAt(below);
+                    LOG_INFO("DamageSystem",
+                             "DETACH-DIAG root cell ({},{},{}) isLog={} below: has={} tree={} cubeMat={}",
+                             v.x, v.y, v.z, isLogCell(m_cm, v),
+                             m_cm->hasVoxelAt(below), isTreeCell(m_cm, below),
+                             bc ? bc->getMaterialName() : std::string("<no-cube>"));
+                    ++logged;
                 }
             }
-            if (supported) break;
+            for (const glm::ivec3& v : component) detachedSet.insert(packVoxel(v.x, v.y, v.z));
+            detachedComponents.push_back(component);
         }
+        seeds.clear();
 
-        if (supported) {
-            // Record this flood (processed component + the unprocessed frontier still
-            // on the stack) as anchored. A flood that hits the MAX_FLOOD cap stops
-            // early, leaving a visited frontier; without marking it anchored, that
-            // frontier walls the rest of the connected ground into sub-cap pockets
-            // that later seeds mistake for severed islands and drop — carving false
-            // straight-line trenches across supported terrain.
-            for (const glm::ivec3& v : component) anchored.insert(packVoxel(v.x, v.y, v.z));
-            for (const glm::ivec3& v : stack)     anchored.insert(packVoxel(v.x, v.y, v.z));
-            continue;
-        }
-
-        for (const glm::ivec3& v : component) detachedSet.insert(packVoxel(v.x, v.y, v.z));
-        detachedComponents.push_back(component);
-    }
-
-    // ---- CARGO PASS: assign nearby leaves to their nearest wood.
-    // Phase i: collect the RELEVANT leaf region L (leaves reachable through leaves from
-    // any detached cell or rim leaf-seed, bounded). Phase ii: true multi-source BFS in L
-    // with ALL sources seeded at distance 0 — leaves adjacent to STANDING wood (label
-    // STAND, seeded first so equal-distance ties stay with the standing tree) and leaves
-    // adjacent to each detached component (label k). Nearest label wins; leaves reached
-    // by no source (their wood was destroyed outright) are ORPHANS.
-    constexpr int STAND = -1;
-    std::vector<std::vector<glm::ivec3>> cargoPer(detachedComponents.size());
-    std::vector<glm::ivec3> orphanLeaves;
-    {
-        // Phase i — leaf region L.
-        std::unordered_map<int64_t, glm::ivec3> region;
-        std::deque<glm::ivec3> rq;
-        auto addRegion = [&](const glm::ivec3& p) {
-            if (!m_cm->hasVoxelAt(p) || !isLeafCell(m_cm, p)) return;
-            int64_t k = packVoxel(p.x, p.y, p.z);
-            if (region.count(k)) return;
-            region[k] = p;
-            rq.push_back(p);
-        };
-        for (const auto& comp : detachedComponents)
-            for (const glm::ivec3& cell : comp)
+        // ---- Grow the cargo region: neighborhoods of the new detached components +
+        // this round's rim cargo seeds, then BFS through connected cargo. While
+        // draining, collect the next round's seeds — unvisited STRUCTURAL wood
+        // touching the region (the cascade).
+        for (; regionDoneComps < detachedComponents.size(); ++regionDoneComps)
+            for (const glm::ivec3& cell : detachedComponents[regionDoneComps])
                 for (const auto& n : NB) addRegion(cell + n);
-        for (const glm::ivec3& s : leafSeeds) addRegion(s);
+        for (const glm::ivec3& s : cargoSeeds) addRegion(s);
+        cargoSeeds.clear();
         int guard = 0;
         while (!rq.empty() && guard++ < TREE_MAX_FLOOD) {
             glm::ivec3 p = rq.front(); rq.pop_front();
-            for (const auto& n : NB) addRegion(p + n);
+            for (const auto& n : NB) {
+                glm::ivec3 nb = p + n;
+                addRegion(nb);
+                int64_t key = packVoxel(nb.x, nb.y, nb.z);
+                if (!visited.count(key) && !anchored.count(key) &&
+                    m_cm->hasVoxelAt(nb) && isStructuralLogCell(m_cm, nb)) {
+                    seeds.push_back(nb);   // structural wood beyond a cargo gap
+                }
+            }
         }
+    }
 
-        // Phase ii — multi-source BFS over L. Seed STAND sources first (tie priority).
+    // ---- CARGO ASSIGNMENT: multi-source BFS over the region with ALL sources seeded
+    // at distance 0 — cargo adjacent to STANDING structural wood (label STAND, seeded
+    // first so equal-distance ties stay with the standing tree) and cargo adjacent to
+    // each detached component (label k). Nearest label wins; cargo reached by no
+    // source (its wood was destroyed outright) is ORPHANED.
+    constexpr int STAND = -1;
+    std::vector<std::vector<glm::ivec3>> cargoPer(detachedComponents.size());
+    std::vector<glm::ivec3> orphanLeaves;
+    std::vector<glm::ivec3> orphanWood;
+    {
         std::unordered_map<int64_t, int> label;
         std::deque<std::pair<glm::ivec3, int>> q;
         auto standAdjacent = [&](const glm::ivec3& p) {
             for (const auto& m : NB) {
                 glm::ivec3 w = p + m;
-                if (m_cm->hasVoxelAt(w) && isLogCell(m_cm, w) &&
+                if (m_cm->hasVoxelAt(w) && isStructuralLogCell(m_cm, w) &&
                     !detachedSet.count(packVoxel(w.x, w.y, w.z))) return true;
             }
             return false;
@@ -716,7 +1259,7 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
                 }
             }
         }
-        guard = 0;
+        int guard = 0;
         while (!q.empty() && guard++ < TREE_MAX_FLOOD) {
             auto [p, l] = q.front(); q.pop_front();
             for (const auto& n : NB) {
@@ -729,9 +1272,13 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         }
         for (const auto& [k, p] : region) {
             auto it = label.find(k);
-            if (it == label.end())        orphanLeaves.push_back(p);      // no wood reached it
+            if (it == label.end()) {
+                // No wood reached it. Leaf-pure orphans vanish silently (foliage);
+                // orphans CONTAINING wood (severed twig clusters) fall as pieces (F6).
+                (scanCellTree(m_cm, p).log ? orphanWood : orphanLeaves).push_back(p);
+            }
             else if (it->second >= 0)     cargoPer[it->second].push_back(p);
-            // STAND leaves stay untouched.
+            // STAND cargo stays untouched.
         }
     }
 
@@ -755,11 +1302,46 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
     // Orphaned leaves (their wood was destroyed outright): removed, no voxel debris.
     for (const glm::ivec3& v : orphanLeaves) { removeCellContent(m_cm, v); totalDetached++; }
 
+    // Orphaned WOOD (F6): severed twig clusters with no structural wood left nearby —
+    // e.g. a long micro-resolution branch whose root cell was blasted. Each connected
+    // cluster falls as its own coherent piece (scatter fallback if it can't cohere).
+    if (!orphanWood.empty()) {
+        std::unordered_set<int64_t> pool;
+        for (const glm::ivec3& p : orphanWood) pool.insert(packVoxel(p.x, p.y, p.z));
+        static const std::vector<glm::ivec3> kNoCargo;
+        for (const glm::ivec3& start : orphanWood) {
+            if (totalDetached >= MAX_COLLAPSE) break;
+            if (!pool.count(packVoxel(start.x, start.y, start.z))) continue;
+            component.clear();
+            stack.clear();
+            stack.push_back(start);
+            pool.erase(packVoxel(start.x, start.y, start.z));
+            while (!stack.empty()) {
+                glm::ivec3 v = stack.back(); stack.pop_back();
+                component.push_back(v);
+                for (const auto& n : NB) {
+                    glm::ivec3 nb = v + n;
+                    int64_t key = packVoxel(nb.x, nb.y, nb.z);
+                    if (pool.count(key)) { pool.erase(key); stack.push_back(nb); }
+                }
+            }
+            if (coherent && collapseComponentCoherent(component, kNoCargo, res, impactCenter, impactDir)) {
+                totalDetached += static_cast<int>(component.size());
+            } else {
+                for (const glm::ivec3& v : component) {
+                    if (totalDetached >= MAX_COLLAPSE) break;
+                    totalDetached += dropDetachedCell(v, res);
+                }
+            }
+        }
+    }
+
     res.voxelsBroken += totalDetached;
     if (totalDetached >= MAX_COLLAPSE)
         LOG_WARN("DamageSystem", "collapse hit hard cap ({} voxels) — chain reaction truncated", MAX_COLLAPSE);
     else if (totalDetached > 0)
         LOG_INFO("DamageSystem", "collapse: {} voxels detached and fell", totalDetached);
+    return totalDetached;
 }
 
 } // namespace Phyxel
