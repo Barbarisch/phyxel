@@ -97,6 +97,46 @@ CHOP_DOWN = merge_poses(_CHOP_DOWN_R, mirror_pose(_CHOP_DOWN_R), {
     "Head": (8.0, 0.0, 0.0),
 })
 
+# --- one-hand axe chop (tree-felling / hatchet) -------------------------------
+# The axe is a one-handed tool (iron_axe: RightHand grip). The right arm does
+# all the work; the left arm counterbalances. A weighty overhead-diagonal bite
+# reads as chopping wood, distinct from the flat sword slash.
+AXE_READY = {                              # axe held up-forward at the ready
+    "RightArm": (5.0, 0.0, -35.0),
+    "RightForeArm": (10.0, 0.0, -50.0),    # elbow bent, axe head up
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (0.0, 0.0, 20.0),           # off-hand out for balance
+    "Spine": (1.0, -4.0, 0.0),
+    "Spine1": (1.0, -4.0, 0.0),
+    "Spine2": (1.0, -3.0, 0.0),
+    "Hips": (0.0, -3.0, 0.0),
+    "HipsOffset": (0.0, -0.02, 0.0),
+}
+AXE_COCK = {                               # raise the axe high over the right shoulder, coil back
+    "RightArm": (-12.0, 0.0, -120.0),      # arm up-back overhead
+    "RightForeArm": (0.0, 0.0, -40.0),     # axe head cocked behind the head
+    "RightHand": (0.0, 0.0, -8.0),
+    "LeftArm": (5.0, 0.0, 28.0),           # off-hand rises to balance the coil
+    "Spine": (-5.0, -10.0, 0.0),           # arch back + right-handed windup twist
+    "Spine1": (-5.0, -10.0, 0.0),
+    "Spine2": (-4.0, -8.0, 0.0),
+    "Head": (-6.0, -4.0, 0.0),
+    "Hips": (0.0, -8.0, 0.0),              # hips lead the windup
+    "HipsOffset": (0.0, -0.01, 0.0),       # tall at the top of the coil
+}
+AXE_BITE = {                               # drive the axe down-forward into the trunk
+    "RightArm": (12.0, 0.0, -48.0),        # arm driven down to waist height in front
+    "RightForeArm": (0.0, 0.0, -10.0),     # arm extends through the bite
+    "RightHand": (0.0, 0.0, 8.0),
+    "LeftArm": (-5.0, 0.0, 8.0),           # off-hand whips back for the drive
+    "Spine": (12.0, 4.0, 0.0),             # whole torso commits + uncoils forward
+    "Spine1": (12.0, 4.0, 0.0),
+    "Spine2": (10.0, 3.0, 0.0),
+    "Head": (7.0, 0.0, 0.0),
+    "Hips": (2.0, 4.0, 0.0),
+    "HipsOffset": (0.0, -0.10, 0.0),       # deep drop of the weight into the chop
+}
+
 # --- two-handed horizontal sweep ----------------------------------------------
 SWEEP_RIGHT = {                           # hands gathered at the right hip
     "RightArm": (-25.0, 0.0, -15.0),     # right arm back-out to the right
@@ -273,6 +313,9 @@ POSES = {
     "stab_lunge": STAB_LUNGE,
     "chop_up": CHOP_UP,
     "chop_down": CHOP_DOWN,
+    "axe_ready": AXE_READY,
+    "axe_cock": AXE_COCK,
+    "axe_bite": AXE_BITE,
     "sweep_right": SWEEP_RIGHT,
     "sweep_left": SWEEP_LEFT,
     "spear_guard": SPEAR_GUARD,
@@ -312,6 +355,20 @@ CLIPS = [
         (1.00, "chop_down"),
         (1.30, "rest"),
     ], 0.58, "two_handed", "primary"),
+
+    # One-hand axe chop (family chop_axe) — tree felling + hatchet combat.
+    # Ready -> overhead coil -> committed downward bite. Weighty (heavy speed
+    # class) but repeatable for chopping. Legs from the downward-attack mocap
+    # give real weight transfer under the authored arms; the bite lands ~60%.
+    ("chop_1h", 1.1, [
+        (0.00, "rest"),
+        (0.20, "axe_ready"),
+        (0.42, "axe_cock"),      # windup coil
+        (0.50, "axe_cock"),      # brief heave at the top
+        (0.68, "axe_bite"),      # committed chop (drive down)
+        (0.88, "axe_bite"),      # impact hold (bite frame lives here)
+        (1.10, "rest"),
+    ], 0.62, "chop_axe", "primary", ("melee_attack_down", 0.5, 1.7)),
 
     ("melee_sweep_2h", 1.4, [
         (0.00, "rest"),

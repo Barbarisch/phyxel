@@ -123,16 +123,16 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          -0.18,
-          -0.1,
-          -0.18
+          -0.5,
+          -0.17,
+          -0.5
         ],
         "gripEulerDeg": [
           0,
           0,
           0
         ],
-        "scale": 0.35
+        "scale": 1.0
       }
     },
     {

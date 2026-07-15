@@ -8,6 +8,51 @@ Severity legend: 🔴 confirmed defect · 🟠 latent risk / partial · 🟡 nee
 
 ---
 
+## 🔴 0. Input / placement / asset-authoring not strict enough (2026-07-14)
+
+Three related gaps surfaced while runtime-testing the axe-chop feature — each a place the
+engine trusts the caller instead of validating by default. They should have been caught by
+the per-component testing phase and weren't.
+
+1. **Spawn/placement accepts positions inside solid voxels.** `spawn_entity`
+   (`Application.cpp` ~12847, `createAnimatedCharacter`) placed an animated character at
+   `y=16` with the surface at `y=16` — half-buried — with no error, even though
+   `get_terrain_height` reports `spawn_y=17`. Placement APIs should reject or auto-ground a
+   spawn inside solid terrain. **FIXED 2026-07-14**: `spawn_entity` now grounds an
+   inside-solid spawn to the first air cell above the solid column and reports it
+   (`grounded_from` + `warning` in the response); pure helper
+   `Core::groundSpawnYIfInsideSolid` (`engine/include/core/SpawnGrounding.h`), unit-tested.
+   Remaining: apply the same guard to `spawn_npc` and other placement paths (🟠).
+
+2. **No visual scale gate when authoring items/assets.** `iron_axe` shipped with a held
+   grip scale (0.35) that renders as an unreadable blob in-hand, and nothing ever validated
+   it. Seating has `sit-validate` / the interaction editor; there is no equivalent "render
+   this item in-hand / at its intended scale and confirm it reads correctly" gate for
+   item/asset authoring. OPEN (🟠) — an item-in-hand screenshot check belongs in the asset
+   pipeline / `/generate` skill.
+
+2b. **`spawn_template` didn't rebuild collision occupancy → walk-through.** A stamped static
+   template (e.g. a tree via `spawn_template`/`placeTemplate`) wrote its voxels into chunks and
+   rebuilt the **NavGrid**, but never rebuilt the **physics occupancy grid** — so the object
+   rendered and answered `getCubeAt`, yet the character walked straight through it. This is the
+   "every voxel edit must re-run `buildChunkPhysics`" occupancy rule being skipped (same class as
+   the DB-load fall-through bug). **FIXED 2026-07-14**: the `spawn_template` handler now calls
+   `chunkManager->buildChunkPhysicsInRegion(origin+tmin, origin+tmax)` over the template footprint
+   (next to the existing NavGrid rebuild). Verified live: a `forge_oak_m` now blocks the player at
+   the trunk instead of passing through. Remaining (🟠): audit `place_voxel`/`fill_region`/
+   `place_voxels_batch` for the same missing rebuild; and confirm occupancy resolution for
+   subcube/microcube-only geometry (the trunk base blocks via full cubes, but a purely sub-voxel
+   obstacle may under-collide).
+
+3. **Tests must spawn via engine generators, not hand-placed lookalikes.** The chop feature
+   was first "tested" against a tree hand-stacked from `Log` voxels instead of the engine's
+   flora / `ProceduralTree` generator — the exact provenance / no-substitution anti-pattern
+   `CLAUDE.md` forbids. A real test spawns a real generated tree. OPEN (🟡, discipline) —
+   consider an MCP `spawn_tree` / flora-stamp helper so the engine-native path is the easy
+   path and hand-stacking is never the shortcut.
+
+---
+
 ## ✅ 1. Character falls through the floor — FIXED (2026-05-25)
 
 **Fix:** swept downward ground probe in `resolveKinematicMovement`

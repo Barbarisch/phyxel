@@ -1404,6 +1404,25 @@ namespace Scene {
         if (state == currentState) return;
         currentState = state;
         stateTimer = 0.0f;
+        // Forcing Attack directly (API / scripted trigger) must set up a real swing
+        // the SAME way the attackRequested transition does — pick the swing clip
+        // from the equipped moveset and reset the hit-frame latch. Without this the
+        // Attack case sees an empty m_currentAttackClip (scaledDur == 0), decides the
+        // swing is "already over", and falls back to Idle in a single frame — so the
+        // swing never plays and onHitFrame never fires. This makes
+        // set_animation_state("Attack") a usable agent-driven attack trigger.
+        if (state == AnimatedCharacterState::Attack) {
+            m_hitFrameFired = false;
+            m_attackQueued  = false;
+            m_attackIsHeavy = false;
+            if (!m_moveset.lightChain.empty()) {
+                m_chainIdx = 0;
+                m_currentAttackClip = m_moveset.lightChain[0];
+                m_chainIdx = 1;
+            } else {
+                m_currentAttackClip = "attack";
+            }
+        }
     }
 
     bool AnimatedVoxelCharacter::reloadAnimations(const std::string& animFile) {
