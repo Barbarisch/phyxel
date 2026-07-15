@@ -80,11 +80,12 @@ private:
                              const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
     // Try to topple one severed component as a coherent rigid slab via m_fragMgr.
-    // Returns true if it was physicalized (cells removed + body spawned); false if
-    // the caller should fall back to per-cell scatter. The body is seeded with a HINGE
-    // rotation about the cut (P2.3): tip direction = the wood's COM asymmetry off the
-    // pivot, falling back to the chop direction, then away-from-blast.
-    bool collapseComponentCoherent(const std::vector<glm::ivec3>& component, DamageResult& res,
+    // `leafCargo` = canopy cells assigned to this component (F1): they ride the fragment
+    // as render cargo (leaves are never voxel debris). Returns true if physicalized
+    // (cells removed + body spawned); false if the caller should fall back to per-cell
+    // scatter. The body is seeded with a HINGE rotation about the cut (P2.3).
+    bool collapseComponentCoherent(const std::vector<glm::ivec3>& component,
+                                   const std::vector<glm::ivec3>& leafCargo, DamageResult& res,
                                    const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
     // Remove ALL content at one world cell — a full cube OR a sub-voxel

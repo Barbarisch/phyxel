@@ -171,16 +171,15 @@ TEST_F(TreeCollapseIntegrationTest, MicroLeafCanopy_OverhangCutTrunk_TopDetaches
     EXPECT_TRUE(solid(13, 10, 10)) << "hill fell";
 }
 
-TEST_F(TreeCollapseIntegrationTest, MicroWoodCoheres_LeavesShed) {
+TEST_F(TreeCollapseIntegrationTest, MicroWoodCoheres_CanopyRidesAlong) {
     if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
     auto* voxelWorld = physicsWorld->getVoxelWorld();
     ASSERT_NE(voxelWorld, nullptr);
 
     // A floating (unrooted -> detaches when seeded) tree piece: 2 Log cubes + one cell of
     // 4 Log MICROcubes (a fine branch) + 2 Leaf cubes (canopy). With coherent=true the
-    // WOOD (cubes + micros) must topple as ONE body and the LEAVES must shed (scatter),
-    // per the 2026-07-14 decision. Red on baseline: the micro-only cell makes
-    // gatherCellVoxels bail -> the whole component scatters -> zero coherent bodies.
+    // WOOD (cubes + micros, full micro resolution) topples as ONE body and the CANOPY
+    // RIDES ALONG as cargo (F1: leaves are never voxel debris — the tree falls as a tree).
     putBox(20, 20, 20, 21, 20, 20, "Log");   // 2 Log cubes
     for (int m = 0; m < 4; ++m)
         ASSERT_TRUE(putMicro({22, 20, 20}, {0, 1, 1}, {m % 3, m / 3, 1}, "Log"));  // 4 Log micros
@@ -194,20 +193,63 @@ TEST_F(TreeCollapseIntegrationTest, MicroWoodCoheres_LeavesShed) {
     DamageSystem dmg(chunkManager.get(), nullptr);
     dmg.setFragmentManager(&mgr);
     // Blast the first Log cube only (r=1.0: neighbours at dist 1.0 -> falloff 0, survive).
-    dmg.applyDamage(glm::vec3(20.5f, 20.5f, 20.5f), 1.0f, 600.0f, "force",
+    auto damageRes = dmg.applyDamage(glm::vec3(20.5f, 20.5f, 20.5f), 1.0f, 600.0f, "force",
                     glm::vec3(0.0f), DamageSystem::NO_SUPPORT, /*collapse*/ true, /*coherent*/ true);
 
     ASSERT_EQ(mgr.count(), 1u) << "severed micro-wood did not cohere (micro gather missing)";
     EXPECT_EQ(voxelWorld->getBodyCount(), bodiesBefore + 1);
-    // The fragment must be WOOD-ONLY: 1 remaining Log cube + 4 Log micros = 5 voxels.
+    // The fragment holds the wood (1 remaining Log cube + 4 Log micros = 5) AND the
+    // canopy cargo: leaf cell (21,21,20) is nearest the detached wood -> rides; leaf
+    // (20,21,20) sat over the destroyed cube -> orphan (removed, no debris). So the
+    // fragment has 5 wood + at least 1 leaf voxel.
     ASSERT_EQ(kin.getObjects().size(), 1u);
     const auto& frag = kin.getObjects().begin()->second;
-    EXPECT_EQ(frag.voxels.size(), 5u) << "fragment should hold wood only (leaves shed)";
+    int wood = 0, leaf = 0;
     for (const auto& v : frag.voxels) {
-        EXPECT_EQ(v.materialName.rfind("Leaf", 0), std::string::npos) << "leaf voxel in wood fragment";
+        if (v.materialName.rfind("Leaf", 0) == 0) ++leaf; else ++wood;
     }
-    // Everything is gone from the grid (wood into the body, leaves scattered).
+    EXPECT_EQ(wood, 5) << "wood voxels missing from the fragment";
+    EXPECT_GE(leaf, 1) << "canopy did not ride the fragment (leaves must not shed/vanish)";
+    // Everything is gone from the grid (wood + riding leaves into the body; orphan
+    // leaves removed without debris).
     EXPECT_EQ(countSolid(20, 20, 20, 22, 21, 20), 0);
+    // Leaves never become voxel debris: total debris stays small (only the one blasted
+    // Log cube's pieces + the body), far below what leaf-shed would produce.
+    EXPECT_LE(damageRes.debrisSpawned, 30);
+}
+
+// ============================================================================
+// Fix F1 (post-demo) — support flows through WOOD only; leaves are cargo
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, InterlockedCanopies_CutTrunk_TopStillFalls) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+
+    // Two trees whose LEAF canopies touch (the demo's floating-birch case). Tree A is
+    // rooted; tree B's trunk is cut. Support must flow through WOOD only — B's severed
+    // top must NOT stay up via the leaf bridge into A. And the leaf cargo split must
+    // not strip A: A keeps its wood and (nearly all of) its canopy.
+    putBox(4, 3, 4, 18, 3, 16, "Stone");     // floor (yAnchor 3)
+    putBox(8, 4, 10, 8, 10, 10, "Log");      // tree A trunk (rooted)
+    putBox(6, 11, 8, 10, 13, 12, "Leaf");    // tree A canopy: x6..10
+    putBox(13, 4, 10, 13, 10, 10, "Log");    // tree B trunk (rooted)
+    putBox(11, 11, 8, 15, 13, 12, "Leaf");   // tree B canopy: x11..15 (touches A at x10|x11)
+
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    // Cut B's trunk at y7 (r=1.0: removes only (13,7,10); neighbours survive).
+    dmg.applyDamage(glm::vec3(13.5f, 7.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ false);
+
+    // B's severed top: upper trunk + its canopy must FALL (not float via the leaf bridge).
+    EXPECT_FALSE(solid(13, 9, 10)) << "B's upper trunk floats — leaf bridge still transmits support";
+    EXPECT_LT(countSolid(12, 11, 8, 15, 13, 12), 8)
+        << "B's canopy stayed up (should fall with its wood)";
+    // A must be untouched where it counts: trunk intact, canopy substantially intact.
+    EXPECT_TRUE(solid(8, 9, 10))  << "A's trunk was damaged";
+    EXPECT_TRUE(solid(13, 5, 10)) << "B's stump (below the cut, rooted) fell";
+    // A's canopy is 5x3x5=75 cells; the cargo split may cost a boundary sliver at most.
+    EXPECT_GT(countSolid(6, 11, 8, 10, 13, 12), 55)
+        << "A's canopy was stripped by B's fall (cargo split too greedy)";
 }
 
 // ============================================================================

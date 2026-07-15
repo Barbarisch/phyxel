@@ -13,7 +13,9 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <deque>
 #include <unordered_set>
+#include <unordered_map>
 #include <cstdint>
 #include <chrono>
 
@@ -189,6 +191,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         const std::string& mat   = b.mat;
         const MatResponse& mr     = b.mr;
 
+        // LEAF cells are foliage: broken leaves are removed with NO voxel debris (F1 —
+        // leaves must never appear as voxels, standing or breaking).
+        const bool isLeafMat = (mat.rfind("Leaf", 0) == 0);
+
         // Sub-voxel cell: clear the whole subdivision and scatter subcube debris.
         if (b.subdivided) {
             Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
@@ -197,7 +203,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                 m_cm->markChunkDirty(ch);
                 removed.push_back(wp);
                 res.voxelsBroken++;
-                for (int i = 0; i < SUBCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
+                for (int i = 0; !isLeafMat && i < SUBCUBE_PIECES && res.debrisSpawned < MAX_DEBRIS; ++i) {
                     const int S = 3, TOTAL = S * S * S;
                     int cell = i * TOTAL / SUBCUBE_PIECES;
                     int cx = cell % S, cy = (cell / S) % S, cz = (cell / (S * S)) % S;
@@ -219,6 +225,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         removed.push_back(wp);
         res.voxelsBroken++;
 
+        if (isLeafMat) continue;                       // foliage: no voxel debris
         if (res.debrisSpawned >= MAX_DEBRIS) continue; // capped: voxel still removed
 
         // Tier the shatter by overkill ratio.
@@ -298,13 +305,17 @@ static inline int64_t packVoxel(int x, int y, int z) {
 int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
     const glm::vec3 vc(wp.x + 0.5f, wp.y + 0.5f, wp.z + 0.5f);
 
-    // Full cube: one cube-sized debris piece (the original behavior).
+    // Full cube: one cube-sized debris piece (the original behavior). LEAF cells are
+    // foliage — removed with NO voxel debris (F1: leaves never appear as voxels).
     if (Cube* c = m_cm->getCubeAt(wp)) {
         std::string mat = c->getMaterialName();
         m_cm->removeCubeFast(wp);
         m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
-        glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
-        if (res.debrisSpawned < MAX_DEBRIS) { spawnDebris(vc, vel, 1.0f, mat); res.debrisSpawned++; }
+        if (mat.rfind("Leaf", 0) != 0 && res.debrisSpawned < MAX_DEBRIS) {
+            glm::vec3 vel(frand(-0.5f, 0.5f), frand(-1.0f, -0.2f), frand(-0.5f, 0.5f));
+            spawnDebris(vc, vel, 1.0f, mat);
+            res.debrisSpawned++;
+        }
         return 1;
     }
 
@@ -319,11 +330,13 @@ int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
     if (!chunk->clearSubdivisionAt(lp)) return 0;
     m_cm->updateOccupancyVoxel(wp.x, wp.y, wp.z, false);
     m_cm->markChunkDirty(chunk);
-    for (int i = 0; i < 4 && res.debrisSpawned < MAX_DEBRIS; ++i) {
-        glm::vec3 off(frand(-0.33f, 0.33f), frand(-0.33f, 0.33f), frand(-0.33f, 0.33f));
-        glm::vec3 vel(frand(-0.6f, 0.6f), frand(-1.0f, -0.2f), frand(-0.6f, 0.6f));
-        spawnDebris(vc + off, vel, 1.0f / 3.0f, mat);
-        res.debrisSpawned++;
+    if (mat.rfind("Leaf", 0) != 0) {   // leaf cells: no voxel debris (foliage)
+        for (int i = 0; i < 4 && res.debrisSpawned < MAX_DEBRIS; ++i) {
+            glm::vec3 off(frand(-0.33f, 0.33f), frand(-0.33f, 0.33f), frand(-0.33f, 0.33f));
+            glm::vec3 vel(frand(-0.6f, 0.6f), frand(-1.0f, -0.2f), frand(-0.6f, 0.6f));
+            spawnDebris(vc + off, vel, 1.0f / 3.0f, mat);
+            res.debrisSpawned++;
+        }
     }
     return 1;
 }
@@ -417,30 +430,36 @@ static bool isTreeCell(ChunkManager* cm, const glm::ivec3& wp) {
 static bool isLogCell(ChunkManager* cm, const glm::ivec3& wp) {
     return cellMaterial(cm, wp).rfind("Log", 0) == 0;
 }
+// Canopy. Leaves are CARGO: they never transmit support (they hang off wood, they do
+// not hold trees up — F1), and they never become voxel debris (they are foliage).
+static bool isLeafCell(ChunkManager* cm, const glm::ivec3& wp) {
+    return cellMaterial(cm, wp).rfind("Leaf", 0) == 0;
+}
 
 bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& component,
+                                             const std::vector<glm::ivec3>& leafCargo,
                                              DamageResult& res,
                                              const glm::vec3& impactCenter,
                                              const glm::vec3& impactDir) {
     if (!m_fragMgr || !m_fragMgr->ready() ||
-        static_cast<int>(component.size()) > COHERENT_MAX_VOXELS) {
+        static_cast<int>(component.size() + leafCargo.size()) > COHERENT_MAX_VOXELS) {
         return false;
     }
 
     // Gather the whole component's geometry first; if any cell isn't coherently
-    // gatherable, bail (scatter) BEFORE removing anything.
+    // gatherable, bail (scatter) BEFORE removing anything. Leaf-cargo cells ride along:
+    // the canopy STAYS WITH the falling tree (F1 — leaves are never voxel debris).
     std::vector<Core::KinematicVoxel> frag;
-    frag.reserve(component.size());
+    frag.reserve(component.size() + leafCargo.size());
     for (const glm::ivec3& v : component) {
         if (!gatherCellVoxels(m_cm, v, frag)) return false;
     }
+    for (const glm::ivec3& v : leafCargo) {
+        gatherCellVoxels(m_cm, v, frag);   // best-effort: an empty cargo cell is fine
+    }
     if (frag.empty()) return false;
 
-    // "Leaves shed, wood topples" (2026-07-14 decision): only WOOD forms the coherent
-    // rigid body; leaf voxels scatter as debris. (Standing leaves render as foliage
-    // cards; the kinematic pipeline has no card support, and shedding is what a felled
-    // tree does anyway.) A leaf-only component returns false -> the caller's per-cell
-    // scatter IS the leaf poof.
+    // Wood drives the physics feel (mass/COM/hinge); leaves are render cargo.
     std::vector<Core::KinematicVoxel> wood, leaves;
     wood.reserve(frag.size());
     for (auto& v : frag) {
@@ -510,9 +529,14 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     // cells cleared). Only if it succeeds do we remove the world cells. If it fails, the
     // cells are untouched, so we return false and the caller scatters them — NO silent
     // geometry loss (the "silent-drop" class bug the auditor flagged).
-    const size_t woodCount = wood.size();
+    const size_t woodCount = wood.size(), leafCount = leaves.size();
+    // Fragment = wood + canopy cargo (leaves ride; F3 renders them as foliage cards).
+    std::vector<Core::KinematicVoxel> fragVoxels = std::move(wood);
+    fragVoxels.insert(fragVoxels.end(),
+                      std::make_move_iterator(leaves.begin()),
+                      std::make_move_iterator(leaves.end()));
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
-    uint32_t bid = m_fragMgr->spawn(id, std::move(wood), glm::mat4(1.0f),
+    uint32_t bid = m_fragMgr->spawn(id, std::move(fragVoxels), glm::mat4(1.0f),
                                     linVel, angVel, worldMass);
     if (bid == 0) {
         LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells) -> scatter",
@@ -521,16 +545,10 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     }
 
     for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
-    // Shed the leaves: light fluttering debris from each leaf voxel's world center.
-    for (const auto& lv : leaves) {
-        if (res.debrisSpawned >= MAX_DEBRIS) break;
-        glm::vec3 vel(frand(-0.8f, 0.8f), frand(-0.6f, 0.2f), frand(-0.8f, 0.8f));
-        spawnDebris(lv.localPos, vel, lv.scale.x, lv.materialName);
-        res.debrisSpawned++;
-    }
+    for (const glm::ivec3& v : leafCargo) removeCellContent(m_cm, v);
     res.debrisSpawned += 1;   // one coherent body
-    LOG_INFO("DamageSystem", "coherent collapse: {} cells -> 1 rigid body ({} wood voxels, {} leaves shed)",
-             component.size(), woodCount, leaves.size());
+    LOG_INFO("DamageSystem", "coherent collapse: {}+{} cells -> 1 rigid body ({} wood, {} canopy voxels riding)",
+             component.size(), leafCargo.size(), woodCount, leafCount);
     return true;
 }
 
@@ -554,11 +572,21 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         }
     }
 
+    // F1 — SUPPORT FLOWS THROUGH WOOD ONLY. Leaf cells are excluded from the support
+    // flood entirely (they hang off wood; they must not hold a tree up, and must not
+    // bridge support between interlocked canopies). They are assigned afterwards as
+    // CARGO to whichever wood they are nearest: detached wood takes its canopy with it;
+    // standing wood keeps its canopy. Leaves never become voxel debris (foliage).
     std::vector<glm::ivec3> stack;
     std::vector<glm::ivec3> component;
+    std::vector<std::vector<glm::ivec3>> detachedComponents;
+    std::vector<glm::ivec3> leafSeeds;               // rim leaves (orphan-cargo entry points)
+    std::unordered_set<int64_t> detachedSet;         // cells of all detached components
+
     for (const glm::ivec3& seed : seeds) {
         if (totalDetached >= MAX_COLLAPSE) break;
         if (visited.count(packVoxel(seed.x, seed.y, seed.z))) continue;
+        if (isLeafCell(m_cm, seed)) { leafSeeds.push_back(seed); continue; }  // cargo pass
 
         // Flood-fill this connected solid component (bounded), checking for an anchor.
         component.clear();
@@ -594,9 +622,8 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
                 if (anchored.count(key)) { supported = true; break; }
                 if (visited.count(key)) continue;
                 if (m_cm->hasVoxelAt(nb)) {
-                    // A tree cell does not spread the flood into terrain (leaf/side contact
-                    // must not anchor a severed top); trunk/terrain spread normally.
-                    if (vTree && !isTreeCell(m_cm, nb)) continue;
+                    if (isLeafCell(m_cm, nb)) continue;               // leaves NEVER transmit support
+                    if (vTree && !isTreeCell(m_cm, nb)) continue;     // tree ↛ terrain (side contact)
                     visited.insert(key); stack.push_back(nb);
                 }
             }
@@ -615,18 +642,105 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
             continue;
         }
 
-        // Detached: topple as ONE coherent rigid slab if enabled + gatherable + within
-        // budget (P1.2b), else scatter each cell as falling debris (the shipped path).
-        if (coherent && totalDetached < MAX_COLLAPSE &&
-            collapseComponentCoherent(component, res, impactCenter, impactDir)) {
-            totalDetached += static_cast<int>(component.size());
+        for (const glm::ivec3& v : component) detachedSet.insert(packVoxel(v.x, v.y, v.z));
+        detachedComponents.push_back(component);
+    }
+
+    // ---- CARGO PASS: assign nearby leaves to their nearest wood.
+    // Phase i: collect the RELEVANT leaf region L (leaves reachable through leaves from
+    // any detached cell or rim leaf-seed, bounded). Phase ii: true multi-source BFS in L
+    // with ALL sources seeded at distance 0 — leaves adjacent to STANDING wood (label
+    // STAND, seeded first so equal-distance ties stay with the standing tree) and leaves
+    // adjacent to each detached component (label k). Nearest label wins; leaves reached
+    // by no source (their wood was destroyed outright) are ORPHANS.
+    constexpr int STAND = -1;
+    std::vector<std::vector<glm::ivec3>> cargoPer(detachedComponents.size());
+    std::vector<glm::ivec3> orphanLeaves;
+    {
+        // Phase i — leaf region L.
+        std::unordered_map<int64_t, glm::ivec3> region;
+        std::deque<glm::ivec3> rq;
+        auto addRegion = [&](const glm::ivec3& p) {
+            if (!m_cm->hasVoxelAt(p) || !isLeafCell(m_cm, p)) return;
+            int64_t k = packVoxel(p.x, p.y, p.z);
+            if (region.count(k)) return;
+            region[k] = p;
+            rq.push_back(p);
+        };
+        for (const auto& comp : detachedComponents)
+            for (const glm::ivec3& cell : comp)
+                for (const auto& n : NB) addRegion(cell + n);
+        for (const glm::ivec3& s : leafSeeds) addRegion(s);
+        int guard = 0;
+        while (!rq.empty() && guard++ < TREE_MAX_FLOOD) {
+            glm::ivec3 p = rq.front(); rq.pop_front();
+            for (const auto& n : NB) addRegion(p + n);
+        }
+
+        // Phase ii — multi-source BFS over L. Seed STAND sources first (tie priority).
+        std::unordered_map<int64_t, int> label;
+        std::deque<std::pair<glm::ivec3, int>> q;
+        auto standAdjacent = [&](const glm::ivec3& p) {
+            for (const auto& m : NB) {
+                glm::ivec3 w = p + m;
+                if (m_cm->hasVoxelAt(w) && isLogCell(m_cm, w) &&
+                    !detachedSet.count(packVoxel(w.x, w.y, w.z))) return true;
+            }
+            return false;
+        };
+        for (const auto& [k, p] : region) {
+            if (standAdjacent(p)) { label[k] = STAND; q.push_back({p, STAND}); }
+        }
+        for (size_t ci = 0; ci < detachedComponents.size(); ++ci) {
+            for (const glm::ivec3& cell : detachedComponents[ci]) {
+                for (const auto& n : NB) {
+                    glm::ivec3 p = cell + n;
+                    int64_t k = packVoxel(p.x, p.y, p.z);
+                    if (!region.count(k) || label.count(k)) continue;
+                    label[k] = static_cast<int>(ci);
+                    q.push_back({p, static_cast<int>(ci)});
+                }
+            }
+        }
+        guard = 0;
+        while (!q.empty() && guard++ < TREE_MAX_FLOOD) {
+            auto [p, l] = q.front(); q.pop_front();
+            for (const auto& n : NB) {
+                glm::ivec3 nb = p + n;
+                int64_t k = packVoxel(nb.x, nb.y, nb.z);
+                if (!region.count(k) || label.count(k)) continue;
+                label[k] = l;
+                q.push_back({nb, l});
+            }
+        }
+        for (const auto& [k, p] : region) {
+            auto it = label.find(k);
+            if (it == label.end())        orphanLeaves.push_back(p);      // no wood reached it
+            else if (it->second >= 0)     cargoPer[it->second].push_back(p);
+            // STAND leaves stay untouched.
+        }
+    }
+
+    // ---- Process detached components with their canopy cargo.
+    for (size_t k = 0; k < detachedComponents.size(); ++k) {
+        if (totalDetached >= MAX_COLLAPSE) break;
+        const auto& comp  = detachedComponents[k];
+        const auto& cargo = cargoPer[k];
+        if (coherent && collapseComponentCoherent(comp, cargo, res, impactCenter, impactDir)) {
+            totalDetached += static_cast<int>(comp.size() + cargo.size());
         } else {
-            for (const glm::ivec3& v : component) {
+            for (const glm::ivec3& v : comp) {
                 if (totalDetached >= MAX_COLLAPSE) break;
                 totalDetached += dropDetachedCell(v, res);
             }
+            // Scatter fallback: the canopy is removed WITHOUT voxel debris (leaves are
+            // foliage — they must never appear as voxel debris).
+            for (const glm::ivec3& v : cargo) { removeCellContent(m_cm, v); totalDetached++; }
         }
     }
+    // Orphaned leaves (their wood was destroyed outright): removed, no voxel debris.
+    for (const glm::ivec3& v : orphanLeaves) { removeCellContent(m_cm, v); totalDetached++; }
+
     res.voxelsBroken += totalDetached;
     if (totalDetached >= MAX_COLLAPSE)
         LOG_WARN("DamageSystem", "collapse hit hard cap ({} voxels) — chain reaction truncated", MAX_COLLAPSE);
