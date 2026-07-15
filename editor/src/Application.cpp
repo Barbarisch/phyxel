@@ -87,6 +87,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/ProjectInfo.h"
 #include "core/LauncherState.h"
 #include "core/ItemRegistry.h"
+#include "core/SpawnGrounding.h"
 #include "core/Uuid.h"
 #include "core/EquipmentSystem.h"
 #include "core/CombatSystem.h"
@@ -4937,6 +4938,10 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
             if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {
                 if (def->damage > 0.0f) damage = def->damage;
                 if (def->reach > 0.0f)  reach  = def->reach;
+                // An axe swing also chops the tree it lands on (survival wood-
+                // gathering). Independent of the entity cone-damage below.
+                if (def->toolType == Core::ToolType::Axe)
+                    tryAxeChopOnHitFrame(def, animatedCharacter->getYaw());
             }
         }
         if (animatedCharacter->isCurrentAttackHeavy()) damage *= 1.6f;
@@ -4961,6 +4966,18 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
                      ev.targetId, ev.actualDamage, ev.killed ? " (killed)" : "");
             if (gameEventLog) gameEventLog->emit("player_hit", ev.toJson());
         }
+    });
+
+    // When an axe chops a tree through, ChopManager fires this once. We change
+    // no voxels — the destruction session consumes the event to topple the tree
+    // and drop gatherable logs. Surfaced via poll_events for the handoff + tests.
+    m_chopManager.setOnTreeFelled([this](const Core::TreeFellEvent& ev) {
+        LOG_INFO("Chop", "Tree FELLED at ({},{},{}) material={} trunkH={} chop={}",
+                 ev.base.x, ev.base.y, ev.base.z, ev.material, ev.trunkHeight, ev.totalChop);
+        if (gameEventLog) gameEventLog->emit("tree_felled", {
+            {"x", ev.base.x}, {"y", ev.base.y}, {"z", ev.base.z},
+            {"material", ev.material}, {"trunk_height", ev.trunkHeight},
+            {"total_chop", ev.totalChop}});
     });
 
     // A freshly-spawned character should be immediately controllable. The
@@ -8054,6 +8071,103 @@ void Application::updateHeldItem() {
             teardown();
         }
     }
+}
+
+// ============================================================================
+// Axe tree-chopping — fired from the player's melee hit frame when an axe is
+// equipped. Finds the tree voxel the swing lands on, accumulates chop progress
+// (ChopManager, keyed by trunk base), and gives wood-chip + sound feedback.
+// Changes NO voxels: the destruction session owns topple/fall + log drops and
+// consumes the tree_felled event. See ChopManager.h.
+// ============================================================================
+void Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw) {
+    if (!heldDef || !chunkManager || !animatedCharacter) return;
+
+    auto isTrunk = [](const std::string& m) { return m.rfind("Log", 0) == 0; };
+    auto isFlora = [](const std::string& m) {
+        return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+    };
+
+    // March a short horizontal ray from the swing origin along facing to find
+    // the tree voxel the axe bites. Visual front is +Z at yaw 0 (anim convention).
+    const glm::vec3 fwd(std::sin(yaw), 0.0f, std::cos(yaw));
+    const glm::vec3 origin = animatedCharacter->getAttackOrigin();
+    const float reach = std::max(1.5f, heldDef->reach + 0.6f);
+
+    const void* hit = nullptr;   // non-null once we find a flora cube
+    std::string hitMat;
+    glm::ivec3 hitPos(0);
+    for (float t = 0.0f; t <= reach && !hit; t += 0.25f) {
+        const glm::vec3 s = origin + fwd * t;
+        // Sample the ray cube, plus one above/below, to tolerate hand height.
+        for (int dy = -1; dy <= 1 && !hit; ++dy) {
+            const glm::ivec3 wp((int)std::floor(s.x),
+                                (int)std::floor(s.y) + dy,
+                                (int)std::floor(s.z));
+            if (const auto* c = chunkManager->getCubeAt(wp)) {
+                if (isFlora(c->getMaterialName())) {
+                    hit = c; hitMat = c->getMaterialName(); hitPos = wp;
+                }
+            }
+        }
+    }
+    if (!hit) return;
+
+    const glm::vec3 hitCenter = glm::vec3(hitPos) + glm::vec3(0.5f);
+
+    // Wood-chip burst + chop sound at the bite point (both optional/guarded).
+    if (renderCoordinator) {
+        if (auto* vfx = renderCoordinator->getVfxSystem()) {
+            VfxBurstParams chips;
+            chips.count      = 14;
+            chips.speed      = 3.0f;  chips.speedVar = 1.5f;
+            chips.upBias     = 0.35f;
+            chips.gravity    = -9.0f; chips.drag     = 1.5f;
+            chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
+            chips.size       = 0.07f; chips.sizeVar  = 0.03f;
+            chips.intensity  = 0.05f; // wood is not emissive
+            chips.color      = isTrunk(hitMat) ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
+                                               : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
+            chips.shape      = VfxShape::Cone;
+            chips.direction  = -fwd;  // spray back toward the chopper
+            chips.coneAngleDeg = 55.0f;
+            chips.posJitter  = glm::vec3(0.15f);
+            vfx->spawnBurst(hitCenter, chips);
+        }
+    }
+    if (audioSystem)
+        audioSystem->playSound3D("resources/sounds/whoosh.wav", hitCenter,
+                                 Core::AudioChannel::SFX, 0.7f);
+
+    // Only the trunk (Log*) accumulates fell progress; leaves give feedback only.
+    if (!isTrunk(hitMat)) return;
+
+    // Walk down to the trunk base (stable per-tree key) and measure trunk height.
+    glm::ivec3 base = hitPos;
+    while (true) {
+        const glm::ivec3 below(base.x, base.y - 1, base.z);
+        const auto* c = chunkManager->getCubeAt(below);
+        if (c && isTrunk(c->getMaterialName())) base = below; else break;
+    }
+    int trunkHeight = 0;
+    for (glm::ivec3 p = base;; p.y += 1) {
+        const auto* c = chunkManager->getCubeAt(p);
+        if (c && isTrunk(c->getMaterialName())) ++trunkHeight; else break;
+    }
+
+    // Hardness scales with trunk height: a taller tree takes more swings.
+    const float kHardnessPerVoxel = 4.0f;
+    const float hardness  = std::max(1, trunkHeight) * kHardnessPerVoxel;
+    const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
+
+    const auto res = m_chopManager.addChop(base, hitMat, trunkHeight, chopPower, hardness);
+    LOG_INFO("Chop", "Axe bite tree base=({},{},{}) trunkH={} progress={}{}",
+             base.x, base.y, base.z, trunkHeight, res.progress,
+             res.felled ? " -> FELLED" : (res.alreadyFelled ? " (already down)" : ""));
+    if (gameEventLog && !res.felled && !res.alreadyFelled)
+        gameEventLog->emit("tree_chop", {
+            {"x", base.x}, {"y", base.y}, {"z", base.z},
+            {"progress", res.progress}, {"trunk_height", trunkHeight}});
 }
 
 void Application::updateNpcHeldItems() {
@@ -12742,6 +12856,29 @@ void Application::processAPICommands() {
                     z = cmd.params["position"].value("z", 0.0f);
                 }
 
+                // Placement sanity: never bury a spawn inside solid voxels. If the
+                // requested cell is solid, ground it to the first air cell above the
+                // column and report the correction (see SpawnGrounding.h /
+                // EngineRobustnessAudit §0). Intentional airborne spawns are untouched.
+                std::string spawnWarning;
+                float requestedY = y;
+                if (chunkManager) {
+                    auto isSolid = [this](int cx, int cy, int cz) {
+                        return chunkManager->hasVoxelAt(glm::ivec3(cx, cy, cz));
+                    };
+                    const int groundedY = Core::groundSpawnYIfInsideSolid(
+                        isSolid, (int)std::floor(x), (int)std::floor(y), (int)std::floor(z));
+                    if ((float)groundedY != std::floor(y)) {
+                        y = (float)groundedY;
+                        spawnWarning = "spawn point (" + std::to_string((int)std::floor(x)) + "," +
+                                       std::to_string((int)requestedY) + "," +
+                                       std::to_string((int)std::floor(z)) +
+                                       ") was inside solid voxels; grounded to y=" +
+                                       std::to_string(groundedY);
+                        LOG_WARN("Application", "spawn_entity: {}", spawnWarning);
+                    }
+                }
+
                 Scene::Entity* spawned = nullptr;
                 std::string entityType = type;
                 std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
@@ -12770,6 +12907,10 @@ void Application::processAPICommands() {
                     response = {{"success", true}, {"id", id}, {"uuid", spawnedUuid},
                                 {"type", entityType},
                                 {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                    if (!spawnWarning.empty()) {
+                        response["warning"] = spawnWarning;
+                        response["grounded_from"] = {{"x", x}, {"y", requestedY}, {"z", z}};
+                    }
                     if (gameEventLog) {
                         gameEventLog->emit("entity_spawned", {
                             {"id", id}, {"type", entityType},
@@ -13848,8 +13989,14 @@ void Application::processAPICommands() {
                                     {"rotation", rotation}};
                     }
 
-                    // Rebuild NavGrid for the affected region
-                    if (npcManager && isStatic) {
+                    // Rebuild collision occupancy AND NavGrid for the affected
+                    // region. A stamped static template (e.g. a tree) writes voxels
+                    // into chunks but does NOT rebuild the physics occupancy grid on
+                    // its own — so without this the tree renders yet the character
+                    // walks straight through it. This is the "every voxel edit must
+                    // re-run buildChunkPhysics" occupancy rule (see AgentContext /
+                    // EngineRobustnessAudit); StructureBuildService does the same.
+                    if (isStatic && chunkManager) {
                         const auto* tmpl = objectTemplateManager->getTemplate(name);
                         if (tmpl) {
                             glm::ivec3 tmin(INT_MAX), tmax(INT_MIN);
@@ -13865,8 +14012,14 @@ void Application::processAPICommands() {
                                 tmin = glm::min(tmin, m.parentRelativePos);
                                 tmax = glm::max(tmax, m.parentRelativePos);
                             }
-                            glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
-                            npcManager->onRegionChanged(origin + tmin, origin + tmax);
+                            if (tmin.x <= tmax.x) {  // non-empty template
+                                glm::ivec3 origin(static_cast<int>(x), static_cast<int>(y),
+                                                  static_cast<int>(z));
+                                // Rebuild the CPU occupancy grids so the template collides.
+                                chunkManager->buildChunkPhysicsInRegion(origin + tmin, origin + tmax);
+                                // Keep NPC pathing in sync with the new obstacle.
+                                if (npcManager) npcManager->onRegionChanged(origin + tmin, origin + tmax);
+                            }
                         }
                     }
                 }

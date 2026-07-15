@@ -27,6 +27,7 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/RuntimeEntityStore.h"
 #include "core/AudioSystem.h"
+#include "core/ChopManager.h"
 #include "scripting/ScriptingSystem.h"
 #include "ai/AISystem.h"
 #include "ai/AIEnhancer.h"
@@ -279,6 +280,11 @@ private:
     // Combat
     std::unique_ptr<Core::CombatSystem> combatSystem;
 
+    // Axe tree-chopping — accumulates chop progress per tree (keyed by trunk
+    // base) and fires onTreeFelled once. Changes no voxels; the destruction
+    // session owns topple/fall + gatherable-log drops (see ChopManager.h).
+    Core::ChopManager m_chopManager;
+
     // D&D RPG Layer (Phase 8)
     Core::Party             m_rpgParty;
     Core::CombatDirector    m_combatDirector;   // single source of truth: mode + initiative + lifecycle
@@ -342,6 +348,12 @@ private:
     bool        m_heldComboInit = false; // attack combo initialized for the boot-state hand
     void updateHeldItem();               // per-frame: sync held visual with selected hotbar slot
     void dropHeldItem();                 // drop one of the selected item as a world prop
+
+    // Called from the player's melee hit-frame when an axe is equipped: find the
+    // tree voxel the swing lands on, accumulate chop progress, spawn wood-chip
+    // + sound feedback, and (via ChopManager) fire onTreeFelled when the tree is
+    // chopped through. Changes no voxels — see m_chopManager / ChopManager.h.
+    void tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw);
 
     // Held weapons for combat NPCs — same template + grip orientation as the
     // player's held item, but driven per-NPC from CombatBehavior::getWeaponId().

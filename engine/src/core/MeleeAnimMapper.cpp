@@ -79,8 +79,11 @@ std::string MeleeAnimMapper::resolveFamily(const ItemDefinition* item) const {
 
     // 3. ToolType heuristic for gameplay items without D&D data.
     switch (item->toolType) {
-        case ToolType::Sword:
         case ToolType::Axe:
+            // An axe swings with a weighty overhead chop (tree-felling +
+            // hatchet combat), not the flat 1h sword slash.
+            return "chop_axe";
+        case ToolType::Sword:
         case ToolType::Pickaxe:
         case ToolType::Hoe:
         case ToolType::Shovel:

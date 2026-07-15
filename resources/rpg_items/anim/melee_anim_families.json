@@ -7,7 +7,8 @@
     "slash_1h":   { "attacks": ["sword1h_light1", "sword1h_light2", "sword1h_light3"],     "heavy": "sword1h_heavy", "block": "sword1h_guard", "blockHold": 1.0, "speedClass": "standard" },
     "stab_1h":    { "attacks": ["melee_stab_1h"],                                      "heavy": "melee_stab_1h",     "block": "melee_parry", "blockHold": 0.5, "speedClass": "fast" },
     "two_handed": { "attacks": ["melee_chop_2h", "melee_sweep_2h"],                    "heavy": "melee_sweep_2h",    "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" },
-    "spear":      { "attacks": ["melee_thrust_spear"],                                 "heavy": "melee_sweep_2h",    "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" }
+    "spear":      { "attacks": ["melee_thrust_spear"],                                 "heavy": "melee_sweep_2h",    "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" },
+    "chop_axe":   { "attacks": ["chop_1h"],                                            "heavy": "chop_1h",           "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" }
   },
 
   "_comment_speed": "speedClasses: rate = attack playback multiplier; chainWindow = tail fraction of a swing during which a buffered light input chains to the next link. Fast weapons swing quicker AND chain more forgivingly.",
