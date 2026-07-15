@@ -210,5 +210,71 @@ TEST_F(TreeCollapseIntegrationTest, MicroWoodCoheres_LeavesShed) {
     EXPECT_EQ(countSolid(20, 20, 20, 22, 21, 20), 0);
 }
 
+// ============================================================================
+// P2.3 — directional hinge topple (asymmetry decides the fall direction)
+// ============================================================================
+
+TEST_F(TreeCollapseIntegrationTest, AsymmetricTop_TipsTowardItsHeavySide) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+    ASSERT_EQ(voxelWorld->getBodyCount(), 0u);   // fresh world -> first body id is 1
+
+    // A rooted trunk whose severed top carries a heavy Log arm toward +X. When the
+    // trunk is cut, the top's COM sits +X of the cut pivot, so the piece must be
+    // seeded to TIP toward +X: rotation about up×(+x) = -z, COM velocity toward +X.
+    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor
+    putBox(10, 4, 10, 10, 10, 10, "Log");    // 1x1 trunk, y4..10
+    putBox(11, 10, 10, 14, 10, 10, "Log");   // heavy arm toward +X at the top
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Cut the trunk at y7 (r=1.0 removes only that cube; neighbours survive).
+    dmg.applyDamage(glm::vec3(10.5f, 7.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    ASSERT_EQ(mgr.count(), 1u) << "severed top did not cohere";
+    auto* body = voxelWorld->getBodyById(1);
+    ASSERT_NE(body, nullptr);
+    // Hinge seed: tipping toward +X = rotation about -Z (up × +x), COM moving +X.
+    EXPECT_LT(body->angularVelocity.z, -0.05f)
+        << "no hinge rotation toward the heavy side (angVel.z should be negative)";
+    EXPECT_GT(body->linearVelocity.x, 0.0f) << "COM not moving toward the heavy side";
+    // The tip axis is dominated by the asymmetry direction (about Z, not X).
+    EXPECT_GT(std::abs(body->angularVelocity.z), std::abs(body->angularVelocity.x));
+}
+
+TEST_F(TreeCollapseIntegrationTest, SymmetricTop_TipsAlongChopDirection) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+    ASSERT_EQ(voxelWorld->getBodyCount(), 0u);
+
+    // A symmetric top (plain vertical trunk) has no mass asymmetry — the fall
+    // direction must come from the CHOP direction (+Z here, the damage dir bias).
+    putBox(6, 3, 6, 14, 3, 14, "Stone");
+    putBox(10, 4, 10, 10, 12, 10, "Log");
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    dmg.applyDamage(glm::vec3(10.5f, 7.5f, 10.5f), 1.0f, 600.0f, "force",
+                    glm::vec3(0.0f, 0.0f, 1.0f),   // chop direction: +Z
+                    /*supportY*/ 3.0f, /*collapse*/ true, /*coherent*/ true);
+
+    ASSERT_EQ(mgr.count(), 1u) << "severed top did not cohere";
+    auto* body = voxelWorld->getBodyById(1);
+    ASSERT_NE(body, nullptr);
+    // Tipping toward +Z = rotation about up × z = +X, COM moving +Z.
+    EXPECT_GT(body->angularVelocity.x, 0.05f)
+        << "no hinge rotation along the chop direction (angVel.x should be positive)";
+    EXPECT_GT(body->linearVelocity.z, 0.0f) << "COM not moving along the chop direction";
+}
+
 } // namespace Testing
 } // namespace Phyxel

@@ -73,14 +73,19 @@ private:
     // P3: detach connected voxel groups bordering the removed set that can't reach
     // an anchor (solid voxel at Y <= supportY). Detached voxels fall as debris — or,
     // when `coherent` and a fragment manager is set, a small severed component topples
-    // as ONE coherent rigid slab (P1.2b) instead of scattering.
+    // as ONE coherent rigid slab (P1.2b) instead of scattering. `impactCenter`/`impactDir`
+    // carry the blast context down for the hinge-topple direction (P2.3).
     void collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
-                             DamageResult& res, bool coherent);
+                             DamageResult& res, bool coherent,
+                             const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
     // Try to topple one severed component as a coherent rigid slab via m_fragMgr.
     // Returns true if it was physicalized (cells removed + body spawned); false if
-    // the caller should fall back to per-cell scatter. `count` is added to res on success.
-    bool collapseComponentCoherent(const std::vector<glm::ivec3>& component, DamageResult& res);
+    // the caller should fall back to per-cell scatter. The body is seeded with a HINGE
+    // rotation about the cut (P2.3): tip direction = the wood's COM asymmetry off the
+    // pivot, falling back to the chop direction, then away-from-blast.
+    bool collapseComponentCoherent(const std::vector<glm::ivec3>& component, DamageResult& res,
+                                   const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
     // Remove ALL content at one world cell — a full cube OR a sub-voxel
     // subdivision (subcubes/microcubes, e.g. a tree) — and spawn falling

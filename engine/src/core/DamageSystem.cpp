@@ -262,7 +262,7 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
 
     // P3/P4: collapse any voxel groups the blast severed from the main mass.
     if (collapse && !removed.empty()) {
-        collapseUnsupported(removed, supportY, res, coherentFragments);
+        collapseUnsupported(removed, supportY, res, coherentFragments, center, dirBias);
     }
     auto t2 = Clock::now();
 
@@ -419,7 +419,9 @@ static bool isLogCell(ChunkManager* cm, const glm::ivec3& wp) {
 }
 
 bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& component,
-                                             DamageResult& res) {
+                                             DamageResult& res,
+                                             const glm::vec3& impactCenter,
+                                             const glm::vec3& impactDir) {
     if (!m_fragMgr || !m_fragMgr->ready() ||
         static_cast<int>(component.size()) > COHERENT_MAX_VOXELS) {
         return false;
@@ -453,6 +455,57 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
         return std::max(density * vol, 0.001f);   // mass floor (H4 / auditor 1e-6 note)
     };
 
+    // Hinge topple (P2.3): seed a rotation about the CUT so the piece TIPS instead of
+    // free-dropping. Tip direction, in precedence order:
+    //   1. mass ASYMMETRY — horizontal offset of the wood's mass-weighted COM from the
+    //      pivot (the lowest 1-unit band of wood ≈ the cut face): a top-heavy side wins;
+    //   2. the CHOP direction (impactDir), when the piece is balanced;
+    //   3. horizontally AWAY from the blast center;
+    //   4. none of the above -> straight drop (previous behavior).
+    // Seed magnitude: a fraction of the rod-topple rate sqrt(3g/L) (uniform rod falling
+    // about its end reaches that at ground) — enough to break balance and pick the
+    // direction; gravity + contacts do the rest. v = ω × r so the initial motion IS a
+    // rotation about the pivot, not a spin-in-place. The subsequent tumble follows the
+    // body's REAL inertia tensor (physicalize computes it from the merged boxes), so
+    // asymmetric pieces keep tumbling asymmetrically after the seed.
+    float mTot = 0.0f;
+    glm::vec3 com(0.0f);
+    float minY = 1e9f, maxY = -1e9f;
+    for (const auto& v : wood) {
+        float m = worldMass(v);
+        mTot += m;
+        com  += v.localPos * m;
+        minY = std::min(minY, v.localPos.y);
+        maxY = std::max(maxY, v.localPos.y);
+    }
+    com /= std::max(mTot, 1e-6f);
+    float pTot = 0.0f;
+    glm::vec3 pivot(0.0f);
+    for (const auto& v : wood) {
+        if (v.localPos.y < minY + 1.0f) {
+            float m = worldMass(v);
+            pTot += m;
+            pivot += v.localPos * m;
+        }
+    }
+    pivot /= std::max(pTot, 1e-6f);
+
+    glm::vec3 tipDir(0.0f);
+    glm::vec3 d = com - pivot; d.y = 0.0f;
+    glm::vec3 h = impactDir;   h.y = 0.0f;
+    glm::vec3 a = pivot - impactCenter; a.y = 0.0f;
+    if      (glm::length(d) > 0.15f) tipDir = glm::normalize(d);
+    else if (glm::length(h) > 0.10f) tipDir = glm::normalize(h);
+    else if (glm::length(a) > 0.10f) tipDir = glm::normalize(a);
+
+    glm::vec3 linVel(0.0f, -1.0f, 0.0f), angVel(0.0f);
+    if (tipDir != glm::vec3(0.0f)) {
+        float L = std::max(1.0f, maxY - minY + 1.0f);
+        float w = glm::clamp(0.35f * std::sqrt(3.0f * 9.81f / L), 0.2f, 1.5f);
+        angVel = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), tipDir) * w;
+        linVel = glm::cross(angVel, com - pivot);
+    }
+
     // Spawn the body FIRST (physicalize copies the geometry — it does not need the world
     // cells cleared). Only if it succeeds do we remove the world cells. If it fails, the
     // cells are untouched, so we return false and the caller scatters them — NO silent
@@ -460,7 +513,7 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     const size_t woodCount = wood.size();
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
     uint32_t bid = m_fragMgr->spawn(id, std::move(wood), glm::mat4(1.0f),
-                                    glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f), worldMass);
+                                    linVel, angVel, worldMass);
     if (bid == 0) {
         LOG_WARN("DamageSystem", "coherent collapse: physicalize failed ({} cells) -> scatter",
                  component.size());
@@ -482,7 +535,8 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
 }
 
 void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,
-                                       DamageResult& res, bool coherent) {
+                                       DamageResult& res, bool coherent,
+                                       const glm::vec3& impactCenter, const glm::vec3& impactDir) {
     const int yAnchor = static_cast<int>(std::floor(supportY));
     std::unordered_set<int64_t> visited;   // every solid voxel enqueued by any flood
     std::unordered_set<int64_t> anchored;  // voxels proven connected to the supported main mass
@@ -564,7 +618,7 @@ void DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, f
         // Detached: topple as ONE coherent rigid slab if enabled + gatherable + within
         // budget (P1.2b), else scatter each cell as falling debris (the shipped path).
         if (coherent && totalDetached < MAX_COLLAPSE &&
-            collapseComponentCoherent(component, res)) {
+            collapseComponentCoherent(component, res, impactCenter, impactDir)) {
             totalDetached += static_cast<int>(component.size());
         } else {
             for (const glm::ivec3& v : component) {
