@@ -858,19 +858,27 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         if (removed > 0) { out.microsRemoved += removed; out.carved = true; }
     }
 
-    // NECK SHEAR: a tree cannot hang on a splinter. If the remaining structural
-    // cross-section at the cut plane is a few subcubes' worth (≲ 0.1 m² of wood
-    // carrying tons of tree), the neck shears — remnants break away and the
-    // release below decides the fall. Counted at subcube granularity.
+    // NECK SHEAR: a tree cannot hang on a splinter. Survey the WHOLE plane in a
+    // box around the cut — not just the bite's connected cross-section: a deep
+    // notch fragments the plane into islands, and a disconnected sliver island
+    // is invisible to the carve flood yet still carries support (live case: two
+    // remnant islands held a fully-chopped tree up). If the plane's total
+    // remaining structural wood is a few subcubes' worth (≲ 0.1 m² carrying
+    // tons of tree), the neck shears and the release below decides the fall.
     {
         int neckSubcubes = 0;
         std::vector<glm::ivec3> neckCells;
-        for (const glm::ivec3& c : cells) {
+        for (int dx = -3; dx <= 3; ++dx)
+        for (int dz = -3; dz <= 3; ++dz) {
+            const glm::ivec3 c(anchor.x + dx, anchor.y, anchor.z + dz);
             Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
             if (!ch) continue;
             const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
             int n = 0;
-            if (ch->getCubeAtFast(lp)) n += 9;   // full cube = full 3x3 column area
+            if (ch->getCubeAtFast(lp)) {
+                if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0)
+                    n += 9;   // full cube = full 3x3 column area
+            }
             for (Subcube* sc : ch->getStaticSubcubesAt(lp))
                 if (sc && sc->getMaterialName().rfind("Log", 0) == 0) ++n;
             if (n > 0) { neckSubcubes += n; neckCells.push_back(c); }

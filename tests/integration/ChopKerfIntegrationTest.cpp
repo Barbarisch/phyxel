@@ -185,5 +185,47 @@ TEST_F(ChopKerfIntegrationTest, HollowShellTrunk_KerfFillsHeartwood_ThenFells) {
     EXPECT_LE(totalDebris, 30 * 8 + 5) << "shell felling sprayed blast-like debris";
 }
 
+
+TEST_F(ChopKerfIntegrationTest, DisconnectedNeckIsland_ShearsAndFells) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Live-reproduced failure (user chopped clean through, tree stood): a deep
+    // notch fragments the cut plane into ISLANDS. The carve's connected flood
+    // only sees the island under the blade — a DISCONNECTED sliver elsewhere on
+    // the plane still carries support and is invisible to a
+    // connectivity-limited neck shear. The shear must survey the whole plane.
+    putBox(6, 3, 6, 16, 3, 14, "Stone");                 // floor
+    putBox(10, 4, 10, 10, 6, 10, "Log");                  // column A (will be chopped)
+    putBox(12, 4, 10, 12, 5, 10, "Log");                  // column B pillar
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({12, 6, 10}));
+    ASSERT_NE(ch, nullptr);
+    for (int sx = 0; sx < 3; ++sx)                        // B's neck: a 3-subcube SLIVER,
+        ASSERT_TRUE(ch->addSubcube({12, 6, 10}, {sx, 0, 0}, "Log"));  // NOT connected to A's cell
+    putBox(10, 7, 10, 12, 7, 10, "Log");                  // beam joins both columns up top
+    putBox(9, 8, 9, 13, 9, 13, "Leaf");                   // canopy
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // Chop column A through. The gap at (11,6,10) keeps B's sliver island out of
+    // A's connected cross-section — the box-survey shear must still count it,
+    // snap it, and release the top.
+    bool severed = false;
+    for (int swing = 0; swing < 14 && !severed; ++swing) {
+        auto r = dmg.carveChopKerf({10, 6, 10}, glm::vec3(0, 0, 1), 0.4f, /*coherent*/ true);
+        severed = r.severed;
+    }
+    ASSERT_TRUE(severed) << "top stayed up: the disconnected neck island held it";
+    EXPECT_EQ(mgr.count(), 1u) << "release was not one coherent body";
+    EXPECT_FALSE(solid(11, 7, 10)) << "beam still standing after release";
+    EXPECT_TRUE(solid(10, 4, 10)) << "column A stump fell";
+    EXPECT_TRUE(solid(12, 4, 10)) << "column B pillar fell";
+}
+
 } // namespace Testing
 } // namespace Phyxel
