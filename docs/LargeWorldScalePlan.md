@@ -90,6 +90,44 @@
 - World-space float precision wobbles >100 km from origin (known; camera-relative rendering is
   the eventual fix).
 
+### Benchmark world: Middle-earth 1:1 (added 2026-07-15)
+
+A **real continental-scale world to measure these phases against**, instead of synthetic radii.
+The generator drives Layer-0 from an imported heightmap (`core/MapCoarseSource` +
+`WorldGenerator::setHeightmapSource`, wired via game.json `world.heightmap.dir`) — see
+`tools/middle_earth/INTEGRATION.md`. Not a pre-baked DB: chunks stream and generate from the map.
+
+- **Extent**: 24000² map px × 4 blocks/px = **96,000 × 96,000 blocks (96 km)**, surface Y 0–388.
+  ~9M chunk-columns — the world is effectively infinite for streaming purposes.
+- **Setup**: project `MiddleEarth1to1` (terrain dir holds `me_height_24000.u16` + meta; regenerate
+  with `tools/middle_earth/import_terrain.py --downsample 1`). Spawn world (60400, 50800) =
+  plains at Y24 under an eastern range whose peak (Y254) is ~1957 blocks NW at (59000, 49432).
+- **Verified working**: player grounds at the map's true height, flora decorates, ~52-60 FPS at
+  the default radii, 84 chunks resident. Unit-locked by `tests/core/MapCoarseSourceTest.cpp`.
+
+**REPRO — streaming-volume hard crash (realizes blockers C/D at scale).** Process dies with **no
+exception and no log line** (last entries are ordinary frame/water activity), i.e. an OOM or
+allocator/driver ceiling, not a caught error:
+1. `render_distance = 1600` (→ inclusionDistance 2400 ≈ a 75-chunk radius disk, O(10⁴) chunks): crash.
+2. `render_distance = 384` (→ inclusion 576 ≈ 18-chunk radius) **plus** teleporting the camera into
+   the tall+forested mountain region near (59300, 49820, Y300): crash. Tall terrain multiplies the
+   disk by ~9 vertical chunks, and the water sim recenters over the fresh terrain (~5 ms/frame).
+- **Stable envelope today**: render distance ~192–320 with gradual camera movement.
+- **Attribution still open** (do this first in Phase 4): instrument whether it is **C** (multi-GB
+  from ~170 B/`Cube` × 32k/chunk) or **D** (the predicted-latent `maxMemoryAllocationCount=4096`
+  ceiling — 1,600+ chunks × up to 3 raw `vkAllocateMemory` buffers). Run with `PHYXEL_VALIDATION=1`
+  and an allocation counter; a peak-RSS trace separates them.
+- **Why it matters**: the mini 512-block bake tolerated render distance 1400 *only* because it was
+  a bounded 400-chunk world. Bounded worlds hide C/D; this one does not. Phase 4 is not optional
+  for Phase 5's horizon — mid-field LOD (5.4) still needs many chunks resident.
+
+> **Reference point (Minecraft):** palettized bit-packed subchunks cost **~0.5–1 B per block**
+> (16³ section = palette + min-bits index array) vs our **~150–170 B per `Cube`** — a 150–300×
+> gap, and the direct reason vanilla holds thousands of chunks resident at 32-chunk view distance.
+> Vanilla never solved *distance* (it caps at 32 chunks + fog); the LOD-quadtree answer is the
+> Distant Horizons mod — i.e. our Phase 5.4. Phase 4's material interning is a step; the endgame
+> is a palettized section array with no per-voxel object.
+
 ## 1. Targets (the definition of done)
 
 | Metric | Today | Target |
