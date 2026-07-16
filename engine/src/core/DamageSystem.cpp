@@ -538,29 +538,33 @@ bool DamageSystem::isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
     return false;
 }
 
-bool DamageSystem::woodBoundsInCell(ChunkManager* cm, const glm::ivec3& wp,
-                                    glm::vec3& outMin, glm::vec3& outMax,
-                                    std::string* logMaterial) {
+bool DamageSystem::closestWoodPointInCell(ChunkManager* cm, const glm::ivec3& wp,
+                                          const glm::vec3& probe, glm::vec3& outPoint,
+                                          std::string* logMaterial) {
     if (!cm) return false;
     Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
     if (!ch) return false;
     const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    // Per-FRAGMENT nearest point, NOT a union AABB: a partially-chipped cell
+    // holds disjoint wood fragments, and clamping into their union box can put
+    // the "contact" in the air gap between them (auditor-caught defect).
     bool any = false;
-    glm::vec3 mn(1e9f), mx(-1e9f);
-    auto grow = [&](const glm::vec3& lo, const glm::vec3& hi, const std::string& mat) {
-        mn = glm::min(mn, lo);
-        mx = glm::max(mx, hi);
-        if (!any && logMaterial) *logMaterial = mat;
+    float bestD2 = 1e18f;
+    std::string bestMat;
+    auto consider = [&](const glm::vec3& lo, const glm::vec3& hi, const std::string& mat) {
+        const glm::vec3 cl = glm::clamp(probe, lo, hi);
+        const float d2 = glm::dot(cl - probe, cl - probe);
+        if (!any || d2 < bestD2) { bestD2 = d2; outPoint = cl; bestMat = mat; }
         any = true;
     };
     if (Cube* c = ch->getCubeAtFast(lp)) {
         if (c->getMaterialName().rfind("Log", 0) == 0)
-            grow(glm::vec3(wp), glm::vec3(wp) + 1.0f, c->getMaterialName());
+            consider(glm::vec3(wp), glm::vec3(wp) + 1.0f, c->getMaterialName());
     }
     for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
         if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
         const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sc->getLocalPosition()) / 3.0f;
-        grow(lo, lo + glm::vec3(1.0f / 3.0f), sc->getMaterialName());
+        consider(lo, lo + glm::vec3(1.0f / 3.0f), sc->getMaterialName());
     }
     for (int sx = 0; sx < 3; ++sx)
     for (int sy = 0; sy < 3; ++sy)
@@ -569,10 +573,11 @@ bool DamageSystem::woodBoundsInCell(ChunkManager* cm, const glm::ivec3& wp,
             if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
             const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sx, sy, sz) / 3.0f
                                + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f;
-            grow(lo, lo + glm::vec3(1.0f / 9.0f), mc->getMaterialName());
+            consider(lo, lo + glm::vec3(1.0f / 9.0f), mc->getMaterialName());
         }
-    if (any) { outMin = mn; outMax = mx; }
-    return any;
+    if (!any) return false;
+    if (logMaterial) *logMaterial = bestMat;
+    return true;
 }
 
 DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,

@@ -254,6 +254,44 @@ TEST_F(ChopKerfIntegrationTest, DeepBladeContact_SlotBitesAtTheBlade) {
         << "slot never carved at the blade (pocket-only bite)";
 }
 
+TEST_F(ChopKerfIntegrationTest, DisjointWoodCell_ContactLandsOnSolidWood) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+
+    // Auditor-prescribed case: a partially-chipped cell holds DISJOINT wood
+    // fragments (routine after a few bites). The blade-contact point must lie
+    // ON an actual solid fragment — a union-AABB clamp puts it in the air gap
+    // BETWEEN fragments, and the bite window anchored there sits in air again
+    // (the exact defect class this arc was fixing).
+    const glm::ivec3 cell(10, 6, 10);
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(cell));
+    ASSERT_NE(ch, nullptr);
+    ASSERT_TRUE(ch->addSubcube(cell, {0, 0, 0}, "Log"));   // low corner fragment
+    ASSERT_TRUE(ch->addSubcube(cell, {2, 2, 2}, "Log"));   // high corner fragment
+    // (their union AABB spans the whole cell; the center third is pure air)
+
+    // Blade just outside the cell's front face, aimed straight at the air gap.
+    const glm::vec3 probe(10.5f, 6.5f, 9.9f);
+    glm::vec3 onWood(0.0f);
+    std::string mat;
+    ASSERT_TRUE(DamageSystem::closestWoodPointInCell(chunkManager.get(), cell,
+                                                     probe, onWood, &mat));
+    EXPECT_EQ(mat.rfind("Log", 0), 0u);
+
+    // The contact point must be on (within a hair of) one of the two fragments.
+    auto onBox = [](const glm::vec3& p, const glm::vec3& lo, const glm::vec3& hi) {
+        constexpr float e = 1e-4f;
+        return p.x >= lo.x - e && p.x <= hi.x + e &&
+               p.y >= lo.y - e && p.y <= hi.y + e &&
+               p.z >= lo.z - e && p.z <= hi.z + e;
+    };
+    const glm::vec3 c0(cell);
+    const bool onLow  = onBox(onWood, c0, c0 + glm::vec3(1.0f / 3.0f));
+    const bool onHigh = onBox(onWood, c0 + glm::vec3(2.0f / 3.0f), c0 + glm::vec3(1.0f));
+    EXPECT_TRUE(onLow || onHigh)
+        << "contact point (" << onWood.x << "," << onWood.y << "," << onWood.z
+        << ") is in the air gap between fragments, not on solid wood";
+}
+
 TEST_F(ChopKerfIntegrationTest, StationaryBladeAtTheFace_FellsAThinTrunk) {
     if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
     auto* voxelWorld = physicsWorld->getVoxelWorld();

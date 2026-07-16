@@ -79,15 +79,16 @@ public:
     // (swing 1 puffs, every later swing silently whiffs).
     static bool isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
                               std::string* logMaterial = nullptr);
-    // Tight AABB of the Log* content inside one cell (any granularity). False if
-    // the cell holds no wood. Blade-contact detection clamps the axe head to
-    // THIS, not the cell box: a flare/notch cell's wood can start a third of a
-    // meter inside the cell, and a contact point on the cell face leaves the
-    // blade-hugging bite window mostly in air (live: 14-micro nibbles at the
-    // flare instead of real bites).
-    static bool woodBoundsInCell(ChunkManager* cm, const glm::ivec3& wp,
-                                 glm::vec3& outMin, glm::vec3& outMax,
-                                 std::string* logMaterial = nullptr);
+    // Closest point ON the Log* content inside one cell (any granularity) to
+    // `probe`. False if the cell holds no wood. Blade-contact detection clamps
+    // the axe head to THIS, not the cell box (a flare/notch cell's wood can
+    // start a third of a meter inside the cell) and not a union AABB either (a
+    // partially-chipped cell holds DISJOINT wood fragments — a union-box clamp
+    // can land in the air gap between them, and the bite window anchored there
+    // sits in air again). The point is on an actual solid fragment.
+    static bool closestWoodPointInCell(ChunkManager* cm, const glm::ivec3& wp,
+                                       const glm::vec3& probe, glm::vec3& outPoint,
+                                       std::string* logMaterial = nullptr);
 
     // ---- Axe-chop kerf: FRACTURE, not blast (docs/DestructionSystemV2.md §5.E) ----
     // Carve one axe bite into the trunk cross-section at hitCell's height, entering

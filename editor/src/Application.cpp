@@ -8150,16 +8150,17 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
             // cell's wood can start well inside the cell — a cell-box clamp
             // left the bite window mostly in air). Leaf cubes keep the cell box
             // (leaf contact is feedback-only).
-            glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
+            glm::vec3 cl(0.0f);
             std::string mat;
             if (const auto* cube = chunkManager->getCubeAt(wp)) {
                 if (!isFlora(cube->getMaterialName())) continue;
                 mat = cube->getMaterialName();
-            } else if (!Phyxel::DamageSystem::woodBoundsInCell(chunkManager, wp,
-                                                               lo, hi, &mat)) {
+                const glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
+                cl = glm::clamp(axeHead, lo, hi);
+            } else if (!Phyxel::DamageSystem::closestWoodPointInCell(
+                           chunkManager, wp, axeHead, cl, &mat)) {
                 continue;
             }
-            const glm::vec3 cl = glm::clamp(axeHead, lo, hi);
             const float d = glm::distance(axeHead, cl);
             if (d <= 0.3f) cands.push_back({wp, d, cl, mat});
         }
