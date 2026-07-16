@@ -15,6 +15,7 @@ class Chunk;
 struct WorldRecipe;
 class HydrologyMap;
 class FlowField;
+struct MapCoarseData;
 
 /**
  * @brief World generation interface for procedural world creation
@@ -152,6 +153,14 @@ public:
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
 
+    // Layer-0 from an imported drawn map (docs/TerrainGenerationV2.md P4): drive base
+    // elevation from a heightmap instead of noise. Rebuilds the coarse model to sample the
+    // map (and drops the procedural hydrology bake — the map's rivers are baked into the
+    // height). The shared immutable data is copy-safe for the streaming worker's generator
+    // copy. Pass nullptr to revert to the noise source. See core/MapCoarseSource.h.
+    void setHeightmapSource(std::shared_ptr<const MapCoarseData> src);
+    bool hasHeightmapSource() const { return static_cast<bool>(m_mapSource); }
+
     // Baked hydrology backings (docs/TerrainGenerationV2.md §P2), for the water runtime + tests.
     // Null for Flat / non-height-based types (nothing baked). Owned by the generator; the pointers
     // are valid until the next rebuild (ctor / applyRecipe).
@@ -199,6 +208,11 @@ private:
     // or generation params change (ctor + applyRecipe).
     std::shared_ptr<CoarseWorldModel> m_coarse;
     void rebuildCoarseModel();
+
+    // Optional Layer-0 override: an imported heightmap (P4). When set, rebuildCoarseModel
+    // sources baseHeight/continentalness from it instead of noise, and skips the hydrology
+    // bake. Immutable + shared_ptr → copy-safe for the streaming worker. See setHeightmapSource.
+    std::shared_ptr<const MapCoarseData> m_mapSource;
 
     // Layer-0 hydrology baked over a BOUNDED region (docs/TerrainGenerationV2.md §P2): lake/sea
     // surface levels (m_hydro) and the river drainage network + Strahler-ordered channel geometry

@@ -2,6 +2,7 @@
 #include "core/ChunkManager.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
+#include "core/MapCoarseSource.h"
 #include "core/WorldStorage.h"
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
@@ -226,6 +227,17 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
 
     WorldGenerator generator(genType, seed);
 
+    // Layer-0 imported heightmap (docs/TerrainGenerationV2.md P4): { "heightmap": { "dir": ... } }
+    // drives base elevation from tools/middle_earth/import_terrain.py output (1:1 map → world).
+    // Loaded once; shared (immutable) with the streaming generator below.
+    std::shared_ptr<MapCoarseData> mapData;
+    if (worldDef.contains("heightmap") && worldDef["heightmap"].contains("dir")) {
+        std::string err;
+        mapData = MapCoarseData::load(worldDef["heightmap"]["dir"].get<std::string>(), err);
+        if (mapData) generator.setHeightmapSource(mapData);
+        else LOG_ERROR("GameDefinitionLoader", "World: heightmap load failed: " + err);
+    }
+
     // Apply terrain params
     if (worldDef.contains("params")) {
         auto& tp = generator.getTerrainParams();
@@ -267,6 +279,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
             sg->getTerrainParams() = generator.getTerrainParams();
             sg->applyRecipe(recipe);   // streamed chunks use the same per-world tuning
+            if (mapData) sg->setHeightmapSource(mapData);  // after applyRecipe (which rebuilds coarse)
         }
         // Wire per-chunk flora decoration for streamed chunks (clip-stamp; the generator is
         // fetched lazily so it's valid for the lifetime of streaming).

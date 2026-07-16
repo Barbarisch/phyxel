@@ -1,5 +1,6 @@
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
+#include "core/MapCoarseSource.h"
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
@@ -276,7 +277,25 @@ void WorldGenerator::clearHydroBakeCache() {
     g_hydroCache.clear();
 }
 
+void WorldGenerator::setHeightmapSource(std::shared_ptr<const MapCoarseData> src) {
+    m_mapSource = std::move(src);
+    rebuildCoarseModel();
+}
+
 void WorldGenerator::rebuildCoarseModel() {
+    // Layer-0 override (P4): an imported heightmap drives base elevation directly. The map's
+    // rivers/valleys are already baked into the height, so we skip the procedural hydrology
+    // bake (m_hydro/m_flow stay null; sampleColumn's carve is guarded on m_flow). cellSize =
+    // blocksPerPixel so the coarse grid aligns to map pixels; the SourceFunc reads nearest and
+    // CoarseWorldModel bilinearly interpolates between pixel corners (one smooth interpolation).
+    if (m_mapSource) {
+        m_coarse = std::make_shared<CoarseWorldModel>(makeMapCoarseSource(m_mapSource),
+                                                      m_mapSource->blocksPerPixel);
+        m_hydro.reset();
+        m_flow.reset();
+        return;
+    }
+
     const uint32_t s = seed;
     // Continentalness is much lower-frequency than biome climate — its wavelength sets the landmass
     // size, which caps drainage-basin size and thus the max Strahler river order. At climateFrequency
