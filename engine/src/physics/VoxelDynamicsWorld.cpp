@@ -209,6 +209,13 @@ void VoxelDynamicsWorld::generateContacts() {
     size_t na = awake.size();
 
     // ---- Body vs terrain (parallel, per-thread contact buffers) ----
+    // Terrain is queried PER COLLISION BOX, not per body: a multi-box body's
+    // whole-body AABB spans the entire object (a fallen tree ≈ 10x15x10 m →
+    // ~1500 occupied voxels), and pairing every one of those with every body
+    // box was terrainBoxes × bodyBoxes narrow-phase tests per substep
+    // (~225k for a 150-box fell — the "FPS ≈ 0 while the tree falls" hang;
+    // 870 ms/frame measured at 46 boxes). Each box only overlaps a handful of
+    // voxels, so per-box queries are O(boxes × ~4) instead.
     if (!m_grids.empty() && na > 0) {
         std::vector<std::vector<ContactPoint>> threadBufs(tc);
         const auto& grids = m_grids;
@@ -219,18 +226,24 @@ void VoxelDynamicsWorld::generateContacts() {
             size_t slot  = (chunk > 0) ? (b / chunk) : 0;
             slot = std::min(slot, static_cast<size_t>(tc) - 1);
             auto& buf = threadBufs[slot];
+            std::vector<OccupiedBox> terrainBoxes;   // scratch, reused across boxes
 
             for (size_t i = b; i < e; ++i) {
                 const AwakeBody& ab = awake[i];
-                glm::vec3 bMin = ab.mn - glm::vec3(expand);
-                glm::vec3 bMax = ab.mx + glm::vec3(expand);
+                const glm::mat3 rot = glm::mat3_cast(ab.body->orientation);
+                const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+                const auto& localBoxes = ab.body->getLocalBoxes();
 
-                for (VoxelOccupancyGrid* grid : grids) {
-                    std::vector<OccupiedBox> terrainBoxes;
-                    grid->queryAABB(bMin, bMax, terrainBoxes);
-                    for (const OccupiedBox& tb : terrainBoxes)
-                        for (size_t bi = 0; bi < ab.body->getLocalBoxes().size(); ++bi)
+                for (size_t bi = 0; bi < localBoxes.size(); ++bi) {
+                    // Conservative world AABB of THIS box only.
+                    const glm::vec3 c  = ab.body->position + rot * localBoxes[bi].offset;
+                    const glm::vec3 he = absRot * localBoxes[bi].halfExtents + glm::vec3(expand);
+                    for (VoxelOccupancyGrid* grid : grids) {
+                        terrainBoxes.clear();
+                        grid->queryAABB(c - he, c + he, terrainBoxes);
+                        for (const OccupiedBox& tb : terrainBoxes)
                             VoxelContactSolver::generateOBBvsAABB(ab.body, bi, tb, buf);
+                    }
                 }
             }
         });
