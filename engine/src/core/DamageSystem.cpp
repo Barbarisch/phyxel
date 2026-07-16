@@ -1013,37 +1013,59 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         out.pocketChipped = removed;
     }
 
-    // NECK SHEAR: a tree cannot hang on a splinter. Survey the WHOLE plane in a
+    // NECK SHEAR: a tree cannot hang on a splinter. Survey WHOLE planes in a
     // box around the cut — not just the bite's connected cross-section: a deep
     // notch fragments the plane into islands, and a disconnected sliver island
     // is invisible to the carve flood yet still carries support (live case: two
-    // remnant islands held a fully-chopped tree up). If the plane's total
-    // remaining structural wood is a few subcubes' worth (≲ 0.1 m² carrying
-    // tons of tree), the neck shears and the release below decides the fall.
-    {
-        int neckSubcubes = 0;
-        std::vector<glm::ivec3> neckCells;
-        for (int dx = -3; dx <= 3; ++dx)
-        for (int dz = -3; dz <= 3; ++dz) {
-            const glm::ivec3 c(anchor.x + dx, anchor.y, anchor.z + dz);
-            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
-            if (!ch) continue;
-            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
-            int n = 0;
-            if (ch->getCubeAtFast(lp)) {
-                if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0)
-                    n += 9;   // full cube = full 3x3 column area
+    // remnant islands held a fully-chopped tree up). And survey a small
+    // VERTICAL BAND, not just the anchor row: the blade anchors where it lands
+    // (often the fat rooted flare rows) while the actual neck — a few subcubes
+    // one row up — sits on a row no swing ever anchors at (live case: a trunk
+    // visibly standing on ~5 slivers, never falling). The weakest row with a
+    // few subcubes' worth of wood (≲ 0.1 m² carrying tons of tree) shears.
+    //
+    // The band's structural cells also RE-SEED the release flood below: the
+    // flood only evaluates components touching its seeds, so without this the
+    // part ABOVE the cut is only re-checked when a bite's rim happens to touch
+    // it — a top held by a cargo-only (micro) neck could stand forever. With
+    // the re-seed, every biting swing re-evaluates the neighborhood's support,
+    // and a cargo neck releases via the ordinary cargo cascade (F6).
+    if (out.microsRemoved > 0) {
+        int shearUnits = INT_MAX, shearY = anchor.y;
+        std::vector<glm::ivec3> shearCells;
+        for (int ry = anchor.y - 1; ry <= anchor.y + 2; ++ry) {
+            int units = 0;
+            std::vector<glm::ivec3> rowCells;
+            for (int dx = -3; dx <= 3; ++dx)
+            for (int dz = -3; dz <= 3; ++dz) {
+                const glm::ivec3 c(anchor.x + dx, ry, anchor.z + dz);
+                Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
+                if (!ch) continue;
+                const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
+                int n = 0;
+                if (ch->getCubeAtFast(lp)) {
+                    if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0)
+                        n += 9;   // full cube = full 3x3 column area
+                }
+                for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+                    if (sc && sc->getMaterialName().rfind("Log", 0) == 0) ++n;
+                if (n > 0) {
+                    units += n;
+                    rowCells.push_back(c);
+                    seedCells.push_back(c);   // re-seed the release flood (cheap: flood skips cargo)
+                }
             }
-            for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-                if (sc && sc->getMaterialName().rfind("Log", 0) == 0) ++n;
-            if (n > 0) { neckSubcubes += n; neckCells.push_back(c); }
+            if (units > 0 && units < shearUnits) {
+                shearUnits = units; shearY = ry; shearCells = rowCells;
+            }
         }
-        if (out.microsRemoved > 0 && neckSubcubes > 0 && neckSubcubes <= 6) {
+        if (shearUnits > 0 && shearUnits <= 6 && shearUnits != INT_MAX) {
             int sheared = 0;
-            for (const glm::ivec3& c : neckCells) sheared += pulverizeCellWood(c);
+            for (const glm::ivec3& c : shearCells) sheared += pulverizeCellWood(c);
             if (sheared > 0) {
                 out.microsRemoved += sheared;
-                LOG_INFO("DamageSystem", "kerf neck shear: {} subcubes of neck snapped at the cut", neckSubcubes);
+                LOG_INFO("DamageSystem", "kerf neck shear: {} subcubes of neck snapped at y={}",
+                         shearUnits, shearY);
             }
         }
     }

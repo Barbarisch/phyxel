@@ -322,5 +322,82 @@ TEST_F(ChopKerfIntegrationTest, StationaryBladeAtTheFace_FellsAThinTrunk) {
     EXPECT_EQ(mgr.count(), 1u) << "release was not one coherent body";
 }
 
+TEST_F(ChopKerfIntegrationTest, SliverNeckAboveAnchorRow_TreeStillFalls) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Live user case (2026-07-16): the blade lands on the FAT ROOTED FLARE rows,
+    // while the real neck — a few structural subcubes ONE ROW UP — is on a row
+    // no swing ever anchors at. The old shear surveyed only the anchor row (fat,
+    // way above threshold) and the release flood only re-evaluated components
+    // touching the bite's rim (rooted flare stubs, anchored instantly) — so a
+    // trunk visibly standing on ~5 slivers never fell.
+    putBox(5, 3, 5, 15, 3, 15, "Stone");                    // floor
+    putBox(8, 4, 8, 12, 5, 12, "Log");                      // fat rooted flare, y=4..5
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({10, 6, 10}));
+    ASSERT_NE(ch, nullptr);
+    for (int sx = 0; sx < 3; ++sx)                          // SLIVER NECK at y=6:
+        ASSERT_TRUE(ch->addSubcube({10, 6, 10}, {sx, 0, 0}, "Log"));  // 3 subcubes
+    putBox(10, 7, 10, 10, 10, 10, "Log");                   // upper trunk y=7..10
+    putBox(9, 11, 9, 11, 12, 11, "Leaf");                   // canopy
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // Chop the FLARE (anchor row y=5, edge of the fat base) — the blade never
+    // anchors at the y=6 sliver row. The band survey must still find the
+    // 3-subcube neck (anchor.y+1) and release the top.
+    bool severed = false;
+    for (int swing = 0; swing < 10 && !severed; ++swing) {
+        auto r = dmg.carveChopKerf({8, 5, 10}, glm::vec3(1, 0, 0), 0.4f, /*coherent*/ true,
+                                   glm::vec3(8.0f, 5.5f, 10.5f));
+        severed = r.severed;
+    }
+    ASSERT_TRUE(severed)
+        << "top stayed up: the sliver neck above the anchor row was never surveyed";
+    EXPECT_FALSE(solid(10, 9, 10)) << "upper trunk still standing after release";
+    EXPECT_TRUE(solid(8, 4, 8)) << "rooted flare fell";
+}
+
+TEST_F(ChopKerfIntegrationTest, MicroOnlyNeck_ReleasesWithoutShear) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Variant: the neck is MICRO-ONLY wood (cargo — it must not hold a tree up,
+    // F6). There is nothing structural to shear, so the release must come from
+    // the flood re-evaluating the component ABOVE the cut — which the old code
+    // only did when the bite's rim happened to touch it.
+    putBox(5, 3, 5, 15, 3, 15, "Stone");                    // floor
+    putBox(8, 4, 8, 12, 5, 12, "Log");                      // fat rooted flare
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({10, 6, 10}));
+    ASSERT_NE(ch, nullptr);
+    for (int mx = 0; mx < 3; ++mx)                          // micro-only neck: 3 micros
+        ASSERT_TRUE(ch->addMicrocube({10, 6, 10}, {1, 0, 1}, {mx, 0, 1}, "Log"));
+    putBox(10, 7, 10, 10, 10, 10, "Log");                   // upper trunk
+    putBox(9, 11, 9, 11, 12, 11, "Leaf");                   // canopy
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    bool severed = false;
+    for (int swing = 0; swing < 10 && !severed; ++swing) {
+        auto r = dmg.carveChopKerf({8, 5, 10}, glm::vec3(1, 0, 0), 0.4f, /*coherent*/ true,
+                                   glm::vec3(8.0f, 5.5f, 10.5f));
+        severed = r.severed;
+    }
+    ASSERT_TRUE(severed)
+        << "top stayed up on a micro-only (cargo) neck — support re-evaluation missed it";
+    EXPECT_FALSE(solid(10, 9, 10)) << "upper trunk still standing after release";
+    EXPECT_TRUE(solid(8, 4, 8)) << "rooted flare fell";
+}
+
 } // namespace Testing
 } // namespace Phyxel
