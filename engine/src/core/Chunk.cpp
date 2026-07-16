@@ -576,6 +576,10 @@ bool Chunk::removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcube
     return voxelManager.removeSubcube(parentPos, subcubePos);
 }
 
+int Chunk::clearCellsBulk(const std::vector<glm::ivec3>& localCells) {
+    return voxelManager.clearCellsBulk(localCells);
+}
+
 bool Chunk::clearSubdivisionAt(const glm::ivec3& localPos) {
     return voxelManager.clearSubdivisionAt(localPos);
 }

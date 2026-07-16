@@ -194,6 +194,7 @@ public:
     bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material = "Default", uint32_t tint = 0xFFFFFFu, uint8_t state = 0);
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);       // Remove all subcubes and restore cube
+    int clearCellsBulk(const std::vector<glm::ivec3>& localCells);  // Bulk clear (one storage pass); caller owns occupancy+remesh
     
     // Microcube manipulation
     bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Convert subcube to 27 microcubes

@@ -5699,7 +5699,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "apply_damage":
         body: dict[str, Any] = {"x": args["x"], "y": args["y"], "z": args["z"]}
-        for k in ("radius", "energy", "type", "direction", "support_y", "collapse"):
+        for k in ("radius", "energy", "type", "direction", "support_y", "collapse", "coherent"):
             if k in args:
                 body[k] = args[k]
         return await api_post("/api/damage/apply", body)

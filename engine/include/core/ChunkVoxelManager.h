@@ -110,6 +110,9 @@ public:
     bool addSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, const std::string& material = "Default");
     bool removeSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
     bool clearSubdivisionAt(const glm::ivec3& localPos);
+    /// Bulk cell clear (cube + subdivision content) — one pass over the chunk's
+    /// storage for the whole set; caller owns occupancy + remesh. Returns cells cleared.
+    int clearCellsBulk(const std::vector<glm::ivec3>& localCells);
 
     // Microcube operations
     bool subdivideSubcubeAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);

@@ -930,6 +930,9 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
         return false;
     }
 
+    using Clock = std::chrono::high_resolution_clock;
+    const auto tGather0 = Clock::now();
+
     // Gather the whole component's geometry first; if any cell isn't coherently
     // gatherable, bail (scatter) BEFORE removing anything. Leaf-cargo cells ride along:
     // the canopy STAYS WITH the falling tree (F1 — leaves are never voxel debris).
@@ -1038,6 +1041,7 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
                       std::make_move_iterator(leaves.begin()),
                       std::make_move_iterator(leaves.end()));
     std::string id = "collapse_" + std::to_string(m_fragSeq++);
+    const auto tSpawn0 = Clock::now();
     uint32_t bid = m_fragMgr->spawn(id, std::move(fragVoxels), collision, glm::mat4(1.0f),
                                     linVel, angVel, worldMass);
     if (bid == 0) {
@@ -1046,11 +1050,34 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
         return false;   // cells NOT removed -> caller falls back to per-cell scatter
     }
 
-    for (const glm::ivec3& v : component) removeCellContent(m_cm, v);
-    for (const glm::ivec3& v : leafCargo) removeCellContent(m_cm, v);
+    const auto tRemove0 = Clock::now();
+    {
+        // Bulk removal grouped by chunk: one storage pass per chunk instead of a
+        // full vector scan PER CELL (removeCellContent/clearSubdivisionAt was the
+        // 758 ms topple-start hitch for a ~550-cell tree).
+        std::unordered_map<Chunk*, std::vector<glm::ivec3>> byChunk;
+        auto queue = [&](const glm::ivec3& v) {
+            if (Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(v)))
+                byChunk[ch].push_back(ChunkManager::worldToLocalCoord(v));
+            m_cm->updateOccupancyVoxel(v.x, v.y, v.z, false);
+        };
+        for (const glm::ivec3& v : component) queue(v);
+        for (const glm::ivec3& v : leafCargo)  queue(v);
+        for (auto& [ch, cells] : byChunk) {
+            ch->clearCellsBulk(cells);
+            m_cm->markChunkDirty(ch);
+        }
+    }
+    const auto tEnd = Clock::now();
+    auto ms = [](auto a, auto b) {
+        return std::chrono::duration<float, std::milli>(b - a).count();
+    };
     res.debrisSpawned += 1;   // one coherent body
     LOG_INFO("DamageSystem", "coherent collapse: {}+{} cells -> 1 rigid body ({} wood, {} canopy voxels riding)",
              component.size(), leafCargo.size(), woodCount, leafCount);
+    // Hitch diagnosis (topple-start spike): which phase eats the frame.
+    LOG_INFO("DamageSystem", "coherent timing: gather={}ms spawn(physicalize+faces)={}ms cellRemoval={}ms",
+             ms(tGather0, tSpawn0), ms(tSpawn0, tRemove0), ms(tRemove0, tEnd));
     return true;
 }
 
