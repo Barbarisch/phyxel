@@ -598,10 +598,8 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     // knows it (height clamped into the hit row, lateral offset clamped into the
     // trunk) — the bite starts exactly where the axe visibly lands.
     const bool hasContact = contactPoint.y > -1.0e8f;
-    // +0.15 bias: the mocap swing's blade arcs slightly below where the strike
-    // reads visually (user feedback: bites landed a little low).
     const float kerfY = hasContact
-        ? std::min(hitCell.y + 0.8f, std::max(hitCell.y + 0.25f, contactPoint.y + 0.15f))
+        ? std::min(hitCell.y + 0.85f, std::max(hitCell.y + 0.15f, contactPoint.y))
         : hitCell.y + 0.5f;
     float farD = -1e9f;
     glm::vec2 centroid(0.0f);
@@ -681,7 +679,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     }();
     const float open = std::min(1.0f, std::max(0.0f, (1.8f - remaining) / 1.5f)); // 0 fresh -> 1 nearly through
     const float halfW = std::max(0.35f, spanHalfW * open);
-    const float mouthHalfH = 0.24f + 0.26f * open;      // thinner fresh notch -> full row when finishing
+    const float mouthHalfH = 0.30f + 0.20f * open;      // notch mouth -> full row when finishing
     const float apexHalfH = 0.06f;
     const float tipLen = std::min(0.45f, depth * 0.5f);
 
@@ -854,7 +852,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     // break threshold). Refines wood near the point, removes the nearest micros
     // (biased slightly along the strike direction), up to maxMicros.
     auto chipPocket = [&](const glm::vec3& at, int maxMicros) -> int {
-        constexpr float kR = 0.55f;
+        constexpr float kR = 0.75f;
         struct MicroRef { glm::ivec3 cell, slot, mm; float score; };
         std::vector<MicroRef> found;
         const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
@@ -870,8 +868,8 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
             const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
             // refine anything the pocket sphere touches down to micros
             if (ch->getCubeAtFast(lp) &&
+                ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0 &&
                 glm::distance(glm::clamp(at, glm::vec3(wp), glm::vec3(wp) + 1.0f), at) <= kR) {
-                if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) != 0) continue;
                 ch->subdivideAt(lp);
                 m_cm->updateAfterCubeSubdivision(wp);
             }
@@ -941,7 +939,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         const glm::vec3 chipAt = hasContact
             ? glm::vec3(contactPoint.x, kerfY, contactPoint.z)
             : glm::vec3(anchor) + glm::vec3(0.5f);
-        const int removed = chipPocket(chipAt, 81);
+        const int removed = chipPocket(chipAt, 140);
         if (removed > 0) { out.microsRemoved += removed; out.carved = true; }
     }
 
