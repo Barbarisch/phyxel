@@ -464,5 +464,61 @@ TEST_F(ChopKerfIntegrationTest, OverhangTopSkin_DoesNotConductSupportAcrossAirGa
     EXPECT_TRUE(solid(13, 4, 10)) << "the partial stump itself must stay rooted";
 }
 
+TEST_F(ChopKerfIntegrationTest, GroundedBranchTip_DoesNotAnchorTheTree) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Live user case #3 (2026-07-16): after a fell, a static GHOST THICKET of
+    // canopy stayed standing in the world — the crown's branch tips drooped to
+    // the ground, and the release flood's tree anchor ("a Log cell with terrain
+    // directly below = rooted trunk") let a 1-subcube twig tip root the whole
+    // cluster. The player then walked into invisible full-cell occupancy.
+    // A ground-touching cell is a ROOT only with trunk-like wood meeting the
+    // ground (full cube, or >=4 structural subcubes in the bottom layer —
+    // real flare cells measure 5+, twig tips 1-2).
+    putBox(6, 3, 6, 18, 3, 14, "Stone");                    // floor
+    putBox(10, 4, 10, 10, 8, 10, "Log");                    // trunk y=4..8
+    putBox(8, 9, 8, 13, 11, 12, "Leaf");                    // canopy
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({13, 4, 10}));
+    ASSERT_NE(ch, nullptr);
+    // Branch: cubes out from the trunk top, then a thin TWIG column drooping to
+    // the ground (3 stacked subcubes per cell — F8-conducting, 1 sub per layer).
+    // The twig sits OUTSIDE the 7x7 shear box around the cut (anchor.x±3 =
+    // 7..13): inside it, the band shear snaps the twig row itself and masks the
+    // anchor rule this test isolates.
+    putBox(11, 8, 10, 14, 8, 10, "Log");                    // branch arm
+    for (int y = 4; y <= 7; ++y)
+        for (int sy2 = 0; sy2 < 3; ++sy2)
+            ASSERT_TRUE(ch->addSubcube({14, y, 10}, {1, sy2, 1}, "Log"));  // twig column
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // Cut the trunk through at y=5. With the twig tip anchoring, the tree NEVER
+    // falls (the whole cut-off crown "roots" through the drooping branch).
+    // Contact steps IN with the notch (a real chopper walks forward); the twig
+    // column also sits inside the 7x7 shear box inflating its count, so the cut
+    // must complete via the slot — the release verdict is then purely the
+    // anchor rule under test.
+    bool severed = false;
+    for (int swing = 0; swing < 16 && !severed; ++swing) {
+        const glm::vec3 contact(10.5f, 5.5f, 10.0f + 0.25f * swing);
+        auto r = dmg.carveChopKerf({10, 5, 10}, glm::vec3(0, 0, 1), 0.4f, /*coherent*/ true,
+                                   contact);
+        severed = r.severed;
+    }
+    ASSERT_TRUE(severed)
+        << "tree never fell: a 1-subcube grounded twig tip anchored the crown";
+    // Nothing of the crown/branch/twig stays as static world content.
+    EXPECT_FALSE(solid(12, 8, 10)) << "branch arm left standing";
+    EXPECT_FALSE(solid(14, 6, 10)) << "twig column left standing (the ghost-thicket bug)";
+    EXPECT_FALSE(solid(10, 8, 10)) << "upper trunk left standing";
+    EXPECT_TRUE(solid(10, 4, 10)) << "the real stump must stay";
+}
+
 } // namespace Testing
 } // namespace Phyxel

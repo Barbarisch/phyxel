@@ -528,6 +528,28 @@ static bool verticalStructuralContact(ChunkManager* cm, const glm::ivec3& lower,
            cellLayerHasStructuralLog(cm, upper, 0);
 }
 
+// F9 — a ground-touching Log cell is a ROOTED TRUNK only when trunk-like wood
+// actually meets the ground: a full Log cube, or >=4 structural Log subcubes in
+// the cell's BOTTOM layer. Any-log-over-terrain let a 1-subcube branch TIP
+// drooping to the ground anchor an entire severed crown — live: after a fell, a
+// static ghost thicket of canopy stayed standing in the player's path (and in
+// the red test, the tree never fell at all). Grounding for the threshold: fresh
+// forge trees measure 5+ bottom-layer subcubes in flare cells and 9 in trunk
+// cubes; twig tips measure 1-2 (live scan_micro + /api/world/subcubes data).
+static bool trunkRootContact(ChunkManager* cm, const glm::ivec3& wp) {
+    Chunk* ch = cm ? cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp)) : nullptr;
+    if (!ch) return false;
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    if (Cube* c = ch->getCubeAtFast(lp))
+        return c->getMaterialName().rfind("Log", 0) == 0;
+    int n = 0;
+    for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+        if (sc && sc->getLocalPosition().y == 0 &&
+            sc->getMaterialName().rfind("Log", 0) == 0)
+            ++n;
+    return n >= 4;
+}
+
 bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
                                         std::string* logMaterial) {
     if (!cm) return false;
@@ -1404,7 +1426,8 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
                 // flood into terrain (below); only this rooted-trunk check anchors a tree.
                 if (vTree && isLogCell(m_cm, v)) {
                     glm::ivec3 below(v.x, v.y - 1, v.z);
-                    if (m_cm->hasVoxelAt(below) && !isTreeCell(m_cm, below)) {
+                    if (m_cm->hasVoxelAt(below) && !isTreeCell(m_cm, below) &&
+                        trunkRootContact(m_cm, v)) {   // F9: trunk-like wood at the ground, not a twig tip
                         supported = true; why = "rooted-trunk"; whyAt = v; break;
                     }
                 }

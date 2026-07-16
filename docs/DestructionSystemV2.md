@@ -776,7 +776,11 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   diagnosing the live case required scan_micro + DEBUG flood logs); diagonal break
   planes across >4 rows still unevaluated; HORIZONTAL cell-granular conduction can
   still bridge a sub-cell gap sideways (F8 covers vertical only); the rooted-trunk
-  anchor itself is still cell-granular (a top-skin-only cell over terrain roots).
+  anchor now requires TRUNK-LIKE ground contact (F9: full Log cube, or >=4
+  structural subcubes in the cell's bottom layer — measured: flare cells 5+,
+  twig tips 1-2). Any-log-over-terrain let a drooping branch TIP anchor a
+  severed crown: a static ghost thicket stayed standing in the player's path,
+  and in the red test the tree never fell at all.
 - **Perf (task #7, 2026-07-16):** the falling-phase FPS collapse was
   `VoxelDynamicsWorld::generateContacts` querying terrain with the BODY's whole
   AABB (~1500 voxels for a fallen tree) x every collision box (~225k OBB tests
