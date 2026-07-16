@@ -849,12 +849,99 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         return removed;
     };
 
+    // Chip a POCKET of micros around a point (fracture ladder §5.H: fractures
+    // start at micro scale — a hit never vaporizes a whole cell below the full
+    // break threshold). Refines wood near the point, removes the nearest micros
+    // (biased slightly along the strike direction), up to maxMicros.
+    auto chipPocket = [&](const glm::vec3& at, int maxMicros) -> int {
+        constexpr float kR = 0.55f;
+        struct MicroRef { glm::ivec3 cell, slot, mm; float score; };
+        std::vector<MicroRef> found;
+        const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
+        const glm::ivec3 base(static_cast<int>(std::floor(at.x)),
+                              static_cast<int>(std::floor(at.y)),
+                              static_cast<int>(std::floor(at.z)));
+        for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+        for (int dz = -1; dz <= 1; ++dz) {
+            const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
+            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+            if (!ch) continue;
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+            // refine anything the pocket sphere touches down to micros
+            if (ch->getCubeAtFast(lp) &&
+                glm::distance(glm::clamp(at, glm::vec3(wp), glm::vec3(wp) + 1.0f), at) <= kR) {
+                if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) != 0) continue;
+                ch->subdivideAt(lp);
+                m_cm->updateAfterCubeSubdivision(wp);
+            }
+            for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+                if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
+                const glm::vec3 c = glm::vec3(wp) + glm::vec3(sc->getLocalPosition()) / 3.0f
+                                  + glm::vec3(1.0f / 6.0f);
+                if (glm::distance(c, at) <= kR + 0.2f)
+                    ch->subdivideSubcubeAt(lp, sc->getLocalPosition());
+            }
+            for (int sx = 0; sx < 3; ++sx)
+            for (int sy = 0; sy < 3; ++sy)
+            for (int sz = 0; sz < 3; ++sz)
+                for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
+                    if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
+                    const glm::vec3 c = glm::vec3(wp) + glm::vec3(sx, sy, sz) / 3.0f
+                        + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f + glm::vec3(1.0f / 18.0f);
+                    const float d = glm::distance(c, at);
+                    if (d > kR) continue;
+                    found.push_back({wp, {sx, sy, sz}, mc->getMicrocubeLocalPosition(),
+                                     d - 0.25f * glm::dot(c - at, dir3)});
+                }
+        }
+        std::sort(found.begin(), found.end(),
+                  [](const MicroRef& a, const MicroRef& b) { return a.score < b.score; });
+        int removed = 0;
+        std::unordered_set<Chunk*> pocketChunks;
+        for (const MicroRef& r : found) {
+            if (removed >= maxMicros) break;
+            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(r.cell));
+            if (!ch) continue;
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(r.cell);
+            if (ch->removeMicrocube(lp, r.slot, r.mm)) {
+                ++removed;
+                pocketChunks.insert(ch);
+            }
+        }
+        for (Chunk* ch : pocketChunks) touched.insert(ch);
+        // emptiness finalize per distinct touched cell
+        std::unordered_set<int64_t> doneCells;
+        for (const MicroRef& r : found) {
+            const int64_t k = packVoxel(r.cell.x, r.cell.y, r.cell.z);
+            if (!doneCells.insert(k).second) continue;
+            Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(r.cell));
+            if (!ch) continue;
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(r.cell);
+            seedCells.push_back(r.cell);
+            bool any = ch->getCubeAtFast(lp) != nullptr || !ch->getStaticSubcubesAt(lp).empty();
+            for (int sx = 0; sx < 3 && !any; ++sx)
+            for (int sy = 0; sy < 3 && !any; ++sy)
+            for (int sz = 0; sz < 3 && !any; ++sz)
+                any = !ch->getMicrocubesAt(lp, {sx, sy, sz}).empty();
+            if (!any) {
+                ch->clearSubdivisionAt(lp);
+                m_cm->updateOccupancyVoxel(r.cell.x, r.cell.y, r.cell.z, false);
+                ++out.cellsEmptied;
+            }
+        }
+        return removed;
+    };
+
     // Rim-sliver fallback: the blade stops at its FIRST contact — often a
-    // remnant sliver on the notch lip that survived earlier bites because it
-    // sits outside the slot's window. If the slot removed nothing, pulverize
-    // the contacted cell's wood outright so the cut always progresses.
+    // remnant sliver on the notch lip outside the slot's window. If the slot
+    // removed nothing, CHIP a micro pocket at the contact (§5.H — never
+    // vaporize a whole cell below the break threshold) so the cut progresses.
     if (out.microsRemoved == 0) {
-        const int removed = pulverizeCellWood(anchor);
+        const glm::vec3 chipAt = hasContact
+            ? glm::vec3(contactPoint.x, kerfY, contactPoint.z)
+            : glm::vec3(anchor) + glm::vec3(0.5f);
+        const int removed = chipPocket(chipAt, 81);
         if (removed > 0) { out.microsRemoved += removed; out.carved = true; }
     }
 
