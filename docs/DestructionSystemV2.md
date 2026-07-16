@@ -684,3 +684,46 @@ than a one-shot consolidation**.
 **Net:** the unify-furniture-fracture *architecture* holds, but the tree vertical slice (H1, H3) and the
 retirement tier (H4, H6, H7, H8) each carry real new work the earlier sections understated. This table
 is the honest scope.
+
+
+## §5.H Fracture ladder — removal granularity scales with energy (approved 2026-07-16)
+
+Design conversation with the user (post chop-felling milestone): removal was BINARY per
+cell — below toughness nothing visible happens, above it the WHOLE cell vanishes. The
+overkill tiers (brittleS1/S2) only govern debris fineness of removed matter (correct,
+unchanged). The missing band is PARTIAL removal: fractures start at MICRO scale, and
+removing a whole cube in one hit is the HIGH bar, not the only outcome.
+
+Ladder (per impact, energy e vs effective toughness T):
+  e/T < chipRatio          -> accumulate damage; at 50% accumulated, visible "cracked"
+                              voxel state (state byte; renderer tint/decal — new state).
+  chipRatio  <= e/T < chunkRatio -> CHIP: refine impact cell locally (cube->sub->micro)
+                              and remove a direction-biased POCKET of micros at the
+                              impact point; volume proportional to e/T.
+  chunkRatio <= e/T < 1    -> CHUNK: subcube-scale bites near the point.
+  e/T >= 1                 -> whole cell breaks (existing path); overkill tiers as today.
+
+Tool efficiency: per-toolType x material-class MULTIPLIER table (data, not physics):
+axe x fibrous = 8x, pickaxe x crystalline = 8x, wrong tool 0.5x, bare hand 0.25x.
+(Area-scaled toughness noted as the possible later physical refactor.)
+
+Material classes (5, each sets default chipRatio/chunkRatio in the break block;
+per-material overrides allowed):
+  fibrous     (wood/logs)          chip 0.10 / chunk 0.45  — chips readily
+  brittle     (glass, ice)         chip 0.80 / chunk 0.85  — scratches, then shatters whole
+  granular    (sand, dirt, gravel) chip 0.15 / chunk 0.35  — crumbles (no refinement kept:
+                                                             removed micros are loose)
+  crystalline (stone, bricks)      chip 0.40 / chunk 0.70  — pickaxe domain
+  ductile     (metal, gold)        chip 0.95 / chunk 0.98  — deforms/holds; highest bar
+Rationale recorded here once, ratios live in materials.json (grounding: fracture-mode
+taxonomy, not per-number physical citations — these are gameplay dials per class).
+
+Accepted consequences: refinement is irreversible for now (re-coarsening = separate task;
+blast partial band gets a hard cap ~64 refined cells, band 15-99% of threshold,
+blast-facing surfaces only). Chipped-to-micro cells become cargo (F6) and stop carrying
+support — accepted for wood, revisit for masonry.
+
+Rollout order (approved): (1) axe internals — the rim-sliver fallback and oversized
+bites CHIP a pocket instead of vaporizing whole cells; (2) applyPointDamage(point,
+energy, dir) primitive + tool multiplier table, chop + future tools consume it;
+(3) blast partial band; (4) editor left-click instant break stays as-is (creative tool).
