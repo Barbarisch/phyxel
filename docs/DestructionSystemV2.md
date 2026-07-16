@@ -777,3 +777,11 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   planes across >4 rows still unevaluated; HORIZONTAL cell-granular conduction can
   still bridge a sub-cell gap sideways (F8 covers vertical only); the rooted-trunk
   anchor itself is still cell-granular (a top-skin-only cell over terrain roots).
+- **Perf (task #7, 2026-07-16):** the falling-phase FPS collapse was
+  `VoxelDynamicsWorld::generateContacts` querying terrain with the BODY's whole
+  AABB (~1500 voxels for a fallen tree) x every collision box (~225k OBB tests
+  per substep at subcube-proxy box counts; 870 ms/frame measured at 46 boxes).
+  Now queried PER BOX (O(boxes x ~4)). Collision proxy is SUBCUBE resolution
+  (F2+#13): cube = unit box, else 1/3-box per occupied slot (micro quorum >=4);
+  >800-cell components stay coarse. Cargo stand-adjacency also obeys F8 (no
+  static floaters over air gaps).
