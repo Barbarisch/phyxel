@@ -399,5 +399,54 @@ TEST_F(ChopKerfIntegrationTest, MicroOnlyNeck_ReleasesWithoutShear) {
     EXPECT_TRUE(solid(8, 4, 8)) << "rooted flare fell";
 }
 
+TEST_F(ChopKerfIntegrationTest, OverhangTopSkin_DoesNotConductSupportAcrossAirGap) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Live user case #2 (2026-07-16, world-verified): the notch hollowed the
+    // MIDDLE of the neck cells; the remaining subcubes there are the TOP-LAYER
+    // (sy=2) underside skin of the overhanging mass above, and the only
+    // physical bridge to the rooted stub is a cargo micro pillar. The support
+    // flood conducts at CELL granularity, so "structural cell above structural
+    // cell" counted as connected across a 2/3-cell AIR GAP — the tree hung on
+    // an adjacency illusion, visibly standing on ~5 microcubes.
+    putBox(5, 3, 5, 15, 3, 15, "Stone");                    // floor
+    putBox(8, 4, 8, 12, 4, 12, "Log");                      // rooted flare, y=4
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({10, 5, 10}));
+    ASSERT_NE(ch, nullptr);
+    // Neck cells y=5: wood ONLY in the TOP subcube layer (sy=2) — the skin of
+    // the mass above. >6 units total so the neck-shear cannot be what releases.
+    for (int cx = 9; cx <= 11; ++cx)
+        for (int sx = 0; sx < 3; ++sx)
+            for (int sz = 0; sz < 3; sz += 2)
+                ASSERT_TRUE(ch->addSubcube({cx, 5, 10}, {sx, 2, sz}, "Log"));   // 6 per cell, 18 total
+    // The cargo micro pillar (the visible "support") — must hold nothing.
+    for (int my = 0; my < 3; ++my)
+        ASSERT_TRUE(ch->addMicrocube({10, 5, 10}, {1, 0, 1}, {1, my, 1}, "Log"));
+    putBox(9, 6, 9, 11, 8, 11, "Log");                      // overhang mass + trunk
+    putBox(8, 9, 8, 12, 11, 12, "Leaf");                    // canopy
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // ONE bite at the rooted flare: the band re-seed evaluates the neighborhood,
+    // and the vertical-contact rule must see that the top-skin cells have no
+    // bottom-layer wood touching the flare — the whole overhang releases.
+    bool severed = false;
+    for (int swing = 0; swing < 6 && !severed; ++swing) {
+        auto r = dmg.carveChopKerf({8, 4, 10}, glm::vec3(1, 0, 0), 0.4f, /*coherent*/ true,
+                                   glm::vec3(8.0f, 4.5f, 10.5f));
+        severed = r.severed;
+    }
+    ASSERT_TRUE(severed)
+        << "overhang stayed up: cell-granular adjacency conducted support across the air gap";
+    EXPECT_FALSE(solid(10, 7, 10)) << "overhang mass still standing after release";
+    EXPECT_TRUE(solid(8, 4, 8)) << "rooted flare fell";
+}
+
 } // namespace Testing
 } // namespace Phyxel

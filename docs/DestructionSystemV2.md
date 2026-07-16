@@ -761,7 +761,19 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   swing (the rim-only flood anchored instantly on rooted flare stubs and never re-checked
   the top; a cargo-only micro neck now releases via the F6 cascade with nothing to
   shear). Release = ordinary support flood → one coherent hinged body (§5.B/P2.3).
+- **F8 — vertical support needs FACE CONTACT (2026-07-16):** the flood conducts
+  between vertically-adjacent TREE cells only when the lower cell holds structural
+  Log in its TOP subcube layer AND the upper cell in its BOTTOM layer (full cube =
+  all layers). Cell-granular adjacency alone conducted support across carved-out
+  air gaps — an overhang's top-layer underside skin "touched" the rooted stub
+  through the cell border while the only physical bridge was a cargo micro pillar
+  (live case: a trunk visibly standing on ~5 microcubes, world-verified, never
+  fell). Fresh trees hold wood in all three layers of trunk/flare cells
+  (data-verified), so healthy trees are unaffected. Horizontal steps stay
+  cell-granular for now (same class, lower stakes — noted below).
 - **Known gaps** (task #15 remainder): no gradual near-detach state (lean/creak) before
   the binary snap; no live "how close to falling" query (the survey only runs mid-swing;
   diagnosing the live case required scan_micro + DEBUG flood logs); diagonal break
-  planes across >4 rows still unevaluated.
+  planes across >4 rows still unevaluated; HORIZONTAL cell-granular conduction can
+  still bridge a sub-cell gap sideways (F8 covers vertical only); the rooted-trunk
+  anchor itself is still cell-granular (a top-skin-only cell over terrain roots).

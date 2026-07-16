@@ -501,6 +501,33 @@ static bool isCargoCell(ChunkManager* cm, const glm::ivec3& wp) {
     return (s.log || s.leaf) && !s.structLog;
 }
 
+// F8 — vertical support between TREE cells requires actual structural FACE
+// CONTACT at subcube granularity, not mere cell adjacency. A carved notch can
+// hollow the middle of a cell so its only structural wood is the TOP layer —
+// the underside skin of the mass above. Cell-granular adjacency then "connects"
+// that skin to the rooted stub below across a 2/3-cell air gap, and a trunk
+// visibly standing on a few cargo micros never falls (live user case). The
+// lower cell must hold structural Log in its TOP subcube layer AND the upper
+// cell in its BOTTOM layer (a full Log cube spans all layers). Fresh trees
+// pass everywhere (verified: trunk/flare cells hold wood in all three layers).
+static bool cellLayerHasStructuralLog(ChunkManager* cm, const glm::ivec3& wp, int sy) {
+    Chunk* ch = cm ? cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp)) : nullptr;
+    if (!ch) return false;
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    if (Cube* c = ch->getCubeAtFast(lp))
+        return c->getMaterialName().rfind("Log", 0) == 0;
+    for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+        if (sc && sc->getLocalPosition().y == sy &&
+            sc->getMaterialName().rfind("Log", 0) == 0)
+            return true;
+    return false;
+}
+static bool verticalStructuralContact(ChunkManager* cm, const glm::ivec3& lower,
+                                      const glm::ivec3& upper) {
+    return cellLayerHasStructuralLog(cm, lower, 2) &&
+           cellLayerHasStructuralLog(cm, upper, 0);
+}
+
 bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
                                         std::string* logMaterial) {
     if (!cm) return false;
@@ -1361,12 +1388,22 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
                 for (const auto& n : NB) {
                     glm::ivec3 nb = v + n;
                     int64_t key = packVoxel(nb.x, nb.y, nb.z);
-                    // Reached a voxel already proven part of the main mass → supported.
-                    if (anchored.count(key)) { supported = true; why = "main-mass"; whyAt = nb; break; }
-                    if (visited.count(key)) continue;
                     if (m_cm->hasVoxelAt(nb)) {
                         if (isCargoCell(m_cm, nb)) continue;              // cargo NEVER transmits support
                         if (vTree && !isTreeCell(m_cm, nb)) continue;     // tree ↛ terrain (side contact)
+                        // F8: vertical tree↔tree steps need real structural face
+                        // contact — cell adjacency alone conducted support across
+                        // carved-out air gaps (top-skin cells over hollowed necks).
+                        if (n.y != 0 && vTree && isTreeCell(m_cm, nb) &&
+                            !verticalStructuralContact(m_cm, n.y < 0 ? nb : v,
+                                                             n.y < 0 ? v : nb))
+                            continue;
+                        // Reached a voxel already proven part of the main mass →
+                        // supported (checked AFTER the conduction rules: an anchored
+                        // neighbor only supports us if support could actually flow
+                        // through that face).
+                        if (anchored.count(key)) { supported = true; why = "main-mass"; whyAt = nb; break; }
+                        if (visited.count(key)) continue;
                         visited.insert(key); stack.push_back(nb);
                     }
                 }
