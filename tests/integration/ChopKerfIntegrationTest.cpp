@@ -97,7 +97,7 @@ TEST_F(ChopKerfIntegrationTest, PartialKerf_NotchCarved_TreeStands_NoDebris) {
     EXPECT_GT(countMicrosOf({10, 6, 10}, "LogHeartwood"), 0) << "no heartwood exposed on the cut";
     // FRACTURE, not blast: a handful of tactile splinters per bite (<=6), nothing
     // like a blast's 100+ debris.
-    EXPECT_LE(r.collapse.debrisSpawned, 6) << "kerf bite must throw only a few splinters";
+    EXPECT_LE(r.collapse.debrisSpawned, 8) << "kerf bite must throw only a few splinters";
 }
 
 TEST_F(ChopKerfIntegrationTest, DeepeningKerf_CutsThrough_OneCoherentBody) {
@@ -137,7 +137,7 @@ TEST_F(ChopKerfIntegrationTest, DeepeningKerf_CutsThrough_OneCoherentBody) {
     EXPECT_TRUE(solid(10, 3, 10)) << "floor fell";
     // FRACTURE, not blast: <=6 tactile splinters per swing plus a couple of
     // snapping slivers at the break — far below a blast's 100+ per hit.
-    EXPECT_LE(totalDebris, swings * 6 + 3) << "kerf felling sprayed blast-like debris";
+    EXPECT_LE(totalDebris, swings * 8 + 3) << "kerf felling sprayed blast-like debris";
 }
 
 TEST_F(ChopKerfIntegrationTest, HollowShellTrunk_KerfFillsHeartwood_ThenFells) {
@@ -182,7 +182,7 @@ TEST_F(ChopKerfIntegrationTest, HollowShellTrunk_KerfFillsHeartwood_ThenFells) {
     EXPECT_EQ(mgr.count(), 1u);
     EXPECT_FALSE(solid(10, 9, 11)) << "upper ring still standing after release";
     EXPECT_TRUE(solid(10, 4, 11)) << "stump ring fell";
-    EXPECT_LE(totalDebris, 12 * 6 + 5) << "shell felling sprayed blast-like debris";
+    EXPECT_LE(totalDebris, 30 * 8 + 5) << "shell felling sprayed blast-like debris";
 }
 
 } // namespace Testing

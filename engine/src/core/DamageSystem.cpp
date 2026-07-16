@@ -598,8 +598,10 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     // knows it (height clamped into the hit row, lateral offset clamped into the
     // trunk) — the bite starts exactly where the axe visibly lands.
     const bool hasContact = contactPoint.y > -1.0e8f;
+    // +0.15 bias: the mocap swing's blade arcs slightly below where the strike
+    // reads visually (user feedback: bites landed a little low).
     const float kerfY = hasContact
-        ? std::min(hitCell.y + 0.8f, std::max(hitCell.y + 0.2f, contactPoint.y))
+        ? std::min(hitCell.y + 0.8f, std::max(hitCell.y + 0.25f, contactPoint.y + 0.15f))
         : hitCell.y + 0.5f;
     float farD = -1e9f;
     glm::vec2 centroid(0.0f);
@@ -679,7 +681,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     }();
     const float open = std::min(1.0f, std::max(0.0f, (1.8f - remaining) / 1.5f)); // 0 fresh -> 1 nearly through
     const float halfW = std::max(0.35f, spanHalfW * open);
-    const float mouthHalfH = 0.30f + 0.20f * open;      // 0.6 m opening -> full row when finishing
+    const float mouthHalfH = 0.24f + 0.26f * open;      // thinner fresh notch -> full row when finishing
     const float apexHalfH = 0.06f;
     const float tipLen = std::min(0.45f, depth * 0.5f);
 
@@ -895,13 +897,15 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         const glm::vec3 mouth = hasContact
             ? glm::vec3(contactPoint.x, kerfY, contactPoint.z)
             : glm::vec3(mouth2.x, kerfY, mouth2.y);
-        const int n = std::min(6, out.microsRemoved);
+        // Chunky enough to read (0.2 ≈ between micro and subcube), slower arcs so
+        // they hang in view (user feedback: splinters weren't visible at 1/9).
+        const int n = std::min(8, out.microsRemoved);
         for (int i = 0; i < n; ++i) {
             const glm::vec3 jit(frand(-0.15f, 0.15f), frand(-0.1f, 0.2f), frand(-0.15f, 0.15f));
-            const glm::vec3 vel = -dir3 * frand(1.5f, 3.0f)
-                                + glm::vec3(0.0f, frand(1.0f, 2.2f), 0.0f)
-                                + glm::vec3(frand(-0.8f, 0.8f), 0.0f, frand(-0.8f, 0.8f));
-            spawnDebris(mouth + jit - dir3 * 0.15f, vel, 1.0f / 9.0f, kHeartwood);
+            const glm::vec3 vel = -dir3 * frand(1.0f, 2.2f)
+                                + glm::vec3(0.0f, frand(1.6f, 2.8f), 0.0f)
+                                + glm::vec3(frand(-0.9f, 0.9f), 0.0f, frand(-0.9f, 0.9f));
+            spawnDebris(mouth + jit - dir3 * 0.15f, vel, 0.2f, kHeartwood);
             ++out.collapse.debrisSpawned;
         }
     }
