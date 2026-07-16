@@ -1,0 +1,5 @@
+# ARR + Tolkien IP — never commit mod-derived artifacts (reports, terrain, worlds)
+me_structures/
+me_terrain/
+*.db
+*.png
