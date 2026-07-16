@@ -727,3 +727,41 @@ Rollout order (approved): (1) axe internals — the rim-sliver fallback and over
 bites CHIP a pocket instead of vaporizing whole cells; (2) applyPointDamage(point,
 energy, dir) primitive + tool multiplier table, chop + future tools consume it;
 (3) blast partial band; (4) editor left-click instant break stays as-is (creative tool).
+
+
+## §5.I Axe-chop kerf — shipped mechanics (as-built, 2026-07-15/16)
+
+`DamageSystem::carveChopKerf` (per-swing, stateless) — FRACTURE, not blast; `applyDamage`
+untouched for spells/explosions. The shipped pipeline, editor side first:
+
+- **Blade contact** (`Application::tryAxeChopOnHitFrame`, per strike frame at progress
+  >0.28): the axe head is the held kinematic object's farthest voxel × its live transform.
+  Contact requires the head within **0.3 m of actual wood** — clamped to the nearest wood
+  FRAGMENT in the cell (`closestWoodPointInCell`; never a cell box or union AABB, both of
+  which put contact in air and produced whiff/zero-carve regressions). A zero-carve frame
+  does NOT consume the swing (detection retries as the blade sweeps); puff VFX + chop
+  sound only on a bite that removed material. Tree matter (Log*/Leaf*) never limb-blocks
+  the swing (`checkSegmentVoxelOverlap` exemption) — point-blank chopping works; stone
+  still cancels.
+- **The bite**: a microcube-resolution slot at the blade — window hugs the contact
+  (contactD −0.55/+0.45 along the chop dir, NOT capped by kerfDepth), slot cross-section
+  ~2 subcubes (mouthHalfH 0.30 → apex 0.06), flares open near breakthrough. Cubes refine
+  to subcubes to micros as the wedge touches them; cut faces repaint LogHeartwood;
+  enclosed shell-hollows fill with heartwood first. Rim-sliver fallback = §5.H chip
+  pocket (direction-biased micro pocket at the contact), never whole-cell vaporize.
+  Diagnostics: every bite logs contact/contactD/window/nearD/pocket — a whiff is
+  explainable from one log line.
+- **Release** (every biting swing): (1) **band neck-shear** — survey rows anchor.y−1 ..
+  anchor.y+2 (7×7 box per row, whole plane incl. disconnected islands; Log cube = 9
+  units, Log subcube = 1, micros = 0/cargo); the WEAKEST row holding 0<units≤6
+  (≲0.07 m² carrying tons of tree) shears. Single-row survey was a shipped defect: the
+  blade anchors on fat rooted flare rows while the true neck sits a row up — a trunk
+  visibly stood on slivers forever. (2) **flood re-seed** — the band's structural cells
+  are pushed into the release seeds so the component ABOVE the cut is re-evaluated every
+  swing (the rim-only flood anchored instantly on rooted flare stubs and never re-checked
+  the top; a cargo-only micro neck now releases via the F6 cascade with nothing to
+  shear). Release = ordinary support flood → one coherent hinged body (§5.B/P2.3).
+- **Known gaps** (task #15 remainder): no gradual near-detach state (lean/creak) before
+  the binary snap; no live "how close to falling" query (the survey only runs mid-swing;
+  diagnosing the live case required scan_micro + DEBUG flood logs); diagonal break
+  planes across >4 rows still unevaluated.
