@@ -7,6 +7,7 @@
 #include "core/MaterialRegistry.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelDynamicsWorld.h"
+#include "scene/VoxelContactProbe.h"
 #include <glm/glm.hpp>
 #include <filesystem>
 
@@ -518,6 +519,54 @@ TEST_F(ChopKerfIntegrationTest, GroundedBranchTip_DoesNotAnchorTheTree) {
     EXPECT_FALSE(solid(14, 6, 10)) << "twig column left standing (the ghost-thicket bug)";
     EXPECT_FALSE(solid(10, 8, 10)) << "upper trunk left standing";
     EXPECT_TRUE(solid(10, 4, 10)) << "the real stump must stay";
+}
+
+TEST_F(ChopKerfIntegrationTest, FelledTree_ClearsCharacterCollision) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Live user question, verbatim: "when a tree falls, the old static portion
+    // of it that is now dynamic/kinematic should be removed and the static
+    // collision shape should be updated. why is it not?" — because the collapse
+    // removal only reached the GPU-debris grid and the water sim; the per-chunk
+    // VoxelOccupancyGrid the character capsule collides with was never rebuilt,
+    // so the felled tree's whole static footprint kept blocking the player.
+    buildSimpleTree();
+    chunkManager->setPhysicsWorld(physicsWorld.get());
+    Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord({10, 6, 10}));
+    ASSERT_NE(ch, nullptr);
+    ch->setPhysicsWorld(physicsWorld.get());
+    ch->createChunkPhysicsBody();
+    ASSERT_GT(voxelWorld->gridCount(), 0u) << "probe rig broken: no occupancy grid registered";
+
+    const glm::vec3 half(0.25f, 0.9f, 0.25f);   // the kinematic character capsule
+    // Control: the STANDING trunk blocks the character probe.
+    auto pre = Scene::sampleVoxelContact(*voxelWorld, {10.5f, 6.1f, 9.5f},
+                                         {0, 0, 1}, half);
+    ASSERT_TRUE(pre.forwardHit) << "probe rig broken: standing trunk not seen by the character";
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    bool severed = false;
+    for (int swing = 0; swing < 16 && !severed; ++swing)
+        severed = dmg.carveChopKerf({10, 6, 10}, glm::vec3(0, 0, 1), 0.35f,
+                                    /*coherent*/ true).severed;
+    ASSERT_TRUE(severed);
+    ASSERT_FALSE(solid(10, 8, 10)) << "upper trunk still in the chunk data";
+
+    // The felled trunk's static footprint must no longer block the character...
+    auto post = Scene::sampleVoxelContact(*voxelWorld, {10.5f, 7.6f, 9.5f},
+                                          {0, 0, 1}, half);
+    EXPECT_FALSE(post.forwardHit)
+        << "character still collides with the felled tree's ghost occupancy";
+    // ...while the real stump keeps its collision.
+    auto stump = Scene::sampleVoxelContact(*voxelWorld, {10.5f, 4.2f, 9.5f},
+                                           {0, 0, 1}, half);
+    EXPECT_TRUE(stump.forwardHit) << "stump lost its collision after the rebuild";
 }
 
 } // namespace Testing
