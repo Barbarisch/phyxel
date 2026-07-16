@@ -8154,7 +8154,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
                 if (isFlora(cube->getMaterialName())) {
                     hit = true; hitMat = cube->getMaterialName(); hitPos = c.wp; break;
                 }
-            } else if (Phyxel::DamageSystem::isStructuralWoodCell(chunkManager, c.wp, &hitMat)) {
+            } else if (Phyxel::DamageSystem::isWoodCellAny(chunkManager, c.wp, &hitMat)) {
                 hit = true; hitPos = c.wp; break;
             }
         }

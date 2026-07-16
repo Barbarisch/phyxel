@@ -520,6 +520,24 @@ bool DamageSystem::isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
     return false;
 }
 
+bool DamageSystem::isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
+                                 std::string* logMaterial) {
+    if (isStructuralWoodCell(cm, wp, logMaterial)) return true;
+    if (!cm) return false;
+    if (Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz)
+            for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz}))
+                if (mc && mc->getMaterialName().rfind("Log", 0) == 0) {
+                    if (logMaterial) *logMaterial = mc->getMaterialName();
+                    return true;
+                }
+    }
+    return false;
+}
+
 DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,
                                                          const glm::vec3& chopDir,
                                                          float kerfDepth,
@@ -538,12 +556,12 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     // already reached. The entry cell empties as the notch deepens, so probe a
     // few cells along the chop direction for the first structural wood left.
     glm::ivec3 anchor = hitCell;
-    if (!isStructuralWoodCell(m_cm, anchor)) {
+    if (!isWoodCellAny(m_cm, anchor)) {
         bool found = false;
         for (int k = 1; k <= 6 && !found; ++k) {
             const glm::ivec3 p(hitCell.x + static_cast<int>(std::round(dir2.x * k)), hitCell.y,
                                hitCell.z + static_cast<int>(std::round(dir2.y * k)));
-            if (isStructuralWoodCell(m_cm, p)) { anchor = p; found = true; }
+            if (isWoodCellAny(m_cm, p)) { anchor = p; found = true; }
         }
         if (!found) return out;
     }

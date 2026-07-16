@@ -73,6 +73,12 @@ public:
     // "LogBirch") for events/VFX.
     static bool isStructuralWoodCell(ChunkManager* cm, const glm::ivec3& wp,
                                      std::string* logMaterial = nullptr);
+    // Wood at ANY granularity, including micro-only cells. The blade must be
+    // able to bite wood the player can SEE — chip pockets convert surfaces to
+    // micros, and a structural-only test made chopped surfaces undetectable
+    // (swing 1 puffs, every later swing silently whiffs).
+    static bool isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
+                              std::string* logMaterial = nullptr);
 
     // ---- Axe-chop kerf: FRACTURE, not blast (docs/DestructionSystemV2.md §5.E) ----
     // Carve one axe bite into the trunk cross-section at hitCell's height, entering
