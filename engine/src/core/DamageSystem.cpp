@@ -1237,19 +1237,48 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     // cells are untouched, so we return false and the caller scatters them — NO silent
     // geometry loss (the "silent-drop" class bug the auditor flagged).
     const size_t woodCount = wood.size(), leafCount = leaves.size();
-    // COLLISION PROXY (F2): one unit box per WOOD cell of the component, greedy-merged —
-    // a big fell is tens of boxes, not thousands of per-fine-voxel boxes (the 2005-box
-    // pine that tanked the demo to 4 FPS). Canopy cargo gets NO collision. Disclosed
-    // coarseness: a sparsely-filled cell collides as a full cell, and box mass is
-    // density x cell rather than the fine sum (hinge feel uses the fine wood above).
+    // COLLISION PROXY (F2 + #13): SUBCUBE resolution — a full cube contributes one
+    // unit box; a partial cell contributes one 1/3-box per OCCUPIED subcube slot
+    // (occupied = a subcube record, or a quorum of >=4 micros — crumbs don't
+    // collide). Greedy-merge keeps the box count bounded (F2's 2005-box pine stays
+    // dead). Whole-CELL proxies made a fallen crown an impassable lattice of
+    // invisible full-cell collision — the player couldn't approach the visible
+    // trunk (live user report). Giant components (megaflora) keep the coarse
+    // whole-cell proxy: at 1/3 cell size their bounds overflow the merge grid,
+    // which would fall back to per-voxel boxes (the F2 pathology).
     std::vector<Core::KinematicVoxel> collision;
-    collision.reserve(component.size());
+    const bool fineCollision = component.size() <= 800;
+    collision.reserve(component.size() * (fineCollision ? 4 : 1));
     for (const glm::ivec3& c : component) {
-        Core::KinematicVoxel v;
-        v.localPos     = glm::vec3(c) + glm::vec3(0.5f);
-        v.scale        = glm::vec3(1.0f);
-        v.materialName = cellMaterial(m_cm, c);
-        collision.push_back(std::move(v));
+        Chunk* cch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
+        const glm::ivec3 clp = cch ? ChunkManager::worldToLocalCoord(c) : glm::ivec3(0);
+        const std::string mat = cellMaterial(m_cm, c);
+        if (!fineCollision || !cch || cch->getCubeAtFast(clp)) {
+            Core::KinematicVoxel v;
+            v.localPos     = glm::vec3(c) + glm::vec3(0.5f);
+            v.scale        = glm::vec3(1.0f);
+            v.materialName = mat;
+            collision.push_back(std::move(v));
+            continue;
+        }
+        bool occupied[3][3][3] = {};
+        for (Subcube* sc : cch->getStaticSubcubesAt(clp)) {
+            if (!sc) continue;
+            const glm::ivec3 s = sc->getLocalPosition();
+            occupied[s.x][s.y][s.z] = true;
+        }
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            if (!occupied[sx][sy][sz] &&
+                cch->getMicrocubesAt(clp, {sx, sy, sz}).size() < 4)
+                continue;
+            Core::KinematicVoxel v;
+            v.localPos     = glm::vec3(c) + (glm::vec3(sx, sy, sz) + 0.5f) / 3.0f;
+            v.scale        = glm::vec3(1.0f / 3.0f);
+            v.materialName = mat;
+            collision.push_back(std::move(v));
+        }
     }
     // Fragment render = wood + canopy cargo (leaves ride; F3 renders them as cards).
     std::vector<Core::KinematicVoxel> fragVoxels = std::move(wood);
@@ -1493,8 +1522,15 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
         auto standAdjacent = [&](const glm::ivec3& p) {
             for (const auto& m : NB) {
                 glm::ivec3 w = p + m;
-                if (m_cm->hasVoxelAt(w) && isStructuralLogCell(m_cm, w) &&
-                    !detachedSet.count(packVoxel(w.x, w.y, w.z))) return true;
+                if (!m_cm->hasVoxelAt(w) || !isStructuralLogCell(m_cm, w) ||
+                    detachedSet.count(packVoxel(w.x, w.y, w.z))) continue;
+                // F8 applies to cargo too: standing wood below/above must reach
+                // the shared face. Cell adjacency alone kept carved cargo cells
+                // STATIC over an air gap — a clump of micros left hovering above
+                // the stump after the fell (live user report).
+                if (m.y == -1 && !cellLayerHasStructuralLog(m_cm, w, 2)) continue;
+                if (m.y == +1 && !cellLayerHasStructuralLog(m_cm, w, 0)) continue;
+                return true;
             }
             return false;
         };

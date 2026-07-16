@@ -433,6 +433,18 @@ TEST_F(ChopKerfIntegrationTest, OverhangTopSkin_DoesNotConductSupportAcrossAirGa
     DamageSystem dmg(chunkManager.get(), nullptr);
     dmg.setFragmentManager(&mgr);
 
+    // Live follow-up (same fell): a micro-only CARGO cell adjacent to the falling
+    // mass, whose standing wood below does NOT reach the shared face (partial stump
+    // with no top-layer wood; cargo micros at the TOP of their cell) — cell-granular
+    // stand-adjacency kept it STATIC, floating over the stump after the fell.
+    // It must ride the fragment (or drop), never hover.
+    for (int sy2 = 0; sy2 < 2; ++sy2)                       // partial stump (sy=0,1 only),
+        ASSERT_TRUE(ch->addSubcube({13, 4, 10}, {1, sy2, 1}, "Log"));   // rooted via the flare
+    for (int mx = 0; mx < 3; ++mx)                          // floater cargo at cell TOP
+        ASSERT_TRUE(ch->addMicrocube({13, 5, 10}, {1, 2, 1}, {mx, 2, 1}, "Log"));
+    put(12, 6, 10, "Log");                                  // horizontal bridge to the mass
+    ASSERT_TRUE(ch->addSubcube({13, 6, 10}, {1, 0, 1}, "Log"));  // limb over the cargo
+
     // ONE bite at the rooted flare: the band re-seed evaluates the neighborhood,
     // and the vertical-contact rule must see that the top-skin cells have no
     // bottom-layer wood touching the flare — the whole overhang releases.
@@ -446,6 +458,10 @@ TEST_F(ChopKerfIntegrationTest, OverhangTopSkin_DoesNotConductSupportAcrossAirGa
         << "overhang stayed up: cell-granular adjacency conducted support across the air gap";
     EXPECT_FALSE(solid(10, 7, 10)) << "overhang mass still standing after release";
     EXPECT_TRUE(solid(8, 4, 8)) << "rooted flare fell";
+    // The floater cargo left the static grid (rode the fragment or dropped).
+    EXPECT_EQ(countMicrosOf({13, 5, 10}, "Log"), 0)
+        << "cargo micros left FLOATING over the stump after the fell";
+    EXPECT_TRUE(solid(13, 4, 10)) << "the partial stump itself must stay rooted";
 }
 
 } // namespace Testing
