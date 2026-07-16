@@ -538,6 +538,43 @@ bool DamageSystem::isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
     return false;
 }
 
+bool DamageSystem::woodBoundsInCell(ChunkManager* cm, const glm::ivec3& wp,
+                                    glm::vec3& outMin, glm::vec3& outMax,
+                                    std::string* logMaterial) {
+    if (!cm) return false;
+    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+    if (!ch) return false;
+    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+    bool any = false;
+    glm::vec3 mn(1e9f), mx(-1e9f);
+    auto grow = [&](const glm::vec3& lo, const glm::vec3& hi, const std::string& mat) {
+        mn = glm::min(mn, lo);
+        mx = glm::max(mx, hi);
+        if (!any && logMaterial) *logMaterial = mat;
+        any = true;
+    };
+    if (Cube* c = ch->getCubeAtFast(lp)) {
+        if (c->getMaterialName().rfind("Log", 0) == 0)
+            grow(glm::vec3(wp), glm::vec3(wp) + 1.0f, c->getMaterialName());
+    }
+    for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+        if (!sc || sc->getMaterialName().rfind("Log", 0) != 0) continue;
+        const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sc->getLocalPosition()) / 3.0f;
+        grow(lo, lo + glm::vec3(1.0f / 3.0f), sc->getMaterialName());
+    }
+    for (int sx = 0; sx < 3; ++sx)
+    for (int sy = 0; sy < 3; ++sy)
+    for (int sz = 0; sz < 3; ++sz)
+        for (Microcube* mc : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
+            if (!mc || mc->getMaterialName().rfind("Log", 0) != 0) continue;
+            const glm::vec3 lo = glm::vec3(wp) + glm::vec3(sx, sy, sz) / 3.0f
+                               + glm::vec3(mc->getMicrocubeLocalPosition()) / 9.0f;
+            grow(lo, lo + glm::vec3(1.0f / 9.0f), mc->getMaterialName());
+        }
+    if (any) { outMin = mn; outMax = mx; }
+    return any;
+}
+
 DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,
                                                          const glm::vec3& chopDir,
                                                          float kerfDepth,
@@ -699,20 +736,28 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     const float halfW = std::max(0.35f, spanHalfW * open);
     const float mouthHalfH = 0.30f + 0.20f * open;      // notch mouth -> full row when finishing
     const float apexHalfH = 0.06f;
-    const float tipLen = std::min(0.45f, depth * 0.5f);
 
     // The axe removes wood where the BLADE is: with a known contact point the
     // bite window hugs it (±~0.5 m along the cut), so a stationary chopper
     // cannot excavate beyond arm's reach — cutting deeper requires stepping in
-    // (design feedback: one spot chunked out a cavern). Without contact info
-    // (headless callers) the window is the classic frontier bite.
+    // (design feedback: one spot chunked out a cavern). The caller passes the
+    // blade's contact ON the struck cell, so the window always overlaps that
+    // wood — and it is NOT capped by kerfDepth: a blade legitimately deeper
+    // than the frontier (side-wall contact, stepped-in chop) still bites AT the
+    // blade (the cap made those swings carve nothing). Without contact info
+    // (headless callers) the window is the classic frontier bite of kerfDepth.
     float dLo = -8.0f, dHi = depth;
     if (hasContact) {
         const float contactD =
             glm::dot(glm::vec2(contactPoint.x, contactPoint.z), dir2) - nearD;
         dLo = contactD - 0.55f;
-        dHi = std::min(depth, contactD + 0.45f);
+        dHi = contactD + 0.45f;
+        out.contactD = contactD;
     }
+    out.nearD = nearD; out.farD = farD; out.dLo = dLo; out.dHi = dHi;
+    // Apex taper sized to the bite actually available (window ∩ wood).
+    const float tipLen =
+        std::min(0.45f, std::max(0.15f, (dHi - std::max(dLo, 0.0f)) * 0.5f));
 
     auto insideWedge = [&](const glm::vec3& p) {
         const glm::vec2 p2(p.x, p.z);
@@ -913,6 +958,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
         }
         std::sort(found.begin(), found.end(),
                   [](const MicroRef& a, const MicroRef& b) { return a.score < b.score; });
+        out.pocketFound = static_cast<int>(found.size());
         int removed = 0;
         std::unordered_set<Chunk*> pocketChunks;
         for (const MicroRef& r : found) {
@@ -959,6 +1005,7 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
             : glm::vec3(anchor) + glm::vec3(0.5f);
         const int removed = chipPocket(chipAt, 140);
         if (removed > 0) { out.microsRemoved += removed; out.carved = true; }
+        out.pocketChipped = removed;
     }
 
     // NECK SHEAR: a tree cannot hang on a splinter. Survey the WHOLE plane in a

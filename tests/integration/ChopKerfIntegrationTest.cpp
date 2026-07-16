@@ -227,5 +227,62 @@ TEST_F(ChopKerfIntegrationTest, DisconnectedNeckIsland_ShearsAndFells) {
     EXPECT_TRUE(solid(12, 4, 10)) << "column B pillar fell";
 }
 
+TEST_F(ChopKerfIntegrationTest, DeepBladeContact_SlotBitesAtTheBlade) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+
+    // Live regression (micros-carved=0 whiffs): the bite window was capped at
+    // kerfDepth from the FRONTIER, so a blade contact deeper than the frontier
+    // (side-wall contact, stepped-in chop) produced an EMPTY window — the slot
+    // removed nothing. Only the rim pocket fired, which never exposes heartwood.
+    // The window must hug the blade wherever the blade actually is.
+    putBox(6, 3, 6, 14, 3, 14, "Stone");     // floor
+    putBox(10, 4, 9, 10, 12, 11, "Log");     // trunk 3 cells deep along z (9..11)
+    putBox(8, 12, 8, 12, 15, 12, "Leaf");    // canopy
+
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    // Blade contact 1.3 m past the front face (z=9): mid-trunk, cell (10,6,10).
+    const glm::vec3 contact(10.5f, 6.5f, 10.3f);
+    auto r = dmg.carveChopKerf({10, 6, 9}, glm::vec3(0, 0, 1), 0.36f,
+                               /*coherent*/ false, contact);
+
+    EXPECT_TRUE(r.carved) << "deep blade contact carved nothing";
+    EXPECT_GT(r.microsRemoved, 0);
+    EXPECT_GT(r.dHi, r.dLo) << "bite window is empty at a deep contact";
+    // The SLOT reached the blade: cut faces at the blade's cell show heartwood
+    // (the rim pocket alone never repaints — a pocket-only "bite" fails this).
+    EXPECT_GT(countMicrosOf({10, 6, 10}, "LogHeartwood"), 0)
+        << "slot never carved at the blade (pocket-only bite)";
+}
+
+TEST_F(ChopKerfIntegrationTest, StationaryBladeAtTheFace_FellsAThinTrunk) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+    buildSimpleTree();
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // The live loop: the blade lands ON the trunk face and the chopper does not
+    // move. A 1-cube trunk is entirely within the blade-hugging window's reach,
+    // so repeated identical swings must still cut through and fell the tree.
+    const glm::vec3 contact(10.5f, 6.5f, 10.0f);   // on the front face
+    bool severed = false;
+    int swings = 0;
+    for (int swing = 0; swing < 16 && !severed; ++swing) {
+        auto r = dmg.carveChopKerf({10, 6, 10}, glm::vec3(0, 0, 1), 0.36f,
+                                   /*coherent*/ true, contact);
+        severed = r.severed;
+        ++swings;
+        EXPECT_TRUE(r.carved) << "swing " << swings << " removed nothing";
+    }
+    ASSERT_TRUE(severed) << "stationary-blade swings never cut a 1-cube trunk";
+    EXPECT_GE(swings, 2) << "felling must take multiple swings";
+    EXPECT_EQ(mgr.count(), 1u) << "release was not one coherent body";
+}
+
 } // namespace Testing
 } // namespace Phyxel

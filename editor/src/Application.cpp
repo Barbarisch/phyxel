@@ -8126,13 +8126,18 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     }
 
     // Probe the cell under the blade plus its immediate neighborhood (the head
-    // is ~a third of a cell wide), nearest first. Blade contact radius 0.6 m.
+    // is ~a third of a cell wide), nearest first. Blade contact radius 0.3 m —
+    // TIGHT on purpose: the blade must actually reach the wood. (At 0.6 the
+    // windup arc registered "contact" half a meter short of the trunk at ankle
+    // height, and the kerf's blade-hugging bite window then sat entirely in
+    // air — the live micros-carved=0 whiff pattern. Detection runs every strike
+    // frame, so a near-miss frame just retries as the blade sweeps in.)
     bool hit = false;
     std::string hitMat;
     glm::ivec3 hitPos(0);
     glm::vec3 hitContact = axeHead;
     {
-        struct Cand { glm::ivec3 wp; float d; };
+        struct Cand { glm::ivec3 wp; float d; glm::vec3 cl; std::string mat; };
         std::vector<Cand> cands;
         const glm::ivec3 base(static_cast<int>(std::floor(axeHead.x)),
                               static_cast<int>(std::floor(axeHead.y)),
@@ -8141,22 +8146,30 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
         for (int dy = -1; dy <= 1; ++dy)
         for (int dz = -1; dz <= 1; ++dz) {
             const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
-            // distance from the blade point to the cell's nearest face
-            const glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
+            // Clamp the blade point to the cell's WOOD content (a flare/notch
+            // cell's wood can start well inside the cell — a cell-box clamp
+            // left the bite window mostly in air). Leaf cubes keep the cell box
+            // (leaf contact is feedback-only).
+            glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
+            std::string mat;
+            if (const auto* cube = chunkManager->getCubeAt(wp)) {
+                if (!isFlora(cube->getMaterialName())) continue;
+                mat = cube->getMaterialName();
+            } else if (!Phyxel::DamageSystem::woodBoundsInCell(chunkManager, wp,
+                                                               lo, hi, &mat)) {
+                continue;
+            }
             const glm::vec3 cl = glm::clamp(axeHead, lo, hi);
             const float d = glm::distance(axeHead, cl);
-            if (d <= 0.6f) cands.push_back({wp, d});
+            if (d <= 0.3f) cands.push_back({wp, d, cl, mat});
         }
         std::sort(cands.begin(), cands.end(),
                   [](const Cand& a, const Cand& b) { return a.d < b.d; });
-        for (const Cand& c : cands) {
-            if (const auto* cube = chunkManager->getCubeAt(c.wp)) {
-                if (isFlora(cube->getMaterialName())) {
-                    hit = true; hitMat = cube->getMaterialName(); hitPos = c.wp; break;
-                }
-            } else if (Phyxel::DamageSystem::isWoodCellAny(chunkManager, c.wp, &hitMat)) {
-                hit = true; hitPos = c.wp; break;
-            }
+        if (!cands.empty()) {
+            hit = true;
+            hitMat = cands.front().mat;
+            hitPos = cands.front().wp;
+            hitContact = cands.front().cl;   // blade's nearest point ON the wood
         }
     }
     if (!hit) return false;   // no contact this frame — the swing continues
@@ -8164,35 +8177,39 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     const glm::vec3 hitCenter = glm::vec3(hitPos) + glm::vec3(0.5f);
 
     // Wood-chip burst + chop sound at the bite point (both optional/guarded).
-    if (renderCoordinator) {
-        if (auto* vfx = renderCoordinator->getVfxSystem()) {
-            VfxBurstParams chips;
-            chips.count      = 14;
-            chips.speed      = 3.0f;  chips.speedVar = 1.5f;
-            chips.upBias     = 0.35f;
-            chips.gravity    = -9.0f; chips.drag     = 1.5f;
-            chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
-            chips.size       = 0.07f; chips.sizeVar  = 0.03f;
-            chips.intensity  = 0.05f; // wood is not emissive
-            chips.color      = isTrunk(hitMat) ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
-                                               : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
-            chips.shape      = VfxShape::Cone;
-            chips.direction  = -fwd;  // spray back toward the chopper
-            chips.coneAngleDeg = 55.0f;
-            chips.posJitter  = glm::vec3(0.15f);
-            vfx->spawnBurst(hitCenter, chips);
+    // Played ONLY when the contact actually does something — a puff+thunk on a
+    // swing that removed nothing reads as a broken bite (live user report).
+    auto playImpactFx = [&](bool trunk) {
+        if (renderCoordinator) {
+            if (auto* vfx = renderCoordinator->getVfxSystem()) {
+                VfxBurstParams chips;
+                chips.count      = 14;
+                chips.speed      = 3.0f;  chips.speedVar = 1.5f;
+                chips.upBias     = 0.35f;
+                chips.gravity    = -9.0f; chips.drag     = 1.5f;
+                chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
+                chips.size       = 0.07f; chips.sizeVar  = 0.03f;
+                chips.intensity  = 0.05f; // wood is not emissive
+                chips.color      = trunk ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
+                                         : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
+                chips.shape      = VfxShape::Cone;
+                chips.direction  = -fwd;  // spray back toward the chopper
+                chips.coneAngleDeg = 55.0f;
+                chips.posJitter  = glm::vec3(0.15f);
+                vfx->spawnBurst(hitCenter, chips);
+            }
         }
-    }
-    // Impact audio at the contact point: a solid wood THUNK for trunk bites,
-    // the soft whoosh for leaf swipes.
-    if (audioSystem)
-        audioSystem->playSound3D(isTrunk(hitMat) ? "resources/sounds/axe_chop.wav"
-                                                 : "resources/sounds/whoosh.wav",
-                                 hitCenter, Core::AudioChannel::SFX, 0.9f);
+        // Impact audio at the contact point: a solid wood THUNK for trunk
+        // bites, the soft whoosh for leaf swipes.
+        if (audioSystem)
+            audioSystem->playSound3D(trunk ? "resources/sounds/axe_chop.wav"
+                                           : "resources/sounds/whoosh.wav",
+                                     hitCenter, Core::AudioChannel::SFX, 0.9f);
+    };
 
     // Only the trunk (Log*) is chopped; leaves give feedback only (but still
     // consume the swing's contact so the blade doesn't re-trigger every frame).
-    if (!isTrunk(hitMat)) return true;
+    if (!isTrunk(hitMat)) { playImpactFx(false); return true; }
 
     // FRACTURE, not blast (§5.E): each swing bites a microcube-resolution kerf
     // one notch deeper at the hit height (carveChopKerf is stateless — it carves
@@ -8209,17 +8226,24 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     }
     const auto kerf = dmg.carveChopKerf(hitPos, fwd, chopPower * kDepthPerChopPoint,
                                         /*coherentFragments=*/true, hitContact);
-    LOG_INFO("Chop", "Axe kerf at ({},{},{}) remaining-depth={} micros-carved={}{}",
+    LOG_INFO("Chop", "Axe kerf at ({},{},{}) remaining-depth={} micros-carved={}{}"
+             " | contact=({},{},{}) contactD={} window=[{},{}] nearD={} pocket={}/{}",
              hitPos.x, hitPos.y, hitPos.z, kerf.fullDepth, kerf.microsRemoved,
-             kerf.severed ? " -> TREE FELLED" : "");
+             kerf.severed ? " -> TREE FELLED" : "",
+             hitContact.x, hitContact.y, hitContact.z, kerf.contactD,
+             kerf.dLo, kerf.dHi, kerf.nearD, kerf.pocketChipped, kerf.pocketFound);
+    // A carve that removed nothing must NOT consume the swing: return false so
+    // detection retries next frame as the blade sweeps deeper (the live "puff,
+    // then every swing does nothing" pattern was one whiffed early-contact frame
+    // latching the whole swing).
+    if (!kerf.carved && !kerf.severed) return false;
+    playImpactFx(true);
     // The bite landed: cut the swing's follow-through — the blade stopped in the
     // wood (per design feedback: contact may stop the animation, the registered
     // hit is what matters). Also makes repeated chopping snappier.
-    if (kerf.carved || kerf.severed) {
-        LOG_INFO("Chop", "bite registered at contact ({},{},{}) -> stopping swing",
-                 hitContact.x, hitContact.y, hitContact.z);
-        animatedCharacter->setAnimationState(Scene::AnimatedCharacterState::Idle);
-    }
+    LOG_INFO("Chop", "bite registered at contact ({},{},{}) -> stopping swing",
+             hitContact.x, hitContact.y, hitContact.z);
+    animatedCharacter->setAnimationState(Scene::AnimatedCharacterState::Idle);
     if (kerf.severed) {
         if (gameEventLog) gameEventLog->emit("tree_felled", {
             {"x", hitPos.x}, {"y", hitPos.y}, {"z", hitPos.z}, {"material", hitMat}});

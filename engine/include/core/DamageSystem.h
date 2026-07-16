@@ -79,6 +79,15 @@ public:
     // (swing 1 puffs, every later swing silently whiffs).
     static bool isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
                               std::string* logMaterial = nullptr);
+    // Tight AABB of the Log* content inside one cell (any granularity). False if
+    // the cell holds no wood. Blade-contact detection clamps the axe head to
+    // THIS, not the cell box: a flare/notch cell's wood can start a third of a
+    // meter inside the cell, and a contact point on the cell face leaves the
+    // blade-hugging bite window mostly in air (live: 14-micro nibbles at the
+    // flare instead of real bites).
+    static bool woodBoundsInCell(ChunkManager* cm, const glm::ivec3& wp,
+                                 glm::vec3& outMin, glm::vec3& outMax,
+                                 std::string* logMaterial = nullptr);
 
     // ---- Axe-chop kerf: FRACTURE, not blast (docs/DestructionSystemV2.md §5.E) ----
     // Carve one axe bite into the trunk cross-section at hitCell's height, entering
@@ -103,6 +112,12 @@ public:
         float fullDepth = 0.0f;    // cross-section extent along the chop direction
         float cutFraction = 0.0f;  // kerfDepth / fullDepth, clamped to [0,1]
         DamageResult collapse;     // bookkeeping from the release pass
+        // Diagnostics (logged per bite so a whiffed swing is explainable from the
+        // log alone): the kerf frame this bite actually used.
+        float nearD = 0.0f, farD = 0.0f;   // frontier / far face along chopDir
+        float contactD = 0.0f;             // blade depth relative to the frontier
+        float dLo = 0.0f, dHi = 0.0f;      // bite window along chopDir
+        int   pocketFound = 0, pocketChipped = 0;  // rim-fallback candidates/removed
     };
     // `contactPoint` (optional): the blade's actual impact position — the notch
     // line centers there (height AND lateral offset, clamped into the trunk) and
