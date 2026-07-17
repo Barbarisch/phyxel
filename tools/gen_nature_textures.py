@@ -2,17 +2,16 @@
 """Generate colored nature material textures from the existing oak set.
 
 The engine's atlas blits source PNGs verbatim (no tint pass), so material color
-must live in the PNG pixels. The stock leaf_*.png are grayscale structure masks
-(they render GRAY in-game — the green colorTint in materials.json was intent
-that never got wired). This script:
+must live in the PNG pixels. This script:
 
-  1. FIXES the stock Leaf textures in place (colorizes the grayscale mask green).
-  2. Derives new leaf color sets from the same mask:   LeafBirch, LeafSpruce,
-     LeafJungle, LeafAutumn.
-  3. Derives new bark sets from the colored oak log:   LogBirch (pale + dark
+  1. Colorizes the grayscale grass_top.png mask in place.
+  2. Derives new bark sets from the colored oak log:   LogBirch (pale + dark
      streak bands), LogSpruce (dark cold brown).
-  4. Appends the new material entries to resources/materials.json (physics
+  3. Appends the new material entries to resources/materials.json (physics
      copied from Log/Leaf; colorTint kept as documentation of intent).
+
+Leaf textures are NOT authored here — tools/leaf_forge.py owns all leaf_*.png
+(full RGBA: per-species silhouettes + transparent negative space).
 
 Deterministic — safe to re-run (idempotent; existing entries are replaced).
 Run from the repo root:  python tools/gen_nature_textures.py
@@ -119,22 +118,9 @@ def preserve_mask(name):
 
 
 def main():
-    # ------------------------------------------------------------------ leaves
-    leaf_mask = preserve_mask("leaf_side_n.png")  # stock leaf faces share one mask
-
-    leaf_ramps = {
-        # name           dark            light            tint (intent doc)
-        None:            ((20, 64, 14),  (96, 186, 60)),   # stock Leaf fix (oak green)
-        "leaf_birch":    ((44, 84, 22),  (148, 200, 90)),  # light yellow-green
-        "leaf_spruce":   ((10, 44, 28),  (52, 110, 78)),   # dark blue-green needles
-        "leaf_jungle":   ((12, 78, 16),  (70, 200, 50)),   # vivid saturated green
-        "leaf_autumn":   ((96, 38, 8),   (228, 138, 36)),  # orange/red fall foliage
-    }
-    print("Leaf sets:")
-    for name, (dark, light) in leaf_ramps.items():
-        colored = colorize_mask(leaf_mask, dark, light)
-        base = name if name else "leaf"
-        save_set(base, {f: colored for f in FACES})
+    # Leaves are NOT generated here anymore: tools/leaf_forge.py is the sole
+    # author of all leaf_*.png (full RGBA — per-species shapes + transparent
+    # negative space). Re-running this script must never clobber them.
 
     # ------------------------------------------------------------- grass top
     # Same engine bug as the leaves: grass_top.png is a grayscale mask and the
