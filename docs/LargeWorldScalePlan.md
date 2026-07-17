@@ -105,21 +105,45 @@ The generator drives Layer-0 from an imported heightmap (`core/MapCoarseSource` 
 - **Verified working**: player grounds at the map's true height, flora decorates, ~52-60 FPS at
   the default radii, 84 chunks resident. Unit-locked by `tests/core/MapCoarseSourceTest.cpp`.
 
-**REPRO — streaming-volume hard crash (realizes blockers C/D at scale).** Process dies with **no
-exception and no log line** (last entries are ordinary frame/water activity), i.e. an OOM or
-allocator/driver ceiling, not a caught error:
-1. `render_distance = 1600` (→ inclusionDistance 2400 ≈ a 75-chunk radius disk, O(10⁴) chunks): crash.
-2. `render_distance = 384` (→ inclusion 576 ≈ 18-chunk radius) **plus** teleporting the camera into
-   the tall+forested mountain region near (59300, 49820, Y300): crash. Tall terrain multiplies the
-   disk by ~9 vertical chunks, and the water sim recenters over the fresh terrain (~5 ms/frame).
-- **Stable envelope today**: render distance ~192–320 with gradual camera movement.
-- **Attribution still open** (do this first in Phase 4): instrument whether it is **C** (multi-GB
-  from ~170 B/`Cube` × 32k/chunk) or **D** (the predicted-latent `maxMemoryAllocationCount=4096`
-  ceiling — 1,600+ chunks × up to 3 raw `vkAllocateMemory` buffers). Run with `PHYXEL_VALIDATION=1`
-  and an allocation counter; a peak-RSS trace separates them.
-- **Why it matters**: the mini 512-block bake tolerated render distance 1400 *only* because it was
-  a bounded 400-chunk world. Bounded worlds hide C/D; this one does not. Phase 4 is not optional
-  for Phase 5's horizon — mid-field LOD (5.4) still needs many chunks resident.
+#### MEASURED on this benchmark (2026-07-16, Debug, RTX-class NVIDIA, 63.9 GB RAM)
+
+Instrumented via `graphics/GpuAllocStats.h` (live chunk-allocation counter; both free paths report)
+plus an external RSS trace, ramping `world.loadRadius` on the 1:1 world.
+
+**Blocker C — CONFIRMED and quantified. This is the real ceiling.**
+| resident chunks | 512 | 1024 | 1536 | 2048 |
+|---|---|---|---|---|
+| process RSS | 14.2 GB | 22.9 GB | 32.7 GB | **41.3 GB** |
+
+- Linear at **~18.1 MB per resident chunk** (Debug), on a ~5.2 GB base.
+  That is **~3× worse than this plan's own "≈5–6 MB+" estimate** — re-baseline Phase 4 against it.
+- **Extrapolated OOM ceiling: ~3,325 resident chunks** on a 63.9 GB machine. A 16-chunk `loadRadius`
+  over tall terrain already reaches 2,048 and is still climbing; the target of "10k+ resident
+  chunks" is **~180 GB** at today's per-chunk cost — i.e. unreachable without the Cube rework.
+
+**Blocker D — DISPROVEN on this hardware (but still a real portability risk).**
+- This GPU reports `maxMemoryAllocationCount=4294967295` (effectively unbounded), not the assumed
+  4096. Ran to **5,888 live allocations with zero failures** — D cannot fire here.
+- It remains live on AMD/Intel, where 4096 is common: at **3 bare allocations per chunk**
+  (faces/grass/foliage) that is a hard **~1,365-chunk** ceiling — *below* the C ceiling above, so on
+  that hardware D bites FIRST. Keep the suballocator work; just don't expect it to explain crashes here.
+
+**`render_distance` does NOT drive residency** — `loadDistance`/`unloadDistance` (game.json
+`loadRadius`/`unloadRadius`) do. Ramping render distance 192→1600 left residency pinned at ~170
+chunks / 6.0 GB. Use `loadRadius` for any residency stress test.
+
+**The two original crashes are UNREPRODUCED — cause unknown.** Earlier runs died with no exception
+and no log line at `loadRadius: 4` (~170 chunks, ~6 GB). At that residency **neither C nor D can
+fire**, so the "streaming volume / OOM" attribution first recorded here was WRONG and is retracted.
+Re-running the same steps (render distance 1600; render distance 384 + camera teleport to the tall
+forested region near 59300,49820,Y300) now survives indefinitely. Treat it as an open, likely
+transient/race bug — possibly around camera teleport during streaming, or the water region recenter
+(~5 ms/frame over fresh terrain) — not a volume limit. `ChunkRenderBuffer` throwing on a failed
+allocation is *uncaught on the main thread* (only the gen worker has handlers), so any future
+allocation failure will still `std::terminate` silently; that path now logs first.
+
+**Why it matters**: Phase 4 is not optional for Phase 5's horizon — mid-field LOD (5.4) still needs
+many chunks resident, and 18.1 MB/chunk makes "many" impossible.
 
 > **Reference point (Minecraft):** palettized bit-packed subchunks cost **~0.5–1 B per block**
 > (16³ section = palette + min-bits index array) vs our **~150–170 B per `Cube`** — a 150–300×

@@ -1,14 +1,64 @@
 #include "graphics/ChunkRenderBuffer.h"
 #include "graphics/ChunkUpdatePerf.h"        // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred free (docs/ChunkUpdateHitchPlan.md)
+#include "graphics/GpuAllocStats.h"          // Phase 4 attribution (docs/LargeWorldScalePlan.md)
 #include "core/Types.h"
+#include "utils/Logger.h"
+#include <atomic>
 #include <stdexcept>
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <string>
 
 namespace Phyxel {
 namespace Graphics {
+
+namespace {
+// Phase 4 attribution helpers (docs/LargeWorldScalePlan.md blocker D). Diagnostic only.
+uint32_t allocLimit(VkPhysicalDevice pd) {
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(pd, &props);
+    return props.limits.maxMemoryAllocationCount;
+}
+
+// Log the device's ceiling once, so the live counter has a denominator in the log.
+void logAllocLimitOnce(VkPhysicalDevice pd) {
+    static std::atomic<bool> done{false};
+    bool expected = false;
+    if (!done.compare_exchange_strong(expected, true)) return;
+    LOG_INFO("ChunkRenderBuffer", "GPU allocation ceiling: maxMemoryAllocationCount=" +
+             std::to_string(allocLimit(pd)) +
+             " (this engine makes 3 bare allocations per chunk: faces/grass/foliage)");
+}
+
+// Count a successful allocation and log every 256th. Polling the counter over the API is useless
+// under exactly the load we care about (queueAndWait times out while the loop is busy streaming),
+// and a crash kills the process before any poll — but the log is already on disk. So the climb
+// toward the ceiling is recorded here.
+void noteAlloc(VkPhysicalDevice pd) {
+    const uint32_t n = gpualloc::note();
+    if ((n & 0xFF) == 0) {  // every 256 live allocations
+        LOG_INFO("ChunkRenderBuffer", "live chunk GPU allocations=" + std::to_string(n) +
+                 " / maxMemoryAllocationCount=" + std::to_string(allocLimit(pd)) +
+                 " (~" + std::to_string(n / 3) + " chunks at 3 buffers each)");
+    }
+}
+
+// The allocation that kills us is silent today: ChunkRenderBuffer throws and nothing on the main
+// thread catches it → std::terminate with no log. Log the numbers BEFORE throwing so a crash is
+// attributable: live near the ceiling => blocker D; far from it => blocker C (host RAM).
+void logAllocFailure(VkPhysicalDevice pd, VkDeviceSize bytes, const char* what) {
+    LOG_ERROR("ChunkRenderBuffer",
+              std::string("vkAllocateMemory FAILED (") + what + "): requested " +
+              std::to_string(static_cast<uint64_t>(bytes)) + " bytes; live chunk allocations=" +
+              std::to_string(gpualloc::live().load()) + " (peak " +
+              std::to_string(gpualloc::peak().load()) + ") vs device maxMemoryAllocationCount=" +
+              std::to_string(allocLimit(pd)) +
+              ". Near the ceiling => blocker D (allocation-count limit); far from it => blocker C "
+              "(host memory exhaustion). See docs/LargeWorldScalePlan.md.");
+}
+}  // namespace
 
 // B1 toggle: when true (default), reallocateBuffer defers the old buffer/memory free by
 // > MAX_FRAMES_IN_FLIGHT frames instead of freeing inline — fixes the in-flight use-after-free and
@@ -110,12 +160,15 @@ void ChunkRenderBuffer::createBufferRaw(const void* initialData, size_t count, s
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
+    logAllocLimitOnce(physicalDevice);
     if (vkAllocateMemory(device, &allocInfo, nullptr, &instanceMemory) != VK_SUCCESS) {
+        logAllocFailure(physicalDevice, allocInfo.allocationSize, "create");
         throw std::runtime_error("Failed to allocate chunk instance buffer memory!");
     }
-    
+    noteAlloc(physicalDevice);
+
     vkBindBufferMemory(device, instanceBuffer, instanceMemory, 0);
-    
+
     // Map memory persistently for easy updates
     vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
     
@@ -151,6 +204,7 @@ void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
         }
         if (instanceMemory != VK_NULL_HANDLE) {
             vkFreeMemory(device, instanceMemory, nullptr);
+            gpualloc::release();   // keep the live count honest (see GpuAllocStats.h)
             instanceMemory = VK_NULL_HANDLE;
         }
     }
@@ -179,12 +233,15 @@ void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
+    logAllocLimitOnce(physicalDevice);
     if (vkAllocateMemory(device, &allocInfo, nullptr, &instanceMemory) != VK_SUCCESS) {
+        logAllocFailure(physicalDevice, allocInfo.allocationSize, "realloc");
         throw std::runtime_error("Failed to allocate reallocated chunk instance buffer memory!");
     }
-    
+    noteAlloc(physicalDevice);
+
     vkBindBufferMemory(device, instanceBuffer, instanceMemory, 0);
-    
+
     // Map memory persistently
     vkMapMemory(device, instanceMemory, 0, bufferSize, 0, &mappedMemory);
 }
@@ -201,6 +258,7 @@ void ChunkRenderBuffer::cleanup() {
         }
         if (instanceMemory != VK_NULL_HANDLE) {
             vkFreeMemory(device, instanceMemory, nullptr);
+            gpualloc::release();   // keep the live count honest (see GpuAllocStats.h)
             instanceMemory = VK_NULL_HANDLE;
         }
     }

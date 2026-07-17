@@ -24,6 +24,8 @@
 #include <vector>
 #include <cstdint>
 
+#include "graphics/GpuAllocStats.h"  // live chunk-allocation count (both free paths must report)
+
 namespace Phyxel {
 namespace Graphics {
 
@@ -43,7 +45,10 @@ namespace detail {
         if (f.device == VK_NULL_HANDLE) return;
         if (f.mapped) vkUnmapMemory(f.device, f.memory);
         if (f.buffer != VK_NULL_HANDLE) vkDestroyBuffer(f.device, f.buffer, nullptr);
-        if (f.memory != VK_NULL_HANDLE) vkFreeMemory(f.device, f.memory, nullptr);
+        if (f.memory != VK_NULL_HANDLE) {
+            vkFreeMemory(f.device, f.memory, nullptr);
+            gpualloc::release();   // this is the OTHER free path — see GpuAllocStats.h
+        }
     }
 }
 
