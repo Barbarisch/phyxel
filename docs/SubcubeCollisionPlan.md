@@ -28,7 +28,23 @@ reality (`engine/include/physics/VoxelOccupancyGrid.h`):
 
 ## The four real gaps (ordered by evidence strength)
 
-### P1 — AUDIT + FIX grid maintenance (suspected root of the flare standoff, #9)
+### P1 — AUDIT grid maintenance — **COMPLETE 2026-07-17: CLEAN BILL**
+Instrument shipped: `GET /api/debug/occupancy_cell?x=&y=&z=` (grid masks vs chunk
+content in one response; `Chunk::getOccupancyGrid()` accessor added). Audited:
+- fresh forge-oak flare cell (49,17,15): 11 subcube bits == 11 content subcubes,
+  positions identical;
+- kerf-carved stump cell (18,17,43): 24 filled bits = 15 solid + 9 subdivided;
+  EFFECTIVE solids == content's 15 subcubes exactly; 204/204 micros match per-slot;
+- carve-emptied neighbors: all clear.
+ZERO query-visible phantoms. `queryAABB` honors both subdivision levels
+(code-verified). The character's horizontal blocking (`overlapsTerrain`) is
+queryAABB-based → **already subcube-exact**; body blocking OBB-exact since 86d2d85.
+VERDICT: the grid-maintenance-desync hypothesis is dead. The `VoxelRaycaster
+RESOLVE` warnings concern the ChunkVoxelManager targeting maps (left-click aiming),
+not the physics grid — tracked separately. The original #9 "flare standoff" is
+likely already resolved by honest data + 86d2d85; needs a hands-on walk-up to close.
+
+#### (original P1 hypothesis, kept for the record)
 The format supports fine data; the question is whether every write path fills it
 correctly. Evidence of desync: recurring `VoxelRaycaster [RESOLVE] ... didn't hit any -
 position should probably be marked EMPTY` warnings; the live flare standoff despite

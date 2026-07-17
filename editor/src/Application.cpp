@@ -7466,7 +7466,64 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
     using json = nlohmann::json;
     const std::string& action = cmd.action;
 
-    if (action == "debug_body_boxes") {
+    if (action == "occupancy_cell") {
+        // P1 audit instrument (SubcubeCollisionPlan): one cell's occupancy-grid
+        // masks side by side with the chunk's actual content — a mask-vs-content
+        // diff instead of a theory about what the character collides with.
+        const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
+                            cmd.params.value("z", 0));
+        Chunk* ch = chunkManager
+                  ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
+                  : nullptr;
+        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        const auto& grid = ch->getOccupancyGrid();
+
+        json g;
+        g["cube_filled"] = grid.isCubeFilled(lp);
+        g["subdivided"]  = grid.isSubdivided(lp);
+        json gs = json::array(), gsd = json::array(), gm = json::array();
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            const glm::ivec3 sp(sx, sy, sz);
+            if (grid.isSubcubeFilled(lp, sp))     gs.push_back({sx, sy, sz});
+            if (grid.isSubcubeSubdivided(lp, sp)) gsd.push_back({sx, sy, sz});
+            int mc = 0;
+            for (int mx = 0; mx < 3; ++mx)
+            for (int my = 0; my < 3; ++my)
+            for (int mz = 0; mz < 3; ++mz)
+                if (grid.isMicrocubeFilled(lp, sp, {mx, my, mz})) ++mc;
+            if (mc) gm.push_back({{"slot", {sx, sy, sz}}, {"filled", mc}});
+        }
+        g["subcubes_filled"] = gs;
+        g["subcubes_subdivided"] = gsd;
+        g["micro_slots"] = gm;
+
+        json c;
+        if (auto* cube = ch->getCubeAtFast(lp)) {
+            c["cube"] = true;
+            c["cube_material"] = cube->getMaterialName();
+        } else {
+            c["cube"] = false;
+        }
+        json cs = json::array(), cm = json::array();
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+            if (sc) cs.push_back({sc->getLocalPosition().x, sc->getLocalPosition().y,
+                                  sc->getLocalPosition().z});
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            const size_t n = ch->getMicrocubesAt(lp, {sx, sy, sz}).size();
+            if (n) cm.push_back({{"slot", {sx, sy, sz}}, {"count", n}});
+        }
+        c["subcubes"] = cs;
+        c["micro_slots"] = cm;
+
+        response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
+        return true;
+
+    } else if (action == "debug_body_boxes") {
         // Dump every rigid body's collision boxes in WORLD space (the same
         // conservative per-box AABB the character queries use) plus each
         // kinematic render object's transform — the instrument for diagnosing

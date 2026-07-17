@@ -93,6 +93,11 @@ private:
 public:
     // Constructor
     explicit Chunk(const glm::ivec3& origin = glm::ivec3(0));
+
+    // Occupancy-grid read access (SubcubeCollisionPlan P1 audit + debug dumps).
+    const Physics::VoxelOccupancyGrid& getOccupancyGrid() const {
+        return physicsManager.getOccupancyGrid();
+    }
     
     // Destructor
     ~Chunk();
