@@ -424,7 +424,42 @@ first refactor's before/after is what confirms it):
    `ChunkVoxelBreaker`/`VoxelManipulationSystem`. Independently shippable; red-before-green with a
    per-chunk RSS gate.
 2. **THEN: palette-compressed static storage (items 2a/2b).** Targets the other ~42% (the `Cube`
-   objects). Still the big one; unchanged staging.
+   objects) — now the dominant cost at the post-4.1 **10.5 MB/chunk**. Surveyed 2026-07-16:
+
+   **What static terrain actually needs from `Cube`** (usage counts outside `Cube.h`):
+   | field | bytes | callers | verdict |
+   |---|---|---|---|
+   | `materialName` | 32 | 71 | **the payload** → palette index (u8/u16) |
+   | `visible` | 1 | 46 | keep → a state bit |
+   | `position` | 12 | 195 | **derivable from the array index** — never store it |
+   | `bonds[6]` | 72 | ForceSystem (`breakBond` ×10, `addForceToDirection` ×3) | **physics-only** |
+   | `voxelBody`/`physicsPos`/`physicsRot`/`dynamicScale`/`lifetime` | 52 | 1–13 each | physics-only |
+   | `accumulatedDamage` | 4 | 2 | physics-only |
+   | `broken` | 1 | read 21× — but **`setBroken(true)` has ZERO call sites**, so it is always false | dead; fold away |
+
+   So a static voxel needs **~1–2 bytes** (palette idx + state bit), not 176 + ~48 B of Debug heap
+   header. `bonds` alone is 72 B (~41% of `sizeof(Cube)`, ~2.4 MB/chunk) and is *pure physics* —
+   exactly the "fields that justify fatness are physics-only" premise, now confirmed rather than
+   assumed. (Careful: only the bulk `getBonds()` accessor is unused; the per-direction ones are
+   live. Bonds are NOT deletable — they are materialize-on-demand.)
+
+   **The read paths are narrow — this is what makes 2a cheap:**
+   - Mesher (`ChunkRenderManager.cpp:280-295`) reads exactly `isVisible()` + `getMaterialName()`.
+   - Occupancy build (`ChunkPhysicsManager.cpp:178`) reads presence.
+   - `ForceSystem` is **targeted, not a scan** (`getCubeAtWorldPosition` → `chunk->getCubeAt`), so
+     materialize-on-demand drops in naturally at that call.
+
+   **Reuse the format we already ship:** `ChunkBlobCodec` (storage v2) *already* palettizes chunks
+   on disk — `u16 paletteCount`, `u8/u16` idx, RLE in canonical z-minor order, `stateFlags` bits
+   0-6 state / bit 7 tint — and is unit-tested (`ChunkBlobCodecTest`). Phase 4.2 is largely
+   **bringing the proven disk shape into RAM**; `decode()` then builds the palette array *instead
+   of* 32k `Cube`s, which also removes 32k heap allocations per chunk load (and the disposal
+   worker's reason to exist).
+
+   **Staging note:** during (a) the mirror and the `Cube` vector coexist, so RSS goes UP — do not
+   gate on (a). The win lands at (b) (flip authority, materialize on demand). Gate at (b) with the
+   1:1 benchmark before/after: expect **10.5 → ~2–3 MB/chunk**, taking the OOM ceiling from
+   ~5,670 toward the 10k+ target.
 3. **GPU suballocation (item 3).** Only ~10% of RSS *here*, but it is the hard **portability**
    ceiling: blocker D is disproven on NVIDIA (limit 4.29e9) yet remains 4096 on AMD/Intel, where
    3 allocations/chunk caps you at **~1,365 chunks — below the C ceiling**, i.e. D bites first on
