@@ -7466,7 +7466,44 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
     using json = nlohmann::json;
     const std::string& action = cmd.action;
 
-    if (action == "get_debug_overlay") {
+    if (action == "debug_body_boxes") {
+        // Dump every rigid body's collision boxes in WORLD space (the same
+        // conservative per-box AABB the character queries use) plus each
+        // kinematic render object's transform — the instrument for diagnosing
+        // physics-vs-render divergence on fallen trees (invisible platforms).
+        json bodies = json::array();
+        if (physicsWorld && physicsWorld->getVoxelWorld()) {
+            auto* vw = physicsWorld->getVoxelWorld();
+            for (size_t i = 0; i < vw->getBodyCount(); ++i) {
+                auto* b = vw->getBodyByIndex(i);
+                if (!b || b->isDead) continue;
+                const glm::mat3 rot = glm::mat3_cast(b->orientation);
+                const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+                json boxes = json::array();
+                for (const auto& lb : b->getLocalBoxes()) {
+                    const glm::vec3 c  = b->position + rot * lb.offset;
+                    const glm::vec3 he = absRot * lb.halfExtents;
+                    boxes.push_back({{"cx", c.x}, {"cy", c.y}, {"cz", c.z},
+                                     {"hx", he.x}, {"hy", he.y}, {"hz", he.z}});
+                }
+                bodies.push_back({{"id", b->id}, {"asleep", b->isAsleep},
+                                  {"px", b->position.x}, {"py", b->position.y}, {"pz", b->position.z},
+                                  {"boxes", boxes}});
+            }
+        }
+        json kins = json::array();
+        if (kinematicVoxelManager) {
+            for (const auto& [id, obj] : kinematicVoxelManager->getObjects()) {
+                const glm::vec3 t(obj.currentTransform[3]);
+                kins.push_back({{"id", id}, {"voxels", obj.voxels.size()},
+                                {"faces", obj.faces.size()},
+                                {"tx", t.x}, {"ty", t.y}, {"tz", t.z}});
+            }
+        }
+        response = {{"bodies", bodies}, {"kinematic_objects", kins}};
+        return true;
+
+    } else if (action == "get_debug_overlay") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
         } else {

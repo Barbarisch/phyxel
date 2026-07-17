@@ -789,7 +789,12 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   (F2+#13): cube = unit box, else 1/3-box per occupied slot (micro quorum >=4);
   >800-cell components stay coarse. Cargo stand-adjacency also obeys F8 (no
   static floaters over air gaps). CHARACTER-vs-body queries (overlapsAnyBody +
-  groundHeight's dynamic-body pass) test the body's actual collision BOXES, not
-  the whole-body AABB — a fallen tree's AABB is a multi-meter invisible envelope
-  that walled the player off ~2m from the visible trunk and offered its roof as
-  step-up ground (live; dumbbell red test in PhysicsIntegrationTest).
+  groundHeight's dynamic-body pass) are EXACT against the body's ORIENTED boxes:
+  blocking via the solver's OBB-vs-AABB test, grounding via down-rays through
+  the character column in each box's local frame. Neither the whole-body AABB
+  (invisible envelope walling the player off ~2m out) nor per-box CONSERVATIVE
+  AABBs (upright-merged slabs inflate under rotation — a measured 6x3m phantom
+  platform 4m over a fallen birch; characters levitated on it) survive a fallen
+  tree. Diagnosis instrument: GET /api/debug/body_boxes (world-space per-box
+  AABBs + kinematic render transforms). Red tests: dumbbell + 45-deg rotated
+  slab in PhysicsIntegrationTest.

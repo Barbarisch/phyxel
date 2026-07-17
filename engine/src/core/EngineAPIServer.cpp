@@ -1240,6 +1240,15 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/body_boxes — every rigid body's collision boxes in WORLD
+    // space + kinematic render transforms (physics-vs-render divergence tool).
+    // ====================================================================
+    srv.Get("/api/debug/body_boxes", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("debug_body_boxes", json::object(), 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/structure/types — List available structure types
     // ====================================================================
     srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {

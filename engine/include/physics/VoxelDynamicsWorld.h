@@ -78,6 +78,9 @@ public:
     size_t getBodyCount()  const { return m_bodies.size(); }
     size_t getActiveCount() const;
     VoxelRigidBody* getBodyById(uint32_t id) const;
+    VoxelRigidBody* getBodyByIndex(size_t i) const {
+        return i < m_bodies.size() ? m_bodies[i].get() : nullptr;
+    }
 
     // ---- Terrain queries (used by kinematic character controller) ----
     // Returns the highest terrain surface Y within a column below feetPos.

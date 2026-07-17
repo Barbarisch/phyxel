@@ -439,6 +439,17 @@ float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth
     // those are character segment boxes; including them lets a character detect
     // its own body as ground. The character is kinematic (never in m_bodies), so
     // this can never self-detect.
+    //
+    // Per ORIENTED box, via exact down-rays: neither the whole-body AABB roof
+    // (crown-height phantom over a fallen tree) nor per-box conservative AABBs
+    // (upright-merged slabs inflate into multi-meter platforms once the body
+    // rotates — live: characters levitating 3.7m over a fallen birch) give the
+    // real standing surface. Five vertical rays through the character column
+    // (center + corners) against each OBB in its local frame.
+    const glm::vec2 rayXZ[5] = {
+        {feetPos.x, feetPos.z},
+        {xMin, zMin}, {xMin, zMax}, {xMax, zMin}, {xMax, zMax}
+    };
     for (const auto& body : m_bodies) {
         if (body->isDead) continue;
         glm::vec3 bMin, bMax;
@@ -446,20 +457,33 @@ float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth
         if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap (broad reject)
         if (bMax.z < zMin || bMin.z > zMax) continue;
         if (bMin.y >= yHi || bMax.y <= yLo) continue;       // straddles the band below the feet
-        // Stand on the ACTUAL box tops, not the whole-body AABB roof: near a
-        // multi-box body (a fallen tree) the AABB roof is an invisible surface
-        // at crown height — the step-up glide tried to climb it and walled the
-        // character off in open air (live, same class as overlapsAnyBody).
-        const glm::mat3 rot = glm::mat3_cast(body->orientation);
-        const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+        const glm::mat3 rot    = glm::mat3_cast(body->orientation);
+        const glm::mat3 rotInv = glm::transpose(rot);
         for (const auto& lb : body->getLocalBoxes()) {
-            const glm::vec3 c  = body->position + rot * lb.offset;
-            const glm::vec3 he = absRot * lb.halfExtents;
-            if (c.x + he.x < xMin || c.x - he.x > xMax) continue;
-            if (c.z + he.z < zMin || c.z - he.z > zMax) continue;
-            const float top = c.y + he.y;
-            if (c.y - he.y >= yHi || top <= yLo) continue;
-            if (top > best) best = top;
+            const glm::vec3 c = body->position + rot * lb.offset;
+            const glm::vec3& he = lb.halfExtents;
+            for (const auto& xz : rayXZ) {
+                // Ray from the top of the band straight down, in OBB local space.
+                const glm::vec3 o = rotInv * (glm::vec3(xz.x, yHi, xz.y) - c);
+                const glm::vec3 d = rotInv * glm::vec3(0.0f, -1.0f, 0.0f);
+                float t0 = 0.0f, t1 = yHi - yLo;    // search band length
+                bool hit = true;
+                for (int a = 0; a < 3 && hit; ++a) {
+                    if (std::fabs(d[a]) < 1e-8f) {
+                        if (o[a] < -he[a] || o[a] > he[a]) hit = false;
+                        continue;
+                    }
+                    float ta = (-he[a] - o[a]) / d[a];
+                    float tb = ( he[a] - o[a]) / d[a];
+                    if (ta > tb) std::swap(ta, tb);
+                    t0 = std::max(t0, ta);
+                    t1 = std::min(t1, tb);
+                    if (t0 > t1) hit = false;
+                }
+                if (!hit) continue;
+                const float top = yHi - t0;          // world y where the ray enters the box
+                if (top > best && top > yLo) best = top;
+            }
         }
     }
     return best;
@@ -479,6 +503,7 @@ bool VoxelDynamicsWorld::overlapsTerrain(const glm::vec3& center, const glm::vec
 bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec3& halfExtents) const {
     glm::vec3 qMin = center - halfExtents;
     glm::vec3 qMax = center + halfExtents;
+    std::vector<ContactPoint> scratch;
     for (const auto& body : m_bodies) {
         if (body->isDead || body->invMass == 0.0f) continue;
         glm::vec3 bMin, bMax;
@@ -486,20 +511,30 @@ bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec
         // Whole-body AABB is only the BROAD reject. Blocking on it stops the
         // character at a multi-box body's invisible envelope — a fallen tree's
         // AABB spans trunk + branches, and the player was stopped ~2m from the
-        // visible wood in open air (live). Test the actual collision boxes
-        // (conservative per-box world AABB, same bound generateContacts uses).
+        // visible wood in open air (live). And per-box CONSERVATIVE AABBs are
+        // not enough either: greedy-merged slabs on a ROTATED (fallen) body
+        // inflate into multi-meter phantom platforms (live: an invisible 6x3m
+        // floor 5m up, measured via /api/debug/body_boxes — he 3.68x1.46x3.69
+        // from an upright-merged crown slab). Use the solver's exact
+        // OBB-vs-AABB test per box.
         if (qMax.x <= bMin.x || qMin.x >= bMax.x ||
             qMax.y <= bMin.y || qMin.y >= bMax.y ||
             qMax.z <= bMin.z || qMin.z >= bMax.z)
             continue;
         const glm::mat3 rot = glm::mat3_cast(body->orientation);
         const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
-        for (const auto& lb : body->getLocalBoxes()) {
+        const OccupiedBox query{center, halfExtents};
+        for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi) {
+            const auto& lb = body->getLocalBoxes()[bi];
             const glm::vec3 c  = body->position + rot * lb.offset;
             const glm::vec3 he = absRot * lb.halfExtents;
-            if (qMax.x > c.x - he.x && qMin.x < c.x + he.x &&
-                qMax.y > c.y - he.y && qMin.y < c.y + he.y &&
-                qMax.z > c.z - he.z && qMin.z < c.z + he.z)
+            // cheap conservative pre-reject, then the exact oriented test
+            if (qMax.x <= c.x - he.x || qMin.x >= c.x + he.x ||
+                qMax.y <= c.y - he.y || qMin.y >= c.y + he.y ||
+                qMax.z <= c.z - he.z || qMin.z >= c.z + he.z)
+                continue;
+            scratch.clear();
+            if (VoxelContactSolver::generateOBBvsAABB(body.get(), bi, query, scratch) > 0)
                 return true;
         }
     }
