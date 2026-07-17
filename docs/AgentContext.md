@@ -152,12 +152,87 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     (~96 KB/chunk vs ~7.6 MB of Cubes). Currently a read-only MIRROR of `cubes`, maintained at every
     mutation point + rebuilt in `initializeVoxelMaps`. 9 tests incl. an EXHAUSTIVE per-voxel
     mirror-vs-Cube check. Cost <1% — the plan's "RSS climbs during 4.2a" warning was WRONG.
-  - **NEXT — 4.2b (the actual RAM win):** flip authority. Only **~7 whole-vector scan sites** must
-    move to the store (mesher `ChunkRenderManager.cpp:280-295` reads exactly `isVisible()` +
-    `getMaterialName()`; occupancy `ChunkPhysicsManager.cpp:178`; `DynamicObjectManager`;
-    `FaceUpdateCoordinator`). `getCubeAt`'s **158 callers stay untouched** — it materializes on
-    demand (`ForceSystem` is targeted, not a scan). Hybrid read: materialized Cube wins, else store.
-    Gate on the benchmark: **10.5 → ~2-3 MB/chunk**.
+  - **4.2b SHIPPED 2026-07-17 (uncommitted):** authority flipped to `ChunkVoxelStore`. addCube =
+    store-only write (zero Cube allocs for static terrain, gen/decode included); getCubeAt
+    materializes on demand (158 callers untouched); presence (`hasVoxelAt`/`getVoxelType`) reads
+    the store, never allocates; ALL scan sites hybrid-read (materialized Cube wins → drift-proof
+    vs direct Cube* mutation): mesher, occupancy, visibility mask, render flags, blob ENCODE,
+    ChunkManager roof-probe + syncChunkToOccupancy, `hasAnySolidVoxel`. `NeighborLookupFunc` and
+    physics `CubeAccessFunc`→`VisibleSolidFunc` became bool store-backed probes (a getCubeAt there
+    would have materialized 32×32 border shells / whole streamed chunks). Legacy WorldStorage load
+    uses new `setCubeVisible` (store write). `getCubeCount()` = real solid count now (was slot-array
+    size); `getCollisionEntityCount()` was a 0 stub, now truthful. Chunk move ops now MOVE
+    voxelManager + re-wire callbacks (`wireVoxelManagerCallbacks`) — pre-flip they silently dropped
+    it, post-flip that would have been data loss. Fixed latent 4.2a bug: `subdivideAt` left a stale
+    solid store entry. Red-before-green: `ChunkVoxelAuthorityTest` ×10 (8 red first).
+    **MEASURED (same 1:1 benchmark method): 10.5 → 5.88 MB/chunk (−44%); 2,048 chunks = 16.5 GB
+    (was 26.7); OOM ceiling ~5,670 → ~10,100 — the 10k+ target is reached on this hardware.**
+    L4 gate: terrain/flora render correct, player grounds on store-built collision, hover query +
+    place/remove round-trip, no new errors. Suite 2,836/2,839 (2 pre-existing network AI, 1 skip).
+  - **Why 5.9 not the estimated ~2-3:** the estimate modeled a bare solid chunk. Remaining mass =
+    3× ~586 KB host-visible GPU instance buffers (Phase 4.3), flora **sub/microcube heap objects**
+    (still fat per-object allocs — candidate 4.2c: palettize sparse sub/micro sections), CPU
+    face/instance vectors. Editor region-scan handlers still getCubeAt-per-cell (they materialize
+    what they touch — correct, occasional; convert to store reads only if they ever matter).
+  - **⚠️ PRE-EXISTING, not 4.2b (verified by blame + zero working-tree diff):** 14
+    `SceneIntegrationTest` integration failures — fixture passes no ChunkManager while its test
+    manifest has `world` blocks; the fatal null-check is from eca96159 (2026-03-22). The
+    "47 integration tests green" claim in CLAUDE.md is stale. Also 2 `AIEndToEndTest` network
+    failures (no API key), long-documented.
+  - **Phase 4.4 SCOPED 2026-07-17 (unbuilt) — sealed/uniform chunks.** Full scope in the plan doc.
+    Measured: **~4 of 5 resident chunks are uniform** (spawn: 60% buried-solid + 23% pure-sky;
+    tall terrain: 54% + 25% — heightmap analysis at both benchmark spots, streamer policy
+    vRadius=min(r,2) modeled from code). Today each pays: 586 KB GPU face buffer EAGERLY even at
+    0 faces (no empty-guard, `ChunkRenderBuffer.cpp:135`; pure-air chunks pay it too), ~364 KB
+    never-shrinking mesh/light scratch, 96 KB dense store, full 32k-cell scans on every neighbour
+    remesh, 32k addCube gen fill (the cost that motivated the vRadius=2 clamp). **Honest
+    accounting: sealed+empty ≈ 83% of count but ~0.6-1 MB each → surface chunks carry ~30 MB each
+    (flora sub/micro heap objects) — sealed is NOT the RAM whale (4.2c palettization is); its
+    value = GPU alloc count −80% (retires blocker D on AMD/Intel), gen/remesh time, physics query
+    list, and unlocking terrain-aware vertical banding (fixes peaks >2 bands above player never
+    streaming).** Also found: `faces.reserve(32³·6)`=4.5 MB commit/chunk at construction
+    (`ChunkRenderManager.cpp:72`) — hides from RSS (untouched pages), drop it anyway.
+  - **Phase 4.4 stages 1-4 SHIPPED + GATED 2026-07-17 (uncommitted): 5.88 → 1.00 MB/chunk
+    (−83%); 2,050 chunks = 6.5 GB (was 16.5/26.7/41.3); GPU allocs 3.0 → 1.03/chunk; ceiling
+    ~59k chunks.** Uniform store (split-on-write) + sealed classification (managed rebuild,
+    O(1) vs uniform neighbours) + mesh/scratch/GPU/physics short-circuits + generator uniform
+    deep fill + unseal lifecycle (edit-site + SYNCHRONOUS neighbour-unseal on boundary removals —
+    the L3 shaft test `DigShaftThroughThreeSealedBands` caught that fall-through pre-ship).
+    28 new tests across 4 red-first suites; L4 live shaft into a sealed band clean.
+    **⚠️ CORRECTION: the scoping's "surface chunks ≈30 MB flora whale" claim was WRONG** — the
+    hidden mass was faces.reserve(4.5 MB) which the Debug CRT fill pattern TOUCHES (so it was in
+    RSS all along; now deleted). Surface chunks ≈ 5.9 MB Debug. Re-measure before prioritizing
+    4.2c flora palettization; Release slopes will differ.
+  - **⚠️ SILENT-CRASH CLASS REPRODUCED TWICE 2026-07-17 (the previously-unreproduced one):**
+    (a) ~14:13 while the USER flew the camera fast (log ends mid-frame, no error); (b) 15:32 on
+    a free-cam teleport to (1000,60,1000) while chunks streamed the fresh region (log ends
+    mid-chunk-loads). BOTH: no log error, no WER/Application-Error event ⇒ death by
+    terminate/abort (uncaught exception OFF the main thread?), NOT an access violation, NOT
+    RAM (post-4.4 = 1 MB/chunk), NOT the alloc-count throw (it logs first now). Next hunt:
+    run under a debugger / add a std::set_terminate logger + worker-thread catch audit
+    (disposal worker? water recenter thread? flora?).
+  - **Two rendering issues found LIVE on the 1:1 world 2026-07-17 (both PRE-EXISTING, diagnosed +
+    logged in RenderOptimization.md "Known issue" sections):** (1) character per-voxel "speckle"
+    (NOT shadow acne — falsified by a 1.0 normal-offset experiment; the 0.15 port shipped as
+    hygiene anyway); (2) "dotted lines" = T-junction cracks at greedy-merge borders (proven via
+    the smooth_lighting relocation test; fix is a design decision — see options in the doc).
+  - **LEADING UNIFIED THEORY (untested, high priority): world-space float PRECISION at
+    continental coordinates.** At x~60,400 float ULP ≈ 4 mm — interpolated worldPos feeding
+    specular/normal lighting + shadowCoord quantizes visibly. Explains: character speckle
+    ("didn't used to be that way" — all prior close-ups were near-origin worlds), grass jitter,
+    dash visibility, sun-contrast dependence, immunity to shadow-offset changes. The deferred
+    "camera-relative rendering (only matters >100 km)" item likely matters from ~tens of km for
+    fine shading. **Two test vehicles FAILED 2026-07-17:** free-cam teleport to (1000,60,1000) →
+    the silent-crash class fired; game.json spawn-swap to (5000,112,16000) → boot never finished
+    (player never spawned; boot anchor is hardcoded (50,50,50) which on THIS map is OPEN OCEAN —
+    suspected water/streaming grind at the anchor; original spawn works because its pre-gen
+    static range covers it). **Next-time test design: fix the Phase-2 "boot anchor ≠ player
+    spawn" gap FIRST (anchor the stream-in boot at the game.json player spawn), then the
+    spawn-swap test is trivial — and it fixes a real bug at the same time.**
+  - **NEXT (pick one):** commit 4.2b+4.4 (user approval) → then **4.4 stage 5** terrain-aware
+    vertical banding (replace vRadius=min(r,2) with per-column surface-aware bands — fixes peaks
+    >2 bands above player never streaming; sealed chunks make it affordable) or **4.3**
+    right-sizing the surviving surface-chunk buffers (586 KB floor) or re-measured **4.2c**.
   - **⚠️ DO-NOT-ASSUME (recorded honestly 2026-07-16):** (1) The two original streaming crashes are
     **UNREPRODUCED** and my "streaming volume / OOM" attribution is **RETRACTED** — they happened at
     ~170 chunks / ~6 GB where neither blocker C nor D can fire; re-running the exact steps now

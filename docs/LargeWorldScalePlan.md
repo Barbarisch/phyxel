@@ -423,8 +423,30 @@ first refactor's before/after is what confirms it):
    almost entirely in `ChunkVoxelManager.cpp` (95) + `ChunkStorage.cpp` (20), with 4 stragglers in
    `ChunkVoxelBreaker`/`VoxelManipulationSystem`. Independently shippable; red-before-green with a
    per-chunk RSS gate.
-2. **THEN: palette-compressed static storage (items 2a/2b).** Targets the other ~42% (the `Cube`
-   objects) — now the dominant cost at the post-4.1 **10.5 MB/chunk**. Surveyed 2026-07-16:
+2. ~~**THEN: palette-compressed static storage (items 2a/2b).**~~ ✅ **SHIPPED 2026-07-17**
+   (4.2a mirror f6234bb; 4.2b authority flip this commit). **MEASURED on the 1:1 benchmark
+   (Debug, loadRadius 16, same method as the baselines): 10.5 → 5.88 MB/chunk (−44%)**, linear
+   687→2,053 resident chunks; **at ~2,048 chunks RSS 16.5 GB** (was 26.7 post-4.1, 41.3
+   pre-4.1); base ~4.4 GB. **OOM ceiling ~5,670 → ~10,100 chunks — the 10k+ target is reached
+   on this machine.** The flip: `addCube` writes the palette store only (zero Cube allocations
+   for static terrain — gen/decode included); `getCubeAt` materializes on demand (158 callers
+   untouched); presence queries answer from the store; every scan site (mesher, occupancy,
+   visibility mask, render flags, blob encode, roof probe, GPU-occupancy sync) does a
+   drift-proof hybrid read (materialized Cube wins); `NeighborLookupFunc` + physics probes
+   became store-backed bool predicates (no border-shell/probe materialization); legacy DB load
+   hides voxels via a store write; Chunk moves now carry the store. Red-before-green:
+   `ChunkVoxelAuthorityTest` ×10 (8 red first + 2 guards; one pinned a real 4.2a bug —
+   `subdivideAt` left a stale solid store entry). Suite 2,836/2,839 (2 pre-existing network AI,
+   1 skip); L4 live gate on the 1:1 world: terrain/flora correct, player grounds on store-built
+   collision, hover query + place/remove round-trip, evict-save exercised, no new errors.
+   **Why 5.9 and not the estimated ~2-3:** that estimate modeled a bare solid chunk. The
+   remaining mass is (a) the 3 host-visible mapped GPU instance buffers (~1.8 MB floor — item 3
+   below, unchanged), (b) flora **sub/microcube heap objects** (Subcube/Microcube are still fat
+   per-object allocations with std::string materials — the benchmark is forested), (c) CPU
+   face/instance vectors + direction-sort scratch. Next RAM levers, in measured-leverage order:
+   **4.3 GPU suballocation/right-sizing** (item 3) and a possible **4.2c sub/micro
+   palettization** (same recipe, sparse sections — worth a survey before Phase 5.4).
+   Original scoping survey (2026-07-16) kept below for the record:
 
    **What static terrain actually needs from `Cube`** (usage counts outside `Cube.h`):
    | field | bytes | callers | verdict |
@@ -468,6 +490,122 @@ first refactor's before/after is what confirms it):
    fits MSVC's SSO, so it costs 32 B inline per `Cube` and allocates **no** heap string. Worth
    doing *inside* the palette work, not ahead of it — "small and safe" is true, "high leverage"
    is not.
+
+#### Phase 4.4 — Sealed/uniform chunks (stages 1–4 ✅ SHIPPED 2026-07-17; stage 5 unbuilt)
+
+> **✅ SHIPPED + GATED (stages 1–4, same benchmark/method as 4.1/4.2):**
+> **5.88 → 1.00 MB/chunk (−83%)**; at ~2,050 resident chunks **RSS 6.5 GB** (was 16.5 post-4.2b,
+> 26.7 post-4.1, 41.3 pre-4.1); base ~4.45 GB → extrapolated ceiling **~59,000 resident chunks**
+> on this 63.9 GB machine. **GPU allocations 3.0 → 1.03 per chunk (−66%)** — and since sealed/air
+> chunks now allocate ZERO buffers, the AMD/Intel 4096 ceiling scales with *surface* chunks
+> (~3,970 resident at this mix, ~3× the old ~1,365 — blocker D effectively retired for buried
+> volume). Observed FPS at ~2,250 resident: 39 vs 24 on the 4.2b run (not a controlled perf gate).
+> What landed: (1) uniform `ChunkVoxelStore` representation (split-on-first-non-conforming-write;
+> ~64 B for uniform chunks; blob decoder one-run fast path) — `ChunkVoxelStoreUniform` ×11;
+> (2) sealed classification in the managed rebuild (`ChunkManager::isChunkCapped`, O(1) against
+> uniform neighbours) + mesh/bake skip + scratch release + GPU buffer EMPTY-GUARD with
+> create-on-demand in updateVulkanBuffer + physics grid unregister; `faces.reserve` dropped —
+> `ChunkSealedTest` ×7; (3) generator uniform deep fill (`fillAllCubes`, required or per-voxel
+> addCube would split stores dense and nothing would ever seal) — `WorldGeneratorTest` ×4;
+> (4) unseal lifecycle: edit-site unseal on every Chunk mutation wrapper + SYNCHRONOUS
+> neighbour-unseal on boundary removals (`unsealExposedNeighbors` — the L3 shaft test caught the
+> fall-through window before it shipped) — `DigShaftThroughThreeSealedBands` asserts the ground
+> query at every one of 88 dig steps across two chunk seams. L4: live shaft via `clear_region`
+> from surface into the sealed band below y=0 — clean state, place-back works, zero new errors.
+>
+> **⚠️ CORRECTION to the scoping analysis below (recorded honestly):** the "sealed+empty ≈ 1 MB
+> each ⇒ surface chunks ≈ 30 MB (flora whale)" inference was WRONG. The missing mass was the
+> 4.5 MB `faces.reserve` — I assumed reserve-without-touch stays out of RSS, but the **Debug CRT
+> fill pattern touches every page**, so ALL chunks paid it in the Debug measurements (which is
+> also why every RSS slope was so linear). Post-4.4 arithmetic: surface chunks ≈ **5.9 MB** each
+> (Debug), sealed/air ≈ ~0.05 MB. Consequence: **4.2c sub/micro flora palettization is a smaller
+> lever than the scoping claimed** — re-measure before prioritizing it; Release-build slopes will
+> also differ (the reserve never inflated Release RSS). Stage 5 (terrain-aware vertical banding)
+> remains the unlock for scaling residency with surface area instead of terrain volume.
+
+*Original scope (2026-07-17) kept below for the record:*
+
+*User insight driving this: "most of a chunk is completely hidden — prioritize what's actually
+seen across loading, rendering, streaming." Face/chunk-level culling already exists; this is the
+data-shape version of the idea: chunks that are all one thing (buried solid / pure sky) should
+cost ~nothing to hold, generate, or remesh.*
+
+**Opportunity (measured — heightmap analysis, `scratchpad/sealed_analysis.py` method, streamer
+policy modeled from `ChunkStreamingManager::loadChunksAroundPosition` — radius-16 sphere,
+vRadius = min(r, 2)):** of ~4,000 candidate resident chunks,
+
+| region | sealed (buried solid) | empty (pure sky) | surface |
+|---|---|---|---|
+| spawn plains (60400, 50800) | **60.1%** | 23.0% | 16.9% |
+| tall terrain (59300, 49820, surf Y149) | **54.3%** | 25.2% | 20.4% |
+
+i.e. **~4 of 5 resident chunks are uniform** (all-solid or all-air). Both degenerate cases share
+one representation.
+
+**What a sealed chunk costs TODAY (surveyed post-4.2b, file:line in survey):**
+- **586 KB GPU face buffer, eagerly, even for 0 faces** — `createVulkanBuffer` runs
+  unconditionally per streamed chunk (`ChunkStreamingManager.cpp:192`) and
+  `ChunkRenderBuffer::createBuffer` floors capacity at 25000 with no empty-guard
+  (`ChunkRenderBuffer.cpp:135-137`). Pure-AIR chunks pay this too (the air-check in finalize
+  only skips physics/maps, not the buffers — `ChunkManager.cpp:77`). 3 `vkAllocateMemory` per
+  chunk regardless (grass/foliage floor at 1 instance = 8 B each).
+- **~364 KB mesh/light scratch** (`m_skyLight`/`m_blockR/G/B`/`m_solidVis`/`m_cellMat`/
+  `m_cellDamage`/border snapshot), allocated on first rebuild, never shrinks.
+- **96 KB dense `ChunkVoxelStore`** (`m_idx`+`m_state` always `assign(kVoxels)`) even for one
+  palette entry.
+- **~8 KB physics bitsets** + a slot in `VoxelDynamicsWorld::m_grids`, which every contact/
+  ground/overlap query iterates linearly (per-grid 6-compare AABB early-out, but O(all grids)).
+- **Full 32k-cell mesh + bake scans on EVERY neighbour-triggered remesh** (~5 passes + flood;
+  the light BFS itself does zero work but the scans run; no sealed short-circuit anywhere).
+- **Generation: 32,768 `materialForColumn`+`addCube` calls per buried chunk** — no uniform fast
+  path (this cost is *why* the vRadius=2 clamp exists, per the comment at
+  `ChunkStreamingManager.cpp:287-293`).
+- (Also found: `faces.reserve(32³·6)` = 4.5 MB commit-charge per chunk at construction
+  (`ChunkRenderManager.cpp:72`) — mostly untouched pages so it hides from RSS, but drop it;
+  geometric growth is fine.)
+
+**Honest accounting:** sealed+empty ≈ 83% of chunk COUNT but only ~0.6–1.0 MB each of the
+measured 5.88 MB/chunk average — which means forested SURFACE chunks carry ~30 MB each
+(sub/microcube flora heap objects + faces + grown buffers). **Sealed chunks are NOT the RAM
+whale — 4.2c sub/micro palettization is.** The value here is: **GPU allocation count −~80%
+(retires blocker D's AMD/Intel 4096 ceiling outright)**, ~2–3 GB RAM at radius 16, worker/gen
+throughput (32k-fill → O(1) for the majority class), remesh CPU (sealed chunks drop out of
+every neighbour ripple), physics query list −55–60%, and the **policy unlock** below.
+
+**Design (staged, each independently shippable, red-before-green):**
+1. **Uniform store representation.** `ChunkVoxelStore` gains a uniform state
+   (`{material, visible}` or air); dense `m_idx`/`m_state` allocate only on the first
+   non-conforming write (the "split"). API unchanged — `solid/visible/material/solidCount`
+   answer from the uniform fast path. Covers air (uniform-empty) and buried (uniform-solid).
+   96 KB → ~64 B for ~83% of chunks. Red: uniform chunk approxBytes < 1 KB; split-on-write
+   round-trips voxel-exactly; blob encode/decode of uniform chunks unchanged byte-for-byte.
+2. **Sealed classification + short-circuits.** Sealed = uniform-solid AND every face capped
+   (neighbour boundary layer solid, or generator heightfield says buried — same probe Phase 3
+   item 2 needs; build once, share). For sealed/empty chunks: skip `rebuildAllFaces` entirely
+   (no scratch allocation; set `m_faceConnect` = no-connections directly), **defer the face
+   buffer until instances > 0** (the empty-guard also stops pure-air waste today; full
+   right-sizing stays Phase 4.3), skip physics-grid registration (interior unreachable).
+3. **Generator fast path.** Chunk fully below the column-min surface → one
+   `store.fillUniform(deepMaterial)`; fully above column-max → skip. Removes the 32k-call fill
+   that motivated the vertical clamp.
+4. **Unseal lifecycle.** Triggers: an edit inside the chunk (store split handles state; the
+   edit path already remeshes + rebuilds physics), or a neighbour boundary edit exposing a face
+   (the existing neighbour-remesh ripple reaches the chunk; rebuild path detects "no longer
+   sealed" → allocate buffers, mesh, register grid). Red/L3: dig down through a sealed chunk —
+   face appears, collision materializes, character stands in the hole (no fall-through); break
+   a voxel at a sealed-sealed boundary; place a structure spanning sealed chunks.
+5. **Follow-up unlocked — terrain-aware vertical banding** (separate increment): replace
+   `vRadius = min(r, 2)` with per-column `[minSurfaceChunk−1, maxSurfaceChunk+1] ∪ player±2`.
+   Fixes the real hole where peaks >2 bands above the player inside load radius never stream,
+   and is only affordable because deep stacks become sealed. This is also what Phase 5's bigger
+   radii need so residency scales with *surface area*, not terrain volume.
+
+**Gate:** re-run the 1:1 benchmark at both analysis spots: GPU allocation count (GpuAllocStats)
+−≥70%; RSS slope re-measured (expect ~5.9 → ~4.5–5 MB/chunk — modest, per the honest accounting);
+gen worker throughput on buried bands ≥10×; sealed chunks absent from remesh ripples (counter);
+L3 unseal tests green; L4 dig-into-sealed live with evidence. Stress axes: dig a 1-voxel shaft
+straight down through 3 sealed bands (unseal chain, collision at every step); teleport to the
+mountain spot at radius 16 (the old crash-repro path) with terrain-aware banding on.
 
 ### Phase 5 — Render distance ×100 (the horizon)
 *Builds on Phases 3–4; near field stays real chunks (~192–288u), mid field becomes downsampled

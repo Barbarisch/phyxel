@@ -485,3 +485,60 @@ Red-before-green on the SAME settlement scene: record `total_visible_faces` + fr
 take a **Release-build** measurement (Debug Vulkan is much slower than Release; the 15 FPS figure is
 Debug). Encode a unit/bench assertion on the meshing pass (a flat NxN same-material micro region →
 O(1) merged quads, not N² faces) shown failing on the current per-face path first.
+
+## Known issue — T-junction cracks at greedy-merge borders ("dotted lines", found 2026-07-17)
+
+**Symptom:** thin dashed/stippled bright lines on flat terrain, world-axis-aligned, "all over the
+place but only visible from certain angles." First noticed on the Middle-earth 1:1 plains (vast
+uniform grass = the ideal display case); present in same-day PRE-4.4 captures too — NOT a
+regression from the large-world work.
+
+**Root cause (proven by elimination + relocation, 2026-07-17):** greedy meshing emits adjacent
+coplanar rectangles with different extents, so one quad's corner vertex lies mid-edge of its
+neighbour (a T-junction). The long edge's interpolated depth doesn't exactly pass through that
+vertex, leaving sub-pixel gaps that leak the bright background (sky/clear colour) when the eye
+ray grazes along the shared edge. Diagnostics that pinned it: grass layer OFF → lines persist;
+face_dir_cull OFF → persist; plan view (straight down) → invisible (so not drawn geometry);
+**smooth_lighting toggle (changes the merge layout) → the lines MOVED to new positions** —
+conclusive. Repro: MiddleEarth1to1, camera ~(60401, 26, 50800) yaw 45 pitch −30, oblique angles.
+
+**Fix options (design decision — do NOT rush):**
+1. **Merge-constraint** (forbid T-junctions by aligning merge spans across rows/neighbours) —
+   simplest correctness; costs some of the 10–12× face reduction, measure before accepting.
+2. **Matched underlay** (ground-coloured backdrop / clear colour so leaks stop being bright) —
+   hides rather than fixes; near-zero cost; probably the right stopgap.
+3. **Edge skirts** (tiny overlap on merged quads) — the standard voxel-engine remedy; touches the
+   FRAGILE winding/packing path, needs the full visual A/B discipline.
+
+## Known issue — character "speckle" (NOT shadow acne — theory falsified 2026-07-17)
+
+Character models show speckled per-face noise ("static" look), worst under a high sun and
+shimmering under animation. **Initial diagnosis (shadow-map acne) was FALSIFIED by experiment
+2026-07-17:** the normal-offset port to `kinematic_voxel.vert`/`dynamic_voxel.vert` (0.15,
+matching `static_voxel.vert:241`) did not change the speckle, and a DIAGNOSTIC exaggeration to
+1.0 — which makes self-shadow acne physically impossible — left the speckle intact. The 0.15
+port is KEPT as hygiene (matches the static path, no visible harm), but it is NOT the fix.
+
+**Current best theory (unverified):** per-voxel TEXTURE content/sampling on sub-voxel character
+models — each tiny voxel face maps a different sub-tile patch of a noisy skin/cloth texture, so
+the model reads as per-face mottling that shimmers as animation resamples it (fits the "streaky"
+head voxels seen up close, the per-face granularity, and the sun-angle contrast dependence).
+Next steps: inspect the character .anim → material/texture mapping; A/B a big-voxel kinematic
+object (furniture) beside the character — if furniture is clean, it's the character asset
+texturing, not the kinematic pipeline; check mip/filter settings for the kinematic draw.
+Observed while verifying (separate oddity, unchased): spawn_entity'd animated characters did
+not RENDER in CharacterTestbed (entities exist logically, no visuals; the game.json player in
+MiddleEarth renders fine — possibly a spawned-entity vs player init difference).
+
+Related fact from the same session: at a 9:30 sun the user confirmed GRASS jitter visibly
+improves (vs the noon default), and the character speckle improves only modestly — consistent
+with the texture theory (contrast-dependent) and the grass aliasing mechanism above.
+
+**Related (user-observed 2026-07-17): grass-blade "jitter" looks like the same speckle but is a
+DIFFERENT mechanism** — grass.vert does NOT sample the shadow map (the logged "blades receive no
+shadows" gap), so its shimmer is thin sub-pixel quads swaying in the wind with no AA, plus any
+sun-direction lighting term flipping as blade normals sway. Aggravated by this engine's DEFAULT
+sun being NOON (DayNightCycle boots at 12.0 — vertical light is worst-case for both artifacts on
+vertical/thin geometry). Consider: blade-width floor in screen space or distance fade tune, and
+revisit when blades get shadow reception. A softer default sun angle (e.g. 10:00) would visibly
+calm BOTH artifacts for free — worth considering as a default.
