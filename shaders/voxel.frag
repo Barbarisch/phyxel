@@ -210,7 +210,11 @@ void main() {
     vec4 textureColor;
     vec3 nrmRaw;
     float rough;
-    bool varied = ((flags >> 15u) & 1u) != 0u;   // material opted into procedural tiling variation
+    // TEMPORARILY DISABLED (camera-relative rendering, docs/CameraRelativeRendering.md):
+    // inWorldPos is now camera-relative, so hashing it makes tile rotations RE-ROLL as the
+    // camera moves (textures visibly swim). Re-enable once the exact ABSOLUTE per-voxel key
+    // (chunkBaseAbs push constant + flat varying) is plumbed through the voxel vertex shaders.
+    bool varied = false;   // was: ((flags >> 15u) & 1u) != 0u
     sampleVoxelPBR(textureIndex, texCoord, varied, inWorldPos, inNormal, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index

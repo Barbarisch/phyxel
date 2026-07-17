@@ -79,6 +79,10 @@ public:
     /// rendered full-bright (vec4(1)). Wired from RenderCoordinator (which owns ChunkManager).
     using LightSampler = std::function<glm::vec4(const glm::vec3& worldPos)>;
     void setLightSampler(LightSampler fn) { m_lightSampler = std::move(fn); }
+    /// Camera-relative rendering: true camera world position, set once per frame by the
+    /// RenderCoordinator BEFORE any pass records draws. Model translations are pushed as
+    /// (world - camera); see docs/CameraRelativeRendering.md.
+    void setCameraWorld(const glm::vec3& camPos) { m_cameraWorld = camPos; }
 private:
     void     createPipeline(VkRenderPass renderPass, VkExtent2D extent,
                              VkDescriptorSetLayout uboLayout);
@@ -102,6 +106,7 @@ private:
     uint32_t m_totalFaces = 0;
 
     LightSampler m_lightSampler; // Phase 4 baked-light sampler (null = full bright)
+    glm::vec3 m_cameraWorld{0.0f}; // per-frame camera position (camera-relative rendering)
 };
 
 } // namespace Graphics

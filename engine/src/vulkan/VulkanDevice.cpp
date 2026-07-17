@@ -1492,7 +1492,12 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.numInstances = numInstances;
     ubo.ambientLight = ambientLight;
     ubo.emissiveMultiplier = emissiveMultiplier;
-    ubo.cameraPosition = cameraPosition;
+    // Camera-relative rendering (docs/CameraRelativeRendering.md): `view` arrives as the
+    // eye-at-origin rotation-only matrix and every GPU position is (world - camera), so the
+    // shading-space camera sits at the origin. cameraWorld keeps the true position for
+    // absolute-hash reconstruction in shaders.
+    ubo.cameraPosition = glm::vec3(0.0f);
+    ubo.cameraWorld = cameraPosition;
     ubo.elapsedTime = elapsedTime;
     ubo.viewProj = proj * view;
     ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;

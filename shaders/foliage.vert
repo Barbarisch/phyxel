@@ -41,6 +41,11 @@ layout(push_constant) uniform PushConstants {
     float gustAmp;           // gust amplitude on top of base
     float gustScale;         // gust spatial frequency (1/world units)
     float gustSpeed;         // gust front travel speed (world units/s)
+    // Camera-relative rendering: chunkBaseOffset above is (world - camera); exact ABSOLUTE
+    // chunk origin for hash/phase seeds (never relative, or cards re-roll as the camera moves).
+    float absBaseX;
+    float absBaseY;
+    float absBaseZ;
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
@@ -77,7 +82,8 @@ void main() {
     // Hash-domain coords: wrap to a 2048-unit period before hashing/phase math. Raw
     // far-from-origin coords lose all fractional precision inside hash21 (cards then
     // share one orientation → the whole canopy turns coplanar and vanishes edge-on).
-    vec3 scHash = mod(subCenter, 2048.0);
+    vec3 scHash = mod(vec3(pc.absBaseX, pc.absBaseY, pc.absBaseZ)
+                      + vec3(lx, ly, lz) + (vec3(sx, sy, sz) + 0.5) / 3.0, 2048.0);
 
     int card   = gl_VertexIndex / 6;
     int corner = gl_VertexIndex - card * 6;

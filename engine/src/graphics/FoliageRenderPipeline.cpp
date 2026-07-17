@@ -13,7 +13,7 @@ namespace Graphics {
 // Push constant layout — MUST match foliage.vert AND foliage_shadow.vert. Time + camera come
 // from the UBO; the wind-field scalars come from the shared WindSystem via Params::wind.
 struct FoliagePush {
-    glm::vec3 chunkBaseOffset;
+    glm::vec3 chunkBaseOffset;   // CAMERA-RELATIVE chunk origin (docs/CameraRelativeRendering.md)
     float     cardSize;
     float     windStrength;
     float     radius;
@@ -24,8 +24,12 @@ struct FoliagePush {
     float     gustAmp;
     float     gustScale;
     float     gustSpeed;
+    // ABSOLUTE chunk origin, float-exact — hash/wind-phase seeds must not be camera-relative.
+    float     absBaseX;
+    float     absBaseY;
+    float     absBaseZ;
 };
-static_assert(sizeof(FoliagePush) == 52, "FoliagePush must match the foliage.vert push-constant block");
+static_assert(sizeof(FoliagePush) == 64, "FoliagePush must match the foliage.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -312,7 +316,11 @@ void FoliageRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet ub
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
-        pc.chunkBaseOffset = c.origin;
+        // camera-relative position; exact ABSOLUTE origin for the hash seeds
+        pc.chunkBaseOffset = glm::vec3(glm::dvec3(c.origin) - glm::dvec3(m_cameraWorld));
+        pc.absBaseX = c.origin.x;
+        pc.absBaseY = c.origin.y;
+        pc.absBaseZ = c.origin.z;
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &c.buffer, &offset);
@@ -344,7 +352,11 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
-        pc.chunkBaseOffset = c.origin;
+        // camera-relative position; exact ABSOLUTE origin for the hash seeds
+        pc.chunkBaseOffset = glm::vec3(glm::dvec3(c.origin) - glm::dvec3(m_cameraWorld));
+        pc.absBaseX = c.origin.x;
+        pc.absBaseY = c.origin.y;
+        pc.absBaseZ = c.origin.z;
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FoliagePush), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &c.buffer, &offset);

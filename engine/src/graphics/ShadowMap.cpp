@@ -690,7 +690,7 @@ bool ShadowMap::createDynamicShadowPipeline() {
     VkPushConstantRange pcRange{};
     pcRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pcRange.offset = 0;
-    pcRange.size = sizeof(glm::mat4); // lightSpaceMatrix only
+    pcRange.size = sizeof(glm::mat4) + sizeof(glm::vec4); // lightSpaceMatrix + cameraWorld (camera-relative)
 
     VkPipelineLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

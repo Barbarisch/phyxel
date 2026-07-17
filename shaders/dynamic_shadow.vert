@@ -15,7 +15,8 @@ layout(location = 5) in vec4  inRotation;     // quaternion (x,y,z,w)
 layout(location = 6) in ivec3 inLocalPosition; // unused
 
 layout(push_constant) uniform PushConstants {
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrix;   // maps CAMERA-RELATIVE world -> light clip
+    vec4 cameraWorld;        // .xyz = true camera position (camera-relative rendering)
 } pc;
 
 vec3 rotateByQuaternion(vec3 v, vec4 q) {
@@ -39,6 +40,6 @@ void main() {
     else                     faceOffset = vec3(float((cornerID >> 0) & 1u), 0.0, float((cornerID >> 1) & 1u));
 
     vec3 localOffset = rotateByQuaternion((faceOffset - 0.5) * inScale, inRotation);
-    vec3 worldPos = inWorldPosition + localOffset + inScale * 0.5;
+    vec3 worldPos = (inWorldPosition - pc.cameraWorld.xyz) + localOffset + inScale * 0.5;
     gl_Position = pc.lightSpaceMatrix * vec4(worldPos, 1.0);
 }

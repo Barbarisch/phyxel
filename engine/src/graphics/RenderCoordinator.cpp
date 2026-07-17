@@ -396,7 +396,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             
             // Set chunk origin as push constants for world positioning
             glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-            glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+            glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
             
             // Push constants with debug mode if enabled
             if (debugModeEnabled) {
@@ -652,7 +652,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
 
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
@@ -797,7 +797,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(frameIndex), 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.reflectionDrawCalls++;
@@ -856,7 +856,7 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
         vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-        glm::vec3 chunkBaseOffset(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+        glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.mirrorGeomDrawCalls++;
@@ -1120,7 +1120,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
 
              pushConsts.lightSpaceMatrix = lightSpaceMatrix;
              glm::ivec3 worldOrigin = chunk->getWorldOrigin();
-             pushConsts.chunkBaseOffset = glm::vec3(worldOrigin.x, worldOrigin.y, worldOrigin.z);
+             pushConsts.chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative
 
              vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
 
@@ -1173,7 +1173,10 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
                     if (grp.partIndices.empty()) continue;
                     const auto& first = charParts[grp.partIndices[0]];
                     CharShadowBatch batch;
-                    batch.model = glm::translate(glm::mat4(1.0f), first.worldPos) * glm::mat4_cast(first.worldRot);
+                    // camera-relative (matches the main-pass batch + the relative lightSpaceMatrix)
+                    batch.model = glm::translate(glm::mat4(1.0f),
+                                                 camera->relativeTo(glm::dvec3(first.worldPos)))
+                                * glm::mat4_cast(first.worldRot);
                     batch.firstInstance = static_cast<uint32_t>(instanceData.size());
                     batch.instanceCount = 0;
                     for (int pi : grp.partIndices) {
@@ -1226,6 +1229,9 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
                 auto it = m_kinematicObjects->getObjects().find(id);
                 if (it == m_kinematicObjects->getObjects().end() || !it->second.visible) continue;
                 kinPC.modelMatrix = it->second.currentTransform;
+                // camera-relative: translation column -> (world - camera), double subtract
+                kinPC.modelMatrix[3] = glm::vec4(
+                    glm::vec3(glm::dvec3(glm::vec3(kinPC.modelMatrix[3])) - glm::dvec3(camera->getPosition())), 1.0f);
                 vkCmdPushConstants(commandBuffer, shadowMap->getKinematicShadowLayout(),
                                    VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(kinPC), &kinPC);
                 VkDeviceSize offset = range.startFace * sizeof(Core::KinematicFaceData);
@@ -1242,9 +1248,12 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
         m_gpuParticles && m_gpuParticles->isInitialized() && m_gpuParticles->getActiveParticleCount() > 0)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getDynamicShadowPipeline());
-        glm::mat4 lsm = lightSpaceMatrix;
+        // camera-relative: shader subtracts cameraWorld from the absolute GPU-buffer positions
+        struct DynShadowPC { glm::mat4 lightSpaceMatrix; glm::vec4 cameraWorld; } dynPC;
+        dynPC.lightSpaceMatrix = lightSpaceMatrix;
+        dynPC.cameraWorld = glm::vec4(camera->getPosition(), 0.0f);
         vkCmdPushConstants(commandBuffer, shadowMap->getDynamicShadowLayout(),
-                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &lsm);
+                           VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(dynPC), &dynPC);
         // Binding 0: vertex ID buffer (shared), binding 1: GPU face buffer
         vulkanDevice->bindVertexBuffers(currentFrame);
         VkBuffer faceBuffer = m_gpuParticles->getFaceBuffer();
@@ -1413,16 +1422,22 @@ void RenderCoordinator::drawFrame() {
     }
 
     // Use cached matrices from update()
-    // Always get fresh view matrix from camera — ensures correctness even when
-    // setCachedViewMatrix() hasn't been called (e.g. standalone games via EngineRuntime)
+    // CAMERA-RELATIVE RENDERING (docs/CameraRelativeRendering.md): the view matrix is
+    // rotation-only with the eye at the ORIGIN, and every world position handed to the GPU
+    // below is (world - cameraPos), subtracted in doubles. At continental coordinates
+    // (~60k units) the old eye-at-world lookAt cancelled catastrophically in world->clip,
+    // re-rolling contested edge pixels per frame (character speckle, merge-seam dashes).
     if (camera) {
-        cachedViewMatrix = camera->getViewMatrix();
+        cachedViewMatrix = camera->getRelativeViewMatrix();
     }
     glm::mat4 view = cachedViewMatrix;
     glm::mat4 proj = cachedProjectionMatrix;
-    
-    // Calculate light space matrix for shadows
+
+    // True world-space camera position (doubles for all CPU-side subtraction).
     glm::vec3 cameraPos = camera->getPosition();
+    const glm::dvec3 camWorld(cameraPos);
+    // (world - camera) helper: double subtract, truncate last.
+    auto rel = [&camWorld](const glm::dvec3& worldP) { return glm::vec3(worldP - camWorld); };
 
     // Update day/night cycle and apply to lighting
     {
@@ -1450,6 +1465,9 @@ void RenderCoordinator::drawFrame() {
     // can't cut off a visible shadow). Using the frustum's bounding SPHERE makes the box size
     // rotation-invariant, which avoids shadow-edge shimmer as the camera turns. Replaces the old
     // fixed-range sphere centred on/ahead of the camera, which dropped shadows near its edge.
+    // NOTE (camera-relative): lightSpaceMatrix maps CAMERA-RELATIVE world -> light clip
+    // (shadow-pass inputs are relative offsets too). shadowCullCenter stays ABSOLUTE
+    // world — renderShadowPass culls against absolute chunk origins.
     glm::mat4 lightSpaceMatrix = glm::mat4(1.0f);
     glm::vec3 shadowCullCenter = cameraPos;
     float shadowCullRadius = 1.0f;
@@ -1478,6 +1496,7 @@ void RenderCoordinator::drawFrame() {
                     corners[ci++] = glm::vec3(c) / c.w;
                 }
 
+        // With the relative view, corners (and center) come out CAMERA-RELATIVE.
         glm::vec3 center(0.0f);
         for (auto& c : corners) center += c;
         center /= 8.0f;
@@ -1490,7 +1509,7 @@ void RenderCoordinator::drawFrame() {
         const float kCasterMargin = 48.0f;
         radius = std::ceil(radius) + kCasterMargin;
 
-        shadowCullCenter = center;
+        shadowCullCenter = glm::vec3(glm::dvec3(center) + camWorld);   // cull in ABSOLUTE world
         shadowCullRadius = radius;
 
         glm::vec3 lightDir = glm::normalize(sunDirection);
@@ -1511,11 +1530,21 @@ void RenderCoordinator::drawFrame() {
         const float kShadowMapSize = 4096.0f;  // matches the ShadowMap resolution in the ctor
         const float texelSize = (2.0f * radius) / kShadowMapSize;
         glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), lightDir, up);
-        glm::vec3 centerLS = glm::vec3(lightRot * glm::vec4(center, 1.0f));
-        centerLS.x = std::floor(centerLS.x / texelSize) * texelSize;
-        centerLS.y = std::floor(centerLS.y / texelSize) * texelSize;
-        center = glm::vec3(glm::inverse(lightRot) * glm::vec4(centerLS, 1.0f));
-        shadowCullCenter = center;
+        // CAMERA-RELATIVE CAVEAT: `center` is camera-relative here, but the snap MUST quantize
+        // in the ABSOLUTE world frame — snapping relative coords re-anchors the grid to the
+        // moving camera and the crawl returns. Re-anchor through doubles: absolute center,
+        // snap in the light-rotation frame (values ~60k but texel 0.05-0.1 >> the 4 mm float
+        // ULP there — use doubles anyway so the floor() is exact), back to relative.
+        {
+            const glm::dmat4 lightRotD(lightRot);
+            glm::dvec3 centerAbs = glm::dvec3(center) + camWorld;
+            glm::dvec3 centerLS = glm::dvec3(lightRotD * glm::dvec4(centerAbs, 1.0));
+            centerLS.x = std::floor(centerLS.x / double(texelSize)) * double(texelSize);
+            centerLS.y = std::floor(centerLS.y / double(texelSize)) * double(texelSize);
+            centerAbs = glm::dvec3(glm::inverse(lightRotD) * glm::dvec4(centerLS, 1.0));
+            center = glm::vec3(centerAbs - camWorld);          // back to camera-relative
+            shadowCullCenter = glm::vec3(centerAbs);           // cull stays absolute
+        }
 
         glm::vec3 lightPos = center - lightDir * (radius + kCasterBack);
         glm::mat4 lightView = glm::lookAt(lightPos, center, up);
@@ -1541,6 +1570,12 @@ void RenderCoordinator::drawFrame() {
     static const auto renderStartTime = std::chrono::high_resolution_clock::now();
     float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
+
+    // Camera-relative rendering: hand the true camera position to pipelines that push their
+    // own world transforms, BEFORE any pass records draws this frame.
+    if (kinematicPipeline) kinematicPipeline->setCameraWorld(cameraPos);
+    if (grassPipeline)     grassPipeline->setCameraWorld(cameraPos);
+    if (foliagePipeline)   foliagePipeline->setCameraWorld(cameraPos);
 
     // Advance the shared wind field on the same clock the shaders scroll it with, and write
     // its state into BOTH vegetation pipelines before any pass records push constants (the
@@ -2015,7 +2050,11 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
         for (const auto& grp : ch->getPartGroups()) {
             if (grp.partIndices.empty()) continue;
             const auto& first = charParts[grp.partIndices[0]];
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), first.worldPos)
+            // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
+            // (world - camera) so bone transforms stay float-exact at continental
+            // coordinates — this is THE fix for the per-voxel character speckle.
+            glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                             camera->relativeTo(glm::dvec3(first.worldPos)))
                             * glm::mat4_cast(first.worldRot);
             Batch batch;
             batch.model = model;

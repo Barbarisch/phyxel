@@ -118,6 +118,14 @@ struct UniformBufferObject {
     // blocks must declare fields in this exact order for std140 offsets to match.
     alignas(16) glm::mat4 viewProj;         // proj * view
     alignas(16) glm::mat4 biasedLightSpace; // clip->UV bias * lightSpaceMatrix (shadow sampling)
+    // Camera-relative rendering (docs/CameraRelativeRendering.md): with the eye-at-origin
+    // view, cameraPosition above becomes (0,0,0) and every position reaching the GPU is
+    // world - camera. cameraWorld carries the TRUE world-space camera position for shaders
+    // that must reconstruct ABSOLUTE coordinates for stable hashing (varied tile rotation,
+    // grass/foliage wind seeds): abs = rel + cameraWorld — the ~4 mm float error at 60 km is
+    // harmless to floor()-to-voxel hashes. Appended LAST: GLSL blocks are std140 prefixes,
+    // so existing truncated declarations stay valid.
+    alignas(16) glm::vec3 cameraWorld;
 };
 
 class VulkanDevice {

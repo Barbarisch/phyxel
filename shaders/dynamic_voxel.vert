@@ -40,6 +40,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float elapsedTime;
     mat4 viewProj;          // proj*view, precombined once per frame on CPU
     mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
+    vec3 cameraWorld;       // true camera position (camera-relative rendering)
 } ubo;
 
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
@@ -128,7 +129,11 @@ void main() {
     vec3 rotatedOffset = rotateByQuaternion(scaledOffset, inRotation);
     
     // Use the actual physics position from inWorldPosition as center
-    vec3 worldPos = inWorldPosition + rotatedOffset;
+    // Camera-relative rendering (docs/CameraRelativeRendering.md): particle positions live
+    // ABSOLUTE in the GPU buffer; subtract the camera here. The fp32 subtract keeps the ~4 mm
+    // quantization the buffer already had (imperceptible on tumbling debris) while restoring
+    // clip-space precision.
+    vec3 worldPos = (inWorldPosition - ubo.cameraWorld) + rotatedOffset;
     
     // Calculate UV coordinates for texture mapping
     // UV coordinates must match the vertex generation pattern for each face

@@ -13,7 +13,7 @@ namespace Graphics {
 // Push constant layout — MUST match grass.vert. Time + camera position come from the UBO;
 // the wind-field scalars come from the shared WindSystem via Params::wind.
 struct GrassPush {
-    glm::vec3 chunkBaseOffset;   // world origin of the chunk
+    glm::vec3 chunkBaseOffset;   // CAMERA-RELATIVE chunk origin (docs/CameraRelativeRendering.md)
     float     bladeHeight;
     float     windStrength;
     float     radius;
@@ -27,8 +27,14 @@ struct GrassPush {
     float     gustScale;
     float     gustSpeed;
     uint32_t  bladeStyle;
+    // ABSOLUTE chunk origin, float-exact (integers < 2^24) — the hash/clump/wind-phase seeds
+    // must NOT be camera-relative or blades re-roll as the camera moves. Scalar floats so the
+    // std430 offsets append tightly after bladeStyle on both sides.
+    float     absBaseX;
+    float     absBaseY;
+    float     absBaseZ;
 };
-static_assert(sizeof(GrassPush) == 64, "GrassPush must match the grass.vert push-constant block");
+static_assert(sizeof(GrassPush) == 76, "GrassPush must match the grass.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -215,7 +221,11 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
-        pc.chunkBaseOffset = c.origin;
+        // camera-relative position; exact ABSOLUTE origin for the hash seeds
+        pc.chunkBaseOffset = glm::vec3(glm::dvec3(c.origin) - glm::dvec3(m_cameraWorld));
+        pc.absBaseX = c.origin.x;
+        pc.absBaseY = c.origin.y;
+        pc.absBaseZ = c.origin.z;
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GrassPush), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &c.buffer, &offset);

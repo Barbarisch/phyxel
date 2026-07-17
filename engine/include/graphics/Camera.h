@@ -29,6 +29,23 @@ public:
     // Returns the view matrix calculated using Euler Angles and the LookAt Matrix
     glm::mat4 getViewMatrix() const;
 
+    // Camera-relative rendering (docs/CameraRelativeRendering.md): rotation-only view with
+    // the eye at the ORIGIN. All world translations handed to the GPU must then be
+    // (worldPos - cameraPos), computed in doubles via relativeTo(). At continental
+    // coordinates (~60k units, float ULP ~4 mm) the classic eye-at-world lookAt cancels
+    // catastrophically in world->clip; this keeps every GPU-side magnitude within render
+    // distance where float is exact to sub-micron.
+    glm::mat4 getRelativeViewMatrix() const {
+        return glm::lookAt(glm::vec3(0.0f), front, up);
+    }
+    // (worldPos - cameraPos) with the subtraction in double precision, truncated last.
+    glm::vec3 relativeTo(const glm::dvec3& worldPos) const {
+        return glm::vec3(worldPos - glm::dvec3(position));
+    }
+    glm::vec3 relativeTo(const glm::vec3& worldPos) const {
+        return relativeTo(glm::dvec3(worldPos));
+    }
+
     // Processes input received from any keyboard-like input system
     void processKeyboard(int direction, float deltaTime);
 

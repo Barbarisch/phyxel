@@ -49,6 +49,12 @@ layout(push_constant) uniform PushConstants {
     float gustScale;         // gust spatial frequency (1/world units)
     float gustSpeed;         // gust front travel speed (world units/s)
     uint  bladeStyle;        // 0 = smooth tapered ribbon, 1 = boxy rectangle (default)
+    // Camera-relative rendering: chunkBaseOffset above is (world - camera); these carry the
+    // exact ABSOLUTE chunk origin for the hash/clump/wind-phase seeds (must never be relative
+    // or blades re-roll as the camera moves).
+    float absBaseX;
+    float absBaseY;
+    float absBaseZ;
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -77,14 +83,14 @@ void main() {
                      float((packed >> 27) & 0xFu)) / 15.0;
     vTex = inTex & 0xFFFFu;
 
-    // Min corner of the voxel's top face in world space (voxel occupies [p, p+1]; top at y+1).
+    // Min corner of the voxel's top face, CAMERA-RELATIVE (all position math below).
     vec3 cellBase = pc.chunkBaseOffset + vec3(lx, ly + 1.0, lz);
-    // Hash-domain coordinates: world positions WRAPPED to a 2048-unit period before any
-    // hashing/phase math. Raw world coords break float precision inside hash21 far from
-    // the origin (fract(400000 * 127.1) has no fractional bits) — clump centers and
-    // jitter degenerate and every blade in a voxel stacks into one spike. cellBase is
-    // integer-exact, so mod() is exact; the 2km repeat is imperceptible.
-    vec3 cellHash = mod(cellBase, 2048.0);
+    // Hash-domain coordinates: ABSOLUTE world cell (exact integers via pc.absBase*), WRAPPED
+    // to a 2048-unit period before any hashing/phase math. Raw far coords break float
+    // precision inside hash21 (fract(400000 * 127.1) has no fractional bits), and RELATIVE
+    // coords would re-roll every blade as the camera moves. absBase + local is integer-exact,
+    // so mod() is exact; the 2km repeat is imperceptible.
+    vec3 cellHash = mod(vec3(pc.absBaseX, pc.absBaseY, pc.absBaseZ) + vec3(lx, ly + 1.0, lz), 2048.0);
 
     int blade  = gl_VertexIndex / 6;
     int corner = gl_VertexIndex - blade * 6;

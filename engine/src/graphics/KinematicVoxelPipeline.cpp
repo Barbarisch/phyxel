@@ -204,6 +204,10 @@ void KinematicVoxelPipeline::recordDraws(
         // baked light sampled at the object's position (Phase 4: furniture reacts to lighting).
         struct PushConsts { glm::mat4 model; glm::vec4 bakedLight; } pc;
         pc.model = it->second.currentTransform;
+        // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
+        // (world - camera); baked-light sampling below stays ABSOLUTE world.
+        pc.model[3] = glm::vec4(
+            glm::vec3(glm::dvec3(glm::vec3(pc.model[3])) - glm::dvec3(m_cameraWorld)), 1.0f);
         pc.bakedLight = glm::vec4(1.0f);
         if (m_lightSampler) {
             // Sample ~1 cube above the object origin (interior air cell, not the floor it rests on).

@@ -229,6 +229,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     static range covers it). **Next-time test design: fix the Phase-2 "boot anchor ≠ player
     spawn" gap FIRST (anchor the stream-in boot at the game.json player spawn), then the
     spawn-swap test is trivial — and it fixes a real bug at the same time.**
+    **ACTIVE FIX WORKSTREAM (started 2026-07-17, post-commit 7ef8214):**
+    [`docs/CameraRelativeRendering.md`](CameraRelativeRendering.md) — camera-at-origin design,
+    5 increments, verification poses + the 12%→~1% frame-diff gate. Survey of the transform
+    plumbing in progress; implement increments in order, visual A/B each.
   - **NEXT (pick one):** commit 4.2b+4.4 (user approval) → then **4.4 stage 5** terrain-aware
     vertical banding (replace vRadius=min(r,2) with per-column surface-aware bands — fixes peaks
     >2 bands above player never streaming; sealed chunks make it affordable) or **4.3**

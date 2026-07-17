@@ -71,6 +71,9 @@ public:
     Params&       params()       { return m_params; }
     const Params& params() const { return m_params; }
 
+    /// Camera-relative rendering: true camera world position, set per frame before draws.
+    void setCameraWorld(const glm::vec3& camPos) { m_cameraWorld = camPos; }
+
 private:
     void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
 
@@ -80,6 +83,7 @@ private:
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
     VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;  // depth-only cutout caster (may be null)
     Params           m_params;
+    glm::vec3        m_cameraWorld{0.0f};   // per-frame camera position (camera-relative rendering)
 };
 
 } // namespace Graphics
