@@ -114,8 +114,13 @@ void main() {
 
     outNormal = normalize(mat3(pc.modelMatrix) * localNormal);
 
-    // Shadow coordinate (bias * lightSpace precombined on CPU)
-    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
+    // Shadow coordinate (bias * lightSpace precombined on CPU).
+    // NORMAL-OFFSET sampling, ported from static_voxel.vert (same constant): nudge the
+    // receiver along its surface normal before the light-space transform, so depth-compare
+    // ties on faces parallel to the light (worst at a high sun) stop speckling. Without this,
+    // animated characters/furniture show crawling shadow acne that static terrain doesn't.
+    const float kShadowNormalOffset = 0.15;
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos + outNormal * kShadowNormalOffset, 1.0);
 
     flags        = 0u;
     textureIndex = inTextureIndex;

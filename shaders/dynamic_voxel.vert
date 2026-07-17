@@ -252,8 +252,11 @@ void main() {
     // Rotate normal
     outNormal = rotateByQuaternion(normal, inRotation);
 
-    // Shadow coord (bias * lightSpace precombined on CPU)
-    shadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
+    // Shadow coord (bias * lightSpace precombined on CPU).
+    // NORMAL-OFFSET sampling, ported from static_voxel.vert (same constant) — see
+    // kinematic_voxel.vert for rationale (kills shadow acne on debris under a high sun).
+    const float kShadowNormalOffset = 0.15;
+    shadowCoord = ubo.biasedLightSpace * vec4(worldPos + outNormal * kShadowNormalOffset, 1.0);
     
     // Dummy flags
     flags = 0u;
