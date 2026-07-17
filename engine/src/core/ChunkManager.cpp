@@ -423,7 +423,70 @@ void ChunkManager::rebuildChunkFaces(Chunk& chunk) {
     chunk.setNeedsUpdate(true);  // Mark for GPU buffer update
 }
 
+// Phase 4.4: is every boundary cell of this chunk capped by a VISIBLE SOLID cube in the
+// adjacent chunk? (The chunk itself is already known uniform-solid.) A missing neighbour is
+// conservatively "not capped" — the chunk meshes its boundary wall exactly as before and
+// re-evaluates when the neighbour streams in (its arrival ripples an idle remesh here).
+bool ChunkManager::isChunkCapped(const Chunk& chunk) {
+    const glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+    static const glm::ivec3 kDirs[6] = {
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (const glm::ivec3& d : kDirs) {
+        const Chunk* n = getChunkAtCoord(cc + d);
+        if (!n) return false;
+        const ChunkVoxelStore& ns = n->getVoxelStore();
+        if (ns.isUniform()) {
+            // O(1): a uniform neighbour caps us iff it is visible-solid everywhere — the
+            // common deep-stack case, which is what makes sealing whole mountains cheap.
+            if (!ns.visible(0)) return false;
+            continue;
+        }
+        // Dense neighbour: scan its boundary layer facing us (1024 cells). The layer we care
+        // about is the one TOUCHING this chunk: e.g. the +X neighbour's x=0 plane.
+        const int fx = d.x > 0 ? 0 : (d.x < 0 ? 31 : -1);
+        const int fy = d.y > 0 ? 0 : (d.y < 0 ? 31 : -1);
+        const int fz = d.z > 0 ? 0 : (d.z < 0 ? 31 : -1);
+        for (int a = 0; a < 32; ++a) {
+            for (int b = 0; b < 32; ++b) {
+                const int x = fx >= 0 ? fx : a;
+                const int y = fy >= 0 ? fy : (fx >= 0 ? a : b);
+                const int z = fz >= 0 ? fz : b;
+                const size_t idx = static_cast<size_t>(z) + static_cast<size_t>(y) * 32 +
+                                   static_cast<size_t>(x) * 1024;
+                if (!n->visibleSolidCubeAtIndex(idx)) return false;
+            }
+        }
+    }
+    return true;
+}
+
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
+    // ── Phase 4.4 uniform-chunk short-circuit ─────────────────────────────────────
+    // ~4 of 5 resident chunks on tall terrain are uniform (fully-buried solid or pure sky).
+    // Neither needs the 5x 32k-cell mesh/bake scans below. Sealed chunks additionally leave
+    // the physics query list and become full occluders; any edit unseals them at the edit
+    // site (Chunk::unsealForEdit) and the next managed rebuild lands back here.
+    {
+        const ChunkVoxelStore& store = chunk.getVoxelStore();
+        const bool noSubMicro = chunk.getStaticSubcubeCount() == 0 &&
+                                chunk.getStaticMicrocubeCount() == 0;
+        // materializedCubeCount(): O(1) for never-touched chunks (empty overlay vector); the
+        // guard keeps a mutated overlay Cube from hiding inside a "uniform" classification.
+        if (store.isUniform() && noSubMicro && chunk.materializedCubeCount() == 0) {
+            if (store.solidCount() == 0) {
+                chunk.applyAirRenderState();
+                return;
+            }
+            if (store.visible(0) && isChunkCapped(chunk)) {
+                chunk.applySealedRenderState();
+                return;
+            }
+        }
+        // Not (or no longer) sealable: if a stale seal is set (e.g. the neighbour cap broke
+        // without an edit on THIS chunk), drop it and rejoin physics before the full mesh.
+        if (chunk.isSealed()) chunk.unsealForEdit();
+    }
+
     // Provide a neighbor lookup function that can check cubes in adjacent chunks.
     // PERF: caches the last-resolved chunk. The skylight bake's columnOpenAbove probe walks
     // ~96 cells straight up per column (×1024 columns = ~98k calls), all hitting the same few
@@ -433,15 +496,16 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     bool ncValid = false;
     glm::ivec3 ncCoord(0);
     Chunk* ncChunk = nullptr;
-    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> const Cube* {
+    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> bool {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
         if (!ncValid || chunkCoord != ncCoord) {
             ncValid = true;
             ncCoord = chunkCoord;
             ncChunk = getChunkAtCoord(chunkCoord);
         }
-        if (ncChunk) return ncChunk->getCubeAt(worldToLocalCoord(worldPos));
-        return nullptr;
+        // 4.2b: answer from the neighbour's palette store (hybrid — overlay Cube wins). The old
+        // getCubeAt here would now MATERIALIZE a 32x32 border shell of Cubes per remesh.
+        return ncChunk && ncChunk->visibleSolidCubeAt(worldToLocalCoord(worldPos));
     };
 
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
@@ -478,8 +542,11 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                         Chunk* a = above[ci];
                         if (!a) continue;
                         for (int y = 0; y < 32; ++y) {
-                            const Cube* c = a->getCubeAtIndex(static_cast<size_t>(z + y * 32 + x * 1024));
-                            if (c && c->isVisible()) { roofed = true; break; }
+                            // 4.2b: store-backed probe (getCubeAtIndex is the raw overlay read
+                            // and would miss store-only voxels — every solid roof, post-flip).
+                            if (a->visibleSolidCubeAtIndex(static_cast<size_t>(z + y * 32 + x * 1024))) {
+                                roofed = true; break;
+                            }
                         }
                     }
                     if (roofed) columnOpen[x * 32 + z] = 0;
@@ -967,10 +1034,13 @@ void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
     // streamed chunk, in the pump, on the main thread.
     Chunk* chunk = getChunkAtCoord(Utils::CoordinateUtils::worldToChunkCoord(chunkWorldOrigin));
     if (!chunk) return;
+    const ChunkVoxelStore& store = chunk->getVoxelStore();
     for (int lx = 0; lx < 32; ++lx) {
         for (int ly = 0; ly < 32; ++ly) {
             for (int lz = 0; lz < 32; ++lz) {
-                if (!chunk->getCubeAt(glm::ivec3(lx, ly, lz))) continue;
+                // 4.2b: presence from the store (getCubeAt would MATERIALIZE all 32k Cubes of
+                // every streamed chunk — the exact allocation storm the flip removes).
+                if (!store.solid(static_cast<size_t>(lz + ly * 32 + lx * 1024))) continue;
                 const int wx = chunkWorldOrigin.x + lx, wy = chunkWorldOrigin.y + ly,
                           wz = chunkWorldOrigin.z + lz;
                 if (m_gpuParticles) m_gpuParticles->setOccupied(wx, wy, wz, true);

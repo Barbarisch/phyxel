@@ -41,29 +41,53 @@ public:
 
     // Set the voxel at a flat index (z + y*32 + x*1024). Interns `material` into the palette.
     void set(size_t idx, const std::string& material, bool visible);
+    // Flip just the visible bit of an existing solid voxel (no-op on air/out-of-range).
+    void setVisible(size_t idx, bool visible);
+
+    // ── Uniform representation (Phase 4.4 stage 1) ──
+    // Fill every voxel with one material/visible state — the buried-chunk fast path.
+    void fillUniform(const std::string& material, bool visible);
+    // True while the store is representable as one value (all-air, or all one material+state).
+    bool isUniform() const;
+    // The uniform material name ("" when all-air or not uniform).
+    const std::string& uniformMaterial() const;
     // Mark a voxel empty. The palette entry is intentionally NOT reference-counted: palettes are
     // tiny (a handful of materials per chunk) and churn-free, so reclaiming entries would cost
     // more than it saves.
     void erase(size_t idx);
 
-    bool solid(size_t idx) const { return idx < kVoxels && m_idx[idx] != kEmpty; }
-    bool visible(size_t idx) const { return idx < kVoxels && (m_state[idx] & kVisible) != 0; }
+    bool solid(size_t idx) const {
+        if (idx >= kVoxels) return false;
+        return m_uniform ? m_uniformIdx != kEmpty : m_idx[idx] != kEmpty;
+    }
+    bool visible(size_t idx) const {
+        if (idx >= kVoxels) return false;
+        return ((m_uniform ? m_uniformState : m_state[idx]) & kVisible) != 0;
+    }
     // Material name at a voxel; empty string when the voxel is air.
     const std::string& material(size_t idx) const;
 
     size_t paletteSize() const { return m_palette.size(); }
-    size_t solidCount() const;
+    size_t solidCount() const { return m_solidCount; }   // O(1), maintained by set/erase
 
     // Bytes held by this store — for the Phase 4.2 RAM gate.
     size_t approxBytes() const;
 
 private:
     uint16_t intern(const std::string& material);
+    // Materialize the dense arrays from the uniform value (first non-conforming write).
+    void split();
 
     std::vector<std::string> m_palette;                      // index -> material name
     std::unordered_map<std::string, uint16_t> m_lookup;      // material name -> index
-    std::vector<uint16_t> m_idx;                             // kVoxels palette indices
-    std::vector<uint8_t> m_state;                            // kVoxels state bytes
+    // Dense per-voxel arrays — EMPTY while m_uniform (Phase 4.4: ~4 of 5 resident chunks are
+    // all-air or all-one-material; they answer from the 3 uniform fields below instead of 96 KB).
+    std::vector<uint16_t> m_idx;                             // kVoxels palette indices (dense mode)
+    std::vector<uint8_t> m_state;                            // kVoxels state bytes (dense mode)
+    size_t m_solidCount = 0;                                 // non-air voxels (kept in step)
+    bool m_uniform = true;                                   // every voxel == the uniform value
+    uint16_t m_uniformIdx = kEmpty;                          // kEmpty = uniform air
+    uint8_t m_uniformState = 0;                              // state byte when uniform-solid
 };
 
 } // namespace Phyxel

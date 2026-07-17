@@ -565,15 +565,10 @@ bool WorldStorage::loadChunkFromLegacyRows(const glm::ivec3& chunkCoord, Chunk& 
         }
 
         if (chunk.addCube(glm::ivec3(x, y, z), material)) {
-            // If the cube is invisible (but not subdivided), hide it
+            // If the cube is invisible (but not subdivided), hide it — a store write (4.2b;
+            // the old getCubeAt+setVisible would materialize a Cube per hidden voxel).
             if (!isVisible) {
-                Cube* cube = chunk.getCubeAt(glm::ivec3(x, y, z));
-                if (cube) {
-                    cube->setVisible(false);
-                    // addCube() already mirrored this voxel as visible; re-sync so the palette
-                    // store agrees with the Cube (Phase 4.2a).
-                    chunk.syncVoxelStoreAt(glm::ivec3(x, y, z));
-                }
+                chunk.setCubeVisible(glm::ivec3(x, y, z), false);
             }
             loadedCubes++;
         }

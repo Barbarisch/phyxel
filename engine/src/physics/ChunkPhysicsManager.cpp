@@ -1,5 +1,6 @@
 #include "physics/ChunkPhysicsManager.h"
 #include "core/Cube.h"
+#include "core/ChunkVoxelStore.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "physics/PhysicsWorld.h"
@@ -28,6 +29,8 @@ ChunkPhysicsManager::ChunkPhysicsManager(ChunkPhysicsManager&& other) noexcept
     , chunkOrigin(other.chunkOrigin)
 {
     other.physicsWorld = nullptr;
+    // NOT copied: m_voxelStore — it points into the moved-FROM chunk's voxelManager. The owning
+    // Chunk's move operation re-points it via setVoxelStore().
 }
 
 ChunkPhysicsManager& ChunkPhysicsManager::operator=(ChunkPhysicsManager&& other) noexcept {
@@ -39,6 +42,7 @@ ChunkPhysicsManager& ChunkPhysicsManager::operator=(ChunkPhysicsManager&& other)
         m_occupancyGrid      = std::move(other.m_occupancyGrid);
         physicsWorld         = other.physicsWorld;
         chunkOrigin          = other.chunkOrigin;
+        m_voxelStore         = nullptr;   // re-wired by the owning Chunk (see move ctor note)
 
         other.physicsWorld = nullptr;
     }
@@ -64,10 +68,10 @@ void ChunkPhysicsManager::createChunkPhysicsBody(const CubesArrayAccessFunc& get
                                                  const StaticSubcubesAccessFunc& getStaticSubcubes,
                                                  const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                                  const IndexToLocalFunc& indexToLocal,
-                                                 const CubeAccessFunc& getCube) {
+                                                 const VisibleSolidFunc& visibleSolidAt) {
     if (!physicsWorld) return;
 
-    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, visibleSolidAt);
 
     if (auto* vw = physicsWorld->getVoxelWorld())
         vw->registerGrid(&m_occupancyGrid);
@@ -82,21 +86,27 @@ void ChunkPhysicsManager::registerPrebuiltGrid() {
     LOG_TRACE("ChunkPhysicsManager", "Prebuilt occupancy grid registered");
 }
 
+void ChunkPhysicsManager::unregisterGridFromWorld() {
+    if (!physicsWorld) return;
+    if (auto* vw = physicsWorld->getVoxelWorld())
+        vw->unregisterGrid(&m_occupancyGrid);
+}
+
 void ChunkPhysicsManager::updateChunkPhysicsBody(const CubesArrayAccessFunc& getCubes,
                                                  const StaticSubcubesAccessFunc& getStaticSubcubes,
                                                  const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                                  const IndexToLocalFunc& indexToLocal,
-                                                 const CubeAccessFunc& getCube) {
+                                                 const VisibleSolidFunc& visibleSolidAt) {
     // Occupancy grid is updated incrementally via add/removeCollisionEntities
-    batchUpdateCollisions(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    batchUpdateCollisions(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, visibleSolidAt);
 }
 
 void ChunkPhysicsManager::forcePhysicsRebuild(const CubesArrayAccessFunc& getCubes,
                                               const StaticSubcubesAccessFunc& getStaticSubcubes,
                                               const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                               const IndexToLocalFunc& indexToLocal,
-                                              const CubeAccessFunc& getCube) {
-    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+                                              const VisibleSolidFunc& visibleSolidAt) {
+    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, visibleSolidAt);
     LOG_TRACE("ChunkPhysicsManager", "Occupancy grid rebuilt");
 }
 
@@ -105,13 +115,12 @@ void ChunkPhysicsManager::addCollisionEntity(const glm::ivec3& /*localPos*/) {
 }
 
 void ChunkPhysicsManager::addCollisionEntity(const glm::ivec3& localPos,
-                                             const CubeAccessFunc& getCube,
+                                             const VisibleSolidFunc& visibleSolidAt,
                                              const MicrocubesAccessFunc& getMicrocubes,
                                              const StaticSubcubesAccessFunc& getStaticSubcubes) {
-    const Cube* cube = getCube(localPos);
     bool hasSubcubes = !getStaticSubcubes(localPos).empty();
-    if (cube && cube->isVisible() && !hasSubcubes) {
-        createCubeCollisionShape(localPos, getCube);
+    if (visibleSolidAt(localPos) && !hasSubcubes) {
+        createCubeCollisionShape(localPos, visibleSolidAt);
         return;
     }
 
@@ -143,7 +152,7 @@ void ChunkPhysicsManager::removeCollisionEntities(const glm::ivec3& localPos) {
     collisionNeedsUpdate = true;
 }
 
-bool ChunkPhysicsManager::hasExposedFaces(const glm::ivec3& localPos, const CubeAccessFunc& getCube) const {
+bool ChunkPhysicsManager::hasExposedFaces(const glm::ivec3& localPos, const VisibleSolidFunc& visibleSolidAt) const {
     static const glm::ivec3 dirs[6] = {
         {0,0,1},{0,0,-1},{1,0,0},{-1,0,0},{0,1,0},{0,-1,0}
     };
@@ -151,8 +160,7 @@ bool ChunkPhysicsManager::hasExposedFaces(const glm::ivec3& localPos, const Cube
         glm::ivec3 n = localPos + d;
         if (n.x < 0 || n.x >= 32 || n.y < 0 || n.y >= 32 || n.z < 0 || n.z >= 32)
             return true;
-        const Cube* nc = getCube(n);
-        if (!nc || !nc->isVisible()) return true;
+        if (!visibleSolidAt(n)) return true;
     }
     return false;
 }
@@ -161,9 +169,9 @@ void ChunkPhysicsManager::batchUpdateCollisions(const CubesArrayAccessFunc& getC
                                                 const StaticSubcubesAccessFunc& getStaticSubcubes,
                                                 const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                                 const IndexToLocalFunc& indexToLocal,
-                                                const CubeAccessFunc& getCube) {
+                                                const VisibleSolidFunc& visibleSolidAt) {
     if (!collisionNeedsUpdate) return;
-    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, visibleSolidAt);
     collisionNeedsUpdate = false;
 }
 
@@ -171,14 +179,20 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
                                                       const StaticSubcubesAccessFunc& getStaticSubcubes,
                                                       const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                                       const IndexToLocalFunc& indexToLocal,
-                                                      const CubeAccessFunc& /*getCube*/) {
+                                                      const VisibleSolidFunc& /*visibleSolidAt*/) {
     m_occupancyGrid.clear();
     m_occupancyGrid.setChunkOrigin(chunkOrigin);
 
+    // 4.2b hybrid scan: static voxels live in the palette store; a materialized overlay Cube
+    // wins where present. Null store (bare-vector unit tests) = the old pure-Cube scan.
     const auto& cubes = getCubes();
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        const Cube* cube = cubes[i].get();
-        if (!cube || !cube->isVisible()) continue;
+    const size_t scanCount = m_voxelStore ? ChunkVoxelStore::kVoxels : cubes.size();
+    for (size_t i = 0; i < scanCount; ++i) {
+        const Cube* cube = i < cubes.size() ? cubes[i].get() : nullptr;
+        bool visibleSolid;
+        if (cube) visibleSolid = cube->isVisible();
+        else visibleSolid = m_voxelStore && m_voxelStore->visible(i);
+        if (!visibleSolid) continue;
         m_occupancyGrid.setCube(indexToLocal(i), true);
     }
 
@@ -225,7 +239,7 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
 }
 
 void ChunkPhysicsManager::updateNeighborCollisionShapes(const glm::ivec3& /*localPos*/,
-                                                        const CubeAccessFunc& /*getCube*/,
+                                                        const VisibleSolidFunc& /*visibleSolidAt*/,
                                                         const MicrocubesAccessFunc& /*getMicrocubes*/,
                                                         const StaticSubcubesAccessFunc& /*getStaticSubcubes*/) {
     // Occupancy grid tracks all filled positions — no neighbor exposure update needed.
@@ -235,10 +249,10 @@ void ChunkPhysicsManager::endBulkOperation(const CubesArrayAccessFunc& getCubes,
                                            const StaticSubcubesAccessFunc& getStaticSubcubes,
                                            const StaticMicrocubesAccessFunc& getStaticMicrocubes,
                                            const IndexToLocalFunc& indexToLocal,
-                                           const CubeAccessFunc& getCube) {
+                                           const VisibleSolidFunc& visibleSolidAt) {
     if (!m_isInBulkOperation) return;
     m_isInBulkOperation = false;
-    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, getCube);
+    buildInitialCollisionShapes(getCubes, getStaticSubcubes, getStaticMicrocubes, indexToLocal, visibleSolidAt);
 }
 
 void ChunkPhysicsManager::validateCollisionSystem()    const {}
@@ -246,7 +260,7 @@ void ChunkPhysicsManager::debugLogSpatialGrid()        const {}
 void ChunkPhysicsManager::debugPrintSpatialGridStats() const {}
 
 void ChunkPhysicsManager::createCubeCollisionShape(const glm::ivec3& localPos,
-                                                    const CubeAccessFunc& /*getCube*/) {
+                                                    const VisibleSolidFunc& /*visibleSolidAt*/) {
     m_occupancyGrid.setCube(localPos, true);
     m_occupancyGrid.markSubdivided(localPos, false);
 }

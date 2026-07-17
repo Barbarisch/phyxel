@@ -3,6 +3,7 @@
 #include "core/Cube.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
+#include "core/ChunkVoxelStore.h"
 #include "core/MaterialRegistry.h"
 #include "core/Types.h"
 #include "utils/Logger.h"
@@ -68,7 +69,9 @@ ChunkRenderManager::ChunkRenderManager()
     , device(VK_NULL_HANDLE)
     , physicalDevice(VK_NULL_HANDLE)
 {
-    faces.reserve(32 * 32 * 32 * 6); // Reserve for maximum faces
+    // No eager faces.reserve: the old 32³·6 reserve was ~4.5 MB of commit charge PER CHUNK
+    // (Phase 4.4 survey) for a vector that greedy meshing keeps in the hundreds-to-thousands.
+    // Geometric growth during the first mesh costs a handful of reallocs once, ever.
 }
 
 ChunkRenderManager::~ChunkRenderManager() {
@@ -152,6 +155,30 @@ void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& 
     }
 }
 
+void ChunkRenderManager::clearForUniform() {
+    // Release, don't just clear — a chunk that transitions to sealed must give back its mesh
+    // memory, and a never-meshed chunk must not allocate any of this in the first place.
+    std::vector<InstanceData>().swap(faces);
+    std::vector<InstanceData>().swap(m_dirScratch);
+    numInstances = 0;
+    m_dirRangeOffsets.fill(0);
+    std::vector<uint8_t>().swap(m_skyLight);
+    std::vector<uint8_t>().swap(m_blockR);
+    std::vector<uint8_t>().swap(m_blockG);
+    std::vector<uint8_t>().swap(m_blockB);
+    std::vector<uint8_t>().swap(m_solidVis);
+    std::vector<int>().swap(m_cellMat);
+    std::vector<uint8_t>().swap(m_cellDamage);
+    std::vector<uint8_t>().swap(m_prevBorderLight);
+    m_subOcc.clear();
+    m_microOcc.clear();
+    m_grassInstances.clear();
+    m_foliageInstances.clear();
+    m_flamingVoxels.clear();
+    m_lightBordersChanged = false;
+    needsUpdate = false;   // nothing to upload; draws are skipped by numInstances == 0
+}
+
 bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) const {
     if (m_skyLight.empty() || m_blockR.empty()) return false;
     if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
@@ -168,7 +195,8 @@ void ChunkRenderManager::rebuildAllFaces(
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
     const NeighborLightFunc& getNeighborLight,
-    const std::vector<uint8_t>* columnOpenMask)
+    const std::vector<uint8_t>* columnOpenMask,
+    const ChunkVoxelStore* voxelStore)
 {
     // T0 instrumentation: time the whole mesh op (greedy mesh + light bake). Records on scope exit
     // so every return path is covered. See docs/OffThreadMeshingPlan.md.
@@ -197,7 +225,7 @@ void ChunkRenderManager::rebuildAllFaces(
     // Rebuild faces for each voxel type. Cubes first: rebuildCubeFaces fills m_solidVis (cube-level
     // occupancy) which the sub/micro occlusion reuses. Then build the leaf sub/micro occupancy so
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
-    rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask);
+    rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
@@ -244,7 +272,8 @@ void ChunkRenderManager::rebuildCubeFaces(
     const std::vector<std::unique_ptr<Microcube>>& microcubes,
     const glm::ivec3& worldOrigin,
     const NeighborLookupFunc& getNeighborCube,
-    const std::vector<uint8_t>* columnOpenMask)
+    const std::vector<uint8_t>* columnOpenMask,
+    const ChunkVoxelStore* voxelStore)
 {
     // Greedy meshing for cube faces: merge coplanar, same-material visible faces into
     // rectangles, emitting one sized instance per rectangle (packCubeFaceDataSized)
@@ -276,10 +305,30 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<uint8_t>& cellDamage = m_cellDamage;
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
-    for (size_t ci = 0; ci < cubes.size(); ++ci) {
-        const Cube* cube = cubes[ci].get();
-        if (!cube || !cube->isVisible()) continue;
-        glm::ivec3 p = cube->getPosition();
+    // 4.2b hybrid scan: every solid voxel is in the palette store; a materialized overlay Cube
+    // (physics/damage state) wins where present. Without a store (unit tests) this degenerates
+    // to the old pure-Cube scan.
+    const size_t scanCount = voxelStore ? ChunkVoxelStore::kVoxels : cubes.size();
+    for (size_t ci = 0; ci < scanCount; ++ci) {
+        const Cube* cube = ci < cubes.size() ? cubes[ci].get() : nullptr;
+        float damage = 0.0f;
+        const std::string* mnamePtr;
+        if (cube) {
+            if (!cube->isVisible()) continue;
+            mnamePtr = &cube->getMaterialName();
+            damage = cube->getAccumulatedDamage();
+        } else if (voxelStore && voxelStore->solid(ci)) {
+            if (!voxelStore->visible(ci)) continue;
+            mnamePtr = &voxelStore->material(ci);   // store voxels carry no damage
+        } else {
+            continue;
+        }
+        // Cube voxels carry their own position (hand-built test vectors may not be
+        // index-aligned); store voxels derive it from the index (z + y*32 + x*1024).
+        glm::ivec3 p = cube ? cube->getPosition()
+                            : glm::ivec3(static_cast<int>(ci / 1024),
+                                         static_cast<int>((ci % 1024) / 32),
+                                         static_cast<int>(ci % 32));
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
@@ -288,11 +337,11 @@ void ChunkRenderManager::rebuildCubeFaces(
         // version would normalise by the material's break toughness).
         {
             constexpr float kDamageRef = 30.0f;
-            float f = cube->getAccumulatedDamage() / kDamageRef;
+            float f = damage / kDamageRef;
             f = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
             cellDamage[cell] = static_cast<uint8_t>(f * 15.0f + 0.5f);
         }
-        const std::string& mname = cube->getMaterialName();
+        const std::string& mname = *mnamePtr;
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
             MatFace mf{};
@@ -360,8 +409,8 @@ void ChunkRenderManager::rebuildCubeFaces(
             if (columnOpenMask) return (*columnOpenMask)[x * 32 + z] != 0;
             if (!getNeighborCube) return true;
             for (int wy = N; wy < N + kSkyProbeHeight; ++wy) {
-                const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, wy, z));
-                if (nc && nc->isVisible()) return false;  // roofed somewhere above
+                if (getNeighborCube(worldOrigin + glm::ivec3(x, wy, z)))
+                    return false;  // roofed somewhere above
             }
             return true;
         };
@@ -553,8 +602,7 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N)
             return solidVis[cellIdx(x, y, z)] != 0;
         if (getNeighborCube) {
-            const Cube* nc = getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
-            return nc && nc->isVisible();
+            return getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
         }
         return false;  // chunk boundary, no lookup → face exposed
     };
@@ -1484,20 +1532,31 @@ void ChunkRenderManager::updateVulkanBuffer() {
     // Face buffer (cube/sub/micro). A chunk may legitimately have no solid faces but still have
     // foliage/grass (e.g. a leaf-only bush, whose billboarded leaves emit no faces), so the grass
     // and foliage uploads below are NOT gated on faces being non-empty.
-    if (!faces.empty() && renderBuffer.getMappedMemory()) {
-        // ensureBufferCapacity may call reallocateBuffer() which remaps memory —
-        // fetch the pointer AFTER this call so we never write to a freed mapping.
-        ensureBufferCapacity(faces.size());
-        void* mappedMem = renderBuffer.getMappedMemory();
-        if (mappedMem) {
-            renderBuffer.updateMaxUsage(faces.size());
-            memcpy(mappedMem, faces.data(), sizeof(InstanceData) * faces.size());
+    if (!faces.empty()) {
+        if (!renderBuffer.getMappedMemory()) {
+            // Deferred creation (Phase 4.4): this chunk skipped its face buffer at stream-in
+            // (sealed/air) and has just unsealed — allocate now, which also uploads `faces`.
+            if (device != VK_NULL_HANDLE && physicalDevice != VK_NULL_HANDLE)
+                renderBuffer.createBuffer(faces);
+        } else {
+            // ensureBufferCapacity may call reallocateBuffer() which remaps memory —
+            // fetch the pointer AFTER this call so we never write to a freed mapping.
+            ensureBufferCapacity(faces.size());
+            void* mappedMem = renderBuffer.getMappedMemory();
+            if (mappedMem) {
+                renderBuffer.updateMaxUsage(faces.size());
+                memcpy(mappedMem, faces.data(), sizeof(InstanceData) * faces.size());
+            }
         }
     }
 
     // Grass parallel buffer: grow if a terrain edit added grass beyond capacity, then upload.
     // (Grass only exists on visible top faces, so faces is non-empty whenever grass is.)
-    if (!m_grassInstances.empty() && grassBuffer.getMappedMemory()) {
+    if (!m_grassInstances.empty() && !grassBuffer.getMappedMemory() &&
+        device != VK_NULL_HANDLE && physicalDevice != VK_NULL_HANDLE) {
+        grassBuffer.createBufferRaw(m_grassInstances.data(), m_grassInstances.size(),
+                                    sizeof(GrassInstanceData), m_grassInstances.size());
+    } else if (!m_grassInstances.empty() && grassBuffer.getMappedMemory()) {
         if (m_grassInstances.size() > grassBuffer.getCapacity()) {
             grassBuffer.reallocateBuffer(m_grassInstances.size());
         }
@@ -1509,7 +1568,11 @@ void ChunkRenderManager::updateVulkanBuffer() {
     }
 
     // Foliage parallel buffer (same pattern as grass).
-    if (!m_foliageInstances.empty() && foliageBuffer.getMappedMemory()) {
+    if (!m_foliageInstances.empty() && !foliageBuffer.getMappedMemory() &&
+        device != VK_NULL_HANDLE && physicalDevice != VK_NULL_HANDLE) {
+        foliageBuffer.createBufferRaw(m_foliageInstances.data(), m_foliageInstances.size(),
+                                      sizeof(FoliageInstanceData), m_foliageInstances.size());
+    } else if (!m_foliageInstances.empty() && foliageBuffer.getMappedMemory()) {
         if (m_foliageInstances.size() > foliageBuffer.getCapacity()) {
             foliageBuffer.reallocateBuffer(m_foliageInstances.size());
         }
@@ -1534,10 +1597,10 @@ void ChunkRenderManager::updateSingleCubeTexture(
     uint16_t textureIndex,
     const std::vector<std::unique_ptr<Cube>>& cubes)
 {
-    // Find the cube
-    const Cube* cube = getCubeAtPosition(localPos, cubes);
-    if (!cube) return;
-    
+    // Presence is gated by the caller (Chunk checks the voxel store — 4.2b: a solid voxel may
+    // have no Cube object). `cubes` is kept in the signature for interface stability.
+    (void)cubes;
+
     // Efficiently update only the affected faces in the buffer
     if (!renderBuffer.getMappedMemory()) return;
     
@@ -1650,15 +1713,19 @@ void ChunkRenderManager::createVulkanBuffer() {
         LOG_DEBUG("ChunkRender", "createVulkanBuffer skipped: no Vulkan device (headless)");
         return;
     }
-    renderBuffer.createBuffer(faces);
-    // Parallel grass buffer, sized to the grass instances (small: ≤1024/chunk). Capacity floor of 1
-    // keeps a valid mapped buffer even for grassless chunks (the renderer skips them by count).
-    grassBuffer.createBufferRaw(m_grassInstances.data(), m_grassInstances.size(),
-                                sizeof(GrassInstanceData),
-                                std::max<size_t>(m_grassInstances.size(), 1));
-    foliageBuffer.createBufferRaw(m_foliageInstances.data(), m_foliageInstances.size(),
-                                  sizeof(FoliageInstanceData),
-                                  std::max<size_t>(m_foliageInstances.size(), 1));
+    // Phase 4.4 empty-guard: each buffer is created only when it has data. Sealed/buried and
+    // pure-air chunks (the majority of residency on tall terrain) allocate NOTHING here — the
+    // old unconditional path gave every such chunk a ~586 KB mapped face buffer plus two 8 B
+    // buffers (3 vkAllocateMemory against the AMD/Intel 4096 ceiling). updateVulkanBuffer
+    // creates on demand the first time a mesh produces instances. Every draw pass already
+    // skips chunks by instance/count before binding, so a never-created buffer is never bound.
+    if (!faces.empty()) renderBuffer.createBuffer(faces);
+    if (!m_grassInstances.empty())
+        grassBuffer.createBufferRaw(m_grassInstances.data(), m_grassInstances.size(),
+                                    sizeof(GrassInstanceData), m_grassInstances.size());
+    if (!m_foliageInstances.empty())
+        foliageBuffer.createBufferRaw(m_foliageInstances.data(), m_foliageInstances.size(),
+                                      sizeof(FoliageInstanceData), m_foliageInstances.size());
 }
 
 void ChunkRenderManager::cleanupVulkanResources() {

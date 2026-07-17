@@ -154,13 +154,17 @@ std::vector<uint8_t> ChunkBlobCodec::encode(const Chunk& chunk, Counts* outCount
     std::vector<Run> runs;
     uint32_t cubeCount = 0;
     {
+        // 4.2b hybrid read: the palette store is the authority for static voxels; a materialized
+        // overlay Cube (getCubeAtIndex — the RAW slot read) wins where present, so unsynced
+        // direct Cube mutations still save correctly.
+        const ChunkVoxelStore& store = chunk.getVoxelStore();
         uint32_t runIdx = 0;
         uint32_t runLen = 0;
         for (size_t i = 0; i < kCubesPerChunk; ++i) {
             const Cube* cube = chunk.getCubeAtIndex(i);
             uint32_t idx = 0;
-            if (cube && cube->isVisible()) {
-                idx = palette.indexOf(cube->getMaterialName());
+            if (cube ? cube->isVisible() : store.visible(i)) {
+                idx = palette.indexOf(cube ? cube->getMaterialName() : store.material(i));
                 ++cubeCount;
             }
             if (runLen > 0 && idx == runIdx && runLen < 0xFFFF) {
@@ -280,8 +284,14 @@ bool ChunkBlobCodec::decode(const uint8_t* data, size_t size, Chunk& chunk,
         if (!r.ok || runLen == 0 || idx >= paletteCount) return false;
         if (cell + runLen > kCubesPerChunk) return false;
         if (idx != 0) {
-            for (uint32_t j = 0; j < runLen; ++j) {
-                chunk.addCube(indexToLocal(static_cast<uint32_t>(cell + j)), palette[idx]);
+            if (runLen == kCubesPerChunk) {
+                // Whole chunk = one visible material: O(1) uniform fill (Phase 4.4). Keeps
+                // DB-loaded buried chunks in the uniform representation instead of 32k addCubes.
+                chunk.fillAllCubes(palette[idx]);
+            } else {
+                for (uint32_t j = 0; j < runLen; ++j) {
+                    chunk.addCube(indexToLocal(static_cast<uint32_t>(cell + j)), palette[idx]);
+                }
             }
             decodedCubes += runLen;
         }

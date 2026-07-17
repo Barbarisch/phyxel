@@ -136,9 +136,20 @@ public:
     // Check if callbacks have been configured
     bool hasCallbacks() const { return static_cast<bool>(m_getCubes); }
 
-    // Fast lookups
+    // Fast lookups. Since Phase 4.2b these MATERIALIZE: a solid voxel that lives only in the
+    // palette store gets a heap Cube allocated on first access (carrying the store's
+    // material/visible), so the ~158 existing Cube* callers keep working unchanged. Presence
+    // questions must go through hasVoxelAt/getVoxelType instead — those never allocate.
     Cube* getCubeAtFast(const glm::ivec3& localPos);
     const Cube* getCubeAtFast(const glm::ivec3& localPos) const;
+
+    // Set a solid cube voxel's visible flag without materializing (store write + write-through
+    // to an already-materialized overlay Cube). The legacy row-per-voxel DB load uses this.
+    void setCubeVisible(const glm::ivec3& localPos, bool visible);
+
+    // Fill every cell with a solid cube of `material` — store-only, no Cube allocations
+    // (Chunk::populateWithCubes).
+    void fillAllVoxels(const std::string& material);
     
     // Utility
     static size_t subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
@@ -148,18 +159,17 @@ public:
     // dense `cubes` array already answers in O(1) (see kIdx below). They had no external consumers.
     const std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash>& getSubcubeMap() const { return subcubeMap; }
 
-    // Palette-compressed static voxel state (Phase 4.2a). Currently a read-only MIRROR of the
-    // authoritative `cubes` vector, maintained by add/removeCube + initializeVoxelMaps. Exposed
-    // so the scan-heavy readers (mesher, occupancy build) can switch to it, and so tests can
-    // assert it matches the Cubes. Authority flips in 4.2b, at which point static voxels stop
-    // allocating a Cube at all.
+    // Palette-compressed static voxel state — THE AUTHORITY for cube presence/material/visible
+    // since Phase 4.2b. addCube writes here and allocates nothing; the dense `cubes` vector is a
+    // sparse MATERIALIZED OVERLAY holding heap Cubes only where a caller asked for one (physics/
+    // damage state). Invariants: (1) every solid cube voxel is in the store, materialized or
+    // not; (2) where an overlay Cube exists, ITS material/visible win at every scan site (the
+    // hybrid read) — so direct Cube* mutation stays correct even without an explicit sync.
     const ChunkVoxelStore& getVoxelStore() const { return voxelStore; }
 
-    // Re-read one voxel from the authoritative Cube into the palette store. Needed by any path
-    // that mutates a Cube's material/visible OUTSIDE add/removeCube — currently just the legacy
-    // row-per-voxel load in WorldStorage, which addCube()s and then flips visible directly.
-    // Without this the mirror silently disagrees with the Cube until the next
-    // initializeVoxelMaps() rebuild, which would become a real bug once authority flips (4.2b).
+    // Re-read one voxel from its materialized overlay Cube into the palette store. Optional
+    // hardening after direct Cube* mutation: scan sites already prefer the overlay Cube (hybrid
+    // read), but syncing keeps the store truthful for store-only readers.
     void syncStoreAt(const glm::ivec3& localPos);
 
     // Helper methods for accessing voxels (public for Chunk delegation)
@@ -198,11 +208,19 @@ private:
     static constexpr bool inBounds(const glm::ivec3& p) {
         return p.x >= 0 && p.x < 32 && p.y >= 0 && p.y < 32 && p.z >= 0 && p.z < 32;
     }
-    // O(1) position -> Cube*, straight off the dense array (nullptr if out of bounds/empty).
+    // O(1) position -> materialized overlay Cube*, straight off the dense array. Returns nullptr
+    // for air AND for store-only voxels — this is the RAW read; it never allocates. Presence
+    // must be answered by the store.
     Cube* cubeAt(const glm::ivec3& localPos) const;
 
-    // Palette-compressed static state for the 32³ cube grid (Phase 4.2a mirror). ~96 KB/chunk
-    // against the ~10.5 MB the Cubes cost, so mirroring is <1% while it is being proven out.
+    // Materialize the overlay Cube for a solid store voxel (allocates on first access; returns
+    // the existing Cube on repeat access; nullptr for air). Backs getCubeAtFast/getCubeHelper.
+    // Lazily sizes the `cubes` vector to 32768 slots, so untouched chunks don't even pay the
+    // 256 KB pointer array.
+    Cube* materializeAt(const glm::ivec3& localPos) const;
+
+    // Palette-compressed static state for the 32³ cube grid — authoritative (Phase 4.2b).
+    // ~96 KB/chunk against the ~7.6 MB the per-voxel Cubes cost.
     ChunkVoxelStore voxelStore;
 
     // Sparse hierarchy maps — only populated where a cube is actually subdivided.

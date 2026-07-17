@@ -243,6 +243,8 @@ public:
     
     // Rebuild faces with cross-chunk occlusion culling
     void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk);
+    // Phase 4.4: all six neighbour boundary layers visible-solid? (chunk known uniform-solid)
+    bool isChunkCapped(const Chunk& chunk);
     
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);

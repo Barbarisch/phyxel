@@ -38,6 +38,8 @@ public:
     // ---- Cube level ----
     void setCube(const glm::ivec3& localPos, bool filled);
     bool isCubeFilled(const glm::ivec3& localPos) const;
+    // Number of filled cube-level cells (collision-entity count for diagnostics/tests).
+    size_t cubeCount() const { return m_cubes.count(); }
 
     // Mark a cube position as subdivided (individual subcube bits take over).
     // When subdivided, this position is NOT treated as a solid cube during queries.

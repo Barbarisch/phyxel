@@ -83,6 +83,9 @@ private:
     glm::ivec3 m_firstMirrorLocal{0};              // Local pos of first mirror cube (valid when m_hasMirror)
     void recomputeRenderFlags();                   // Rescan cubes for mirror/transparent materials; updates caches above
 
+    // Sealed state (Phase 4.4) — written only by ChunkManager (friend) during seal evaluation.
+    bool m_sealed = false;
+
     // Occlusion visibility graph (Minecraft-style "cave culling"). m_faceConnect[f]
     // is a bitmask of which of the 6 chunk faces sight can reach from face f through
     // non-opaque cells. Faces: 0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+. Recomputed on
@@ -110,14 +113,28 @@ public:
     
     // Basic properties
     glm::ivec3 getWorldOrigin() const { return worldOrigin; }
-    size_t getCubeCount() const { return cubes.size(); }
-    /// True if the chunk holds at least one solid cube/subcube/microcube. The cube
-    /// store may be sparse (pushed) or dense (32768 nullptr slots), so size() can't
-    /// answer this — scan for a non-null entry (cheap pointer null-checks).
+    /// Number of SOLID cube voxels (4.2b: answered by the palette store in O(1)). Note this
+    /// used to return the raw slot-array size (32768 for any loaded chunk) — every caller
+    /// actually wanted "how many cubes are there", which this now truthfully is.
+    size_t getCubeCount() const { return voxelManager.getVoxelStore().solidCount(); }
+    /// True if the chunk holds at least one solid cube/subcube/microcube. O(1): cube presence
+    /// is the store's maintained count (every solid cube voxel is in the store, materialized
+    /// or not).
     bool hasAnySolidVoxel() const {
-        if (!staticSubcubes.empty() || !staticMicrocubes.empty()) return true;
-        for (const auto& c : cubes) if (c) return true;
-        return false;
+        return voxelManager.getVoxelStore().solidCount() > 0 ||
+               !staticSubcubes.empty() || !staticMicrocubes.empty();
+    }
+    /// Hybrid read: is there a VISIBLE solid cube at this local cell? Overlay Cube wins if
+    /// materialized, else the store answers. Never allocates — this is the probe the mesher's
+    /// cross-chunk border culling and the skylight roof scan use.
+    bool visibleSolidCubeAt(const glm::ivec3& localPos) const {
+        if (localPos.x < 0 || localPos.x >= 32 || localPos.y < 0 || localPos.y >= 32 ||
+            localPos.z < 0 || localPos.z >= 32) return false;   // out-of-range must not alias
+        return visibleSolidCubeAtIndex(localToIndex(localPos));
+    }
+    bool visibleSolidCubeAtIndex(size_t index) const {
+        if (index < cubes.size() && cubes[index]) return cubes[index]->isVisible();
+        return voxelManager.getVoxelStore().visible(index);
     }
 
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
@@ -130,6 +147,11 @@ public:
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
     // Occlusion graph query: can sight pass from face a to face b through this chunk?
     bool facesConnected(int a, int b) const { return (m_faceConnect[a] >> b) & 1u; }
+    /// Sealed (Phase 4.4): uniform-solid chunk capped on all six sides by solid neighbour
+    /// boundary layers. Sealed chunks skip meshing, occlude fully, and are unregistered from
+    /// the physics grid list until an edit unseals them. Evaluated by ChunkManager's managed
+    /// rebuild (classification needs neighbour data).
+    bool isSealed() const { return m_sealed; }
     glm::ivec3 getFirstMirrorLocal() const { return m_firstMirrorLocal; }
     bool getNeedsUpdate() const { return renderManager.getNeedsUpdate(); }
     void setNeedsUpdate(bool needsUpdate) { renderManager.setNeedsUpdate(needsUpdate); }
@@ -139,7 +161,11 @@ public:
     size_t getMaxInstancesUsed() const { return renderManager.getMaxInstancesUsed(); }
     float getBufferUtilization() const { return renderManager.getBufferUtilization(); }
     
-    // Cube access
+    // Cube access. getCubeAt MATERIALIZES since 4.2b: a store-only solid voxel gets its heap
+    // Cube allocated on first access (so the existing Cube* callers keep working); air returns
+    // nullptr. Use hasVoxelAt/getVoxelType/visibleSolidCubeAt for presence — those never
+    // allocate. getCubeAtIndex is the RAW overlay read: nullptr for air AND for store-only
+    // voxels (used by scan paths that pair it with getVoxelStore()).
     Cube* getCubeAt(const glm::ivec3& localPos);
     const Cube* getCubeAt(const glm::ivec3& localPos) const;
     Cube* getCubeAtIndex(size_t index);
@@ -173,6 +199,20 @@ public:
     // Re-read one voxel from its Cube into the palette store (Phase 4.2a). Call after mutating a
     // Cube's material/visible outside add/removeCube — see ChunkVoxelManager::syncStoreAt.
     void syncVoxelStoreAt(const glm::ivec3& localPos);
+
+    // Set a solid cube voxel's visible flag. Writes the palette store (and any materialized
+    // overlay Cube) — the legacy row-per-voxel DB load uses this to hide interior voxels
+    // without forcing a Cube allocation. No-op if the cell holds no solid cube.
+    void setCubeVisible(const glm::ivec3& localPos, bool visible);
+
+    // Number of heap Cube objects currently alive in this chunk (non-null `cubes` slots).
+    // Phase 4.2b's observable: static terrain must keep this at ~0 (voxels live in the palette
+    // store; a Cube is materialized only when a caller needs per-voxel physics/damage state).
+    size_t materializedCubeCount() const {
+        size_t n = 0;
+        for (const auto& c : cubes) if (c) ++n;
+        return n;
+    }
 
     // Palette-compressed static voxel state (Phase 4.2a mirror of `cubes`; authority flips in
     // 4.2b). Scan-heavy readers (mesher, occupancy) should move to this.
@@ -217,6 +257,9 @@ public:
     // Chunk operations
     void clearAll();                                   // Bulk clear: remove all voxels, rebuild once
     void populateWithCubes();                      // Fill chunk with 32x32x32 cubes
+    // Fill every cell with one material — O(1) uniform store write, no Cube allocations
+    // (Phase 4.4; used by the blob decoder's whole-chunk-run fast path and populateWithCubes).
+    void fillAllCubes(const std::string& material);
     void initializeForLoading();                   // Initialize empty chunk for database loading
     void rebuildFaces();                           // Regenerate face data from cubes (intra-chunk culling only)
     
@@ -318,10 +361,25 @@ public:
     uint32_t getFoliageCount() const { return renderManager.getFoliageCount(); }
 
 private:
-    // No private members needed - all moved to subsystems
-    
     // Helper functions
     bool isValidLocalPosition(const glm::ivec3& localPos) const;
+    // Bind voxelManager's callbacks to THIS object (initialize + both move operations).
+    void wireVoxelManagerCallbacks();
+
+    // ── Phase 4.4 seal state (ChunkManager drives classification via friendship) ──
+    // Enter the sealed state: no mesh, fully occluding, physics grid out of the query list.
+    void applySealedRenderState();
+    // Uniform-air fast path: no mesh, sight passes freely (occlusion graph all-connected).
+    void applyAirRenderState();
+
+public:
+    // Leave the sealed state (any voxel mutation on this chunk, or a NEIGHBOUR's boundary edit
+    // exposing our face — ChunkVoxelModificationSystem::unsealExposedNeighbors). Re-registers
+    // the physics grid IMMEDIATELY — a player digging into a sealed chunk needs collision this
+    // tick, not when the queued remesh runs. Idempotent and cheap when not sealed.
+    void unsealForEdit();
+
+private:
 };
 
 } // namespace Phyxel

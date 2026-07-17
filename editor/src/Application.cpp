@@ -7625,6 +7625,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
+                // Phase 4.4 gate metric: live/peak chunk GPU allocations (GpuAllocStats).
+                {"gpu_chunk_allocs_live",    Graphics::gpualloc::live().load()},
+                {"gpu_chunk_allocs_peak",    Graphics::gpualloc::peak().load()},
                 {"far_tiles_resident",       s.farTilesResident},
                 {"far_tiles_drawn",          s.farTilesDrawn},
                 {"far_triangles",            s.farTriangles},

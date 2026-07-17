@@ -1,7 +1,29 @@
 #include "core/ChunkVoxelModificationSystem.h"
+#include "core/Chunk.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
+
+namespace {
+// Phase 4.4: removing a BOUNDARY voxel exposes the face of the adjacent chunk — if that
+// neighbour is sealed, its collision grid is out of the physics query list, so a character
+// digging across the seam would fall through until the deferred remesh re-evaluates it.
+// Unseal exposed neighbours SYNCHRONOUSLY with the removal (idempotent, cheap no-op when the
+// neighbour isn't sealed). The deferred remesh still refreshes faces/occlusion.
+template <typename GetChunkFunc>
+void unsealExposedNeighbors(const glm::ivec3& worldPos, const glm::ivec3& localPos,
+                            const GetChunkFunc& getChunk) {
+    static const glm::ivec3 kDirs[6] = {
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    for (const glm::ivec3& d : kDirs) {
+        const bool onBoundary = (d.x > 0 && localPos.x == 31) || (d.x < 0 && localPos.x == 0) ||
+                                (d.y > 0 && localPos.y == 31) || (d.y < 0 && localPos.y == 0) ||
+                                (d.z > 0 && localPos.z == 31) || (d.z < 0 && localPos.z == 0);
+        if (!onBoundary) continue;
+        if (Chunk* n = getChunk(worldPos + d)) n->unsealForEdit();
+    }
+}
+}  // namespace
 
 void ChunkVoxelModificationSystem::setCallbacks(
     GetChunkFunc getChunkFunc,
@@ -31,6 +53,7 @@ bool ChunkVoxelModificationSystem::removeCubeFast(const glm::ivec3& worldPos) {
     if (result) {
         m_markChunkDirty(chunk);
         // Face regeneration is deferred to updateChunk() via the dirty tracker.
+        unsealExposedNeighbors(worldPos, localPos, m_getChunk);   // 4.4: collision NOW, not later
     }
 
     return result;
@@ -66,9 +89,10 @@ bool ChunkVoxelModificationSystem::removeCube(const glm::ivec3& worldPos) {
     if (result) {
         // Chunk is now marked dirty and will be saved properly on next save
         // No need for immediate database deletion - saveChunk handles all deletions
-        
+
         // Use efficient selective update instead of full chunk rebuild
         m_updateAfterCubeBreak(worldPos);
+        unsealExposedNeighbors(worldPos, localPos, m_getChunk);   // 4.4: collision NOW, not later
     }
     return result;
 }

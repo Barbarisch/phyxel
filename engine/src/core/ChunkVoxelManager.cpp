@@ -226,9 +226,10 @@ void ChunkVoxelManager::initializeVoxelMaps() {
     subcubeMap.clear();
     microcubeMap.clear();
 
-    // Phase 4.2a: (re)build the palette mirror from the authoritative cubes. This is the gen/load
-    // path, so it is also where a chunk arriving from ChunkBlobCodec::decode() gets its store.
-    voxelStore.clear();
+    // 4.2b: the store IS the authority, so there is nothing to rebuild it from — do NOT clear it
+    // here (this runs after decode/gen, which populated it via addCube). What we do reconcile is
+    // the other direction: any materialized overlay Cube that a legacy path filled directly into
+    // the vector gets registered in the store, so overlay ⊆ store holds.
     {
         auto& cubes = m_getCubes();
         for (size_t i = 0; i < cubes.size() && i < ChunkVoxelStore::kVoxels; ++i) {
@@ -296,8 +297,10 @@ bool ChunkVoxelManager::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec
 // voxelTypeMap — a solid cube wins, else any subcube/microcube presence means SUBDIVIDED, else
 // EMPTY. Every writer paired its subcubeMap/microcubeMap insert with the type write in the same
 // call (addSubcubeToMaps/addMicrocubeToMaps), so deriving on read is equivalent, not racy.
+// 4.2b: cube presence answers from the STORE (never the overlay — a store-only voxel is just as
+// solid, and this path must never allocate).
 VoxelLocation::Type ChunkVoxelManager::getVoxelType(const glm::ivec3& localPos) const {
-    if (cubeAt(localPos)) return VoxelLocation::CUBE;
+    if (inBounds(localPos) && voxelStore.solid(kIdx(localPos))) return VoxelLocation::CUBE;
     auto subIt = subcubeMap.find(localPos);
     if (subIt != subcubeMap.end() && !subIt->second.empty()) return VoxelLocation::SUBDIVIDED;
     auto microIt = microcubeMap.find(localPos);
@@ -305,19 +308,32 @@ VoxelLocation::Type ChunkVoxelManager::getVoxelType(const glm::ivec3& localPos) 
     return VoxelLocation::EMPTY;
 }
 
-// Phase 4.2a: re-read one voxel from its authoritative Cube into the palette store.
+// Re-read one voxel from its materialized overlay Cube into the palette store. 4.2b: a missing
+// overlay Cube means "no local mutation to pick up" — it must NOT erase the store entry (the
+// store is the authority; store-only voxels are normal).
 void ChunkVoxelManager::syncStoreAt(const glm::ivec3& localPos) {
     if (!inBounds(localPos)) return;
-    const size_t index = kIdx(localPos);
     if (const Cube* c = cubeAt(localPos)) {
-        voxelStore.set(index, c->getMaterialName(), c->isVisible());
-    } else {
-        voxelStore.erase(index);
+        voxelStore.set(kIdx(localPos), c->getMaterialName(), c->isVisible());
     }
 }
 
+void ChunkVoxelManager::setCubeVisible(const glm::ivec3& localPos, bool visible) {
+    if (!inBounds(localPos)) return;
+    const size_t index = kIdx(localPos);
+    if (!voxelStore.solid(index)) return;
+    voxelStore.setVisible(index, visible);
+    if (Cube* c = cubeAt(localPos)) c->setVisible(visible);   // write-through to the overlay
+    m_setDirty(true);
+}
+
+void ChunkVoxelManager::fillAllVoxels(const std::string& material) {
+    voxelStore.fillUniform(material, /*visible=*/true);   // O(1) once 4.4 stage 1 lands
+    m_setDirty(true);
+}
+
 // The dense cubes array IS the position index (see ChunkVoxelManager.h) — an array read replaces
-// the former cubeMap hash lookup.
+// the former cubeMap hash lookup. RAW read: nullptr for air AND for store-only voxels.
 Cube* ChunkVoxelManager::cubeAt(const glm::ivec3& localPos) const {
     if (!inBounds(localPos) || !m_getCubes) return nullptr;
     auto& cubes = m_getCubes();
@@ -326,12 +342,30 @@ Cube* ChunkVoxelManager::cubeAt(const glm::ivec3& localPos) const {
     return cubes[index].get();
 }
 
+// 4.2b materialize-on-demand: back-fill a heap Cube for a store voxel the first time a caller
+// asks for the Cube* API. The Cube carries the store's material/visible; from then on it is the
+// overlay that wins at scan sites, so callers may mutate it directly (physics/damage do).
+Cube* ChunkVoxelManager::materializeAt(const glm::ivec3& localPos) const {
+    if (Cube* existing = cubeAt(localPos)) return existing;
+    if (!inBounds(localPos) || !m_getCubes) return nullptr;
+    const size_t index = kIdx(localPos);
+    if (!voxelStore.solid(index)) return nullptr;   // air never materializes
+
+    auto& cubes = m_getCubes();
+    if (cubes.size() < ChunkVoxelStore::kVoxels)
+        cubes.resize(ChunkVoxelStore::kVoxels);     // lazy: untouched chunks skip the slot array
+    auto cube = std::make_unique<Cube>(localPos, voxelStore.material(index));
+    cube->setVisible(voxelStore.visible(index));
+    cubes[index] = std::move(cube);
+    return cubes[index].get();
+}
+
 Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) {
-    return cubeAt(localPos);
+    return materializeAt(localPos);
 }
 
 const Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) const {
-    return cubeAt(localPos);
+    return materializeAt(localPos);
 }
 
 // =============================================================================
@@ -339,9 +373,7 @@ const Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) const {
 // =============================================================================
 
 Cube* ChunkVoxelManager::getCubeHelper(const glm::ivec3& localPos) const {
-    // The old "fast lookup then fall back to indexed access" is now just the indexed access —
-    // the hash was a duplicate of it (Phase 4.1).
-    return cubeAt(localPos);
+    return materializeAt(localPos);
 }
 
 Subcube* ChunkVoxelManager::getSubcubeHelper(
@@ -447,40 +479,21 @@ bool ChunkVoxelManager::addCube(
     }
 
     size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
-    auto& cubes = m_getCubes();
-
-    // Ensure cubes vector is properly sized (32x32x32 = 32768 elements)
-    if (cubes.size() < 32 * 32 * 32) {
-        cubes.resize(32 * 32 * 32);
-    }
 
     // Occupied-cell handling. Default: reject (safe "place only if empty"). overwrite=true: remove an
     // existing SOLID cube and fall through to place the new one in its place.
-    if (cubes[index] && !cubes[index]->isBroken()) {
+    if (voxelStore.solid(index)) {
         if (!overwrite) return false;
-        removeCube(localPos, /*deferRebuild=*/true);   // clears the cube + maps + collision; cubes[index] -> null
-    } else if (!cubes[index] && getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
+        removeCube(localPos, /*deferRebuild=*/true);   // clears store + any overlay Cube + maps + collision
+    } else if (getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
         // Overwriting subdivided cells (clearing all sub/microcubes) is not yet supported — reject
         // even with overwrite. TODO: add subdivided clear-and-replace when structure placement needs it.
         return false;
     }
 
-    if (cubes[index]) {
-        // Repair a broken cube
-        cubes[index]->setBroken(false);
-        if (!material.empty()) {
-            cubes[index]->setMaterial(material);
-        }
-    } else {
-        // Create new cube
-        if (!material.empty()) {
-            cubes[index] = std::make_unique<Cube>(localPos, material);
-        } else {
-            cubes[index] = std::make_unique<Cube>(localPos);
-        }
-    }
-    // Phase 4.2a: mirror the authoritative Cube into the palette store.
-    voxelStore.set(index, cubes[index]->getMaterialName(), cubes[index]->isVisible());
+    // Phase 4.2b: static voxels live in the palette store ONLY — no Cube allocation. A Cube is
+    // materialized later only if a caller asks for per-voxel physics/damage state (getCubeAtFast).
+    voxelStore.set(index, material.empty() ? std::string("Default") : material, /*visible=*/true);
 
     // Mark chunk as dirty for smart saving
     m_setDirty(true);
@@ -510,12 +523,13 @@ bool ChunkVoxelManager::removeCube(
     }
     
     size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
+    if (!voxelStore.solid(index)) return false;
+
+    // Drop the store entry AND any materialized overlay Cube (4.2b: the store is authoritative;
+    // the overlay slot may not even exist for never-touched terrain).
+    voxelStore.erase(index);
     auto& cubes = m_getCubes();
-    if (index >= cubes.size() || !cubes[index]) return false;
-    
-    // Delete the cube from memory
-    cubes[index].reset();
-    voxelStore.erase(index);   // Phase 4.2a: keep the mirror in step
+    if (index < cubes.size()) cubes[index].reset();
     
     // Remove collision shape with proper memory management
     m_removeCollision(localPos);
@@ -553,10 +567,10 @@ int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions
             continue;
         }
         size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
-        if (index >= cubes.size() || !cubes[index]) continue;
+        if (!voxelStore.solid(index)) continue;
 
-        cubes[index].reset();
-        voxelStore.erase(index);   // Phase 4.2a
+        voxelStore.erase(index);
+        if (index < cubes.size()) cubes[index].reset();   // drop any materialized overlay
         m_removeCollision(localPos);
         ++removed;
     }
@@ -570,12 +584,7 @@ int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions
 }
 
 int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, const std::string& material) {
-    auto& cubes = m_getCubes();
     int added = 0;
-
-    if (cubes.size() < 32 * 32 * 32) {
-        cubes.resize(32 * 32 * 32);
-    }
 
     for (const auto& localPos : positions) {
         if (localPos.x < 0 || localPos.x >= 32 ||
@@ -584,23 +593,14 @@ int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, c
             continue;
         }
         size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
-        if (cubes[index] && !cubes[index]->isBroken()) {
+        if (voxelStore.solid(index)) {
             continue; // occupied — skip overlap
         }
-        if (!cubes[index] && getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
+        if (getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
             continue; // subdivided voxels here — skip overlap
         }
-        if (cubes[index]) {
-            cubes[index]->setBroken(false);
-            if (!material.empty()) cubes[index]->setMaterial(material);
-        } else {
-            if (!material.empty()) {
-                cubes[index] = std::make_unique<Cube>(localPos, material);
-            } else {
-                cubes[index] = std::make_unique<Cube>(localPos);
-            }
-        }
-        voxelStore.set(index, cubes[index]->getMaterialName(), cubes[index]->isVisible());  // 4.2a
+        // 4.2b: store-only write, no Cube allocation.
+        voxelStore.set(index, material.empty() ? std::string("Default") : material, /*visible=*/true);
         m_addCollision(localPos);
         ++added;
     }
@@ -628,16 +628,19 @@ bool ChunkVoxelManager::subdivideAt(
         return false;
     }
     
-    // Get the cube at this position
-    Cube* cube = getCubeHelper(localPos);
-    if (!cube) return false;
-    
+    // The cell must hold a solid cube (store is the presence authority — no materialization
+    // needed just to subdivide).
+    const size_t cubeIndex = kIdx(localPos);
+    if (!voxelStore.solid(cubeIndex)) return false;
+
     // Check if already subdivided
     auto existingSubcubes = getSubcubesHelper(localPos);
     if (!existingSubcubes.empty()) return false;
-    
-    // Inherit material from parent cube
-    std::string material = cube->getMaterialName();
+
+    // Inherit material from the parent voxel (overlay Cube wins if one was materialized and
+    // mutated; else the store).
+    const Cube* overlay = cubeAt(localPos);
+    std::string material = overlay ? overlay->getMaterialName() : voxelStore.material(cubeIndex);
     
     // Create 27 subcubes (3x3x3)
     glm::ivec3 worldOrigin = m_getWorldOrigin();
@@ -659,17 +662,19 @@ bool ChunkVoxelManager::subdivideAt(
         }
     }
     
-    // Delete the parent cube completely
-    size_t cubeIndex = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
-    auto& cubes = m_getCubes();
-    if (cubeIndex < cubes.size() && cubes[cubeIndex].get() == cube) {
-        cubes[cubeIndex].reset();
-        LOG_DEBUG_FMT("ChunkVoxelManager", "Completely removed parent cube at (" 
-                  << localPos.x << "," << localPos.y << "," << localPos.z 
-                  << ") - replaced by 27 subcubes");
+    // Delete the parent cube completely — store entry AND any materialized overlay Cube.
+    // (Pre-4.2b this reset only the Cube slot and left a stale solid entry in the store —
+    // the mirror gap ChunkVoxelAuthority.SubdivideAtErasesStoreEntry pins down.)
+    voxelStore.erase(cubeIndex);
+    {
+        auto& cubes = m_getCubes();
+        if (cubeIndex < cubes.size()) cubes[cubeIndex].reset();
     }
-    
-    
+    LOG_DEBUG_FMT("ChunkVoxelManager", "Removed parent cube at ("
+              << localPos.x << "," << localPos.y << "," << localPos.z
+              << ") - replaced by 27 subcubes");
+
+
     // Mark for update and as dirty
     m_setNeedsUpdate(true);
     m_setDirty(true);
@@ -698,13 +703,9 @@ bool ChunkVoxelManager::addSubcube(
         return false;
     }
     
-    // Reject if a solid non-broken cube occupies this cube position
-    {
-        auto& cubes = m_getCubes();
-        size_t cubeIndex = parentPos.z + parentPos.y * 32 + parentPos.x * 32 * 32;
-        if (cubes.size() > cubeIndex && cubes[cubeIndex] && !cubes[cubeIndex]->isBroken()) {
-            return false;
-        }
+    // Reject if a solid cube occupies this cube position (store is the presence authority)
+    if (voxelStore.solid(kIdx(parentPos))) {
+        return false;
     }
 
     // Check if subcube already exists
@@ -948,13 +949,9 @@ bool ChunkVoxelManager::addMicrocube(
         return false;
     }
     
-    // Reject if a solid non-broken cube occupies the parent cube position
-    {
-        auto& cubes = m_getCubes();
-        size_t cubeIndex = parentCubePos.z + parentCubePos.y * 32 + parentCubePos.x * 32 * 32;
-        if (cubes.size() > cubeIndex && cubes[cubeIndex] && !cubes[cubeIndex]->isBroken()) {
-            return false;
-        }
+    // Reject if a solid cube occupies the parent cube position (store is the presence authority)
+    if (voxelStore.solid(kIdx(parentCubePos))) {
+        return false;
     }
 
     // Check if microcube already exists

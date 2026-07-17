@@ -9,6 +9,7 @@
 #include "utils/Logger.h"
 #include <random>
 #include <cmath>
+#include <climits>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -413,11 +414,49 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     // Column-first height-based generation (Perlin / Flat / Mountains / Caves). The heightmap
     // + climate fields are sampled ONCE per (x,z) column, then the Y span is filled from them
     // (instead of recomputing noise per voxel). Biomes drive the surface material by climate.
+    //
+    // Phase 4.4 fast path: a chunk that sits ENTIRELY at depth >= 4 under every column, with
+    // one deep material and nothing to carve, is one uniform fill — not 32,768 addCube calls.
+    // This is what keeps generated buried chunks in the uniform store representation so the
+    // sealed classifier (ChunkManager) can retire them; it also removes the generation cost
+    // that motivated the streamer's vertical clamp (loadChunksAroundPosition).
+    std::vector<ColumnSample> cols;
+    cols.reserve(32 * 32);
+    int minSurface = INT_MAX;
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) {
+            cols.push_back(sampleColumn(chunkCoord.x * 32 + x, chunkCoord.z * 32 + z));
+            minSurface = std::min(minSurface, cols.back().surfaceY);
+        }
+    {
+        const int chunkTop = chunkCoord.y * 32 + 31;
+        const int chunkBottom = chunkCoord.y * 32;
+        const bool noBedrockHere = !depthProfile.hasBedrock || depthProfile.bedrockY < chunkBottom;
+        if (generationType != GenerationType::Caves && noBedrockHere &&
+            chunkTop <= minSurface - 4) {
+            static const std::string kFallbackDeep = "Stone";
+            const std::string* deepMat = nullptr;
+            bool uniformDeep = true;
+            for (const ColumnSample& c : cols) {
+                const std::string& dm =
+                    m_biomes.empty() ? kFallbackDeep : m_biomes[c.biomeIndex].deepMaterial;
+                if (!deepMat) deepMat = &dm;
+                else if (*deepMat != dm) { uniformDeep = false; break; }
+            }
+            if (uniformDeep && deepMat) {
+                chunk.fillAllCubes(*deepMat);
+                LOG_TRACE_FMT("WorldGenerator", "[WORLD_GENERATOR] Uniform deep fill ("
+                          << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
+                          << ") material=" << *deepMat);
+                return;
+            }
+        }
+    }
     for (int x = 0; x < 32; ++x) {
         for (int z = 0; z < 32; ++z) {
             int wx = chunkCoord.x * 32 + x;
             int wz = chunkCoord.z * 32 + z;
-            ColumnSample col = sampleColumn(wx, wz);
+            const ColumnSample& col = cols[static_cast<size_t>(x) * 32 + z];
 
             for (int y = 0; y < 32; ++y) {
                 int wy = chunkCoord.y * 32 + y;

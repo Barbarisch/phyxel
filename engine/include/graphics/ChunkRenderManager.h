@@ -15,6 +15,7 @@ namespace Phyxel {
 class Cube;
 class Subcube;
 class Microcube;
+class ChunkVoxelStore;
 
 namespace Graphics {
 
@@ -28,8 +29,11 @@ namespace Graphics {
  */
 class ChunkRenderManager {
 public:
-    // Neighbor lookup function type for cross-chunk culling
-    using NeighborLookupFunc = std::function<const Cube*(const glm::ivec3& worldPos)>;
+    // Neighbor probe for cross-chunk culling: is there a VISIBLE SOLID cube at this WORLD cell?
+    // (4.2b: was `const Cube*(worldPos)` — a bool answer lets the provider read the neighbour
+    // chunk's palette store instead of materializing border Cubes. Both consumers only ever
+    // asked `nc && nc->isVisible()`.)
+    using NeighborLookupFunc = std::function<bool(const glm::ivec3& worldPos)>;
     // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
     struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
     // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
@@ -95,6 +99,9 @@ public:
     // columnOpenMask (optional): a 32x32 byte grid (index x*32+z, 1 = open to sky) precomputed by
     // the caller from the chunks ABOVE, so the skylight bake can seed sky columns without the slow
     // per-cell roof probe. nullptr → fall back to the in-bake getNeighborCube probe.
+    // voxelStore (4.2b): the chunk's palette store — the authority for static voxels. The hybrid
+    // read is per cell: a materialized Cube in `cubes` wins (physics/damage state), else the
+    // store answers. nullptr = pure-Cube path (unit tests that hand-build cube vectors).
     void rebuildAllFaces(
         const std::vector<std::unique_ptr<Cube>>& cubes,
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
@@ -102,7 +109,8 @@ public:
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
         const NeighborLightFunc& getNeighborLight = nullptr,
-        const std::vector<uint8_t>* columnOpenMask = nullptr
+        const std::vector<uint8_t>* columnOpenMask = nullptr,
+        const ChunkVoxelStore* voxelStore = nullptr
     );
 
     void rebuildCubeFaces(
@@ -111,8 +119,15 @@ public:
         const std::vector<std::unique_ptr<Microcube>>& microcubes,  // (sub/micro sources seed at their parent cube cell)
         const glm::ivec3& worldOrigin,
         const NeighborLookupFunc& getNeighborCube = nullptr,
-        const std::vector<uint8_t>* columnOpenMask = nullptr
+        const std::vector<uint8_t>* columnOpenMask = nullptr,
+        const ChunkVoxelStore* voxelStore = nullptr
     );
+
+    // Phase 4.4: reset render state for a UNIFORM chunk (sealed solid or pure air) WITHOUT
+    // running the mesh/bake scans — clears faces and instance counts and RELEASES the per-chunk
+    // mesh/light scratch (~364 KB) plus grass/foliage instances. The GPU buffers (if any were
+    // created before the chunk sealed) stay allocated but draw nothing (numInstances == 0).
+    void clearForUniform();
 
     // True if this chunk's boundary light (what neighbours sample) changed on the last rebuild —
     // the caller re-meshes neighbours so cross-chunk light bleed converges.
