@@ -390,6 +390,44 @@ Winding: multi-angle screenshots after the shadow quad-path change.
 allocation count O(1)-ish; stress = 10k resident chunks (large loadDistance, Release) with no
 driver errors; full test suite green (physics/edit paths exercise Cube materialization).
 
+#### Measured re-scope (2026-07-16 — see §0 benchmark)
+
+**MEASURED** on the Middle-earth 1:1 world (Debug): **18.1 MB per resident chunk**, linear —
+**~3× this section's own "≈5–6 MB" premise**. So "10k+ resident" is ~180 GB today, and the real
+OOM ceiling is ~3,325 chunks. Re-baseline the gate against 18.1 MB, not 5–6.
+
+**ESTIMATED composition** (from `sizeof` + Debug heap overhead; reconciles to ~17–18 MB — the
+first refactor's before/after is what confirms it):
+| component | est. per solid chunk | share |
+|---|---|---|
+| 32,768 heap `Cube`s (~176 B each + ~48 B Debug heap header) | ~7.6 MB | ~42% |
+| `cubeMap` + `voxelTypeMap` nodes + buckets (~32,768 nodes each) | ~7.5 MB | ~41% |
+| 3 × 586 KB host-visible **mapped** instance buffers | ~1.8 MB | ~10% |
+| `unique_ptr` slot array, face/subcube vectors | ~1.2 MB | ~7% |
+
+**Re-order by measured leverage.** The listed order buries the best item and leads with the worst:
+
+1. **FIRST: delete the redundant hash maps (was item 2c).** ~41% of per-chunk RAM — as big as the
+   `Cube`s themselves — and it does **not** depend on the palette refactor. `cubes` is *already* a
+   dense positional 32³ array (`cubes.resize(32*32*32)`; `index = z + y*32 + x*1024`), so
+   `cubeMap` is a 32k-node hash duplicate of an O(1) array index; `voxelTypeMap` likewise derives
+   from it. `ChunkStorage` carries **another** `cubeMap` copy. Blast radius is far smaller than
+   "the largest refactor in the plan" implies: `getCubeMap()`/`getVoxelTypeMap()` have **zero
+   external consumers** (their only reference is their own declaration), and the internal uses sit
+   almost entirely in `ChunkVoxelManager.cpp` (95) + `ChunkStorage.cpp` (20), with 4 stragglers in
+   `ChunkVoxelBreaker`/`VoxelManipulationSystem`. Independently shippable; red-before-green with a
+   per-chunk RSS gate.
+2. **THEN: palette-compressed static storage (items 2a/2b).** Targets the other ~42% (the `Cube`
+   objects). Still the big one; unchanged staging.
+3. **GPU suballocation (item 3).** Only ~10% of RSS *here*, but it is the hard **portability**
+   ceiling: blocker D is disproven on NVIDIA (limit 4.29e9) yet remains 4096 on AMD/Intel, where
+   3 allocations/chunk caps you at **~1,365 chunks — below the C ceiling**, i.e. D bites first on
+   that hardware. Keep it; it is a correctness/portability item, not a RAM item.
+4. **LAST: intern materials (was item 1).** Measured value is ~1 MB/chunk (~5%): `materialName`
+   fits MSVC's SSO, so it costs 32 B inline per `Cube` and allocates **no** heap string. Worth
+   doing *inside* the palette work, not ahead of it — "small and safe" is true, "high leverage"
+   is not.
+
 ### Phase 5 — Render distance ×100 (the horizon)
 *Builds on Phases 3–4; near field stays real chunks (~192–288u), mid field becomes downsampled
 voxel LOD, far field is the heightmap far-terrain out to ~20 km.*
