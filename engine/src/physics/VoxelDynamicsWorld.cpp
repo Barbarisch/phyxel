@@ -443,10 +443,24 @@ float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth
         if (body->isDead) continue;
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
-        if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap
+        if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap (broad reject)
         if (bMax.z < zMin || bMin.z > zMax) continue;
         if (bMin.y >= yHi || bMax.y <= yLo) continue;       // straddles the band below the feet
-        if (bMax.y > best) best = bMax.y;                   // stand on its top
+        // Stand on the ACTUAL box tops, not the whole-body AABB roof: near a
+        // multi-box body (a fallen tree) the AABB roof is an invisible surface
+        // at crown height — the step-up glide tried to climb it and walled the
+        // character off in open air (live, same class as overlapsAnyBody).
+        const glm::mat3 rot = glm::mat3_cast(body->orientation);
+        const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+        for (const auto& lb : body->getLocalBoxes()) {
+            const glm::vec3 c  = body->position + rot * lb.offset;
+            const glm::vec3 he = absRot * lb.halfExtents;
+            if (c.x + he.x < xMin || c.x - he.x > xMax) continue;
+            if (c.z + he.z < zMin || c.z - he.z > zMax) continue;
+            const float top = c.y + he.y;
+            if (c.y - he.y >= yHi || top <= yLo) continue;
+            if (top > best) best = top;
+        }
     }
     return best;
 }
@@ -469,10 +483,25 @@ bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec
         if (body->isDead || body->invMass == 0.0f) continue;
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
-        if (qMax.x > bMin.x && qMin.x < bMax.x &&
-            qMax.y > bMin.y && qMin.y < bMax.y &&
-            qMax.z > bMin.z && qMin.z < bMax.z)
-            return true;
+        // Whole-body AABB is only the BROAD reject. Blocking on it stops the
+        // character at a multi-box body's invisible envelope — a fallen tree's
+        // AABB spans trunk + branches, and the player was stopped ~2m from the
+        // visible wood in open air (live). Test the actual collision boxes
+        // (conservative per-box world AABB, same bound generateContacts uses).
+        if (qMax.x <= bMin.x || qMin.x >= bMax.x ||
+            qMax.y <= bMin.y || qMin.y >= bMax.y ||
+            qMax.z <= bMin.z || qMin.z >= bMax.z)
+            continue;
+        const glm::mat3 rot = glm::mat3_cast(body->orientation);
+        const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+        for (const auto& lb : body->getLocalBoxes()) {
+            const glm::vec3 c  = body->position + rot * lb.offset;
+            const glm::vec3 he = absRot * lb.halfExtents;
+            if (qMax.x > c.x - he.x && qMin.x < c.x + he.x &&
+                qMax.y > c.y - he.y && qMin.y < c.y + he.y &&
+                qMax.z > c.z - he.z && qMin.z < c.z + he.z)
+                return true;
+        }
     }
     return false;
 }

@@ -788,4 +788,8 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   Now queried PER BOX (O(boxes x ~4)). Collision proxy is SUBCUBE resolution
   (F2+#13): cube = unit box, else 1/3-box per occupied slot (micro quorum >=4);
   >800-cell components stay coarse. Cargo stand-adjacency also obeys F8 (no
-  static floaters over air gaps).
+  static floaters over air gaps). CHARACTER-vs-body queries (overlapsAnyBody +
+  groundHeight's dynamic-body pass) test the body's actual collision BOXES, not
+  the whole-body AABB — a fallen tree's AABB is a multi-meter invisible envelope
+  that walled the player off ~2m from the visible trunk and offered its roof as
+  step-up ground (live; dumbbell red test in PhysicsIntegrationTest).
