@@ -67,6 +67,10 @@ public:
     /// Raw SQLite handle (for subsystems that share this database, e.g. ConversationMemory)
     sqlite3* getDb() const { return db; }
 
+    /// Path of the database this storage is bound to (set at construction). Lets callers/tests
+    /// identify WHICH world a storage points at, rather than comparing object addresses.
+    const std::string& getDbPath() const { return dbPath; }
+
     // Per-world metadata / generation recipe — a small key/value store that makes a world
     // self-contained (seed, biome layout, extremeness, flora config). See
     // docs/WorldRecipeAndFlora.md. Value is plain text or a JSON blob.

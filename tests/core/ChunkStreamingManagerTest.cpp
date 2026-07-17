@@ -54,13 +54,16 @@ TEST(ChunkStreamingManagerTest, DoubleInitReplacesPreviousStorage) {
     TempDb db2;
     ChunkStreamingManager csm;
     EXPECT_TRUE(csm.initializeWorldStorage(db1.str()));
-    auto* first = csm.getWorldStorage();
-    EXPECT_NE(first, nullptr);
+    ASSERT_NE(csm.getWorldStorage(), nullptr);
+    EXPECT_EQ(csm.getWorldStorage()->getDbPath(), db1.str());
 
-    // Second init creates new storage (old is leaked, but tests valid)
+    // Second init must REBIND the manager to the new database. Assert that by the database the
+    // storage is bound to, not by object address: the first storage is destroyed on re-init, so
+    // the allocator may hand the replacement the SAME address — the old `EXPECT_NE(ptr, first)`
+    // compared a freed pointer and failed nondeterministically.
     EXPECT_TRUE(csm.initializeWorldStorage(db2.str()));
-    EXPECT_NE(csm.getWorldStorage(), nullptr);
-    EXPECT_NE(csm.getWorldStorage(), first);
+    ASSERT_NE(csm.getWorldStorage(), nullptr);
+    EXPECT_EQ(csm.getWorldStorage()->getDbPath(), db2.str());
 }
 
 // ============================================================================

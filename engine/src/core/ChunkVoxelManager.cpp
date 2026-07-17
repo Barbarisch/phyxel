@@ -107,22 +107,6 @@ void ChunkVoxelManager::clearAllVoxels() {
 // Stale hash map entries cause crashes (dangling pointers) or incorrect rendering.
 
 /**
- * No-op since Phase 4.1: a cube's presence and type are derived from the dense `cubes` array on
- * read, so there is no cube-keyed map left to maintain. Retained because Chunk delegates to it
- * and callers still bracket cube writes with it.
- */
-void ChunkVoxelManager::addToVoxelMaps(const glm::ivec3& /*localPos*/, Cube* /*cube*/) {
-}
-
-/**
- * No-op since Phase 4.1 — see addToVoxelMaps. Removing the cube from the `cubes` array IS the
- * removal; there is no longer a parallel map that could go stale.
- */
-void ChunkVoxelManager::removeFromVoxelMaps(const glm::ivec3& localPos) {
-    (void)localPos;
-}
-
-/**
  * Add subcube to two-level hash map
  * Call this whenever adding a subcube to staticSubcubes vector
  * 
@@ -209,19 +193,6 @@ void ChunkVoxelManager::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const
             microcubeMap.erase(cubePos);            // Level 1: cleanup empty cube map
         }
     }
-}
-
-/**
- * No-op since Phase 4.1.
- *
- * This function's entire job was to recompute a position's VoxelLocation::Type and cache it in
- * voxelTypeMap after a structural change. getVoxelType() now runs that exact decision on read
- * (cube -> CUBE, else subcubes/microcubes -> SUBDIVIDED, else EMPTY), so there is nothing to
- * refresh and no stale-entry class of bug left. Kept as a no-op because Chunk delegates to it and
- * callers still bracket structural edits with it.
- */
-void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos) {
-    (void)localPos;
 }
 
 /**
@@ -477,7 +448,6 @@ bool ChunkVoxelManager::addCube(
         if (!material.empty()) {
             cubes[index]->setMaterial(material);
         }
-        addToVoxelMaps(localPos, cubes[index].get());
     } else {
         // Create new cube
         if (!material.empty()) {
@@ -485,7 +455,6 @@ bool ChunkVoxelManager::addCube(
         } else {
             cubes[index] = std::make_unique<Cube>(localPos);
         }
-        addToVoxelMaps(localPos, cubes[index].get());
     }
     
     // Mark chunk as dirty for smart saving
@@ -521,9 +490,6 @@ bool ChunkVoxelManager::removeCube(
     
     // Delete the cube from memory
     cubes[index].reset();
-    
-    // Update hash maps to reflect removal
-    removeFromVoxelMaps(localPos);
     
     // Remove collision shape with proper memory management
     m_removeCollision(localPos);
@@ -564,7 +530,6 @@ int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions
         if (index >= cubes.size() || !cubes[index]) continue;
 
         cubes[index].reset();
-        removeFromVoxelMaps(localPos);
         m_removeCollision(localPos);
         ++removed;
     }
@@ -608,7 +573,6 @@ int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, c
                 cubes[index] = std::make_unique<Cube>(localPos);
             }
         }
-        addToVoxelMaps(localPos, cubes[index].get());
         m_addCollision(localPos);
         ++added;
     }

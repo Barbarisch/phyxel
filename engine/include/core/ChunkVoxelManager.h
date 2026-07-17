@@ -31,7 +31,7 @@ namespace Physics {
  * Successfully extracted ~616 lines of voxel management code from Chunk, including:
  * - Cube/Subcube/Microcube creation, deletion, and access
  * - Subdivision logic (cube → subcubes → microcubes)
- * - Hash map management for O(1) voxel lookups (cubeMap, subcubeMap, microcubeMap, voxelTypeMap)
+ * - Sparse hash map management for O(1) subdivided-voxel lookups (subcubeMap, microcubeMap)
  * - Voxel location resolution system for hover detection
  * 
  * DESIGN PATTERN:
@@ -41,16 +41,16 @@ namespace Physics {
  * - All voxel state changes trigger appropriate render/physics updates
  * 
  * PERFORMANCE:
- * - O(1) voxel lookups via hash maps (cubeMap, subcubeMap, microcubeMap)
+ * - O(1) subdivided-voxel lookups via the sparse hash maps (subcubeMap, microcubeMap)
  * - O(1) indexed cube access (z + y*32 + x*32*32)
- * - Lazy evaluation of voxel types (cached in voxelTypeMap)
+ * - Voxel presence/type DERIVED on read from the dense cubes array (no per-voxel cache)
  * - Efficient subdivision with automatic parent cleanup
  * 
  * EXTRACTED METHODS:
  * - Cube operations: addCube, removeCube, setCubeColor, getCubeAtFast
  * - Subcube operations: subdivideAt, addSubcube, removeSubcube, clearSubdivisionAt
  * - Microcube operations: subdivideSubcubeAt, addMicrocube, removeMicrocube, clearMicrocubesAt
- * - Hash map management: initializeVoxelMaps, addToVoxelMaps, removeFromVoxelMaps, etc.
+ * - Hash map management: initializeVoxelMaps, addSubcubeToMaps, addMicrocubeToMaps, etc.
  * - Voxel resolution: resolveLocalPosition, hasVoxelAt, hasSubcubeAt, getVoxelType
  */
 class ChunkVoxelManager {
@@ -89,7 +89,7 @@ public:
     );
 
     // Bulk operations
-    void clearAllVoxels();  // Clear all hash maps (cubeMap, subcubeMap, microcubeMap, voxelTypeMap)
+    void clearAllVoxels();  // Clear the sparse hierarchy maps (subcubeMap, microcubeMap)
 
     // Cube operations
     bool addCube(const glm::ivec3& localPos);
@@ -117,15 +117,14 @@ public:
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);
 
-    // Hash map management
+    // Hash map management (subdivided voxels only since Phase 4.1 — the cube-keyed
+    // addToVoxelMaps/removeFromVoxelMaps/updateVoxelMaps trio is gone with the dense maps
+    // they maintained; cube presence/type derive from the `cubes` array on read).
     void initializeVoxelMaps();
-    void addToVoxelMaps(const glm::ivec3& localPos, Cube* cube);
-    void removeFromVoxelMaps(const glm::ivec3& localPos);
     void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
     void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     void addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube);
     void removeMicrocubeFromMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
-    void updateVoxelMaps(const glm::ivec3& localPos);
 
     // Voxel location resolution
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;

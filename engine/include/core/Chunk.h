@@ -170,10 +170,9 @@ public:
     Cube* getCubeAtFast(const glm::ivec3& localPos);
     const Cube* getCubeAtFast(const glm::ivec3& localPos) const;
     
-    // Internal: Maintain hash map consistency
-    void updateVoxelMaps(const glm::ivec3& localPos);
-    void addToVoxelMaps(const glm::ivec3& localPos, Cube* cube);
-    void removeFromVoxelMaps(const glm::ivec3& localPos);
+    // Internal: Maintain hash map consistency (subdivided voxels only — the cube-keyed
+    // updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio went away with the dense
+    // cubeMap/voxelTypeMap in Phase 4.1; cube presence/type derive from `cubes` on read).
     void addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube);
     void removeSubcubeFromMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos);
     void addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube);

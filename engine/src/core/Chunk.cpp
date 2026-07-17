@@ -527,19 +527,9 @@ const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
     return voxelManager.getCubeAtFast(localPos);
 }
 
-// Internal: Maintain hash map consistency
-void Chunk::updateVoxelMaps(const glm::ivec3& localPos) {
-    voxelManager.updateVoxelMaps(localPos);
-}
-
-void Chunk::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
-    voxelManager.addToVoxelMaps(localPos, cube);
-}
-
-void Chunk::removeFromVoxelMaps(const glm::ivec3& localPos) {
-    voxelManager.removeFromVoxelMaps(localPos);
-}
-
+// Internal: Maintain hash map consistency (subdivided voxels only — see ChunkVoxelManager.h.
+// The cube-keyed updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio is gone with the dense
+// maps they maintained: cube presence/type now derive from the `cubes` array on read.)
 void Chunk::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
     voxelManager.addSubcubeToMaps(localPos, subcubePos, subcube);
 }
