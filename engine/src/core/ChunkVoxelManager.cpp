@@ -80,6 +80,7 @@ void ChunkVoxelManager::setCallbacks(
 void ChunkVoxelManager::clearAllVoxels() {
     subcubeMap.clear();
     microcubeMap.clear();
+    voxelStore.clear();   // Phase 4.2a
 }
 
 // =============================================================================
@@ -225,6 +226,17 @@ void ChunkVoxelManager::initializeVoxelMaps() {
     subcubeMap.clear();
     microcubeMap.clear();
 
+    // Phase 4.2a: (re)build the palette mirror from the authoritative cubes. This is the gen/load
+    // path, so it is also where a chunk arriving from ChunkBlobCodec::decode() gets its store.
+    voxelStore.clear();
+    {
+        auto& cubes = m_getCubes();
+        for (size_t i = 0; i < cubes.size() && i < ChunkVoxelStore::kVoxels; ++i) {
+            if (const Cube* c = cubes[i].get())
+                voxelStore.set(i, c->getMaterialName(), c->isVisible());
+        }
+    }
+
     glm::ivec3 worldOrigin = m_getWorldOrigin();
 
     // Build subcubeMap from static subcubes
@@ -291,6 +303,17 @@ VoxelLocation::Type ChunkVoxelManager::getVoxelType(const glm::ivec3& localPos) 
     auto microIt = microcubeMap.find(localPos);
     if (microIt != microcubeMap.end() && !microIt->second.empty()) return VoxelLocation::SUBDIVIDED;
     return VoxelLocation::EMPTY;
+}
+
+// Phase 4.2a: re-read one voxel from its authoritative Cube into the palette store.
+void ChunkVoxelManager::syncStoreAt(const glm::ivec3& localPos) {
+    if (!inBounds(localPos)) return;
+    const size_t index = kIdx(localPos);
+    if (const Cube* c = cubeAt(localPos)) {
+        voxelStore.set(index, c->getMaterialName(), c->isVisible());
+    } else {
+        voxelStore.erase(index);
+    }
 }
 
 // The dense cubes array IS the position index (see ChunkVoxelManager.h) — an array read replaces
@@ -456,7 +479,9 @@ bool ChunkVoxelManager::addCube(
             cubes[index] = std::make_unique<Cube>(localPos);
         }
     }
-    
+    // Phase 4.2a: mirror the authoritative Cube into the palette store.
+    voxelStore.set(index, cubes[index]->getMaterialName(), cubes[index]->isVisible());
+
     // Mark chunk as dirty for smart saving
     m_setDirty(true);
     
@@ -490,6 +515,7 @@ bool ChunkVoxelManager::removeCube(
     
     // Delete the cube from memory
     cubes[index].reset();
+    voxelStore.erase(index);   // Phase 4.2a: keep the mirror in step
     
     // Remove collision shape with proper memory management
     m_removeCollision(localPos);
@@ -530,6 +556,7 @@ int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions
         if (index >= cubes.size() || !cubes[index]) continue;
 
         cubes[index].reset();
+        voxelStore.erase(index);   // Phase 4.2a
         m_removeCollision(localPos);
         ++removed;
     }
@@ -573,6 +600,7 @@ int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, c
                 cubes[index] = std::make_unique<Cube>(localPos);
             }
         }
+        voxelStore.set(index, cubes[index]->getMaterialName(), cubes[index]->isVisible());  // 4.2a
         m_addCollision(localPos);
         ++added;
     }

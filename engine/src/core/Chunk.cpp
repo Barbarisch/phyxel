@@ -527,6 +527,10 @@ const Cube* Chunk::getCubeAtFast(const glm::ivec3& localPos) const {
     return voxelManager.getCubeAtFast(localPos);
 }
 
+void Chunk::syncVoxelStoreAt(const glm::ivec3& localPos) {
+    voxelManager.syncStoreAt(localPos);
+}
+
 // Internal: Maintain hash map consistency (subdivided voxels only — see ChunkVoxelManager.h.
 // The cube-keyed updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio is gone with the dense
 // maps they maintained: cube presence/type now derive from the `cubes` array on read.)

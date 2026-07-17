@@ -170,6 +170,14 @@ public:
     Cube* getCubeAtFast(const glm::ivec3& localPos);
     const Cube* getCubeAtFast(const glm::ivec3& localPos) const;
     
+    // Re-read one voxel from its Cube into the palette store (Phase 4.2a). Call after mutating a
+    // Cube's material/visible outside add/removeCube — see ChunkVoxelManager::syncStoreAt.
+    void syncVoxelStoreAt(const glm::ivec3& localPos);
+
+    // Palette-compressed static voxel state (Phase 4.2a mirror of `cubes`; authority flips in
+    // 4.2b). Scan-heavy readers (mesher, occupancy) should move to this.
+    const ChunkVoxelStore& getVoxelStore() const { return voxelManager.getVoxelStore(); }
+
     // Internal: Maintain hash map consistency (subdivided voxels only — the cube-keyed
     // updateVoxelMaps/addToVoxelMaps/removeFromVoxelMaps trio went away with the dense
     // cubeMap/voxelTypeMap in Phase 4.1; cube presence/type derive from `cubes` on read).

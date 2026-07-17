@@ -3,6 +3,7 @@
 #include "Types.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
+#include "core/ChunkVoxelStore.h"
 #include <vector>
 #include <unordered_map>
 #include <functional>
@@ -147,6 +148,20 @@ public:
     // dense `cubes` array already answers in O(1) (see kIdx below). They had no external consumers.
     const std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash>& getSubcubeMap() const { return subcubeMap; }
 
+    // Palette-compressed static voxel state (Phase 4.2a). Currently a read-only MIRROR of the
+    // authoritative `cubes` vector, maintained by add/removeCube + initializeVoxelMaps. Exposed
+    // so the scan-heavy readers (mesher, occupancy build) can switch to it, and so tests can
+    // assert it matches the Cubes. Authority flips in 4.2b, at which point static voxels stop
+    // allocating a Cube at all.
+    const ChunkVoxelStore& getVoxelStore() const { return voxelStore; }
+
+    // Re-read one voxel from the authoritative Cube into the palette store. Needed by any path
+    // that mutates a Cube's material/visible OUTSIDE add/removeCube — currently just the legacy
+    // row-per-voxel load in WorldStorage, which addCube()s and then flips visible directly.
+    // Without this the mirror silently disagrees with the Cube until the next
+    // initializeVoxelMaps() rebuild, which would become a real bug once authority flips (4.2b).
+    void syncStoreAt(const glm::ivec3& localPos);
+
     // Helper methods for accessing voxels (public for Chunk delegation)
     Cube* getCubeHelper(const glm::ivec3& localPos) const;
     Subcube* getSubcubeHelper(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
@@ -185,6 +200,10 @@ private:
     }
     // O(1) position -> Cube*, straight off the dense array (nullptr if out of bounds/empty).
     Cube* cubeAt(const glm::ivec3& localPos) const;
+
+    // Palette-compressed static state for the 32³ cube grid (Phase 4.2a mirror). ~96 KB/chunk
+    // against the ~10.5 MB the Cubes cost, so mirroring is <1% while it is being proven out.
+    ChunkVoxelStore voxelStore;
 
     // Sparse hierarchy maps — only populated where a cube is actually subdivided.
     std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash> subcubeMap;
