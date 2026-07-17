@@ -72,7 +72,12 @@ mantle/ladder (1 m semantics are gameplay-correct there).
 actual surface (not the cell boundary); a 1/3-step must glide, a 2/3-step must step,
 per `m_maxStepHeight`. Live: walk up a subcube staircase; approach a flare.
 
-### P3 — Foot-IK + grounding on dynamic bodies
+### P3 — Foot-IK + grounding on dynamic bodies — **KNOWN SHORTCOMING, accepted 2026-07-17**
+User verdict after the birch log-walk test: "well it isn't terrible. still a hover...
+good to call it good enough for now." Evidence: screenshots/screenshot_20260717_093407_373.png
+— character at (39.3,19.1,31.1) standing on a tilted fallen birch with ~0.3-0.4 m
+boot-to-bark gap. Documented, not fixed. The work below remains the plan of record
+when this is picked up.
 The 5-ray `groundHeight` gives the capsule an honest support height; the visual gap
 remains because (a) max-of-rays perches the capsule on the highest corner contact of a
 tilted narrow log, (b) foot-IK plants against terrain only.
