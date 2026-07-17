@@ -407,7 +407,13 @@ first refactor's before/after is what confirms it):
 
 **Re-order by measured leverage.** The listed order buries the best item and leads with the worst:
 
-1. **FIRST: delete the redundant hash maps (was item 2c).** ~41% of per-chunk RAM — as big as the
+1. ~~**FIRST: delete the redundant hash maps (was item 2c).**~~ ✅ **SHIPPED 2026-07-16.** Measured
+   **18.0 → 10.5 MB/chunk (−42%)**, matching the ~41% prediction; **14.6 GB saved at 2048 resident
+   chunks** (41.34 → 26.72 GB); OOM ceiling **~3,325 → ~5,670 chunks**. Full suite green (2,817
+   pass / 0 fail). `cubeMap` + `voxelTypeMap` are gone; `cubeAt()` reads the dense array and
+   `getVoxelType()` derives the type (the same decision `updateVoxelMaps` used to cache).
+   `subcubeMap`/`microcubeMap` stay — genuinely sparse. Net: less RAM *and* less code.
+   Original rationale: ~41% of per-chunk RAM — as big as the
    `Cube`s themselves — and it does **not** depend on the palette refactor. `cubes` is *already* a
    dense positional 32³ array (`cubes.resize(32*32*32)`; `index = z + y*32 + x*1024`), so
    `cubeMap` is a 32k-node hash duplicate of an O(1) array index; `voxelTypeMap` likewise derives

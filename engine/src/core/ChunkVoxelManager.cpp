@@ -78,55 +78,48 @@ void ChunkVoxelManager::setCallbacks(
 // =============================================================================
 
 void ChunkVoxelManager::clearAllVoxels() {
-    cubeMap.clear();
     subcubeMap.clear();
     microcubeMap.clear();
-    voxelTypeMap.clear();
 }
 
 // =============================================================================
 // HASH MAP MANAGEMENT
 // =============================================================================
-// These functions maintain the hash maps that enable O(1) voxel lookups
-// 
+// These functions maintain the SPARSE hierarchy maps for O(1) subdivided-voxel lookups.
+//
 // DATA STRUCTURES:
-// - cubeMap: { localPos -> Cube* }                    // Single-level: cube positions
 // - subcubeMap: { cubePos -> { subcubePos -> Subcube* } }  // Two-level: cube then subcube
 // - microcubeMap: { cubePos -> { subcubePos -> { microPos -> Microcube* } } }  // Three-level
-// - voxelTypeMap: { localPos -> VoxelType }          // Fast type checking (CUBE or SUBDIVIDED)
-// 
-// WHY HASH MAPS?
-// Without hash maps, finding a voxel requires O(n) linear search through vectors.
-// With hash maps, we get O(1) constant-time lookup by position.
-// 
+//
+// Both are SPARSE — only populated where a cube is actually subdivided, so ordinary terrain
+// chunks (which dominate RAM) carry none of this.
+//
+// REMOVED (Phase 4.1, docs/LargeWorldScalePlan.md): cubeMap { localPos -> Cube* } and
+// voxelTypeMap { localPos -> VoxelType }. Both were DENSE — up to 32,768 heap nodes per chunk
+// each — and both were pure duplication: `cubes` is already indexed by position
+// (z + y*32 + x*1024), so cubeMap restated an array read, and voxelTypeMap cached a value that
+// updateVoxelMaps already derived from the array + these two maps. They are computed on read now
+// (cubeAt / getVoxelType); an array index beats the hash lookup it replaced. The old warning
+// below still matters for what remains:
+//
 // CONSISTENCY:
 // ALL add/remove operations MUST update BOTH the vector AND the hash maps.
 // Stale hash map entries cause crashes (dangling pointers) or incorrect rendering.
-// 
-// VOXEL TYPE MAP:
-// Stores whether a position contains a CUBE (single voxel) or SUBDIVIDED (subcubes/microcubes).
-// This enables instant voxel type checking without scanning subcube/microcube maps.
 
 /**
- * Add cube to hash maps (both cubeMap and voxelTypeMap)
- * Call this whenever adding a cube to the cubes vector
+ * No-op since Phase 4.1: a cube's presence and type are derived from the dense `cubes` array on
+ * read, so there is no cube-keyed map left to maintain. Retained because Chunk delegates to it
+ * and callers still bracket cube writes with it.
  */
-void ChunkVoxelManager::addToVoxelMaps(const glm::ivec3& localPos, Cube* cube) {
-    if (cube) {
-        cubeMap[localPos] = cube;                      // O(1) position -> cube lookup
-        voxelTypeMap[localPos] = VoxelLocation::CUBE;  // Mark as containing a cube
-    }
+void ChunkVoxelManager::addToVoxelMaps(const glm::ivec3& /*localPos*/, Cube* /*cube*/) {
 }
 
 /**
- * Remove cube from hash maps
- * Call this whenever removing a cube from the cubes vector
- * 
- * CRITICAL: Also removes voxelTypeMap entry to prevent stale lookups
+ * No-op since Phase 4.1 — see addToVoxelMaps. Removing the cube from the `cubes` array IS the
+ * removal; there is no longer a parallel map that could go stale.
  */
 void ChunkVoxelManager::removeFromVoxelMaps(const glm::ivec3& localPos) {
-    cubeMap.erase(localPos);       // Remove position -> cube mapping
-    voxelTypeMap.erase(localPos);  // Remove type information
+    (void)localPos;
 }
 
 /**
@@ -142,7 +135,6 @@ void ChunkVoxelManager::removeFromVoxelMaps(const glm::ivec3& localPos) {
 void ChunkVoxelManager::addSubcubeToMaps(const glm::ivec3& localPos, const glm::ivec3& subcubePos, Subcube* subcube) {
     if (subcube) {
         subcubeMap[localPos][subcubePos] = subcube;           // Two-level lookup
-        voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;   // Mark as subdivided
     }
 }
 
@@ -186,7 +178,6 @@ void ChunkVoxelManager::removeSubcubeFromMaps(const glm::ivec3& localPos, const 
 void ChunkVoxelManager::addMicrocubeToMaps(const glm::ivec3& cubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos, Microcube* microcube) {
     if (microcube) {
         microcubeMap[cubePos][subcubePos][microcubePos] = microcube;  // Three-level lookup
-        voxelTypeMap[cubePos] = VoxelLocation::SUBDIVIDED;            // Mark cube as subdivided
     }
 }
 
@@ -221,45 +212,16 @@ void ChunkVoxelManager::removeMicrocubeFromMaps(const glm::ivec3& cubePos, const
 }
 
 /**
- * Update voxelTypeMap after structural changes at a position
- * 
- * SMART TYPE DETECTION:
- * Determines what currently exists at a position and updates voxelTypeMap accordingly:
- * 1. If cube exists -> type = CUBE
- * 2. Else if subcubes exist -> type = SUBDIVIDED
- * 3. Else if microcubes exist -> type = SUBDIVIDED
- * 4. Else nothing exists -> erase entry
- * 
- * WHY NEEDED?
- * After removing voxels, we may transition from SUBDIVIDED -> empty.
- * Example: Remove last subcube at position -> should erase voxelTypeMap entry.
- * 
- * WHEN TO CALL:
- * After any operation that changes voxel hierarchy (remove cube, remove all subcubes, etc.)
+ * No-op since Phase 4.1.
+ *
+ * This function's entire job was to recompute a position's VoxelLocation::Type and cache it in
+ * voxelTypeMap after a structural change. getVoxelType() now runs that exact decision on read
+ * (cube -> CUBE, else subcubes/microcubes -> SUBDIVIDED, else EMPTY), so there is nothing to
+ * refresh and no stale-entry class of bug left. Kept as a no-op because Chunk delegates to it and
+ * callers still bracket structural edits with it.
  */
 void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos) {
-    // Get the cube at this position (if any)
-    Cube* cube = getCubeHelper(localPos);
-    
-    // Update the maps based on what exists at this position
-    if (cube) {
-        addToVoxelMaps(localPos, cube);
-    } else {
-        // Check if subcubes exist
-        auto subcubeIt = subcubeMap.find(localPos);
-        if (subcubeIt != subcubeMap.end() && !subcubeIt->second.empty()) {
-            voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-        } else {
-            // Check if microcubes exist
-            auto microIt = microcubeMap.find(localPos);
-            if (microIt != microcubeMap.end() && !microIt->second.empty()) {
-                voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
-            } else {
-                // Nothing exists at this position
-                voxelTypeMap.erase(localPos);
-            }
-        }
-    }
+    (void)localPos;
 }
 
 /**
@@ -271,10 +233,13 @@ void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos) {
  * - During chunk initialization
  * 
  * ALGORITHM:
- * 1. Clear all existing hash maps (fresh start)
- * 2. Iterate through cubes vector, populate cubeMap and voxelTypeMap
- * 3. Iterate through staticSubcubes vector, populate subcubeMap
- * 4. Iterate through staticMicrocubes vector, populate microcubeMap
+ * 1. Clear the sparse hierarchy maps (fresh start)
+ * 2. Iterate through staticSubcubes vector, populate subcubeMap
+ * 3. Iterate through staticMicrocubes vector, populate microcubeMap
+ *
+ * The cubes pass is gone (Phase 4.1): `cubes` is already the position index, so there is no
+ * cube-keyed map to rebuild — which also means loading a chunk no longer allocates 32k hash
+ * nodes before it can be queried.
  * 
  * PERFORMANCE:
  * O(n) where n = total voxels, but only called occasionally (not every frame)
@@ -286,25 +251,11 @@ void ChunkVoxelManager::updateVoxelMaps(const glm::ivec3& localPos) {
  */
 void ChunkVoxelManager::initializeVoxelMaps() {
     // Clear existing maps (fresh start - prevents stale entries)
-    cubeMap.clear();
     subcubeMap.clear();
     microcubeMap.clear();
-    voxelTypeMap.clear();
-    
+
     glm::ivec3 worldOrigin = m_getWorldOrigin();
-    
-    // BUILD CUBE MAP:
-    // Iterate through cubes vector and populate hash map
-    auto& cubes = m_getCubes();
-    for (size_t i = 0; i < cubes.size(); ++i) {
-        Cube* cube = cubes[i].get();
-        if (cube) {
-            glm::ivec3 localPos = cube->getPosition();  // Already in local coordinates
-            cubeMap[localPos] = cube;
-            voxelTypeMap[localPos] = VoxelLocation::CUBE;
-        }
-    }
-    
+
     // Build subcubeMap from static subcubes
     auto& staticSubcubes = m_getStaticSubcubes();
     for (const auto& subcube : staticSubcubes) {
@@ -313,10 +264,9 @@ void ChunkVoxelManager::initializeVoxelMaps() {
             glm::ivec3 localPos = parentWorldPos - worldOrigin;
             glm::ivec3 subcubePos = subcube->getLocalPosition();
             subcubeMap[localPos][subcubePos] = subcube.get();
-            voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
         }
     }
-    
+
     // Build microcubeMap from static microcubes
     auto& staticMicrocubes = m_getStaticMicrocubes();
     for (const auto& microcube : staticMicrocubes) {
@@ -326,12 +276,10 @@ void ChunkVoxelManager::initializeVoxelMaps() {
             glm::ivec3 subcubePos = microcube->getSubcubeLocalPosition();
             glm::ivec3 microcubePos = microcube->getMicrocubeLocalPosition();
             microcubeMap[cubePos][subcubePos][microcubePos] = microcube.get();
-            voxelTypeMap[cubePos] = VoxelLocation::SUBDIVIDED;
         }
     }
-    
-    LOG_DEBUG_FMT("ChunkVoxelManager", "Initialized voxel maps: " 
-              << cubeMap.size() << " cubes, " 
+
+    LOG_DEBUG_FMT("ChunkVoxelManager", "Initialized voxel maps: "
               << subcubeMap.size() << " subdivided positions, "
               << microcubeMap.size() << " microcube positions");
 }
@@ -344,21 +292,13 @@ VoxelLocation ChunkVoxelManager::resolveLocalPosition(
     const glm::ivec3& localPos
 ) const {
     VoxelLocation location;
-    
-    // Check voxelTypeMap first for O(1) lookup
-    auto typeIt = voxelTypeMap.find(localPos);
-    if (typeIt != voxelTypeMap.end()) {
-        location.type = typeIt->second;
-        // Note: VoxelLocation doesn't store cube pointer - caller must use getCubeAt if needed
-    } else {
-        location.type = VoxelLocation::EMPTY;
-    }
-    
+    // Note: VoxelLocation doesn't store cube pointer - caller must use getCubeAt if needed
+    location.type = getVoxelType(localPos);
     return location;
 }
 
 bool ChunkVoxelManager::hasVoxelAt(const glm::ivec3& localPos) const {
-    return voxelTypeMap.find(localPos) != voxelTypeMap.end();
+    return getVoxelType(localPos) != VoxelLocation::EMPTY;
 }
 
 bool ChunkVoxelManager::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
@@ -369,22 +309,35 @@ bool ChunkVoxelManager::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec
     return false;
 }
 
+// DERIVED (Phase 4.1): this is exactly what updateVoxelMaps used to compute before caching it in
+// voxelTypeMap — a solid cube wins, else any subcube/microcube presence means SUBDIVIDED, else
+// EMPTY. Every writer paired its subcubeMap/microcubeMap insert with the type write in the same
+// call (addSubcubeToMaps/addMicrocubeToMaps), so deriving on read is equivalent, not racy.
 VoxelLocation::Type ChunkVoxelManager::getVoxelType(const glm::ivec3& localPos) const {
-    auto it = voxelTypeMap.find(localPos);
-    if (it != voxelTypeMap.end()) {
-        return it->second;
-    }
+    if (cubeAt(localPos)) return VoxelLocation::CUBE;
+    auto subIt = subcubeMap.find(localPos);
+    if (subIt != subcubeMap.end() && !subIt->second.empty()) return VoxelLocation::SUBDIVIDED;
+    auto microIt = microcubeMap.find(localPos);
+    if (microIt != microcubeMap.end() && !microIt->second.empty()) return VoxelLocation::SUBDIVIDED;
     return VoxelLocation::EMPTY;
 }
 
+// The dense cubes array IS the position index (see ChunkVoxelManager.h) — an array read replaces
+// the former cubeMap hash lookup.
+Cube* ChunkVoxelManager::cubeAt(const glm::ivec3& localPos) const {
+    if (!inBounds(localPos) || !m_getCubes) return nullptr;
+    auto& cubes = m_getCubes();
+    const size_t index = kIdx(localPos);
+    if (index >= cubes.size()) return nullptr;
+    return cubes[index].get();
+}
+
 Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) {
-    auto it = cubeMap.find(localPos);
-    return (it != cubeMap.end()) ? it->second : nullptr;
+    return cubeAt(localPos);
 }
 
 const Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) const {
-    auto it = cubeMap.find(localPos);
-    return (it != cubeMap.end()) ? it->second : nullptr;
+    return cubeAt(localPos);
 }
 
 // =============================================================================
@@ -392,17 +345,9 @@ const Cube* ChunkVoxelManager::getCubeAtFast(const glm::ivec3& localPos) const {
 // =============================================================================
 
 Cube* ChunkVoxelManager::getCubeHelper(const glm::ivec3& localPos) const {
-    // First try fast lookup
-    auto it = cubeMap.find(localPos);
-    if (it != cubeMap.end()) {
-        return it->second;
-    }
-    
-    // Fallback: indexed access
-    size_t index = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
-    auto& cubes = m_getCubes();
-    if (index >= cubes.size()) return nullptr;
-    return cubes[index].get();
+    // The old "fast lookup then fall back to indexed access" is now just the indexed access —
+    // the hash was a duplicate of it (Phase 4.1).
+    return cubeAt(localPos);
 }
 
 Subcube* ChunkVoxelManager::getSubcubeHelper(
@@ -517,11 +462,10 @@ bool ChunkVoxelManager::addCube(
 
     // Occupied-cell handling. Default: reject (safe "place only if empty"). overwrite=true: remove an
     // existing SOLID cube and fall through to place the new one in its place.
-    auto typeIt = voxelTypeMap.find(localPos);
     if (cubes[index] && !cubes[index]->isBroken()) {
         if (!overwrite) return false;
         removeCube(localPos, /*deferRebuild=*/true);   // clears the cube + maps + collision; cubes[index] -> null
-    } else if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+    } else if (!cubes[index] && getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
         // Overwriting subdivided cells (clearing all sub/microcubes) is not yet supported — reject
         // even with overwrite. TODO: add subdivided clear-and-replace when structure placement needs it.
         return false;
@@ -651,8 +595,7 @@ int ChunkVoxelManager::addCubesBatch(const std::vector<glm::ivec3>& positions, c
         if (cubes[index] && !cubes[index]->isBroken()) {
             continue; // occupied — skip overlap
         }
-        auto typeIt = voxelTypeMap.find(localPos);
-        if (!cubes[index] && typeIt != voxelTypeMap.end() && typeIt->second == VoxelLocation::SUBDIVIDED) {
+        if (!cubes[index] && getVoxelType(localPos) == VoxelLocation::SUBDIVIDED) {
             continue; // subdivided voxels here — skip overlap
         }
         if (cubes[index]) {
@@ -725,7 +668,6 @@ bool ChunkVoxelManager::subdivideAt(
     }
     
     // Delete the parent cube completely
-    cubeMap.erase(localPos);
     size_t cubeIndex = localPos.z + localPos.y * 32 + localPos.x * 32 * 32;
     auto& cubes = m_getCubes();
     if (cubeIndex < cubes.size() && cubes[cubeIndex].get() == cube) {
@@ -735,8 +677,6 @@ bool ChunkVoxelManager::subdivideAt(
                   << ") - replaced by 27 subcubes");
     }
     
-    // Update voxelTypeMap to mark position as subdivided
-    voxelTypeMap[localPos] = VoxelLocation::SUBDIVIDED;
     
     // Mark for update and as dirty
     m_setNeedsUpdate(true);
@@ -834,7 +774,6 @@ bool ChunkVoxelManager::removeSubcube(
                 m_removeCollision(parentPos);
                 
                 // Position becomes empty
-                voxelTypeMap.erase(parentPos);
                 LOG_DEBUG_FMT("ChunkVoxelManager", "[VOXEL MAP] Position now empty at (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                           << ") - all subcubes removed");
@@ -847,8 +786,6 @@ bool ChunkVoxelManager::removeSubcube(
                 m_removeCollision(parentPos);
                 m_addCollision(parentPos);
                 
-                // Ensure voxelTypeMap shows SUBDIVIDED
-                voxelTypeMap[parentPos] = VoxelLocation::SUBDIVIDED;
                 LOG_DEBUG_FMT("ChunkVoxelManager", "[VOXEL MAP] Maintained SUBDIVIDED type at (" 
                           << parentPos.x << "," << parentPos.y << "," << parentPos.z 
                           << ") - " << remainingSubcubes.size() << " subcubes remain");
@@ -905,7 +842,6 @@ bool ChunkVoxelManager::clearSubdivisionAt(
     // Clear the subdivision state from data structures
     subcubeMap.erase(localPos);
     microcubeMap.erase(localPos);
-    voxelTypeMap.erase(localPos);
     
     if (removedAny) {
         m_removeCollision(localPos);
@@ -1139,7 +1075,6 @@ bool ChunkVoxelManager::removeMicrocube(
                               << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z 
                               << ") - removing collision shape and voxel type entry");
                     m_removeCollision(parentCubePos);
-                    voxelTypeMap.erase(parentCubePos);
                 }
             }
             
@@ -1208,7 +1143,6 @@ bool ChunkVoxelManager::clearMicrocubesAt(
                       << cubePos.x << "," << cubePos.y << "," << cubePos.z 
                       << ") - removing collision and voxel type entry");
             m_removeCollision(cubePos);
-            voxelTypeMap.erase(cubePos);
         }
     }
     

@@ -143,10 +143,10 @@ public:
     // Utility
     static size_t subcubeToIndex(const glm::ivec3& parentPos, const glm::ivec3& subcubePos);
 
-    // Direct hash map access (for ChunkManager and other systems)
-    const std::unordered_map<glm::ivec3, Cube*, IVec3Hash>& getCubeMap() const { return cubeMap; }
+    // Direct hash map access (for ChunkManager and other systems).
+    // NOTE: cubeMap/voxelTypeMap getters are gone — both were per-voxel caches of information the
+    // dense `cubes` array already answers in O(1) (see kIdx below). They had no external consumers.
     const std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash>& getSubcubeMap() const { return subcubeMap; }
-    const std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash>& getVoxelTypeMap() const { return voxelTypeMap; }
 
     // Helper methods for accessing voxels (public for Chunk delegation)
     Cube* getCubeHelper(const glm::ivec3& localPos) const;
@@ -170,11 +170,26 @@ private:
     IsInBulkOperationFunc m_isInBulkOperation;
     std::function<void()> m_updateVulkanBuffer;
 
-    // O(1) lookup data structures for optimized hover system
-    std::unordered_map<glm::ivec3, Cube*, IVec3Hash> cubeMap;
+    // ── Positional index into the dense cubes array (docs/LargeWorldScalePlan.md Phase 4.1) ──
+    // Chunk sizes `cubes` to exactly 32*32*32 and stores each cube at z + y*32 + x*1024, so the
+    // array IS the position->Cube index. The former `cubeMap` (a 32k-node hash per solid chunk)
+    // and `voxelTypeMap` (another 32k nodes, caching a value updateVoxelMaps already DERIVED from
+    // the array + the subcube/microcube maps) were pure duplication — together ~41% of per-chunk
+    // RAM at the measured 18.1 MB/chunk. Both are now computed on read: an array index is cheaper
+    // than the hash lookup it replaced. subcubeMap/microcubeMap stay: they are genuinely SPARSE
+    // (empty for ordinary terrain), so they cost nothing on the chunks that dominate RAM.
+    static constexpr size_t kIdx(const glm::ivec3& p) {
+        return static_cast<size_t>(p.z) + static_cast<size_t>(p.y) * 32 + static_cast<size_t>(p.x) * 1024;
+    }
+    static constexpr bool inBounds(const glm::ivec3& p) {
+        return p.x >= 0 && p.x < 32 && p.y >= 0 && p.y < 32 && p.z >= 0 && p.z < 32;
+    }
+    // O(1) position -> Cube*, straight off the dense array (nullptr if out of bounds/empty).
+    Cube* cubeAt(const glm::ivec3& localPos) const;
+
+    // Sparse hierarchy maps — only populated where a cube is actually subdivided.
     std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Subcube*, IVec3Hash>, IVec3Hash> subcubeMap;
     std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, std::unordered_map<glm::ivec3, Microcube*, IVec3Hash>, IVec3Hash>, IVec3Hash> microcubeMap;
-    std::unordered_map<glm::ivec3, VoxelLocation::Type, IVec3Hash> voxelTypeMap;
 };
 
 } // namespace Phyxel
