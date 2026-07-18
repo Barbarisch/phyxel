@@ -716,3 +716,177 @@ rework (4) making it *dense* and *big-world-resident* afterwards.
 - Mid-field LOD ownership: extend `FarTerrainManager` rings inward with voxel-aware tiles vs a
   separate `ChunkLODController` (the approved-but-unbuilt Phase 5 plan used the latter).
 - Whether foliage impostors are needed at mid distance or fog + far-terrain coloring suffices.
+
+## 5. Addendum — external survey: how the field solves this (2026-07-17)
+
+*Provenance: web/GitHub research (three parallel research agents) over open-source voxel
+engines, published papers, and first-party devlogs; all claims cite a repo/doc/paper URL.
+Written against the post-4.4 state (1.00 MB/chunk, ~59k-chunk ceiling). Purpose: validate or
+correct this plan against what shipping engines actually do, and record the reference
+implementations to copy from.*
+
+### 5.1 The convergent findings
+
+**A. Nobody achieves huge render distance by pushing full-res chunks farther.** Every project
+that got "see forever" uses a second, coarser representation. Three proven patterns:
+1. **Octree-native world** — the storage hierarchy IS the LOD; distant regions render from
+   coarser tree levels directly. Bonsai (billion-block worlds, "view distance = the entire
+   world" at "stable, linear cost", GPU-side generation so coarse levels are produced natively:
+   <https://github.com/scallyw4g/bonsai>), Cubiquity (SVDAG whose coarser levels are the
+   distant instanced cubes: <https://github.com/DavidWilliams81/cubiquity>), VoxelPlugin.
+2. **Persisted column LOD in a quadtree** — Distant Horizons (the best-known Minecraft
+   answer): per-XZ columns with a few vertical samples, quadtree of detail levels, stored as a
+   *first-class artifact* in its own SQLite DB with its own compression policy (LZMA — 3×
+   smaller than LZ4; optional lossy mode — LODs are write-rarely/read-often), rendered as a
+   **separate pass behind the near field with separate depth handling** (their wiki explicitly:
+   the separation exists to avoid z-fighting). 256–1024+ chunk distances in 2–4 GB.
+   <https://gitlab.com/distant-horizons-team/distant-horizons>
+3. **Generator-coarse layer** — Veloren: far terrain is a heightmap from the world
+   *generator's* coarse model (never from downsampling real chunks) + horizon maps for distant
+   shadows + server-sent *positions/kinds* of distant trees rendered as cheap instanced
+   markers. <https://veloren.net/blog/devblog-171/>
+
+Phase 5's near/mid/far split is exactly the Veloren+DH hybrid — **the plan's shape is
+independently validated**. One field-wide correction: **the generator must emit coarse data
+directly; downsampling fully-generated fine chunks for far LOD is the trap** (Bonsai moved gen
+to GPU partly for this; DH's hardest perf work was avoiding double-generation; Veloren never
+touches real chunks for LOD). Our far terrain already samples the generator — correct. Reserve
+chunk-downsampling (5.4) for the only content that needs it: *edited* chunks and structures.
+
+**B. The luanti cautionary tale confirms LOD is the only bounded answer.** Luanti/Minetest has
+good storage (per-block name→id palettes), mesh chunking (up to 64³ merged meshes), BFS +
+raytraced occlusion — and **no shipped LOD tier ever** (celeron55's 2016 "far map" branch died:
+<https://github.com/minetest/minetest/pull/3502>). Its draw range hard-caps regardless.
+Everything except LOD is a constant factor.
+
+**C. Our ternary sub-voxel scheme (1/3, 1/9) has no precedent — and its face-meshed rendering
+is the documented failure mode elsewhere.** No shipping engine uses 3ⁿ nesting (power-of-two
+everywhere: shifts not divides, 64-bit-friendly child masks, dedup literature). The closest
+analogs are Minecraft's sub-block mods, and their history is the 412k-face tavern in
+miniature:
+- **Chisels & Bits** (16³ bits/block, meshed to faces like us): issue tracker documents
+  detail-heavy chisel work dropping to ~0 FPS, meshing cost scaling with bit count, per-block
+  meshing never scaling to whole detailed buildings
+  (<https://github.com/ChiselsAndBits/Chisels-and-Bits/issues/543>, /issues/886).
+- **LittleTiles** survives by storing **boxes, not voxels** — implicit greedy-merge at
+  authoring time; cost ∝ shapes, not cells. (Storage twin of our fine-face greedy merge.)
+- Every engine with truly tiny voxels — Teardown, John Lin, Ethan Gore, Avoyd, DouglasDwyer's
+  Octo — **abandoned face geometry for volume storage + per-pixel ray traversal**. Octo's
+  changelog literally documents outgrowing greedy-meshing-with-LODs and switching to compute
+  ray marching (<https://github.com/DouglasDwyer/octo-release>).
+
+The strongest pattern-match for our microcube density problem is **Teardown's hybrid**:
+rasterize only each detail region's *bounding box*, then DDA-march the region's palette volume
+in the fragment shader (volume texture at 1 B/voxel + 256-entry palette; its own mip chain =
+free octree for empty-space skipping; ships on OpenGL 3.3, no RT hardware, no compute).
+A furnished tavern becomes a handful of box draws; "face count" stops being a cost axis for
+detail. Breakdowns: <https://juandiegomontoya.github.io/teardown_breakdown.html>,
+<https://acko.net/blog/teardown-frame-teardown/>. Note the convergence from the other
+direction too: Ethan Gore (renders the full 4B³ range) found it *faster to rasterize primary
+visibility and ray-trace only shadows/GI* (<https://news.ycombinator.com/item?id=46286930>) —
+hybrid is the consensus from both camps. This directly endorses `RayTracingPlan.md`'s
+"micro-detail trace prototype first" ordering.
+
+**D. Memory reference points (context for Phase 4's numbers).** Minecraft palettized sections
+≈ **0.5–1 B/voxel** (<https://minecraft.wiki/w/Chunk_format>); Teardown **1 B/voxel at 10 cm
+resolution**; Veloren "a few hundred KB per chunk" via implicit defaults + subchunk dedup;
+SVO-DAGs **0.05–0.6 B/voxel** (Kämpe 2013, EpicCitadel 128K³ in 945 MB:
+<https://dl.acm.org/doi/10.1145/2461912.2462024>). The proven compression ladder beyond our
+current palette store, with published multipliers:
+1. **Implicit most-common-default** per chunk/subchunk — Veloren measured **~7× RAM** from
+   storing the dominant block implicitly (<https://veloren.net/blog/devblog-117/>). Phase 4.4's
+   uniform store is the degenerate (whole-chunk) case of this; the per-subchunk/default-block
+   generalization is the remaining headroom for *surface* chunks.
+2. **RLE/interval ordering** for homogeneous runs — ≈SVO compression ratios, far simpler
+   (survey: <https://eisenwave.github.io/voxel-compression-docs/>). Already in the blob codec;
+   candidate for in-RAM sparse sections.
+3. **Copy-on-write dedup of repeated subtrees** — Avoyd's ref-counted copy-on-modify DAG,
+   ~4× on their data, the proven *editable* dedup
+   (<https://www.enkisoftware.com/devlogpost-20230823-1-Implementing-a-GPU-Voxel-Octree-Path-Tracer>).
+   High-value here specifically: settlements place the same furniture template hundreds of
+   times. Editable-DAG literature: HashDAG <https://github.com/Phyronnaz/HashDAG>.
+
+**E. The rasterizer scaling recipe is settled** (Sodium, Vercidium, vkguide's Ascendant, and
+the Aokana paper — SIGGRAPH 2025, the best end-to-end voxel reference:
+<https://arxiv.org/abs/2505.02017>):
+- **Region-grouped buffers**: Sodium groups 8×4×8 sections into one `RenderRegion` sharing a
+  buffer allocation, one multidraw per region
+  (<https://deepwiki.com/CaffeineMC/sodium/3.1-chunk-rendering-pipeline>). This is the field's
+  answer to both our per-chunk-buffer model (blocker D remainder + Phase 4.3) and draw-count
+  scaling — one arena per chunk-region, suballocated.
+- **Shared 6-index buffer + vertex pulling**: packed quads at **8 bytes** (u32 packed
+  pos/size + u32 type — the cgerikj/Ethan Gore format) vs our 20 B `InstanceData`; corners
+  reconstructed from `gl_VertexIndex` (<https://voxel.wiki/wiki/vertex-pulling/>). Our open
+  "6-index draw" perf item is exactly this.
+- **Binary greedy meshing is now ~free**: 64-bit column masks, cull 64 faces per bitwise op,
+  **50–200 µs per 62³ chunk** (avg 74 µs) — cheap enough to run at streaming time, and our
+  occupancy grids already exist as input (<https://github.com/cgerikj/binary-greedy-meshing>).
+  Counterpoint for destruction-heavy scenes: Vercidium ships a *run-merge* instead — "~20%
+  more triangles than greedy, ~390% faster" — because constant destruction forces near-per-
+  frame remesh; also 4 B/vertex packing and neighbor-pointer caching as the top boundary-
+  lookup win (<https://vercidium.com/blog/voxel-world-optimisations/>).
+- **GPU-driven submission for 10k+ chunks**: compute frustum + **two-phase Hi-Z occlusion**
+  (draw last frame's visible set, build Hi-Z, re-test the culled remainder — no readback, no
+  popping) writing `vkCmdDrawIndexedIndirectCount`. Portable Vulkan 1.2, no mesh shaders.
+  This is what retires the per-frame O(all-chunks) CPU scans (blocker E) at scale. Voxel-
+  specific reference: Aokana (above); Vulkan walkthrough:
+  <https://vkguide.dev/docs/ascendant/ascendant_geometry/>; explainer:
+  <https://medium.com/@mil_kru/two-pass-occlusion-culling-4100edcad501>. Nvidium's
+  mesh-shader variant gets ~10× in dense Minecraft scenes but is NVIDIA-only
+  (<https://github.com/MCRcortex/nvidium>) — optional later backend, not the path.
+- Our occlusion BFS is the same family as Sodium's/Luanti's camera-BFS graph cull — the
+  field's verdict is it's the right cheap CPU-side complement. Keep it.
+
+**F. Smaller validations.**
+- **SQLite is a validated backend** — Luanti's default (blob per 16³ block, zstd:
+  <https://docs.luanti.org/for-server-hosts/database-backends/>) and DH's LOD store. No
+  LMDB/LevelDB move is justified; Bedrock's LevelDB precedent argues only for *smaller write
+  granularity* (per-subchunk delta keys), adaptable inside SQLite if save churn ever bites.
+- **Seams**: cubic-voxel projects don't stitch LOD boundaries — they render the far
+  representation as a separate shell behind near geometry and let depth win (DH, Veloren).
+  Our compositing depth-arbiter (bias + 0.5-voxel push-down) is the same philosophy. The
+  crack-free-by-construction alternative, if per-chunk mid-LOD ever needs it, is Lysenko's
+  POP-buffer/geomorph method for blocky voxels
+  (<https://0fps.net/2018/03/03/a-level-of-detail-method-for-blocky-voxels/>).
+- **LOD as a storage dimension**: godot_voxel keys every saved block by (x, y, z, **lod**) in
+  its SQLite stream and treats (position, lod) as the streaming unit
+  (<https://voxel-tools.readthedocs.io/en/latest/streams/>) — the cleanest open reference for
+  persisting 5.4's mid-field LOD of edited regions. Its clipbox (nested-box, multi-viewer)
+  streaming strategy is also the modern replacement for octree-split streaming.
+- **John Lin's architecture note** ("The Perfect Voxel Engine",
+  <https://voxely.net/blog/the-perfect-voxel-engine/>): don't force render, physics, and
+  persistence through one voxel format — multiple specialized formats with explicit
+  converters is the *correct end state*, not a smell. We already half-do this (occupancy
+  grids / render instances / palette store / blob codec).
+
+### 5.2 Plan adjustments adopted from the survey
+
+1. **Phase 4 follow-on — implicit-default generalization (new 4.2c-adjacent item):** extend
+   the 4.4 uniform representation to per-subchunk / dominant-material defaults à la Veloren
+   for *surface* chunks (the remaining RAM mass post-4.4 correction). Re-measure first per the
+   4.4 correction note; the field multiplier (~7×) was measured on whole-chunk data shapes.
+2. **Sub/micro detail endgame = Teardown-style raymarched palette bricks** (box-raster +
+   fragment DDA over a per-cube 9³ brick with a mip/occupancy pyramid), merged with
+   `RayTracingPlan.md`'s micro-detail prototype — promoted from "slated idea" to the
+   field-endorsed answer for the fine-face explosion. Fine greedy merge
+   (`RenderOptimization.md` #40) remains the shipping stopgap; the survey's verdict is that
+   it's a constant factor, not the fix.
+3. **Phase 5.4 architecture = copy Distant Horizons**: mid-field LOD columns persisted in
+   their own tables (own compression policy, LZMA-class), quadtree keyed by (pos, lod),
+   rendered as a separate pass; terrain LOD generated from `CoarseWorldModel` directly,
+   downsampling only edited chunks/structures. godot_voxel's (x,y,z,lod) keying is the
+   schema reference.
+4. **Phase 4.3 scope upgrade**: implement GPU suballocation as **region arenas**
+   (Sodium-style N-chunk regions sharing one allocation + one multidraw) rather than
+   per-chunk right-sizing alone — solves allocation count and draw scaling in one motion, and
+   is the prerequisite shape for indirect-count GPU culling.
+5. **New Phase 5/6-era item — GPU-driven culling**: when resident counts approach 10k, move
+   frustum+occlusion to compute (two-phase Hi-Z + `vkCmdDrawIndexedIndirectCount`) per
+   Aokana/Ascendant; retires blocker E's O(all-chunks) scans structurally. Mesh shaders stay
+   an optional NVIDIA backend, not a dependency.
+6. **Compression ladder bookmark (post-4.x, pre-RT):** CoW/dedup of repeated structure
+   subtrees (Avoyd pattern) — measure on a settlement world; expected high leverage because
+   generated content repeats templates.
+7. **Meshing note for the 6-index/vertex-pulling item**: adopt the 8-byte packed-quad format
+   (binary-greedy-meshing repo) as the target encoding; keep Vercidium's run-merge in mind if
+   destruction remesh latency ever regresses under full greedy.
