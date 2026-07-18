@@ -66,8 +66,14 @@ void logAllocFailure(VkPhysicalDevice pd, VkDeviceSize bytes, const char* what) 
 // the realloc stall. OFF reproduces the old inline-free behaviour byte-for-byte for A/B.
 bool ChunkRenderBuffer::s_deferBufferFree = true;
 
-// Phase 4.3 (docs/RegionArenaPlan.md): DEFAULT OFF until A2 wires draw-site offsets.
-bool ChunkRenderBuffer::s_regionArenas = false;
+// Phase 4.3 (docs/RegionArenaPlan.md): DEFAULT ON since A3. Gates: A2 visual
+// identity (bitwise-stable per config; 2 leaf-edge pixels <=2/255 across modes);
+// A3 on the 1:1 world (Release) — allocations 4,693 -> 38 blocks at ~4k chunks,
+// OFF/ON idle soaks both clean (stable ~9 GB plateau, 83-112 FPS), validation
+// run shows zero buffer/memory VUIDs (remaining hits = pre-existing debug-line
+// pipeline interface + boot semaphore quirks). OFF reproduces per-chunk buffers
+// for A/B via POST /api/debug/region_arenas.
+bool ChunkRenderBuffer::s_regionArenas = true;
 
 ChunkRenderBuffer::ChunkRenderBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
     : device(device)

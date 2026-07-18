@@ -1,6 +1,17 @@
 # Region Arena Plan — Phase 4.3: shared GPU buffer blocks for chunk rendering
 
-> **Status: PLANNED** (2026-07-18). Scoped against a full code survey (below). This is
+> **Status: A0–A3 SHIPPED, DEFAULT ON** (2026-07-18). A0 allocator core (red-first 9-test
+> suite); A1 arena mode in ChunkRenderBuffer + ChunkArenaSystem; A2 draw sites bind span
+> offsets (gate: bitwise-stable per config, 2 leaf-edge px ≤2/255 across modes); A3 gates
+> on the 1:1 world (Release): **allocations 4,693 → 38 blocks at ~4k chunks (127×)**,
+> OFF/ON idle soaks clean (~9 GB plateau both, 83–112 FPS), zero buffer/memory VUIDs
+> (5 validation hits = pre-existing debug-line interface + boot semaphore classes — logged).
+> Remaining: A4 10k stress; block-size tune (38×64 MB reserves ~2.4 GB for ~37 MB used —
+> consider 16 MB blocks); §3.3 4.3b multidraw. OPERATIONAL LESSON from A3: 3-second HTTP
+> probes against this API are unreliable during settling — a healthy engine was killed on
+> their word once; use ≥8 s timeouts + process-CPU checks before declaring death.
+>
+> Originally planned 2026-07-18: Scoped against a full code survey (below). This is
 > `LargeWorldScalePlan.md` §5.2 adjustment #4 (Sodium-style region arenas) and the direct
 > successor of `ChunkUpdateHitchPlan.md` **B2** (deferred there; its motive — the
 > `maxMemoryAllocationCount` ~4096 crash ceiling — is unchanged and now measured at
