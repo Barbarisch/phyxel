@@ -401,6 +401,7 @@ void Chunk::recomputeRenderFlags() {
 }
 
 void Chunk::updateVulkanBuffer() {
+    renderManager.setArenaRegionKey(worldOrigin);  // Phase 4.3: no-op unless arenas on
     renderManager.updateVulkanBuffer();
 }
 
@@ -417,6 +418,7 @@ void Chunk::updateSingleSubcubeTexture(const glm::ivec3& parentLocalPos, const g
 }
 
 void Chunk::createVulkanBuffer() {
+    renderManager.setArenaRegionKey(worldOrigin);  // Phase 4.3: no-op unless arenas on
     renderManager.createVulkanBuffer();
 }
 

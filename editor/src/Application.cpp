@@ -14,6 +14,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/FarTerrainManager.h"
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
+#include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
 #include "core/MaterialRegistry.h"
 #include "core/GameSettings.h"   // Core::stringToKey for inject_input
 #include "core/AtlasManager.h"
@@ -3004,6 +3005,8 @@ void Application::run() {
         // B1: advance the deferred buffer-reclaim tick and free any old chunk buffers now past
         // MAX_FRAMES_IN_FLIGHT (safe: the frame that may reference them was submitted in render()).
         Graphics::tickDeferredBufferReclaim();
+        // Phase 4.3: arena span-retire clock (same frames-in-flight contract; no-op when off).
+        Graphics::ChunkArenaSystem::instance().tick();
 
         // End frame profiling
         performanceProfiler->endFrame();
@@ -3116,6 +3119,8 @@ void Application::cleanup() {
     if (vulkanDevice) {
         vkDeviceWaitIdle(vulkanDevice->getDevice());
         Graphics::flushDeferredBufferReclaim();
+        // Phase 4.3: release all arena blocks while the device is still alive.
+        Graphics::ChunkArenaSystem::instance().shutdown();
     }
 
     // Clear NPC / story / dialogue subsystems

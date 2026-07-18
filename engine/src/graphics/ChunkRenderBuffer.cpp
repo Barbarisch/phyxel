@@ -1,4 +1,5 @@
 #include "graphics/ChunkRenderBuffer.h"
+#include "graphics/ChunkArenaSystem.h"       // Phase 4.3 arena mode (docs/RegionArenaPlan.md)
 #include "graphics/ChunkUpdatePerf.h"        // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/GpuAllocStats.h"          // Phase 4 attribution (docs/LargeWorldScalePlan.md)
@@ -65,6 +66,9 @@ void logAllocFailure(VkPhysicalDevice pd, VkDeviceSize bytes, const char* what) 
 // the realloc stall. OFF reproduces the old inline-free behaviour byte-for-byte for A/B.
 bool ChunkRenderBuffer::s_deferBufferFree = true;
 
+// Phase 4.3 (docs/RegionArenaPlan.md): DEFAULT OFF until A2 wires draw-site offsets.
+bool ChunkRenderBuffer::s_regionArenas = false;
+
 ChunkRenderBuffer::ChunkRenderBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
     : device(device)
     , physicalDevice(physicalDevice)
@@ -90,12 +94,17 @@ ChunkRenderBuffer::ChunkRenderBuffer(ChunkRenderBuffer&& other) noexcept
     , bufferCapacity(other.bufferCapacity)
     , maxInstancesUsed(other.maxInstancesUsed)
     , elementSize(other.elementSize)
+    , m_span(other.m_span)
+    , m_regionKey(other.m_regionKey)
+    , m_arenaMode(other.m_arenaMode)
 {
     other.instanceBuffer = VK_NULL_HANDLE;
     other.instanceMemory = VK_NULL_HANDLE;
     other.mappedMemory = nullptr;
     other.bufferCapacity = 0;
     other.maxInstancesUsed = 0;
+    other.m_span = {};
+    other.m_arenaMode = false;
 }
 
 ChunkRenderBuffer& ChunkRenderBuffer::operator=(ChunkRenderBuffer&& other) noexcept {
@@ -110,12 +119,17 @@ ChunkRenderBuffer& ChunkRenderBuffer::operator=(ChunkRenderBuffer&& other) noexc
         bufferCapacity = other.bufferCapacity;
         maxInstancesUsed = other.maxInstancesUsed;
         elementSize = other.elementSize;
+        m_span = other.m_span;
+        m_regionKey = other.m_regionKey;
+        m_arenaMode = other.m_arenaMode;
 
         other.instanceBuffer = VK_NULL_HANDLE;
         other.instanceMemory = VK_NULL_HANDLE;
         other.mappedMemory = nullptr;
         other.bufferCapacity = 0;
         other.maxInstancesUsed = 0;
+        other.m_span = {};
+        other.m_arenaMode = false;
     }
     return *this;
 }
@@ -125,6 +139,41 @@ void ChunkRenderBuffer::createBuffer(const std::vector<InstanceData>& initialDat
 }
 
 void ChunkRenderBuffer::createBufferRaw(const void* initialData, size_t count, size_t elemSize, size_t capacity) {
+    // Phase 4.3 arena mode (docs/RegionArenaPlan.md A1): suballocate a span from the
+    // region's shared block instead of creating a per-chunk VkBuffer. Works headless
+    // (test-mode arena) — this branch never touches the device directly.
+    if (s_regionArenas) {
+        auto& arena = ChunkArenaSystem::instance();
+        if (!arena.initialized() && device != VK_NULL_HANDLE) {
+            arena.initialize(device, physicalDevice);
+        }
+        if (arena.initialized()) {
+            if (m_arenaMode && m_span.valid()) {
+                arena.allocator()->retire(m_span);   // re-create over an existing span
+                m_span = {};
+            }
+            elementSize = elemSize;
+            // NO 25000-instance floor: size to the data (or the caller's explicit
+            // capacity), plus ~12.5% headroom so small remesh growth doesn't churn.
+            const size_t wantInstances = std::max<size_t>(1, std::max(count, capacity));
+            const size_t bytes = wantInstances * elemSize;
+            m_span = arena.allocator()->allocate(m_regionKey, bytes + bytes / 8);
+            if (m_span.valid()) {
+                m_arenaMode = true;
+                bufferCapacity = m_span.capacity / elemSize;
+                instanceBuffer = arena.blockBuffer(m_span.blockId);  // block's VkBuffer
+                instanceMemory = VK_NULL_HANDLE;                     // block owns memory
+                mappedMemory = static_cast<uint8_t*>(arena.blockMapped(m_span.blockId)) +
+                               m_span.offset;
+                if (initialData && count > 0) {
+                    memcpy(mappedMemory, initialData, elemSize * count);
+                }
+                return;
+            }
+            // Span allocation failed (backend failure): fall through to legacy.
+        }
+    }
+
     if (device == VK_NULL_HANDLE) {
         throw std::runtime_error("ChunkRenderBuffer not initialized with valid Vulkan device!");
     }
@@ -181,6 +230,28 @@ void ChunkRenderBuffer::createBufferRaw(const void* initialData, size_t count, s
 
 void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
     ScopedChunkPerf _perf(ChunkPerfPhase::BufferRealloc);  // B0: time the growth realloc
+
+    // Arena mode: growth = new span + retire old (3-tick reuse margin honors the
+    // frames-in-flight contract). No Vulkan create/free — the realloc stall class
+    // (ChunkUpdateHitchPlan B0's ≤32 ms tail) cannot occur here. Contents are NOT
+    // copied, matching the legacy contract (every caller rewrites fully after grow).
+    if (m_arenaMode) {
+        auto& arena = ChunkArenaSystem::instance();
+        if (!arena.initialized()) return;  // shutdown race: nothing to grow into
+        const size_t bytes = requiredInstances * elementSize;
+        ArenaSpan grown = arena.allocator()->allocate(m_regionKey, bytes + bytes / 8);
+        if (!grown.valid()) {
+            throw std::runtime_error("ChunkArena: span growth failed");
+        }
+        arena.allocator()->retire(m_span);
+        m_span = grown;
+        bufferCapacity = m_span.capacity / elementSize;
+        instanceBuffer = arena.blockBuffer(m_span.blockId);
+        mappedMemory = static_cast<uint8_t*>(arena.blockMapped(m_span.blockId)) +
+                       m_span.offset;
+        return;
+    }
+
     // Calculate new capacity with headroom (50% extra)
     size_t newCapacity = static_cast<size_t>(requiredInstances * 1.5f);
 
@@ -247,6 +318,23 @@ void ChunkRenderBuffer::reallocateBuffer(size_t requiredInstances) {
 }
 
 void ChunkRenderBuffer::cleanup() {
+    // Arena mode: the block's VkBuffer/memory belong to ChunkArenaSystem — never
+    // destroy them here. Retire the span (bytes reusable after the margin). The
+    // arena may already be shut down at teardown; spans die with the allocator.
+    if (m_arenaMode) {
+        auto& arena = ChunkArenaSystem::instance();
+        if (arena.initialized() && m_span.valid()) {
+            arena.allocator()->retire(m_span);
+        }
+        m_span = {};
+        m_arenaMode = false;
+        instanceBuffer = VK_NULL_HANDLE;
+        instanceMemory = VK_NULL_HANDLE;
+        mappedMemory = nullptr;
+        bufferCapacity = 0;
+        return;
+    }
+
     if (device != VK_NULL_HANDLE) {
         if (mappedMemory) {
             vkUnmapMemory(device, instanceMemory);

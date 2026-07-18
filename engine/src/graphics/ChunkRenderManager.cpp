@@ -1,4 +1,5 @@
 #include "graphics/ChunkRenderManager.h"
+#include "graphics/ChunkArenaSystem.h"  // Phase 4.3 arena mode (docs/RegionArenaPlan.md)
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Cube.h"
 #include "core/Subcube.h"
@@ -186,6 +187,13 @@ bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) cons
     out.sky = m_skyLight[i];
     out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
     return true;
+}
+
+void ChunkRenderManager::setArenaRegionKey(const glm::ivec3& worldOrigin) {
+    const uint64_t key = ChunkArenaSystem::regionKeyForChunkOrigin(worldOrigin);
+    renderBuffer.setRegionKey(key);
+    grassBuffer.setRegionKey(key);
+    foliageBuffer.setRegionKey(key);
 }
 
 void ChunkRenderManager::rebuildAllFaces(

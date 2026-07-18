@@ -170,6 +170,11 @@ public:
     void cleanupVulkanResources();
     void ensureBufferCapacity(size_t requiredInstances);
 
+    // Phase 4.3 (docs/RegionArenaPlan.md A1): stamp the spatial region key onto all
+    // three buffers before creation so same-region chunks share arena blocks.
+    // Cheap + idempotent; a no-op for buffers already created.
+    void setArenaRegionKey(const glm::ivec3& worldOrigin);
+
     // Partial updates for hover effects
     void updateSingleCubeTexture(
         const glm::ivec3& localPos,

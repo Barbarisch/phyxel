@@ -3,6 +3,9 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
+
+#include "graphics/ChunkArenaAllocator.h"
 
 namespace Phyxel {
 
@@ -26,6 +29,12 @@ public:
     // buffer/memory by > MAX_FRAMES_IN_FLIGHT frames (fixes the in-flight use-after-free + realloc
     // stall). OFF reproduces the old inline free for A/B. Toggled at runtime via the debug API.
     static bool s_deferBufferFree;
+
+    // Phase 4.3 (docs/RegionArenaPlan.md): when true, buffers are SPANS suballocated from
+    // region-keyed arena blocks (ChunkArenaSystem) instead of one VkBuffer+VkDeviceMemory
+    // per chunk. DEFAULT OFF until increment A2 wires the draw sites to bind at the span
+    // offset — with the toggle ON before that, draws would read from block offset 0.
+    static bool s_regionArenas;
 
     /**
      * @brief Construct render buffer with Vulkan device handles
@@ -113,6 +122,19 @@ public:
      */
     void updateMaxUsage(size_t currentUsage);
 
+    // ---- Phase 4.3 arena mode (docs/RegionArenaPlan.md A1) ----
+
+    /// Spatial region key (ChunkArenaSystem::regionKeyForChunkOrigin). Must be set
+    /// before the first arena-mode createBuffer; same-region chunks share blocks.
+    void setRegionKey(uint64_t key) { m_regionKey = key; }
+
+    bool isArenaMode() const { return m_arenaMode; }
+    const ArenaSpan& getSpan() const { return m_span; }
+
+    /// Byte offset to bind (or divide by stride for firstInstance) when drawing this
+    /// chunk from its arena block. 0 in legacy per-chunk-buffer mode.
+    size_t getBindOffsetBytes() const { return m_arenaMode ? m_span.offset : 0; }
+
     /**
      * @brief Calculate and log buffer utilization statistics
      * @param currentFaceCount Current number of faces in use
@@ -138,6 +160,13 @@ private:
     size_t bufferCapacity;
     size_t maxInstancesUsed;
     size_t elementSize;  // per-instance stride in bytes (default sizeof(InstanceData); overridden by createBufferRaw)
+
+    // Phase 4.3 arena mode: span into a shared region block. In arena mode
+    // instanceBuffer aliases the BLOCK's VkBuffer (never destroyed here) and
+    // mappedMemory points at blockBase + span.offset.
+    ArenaSpan m_span;
+    uint64_t  m_regionKey = 0;
+    bool      m_arenaMode = false;
 };
 
 } // namespace Graphics
