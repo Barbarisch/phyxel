@@ -284,6 +284,7 @@ void WorldGenerator::setHeightmapSource(std::shared_ptr<const MapCoarseData> src
 }
 
 void WorldGenerator::rebuildCoarseModel() {
+    clearColumnCache();  // memoized samples derive from the model being rebuilt
     // Layer-0 override (P4): an imported heightmap drives base elevation directly. The map's
     // rivers/valleys are already baked into the height, so we skip the procedural hydrology
     // bake (m_hydro/m_flow stay null; sampleColumn's carve is guarded on m_flow). cellSize =
@@ -420,14 +421,10 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
     // This is what keeps generated buried chunks in the uniform store representation so the
     // sealed classifier (ChunkManager) can retire them; it also removes the generation cost
     // that motivated the streamer's vertical clamp (loadChunksAroundPosition).
-    std::vector<ColumnSample> cols;
-    cols.reserve(32 * 32);
+    const auto colsPtr = columnsForChunk(glm::ivec2(chunkCoord.x, chunkCoord.z));
+    const std::vector<ColumnSample>& cols = *colsPtr;
     int minSurface = INT_MAX;
-    for (int x = 0; x < 32; ++x)
-        for (int z = 0; z < 32; ++z) {
-            cols.push_back(sampleColumn(chunkCoord.x * 32 + x, chunkCoord.z * 32 + z));
-            minSurface = std::min(minSurface, cols.back().surfaceY);
-        }
+    for (const ColumnSample& c : cols) minSurface = std::min(minSurface, c.surfaceY);
     {
         const int chunkTop = chunkCoord.y * 32 + 31;
         const int chunkBottom = chunkCoord.y * 32;
@@ -483,6 +480,27 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
 
     LOG_TRACE_FMT("WorldGenerator", "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
               << ") column-first, biome-aware");
+}
+
+std::shared_ptr<const std::vector<WorldGenerator::ColumnSample>>
+WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
+    const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
+    auto it = m_columnCache.find(key);
+    if (it != m_columnCache.end()) return it->second;
+
+    auto fresh = std::make_shared<std::vector<ColumnSample>>();
+    fresh->reserve(32 * 32);
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z)
+            fresh->push_back(sampleColumn(colChunk.x * 32 + x, colChunk.y * 32 + z));
+
+    if (m_columnCache.size() >= kColumnCacheMax) {   // FIFO eviction
+        m_columnCache.erase(m_columnCacheOrder.front());
+        m_columnCacheOrder.erase(m_columnCacheOrder.begin());
+    }
+    m_columnCache.emplace(key, fresh);
+    m_columnCacheOrder.push_back(key);
+    return fresh;
 }
 
 bool WorldGenerator::isHeightBased() const {
@@ -946,6 +964,7 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
     }
     if (loaded.empty()) return false;
     m_biomes = std::move(loaded);
+    clearColumnCache();  // cached samples carry biomeIndex into this table
     LOG_INFO_FMT("WorldGenerator", "Loaded " << m_biomes.size() << " biomes from " << path);
     return true;
 }

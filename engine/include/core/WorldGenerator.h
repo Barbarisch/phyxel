@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/CoarseWorldModel.h"
@@ -49,7 +50,7 @@ public:
     void setCustomGenerator(GenerationFunction func) { customGenerator = func; generationType = GenerationType::Custom; }
     
     // Change generation type
-    void setGenerationType(GenerationType type) { generationType = type; }
+    void setGenerationType(GenerationType type) { generationType = type; clearColumnCache(); }
     
     // Terrain parameters
     struct TerrainParams {
@@ -244,6 +245,19 @@ private:
     // Column-first pipeline (height-based types: Perlin/Flat/Mountains/Caves)
     bool isHeightBased() const;
     ColumnSample sampleColumn(int worldX, int worldZ);   // surface height + climate + blended biome
+
+    // Per-column-chunk memo of the 32x32 sampleColumn results. Every vertical band of a
+    // column stack needs the SAME 1024 samples — without the memo, a 5-band stack paid
+    // the (dominant) column-sampling cost 5x per (x,z). Per-instance (each streaming
+    // worker owns a private generator copy), so no locking. Invalidated at the coarse
+    // rebuild points (applyRecipe / setGenerationType / setHeightmapSource / loadBiomes);
+    // direct getTerrainParams() mutation is NOT tracked — recipe flows go through
+    // applyRecipe, which clears it.
+    std::shared_ptr<const std::vector<ColumnSample>> columnsForChunk(const glm::ivec2& colChunk);
+    void clearColumnCache() { m_columnCache.clear(); m_columnCacheOrder.clear(); }
+    static constexpr size_t kColumnCacheMax = 128;   // ~1024 samples/entry; FIFO eviction
+    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<ColumnSample>>> m_columnCache;
+    std::vector<uint64_t> m_columnCacheOrder;
     // Layer-1 ridged mountain relief at a column. `continentalness` is passed in (the caller already
     // sampled the coarse model) so we don't re-sample it here — the slope pass calls this per-neighbor.
     float surfaceVariationFor(int worldX, int worldZ, float continentalness);
