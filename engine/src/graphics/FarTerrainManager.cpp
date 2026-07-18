@@ -132,14 +132,32 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
                 if (d >= keepEnd || d < keepStart) continue;
                 FarTileKey key{ring.ring, tx, tz};
                 m_keep.insert(key);
-                if (d < ring.startR || d >= ring.endR) continue;
-                // Skip tiles fully covered by loaded chunk columns: the real chunks
-                // render the truth there, and a surface-only tile would show through
-                // player-dug holes and caves.
+                // CROSS-RING OVERLAP: a coarser ring reaches one tile INWARD past its
+                // inner boundary. At the handoff the coarser ring quantizes lower (bigger
+                // step + larger down-bias), so with edge-to-edge annuli a grazing view
+                // over a finer-ring crest at the boundary saw a sky slit before the
+                // coarse shell rose again (user repro: holes tracking the camera at
+                // ~ring-1/2 distance). Overlapping shells fill the slit; the per-ring
+                // Y-bias ordering already resolves which wins where both exist.
+                const float innerR = ring.ring > 1 ? ring.startR - T : ring.startR;
+                if (d < innerR || d >= ring.endR) continue;
+                // Skip tiles fully covered by loaded chunk columns — but ONLY well inside
+                // the near field. The suppression exists so a surface-only tile doesn't
+                // skin over player-dug holes/caves, which is an INTERIOR concern; at the
+                // streaming frontier "every column has a loaded chunk" routinely lies
+                // visually (chunks queued/unmeshed, vertical bands missing), and dropping
+                // the tile there opened SKY HOLES through saddles at the seam. Frontier
+                // tiles now always draw — the near field z-beats them wherever it really
+                // has geometry (quantize-down + push-down + depth bias).
                 if (m_chunkCoverage) {
-                    glm::ivec2 minXZ(tx * ring.tileSize, tz * ring.tileSize);
-                    glm::ivec2 maxXZ(minXZ.x + ring.tileSize, minXZ.y + ring.tileSize);
-                    if (m_chunkCoverage(minXZ, maxXZ)) continue;
+                    const float tileFarDist = d + T * 0.7071f;  // farthest tile corner
+                    const bool wellInterior =
+                        m_nearFieldRadius > 0.0f && tileFarDist < m_nearFieldRadius - 32.0f;
+                    if (wellInterior) {
+                        glm::ivec2 minXZ(tx * ring.tileSize, tz * ring.tileSize);
+                        glm::ivec2 maxXZ(minXZ.x + ring.tileSize, minXZ.y + ring.tileSize);
+                        if (m_chunkCoverage(minXZ, maxXZ)) continue;
+                    }
                 }
                 m_wanted.insert(key);
                 if (!m_tiles.count(key)) missing.push_back({key, ring.step, d});

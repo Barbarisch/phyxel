@@ -497,24 +497,39 @@ void RenderCoordinator::renderFarTerrain() {
         chunkManager && chunkManager->getStreamingGenerator()) {
         farTerrainManager->setChunkCoverageFn(
             [cm = chunkManager](const glm::ivec2& minXZ, const glm::ivec2& maxXZ) {
-                // True iff EVERY 32x32 column in the rect has a loaded chunk (any Y).
+                // True iff EVERY 32x32 column in the rect actually RENDERS near-field
+                // geometry: some chunk there has uploaded faces (numInstances > 0). The
+                // contract must be "suppress only what the near field visibly draws" —
+                // earlier tests keyed on DATA presence ("any chunk at any Y", then "any
+                // non-uniform chunk") and both lied whenever meshing lagged streaming
+                // (chunks resident but never meshed render NOTHING), which dropped far
+                // tiles over invisible terrain and opened sky holes at the seam (user
+                // repro 2026-07-18: 3,650 resident / 1,932 meshed at the pose). A column
+                // with real surface always ends up with instances once meshed; until
+                // then its far tile keeps covering, and z-buffering handles the overlap.
                 const int cx0 = int(std::floor(minXZ.x / 32.0f));
                 const int cx1 = int(std::floor((maxXZ.x - 1) / 32.0f));
                 const int cz0 = int(std::floor(minXZ.y / 32.0f));
                 const int cz1 = int(std::floor((maxXZ.y - 1) / 32.0f));
                 for (int cz = cz0; cz <= cz1; ++cz) {
                     for (int cx = cx0; cx <= cx1; ++cx) {
-                        bool any = false;
-                        for (int cy = -4; cy <= 8 && !any; ++cy) {
-                            if (cm->getChunkAtCoord(glm::ivec3(cx, cy, cz))) any = true;
+                        bool rendered = false;
+                        for (int cy = -4; cy <= 12 && !rendered; ++cy) {
+                            const Chunk* c = cm->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+                            if (c && c->getNumInstances() > 0) rendered = true;
                         }
-                        if (!any) return false;
+                        if (!rendered) return false;
                     }
                 }
                 return true;
             });
         farTerrainManager->configure(*chunkManager->getStreamingGenerator());
     }
+
+    // Covered-tile suppression is gated to the guaranteed-complete interior of the
+    // near field (see FarTerrainManager::setNearFieldRadius). Cheap; set per frame so
+    // a runtime loadRadius change tracks.
+    if (chunkManager) farTerrainManager->setNearFieldRadius(chunkManager->loadDistance);
 
     // Per-frame lifecycle: refresh wanted set on camera movement, drain worker
     // results (budgeted uploads), evict + frame-deferred-delete out-of-range tiles.

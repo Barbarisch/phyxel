@@ -74,6 +74,12 @@ public:
 
     void setChunkCoverageFn(ChunkCoverageFn fn) { m_chunkCoverage = std::move(fn); }
 
+    /// Radius (world units) within which the near chunk field is guaranteed complete —
+    /// the streaming load distance. Covered-tile suppression (dug-hole protection) only
+    /// applies to tiles wholly inside this minus a margin; frontier tiles always draw
+    /// (dropping them there opened sky holes at the near/far seam). 0 = never suppress.
+    void setNearFieldRadius(float r) { m_nearFieldRadius = r; }
+
     /// Per-frame driver (main thread, call before rendering): refresh the wanted tile
     /// set when the camera has moved, drain finished meshes (budgeted uploads), evict
     /// out-of-range tiles (frame-deferred buffer deletion), and tick the graveyard.
@@ -136,6 +142,7 @@ private:
     VkPhysicalDevice m_physicalDevice;
     Params           m_params;
     ChunkCoverageFn  m_chunkCoverage;
+    float            m_nearFieldRadius = 0.0f;  // see setNearFieldRadius
 
     // Worker thread (owns m_mesher after configure()).
     std::unique_ptr<FarTerrainMesher> m_mesher;
