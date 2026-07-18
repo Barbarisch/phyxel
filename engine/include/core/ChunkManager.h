@@ -256,6 +256,7 @@ public:
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed
     bool addCube(const glm::ivec3& worldPos);
+    bool addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material);  // add cube with a specific material
     /// Create the owning chunk for worldPos if it doesn't exist yet (empty, populate=false).
     /// Lets material/subcube/microcube placement cross vertical chunk seams without pre-gen.
     void ensureChunkAt(const glm::ivec3& worldPos);

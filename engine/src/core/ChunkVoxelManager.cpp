@@ -1,7 +1,9 @@
 #include "core/ChunkVoxelManager.h"
 #include "core/Cube.h"
 #include "utils/Logger.h"
+#include <algorithm>
 #include <random>
+#include <unordered_set>
 
 namespace Phyxel {
 
@@ -791,6 +793,57 @@ bool ChunkVoxelManager::removeSubcube(
     }
     
     return false;
+}
+
+int ChunkVoxelManager::clearCellsBulk(const std::vector<glm::ivec3>& localCells) {
+    // Bulk cell clear: ONE remove_if pass over the chunk's subcube/microcube
+    // storage for the whole cell set. clearSubdivisionAt scans + erase()s the
+    // full vectors PER CELL — clearing a felled tree's ~550 cells that way cost
+    // ~758 ms (the topple-start hitch). Caller owns occupancy + chunk remesh.
+    auto key = [](const glm::ivec3& p) { return (p.x << 10) | (p.y << 5) | p.z; };
+    std::unordered_set<int> want;
+    int cleared = 0;
+    auto& cubes = m_getCubes();
+    for (const auto& lp : localCells) {
+        if (lp.x < 0 || lp.x >= 32 || lp.y < 0 || lp.y >= 32 ||
+            lp.z < 0 || lp.z >= 32) continue;
+        want.insert(key(lp));
+        const size_t idx = lp.z + lp.y * 32 + lp.x * 32 * 32;
+        if (idx < cubes.size() && cubes[idx]) {
+            cubeMap.erase(lp);
+            cubes[idx].reset();
+        }
+        subcubeMap.erase(lp);
+        microcubeMap.erase(lp);
+        voxelTypeMap.erase(lp);
+        m_removeCollision(lp);
+        ++cleared;
+    }
+    if (cleared == 0) return 0;
+
+    const glm::ivec3 origin = m_getWorldOrigin();
+    auto inWant = [&](const glm::ivec3& parentWorldPos) {
+        const glm::ivec3 lp = parentWorldPos - origin;
+        if (lp.x < 0 || lp.x >= 32 || lp.y < 0 || lp.y >= 32 ||
+            lp.z < 0 || lp.z >= 32) return false;
+        return want.count(key(lp)) > 0;
+    };
+    auto& subs = m_getStaticSubcubes();
+    subs.erase(std::remove_if(subs.begin(), subs.end(),
+                              [&](const std::unique_ptr<Subcube>& s) {
+                                  return s && inWant(s->getPosition());
+                              }),
+               subs.end());
+    auto& mics = m_getStaticMicrocubes();
+    mics.erase(std::remove_if(mics.begin(), mics.end(),
+                              [&](const std::unique_ptr<Microcube>& m) {
+                                  return m && inWant(m->getParentCubePosition());
+                              }),
+               mics.end());
+
+    m_setNeedsUpdate(true);
+    m_setDirty(true);
+    return cleared;
 }
 
 bool ChunkVoxelManager::clearSubdivisionAt(

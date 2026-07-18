@@ -687,6 +687,11 @@ bool ChunkManager::addCube(const glm::ivec3& worldPos) {
     return m_voxelModificationSystem.addCube(worldPos);
 }
 
+bool ChunkManager::addCubeWithMaterial(const glm::ivec3& worldPos, const std::string& material) {
+    ensureChunkAt(worldPos);
+    return m_voxelModificationSystem.addCubeWithMaterial(worldPos, material);
+}
+
 Subcube* ChunkManager::getSubcubeAt(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) {
     return m_voxelQuerySystem.getSubcubeAt(worldPos, subcubePos);
 }

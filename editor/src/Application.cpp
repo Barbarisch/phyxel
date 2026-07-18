@@ -3392,6 +3392,30 @@ void Application::update(float deltaTime) {
     updateHeldItem();
     updateNpcHeldItems();   // and the combat NPCs' held weapons
 
+    // Axe-chop CONTACT detection: while a swing plays, test the blade's actual
+    // position against the world EVERY frame — the bite happens the moment the
+    // blade truly enters wood, not at a tuned clip fraction (the mocap swing's
+    // hit frame has the blade beside the character, ~1 m short of the arc's
+    // deepest point). One bite per swing.
+    if (animatedCharacter && !m_heldItemId.empty()) {
+        const bool inSwing = animatedCharacter->getAnimationState() ==
+                             Scene::AnimatedCharacterState::Attack;
+        if (!inSwing) {
+            m_swingBiteDone = false;
+        } else if (!m_swingBiteDone &&
+                   animatedCharacter->getAnimationProgress() > 0.28f) {
+            // Strike phase only: during the windup the blade is raised (and when
+            // standing flush it can overlap wood at rest) — contact only counts
+            // once the swing is actually travelling.
+            if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {
+                if (def->toolType == Core::ToolType::Axe &&
+                    tryAxeChopOnHitFrame(def, animatedCharacter->getYaw())) {
+                    m_swingBiteDone = true;
+                }
+            }
+        }
+    }
+
     // Drive declarative item effects (torch flame, enchant auras) for the
     // held item and all world props (items P2)
     if (itemEffectSystem) itemEffectSystem->update(deltaTime);
@@ -3406,6 +3430,10 @@ void Application::update(float deltaTime) {
     if (kinematicAnimator) {
         kinematicAnimator->update(deltaTime);
     }
+
+    // Tick coherent world-collapse fragments (sync body->render, reap removed). Cheap
+    // no-op until apply_damage's coherent path has spawned any (docs/DestructionSystemV2.md P1.2b).
+    coherentFragmentManager.update(deltaTime);
 
     // Update dynamic furniture (sync physics transforms, re-staticize on rest)
     if (dynamicFurnitureManager) {
@@ -4943,10 +4971,6 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
             if (const auto* def = Core::ItemRegistry::instance().getItem(m_heldItemId)) {
                 if (def->damage > 0.0f) damage = def->damage;
                 if (def->reach > 0.0f)  reach  = def->reach;
-                // An axe swing also chops the tree it lands on (survival wood-
-                // gathering). Independent of the entity cone-damage below.
-                if (def->toolType == Core::ToolType::Axe)
-                    tryAxeChopOnHitFrame(def, animatedCharacter->getYaw());
             }
         }
         if (animatedCharacter->isCurrentAttackHeavy()) damage *= 1.6f;
@@ -4973,17 +4997,9 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         }
     });
 
-    // When an axe chops a tree through, ChopManager fires this once. We change
-    // no voxels — the destruction session consumes the event to topple the tree
-    // and drop gatherable logs. Surfaced via poll_events for the handoff + tests.
-    m_chopManager.setOnTreeFelled([this](const Core::TreeFellEvent& ev) {
-        LOG_INFO("Chop", "Tree FELLED at ({},{},{}) material={} trunkH={} chop={}",
-                 ev.base.x, ev.base.y, ev.base.z, ev.material, ev.trunkHeight, ev.totalChop);
-        if (gameEventLog) gameEventLog->emit("tree_felled", {
-            {"x", ev.base.x}, {"y", ev.base.y}, {"z", ev.base.z},
-            {"material", ev.material}, {"trunk_height", ev.trunkHeight},
-            {"total_chop", ev.totalChop}});
-    });
+    // Axe felling is GEOMETRIC now: each swing carves a visible kerf and the tree
+    // releases when the cut severs the trunk (tryAxeChopOnHitFrame → carveChopKerf).
+    // ChopManager's energy-meter path is bypassed — no handler registered.
 
     // A freshly-spawned character should be immediately controllable. The
     // gameplay control scheme (movement + LMB melee attack) is only sampled
@@ -7490,7 +7506,101 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
     using json = nlohmann::json;
     const std::string& action = cmd.action;
 
-    if (action == "get_debug_overlay") {
+    if (action == "occupancy_cell") {
+        // P1 audit instrument (SubcubeCollisionPlan): one cell's occupancy-grid
+        // masks side by side with the chunk's actual content — a mask-vs-content
+        // diff instead of a theory about what the character collides with.
+        const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
+                            cmd.params.value("z", 0));
+        Chunk* ch = chunkManager
+                  ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
+                  : nullptr;
+        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        const auto& grid = ch->getOccupancyGrid();
+
+        json g;
+        g["cube_filled"] = grid.isCubeFilled(lp);
+        g["subdivided"]  = grid.isSubdivided(lp);
+        json gs = json::array(), gsd = json::array(), gm = json::array();
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            const glm::ivec3 sp(sx, sy, sz);
+            if (grid.isSubcubeFilled(lp, sp))     gs.push_back({sx, sy, sz});
+            if (grid.isSubcubeSubdivided(lp, sp)) gsd.push_back({sx, sy, sz});
+            int mc = 0;
+            for (int mx = 0; mx < 3; ++mx)
+            for (int my = 0; my < 3; ++my)
+            for (int mz = 0; mz < 3; ++mz)
+                if (grid.isMicrocubeFilled(lp, sp, {mx, my, mz})) ++mc;
+            if (mc) gm.push_back({{"slot", {sx, sy, sz}}, {"filled", mc}});
+        }
+        g["subcubes_filled"] = gs;
+        g["subcubes_subdivided"] = gsd;
+        g["micro_slots"] = gm;
+
+        json c;
+        if (auto* cube = ch->getCubeAtFast(lp)) {
+            c["cube"] = true;
+            c["cube_material"] = cube->getMaterialName();
+        } else {
+            c["cube"] = false;
+        }
+        json cs = json::array(), cm = json::array();
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+            if (sc) cs.push_back({sc->getLocalPosition().x, sc->getLocalPosition().y,
+                                  sc->getLocalPosition().z});
+        for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+        for (int sz = 0; sz < 3; ++sz) {
+            const size_t n = ch->getMicrocubesAt(lp, {sx, sy, sz}).size();
+            if (n) cm.push_back({{"slot", {sx, sy, sz}}, {"count", n}});
+        }
+        c["subcubes"] = cs;
+        c["micro_slots"] = cm;
+
+        response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
+        return true;
+
+    } else if (action == "debug_body_boxes") {
+        // Dump every rigid body's collision boxes in WORLD space (the same
+        // conservative per-box AABB the character queries use) plus each
+        // kinematic render object's transform — the instrument for diagnosing
+        // physics-vs-render divergence on fallen trees (invisible platforms).
+        json bodies = json::array();
+        if (physicsWorld && physicsWorld->getVoxelWorld()) {
+            auto* vw = physicsWorld->getVoxelWorld();
+            for (size_t i = 0; i < vw->getBodyCount(); ++i) {
+                auto* b = vw->getBodyByIndex(i);
+                if (!b || b->isDead) continue;
+                const glm::mat3 rot = glm::mat3_cast(b->orientation);
+                const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+                json boxes = json::array();
+                for (const auto& lb : b->getLocalBoxes()) {
+                    const glm::vec3 c  = b->position + rot * lb.offset;
+                    const glm::vec3 he = absRot * lb.halfExtents;
+                    boxes.push_back({{"cx", c.x}, {"cy", c.y}, {"cz", c.z},
+                                     {"hx", he.x}, {"hy", he.y}, {"hz", he.z}});
+                }
+                bodies.push_back({{"id", b->id}, {"asleep", b->isAsleep},
+                                  {"px", b->position.x}, {"py", b->position.y}, {"pz", b->position.z},
+                                  {"boxes", boxes}});
+            }
+        }
+        json kins = json::array();
+        if (kinematicVoxelManager) {
+            for (const auto& [id, obj] : kinematicVoxelManager->getObjects()) {
+                const glm::vec3 t(obj.currentTransform[3]);
+                kins.push_back({{"id", id}, {"voxels", obj.voxels.size()},
+                                {"faces", obj.faces.size()},
+                                {"tx", t.x}, {"ty", t.y}, {"tz", t.z}});
+            }
+        }
+        response = {{"bodies", bodies}, {"kinematic_objects", kins}};
+        return true;
+
+    } else if (action == "get_debug_overlay") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};
         } else {
@@ -8119,94 +8229,168 @@ void Application::updateHeldItem() {
 // Changes NO voxels: the destruction session owns topple/fall + log drops and
 // consumes the tree_felled event. See ChopManager.h.
 // ============================================================================
-void Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw) {
-    if (!heldDef || !chunkManager || !animatedCharacter) return;
+bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw) {
+    if (!heldDef || !chunkManager || !animatedCharacter) return false;
 
     auto isTrunk = [](const std::string& m) { return m.rfind("Log", 0) == 0; };
     auto isFlora = [](const std::string& m) {
         return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
     };
 
-    // March a short horizontal ray from the swing origin along facing to find
-    // the tree voxel the axe bites. Visual front is +Z at yaw 0 (anim convention).
+    // The bite point is the AXE HEAD's actual world position at the hit frame —
+    // the held axe is a live kinematic object riding the hand bone, so the blade
+    // position is exact. No probe ray, no reach constant, no row fallbacks: if
+    // the blade is in wood, bite THERE; if it isn't, the swing whiffs. (The old
+    // hand-forward ray registered bites the blade never visually touched — rows
+    // above/below the arc, and wood beyond the rendered axe.)
     const glm::vec3 fwd(std::sin(yaw), 0.0f, std::cos(yaw));
-    const glm::vec3 origin = animatedCharacter->getAttackOrigin();
-    const float reach = std::max(1.5f, heldDef->reach + 0.6f);
+    if (m_heldKinId.empty() || !kinematicVoxelManager) return false;
+    glm::vec3 axeHead;
+    {
+        const auto& kinObjs = kinematicVoxelManager->getObjects();
+        auto it = kinObjs.find(m_heldKinId);
+        if (it == kinObjs.end()) return false;
+        // Blade = the held object's voxel farthest from the grip (local origin).
+        const auto& voxels = it->second.voxels;
+        if (voxels.empty()) return false;
+        glm::vec3 farthest(0.0f);
+        float bestD2 = -1.0f;
+        for (const auto& v : voxels) {
+            const float d2 = glm::dot(v.localPos, v.localPos);
+            if (d2 > bestD2) { bestD2 = d2; farthest = v.localPos; }
+        }
+        axeHead = glm::vec3(it->second.currentTransform * glm::vec4(farthest, 1.0f));
+    }
 
-    const void* hit = nullptr;   // non-null once we find a flora cube
+    // Probe the cell under the blade plus its immediate neighborhood (the head
+    // is ~a third of a cell wide), nearest first. Blade contact radius 0.3 m —
+    // TIGHT on purpose: the blade must actually reach the wood. (At 0.6 the
+    // windup arc registered "contact" half a meter short of the trunk at ankle
+    // height, and the kerf's blade-hugging bite window then sat entirely in
+    // air — the live micros-carved=0 whiff pattern. Detection runs every strike
+    // frame, so a near-miss frame just retries as the blade sweeps in.)
+    bool hit = false;
     std::string hitMat;
     glm::ivec3 hitPos(0);
-    for (float t = 0.0f; t <= reach && !hit; t += 0.25f) {
-        const glm::vec3 s = origin + fwd * t;
-        // Sample the ray cube, plus one above/below, to tolerate hand height.
-        for (int dy = -1; dy <= 1 && !hit; ++dy) {
-            const glm::ivec3 wp((int)std::floor(s.x),
-                                (int)std::floor(s.y) + dy,
-                                (int)std::floor(s.z));
-            if (const auto* c = chunkManager->getCubeAt(wp)) {
-                if (isFlora(c->getMaterialName())) {
-                    hit = c; hitMat = c->getMaterialName(); hitPos = wp;
-                }
+    glm::vec3 hitContact = axeHead;
+    {
+        struct Cand { glm::ivec3 wp; float d; glm::vec3 cl; std::string mat; };
+        std::vector<Cand> cands;
+        const glm::ivec3 base(static_cast<int>(std::floor(axeHead.x)),
+                              static_cast<int>(std::floor(axeHead.y)),
+                              static_cast<int>(std::floor(axeHead.z)));
+        for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+        for (int dz = -1; dz <= 1; ++dz) {
+            const glm::ivec3 wp = base + glm::ivec3(dx, dy, dz);
+            // Clamp the blade point to the cell's WOOD content (a flare/notch
+            // cell's wood can start well inside the cell — a cell-box clamp
+            // left the bite window mostly in air). Leaf cubes keep the cell box
+            // (leaf contact is feedback-only).
+            glm::vec3 cl(0.0f);
+            std::string mat;
+            if (const auto* cube = chunkManager->getCubeAt(wp)) {
+                if (!isFlora(cube->getMaterialName())) continue;
+                mat = cube->getMaterialName();
+                const glm::vec3 lo(wp), hi(wp.x + 1, wp.y + 1, wp.z + 1);
+                cl = glm::clamp(axeHead, lo, hi);
+            } else if (!Phyxel::DamageSystem::closestWoodPointInCell(
+                           chunkManager, wp, axeHead, cl, &mat)) {
+                continue;
             }
+            const float d = glm::distance(axeHead, cl);
+            if (d <= 0.3f) cands.push_back({wp, d, cl, mat});
+        }
+        std::sort(cands.begin(), cands.end(),
+                  [](const Cand& a, const Cand& b) { return a.d < b.d; });
+        if (!cands.empty()) {
+            hit = true;
+            hitMat = cands.front().mat;
+            hitPos = cands.front().wp;
+            hitContact = cands.front().cl;   // blade's nearest point ON the wood
         }
     }
-    if (!hit) return;
+    if (!hit) return false;   // no contact this frame — the swing continues
 
     const glm::vec3 hitCenter = glm::vec3(hitPos) + glm::vec3(0.5f);
 
     // Wood-chip burst + chop sound at the bite point (both optional/guarded).
-    if (renderCoordinator) {
-        if (auto* vfx = renderCoordinator->getVfxSystem()) {
-            VfxBurstParams chips;
-            chips.count      = 14;
-            chips.speed      = 3.0f;  chips.speedVar = 1.5f;
-            chips.upBias     = 0.35f;
-            chips.gravity    = -9.0f; chips.drag     = 1.5f;
-            chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
-            chips.size       = 0.07f; chips.sizeVar  = 0.03f;
-            chips.intensity  = 0.05f; // wood is not emissive
-            chips.color      = isTrunk(hitMat) ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
-                                               : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
-            chips.shape      = VfxShape::Cone;
-            chips.direction  = -fwd;  // spray back toward the chopper
-            chips.coneAngleDeg = 55.0f;
-            chips.posJitter  = glm::vec3(0.15f);
-            vfx->spawnBurst(hitCenter, chips);
+    // Played ONLY when the contact actually does something — a puff+thunk on a
+    // swing that removed nothing reads as a broken bite (live user report).
+    auto playImpactFx = [&](bool trunk) {
+        if (renderCoordinator) {
+            if (auto* vfx = renderCoordinator->getVfxSystem()) {
+                VfxBurstParams chips;
+                chips.count      = 14;
+                chips.speed      = 3.0f;  chips.speedVar = 1.5f;
+                chips.upBias     = 0.35f;
+                chips.gravity    = -9.0f; chips.drag     = 1.5f;
+                chips.lifetime   = 0.5f;  chips.lifetimeVar = 0.2f;
+                chips.size       = 0.07f; chips.sizeVar  = 0.03f;
+                chips.intensity  = 0.05f; // wood is not emissive
+                chips.color      = trunk ? glm::vec3(0.45f, 0.30f, 0.16f)  // bark
+                                         : glm::vec3(0.25f, 0.45f, 0.15f); // leaf
+                chips.shape      = VfxShape::Cone;
+                chips.direction  = -fwd;  // spray back toward the chopper
+                chips.coneAngleDeg = 55.0f;
+                chips.posJitter  = glm::vec3(0.15f);
+                vfx->spawnBurst(hitCenter, chips);
+            }
         }
-    }
-    if (audioSystem)
-        audioSystem->playSound3D("resources/sounds/whoosh.wav", hitCenter,
-                                 Core::AudioChannel::SFX, 0.7f);
+        // Impact audio at the contact point: a solid wood THUNK for trunk
+        // bites, the soft whoosh for leaf swipes.
+        if (audioSystem)
+            audioSystem->playSound3D(trunk ? "resources/sounds/axe_chop.wav"
+                                           : "resources/sounds/whoosh.wav",
+                                     hitCenter, Core::AudioChannel::SFX, 0.9f);
+    };
 
-    // Only the trunk (Log*) accumulates fell progress; leaves give feedback only.
-    if (!isTrunk(hitMat)) return;
+    // Only the trunk (Log*) is chopped; leaves give feedback only (but still
+    // consume the swing's contact so the blade doesn't re-trigger every frame).
+    if (!isTrunk(hitMat)) { playImpactFx(false); return true; }
 
-    // Walk down to the trunk base (stable per-tree key) and measure trunk height.
-    glm::ivec3 base = hitPos;
-    while (true) {
-        const glm::ivec3 below(base.x, base.y - 1, base.z);
-        const auto* c = chunkManager->getCubeAt(below);
-        if (c && isTrunk(c->getMaterialName())) base = below; else break;
-    }
-    int trunkHeight = 0;
-    for (glm::ivec3 p = base;; p.y += 1) {
-        const auto* c = chunkManager->getCubeAt(p);
-        if (c && isTrunk(c->getMaterialName())) ++trunkHeight; else break;
-    }
-
-    // Hardness scales with trunk height: a taller tree takes more swings.
-    const float kHardnessPerVoxel = 4.0f;
-    const float hardness  = std::max(1, trunkHeight) * kHardnessPerVoxel;
+    // FRACTURE, not blast (§5.E): each swing bites a microcube-resolution kerf
+    // one notch deeper at the hit height (carveChopKerf is stateless — it carves
+    // from the current notch frontier). The visible notch IS the progress bar;
+    // the support pass inside the carve releases the tree as ONE coherent hinged
+    // body on the swing that cuts through.
     const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
+    const float kDepthPerChopPoint = 0.06f;   // axe damage 6 → ~0.36 m bite per swing
 
-    const auto res = m_chopManager.addChop(base, hitMat, trunkHeight, chopPower, hardness);
-    LOG_INFO("Chop", "Axe bite tree base=({},{},{}) trunkH={} progress={}{}",
-             base.x, base.y, base.z, trunkHeight, res.progress,
-             res.felled ? " -> FELLED" : (res.alreadyFelled ? " (already down)" : ""));
-    if (gameEventLog && !res.felled && !res.alreadyFelled)
+    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+    if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+        coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
+        dmg.setFragmentManager(&coherentFragmentManager);
+    }
+    const auto kerf = dmg.carveChopKerf(hitPos, fwd, chopPower * kDepthPerChopPoint,
+                                        /*coherentFragments=*/true, hitContact);
+    LOG_INFO("Chop", "Axe kerf at ({},{},{}) remaining-depth={} micros-carved={}{}"
+             " | contact=({},{},{}) contactD={} window=[{},{}] nearD={} pocket={}/{}",
+             hitPos.x, hitPos.y, hitPos.z, kerf.fullDepth, kerf.microsRemoved,
+             kerf.severed ? " -> TREE FELLED" : "",
+             hitContact.x, hitContact.y, hitContact.z, kerf.contactD,
+             kerf.dLo, kerf.dHi, kerf.nearD, kerf.pocketChipped, kerf.pocketFound);
+    // A carve that removed nothing must NOT consume the swing: return false so
+    // detection retries next frame as the blade sweeps deeper (the live "puff,
+    // then every swing does nothing" pattern was one whiffed early-contact frame
+    // latching the whole swing).
+    if (!kerf.carved && !kerf.severed) return false;
+    playImpactFx(true);
+    // The bite landed: cut the swing's follow-through — the blade stopped in the
+    // wood (per design feedback: contact may stop the animation, the registered
+    // hit is what matters). Also makes repeated chopping snappier.
+    LOG_INFO("Chop", "bite registered at contact ({},{},{}) -> stopping swing",
+             hitContact.x, hitContact.y, hitContact.z);
+    animatedCharacter->setAnimationState(Scene::AnimatedCharacterState::Idle);
+    if (kerf.severed) {
+        if (gameEventLog) gameEventLog->emit("tree_felled", {
+            {"x", hitPos.x}, {"y", hitPos.y}, {"z", hitPos.z}, {"material", hitMat}});
+    } else if (kerf.carved && gameEventLog) {
         gameEventLog->emit("tree_chop", {
-            {"x", base.x}, {"y", base.y}, {"z", base.z},
-            {"progress", res.progress}, {"trunk_height", trunkHeight}});
+            {"x", hitPos.x}, {"y", hitPos.y}, {"z", hitPos.z},
+            {"remaining_depth", kerf.fullDepth}});
+    }
+    return true;
 }
 
 void Application::updateNpcHeldItems() {
@@ -12063,10 +12247,21 @@ void Application::registerEffectsCommands() {
         }
         float supportY = cmd.params.value("support_y", Phyxel::DamageSystem::NO_SUPPORT);
         bool collapse = cmd.params.value("collapse", true);
+        // Coherent topple is OPT-IN (default false) until the DamageSystem-level glue has
+        // automated coverage — until then the shipped scatter path stays the default.
+        bool coherent = cmd.params.value("coherent", false);
         Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse);
+        // Coherent collapse: a severed component topples as ONE rigid slab via the
+        // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
+        // its deps lazily — the voxel world is live by the time damage is applied.
+        if (coherent && physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+            coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
+            dmg.setFragmentManager(&coherentFragmentManager);
+        }
+        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent);
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
-             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned}};
+             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
+             {"coherent_bodies", coherentFragmentManager.count()}};
     });
 
     reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -13980,25 +14175,46 @@ void Application::processAPICommands() {
                                 footprint.insert({m.parentRelativePos.x, m.parentRelativePos.z});
 
                             int requestedY = static_cast<int>(y);
-                            int requiredY  = requestedY;
+                            int requiredY  = INT_MIN;
 
+                            // BIDIRECTIONAL snap: a template must neither hover above the
+                            // ground nor merge into a hillside. Per footprint column, find
+                            // the local surface — climbing UP out of solid ground when the
+                            // request is buried, scanning DOWN to the ground when it floats
+                            // — and seat the template on the HIGHEST surface found (never
+                            // buried anywhere). Pass snap:false for intentional placement.
+                            // Occupancy at ANY resolution (hasVoxelAt, not getCubeAt):
+                            // carved/kerfed ground is subcube/micro — a cube-only test
+                            // disagrees with PlacedObjectManager's oracle and seats
+                            // objects one cell above chopped terrain (audit repro).
                             for (const auto& [lx, lz] : footprint) {
                                 int wx = static_cast<int>(x) + lx;
                                 int wz = static_cast<int>(z) + lz;
-                                // Scan downward from requested Y to find the top occupied voxel
-                                for (int wy = requestedY; wy >= requestedY - 64; --wy) {
-                                    if (chunkManager->getCubeAt({wx, wy, wz})) {
-                                        // Surface is at wy+1; template must start at or above that
-                                        requiredY = std::max(requiredY, wy + 1);
-                                        break;
+                                if (chunkManager->hasVoxelAt({wx, requestedY, wz})) {
+                                    int wy = requestedY;
+                                    while (wy < requestedY + 96 &&
+                                           chunkManager->hasVoxelAt({wx, wy + 1, wz})) ++wy;
+                                    requiredY = std::max(requiredY, wy + 1);
+                                } else {
+                                    for (int sy = requestedY - 1; sy >= requestedY - 96; --sy) {
+                                        if (chunkManager->hasVoxelAt({wx, sy, wz})) {
+                                            requiredY = std::max(requiredY, sy + 1);
+                                            break;
+                                        }
                                     }
                                 }
                             }
 
-                            if (requiredY > requestedY) {
-                                LOG_INFO("SpawnTemplate", "Surface-snap: {} raised from y={} to y={}", name, requestedY, requiredY);
+                            if (requiredY != INT_MIN && requiredY != requestedY) {
+                                LOG_INFO("SpawnTemplate", "Surface-snap: {} moved from y={} to y={}",
+                                         name, requestedY, requiredY);
                                 y = static_cast<float>(requiredY);
                             }
+                            // This block now OWNS seating — disable the legacy raise-only
+                            // snap inside placeTemplate so the two layers can't stack
+                            // (audit: legacy re-snap pushed an already-correct seat one
+                            // cell above the surface).
+                            snapToGround = false;
                         }
                     }
 

@@ -60,6 +60,16 @@ public:
     static constexpr float SLEEP_VELOCITY_SQ = 0.02f * 0.02f;
     static constexpr float SLEEP_ANGULAR_SQ  = 0.05f * 0.05f;
     static constexpr float SLEEP_TIME        = 1.2f;
+    // Position-based fallback: a body that has not actually MOVED sleeps even if
+    // contact-solver jitter keeps spiking its velocities past the thresholds
+    // above (large compound bodies at rest on many contacts never satisfied the
+    // velocity test and burned full contact generation every frame).
+    glm::vec3 sleepRefPos   = glm::vec3(0.0f);
+    float     sleepPosTimer = 0.0f;
+    static constexpr float SLEEP_POS_EPS  = 0.05f;   // moved less than this = "still"
+    // SIM-time (substeps starve under heavy frames, so keep this short — a huge
+    // resting fragment must stop burning contact generation quickly).
+    static constexpr float SLEEP_POS_TIME = 1.0f;
 
     // ---- Cached inertia (updated by VoxelDynamicsWorld each step) ----
     float     invMass = 0.0f;

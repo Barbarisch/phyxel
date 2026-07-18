@@ -1240,6 +1240,28 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/body_boxes — every rigid body's collision boxes in WORLD
+    // space + kinematic render transforms (physics-vs-render divergence tool).
+    // ====================================================================
+    srv.Get("/api/debug/body_boxes", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("debug_body_boxes", json::object(), 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/debug/occupancy_cell?x=&y=&z= — one cell's occupancy-grid masks
+    // vs its actual chunk content (SubcubeCollisionPlan P1 audit instrument).
+    // ====================================================================
+    srv.Get("/api/debug/occupancy_cell", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("x")) params["x"] = std::stoi(req.get_param_value("x"));
+        if (req.has_param("y")) params["y"] = std::stoi(req.get_param_value("y"));
+        if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
+        json result = queueAndWait("occupancy_cell", params, 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/structure/types — List available structure types
     // ====================================================================
     srv.Get("/api/structure/types", [this](const httplib::Request&, httplib::Response& res) {

@@ -52,6 +52,28 @@ static json serializePhysics(const MaterialPhysics& p) {
     };
 }
 
+// Destruction "break" block (docs/DestructionSystemV2.md §5.A). Optional per material;
+// its presence sets hasProfile so DamageSystem::responseFor uses these values instead of
+// its bondStrength-derived fallback.
+static MaterialBreak parseBreak(const json& j) {
+    MaterialBreak b;
+    b.hasProfile = true;
+    if (j.contains("toughness"))  b.toughness  = j["toughness"].get<float>();
+    if (j.contains("brittleS1"))  b.brittleS1  = j["brittleS1"].get<float>();
+    if (j.contains("brittleS2"))  b.brittleS2  = j["brittleS2"].get<float>();
+    if (j.contains("absorption")) b.absorption = j["absorption"].get<float>();
+    return b;
+}
+
+static json serializeBreak(const MaterialBreak& b) {
+    return json{
+        {"toughness", b.toughness},
+        {"brittleS1", b.brittleS1},
+        {"brittleS2", b.brittleS2},
+        {"absorption", b.absorption}
+    };
+}
+
 static MaterialTextures parseTextures(const json& j) {
     MaterialTextures t;
     t.faceFiles[0] = j.value("side_n", "");
@@ -120,6 +142,10 @@ bool MaterialRegistry::loadFromJson(const std::string& path) {
             def.physics = parsePhysics(matJson["physics"]);
         }
 
+        if (matJson.contains("break")) {
+            def.breakProfile = parseBreak(matJson["break"]);
+        }
+
         if (matJson.contains("textures")) {
             def.textures = parseTextures(matJson["textures"]);
         }
@@ -167,6 +193,12 @@ bool MaterialRegistry::saveToJson(const std::string& path) const {
         // materials (e.g. the vox_palette entries have mass 1.5), breaking the save/reload roundtrip.
         // hasPhysics() is left untouched (the editor uses it as a category predicate, not a save flag).
         matJson["physics"] = serializePhysics(mat.physics);
+        // Symmetric with LOAD: only materials that HAD a "break" block get one back
+        // (absence = DamageSystem fallback), so a save/reload round-trips without
+        // sprinkling a break profile onto all 101 materials.
+        if (mat.breakProfile.hasProfile) {
+            matJson["break"] = serializeBreak(mat.breakProfile);
+        }
         matJson["textures"] = serializeTextures(mat.textures);
         materialsArray.push_back(std::move(matJson));
     }

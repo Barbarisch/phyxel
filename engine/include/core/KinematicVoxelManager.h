@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <climits>
 #include <glm/glm.hpp>
+#include "core/Types.h"   // FoliageInstanceData (kinematic foliage, F3)
 
 namespace Phyxel {
 namespace Physics { class PhysicsWorld; }
@@ -55,6 +57,13 @@ struct KinematicVoxel {
     std::string materialName = "Default";       ///< Material name for per-face texture lookup
     uint32_t    tint = 0xFFFFFFu;                ///< Packed 0xRRGGBB tint multiplier; 0xFFFFFF = none.
                                                  ///< Decouples color from material (docs/VoxelAppearanceModel.md).
+
+    /// Foliage grid identity (F3): world CELL + subcube SLOT of a billboarded-leaf voxel,
+    /// carried from gather time because localPos is float-recentered and cannot be
+    /// re-quantized. Micro leaves map to their parent subcube slot (cards are per-subcube
+    /// sprigs). gridCell.x == INT_MIN means "not foliage / unknown" (solid render path).
+    glm::ivec3  gridCell = glm::ivec3(INT_MIN);
+    glm::ivec3  gridSlot = glm::ivec3(1);        ///< subcube slot 0..2 per axis
 };
 
 /// A group of voxels rendered together with a shared world transform.
@@ -75,6 +84,14 @@ struct KinematicVoxelObject {
     glm::mat4   currentTransform{1.0f};   ///< World transform — set each frame by owner
     bool        visible = true;
     KinematicSurface surface;              ///< Optional planar projected texture (Tier 2).
+
+    /// KINEMATIC FOLIAGE (F3): billboarded-leaf voxels are excluded from `faces` (no
+    /// solid quads) and packed here as foliage-card instances in FRAGMENT-LOCAL cell
+    /// coords relative to `foliageOrigin` (hinge-local). Drawn by FoliageRenderPipeline's
+    /// kinematic pass with model = currentTransform * translate(foliageOrigin), so a
+    /// felled tree keeps its card-rendered canopy while falling.
+    std::vector<FoliageInstanceData> foliage;
+    glm::vec3   foliageOrigin{0.0f};
 };
 
 /// Owns all KinematicVoxelObjects in the scene.
@@ -90,12 +107,18 @@ public:
 
     /// Register a new object for rendering. Builds the face buffer.
     /// skipCollider is accepted for API compatibility but has no effect.
+    /// `worldToLocalShift` (F3): the COM subtracted from world positions to get the
+    /// object's local frame (local = world - shift). When provided (x != FLT_MAX),
+    /// billboarded-leaf voxels with a grid identity are rendered as FOLIAGE CARDS
+    /// (obj.foliage) instead of solid faces — a felled tree keeps its canopy look.
+    /// Callers that don't pass it keep today's behavior (leaves render solid).
     std::string add(const std::string& idHint,
                     std::vector<KinematicVoxel> voxels,
                     const glm::mat4& initialTransform = glm::mat4(1.0f),
                     const std::string& placedObjectId = "",
                     bool skipCollider = false,
-                    const KinematicSurface& surface = {});
+                    const KinematicSurface& surface = {},
+                    const glm::vec3& worldToLocalShift = glm::vec3(3.4e38f));
 
     /// Remove an object and free all resources.
     void remove(const std::string& id);
@@ -130,6 +153,12 @@ private:
 
     /// Compute AABB half-extents from a voxel list for collider sizing.
     static glm::vec3 computeHalfExtents(const std::vector<KinematicVoxel>& voxels);
+
+    /// F3: pack billboarded-leaf voxels into foliage-card instances (one sprig per
+    /// occupied cell+subcube-slot, fragment-local vs obj.foliageOrigin).
+    static void buildFoliage(KinematicVoxelObject& obj,
+                             const std::vector<const KinematicVoxel*>& leaves,
+                             const glm::vec3& worldToLocalShift);
 
     std::string generateId(const std::string& hint);
 

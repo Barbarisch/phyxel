@@ -2,6 +2,7 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "core/ChunkManager.h"
+#include "core/DamageSystem.h"
 #include "core/GpuParticlePhysics.h"
 #include "graphics/RaycastVisualizer.h"
 #include "utils/Logger.h"
@@ -1402,6 +1403,14 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::setAnimationState(AnimatedCharacterState state) {
         if (state == currentState) return;
+        // The updateStateMachine tracer only sees INTERNAL transitions; external
+        // aborts of a swing (any caller yanking the FSM out of Attack) were
+        // invisible — log them so a dying swing names its killer.
+        if (currentState == AnimatedCharacterState::Attack &&
+            state != AnimatedCharacterState::Attack) {
+            LOG_INFO("Character", "External Attack exit -> {} (t={} hitFired={})",
+                     stateToString(state), stateTimer, m_hitFrameFired);
+        }
         currentState = state;
         stateTimer = 0.0f;
         // Forcing Attack directly (API / scripted trigger) must set up a real swing
@@ -2553,6 +2562,11 @@ namespace Scene {
                 if (!m_hitFrameFired && scaledDur > 0.0f &&
                     stateTimer / scaledDur >= hitFrac) {
                     m_hitFrameFired = true;
+                    // Swing-feel diagnosis: a fire at t far below the clip's real
+                    // hit time means scaledDur was stale (wrong clip duration) and
+                    // the bite is happening with the arm still at windup.
+                    LOG_INFO("Character", "hit frame: clip='{}' t={} scaledDur={} frac={}",
+                             m_currentAttackClip, stateTimer, scaledDur, stateTimer / scaledDur);
                     if (m_onHitFrame) m_onHitFrame();
                 }
 
@@ -4658,6 +4672,20 @@ namespace Scene {
     void AnimatedVoxelCharacter::checkSegmentVoxelOverlap() {
         if (!m_chunkManager || m_segmentBoxes.empty()) return;
 
+        // TREE MATTER (Log*/Leaf*) never blocks a limb: chopping REQUIRES the
+        // arm to pass into the trunk/canopy, and the limb-block Attack cancel
+        // silently killed every point-blank swing before its hit frame (task
+        // #8 — the user could stand close enough that no swing ever landed).
+        // Walls/stone still block: the exemption is per overlapped CELL.
+        auto treeMatterCell = [&](const glm::ivec3& wp) -> bool {
+            if (Cube* c = m_chunkManager->getCubeAt(wp)) {
+                const std::string& m = c->getMaterialName();
+                return m.rfind("Log", 0) == 0 || m.rfind("Leaf", 0) == 0;
+            }
+            // subdivided cell (flare/notch): wood at any granularity counts
+            return Phyxel::DamageSystem::isWoodCellAny(m_chunkManager, wp);
+        };
+
         for (auto& seg : m_segmentBoxes) {
             seg.colliding = false;
             const glm::vec3& center = seg.center;
@@ -4673,9 +4701,11 @@ namespace Scene {
             bool hit = false;
             for (int x = xMin; x <= xMax && !hit; ++x)
                 for (int y = yMin; y <= yMax && !hit; ++y)
-                    for (int z = zMin; z <= zMax && !hit; ++z)
-                        if (m_chunkManager->hasVoxelAt(glm::ivec3(x, y, z)))
+                    for (int z = zMin; z <= zMax && !hit; ++z) {
+                        const glm::ivec3 wp(x, y, z);
+                        if (m_chunkManager->hasVoxelAt(wp) && !treeMatterCell(wp))
                             hit = true;
+                    }
 
             if (hit) {
                 seg.colliding = true;

@@ -209,6 +209,13 @@ void VoxelDynamicsWorld::generateContacts() {
     size_t na = awake.size();
 
     // ---- Body vs terrain (parallel, per-thread contact buffers) ----
+    // Terrain is queried PER COLLISION BOX, not per body: a multi-box body's
+    // whole-body AABB spans the entire object (a fallen tree ≈ 10x15x10 m →
+    // ~1500 occupied voxels), and pairing every one of those with every body
+    // box was terrainBoxes × bodyBoxes narrow-phase tests per substep
+    // (~225k for a 150-box fell — the "FPS ≈ 0 while the tree falls" hang;
+    // 870 ms/frame measured at 46 boxes). Each box only overlaps a handful of
+    // voxels, so per-box queries are O(boxes × ~4) instead.
     if (!m_grids.empty() && na > 0) {
         std::vector<std::vector<ContactPoint>> threadBufs(tc);
         const auto& grids = m_grids;
@@ -219,18 +226,24 @@ void VoxelDynamicsWorld::generateContacts() {
             size_t slot  = (chunk > 0) ? (b / chunk) : 0;
             slot = std::min(slot, static_cast<size_t>(tc) - 1);
             auto& buf = threadBufs[slot];
+            std::vector<OccupiedBox> terrainBoxes;   // scratch, reused across boxes
 
             for (size_t i = b; i < e; ++i) {
                 const AwakeBody& ab = awake[i];
-                glm::vec3 bMin = ab.mn - glm::vec3(expand);
-                glm::vec3 bMax = ab.mx + glm::vec3(expand);
+                const glm::mat3 rot = glm::mat3_cast(ab.body->orientation);
+                const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+                const auto& localBoxes = ab.body->getLocalBoxes();
 
-                for (VoxelOccupancyGrid* grid : grids) {
-                    std::vector<OccupiedBox> terrainBoxes;
-                    grid->queryAABB(bMin, bMax, terrainBoxes);
-                    for (const OccupiedBox& tb : terrainBoxes)
-                        for (size_t bi = 0; bi < ab.body->getLocalBoxes().size(); ++bi)
+                for (size_t bi = 0; bi < localBoxes.size(); ++bi) {
+                    // Conservative world AABB of THIS box only.
+                    const glm::vec3 c  = ab.body->position + rot * localBoxes[bi].offset;
+                    const glm::vec3 he = absRot * localBoxes[bi].halfExtents + glm::vec3(expand);
+                    for (VoxelOccupancyGrid* grid : grids) {
+                        terrainBoxes.clear();
+                        grid->queryAABB(c - he, c + he, terrainBoxes);
+                        for (const OccupiedBox& tb : terrainBoxes)
                             VoxelContactSolver::generateOBBvsAABB(ab.body, bi, tb, buf);
+                    }
                 }
             }
         });
@@ -259,15 +272,26 @@ void VoxelDynamicsWorld::generateContacts() {
                     bMax.y < oMin.y || bMin.y > oMax.y ||
                     bMax.z < oMin.z || bMin.z > oMax.z) continue;
 
-                if (body->isAsleep) {
-                    body->isAsleep   = false;
-                    body->sleepTimer = 0.0f;
-                }
-
                 OccupiedBox box{obs.center, obs.halfExtents};
                 size_t before = m_contacts.size();
                 for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi)
                     VoxelContactSolver::generateOBBvsAABB(body.get(), bi, box, m_contacts);
+
+                // Wake ONLY on a real generated contact from a MOVING obstacle.
+                // The old rule woke (and reset the sleep timer of) any body whose
+                // AABB merely overlapped an obstacle — a character standing near a
+                // felled tree held its huge fragment awake forever, and the awake
+                // body's per-frame contact generation ate ~870 ms/frame.
+                const bool touched = m_contacts.size() > before;
+                const bool obsMoving = glm::dot(obs.velocity, obs.velocity) > 1e-4f;
+                if (touched && body->isAsleep && obsMoving) {
+                    body->isAsleep   = false;
+                    body->sleepTimer = 0.0f;
+                }
+                if (body->isAsleep) {
+                    m_contacts.resize(before);   // sleeping body: discard, nothing to solve
+                    continue;
+                }
                 for (size_t k = before; k < m_contacts.size(); ++k)
                     m_contacts[k].obstacleVelocity = obs.velocity;
             }
@@ -358,6 +382,22 @@ void VoxelDynamicsWorld::updateSleepState(float dt) {
                 body->sleepTimer = 0.0f;
                 body->isAsleep   = false;
             }
+            // Position fallback: still in place for SLEEP_POS_TIME → sleep, even
+            // when solver jitter keeps the velocity test from ever passing.
+            if (!body->isAsleep) {
+                const glm::vec3 d = body->position - body->sleepRefPos;
+                if (glm::dot(d, d) < VoxelRigidBody::SLEEP_POS_EPS * VoxelRigidBody::SLEEP_POS_EPS) {
+                    body->sleepPosTimer += dt;
+                    if (body->sleepPosTimer >= VoxelRigidBody::SLEEP_POS_TIME) {
+                        body->isAsleep        = true;
+                        body->linearVelocity  = glm::vec3(0.0f);
+                        body->angularVelocity = glm::vec3(0.0f);
+                    }
+                } else {
+                    body->sleepRefPos   = body->position;
+                    body->sleepPosTimer = 0.0f;
+                }
+            }
         }
     });
 }
@@ -399,14 +439,52 @@ float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth
     // those are character segment boxes; including them lets a character detect
     // its own body as ground. The character is kinematic (never in m_bodies), so
     // this can never self-detect.
+    //
+    // Per ORIENTED box, via exact down-rays: neither the whole-body AABB roof
+    // (crown-height phantom over a fallen tree) nor per-box conservative AABBs
+    // (upright-merged slabs inflate into multi-meter platforms once the body
+    // rotates — live: characters levitating 3.7m over a fallen birch) give the
+    // real standing surface. Five vertical rays through the character column
+    // (center + corners) against each OBB in its local frame.
+    const glm::vec2 rayXZ[5] = {
+        {feetPos.x, feetPos.z},
+        {xMin, zMin}, {xMin, zMax}, {xMax, zMin}, {xMax, zMax}
+    };
     for (const auto& body : m_bodies) {
         if (body->isDead) continue;
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
-        if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap
+        if (bMax.x < xMin || bMin.x > xMax) continue;       // XZ column overlap (broad reject)
         if (bMax.z < zMin || bMin.z > zMax) continue;
         if (bMin.y >= yHi || bMax.y <= yLo) continue;       // straddles the band below the feet
-        if (bMax.y > best) best = bMax.y;                   // stand on its top
+        const glm::mat3 rot    = glm::mat3_cast(body->orientation);
+        const glm::mat3 rotInv = glm::transpose(rot);
+        for (const auto& lb : body->getLocalBoxes()) {
+            const glm::vec3 c = body->position + rot * lb.offset;
+            const glm::vec3& he = lb.halfExtents;
+            for (const auto& xz : rayXZ) {
+                // Ray from the top of the band straight down, in OBB local space.
+                const glm::vec3 o = rotInv * (glm::vec3(xz.x, yHi, xz.y) - c);
+                const glm::vec3 d = rotInv * glm::vec3(0.0f, -1.0f, 0.0f);
+                float t0 = 0.0f, t1 = yHi - yLo;    // search band length
+                bool hit = true;
+                for (int a = 0; a < 3 && hit; ++a) {
+                    if (std::fabs(d[a]) < 1e-8f) {
+                        if (o[a] < -he[a] || o[a] > he[a]) hit = false;
+                        continue;
+                    }
+                    float ta = (-he[a] - o[a]) / d[a];
+                    float tb = ( he[a] - o[a]) / d[a];
+                    if (ta > tb) std::swap(ta, tb);
+                    t0 = std::max(t0, ta);
+                    t1 = std::min(t1, tb);
+                    if (t0 > t1) hit = false;
+                }
+                if (!hit) continue;
+                const float top = yHi - t0;          // world y where the ray enters the box
+                if (top > best && top > yLo) best = top;
+            }
+        }
     }
     return best;
 }
@@ -425,14 +503,40 @@ bool VoxelDynamicsWorld::overlapsTerrain(const glm::vec3& center, const glm::vec
 bool VoxelDynamicsWorld::overlapsAnyBody(const glm::vec3& center, const glm::vec3& halfExtents) const {
     glm::vec3 qMin = center - halfExtents;
     glm::vec3 qMax = center + halfExtents;
+    std::vector<ContactPoint> scratch;
     for (const auto& body : m_bodies) {
         if (body->isDead || body->invMass == 0.0f) continue;
         glm::vec3 bMin, bMax;
         body->getWorldAABB(bMin, bMax);
-        if (qMax.x > bMin.x && qMin.x < bMax.x &&
-            qMax.y > bMin.y && qMin.y < bMax.y &&
-            qMax.z > bMin.z && qMin.z < bMax.z)
-            return true;
+        // Whole-body AABB is only the BROAD reject. Blocking on it stops the
+        // character at a multi-box body's invisible envelope — a fallen tree's
+        // AABB spans trunk + branches, and the player was stopped ~2m from the
+        // visible wood in open air (live). And per-box CONSERVATIVE AABBs are
+        // not enough either: greedy-merged slabs on a ROTATED (fallen) body
+        // inflate into multi-meter phantom platforms (live: an invisible 6x3m
+        // floor 5m up, measured via /api/debug/body_boxes — he 3.68x1.46x3.69
+        // from an upright-merged crown slab). Use the solver's exact
+        // OBB-vs-AABB test per box.
+        if (qMax.x <= bMin.x || qMin.x >= bMax.x ||
+            qMax.y <= bMin.y || qMin.y >= bMax.y ||
+            qMax.z <= bMin.z || qMin.z >= bMax.z)
+            continue;
+        const glm::mat3 rot = glm::mat3_cast(body->orientation);
+        const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
+        const OccupiedBox query{center, halfExtents};
+        for (size_t bi = 0; bi < body->getLocalBoxes().size(); ++bi) {
+            const auto& lb = body->getLocalBoxes()[bi];
+            const glm::vec3 c  = body->position + rot * lb.offset;
+            const glm::vec3 he = absRot * lb.halfExtents;
+            // cheap conservative pre-reject, then the exact oriented test
+            if (qMax.x <= c.x - he.x || qMin.x >= c.x + he.x ||
+                qMax.y <= c.y - he.y || qMin.y >= c.y + he.y ||
+                qMax.z <= c.z - he.z || qMin.z >= c.z + he.z)
+                continue;
+            scratch.clear();
+            if (VoxelContactSolver::generateOBBvsAABB(body.get(), bi, query, scratch) > 0)
+                return true;
+        }
     }
     return false;
 }

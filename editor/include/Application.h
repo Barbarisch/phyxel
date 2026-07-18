@@ -78,6 +78,7 @@
 #include "core/KinematicAnimator.h"
 #include "core/DoorManager.h"
 #include "core/DynamicFurnitureManager.h"
+#include "core/CoherentFragmentManager.h"
 #include "core/ItemPropManager.h"
 #include "core/ItemEffectSystem.h"
 #include "core/LocationRegistry.h"
@@ -334,6 +335,9 @@ private:
     std::unique_ptr<Core::KinematicAnimator>     kinematicAnimator;
     std::unique_ptr<Core::DoorManager> doorManager;
     std::unique_ptr<Core::DynamicFurnitureManager> dynamicFurnitureManager;
+    // Coherent world-collapse fragments (docs/DestructionSystemV2.md §5.G) — owns + ticks
+    // physicalize'd slabs from apply_damage's coherent path. Deps set lazily at first use.
+    Core::CoherentFragmentManager coherentFragmentManager;
 
     // Items: world props + held-in-hand presentation + declarative effects
     std::unique_ptr<Core::ItemPropManager> itemPropManager;
@@ -349,7 +353,12 @@ private:
     // tree voxel the swing lands on, accumulate chop progress, spawn wood-chip
     // + sound feedback, and (via ChopManager) fire onTreeFelled when the tree is
     // chopped through. Changes no voxels — see m_chopManager / ChopManager.h.
-    void tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw);
+    // Blade-contact chop: computes the held axe head's world position and bites
+    // the wood it touches (kerf carve + feedback). Called EVERY FRAME during a
+    // swing (contact decides the moment, not a clip fraction); returns true when
+    // a bite registered so the caller latches one-bite-per-swing.
+    bool tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, float yaw);
+    bool m_swingBiteDone = false;   // one bite per swing latch
 
     // Held weapons for combat NPCs — same template + grip orientation as the
     // player's held item, but driven per-NPC from CombatBehavior::getWeaponId().

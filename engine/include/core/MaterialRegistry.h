@@ -44,6 +44,22 @@ struct MaterialPhysics {
 };
 
 /**
+ * @brief Destruction / break response for a material (see docs/DestructionSystemV2.md §5.A).
+ *
+ * Drives DamageSystem::responseFor. When a material has no "break" block in
+ * materials.json, hasProfile stays false and DamageSystem uses its bondStrength-
+ * derived fallback (toughness = bondStrength*120, s1=2.5, s2=6.0, absorption=0.6).
+ * The defaults below MATCH that fallback so an unset profile is a no-op.
+ */
+struct MaterialBreak {
+    bool  hasProfile = false;   ///< true only if a "break" block was present in JSON
+    float toughness  = 0.0f;    ///< energy needed to break one voxel
+    float brittleS1  = 2.5f;    ///< overkill ratio >= s1 → shatter to subcubes (1/3)
+    float brittleS2  = 6.0f;    ///< overkill ratio >= s2 → shatter to microcubes (1/9)
+    float absorption = 0.6f;    ///< shielding: energy lost per solid voxel in the way
+};
+
+/**
  * @brief Complete material definition: identity + physics + textures
  */
 struct MaterialDef {
@@ -71,6 +87,7 @@ struct MaterialDef {
     float emissiveThreshold = 0.55f;   ///< albedo luminance above which a pixel glows
 
     MaterialPhysics physics;
+    MaterialBreak    breakProfile;   ///< destruction response (optional "break" block)
     MaterialTextures textures;
 
     // Target texture resolution (per layer). 512 = standard terrain/material class,

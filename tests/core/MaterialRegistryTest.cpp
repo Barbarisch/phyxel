@@ -230,7 +230,10 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
     auto names = registry_->getAllMaterialNames();
-    EXPECT_EQ(static_cast<int>(names.size()), 101);  // = materials.json "materials" array length
+    // = materials.json "materials" array length (102 since LogHeartwood, the
+    // raw cut-wood material added by the axe-chop kerf arc, ef000eb).
+    EXPECT_EQ(static_cast<int>(names.size()), 102);
+    EXPECT_TRUE(registry_->hasMaterial("LogHeartwood"));
 }
 
 // ============================================================================
