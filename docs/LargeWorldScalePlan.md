@@ -716,6 +716,11 @@ rework (4) making it *dense* and *big-world-resident* afterwards.
 - Mid-field LOD ownership: extend `FarTerrainManager` rings inward with voxel-aware tiles vs a
   separate `ChunkLODController` (the approved-but-unbuilt Phase 5 plan used the latter).
 - Whether foliage impostors are needed at mid distance or fog + far-terrain coloring suffices.
+- **Water on heightmap worlds** (user-flagged 2026-07-18 at the dry Long Lake): imported-map
+  worlds skip the hydrology bake (`rebuildCoarseModel` — map rivers/valleys are pre-carved, so
+  `m_hydro`/`m_flow` stay null), which also means NO water table → lakes/seas render as dry
+  basins. Needs either a map-world bake variant (Priority-Flood over the imported heights would
+  find basin fill levels directly) or an authored water-level channel in the map bundle.
 
 ## 5. Addendum — external survey: how the field solves this (2026-07-17)
 
