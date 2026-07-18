@@ -809,13 +809,13 @@ int ChunkVoxelManager::clearCellsBulk(const std::vector<glm::ivec3>& localCells)
             lp.z < 0 || lp.z >= 32) continue;
         want.insert(key(lp));
         const size_t idx = lp.z + lp.y * 32 + lp.x * 32 * 32;
-        if (idx < cubes.size() && cubes[idx]) {
-            cubeMap.erase(lp);
-            cubes[idx].reset();
-        }
+        // 4.2b port (merge integration): the palette store is the cube authority — the
+        // dense cubeMap/voxelTypeMap this loop originally erased were removed in Phase
+        // 4.1/4.2b. Clear the store cell AND the materialized overlay Cube (if any).
+        if (voxelStore.solid(idx)) voxelStore.erase(idx);
+        if (idx < cubes.size() && cubes[idx]) cubes[idx].reset();
         subcubeMap.erase(lp);
         microcubeMap.erase(lp);
-        voxelTypeMap.erase(lp);
         m_removeCollision(lp);
         ++cleared;
     }
