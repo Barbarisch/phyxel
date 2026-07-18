@@ -25,11 +25,13 @@ ChunkStreamingManager::~ChunkStreamingManager() {
 }
 
 void ChunkStreamingManager::stopAsyncGeneration() {
-    if (m_genWorker.joinable() || m_disposalThread.joinable()) {
+    if (!m_genWorkers.empty() || m_disposalThread.joinable()) {
         m_stopGen = true;
         m_genCv.notify_all();
         m_disposalCv.notify_all();
-        if (m_genWorker.joinable()) m_genWorker.join();
+        for (auto& w : m_genWorkers)
+            if (w.joinable()) w.join();
+        m_genWorkers.clear();
         if (m_disposalThread.joinable()) m_disposalThread.join();
         m_stopGen = false;
     }
@@ -47,7 +49,7 @@ void ChunkStreamingManager::stopAsyncGeneration() {
         m_disposalQueue.clear();  // husks: Vulkan/physics already torn down on main
     }
     m_genPending.clear();
-    m_workerGenerator.reset();
+    m_workerGenerators.clear();
     // Stream-in boot state belongs to the world being torn down.
     m_dbBacklog.clear();
     m_bootResident.clear();
@@ -74,21 +76,34 @@ void ChunkStreamingManager::disposalLoop() {
 }
 
 void ChunkStreamingManager::maybeStartGenWorker() {
-    if (m_genWorker.joinable() || !m_finalizeGenerated) return;
+    if (!m_genWorkers.empty() || !m_finalizeGenerated) return;
     // Snapshot lazily on the first pump: by now the game-definition loader has applied
-    // recipe/terrain params to the live generator, so the copy is fully configured.
-    if (m_generatorSnapshot) m_workerGenerator = m_generatorSnapshot();
-    // Pure-DB worker mode (stream-in boot for DB-only worlds): run without a
-    // generator — the worker only loads from storage and drops misses.
-    if (!m_workerGenerator && !m_dbWorkerMode) return;
+    // recipe/terrain params to the live generator, so the copies are fully configured.
+    // One PRIVATE generator copy per worker (bake memo is copy-safe).
+    if (m_generatorSnapshot) {
+        for (int i = 0; i < kGenWorkerCount; ++i) {
+            auto gen = m_generatorSnapshot();
+            if (!gen) break;  // snapshot unavailable (streaming generation disabled)
+            m_workerGenerators.push_back(std::move(gen));
+        }
+    }
+    // Pure-DB worker mode (stream-in boot for DB-only worlds): run without
+    // generators — the workers only load from storage and drop misses.
+    if (m_workerGenerators.empty() && !m_dbWorkerMode) return;
     m_stopGen = false;
-    m_genWorker = std::thread([this] { genWorkerLoop(); });
+    const int workerCount = m_workerGenerators.empty() ? kGenWorkerCount
+                                                       : int(m_workerGenerators.size());
+    for (int i = 0; i < workerCount; ++i) {
+        WorldGenerator* gen = (i < int(m_workerGenerators.size())) ? m_workerGenerators[i].get()
+                                                                   : nullptr;
+        m_genWorkers.emplace_back([this, gen] { genWorkerLoop(gen); });
+    }
     m_disposalThread = std::thread([this] { disposalLoop(); });
-    LOG_INFO("ChunkStreaming", "Async chunk-generation + disposal workers started{}",
-             m_workerGenerator ? "" : " (pure DB-load mode, no generator)");
+    LOG_INFO("ChunkStreaming", "Async chunk-generation ({} worker(s)) + disposal workers started{}",
+             workerCount, m_workerGenerators.empty() ? " (pure DB-load mode, no generator)" : "");
 }
 
-void ChunkStreamingManager::genWorkerLoop() {
+void ChunkStreamingManager::genWorkerLoop(WorldGenerator* workerGen) {
     for (;;) {
         glm::ivec3 chunkCoord;
         {
@@ -121,11 +136,11 @@ void ChunkStreamingManager::genWorkerLoop() {
             }
             if (fromDb) {
                 chunk->markClean();  // loaded state is by definition persisted
-            } else if (m_workerGenerator) {
-                m_workerGenerator->generateChunk(*chunk, chunkCoord);
+            } else if (workerGen) {
+                workerGen->generateChunk(*chunk, chunkCoord);
                 // Flora before maps/grid so canopy voxels are included in both. DB-loaded
                 // chunks were saved WITH their flora — no re-decoration.
-                if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *m_workerGenerator);
+                if (m_workerDecorate) m_workerDecorate(*chunk, chunkCoord, *workerGen);
             } else {
                 // Pure-DB mode: a miss means the coord has no saved data — drop it
                 // (report via m_genFailed so the pending mark is cleared; DB-only
@@ -318,7 +333,12 @@ void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, 
         // load first, so saved/edited chunks are never shadowed by regeneration, and
         // falls back to generation on a miss. NO SQLite on the main thread here: sync
         // DB loads were ~150-400ms each (the moving-camera stall in saved regions).
-        constexpr int kMaxPendingAsync = 8;
+        // Deep enough that the worker never idles between pumps: post-4.4, uniform
+        // (buried/sky) chunks generate in ~1-5ms, so a shallow queue (was 8) starved
+        // the worker for most of each pump interval and capped inflow at ~8/pump.
+        // Landing is separately bounded (m_maxChunksPerUpdate in drainGeneratedChunks)
+        // so a full queue can't hitch the main thread.
+        constexpr int kMaxPendingAsync = 32;
         for (const auto& [distance, chunkCoord] : missing) {
             if (m_genPending.count(chunkCoord)) continue;
             if (int(m_genPending.size()) >= kMaxPendingAsync) break;

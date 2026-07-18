@@ -256,8 +256,11 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     m_streamingManager.setPerChunkPhysics(enabled);
     // Bound per-pump main-thread work (nearest-first): with async generation this caps
     // synchronous DB loads + finished-chunk finalizes per pump, not generation itself
-    // (that runs on the worker).
-    m_streamingManager.setMaxChunksPerUpdate(enabled ? 2 : 0);
+    // (that runs on the worker). 8 (was 2): the old cap made LANDING the inflow
+    // bottleneck (~20 chunks/s with the 6-frame pump throttle) — post-4.4 most chunks
+    // are uniform and land for near-nothing (sealed/air skip buffer creation), and the
+    // slow-finalize path still warns per chunk at 60ms.
+    m_streamingManager.setMaxChunksPerUpdate(enabled ? 8 : 0);
 
     // Async worker wiring (snapshot + finalize) is set once in setupCallbacks();
     // the snapshot lambda returns null while streaming generation is disabled.

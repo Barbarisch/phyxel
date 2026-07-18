@@ -3757,7 +3757,11 @@ void Application::update(float deltaTime) {
         // generation + face finalize is heavy; the per-update cap bounds it further.
         if (chunkManager->isStreamingGenerationEnabled()) {
             static int s_streamTick = 0;
-            if (++s_streamTick >= 6) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
+            // Pump every 2nd frame (was 6th): with the deeper worker queue + higher landing
+            // cap (large-world throughput pass), the pump interval was the remaining inflow
+            // bottleneck. Still >= frames-in-flight, preserving the frame-deferred-deletion
+            // safety contract in unloadDistantChunks.
+            if (++s_streamTick >= 2) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
         }
         // Stream-in boot (Phase 2): land deferred DB chunks in the background.
         // No-op once the boot backlog has drained.

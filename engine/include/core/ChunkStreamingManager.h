@@ -216,8 +216,15 @@ private:
     GeneratorSnapshotFunc m_generatorSnapshot;
     FinalizeGeneratedChunkFunc m_finalizeGenerated;
     WorkerDecorateFunc m_workerDecorate;
-    std::unique_ptr<WorldGenerator> m_workerGenerator;  // owned/used by the worker only
-    std::thread m_genWorker;
+    // Worker POOL (large-world throughput): surface-band chunks cost the generator
+    // ~100-400ms each in Debug (per-column height/climate sampling), so one worker
+    // caps inflow at a few chunks/s regardless of queue depth. Each worker owns a
+    // PRIVATE generator copy (snapshot hook; bake memo is copy-safe); the chunk under
+    // build is private; DB access is m_storageMutex-guarded; template reads are
+    // immutable after startup.
+    static constexpr int kGenWorkerCount = 3;
+    std::vector<std::unique_ptr<WorldGenerator>> m_workerGenerators;  // one per worker
+    std::vector<std::thread> m_genWorkers;
     std::mutex m_genRequestMutex;
     std::condition_variable m_genCv;
     std::deque<glm::ivec3> m_genRequests;               // guarded by m_genRequestMutex
@@ -249,11 +256,11 @@ private:
     void disposalLoop();
 
     void maybeStartGenWorker();
-    void genWorkerLoop();
+    void genWorkerLoop(WorldGenerator* workerGen);
     /// Main thread: initialize + buffer + insert + finalize worker-built chunks
     /// (bounded per pump; drops results that were superseded or flown past).
     void drainGeneratedChunks(const glm::vec3& position, float unloadRadius);
-    bool asyncGenerationActive() const { return m_genWorker.joinable(); }
+    bool asyncGenerationActive() const { return !m_genWorkers.empty(); }
 
     // Helper methods
     Chunk* getChunkAtCoord(const glm::ivec3& chunkCoord);
