@@ -505,6 +505,7 @@ private:
     bool dispatchItemAPICommand(const Phyxel::Core::APICommand& cmd, nlohmann::json& response);
     void autoLoadGameDefinition();   // Auto-load game.json if present
     void setupGameHud(const nlohmann::json& gameDef);  // Load game.json "hud" into the UISystem + register data bindings (docs/HudSystem.md)
+    void applyFarTerrainConfig(const nlohmann::json& gameDef);  // world.renderDistance + world.farTerrain (docs/CameraRelativeRendering.md, FarRepresentationProviders.md)
     Core::GameSubsystems buildGameSubsystems(); // Build subsystems struct for GameDefinitionLoader
     void initializeSceneManager();   // Wire SceneCallbacks and configure SceneManager
     // Keep the SceneManager's GameSubsystems pointers current (refreshed each frame

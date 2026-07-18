@@ -123,9 +123,11 @@
       16 B (`vec2 tileOriginRel + vec2 tileOriginAbs`); rel is double-subtracted on CPU
       (setCameraWorld per frame), the vert subtracts `ubo.cameraWorld.y` from the baked
       absolute mesh Y for clip space and hands the frag the EXACT absolute frame for the
-      per-world-unit texture projection. Enable at runtime: `/api/debug/render_distance`
-      (far plane) + `/api/debug/far_terrain {enabled, maxDistance}` — NOT persisted in
-      game.json yet (config-phase item). GATES: tiles project coherently at x≈47.5k
+      per-world-unit texture projection. Enable at runtime (`/api/debug/render_distance` +
+      `/api/debug/far_terrain`) or persist per world via game.json `world.renderDistance` +
+      `world.farTerrain {enabled, maxDistance}` (Application::applyFarTerrainConfig, editor
+      project-open + MCP load paths; standalone GameShell not wired). GATES: tiles project
+      coherently at x≈47.5k
       (Fangorn) and x≈61.9k (Gondor: Mindolluin range front + far ridge vista, 2 km);
       far-field round-trip diff 0.479% ≈ noise floor; clean near/far depth boundary.
       Near-origin (LodTest) untested live — same code path, rel==abs−cam exact; low risk.

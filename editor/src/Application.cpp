@@ -5281,6 +5281,34 @@ void Application::interactWithNPC() {
 // loads it after all subsystems are initialized.
 // ============================================================================
 
+// world.renderDistance (camera far plane / chunk cull distance) and
+// world.farTerrain {enabled, maxDistance} from game.json — so a world boots
+// with its vistas on instead of needing /api/debug re-enables every launch.
+// Shared by the project-open and MCP load_game_definition paths.
+void Application::applyFarTerrainConfig(const nlohmann::json& gameDef) {
+    if (!gameDef.contains("world")) return;
+    const nlohmann::json& w = gameDef["world"];
+    if (w.contains("renderDistance")) {
+        maxChunkRenderDistance = w["renderDistance"].get<float>();
+        chunkInclusionDistance = maxChunkRenderDistance * 1.5f;
+        if (renderCoordinator) {
+            renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
+            renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
+        }
+        LOG_INFO("Application", "[FAR] render distance {} (from game.json)", maxChunkRenderDistance);
+    }
+    if (w.contains("farTerrain") && renderCoordinator) {
+        const nlohmann::json& ftj = w["farTerrain"];
+        if (auto* ft = renderCoordinator->getFarTerrainManager()) {
+            ft->params().enabled = ftj.value("enabled", false);
+            if (ftj.contains("maxDistance"))
+                ft->params().maxDistance = ftj["maxDistance"].get<float>();
+            LOG_INFO("Application", "[FAR] far terrain {} maxDistance {} (from game.json)",
+                     ft->params().enabled ? "ENABLED" : "disabled", ft->params().maxDistance);
+        }
+    }
+}
+
 void Application::setupGameHud(const nlohmann::json& gameDef) {
     if (!renderCoordinator) return;
     auto* uiSystem = renderCoordinator->getUISystem();
@@ -5614,6 +5642,9 @@ void Application::autoLoadGameDefinition() {
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
+
+            // Render distance + far-terrain LOD from the world block (boots with vistas on).
+            applyFarTerrainConfig(gameDef);
 
             // Populate the GPU particle occupancy grid from the freshly generated
             // terrain. Without this, debris particles have no floor to collide with
@@ -15035,6 +15066,10 @@ void Application::processAPICommands() {
 
                 auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
                 response = loadResult.toJson();
+
+                // Render distance + far-terrain LOD from the world block (parity with
+                // the project-open path).
+                applyFarTerrainConfig(cmd.params);
 
                 // Rebuild GPU occupancy grid after world generation/placement
                 if (loadResult.chunksGenerated > 0 || loadResult.structuresPlaced > 0) {
