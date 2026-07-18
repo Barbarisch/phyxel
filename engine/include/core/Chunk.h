@@ -351,14 +351,18 @@ public:
     VkBuffer getInstanceBuffer() const { return renderManager.getInstanceBuffer(); }
     const std::vector<InstanceData>& getFaces() const { return renderManager.getFaces(); }
     void* getMappedMemory() const { return renderManager.getMappedMemory(); }
+    // Phase 4.3 A2: bind offset (arena span offset; 0 in legacy mode).
+    VkDeviceSize getInstanceBindOffset() const { return renderManager.getFaceBindOffset(); }
 
     // Grass blade layer (lightweight): parallel per-chunk buffer + instance count.
     VkBuffer getGrassBuffer() const { return renderManager.getGrassBuffer(); }
     uint32_t getGrassCount() const { return renderManager.getGrassCount(); }
+    VkDeviceSize getGrassBindOffset() const { return renderManager.getGrassBindOffset(); }
 
     // Foliage leaf-card layer: parallel per-chunk buffer + instance count.
     VkBuffer getFoliageBuffer() const { return renderManager.getFoliageBuffer(); }
     uint32_t getFoliageCount() const { return renderManager.getFoliageCount(); }
+    VkDeviceSize getFoliageBindOffset() const { return renderManager.getFoliageBindOffset(); }
 
 private:
     // Helper functions

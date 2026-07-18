@@ -175,6 +175,12 @@ public:
     // Cheap + idempotent; a no-op for buffers already created.
     void setArenaRegionKey(const glm::ivec3& worldOrigin);
 
+    // Phase 4.3 A2: byte offsets to bind each buffer at (span offset in arena mode,
+    // 0 in legacy mode — the draw sites pass these unconditionally).
+    VkDeviceSize getFaceBindOffset() const { return renderBuffer.getBindOffsetBytes(); }
+    VkDeviceSize getGrassBindOffset() const { return grassBuffer.getBindOffsetBytes(); }
+    VkDeviceSize getFoliageBindOffset() const { return foliageBuffer.getBindOffsetBytes(); }
+
     // Partial updates for hover effects
     void updateSingleCubeTexture(
         const glm::ivec3& localPos,

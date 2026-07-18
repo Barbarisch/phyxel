@@ -391,7 +391,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             
             // Bind this chunk's instance buffer
             VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-            VkDeviceSize instanceOffsets[] = {0};
+            VkDeviceSize instanceOffsets[] = {chunk->getInstanceBindOffset()};  // 4.3 A2: arena span offset (0 legacy)
             vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, instanceBuffers, instanceOffsets);
             
             // Set chunk origin as push constants for world positioning
@@ -472,7 +472,8 @@ void RenderCoordinator::renderGrass() {
 
         glm::ivec3 origin = chunk->getWorldOrigin();
         draws.push_back({ chunk->getGrassBuffer(), chunk->getGrassCount(),
-                          glm::vec3(origin.x, origin.y, origin.z) });
+                          glm::vec3(origin.x, origin.y, origin.z),
+                          chunk->getGrassBindOffset() });
     }
     if (draws.empty()) return;
 
@@ -583,7 +584,8 @@ void RenderCoordinator::renderFoliage() {
         if (glm::dot(center - cameraPos, center - cameraPos) > radiusSq) continue;
         glm::ivec3 origin = chunk->getWorldOrigin();
         draws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
-                          glm::vec3(origin.x, origin.y, origin.z) });
+                          glm::vec3(origin.x, origin.y, origin.z),
+                          chunk->getFoliageBindOffset() });
     }
     if (draws.empty()) return;
 
@@ -665,7 +667,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         if (chunk->getNumInstances() == 0) continue;
 
         VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-        VkDeviceSize instanceOffsets[] = {0};
+        VkDeviceSize instanceOffsets[] = {chunk->getInstanceBindOffset()};  // 4.3 A2: arena span offset (0 legacy)
         vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
@@ -810,7 +812,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
         if (chunk->getNumInstances() == 0) continue;
 
         VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-        VkDeviceSize instanceOffsets[] = {0};
+        VkDeviceSize instanceOffsets[] = {chunk->getInstanceBindOffset()};  // 4.3 A2: arena span offset (0 legacy)
         vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(frameIndex), 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
@@ -869,7 +871,7 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
         if (chunk->getNumInstances() == 0) continue;
 
         VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-        VkDeviceSize instanceOffsets[] = {0};
+        VkDeviceSize instanceOffsets[] = {chunk->getInstanceBindOffset()};  // 4.3 A2: arena span offset (0 legacy)
         vkCmdBindVertexBuffers(cmd, 1, 1, instanceBuffers, instanceOffsets);
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
@@ -1126,7 +1128,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
 
              // Bind chunk instance buffer
              VkBuffer instanceBuffers[] = {chunk->getInstanceBuffer()};
-             VkDeviceSize instanceOffsets[] = {0};
+             VkDeviceSize instanceOffsets[] = {chunk->getInstanceBindOffset()};  // 4.3 A2: arena span offset (0 legacy)
              vkCmdBindVertexBuffers(commandBuffer, 1, 1, instanceBuffers, instanceOffsets);
 
              // Push constants
@@ -1299,7 +1301,8 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             if (glm::dot(chunkCenter - camPos, chunkCenter - camPos) > folRadiusSq) continue;
             glm::ivec3 origin = chunk->getWorldOrigin();
             foliageDraws.push_back({ chunk->getFoliageBuffer(), chunk->getFoliageCount(),
-                                     glm::vec3(origin.x, origin.y, origin.z) });
+                                     glm::vec3(origin.x, origin.y, origin.z),
+                                     chunk->getFoliageBindOffset() });
         }
         foliagePipeline->renderShadow(commandBuffer,
                                       vulkanDevice->getDescriptorSet(currentFrame), foliageDraws);

@@ -227,7 +227,7 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
         pc.absBaseY = c.origin.y;
         pc.absBaseZ = c.origin.z;
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GrassPush), &pc);
-        VkDeviceSize offset = 0;
+        VkDeviceSize offset = c.bindOffset;  // 4.3 A2: arena span offset (0 legacy)
         vkCmdBindVertexBuffers(cmd, 0, 1, &c.buffer, &offset);
         vkCmdDraw(cmd, vertexCount, c.count, 0, 0);
     }

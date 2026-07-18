@@ -53,9 +53,10 @@ public:
 
     /// One draw record per visible foliage chunk.
     struct ChunkDraw {
-        VkBuffer  buffer;
+        VkBuffer  buffer;   ///< arena mode: the region block's VkBuffer
         uint32_t  count;
         glm::vec3 origin;
+        VkDeviceSize bindOffset = 0;  ///< 4.3 A2: arena span byte offset (0 legacy)
     };
 
     /// Record foliage draws. Call inside the scene render pass, after grass.

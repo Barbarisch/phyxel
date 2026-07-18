@@ -52,9 +52,10 @@ public:
     /// One draw record per visible grass chunk (assembled by RenderCoordinator from the chunks that
     /// survived static-geometry culling AND lie within Params::radius of the camera).
     struct ChunkDraw {
-        VkBuffer  buffer;   ///< chunk's grass instance buffer
+        VkBuffer  buffer;   ///< chunk's grass instance buffer (arena: the region block)
         uint32_t  count;    ///< grass instance count (voxels)
         glm::vec3 origin;   ///< chunk world origin (push-constant base offset)
+        VkDeviceSize bindOffset = 0;  ///< 4.3 A2: arena span byte offset (0 legacy)
     };
 
     /// Record grass draws. Call inside the scene render pass, after static geometry.

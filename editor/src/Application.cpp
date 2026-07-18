@@ -12168,6 +12168,20 @@ void Application::registerEffectsCommands() {
         r = {{"success", true}, {"defer_buffer_free", Graphics::ChunkRenderBuffer::s_deferBufferFree}};
     });
 
+    // Phase 4.3 region-arena toggle — live A/B for docs/RegionArenaPlan.md (A2 gate).
+    // Affects future buffer CREATES only: reload the world after toggling so every chunk
+    // recreates its buffers in the selected mode (mixed mode is safe but not a clean A/B).
+    reg.on("set_region_arenas", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::ChunkRenderBuffer::s_regionArenas = cmd.params["enabled"].get<bool>();
+        auto& arena = Graphics::ChunkArenaSystem::instance();
+        r = {{"success", true},
+             {"region_arenas", Graphics::ChunkRenderBuffer::s_regionArenas},
+             {"arena_blocks", arena.initialized() ? arena.allocator()->liveBlocks() : 0},
+             {"arena_spans", arena.initialized() ? arena.allocator()->liveSpans() : 0},
+             {"arena_bytes_used", arena.initialized() ? arena.allocator()->bytesUsed() : 0}};
+    });
+
     // D1 6-index quad-draw toggle — live A/B for docs/RenderDensityPlan.md. ON = draw each chunk
     // face as one 6-index quad instead of the 36-index cube (6x fewer primitives, esp. shadow pass).
     reg.on("set_quad_draw", [](const Core::APICommand& cmd, nlohmann::json& r) {

@@ -4200,6 +4200,13 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_quad_draw", params).dump(), "application/json");
     });
 
+    // POST /api/debug/region_arenas — Phase 4.3 arena toggle + stats. Body: { "enabled": bool? }
+    srv.Post("/api/debug/region_arenas", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_region_arenas", params).dump(), "application/json");
+    });
+
     // POST /api/debug/pipeline_stats — D0/D1 pipeline-statistics gate. Body: { "enabled": bool }
     srv.Post("/api/debug/pipeline_stats", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::parse(req.body, nullptr, false);
