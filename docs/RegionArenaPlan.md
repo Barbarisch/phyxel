@@ -6,8 +6,12 @@
 > on the 1:1 world (Release): **allocations 4,693 → 38 blocks at ~4k chunks (127×)**,
 > OFF/ON idle soaks clean (~9 GB plateau both, 83–112 FPS), zero buffer/memory VUIDs
 > (5 validation hits = pre-existing debug-line interface + boot semaphore classes — logged).
-> Remaining: A4 10k stress; block-size tune (38×64 MB reserves ~2.4 GB for ~37 MB used —
-> consider 16 MB blocks); §3.3 4.3b multidraw. OPERATIONAL LESSON from A3: 3-second HTTP
+> **A4 SHIPPED same day:** loadRadius 26 stress on the 1:1 world (Release) = **10,609
+> resident chunks / 12,054 spans in 81 blocks**, stable 10 min at 100–124 FPS, RSS flat
+> 15.4 GB — the legacy path's ~12,000 raw allocations vs the ~4,096 ceiling was a
+> guaranteed crash; arenas run it at 3× the ceiling without incident. Remaining:
+> block-size tune (81×64 MB reserves ~5 GB for 86 MB used — consider 16 MB blocks);
+> §3.3 4.3b multidraw. OPERATIONAL LESSON from A3: 3-second HTTP
 > probes against this API are unreliable during settling — a healthy engine was killed on
 > their word once; use ≥8 s timeouts + process-CPU checks before declaring death.
 >
