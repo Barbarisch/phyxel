@@ -55,6 +55,8 @@ layout(location = 6) out float vSkyLight;          // baked skylight (must match
 layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (decoded from inFaceId high bits)
 layout(location = 9) out flat uint vState;         // per-voxel state — not carried on the kinematic path yet (always 0)
+layout(location = 10) out flat vec3 vChunkBaseAbs; // varied-hash seed — unused (flags=0 disables varied here)
+layout(location = 11) out flat vec3 vChunkBaseRel; // varied-hash seed — unused (flags=0 disables varied here)
 
 void main() {
     // Remap 6 vertex IDs to 4 quad corners.
@@ -123,6 +125,8 @@ void main() {
     shadowCoord = ubo.biasedLightSpace * vec4(worldPos + outNormal * kShadowNormalOffset, 1.0);
 
     flags        = 0u;
+    vChunkBaseAbs = vec3(0.0);  // varied disabled on this path (flags=0)
+    vChunkBaseRel = vec3(0.0);
     textureIndex = inTextureIndex;
     texCoord     = uv;
     outWorldPos  = worldPos;

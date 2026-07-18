@@ -1599,7 +1599,7 @@ bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
     VkPushConstantRange pcRange{};
     pcRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pcRange.offset = 0;
-    pcRange.size = 16; // same as main pipeline (vec3 + int)
+    pcRange.size = 32; // same as main pipeline (vec3 rel + uint debug + vec3 abs)
     VkPipelineLayoutCreateInfo layoutCI{};
     layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layoutCI.setLayoutCount = 2;

@@ -40,6 +40,10 @@ public:
     /// (near chunks fill depth first, so far-tile pixels behind them are z-rejected).
     void render(VkCommandBuffer cmd, VkDescriptorSet uboSet, const std::vector<TileDraw>& tiles);
 
+    /// Camera-relative rendering: true camera world position, set per frame before
+    /// render(). Tile origins are double-subtracted against it for clip space.
+    void setCameraWorld(const glm::dvec3& cw) { m_cameraWorld = cw; }
+
 private:
     void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
 
@@ -47,6 +51,7 @@ private:
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
+    glm::dvec3       m_cameraWorld    = glm::dvec3(0.0);  // camera-relative rendering
 };
 
 } // namespace Graphics

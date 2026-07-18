@@ -294,9 +294,11 @@ public:
         static bool s_quadDraw;
         static uint32_t chunkIndexCount() { return s_quadDraw ? 6u : 36u; }
 
-        // Push constants and chunk rendering
-        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset);
-        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode);
+        // Push constants and chunk rendering. chunkBaseOffset is CAMERA-RELATIVE (positions);
+        // chunkBaseAbs is the EXACT absolute chunk origin (varied-hash seed) — both required
+        // so tile rotations stay world-stable while geometry stays precision-safe.
+        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, const glm::vec3& chunkBaseAbs);
+        void pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode, const glm::vec3& chunkBaseAbs);
         void bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSize offset);
         void drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout, 
                       const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount);
@@ -315,7 +317,10 @@ public:
             VkPushConstantRange range{};
             range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
             range.offset = 0;
-            range.size = 16;  // 12 bytes for vec3 chunkBaseOffset + 4 bytes for uint debugMode
+            // vec3 chunkBaseOffset (camera-relative) + uint debugMode + vec3 chunkBaseAbs
+            // (exact absolute chunk origin — seeds the `varied` tile-rotation hash, which
+            // must not re-roll with camera motion; docs/CameraRelativeRendering.md).
+            range.size = 32;
             return range;
         }
 

@@ -12,7 +12,8 @@ namespace Graphics {
 
 // Push constant layout — MUST match far_terrain.vert.
 struct FarTerrainPush {
-    glm::vec2 tileOrigin;   // world-space min corner (x, z) of the tile
+    glm::vec2 tileOriginRel;  // (tile min corner - camera).xz, double-subtracted (clip space)
+    glm::vec2 tileOriginAbs;  // exact world-space min corner (texture projection)
 };
 
 static std::vector<char> readShaderFile(const std::string& path) {
@@ -207,7 +208,9 @@ void FarTerrainRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSe
 
     for (const auto& t : tiles) {
         if (t.vertexBuffer == VK_NULL_HANDLE || t.indexBuffer == VK_NULL_HANDLE || t.indexCount == 0) continue;
-        FarTerrainPush pc{t.origin};
+        FarTerrainPush pc{
+            glm::vec2(glm::dvec2(t.origin) - glm::dvec2(m_cameraWorld.x, m_cameraWorld.z)),
+            t.origin};
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FarTerrainPush), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &t.vertexBuffer, &offset);

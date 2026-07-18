@@ -397,12 +397,13 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // Set chunk origin as push constants for world positioning
             glm::ivec3 worldOrigin = chunk->getWorldOrigin();
             glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
-            
+            glm::vec3 chunkBaseAbs = glm::vec3(worldOrigin);  // exact absolute (varied-hash seed)
+
             // Push constants with debug mode if enabled
             if (debugModeEnabled) {
-                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset, debugVisualizationMode);
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset, debugVisualizationMode, chunkBaseAbs);
             } else {
-                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+                vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), chunkBaseOffset, chunkBaseAbs);
             }
 
             // Draw this chunk's static geometry
@@ -540,6 +541,7 @@ void RenderCoordinator::renderFarTerrain() {
     if (draws.empty()) return;
     lastFrameStats.farTilesDrawn = int(draws.size());
 
+    farTerrainPipeline->setCameraWorld(glm::dvec3(cameraPos));  // camera-relative rendering
     farTerrainPipeline->render(vulkanDevice->getCommandBuffer(currentFrame),
                                vulkanDevice->getDescriptorSet(currentFrame), draws);
 }
@@ -653,7 +655,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
-        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset, glm::vec3(worldOrigin));
 
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
     }
@@ -798,7 +800,7 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
-        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset, glm::vec3(worldOrigin));
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.reflectionDrawCalls++;
     }
@@ -857,7 +859,7 @@ void RenderCoordinator::renderMirrorGeometry(uint32_t frameIndex) {
 
         glm::ivec3 worldOrigin = chunk->getWorldOrigin();
         glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
-        vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset);
+        vulkanDevice->pushConstants(frameIndex, renderPipeline->getMirrorPipelineLayout(), chunkBaseOffset, glm::vec3(worldOrigin));
         vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
         lastFrameStats.mirrorGeomDrawCalls++;
     }

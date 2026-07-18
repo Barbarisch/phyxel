@@ -109,13 +109,29 @@
 - [x] **Dynamic (debris)** — shader-side `inWorldPosition − ubo.cameraWorld` (GPU-buffer
       positions stay absolute; ~4 mm quantization imperceptible on debris); dynamic shadow
       push extended with cameraWorld (+layout size).
-- [ ] **varied tile-rotation RESTORATION** — temporarily forced OFF in voxel.frag (relative
-      inWorldPos made rotations swim). Plan: exact absolute chunk-origin push + flat varying
-      through static/dynamic/kinematic verts; re-enable.
-- [ ] **Increment 4/5** — far_terrain (uses relative ubo.view vs absolute tileOrigin: BROKEN
-      but OFF by default), debug_line/debug_voxel overlays (F-key gated, render displaced),
-      mirror/reflection pass (reflectedViewProj absolute vs relative inWorldPos: mirrors
-      misproject), generic-entity placeholder draw. Water/VFX/debris-pipeline are
+- [x] **varied tile-rotation RESTORED** (2026-07-17, after inc. 1-3) — push constants grew to
+      32 B (`vec3 rel + uint debugMode + vec3 chunkBaseAbs`, VulkanDevice::getPushConstantRange
+      + mirror layout); static_voxel.vert forwards BOTH origins as flat varyings (loc 10/11);
+      voxel.frag reconstructs `worldPosAbs = vChunkBaseAbs + (inWorldPos - vChunkBaseRel)` —
+      abs is an exact integer float, the parenthesized local is small-magnitude, so the hash
+      key is camera-independent. dynamic/kinematic verts write zeroed varyings (their flags
+      never set the varied bit). GATES: same-pose diff after a camera round-trip 0.676% ≈ the
+      0.585% consecutive-frame noise floor (no re-roll); per-tile texel sampling on a fresh
+      12-cube Dirt patch shows within-row divergence 3-4x the lighting gradient (varied
+      ACTIVE); chunk-family unit suite 69/69.
+- [x] **far_terrain CONVERTED + LIVE on the 1:1 world** (2026-07-17) — FarTerrainPush grew to
+      16 B (`vec2 tileOriginRel + vec2 tileOriginAbs`); rel is double-subtracted on CPU
+      (setCameraWorld per frame), the vert subtracts `ubo.cameraWorld.y` from the baked
+      absolute mesh Y for clip space and hands the frag the EXACT absolute frame for the
+      per-world-unit texture projection. Enable at runtime: `/api/debug/render_distance`
+      (far plane) + `/api/debug/far_terrain {enabled, maxDistance}` — NOT persisted in
+      game.json yet (config-phase item). GATES: tiles project coherently at x≈47.5k
+      (Fangorn) and x≈61.9k (Gondor: Mindolluin range front + far ridge vista, 2 km);
+      far-field round-trip diff 0.479% ≈ noise floor; clean near/far depth boundary.
+      Near-origin (LodTest) untested live — same code path, rel==abs−cam exact; low risk.
+- [ ] **Increment 5 (remaining)** — debug_line/debug_voxel overlays (F-key gated, render
+      displaced), mirror/reflection pass (reflectedViewProj absolute vs relative inWorldPos:
+      mirrors misproject), generic-entity placeholder draw. Water/VFX/debris-pipeline are
       SELF-CONSISTENT absolute (own view pushes) — correct placement, old precision.
 
 **Gate results (Middle-earth 1:1, x≈60,400):** pose-frozen character frame-diff

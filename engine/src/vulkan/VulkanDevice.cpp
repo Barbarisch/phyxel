@@ -1809,24 +1809,20 @@ void VulkanDevice::drawIndexed(uint32_t frameIndex, uint32_t indexCount, uint32_
     vkCmdDrawIndexed(commandBuffers[frameIndex], indexCount, instanceCount, 0, 0, firstInstance);
 }
 
-void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset) {
-    struct PushConstants {
-        glm::vec3 chunkBaseOffset;
-    } pushData;
-    pushData.chunkBaseOffset = chunkBaseOffset;
-    
-    vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout,
-                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);
+void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, const glm::vec3& chunkBaseAbs) {
+    pushConstants(frameIndex, pipelineLayout, chunkBaseOffset, 0u, chunkBaseAbs);
 }
 
-void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode) {
+void VulkanDevice::pushConstants(uint32_t frameIndex, VkPipelineLayout pipelineLayout, const glm::vec3& chunkBaseOffset, uint32_t debugMode, const glm::vec3& chunkBaseAbs) {
     struct PushConstants {
-        glm::vec3 chunkBaseOffset;
+        glm::vec3 chunkBaseOffset;  // camera-relative (positions)
         uint32_t debugMode;
+        glm::vec3 chunkBaseAbs;     // exact absolute origin (varied-hash seed)
     } pushData;
     pushData.chunkBaseOffset = chunkBaseOffset;
     pushData.debugMode = debugMode;
-    
+    pushData.chunkBaseAbs = chunkBaseAbs;
+
     vkCmdPushConstants(commandBuffers[frameIndex], pipelineLayout,
                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushData);
 }
@@ -1839,8 +1835,8 @@ void VulkanDevice::bindInstanceBufferWithOffset(uint32_t frameIndex, VkDeviceSiz
 
 void VulkanDevice::drawChunk(uint32_t frameIndex, VkPipelineLayout pipelineLayout,
                             const glm::vec3& chunkBaseOffset, VkDeviceSize instanceOffset, uint32_t instanceCount) {
-    // Push chunk base offset
-    pushConstants(frameIndex, pipelineLayout, chunkBaseOffset);
+    // Push chunk base offset (dead legacy path: absolute == relative near origin)
+    pushConstants(frameIndex, pipelineLayout, chunkBaseOffset, chunkBaseOffset);
     
     // Bind instance buffer at the correct offset for this chunk
     bindInstanceBufferWithOffset(frameIndex, instanceOffset);

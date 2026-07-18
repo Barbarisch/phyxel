@@ -45,7 +45,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } ubo;
 
 layout(push_constant) uniform PushConstants {
-    vec3 chunkBaseOffset;  // World position of chunk origin (0,0,0) corner
+    vec3 chunkBaseOffset;  // CAMERA-RELATIVE chunk origin (docs/CameraRelativeRendering.md)
+    uint debugMode;        // unused here (read by debug_voxel.vert; keeps offsets aligned)
+    vec3 chunkBaseAbs;     // EXACT absolute chunk origin — varied-hash seed (world-stable)
 } pushConstants;
 
 layout(location = 0) out flat uint textureIndex;  // pass texture index to frag shader
@@ -58,6 +60,8 @@ layout(location = 6) out float vSkyLight;          // baked skylight, normalized
 layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (low 24 bits of inTint)
 layout(location = 9) out flat uint vState;         // per-voxel state (high byte of inTint): 0 normal,1 flaming,2 smoldering,3 charred,4 wet
+layout(location = 10) out flat vec3 vChunkBaseAbs; // exact absolute chunk origin (varied-hash seed)
+layout(location = 11) out flat vec3 vChunkBaseRel; // camera-relative chunk origin (recovers local pos in frag)
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -354,6 +358,10 @@ void main() {
     // No need for face visibility checking - all vertices here should be rendered
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
     outWorldPos = worldPos;
+    // varied-hash anchors: abs is exact (chunk origins are integer multiples of 32 < 2^24),
+    // rel lets the fragment recover the small-magnitude local offset precisely.
+    vChunkBaseAbs = pushConstants.chunkBaseAbs;
+    vChunkBaseRel = pushConstants.chunkBaseOffset;
     // inTint packs 0xRRGGBB tint in bits 0-23 and the voxel STATE in bits 24-31.
     // Tint multiplies the material albedo in voxel.frag; state drives glow/wet/etc.
     uint tintRGB = inTint & 0xFFFFFFu;

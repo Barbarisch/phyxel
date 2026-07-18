@@ -11,6 +11,8 @@ layout(location = 6) in float vSkyLight;          // baked skylight 0..1 — SMO
 layout(location = 7) in vec3  vBlockColor;        // baked coloured block light 0..1/channel — SMOOTH (interpolated per-corner)
 layout(location = 8) in vec3  vTint;              // per-voxel tint multiplier (1,1,1 = none). Decouples color from material.
 layout(location = 9) in flat uint vState;         // per-voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet
+layout(location = 10) in flat vec3 vChunkBaseAbs; // exact absolute chunk origin (varied-hash seed)
+layout(location = 11) in flat vec3 vChunkBaseRel; // camera-relative chunk origin (recovers local pos)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -210,12 +212,13 @@ void main() {
     vec4 textureColor;
     vec3 nrmRaw;
     float rough;
-    // TEMPORARILY DISABLED (camera-relative rendering, docs/CameraRelativeRendering.md):
-    // inWorldPos is now camera-relative, so hashing it makes tile rotations RE-ROLL as the
-    // camera moves (textures visibly swim). Re-enable once the exact ABSOLUTE per-voxel key
-    // (chunkBaseAbs push constant + flat varying) is plumbed through the voxel vertex shaders.
-    bool varied = false;   // was: ((flags >> 15u) & 1u) != 0u
-    sampleVoxelPBR(textureIndex, texCoord, varied, inWorldPos, inNormal, textureColor, nrmRaw, rough);
+    // Camera-relative rendering (docs/CameraRelativeRendering.md): inWorldPos is relative,
+    // so the varied hash is seeded from the reconstructed ABSOLUTE position. vChunkBaseAbs
+    // is exact (integer chunk origin); (inWorldPos - vChunkBaseRel) is the local offset at
+    // small magnitude, so the sum is camera-independent — rotations never re-roll.
+    bool varied = ((flags >> 15u) & 1u) != 0u;
+    vec3 worldPosAbs = vChunkBaseAbs + (inWorldPos - vChunkBaseRel);
+    sampleVoxelPBR(textureIndex, texCoord, varied, worldPosAbs, inNormal, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
     // = within-class layer, offset by count512 for the 1024 class. The authored roughness scalar
