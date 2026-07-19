@@ -126,6 +126,14 @@ struct UniformBufferObject {
     // harmless to floor()-to-voxel hashes. Appended LAST: GLSL blocks are std140 prefixes,
     // so existing truncated declarations stay valid.
     alignas(16) glm::vec3 cameraWorld;
+    // Grass interaction displacers (docs/VegetationWindPlan.md Phase 4 v1) — characters near the
+    // camera that bend grass aside. xyz = CAMERA-RELATIVE position (world - camera, matching every
+    // other GPU position), w = push radius. Only grass.vert declares these (std140 prefix rule keeps
+    // every other shader's truncated block valid). Patched AFTER updateUniformBuffer each frame via
+    // setGrassDisplacers (updateUniformBuffer zero-fills them — count 0 = feature inert).
+    alignas(16) glm::vec4 grassDisplacers[16];
+    alignas(16) glm::vec4 grassDisplacersAux[16];  // x = strength envelope 0..1 (eased on CPU), yzw reserved
+    alignas(16) glm::ivec4 grassDisplacerMeta;  // x = active count, yzw unused
 };
 
 class VulkanDevice {
@@ -175,6 +183,11 @@ public:
     bool createDescriptorSets();
     void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f, const glm::vec3& cameraPosition = glm::vec3(0.0f), float elapsedTime = 0.0f);
     void setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP);
+    /// Patch the grass displacer arrays in this frame's UBO (call AFTER updateUniformBuffer,
+    /// which zero-fills them). displacers: xyz = camera-relative position, w = push radius;
+    /// aux: x = strength envelope 0..1 (CPU-eased attack/release).
+    void setGrassDisplacers(uint32_t frameIndex, const glm::vec4* displacers,
+                            const glm::vec4* aux, int count);
 
     // Reflection UBO buffers (separate per-frame UBOs for rendering from reflected camera)
     bool createReflectionBuffers();

@@ -243,6 +243,18 @@ public:
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
+
+    // Grass interaction displacers (docs/VegetationWindPlan.md Phase 4 v1). Per-character
+    // state so the push has an eased attack/release envelope — stateless on/off popped the
+    // grass upright the frame a character left. Keyed by the character pointer; entries fade
+    // out and self-erase once the envelope decays, so despawns can't leak.
+    struct GrassDisplacerState {
+        glm::vec3 pos{0.0f};
+        float     envelope = 0.0f;   // 0..1 eased strength
+        bool      present  = false;  // seen this frame
+    };
+    std::unordered_map<const void*, GrassDisplacerState> m_grassDispStates;
+    float m_grassDispLastTime = -1.0f;   // elapsedTime of the previous displacer tick
     std::unique_ptr<UI::UISystem> m_uiSystem;
     UI::HudDataContext m_hudData;
 
@@ -379,7 +391,7 @@ public:
     // bladeStyle: 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon.
     void setGrassEnabled(bool on);
     void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
-                        int bladeStyle = -1);
+                        int bladeStyle = -1, float pushStrength = -1.0f);
     bool isGrassEnabled() const;
     // Runtime foliage knobs (see /api/debug/foliage). Negative/absent values leave a field unchanged.
     void setFoliageEnabled(bool on);

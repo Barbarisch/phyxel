@@ -35,6 +35,8 @@
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
+#include <algorithm>
+#include <cmath>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -622,7 +624,7 @@ void RenderCoordinator::setGrassEnabled(bool on) {
 }
 
 void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
-                                       int bladeStyle) {
+                                       int bladeStyle, float pushStrength) {
     if (!grassPipeline) return;
     auto& p = grassPipeline->params();
     if (radius       >= 0.0f) p.radius        = radius;
@@ -630,6 +632,7 @@ void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float wi
     if (windStrength >= 0.0f) p.windStrength  = windStrength;
     if (bladesPerVoxel > 0)   p.bladesPerVoxel = static_cast<uint32_t>(bladesPerVoxel);
     if (bladeStyle == 0 || bladeStyle == 1) p.bladeStyle = static_cast<uint32_t>(bladeStyle);
+    if (pushStrength >= 0.0f) p.pushStrength  = pushStrength;
 }
 
 bool RenderCoordinator::isGrassEnabled() const {
@@ -1610,6 +1613,73 @@ void RenderCoordinator::drawFrame() {
     windSystem.tick(elapsedTime);
     if (grassPipeline)   grassPipeline->params().wind   = windSystem.state();
     if (foliagePipeline) foliagePipeline->params().wind = windSystem.state();
+
+    // Grass interaction displacers (docs/VegetationWindPlan.md Phase 4 v1): characters within
+    // the grass radius bend blades aside. Collected from the same sources the character passes
+    // draw (player/animated entities + NPC characters), uploaded CAMERA-RELATIVE after
+    // updateUniformBuffer (which zero-fills the arrays — nobody nearby means the shader path
+    // stays entirely inert). Engine-side, so editor and standalone games share the behavior.
+    // STATEFUL: each displacer carries a strength envelope (fast attack, slow eased release)
+    // so grass rises back gently behind a character instead of popping upright.
+    if (grassPipeline && grassPipeline->params().enabled &&
+        grassPipeline->params().pushStrength > 0.0f) {
+        const float dt = (m_grassDispLastTime >= 0.0f)
+                             ? glm::clamp(elapsedTime - m_grassDispLastTime, 0.0f, 0.1f)
+                             : 0.0f;
+        m_grassDispLastTime = elapsedTime;
+        const float grassRadius = grassPipeline->params().radius + 2.0f;
+        const float radiusSq    = grassRadius * grassRadius;
+        constexpr float kCharPushRadius = 1.1f;   // reach around a character's feet, world units
+        constexpr float kAttackTau  = 0.07f;      // seconds to engage
+        constexpr float kReleaseTau = 0.28f;      // seconds to ease back out
+
+        for (auto& [key, st] : m_grassDispStates) st.present = false;
+        auto consider = [&](const void* key, const glm::vec3& p) {
+            if (glm::dot(p - cameraPos, p - cameraPos) > radiusSq) return;
+            auto& st   = m_grassDispStates[key];
+            st.pos     = p;                       // position tracks directly (motion is smooth)
+            st.present = true;
+        };
+        if (entities) {
+            for (const auto& entity : *entities)
+                if (auto* ac = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
+                    consider(ac, ac->getPosition());
+        }
+        if (m_npcManager) {
+            for (const auto& name : m_npcManager->getAllNPCNames())
+                if (auto* npc = m_npcManager->getNPC(name)) consider(npc, npc->getPosition());
+        }
+        // Advance envelopes; departed displacers fade out in place, then drop.
+        std::vector<std::pair<float, const GrassDisplacerState*>> active;
+        for (auto it = m_grassDispStates.begin(); it != m_grassDispStates.end();) {
+            auto& st = it->second;
+            if (st.present) {
+                st.envelope += (1.0f - st.envelope) * glm::min(1.0f, dt / kAttackTau);
+            } else {
+                st.envelope *= std::exp(-dt / kReleaseTau);
+                if (st.envelope < 0.02f) { it = m_grassDispStates.erase(it); continue; }
+            }
+            active.emplace_back(glm::dot(st.pos - cameraPos, st.pos - cameraPos), &st);
+            ++it;
+        }
+        if (!active.empty()) {
+            if (active.size() > 16) {   // keep the 16 nearest to the camera
+                std::partial_sort(active.begin(), active.begin() + 16, active.end(),
+                                  [](const auto& a, const auto& b) { return a.first < b.first; });
+                active.resize(16);
+            }
+            glm::vec4 displacers[16];
+            glm::vec4 aux[16];
+            const int n = static_cast<int>(active.size());
+            for (int i = 0; i < n; ++i) {
+                displacers[i] = glm::vec4(
+                    glm::vec3(glm::dvec3(active[i].second->pos) - glm::dvec3(cameraPos)),
+                    kCharPushRadius);
+                aux[i] = glm::vec4(active[i].second->envelope, 0.0f, 0.0f, 0.0f);
+            }
+            vulkanDevice->setGrassDisplacers(currentFrame, displacers, aux, n);
+        }
+    }
     
     // Upload light data to GPU SSBO
     auto gpuLightData = lightManager.getGPUData();

@@ -43,6 +43,7 @@ public:
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
         uint32_t bladesPerVoxel = 28;     ///< procedural blades/voxel, grouped into tufts (~7/clump)
         uint32_t bladeStyle     = 1;      ///< 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon
+        float    pushStrength   = 0.55f;  ///< character-displacer bend amplitude (0 = interaction off)
         /// Shared wind-field state — overwritten every frame by RenderCoordinator from the
         /// single WindSystem (grass and foliage always see identical wind). Not user-tunable
         /// here; tune via /api/debug/wind.

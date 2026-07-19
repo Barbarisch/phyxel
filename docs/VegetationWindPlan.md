@@ -1,7 +1,9 @@
 # Vegetation Plan — realistic grass & foliage (wind, geometry, interaction)
 
 **Status:** Phase 1 SHIPPED (2026-07-11) — shared WindSystem + travelling gust field live in
-grass/foliage/foliage-shadow; `/api/debug/wind` up. Phases 2–4 planned. · **Owner workstream:**
+grass/foliage/foliage-shadow; `/api/debug/wind` up. **Phase 4 v1 SHIPPED (2026-07-18)** —
+stateless character displacers part + flatten grass (`/api/debug/grass {pushStrength}`), plus
+full-face tuft distribution fix. Phases 2–3 + 4 v2 (trail bend-field) planned. · **Owner workstream:**
 rendering / vegetation
 **Related:** `docs/RenderOptimization.md`, grass blade layer (`GrassRenderPipeline`), leaf cards
 (`FoliageRenderPipeline`), `/api/debug/grass`, `/api/debug/foliage`.
@@ -180,6 +182,70 @@ Two stages, cheapest first:
 **Gate:** v1 adds ≤ 16 mul-adds per blade — must be within perf noise; v2 gated on the compute
 pass staying < 0.1 ms. **Shelve if:** v2 texture sampling in the vertex stage measurably hurts
 (unlikely; fall back to v1 permanently).
+
+> **v1 SHIPPED 2026-07-18** (plus a tuft-distribution fix the same day). Implementation
+> deviates from the sketch in one way: the displacer set rides as **trailing fields on the
+> shared `UniformBufferObject`** (`grassDisplacers[16]` vec4 xyz = camera-relative feet pos,
+> w = push radius; `grassDisplacerMeta.x` = count), NOT a separate SSBO — appending after
+> `cameraWorld` keeps every other shader's truncated std140 block valid (same precedent as
+> `elapsedTime`/`cameraWorld`), and `VulkanDevice::setGrassDisplacers` patches it AFTER
+> `updateUniformBuffer` zero-fills each frame. Collection is engine-side in
+> `RenderCoordinator::drawFrame` (player/animated entities + NPC characters within grass
+> radius, 16 nearest kept), so editor and standalones share it. Shader (`grass.vert`):
+> radial push with (1−d/r)² falloff, vertical gate fading over ±2 u of the displacer's feet
+> Y, height squash ×0.70 at full tread, push composed into the wind `swayDir` so the
+> tip-drop length preservation makes trodden blades hug the ground; total bend clamped at
+> 1.4. `pushStrength` push-constant (default 0.9, 0 = off) exposed via `/api/debug/grass
+> {pushStrength}` (`GrassPush` 76→80 B). **Distribution fix:** tuft centers had a 0.18 edge
+> margin confining every voxel's grass to a middle island (per-cube clumps + bare grid
+> seams); centers now span the full top face (0.02..0.98, jitter ±0.08, roots clamped
+> on-face so nothing overhangs a step-down edge).
+> **Verified on CharacterTestbed (Debug, second instance on --port 8091):** parted+flattened
+> ring at a spawned character's feet; pushStrength 0 → blades stand through the feet
+> (A/B); teleport → parting follows instantly, old spot springs back (stateless); 20
+> characters → per-character trampling, >16 displacer clamp path exercised, no crash;
+> FPS 28.07 (push off) vs 27.71 (push on) = within noise at 20 idle characters; **wind 0 +
+> no characters in view → two viewport crops 2 s apart bit-identical (0/1.6 M bytes
+> differ)** — the interaction path is exactly inert when unused. Not yet runtime-tested:
+> the vertical gate with grass on a ledge directly above/below a character (geometric by
+> construction). v2 (bend-field trails) remains open; foliage/bush push (reduced-amplitude
+> card response) also still open.
+>
+> **2026-07-19 follow-up — MEADOW height field (user-set look):** blade height must vary over
+> LARGE distances but be uniform + dense over short ones. `grass.vert` now derives a smooth
+> 2-octave value-noise field (`vnoise2`, wavelengths ~26 and ~9 voxels, hash-domain coords)
+> that drives BOTH stand height (×0.55 short zones .. ×1.5 lush zones, smoothstepped) and
+> coverage (0.78..1.08 — only slight thinning in short zones, never bald tuft-scale holes).
+> Per-blade height jitter cut to ±10% (was ±~46%) so neighbors read as one even stand. The
+> old per-5-voxel/per-2-voxel hash patch gate (short-scale holes) is REMOVED — replaced by
+> the meadow-coupled coverage. Verified live: waist-high stand at bladeHeight 0.85 /
+> bladesPerVoxel 32 / radius 64, dense + locally uniform, trample ring reads clearly,
+> ~246 FPS steady (Debug CharacterTestbed).
+>
+> **2026-07-19 — FLEX + gentle wind (Phase 3 partial; user: "too stiff", "moves too much out
+> of the way", "jittery, not gentle", "thinner"):**
+> - **Segmented blades ship the flex.** A single quad CANNOT curve — displacement shears a rigid
+>   parallelogram (the two single-quad fakes, normal-only bending and fragment arc-discard, buy
+>   nothing for flat cutout blades). Each blade is now **3 stacked quads** (`SEGMENTS` in
+>   grass.vert, `vertsPerBlade = 18` in GrassRenderPipeline.cpp — **keep these in sync**), with
+>   `v` remapped to the whole-blade fraction so segment rows share boundaries. Per-blade **flex
+>   exponent** `bendExp = mix(1.6, 2.4, stiffness)` replaces the fixed v²: soft blades yield along
+>   their length, stiff ones hold their base and give at the tip.
+> - **Wind inertia kills the jitter.** Blades were reading the gust field *instantaneously*.
+>   `gust` is now the mean of **three time-lagged taps** (t, t−0.25, t−0.50 → ~0.5 s box filter),
+>   so fronts arrive as smooth swells; travelling-front realism survives (taps scroll with the
+>   same field), only high-frequency content is removed. Flutter 2.7→1.9 rad/s @ 0.10→0.055;
+>   stiffness lag spread 0.12→0.06 s (wide spreads desync neighbors into shimmer — same failure
+>   as the 2026-07-11 first cut).
+> - **Push is gentler + damped.** Default `pushStrength` 0.9→0.55; displacers are now **stateful**
+>   (`RenderCoordinator::GrassDisplacerState`, keyed by character pointer, eased attack 0.07 s /
+>   exponential release 0.28 s, strength in a new `grassDisplacersAux[16]` UBO array) so grass
+>   rises back gently instead of popping upright; trodden blades are **pinned against wind**
+>   (`windDamp = 1 − 0.6·tread`) so they stop waving while flat. Blade width 0.06→0.045.
+> - **Perf:** 266 FPS calm / 259 strong wind at bladeHeight 0.85 / 32 blades / radius 64 — the
+>   3× vertex count cost nothing measurable, so the Phase 3 LOD bands stay unneeded for now.
+>   Wind-0 stillness invariant **re-verified: 0/1.6 M bytes differ** (character-free view; with an
+>   idle character in frame its own animation moves both body and grass, which is correct).
 
 ### Phase 5 (unscheduled) — trees
 

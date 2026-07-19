@@ -1518,6 +1518,26 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     vkUnmapMemory(device, uniformBuffersMemory[frameIndex]);
 }
 
+void VulkanDevice::setGrassDisplacers(uint32_t frameIndex, const glm::vec4* displacers,
+                                      const glm::vec4* aux, int count) {
+    // Patch just the trailing displacer fields (grassDisplacers + grassDisplacersAux +
+    // grassDisplacerMeta are contiguous at the end of the UBO). updateUniformBuffer
+    // zero-fills them each frame, so count 0 needs no patch at all.
+    count = std::min(count, 16);
+    if (count <= 0) return;
+    const size_t offset = offsetof(UniformBufferObject, grassDisplacers);
+    const size_t size   = sizeof(UniformBufferObject) - offset;
+    void* data;
+    vkMapMemory(device, uniformBuffersMemory[frameIndex], offset, size, 0, &data);
+    memcpy(data, displacers, sizeof(glm::vec4) * count);
+    memcpy(static_cast<char*>(data) + offsetof(UniformBufferObject, grassDisplacersAux) - offset,
+           aux, sizeof(glm::vec4) * count);
+    glm::ivec4 meta(count, 0, 0, 0);
+    memcpy(static_cast<char*>(data) + offsetof(UniformBufferObject, grassDisplacerMeta) - offset,
+           &meta, sizeof(meta));
+    vkUnmapMemory(device, uniformBuffersMemory[frameIndex]);
+}
+
 void VulkanDevice::setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP) {
     // Patch just the reflectedViewProj field in the existing UBO buffer.
     // The field is at offsetof(UniformBufferObject, reflectedViewProj).

@@ -7680,7 +7680,8 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("bladeHeight",     -1.0f),
                 cmd.params.value("windStrength",    -1.0f),
                 cmd.params.value("bladesPerVoxel",  -1),
-                bladeStyle);
+                bladeStyle,
+                cmd.params.value("pushStrength",    -1.0f));   // character-interaction bend (0 = off)
             response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()}};
         }
         return true;

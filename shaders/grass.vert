@@ -31,6 +31,13 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float elapsedTime;
     mat4 viewProj;          // proj*view, precombined once per frame on CPU
     mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
+    vec3 cameraWorld;       // true camera world position (camera-relative rendering)
+    // Grass interaction displacers (VegetationWindPlan Phase 4 v1): characters within the
+    // grass radius, uploaded per frame by RenderCoordinator via VulkanDevice::setGrassDisplacers.
+    // xyz = CAMERA-RELATIVE feet position (same space as rootWorld below), w = push radius.
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];   // x = strength envelope 0..1 (eased attack/release on CPU)
+    ivec4 grassDisplacerMeta;   // x = active displacer count (0 = feature entirely inert)
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -55,6 +62,7 @@ layout(push_constant) uniform PushConstants {
     float absBaseX;
     float absBaseY;
     float absBaseZ;
+    float pushStrength;      // displacer bend amplitude (0 disables interaction response)
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -69,6 +77,19 @@ float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 34.23);
     return fract(p.x * p.y);
+}
+
+// Smooth bilinear value noise in [0,1] — the MEADOW field. Sampled at a large spatial
+// period so grass height/density drift over tens of voxels while staying locally uniform
+// (user-set look: "height varies over large distance, short distance is uniform & dense").
+float vnoise2(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 void main() {
@@ -92,8 +113,15 @@ void main() {
     // so mod() is exact; the 2km repeat is imperceptible.
     vec3 cellHash = mod(vec3(pc.absBaseX, pc.absBaseY, pc.absBaseZ) + vec3(lx, ly + 1.0, lz), 2048.0);
 
-    int blade  = gl_VertexIndex / 6;
-    int corner = gl_VertexIndex - blade * 6;
+    // Segmented blades (Phase 3-lite): each blade is SEGMENTS stacked quads, so the v^bendExp
+    // displacement profile below renders as an actual CURVE — blades bow under wind and around
+    // characters instead of shearing as one rigid rectangle (single-quad blades read stiff).
+    const int SEGMENTS = 3;
+    const int VERTS_PER_BLADE = SEGMENTS * 6;   // must match vertsPerBlade in GrassRenderPipeline.cpp
+    int blade  = gl_VertexIndex / VERTS_PER_BLADE;
+    int rem    = gl_VertexIndex - blade * VERTS_PER_BLADE;
+    int segIdx = rem / 6;
+    int corner = rem - segIdx * 6;
 
     // Group blades into a few tight TUFTS per voxel (clumps) rather than scattering them evenly —
     // even spacing reads as isolated spikes; clustered blades read as grass. Each clump has a hashed
@@ -102,22 +130,29 @@ void main() {
     int clumpId      = blade / BLADES_PER_CLUMP;
     int bladeInClump = blade - clumpId * BLADES_PER_CLUMP;
 
-    // Patchy coverage: grass grows in irregular MULTI-VOXEL patches, not a uniform
-    // per-voxel carpet. A large-scale patch field (5-voxel cells) + finer breakup give
-    // each clump a coverage threshold: patch cores keep all their clumps (dense tufts),
-    // patch edges thin out, and the gaps between patches stay bare.
-    float patchBig  = hash21(floor(cellHash.xz / 5.0) * 1.31 + 17.7);
-    float patchFine = hash21(floor(cellHash.xz / 2.0) * 2.17 + 5.9);
-    float coverage  = patchBig * 0.72 + patchFine * 0.28;
+    // MEADOW field: one smooth low-frequency noise (wavelength ~26 voxels, 2 octaves) drives
+    // BOTH blade height and coverage, so tall lush zones and shorter sparser zones drift over
+    // large distances while any few-meter neighborhood stays uniform and dense. (The old
+    // per-5-voxel/per-2-voxel hash patches made short-scale holes + per-blade height chaos —
+    // the exact opposite of the wanted look.)
+    float meadow = vnoise2(cellHash.xz * (1.0 / 26.0)) * 0.72
+                 + vnoise2(cellHash.xz * (1.0 / 9.0) + 41.7) * 0.28;
+
+    // Coverage: dense everywhere — the meadow field only thins the shortest zones slightly
+    // (~25% fewer clumps at the low end), never bald patches at tuft scale.
+    float coverage  = 0.78 + 0.30 * meadow;
     int   numClumps = (int(pc.bladesPerVoxel) + BLADES_PER_CLUMP - 1) / BLADES_PER_CLUMP;
     float clumpFrac = (float(clumpId) + 0.5) / float(max(numClumps, 1));
     float keep      = step(0.25 + 0.55 * clumpFrac, coverage);
 
-    // Clump center within the [0,1]^2 top face (margin off the edges).
+    // Clump center spans the FULL [0,1]^2 top face. A center margin here (early versions used
+    // 0.18..0.82) starves every voxel edge of roots — each cube grows an isolated middle island
+    // and the voxel grid shows through as bare seam lines. Edge-to-edge centers let adjacent
+    // cells' tufts meet, so coverage reads as one continuous meadow.
     vec2 cseed = vec2(cellHash.x * 3.17 + cellHash.z * 7.71 + float(clumpId) * 13.1,
                       cellHash.z * 2.39 - cellHash.x * 5.11 + float(clumpId) * 7.31);
-    vec2 clumpCenter = vec2(0.18 + 0.64 * hash21(cseed),
-                            0.18 + 0.64 * hash21(cseed + 5.27));
+    vec2 clumpCenter = vec2(0.02 + 0.96 * hash21(cseed),
+                            0.02 + 0.96 * hash21(cseed + 5.27));
 
     // Per-blade hash (seeded on clump + blade-in-clump), used for jitter/height/yaw/stagger.
     vec2 seed = cseed + float(bladeInClump) * 2.73;
@@ -126,16 +161,18 @@ void main() {
     float h2 = hash21(seed + 23.3);
     float h3 = hash21(seed + 41.9);
 
-    // Blade root = clump center + small jitter (tight tuft radius).
-    vec2 jitter = (vec2(h0, h1) - 0.5) * 0.13;
-    vec2 root2  = clamp(clumpCenter + jitter, vec2(0.04), vec2(0.96));
+    // Blade root = clump center + small jitter (tight tuft radius). Clamp keeps roots ON this
+    // voxel's top face (an overhanging root floats in mid-air at a terrain step-down edge).
+    vec2 jitter = (vec2(h0, h1) - 0.5) * 0.16;
+    vec2 root2  = clamp(clumpCenter + jitter, vec2(0.005), vec2(0.995));
     vec3 rootWorld = cellBase + vec3(root2.x, 0.0, root2.y);
 
-    // Quad corners (2 tris): (u in {0,1}, v in {0,1}).
+    // Quad corners (2 tris): (u in {0,1}, v in {0,1} within THIS segment); v then maps to the
+    // blade-length fraction so consecutive segments share their boundary rows seamlessly.
     vec2 quad[6] = vec2[6](vec2(0,0), vec2(1,0), vec2(1,1), vec2(0,0), vec2(1,1), vec2(0,1));
     vec2 q = quad[corner];
     float uCentered = q.x - 0.5;   // -0.5..0.5 across width
-    float v = q.y;                 // 0 base .. 1 tip
+    float v = (float(segIdx) + q.y) / float(SEGMENTS);   // 0 base .. 1 tip along the whole blade
     bool boxy = (pc.bladeStyle == 1u);
 
     vGrad = v;
@@ -143,9 +180,13 @@ void main() {
     // frag taper discard); smooth = ribbon tapering to a point.
     vSide = boxy ? 0.0 : uCentered * 2.0;
 
-    // Blade height with per-blade variance. Boxy blades quantize the REST height to whole
-    // 1/9-voxel microcube steps — a STATIC voxel-grid trait; motion below stays smooth.
-    float H = pc.bladeHeight * (0.65 + 0.6 * h2);
+    // Blade height: the smooth meadow field sets the LOCAL stand height (0.55x in short zones
+    // up to 1.5x in lush zones, drifting over ~26 voxels); per-blade jitter is deliberately
+    // small (±10%) so neighboring blades read as one even stand, not random spikes. Boxy
+    // blades still quantize the REST height to whole 1/9-voxel microcube steps — a STATIC
+    // voxel-grid trait; motion below stays smooth.
+    float heightMul = mix(0.55, 1.5, smoothstep(0.08, 0.92, meadow));
+    float H = pc.bladeHeight * heightMul * (0.90 + 0.20 * h2);
     if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;
 
     // Sprout-in growth: staggered start per blade, then held at full height.
@@ -158,11 +199,42 @@ void main() {
     float fade = 1.0 - clamp((dist - (pc.radius - pc.fadeRange)) / max(pc.fadeRange, 0.001), 0.0, 1.0);
     H *= fade * keep;   // keep = patch-coverage gate (0 collapses the blade)
 
+    // Interaction (VegetationWindPlan Phase 4 v1): characters push nearby blades radially
+    // outward with a squared falloff, and trodden blades flatten (height squash) instead of
+    // just leaning. STATELESS — a blade springs back the frame its displacer moves away.
+    // Zero displacers leaves every value below bit-identical to the non-interactive path
+    // (pushXZ = 0, tread = 0), preserving the wind-0 stillness invariant.
+    vec2  pushXZ = vec2(0.0);
+    float tread  = 0.0;
+    if (ubo.grassDisplacerMeta.x > 0 && H > 0.0) {
+        for (int i = 0; i < ubo.grassDisplacerMeta.x; ++i) {
+            vec4  d      = ubo.grassDisplacers[i];   // xyz camera-relative feet pos, w radius
+            vec2  delta  = rootWorld.xz - d.xz;
+            float distXZ = length(delta);
+            // Vertical gate: only blades near the displacer's feet level respond (grass on a
+            // ledge 2u above/below a walking character must not move).
+            float vGate = 1.0 - clamp(abs(rootWorld.y - d.y) * 0.5, 0.0, 1.0);
+            float t     = clamp(1.0 - distXZ / max(d.w, 0.001), 0.0, 1.0) * vGate;
+            if (t <= 0.0) continue;
+            // Dead-center roots get a stable hashed direction instead of a zero-length one.
+            vec2 outDir = (distXZ > 0.02) ? delta / distXZ
+                                          : normalize(vec2(h0, h1) - 0.5 + vec2(0.001, 0.0));
+            // Strength envelope (CPU-eased attack/release) — grass eases back up behind a
+            // character instead of popping upright the frame the displacer leaves.
+            float env = ubo.grassDisplacersAux[i].x;
+            pushXZ += outDir * (t * t * env);
+            tread   = max(tread, t * t * env);
+        }
+        pushXZ *= pc.pushStrength;
+        tread  *= clamp(pc.pushStrength, 0.0, 1.0);
+        H      *= 1.0 - 0.30 * tread;   // trodden grass flattens toward the ground
+    }
+
     // Horizontal blade orientation (yaw), width offset across the blade. Thin blades so a dense
     // tuft reads as many strands rather than a solid blob.
     float yaw = h3 * 6.2831853;
     vec2 dir = vec2(cos(yaw), sin(yaw));
-    float bladeWidth = boxy ? 0.06 : 0.055;
+    float bladeWidth = boxy ? 0.045 : 0.042;
     vec3 widthOffset = vec3(dir.x, 0.0, dir.y) * (uCentered * bladeWidth);
 
     // Shared procedural wind (wind.glsl): the blade bends downwind by the local gust-field
@@ -174,19 +246,36 @@ void main() {
     vec2 wd = vec2(pc.windDirX, pc.windDirZ);
     float stiffness = h2;
     float response  = mix(1.2, 0.8, stiffness);   // soft blades respond a touch more
-    float lag       = stiffness * 0.12;           // stiff blades trail the front slightly
-    float gust = windGustAt(cellHash.xz + root2, ubo.elapsedTime - lag, wd, pc.gustScale, pc.gustSpeed);
-    float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength;
+    float lag       = stiffness * 0.06;           // tight spread — wide lag desyncs neighbors into shimmer
+    // Trodden blades are pinned underfoot — they stop waving instead of thrashing while flat.
+    float windDamp = 1.0 - 0.6 * tread;
+    // INERTIA: grass doesn't snap to the instantaneous gust — low-pass the field with three
+    // time-lagged taps (~0.5 s box filter) so fronts arrive as smooth swells, not jitter.
+    // Travelling-front realism survives (the taps scroll with the same field); high-frequency
+    // content is what gets removed.
+    vec2  gp = cellHash.xz + root2;
+    float tg = ubo.elapsedTime - lag;
+    float gust = (windGustAt(gp, tg,        wd, pc.gustScale, pc.gustSpeed)
+                + windGustAt(gp, tg - 0.25, wd, pc.gustScale, pc.gustSpeed)
+                + windGustAt(gp, tg - 0.50, wd, pc.gustScale, pc.gustSpeed)) * (1.0 / 3.0);
+    float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength * windDamp;
 
     // Gentle slow flutter perpendicular to the wind, amplitude ∝ local gust strength — calm air
     // means calm grass (windBase+gustAmp are both 0 at speed 0, so everything below is exactly 0).
     float phase   = (cellHash.x + root2.x) * 2.9 + (cellHash.z + root2.y) * 2.3 + h3 * 6.2831853;
-    float flutter = sin(ubo.elapsedTime * 2.7 + phase) * 0.10
-                  * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength;
-    // v*v → base stays planted, tip displaces most; scaled by blade height so short blades bend
-    // proportionally, not wildly. Identical for both silhouettes — motion is ALWAYS smooth.
-    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter;
-    vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (v * v * H * 2.0);
+    float flutter = sin(ubo.elapsedTime * 1.9 + phase) * 0.055
+                  * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength * windDamp;
+    // Bend profile: base stays planted, tip displaces most. bendExp is the per-blade FLEX —
+    // soft blades (low h2) yield along their whole length, stiff blades hold their base and
+    // give mostly at the tip. With SEGMENTS rows this renders as a visible arc, not a shear.
+    // Displacer push composes with wind here so the tip-drop length preservation below applies
+    // to BOTH: a pushed blade bows over and hugs the ground, it doesn't stretch sideways.
+    float bendExp = mix(1.6, 2.4, stiffness);
+    float profile = pow(v, bendExp);
+    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter + pushXZ;
+    float swayMag = length(swayDir);
+    if (swayMag > 1.4) swayDir *= 1.4 / swayMag;   // total-bend clamp (wind + push composed)
+    vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (profile * H * 2.0);
 
     vec3 worldPos = rootWorld + widthOffset + windOffset;
     worldPos.y   += v * H;

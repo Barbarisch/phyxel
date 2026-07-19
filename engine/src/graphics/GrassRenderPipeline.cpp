@@ -33,8 +33,9 @@ struct GrassPush {
     float     absBaseX;
     float     absBaseY;
     float     absBaseZ;
+    float     pushStrength;   // displacer bend amplitude (0 disables the interaction response)
 };
-static_assert(sizeof(GrassPush) == 76, "GrassPush must match the grass.vert push-constant block");
+static_assert(sizeof(GrassPush) == 80, "GrassPush must match the grass.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -201,7 +202,7 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
 
-    const uint32_t vertsPerBlade = 6;   // both styles are 1 quad; bladeStyle only changes silhouette
+    const uint32_t vertsPerBlade = 18;  // 3 stacked segments/blade (must match SEGMENTS*6 in grass.vert)
     const uint32_t vertexCount   = vertsPerBlade * m_params.bladesPerVoxel;
 
     GrassPush pc{};
@@ -218,6 +219,7 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.gustScale      = m_params.wind.gustScale;
     pc.gustSpeed      = m_params.wind.gustSpeed;
     pc.bladeStyle     = m_params.bladeStyle;
+    pc.pushStrength   = m_params.pushStrength;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
