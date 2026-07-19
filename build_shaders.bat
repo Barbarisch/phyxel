@@ -733,7 +733,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Compiling kinematic foliage vertex shader...
-%GLSLANG% -V -I. shadersoliage_kinematic.vert -o shadersoliage_kinematic.vert.spv
+%GLSLANG% -V -I. shaders\foliage_kinematic.vert -o shaders\foliage_kinematic.vert.spv
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile foliage_kinematic.vert
     exit /b 1
