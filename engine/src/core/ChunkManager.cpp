@@ -587,8 +587,21 @@ void ChunkManager::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
     // (sampled per particle at spawn). Returns sky/blockRGB each 0..15 (matches the nibble packing).
     if (gpp) {
         gpp->setLightSampler([this](const glm::vec3& wp) -> glm::vec4 {
-            auto bl = sampleBakedLight(glm::ivec3(glm::floor(wp)));
-            return glm::vec4(bl.sky, bl.r, bl.g, bl.b);
+            // Debris spawns AT the cell a solid voxel just occupied, whose baked light is
+            // interior-dark (sky 0) — sampling it directly made all blast debris render black.
+            // Sample the BRIGHTEST of the cell + its 6 neighbours: surface debris picks up the
+            // adjacent open-air/sky light while genuinely deep-interior debris stays dark.
+            const glm::ivec3 base(glm::floor(wp));
+            Graphics::ChunkRenderManager::BakedLight best = sampleBakedLight(base);
+            static const glm::ivec3 NB[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+            for (const auto& n : NB) {
+                auto b = sampleBakedLight(base + n);
+                best.sky = std::max(best.sky, b.sky);
+                best.r   = std::max(best.r,   b.r);
+                best.g   = std::max(best.g,   b.g);
+                best.b   = std::max(best.b,   b.b);
+            }
+            return glm::vec4(best.sky, best.r, best.g, best.b);
         });
     }
 }
