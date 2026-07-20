@@ -351,57 +351,87 @@ int DamageSystem::dropDetachedCell(const glm::ivec3& wp, DamageResult& res) {
     return 1;
 }
 
-// Gather one cell's static geometry — a full cube, its subcubes, AND its microcubes —
-// as world-centered KinematicVoxels for a coherent slab (full micro resolution, P2.1).
-// Returns false only if the cell has no gatherable content (caller scatters the component).
-static bool gatherCellVoxels(ChunkManager* cm, const glm::ivec3& wp,
-                             std::vector<Core::KinematicVoxel>& out) {
-    if (Cube* c = cm->getCubeAt(wp)) {
-        Core::KinematicVoxel v;
-        v.localPos     = glm::vec3(wp) + glm::vec3(0.5f);
-        v.scale        = glm::vec3(1.0f);
-        v.materialName = c->getMaterialName();
-        v.gridCell     = wp;                    // foliage identity (F3): cube-leaf sprig
-        v.gridSlot     = glm::ivec3(1);         //   sits at the cube centre slot (1,1,1)
-        out.push_back(std::move(v));
-        return true;
-    }
-    Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
-    if (!ch) return false;
-    const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
-    bool any = false;
-    for (Subcube* s : ch->getStaticSubcubesAt(lp)) {
-        if (!s) continue;
-        float sc = s->getScale();
-        Core::KinematicVoxel v;
-        // Subcube at grid slot g (0..2) spans [wp+g*sc, wp+(g+1)*sc]; center = wp+(g+0.5)*sc.
-        v.localPos     = glm::vec3(wp) + (glm::vec3(s->getLocalPosition()) + 0.5f) * sc;
-        v.scale        = glm::vec3(sc);
-        v.materialName = s->getMaterialName();
-        v.gridCell     = wp;                    // foliage identity (F3)
-        v.gridSlot     = s->getLocalPosition();
-        out.push_back(std::move(v));
-        any = true;
-    }
-    // Microcubes (1/9): slot within cell = sub*3 + mic (0..8 per axis); center at +0.5/9.
-    for (int sx = 0; sx < 3; ++sx)
-        for (int sy = 0; sy < 3; ++sy)
-            for (int sz = 0; sz < 3; ++sz) {
-                for (Microcube* m : ch->getMicrocubesAt(lp, {sx, sy, sz})) {
-                    if (!m) continue;
-                    Core::KinematicVoxel v;
-                    glm::vec3 fine = glm::vec3(sx, sy, sz) * 3.0f
-                                   + glm::vec3(m->getMicrocubeLocalPosition());
-                    v.localPos     = glm::vec3(wp) + (fine + 0.5f) / 9.0f;
-                    v.scale        = glm::vec3(1.0f / 9.0f);
-                    v.materialName = m->getMaterialName();
-                    v.gridCell     = wp;                    // foliage identity (F3):
-                    v.gridSlot     = glm::ivec3(sx, sy, sz); //   micro -> parent subcube sprig
-                    out.push_back(std::move(v));
-                    any = true;
-                }
+
+// Batched gather for a whole coherent component (perf — the topple-start hitch). gatherCellVoxels
+// per cell called Chunk::getStaticSubcubesAt, which SCANS the chunk's entire static-subcube list
+// each call — so gathering N cells from a chunk of S subcubes was O(N×S) (a big tree: 850 cells ×
+// ~9k subcubes ≈ 8M scans ≈ 250 ms). Here each touched chunk's subcubes are indexed by parent cell
+// ONCE, then every cell gathers its subcubes in O(1). Micros are already map-indexed; cubes are O(1).
+// Same KinematicVoxel output as gatherCellVoxels. Returns false if a COMPONENT cell yielded nothing
+// (the caller bails to scatter); leaf-cargo cells are best-effort.
+static bool gatherCellsBatched(ChunkManager* cm,
+                               const std::vector<glm::ivec3>& component,
+                               const std::vector<glm::ivec3>& leafCargo,
+                               std::vector<Core::KinematicVoxel>& out) {
+    // Per-chunk indexes (parent cell -> subcubes / micros), each built with ONE scan of the
+    // chunk's static list — vs the old per-cell getStaticSubcubesAt (full scan) and 27
+    // vector-allocating getMicrocubesAt calls. getPosition()/getParentCubePosition() are WORLD.
+    struct ChunkIdx {
+        std::unordered_map<int64_t, std::vector<Subcube*>>  sub;
+        std::unordered_map<int64_t, std::vector<Microcube*>> mic;
+    };
+    std::unordered_map<Chunk*, ChunkIdx> byChunk;
+    auto indexFor = [&](Chunk* ch) -> ChunkIdx& {
+        auto it = byChunk.find(ch);
+        if (it != byChunk.end()) return it->second;
+        ChunkIdx& idx = byChunk[ch];
+        for (const auto& sptr : ch->getStaticSubcubes()) {
+            if (!sptr) continue;
+            const glm::ivec3 p = sptr->getPosition();
+            idx.sub[packVoxel(p.x, p.y, p.z)].push_back(sptr.get());
+        }
+        for (const auto& mptr : ch->getStaticMicrocubes()) {
+            if (!mptr) continue;
+            const glm::ivec3 p = mptr->getParentCubePosition();
+            idx.mic[packVoxel(p.x, p.y, p.z)].push_back(mptr.get());
+        }
+        return idx;
+    };
+    auto gatherOne = [&](const glm::ivec3& wp) -> bool {
+        if (Cube* c = cm->getCubeAt(wp)) {
+            Core::KinematicVoxel v;
+            v.localPos = glm::vec3(wp) + glm::vec3(0.5f);
+            v.scale = glm::vec3(1.0f);
+            v.materialName = c->getMaterialName();
+            v.gridCell = wp; v.gridSlot = glm::ivec3(1);
+            out.push_back(std::move(v));
+            return true;
+        }
+        Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+        if (!ch) return false;
+        bool any = false;
+        ChunkIdx& idx = indexFor(ch);
+        const int64_t key = packVoxel(wp.x, wp.y, wp.z);
+        auto sit = idx.sub.find(key);
+        if (sit != idx.sub.end())
+            for (Subcube* s : sit->second) {
+                float sc = s->getScale();
+                Core::KinematicVoxel v;
+                v.localPos = glm::vec3(wp) + (glm::vec3(s->getLocalPosition()) + 0.5f) * sc;
+                v.scale = glm::vec3(sc);
+                v.materialName = s->getMaterialName();
+                v.gridCell = wp; v.gridSlot = s->getLocalPosition();
+                out.push_back(std::move(v));
+                any = true;
             }
-    return any;
+        auto mit = idx.mic.find(key);
+        if (mit != idx.mic.end())
+            for (Microcube* m : mit->second) {
+                const glm::ivec3 sub = m->getSubcubeLocalPosition();
+                Core::KinematicVoxel v;
+                glm::vec3 fine = glm::vec3(sub) * 3.0f + glm::vec3(m->getMicrocubeLocalPosition());
+                v.localPos = glm::vec3(wp) + (fine + 0.5f) / 9.0f;
+                v.scale = glm::vec3(1.0f / 9.0f);
+                v.materialName = m->getMaterialName();
+                v.gridCell = wp; v.gridSlot = sub;
+                out.push_back(std::move(v));
+                any = true;
+            }
+        return any;
+    };
+    for (const glm::ivec3& v : component) if (!gatherOne(v)) return false;
+    for (const glm::ivec3& v : leafCargo)  gatherOne(v);
+    return true;
 }
 
 // Remove one cell's content (cube or subdivision) WITHOUT spawning debris, keeping both
@@ -1208,13 +1238,12 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     // gatherable, bail (scatter) BEFORE removing anything. Leaf-cargo cells ride along:
     // the canopy STAYS WITH the falling tree (F1 — leaves are never voxel debris).
     std::vector<Core::KinematicVoxel> frag;
-    frag.reserve(component.size() + leafCargo.size());
-    for (const glm::ivec3& v : component) {
-        if (!gatherCellVoxels(m_cm, v, frag)) return false;
-    }
-    for (const glm::ivec3& v : leafCargo) {
-        gatherCellVoxels(m_cm, v, frag);   // best-effort: an empty cargo cell is fine
-    }
+    // Reserve for VOXELS, not cells: a leaf-cargo cell holds up to 27 micros and a wood cell
+    // several subcubes, so the old cells-count reserve reallocated the vector ~5x while pushing
+    // ~20k voxels. Estimate generously (wood ~14/cell, cargo ~27/cell) — one allocation.
+    frag.reserve(component.size() * 14 + leafCargo.size() * 27 + 16);
+    // Batched (O(chunkSubcubes + cells), not O(cells × chunkSubcubes)) — the topple-start hitch fix.
+    if (!gatherCellsBatched(m_cm, component, leafCargo, frag)) return false;
     if (frag.empty()) return false;
 
     // Wood drives the physics feel (mass/COM/hinge); leaves are render cargo.
