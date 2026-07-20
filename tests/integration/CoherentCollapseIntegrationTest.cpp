@@ -161,5 +161,78 @@ TEST_F(CoherentCollapseIntegrationTest, RootedStoneTower_BaseCut_TopTopplesCoher
     EXPECT_GE(res.debrisSpawned, 1);
 }
 
+// U4 approximate statics: a wide stone wall whose base is UNDERMINED (most of it blasted
+// away, leaving a thin remaining support) collapses even though it is still technically
+// connected to the floor — the "fire at the bottom of the wall and knock it down" case.
+TEST_F(CoherentCollapseIntegrationTest, UnderminedWall_Collapses) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "Vulkan/physics env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Floor anchor (supportY=5) + a 7-wide x 7-tall stone wall rooted on it (x4..10, y6..12).
+    for (int x = 0; x < 14; ++x)
+        for (int z = 0; z < 14; ++z)
+            chunkManager->addCubeWithMaterial(glm::ivec3(x, 5, z), "Stone");
+    std::vector<glm::ivec3> wall;
+    for (int x = 4; x <= 10; ++x)
+        for (int y = 6; y <= 14; ++y) {
+            glm::ivec3 wp(x, y, 6);
+            chunkManager->addCubeWithMaterial(wp, "Stone");
+            wall.push_back(wp);
+        }
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // Blast the base across most of its width, leaving support at only the far end (x10) —
+    // a 7-wide wall cantilevering off a single base column (drastically undermined).
+    auto res = dmg.applyDamage(glm::vec3(6.0f, 6.5f, 6.5f), 3.5f, 9000.0f, "force",
+                               glm::vec3(0.0f), /*supportY*/ 5.0f, /*collapse*/ true, /*coherent*/ true);
+
+    // The upper wall (y >= 12) must not be left hanging on the sliver.
+    int upper = 0;
+    for (const auto& wp : wall) if (wp.y >= 12 && chunkManager->hasVoxelAt(wp)) ++upper;
+    EXPECT_EQ(upper, 0) << "undermined wall stayed standing on a sliver of base";
+    EXPECT_GE(mgr.count(), 1u) << "undermined wall did not topple as a coherent body";
+    EXPECT_TRUE(chunkManager->hasVoxelAt(glm::ivec3(0, 5, 0))) << "anchored floor wrongly fell";
+}
+
+// Guard against false positives: a well-supported wall with a SMALL blast hole above its
+// base keeps most of its base, so statics must NOT collapse it.
+TEST_F(CoherentCollapseIntegrationTest, WellSupportedWall_DoesNotCollapse) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "Vulkan/physics env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    for (int x = 0; x < 14; ++x)
+        for (int z = 0; z < 14; ++z)
+            chunkManager->addCubeWithMaterial(glm::ivec3(x, 5, z), "Stone");
+    std::vector<glm::ivec3> wall;
+    for (int x = 4; x <= 10; ++x)
+        for (int y = 6; y <= 12; ++y) {
+            glm::ivec3 wp(x, y, 6);
+            chunkManager->addCubeWithMaterial(wp, "Stone");
+            wall.push_back(wp);
+        }
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+
+    // Small hole in the MIDDLE of the wall (y=9), base row untouched -> still fully supported.
+    dmg.applyDamage(glm::vec3(7.5f, 9.5f, 6.5f), 1.2f, 3000.0f, "force",
+                    glm::vec3(0.0f), /*supportY*/ 5.0f, /*collapse*/ true, /*coherent*/ true);
+
+    int survivors = 0;
+    for (const auto& wp : wall) if (chunkManager->hasVoxelAt(wp)) ++survivors;
+    EXPECT_GE(survivors, 40) << "a well-supported wall was wrongly collapsed by statics";
+    EXPECT_EQ(mgr.count(), 0u) << "no coherent topple should occur for a supported wall";
+}
+
 } // namespace Testing
 } // namespace Phyxel

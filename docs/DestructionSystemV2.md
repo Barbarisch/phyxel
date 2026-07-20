@@ -963,17 +963,26 @@ scalability lands before the features that multiply body counts.
   section detaches, headless fixture) plus L4. *Red test:* blast the base of a >3000-cell building
   — currently floats, must detach. Lower urgency than first scoped: most real wall/tower sections
   are < 3000 cells and already fall.
-- **U4 — Approximate statics: support CAPACITY, not boolean connectivity.** *The architectural
-  gap.* Today the anchor rule is "is there a path to ground," so a structure must be **fully
-  severed** to fall: undermine a wall, leave one connected voxel path, and it hangs there,
-  structurally fine by the engine's rules. Replace the boolean with a capacity test built on U2 —
-  propagate carried mass downward and collapse where the supporting cross-section cannot bear it.
-  *This is the phase that makes "fire at the bottom of a wall and knock it down" work.* *Depth:*
-  L2 (a progressively undermined column collapses at the grounded threshold rather than at full
-  severance) plus L3 plus L4. *Red test:* a wall with 90% of its base removed but one connected
-  voxel path — currently stands, must fall. *Stress:* deep structures with load accumulating over
-  many stories; assert no runaway cascade; measure the capacity flood's cost against the boolean
-  one.
+- **U4 — Approximate statics (v1 ✅ SHIPPED 2026-07-20; user chose "everything, conservatively").**
+  The architectural gap was: a structure had to be **fully severed** to fall — undermine a wall,
+  leave one connected path, and it hung there. `DamageSystem::shearUnderminedStructures` (a separate
+  pass after `collapseUnsupported`, does NOT touch the felling flood) now collapses a NON-TREE mass
+  left resting on a drastically thin base after a blast: it floods the overhang mass above the
+  anchor, and if a significant mass (≥ `UNDERMINE_MIN_MASS`=12 cells) rests on a base covering
+  < `UNDERMINE_SUPPORT_FRAC`=1/3 of its footprint, it topples coherently. Verified:
+  `UnderminedWall_Collapses` (7-wide wall cantilevering off 2/7 base cols → collapses) +
+  `WellSupportedWall_DoesNotCollapse` (guard: full base → stays). Full felling+chop+collapse+physics
+  suite 45/45.
+  - **Trees are EXCLUDED** (isTreeCell) — a tree legitimately balances a big canopy on a thin trunk;
+    they keep their own felling rules. This is why trees weren't broken by the ratio heuristic.
+  - **v1 LIMITATIONS (honest):** (1) uses a footprint-COVERAGE ratio, NOT center-of-mass-over-support
+    — a mass supported at BOTH ends (a bridge) on a low ratio would wrongly collapse; real statics
+    needs COM-over-support-polygon. (2) Requires a designer `supportY` anchor to tell structure from
+    ground; without it the flood spreads into terrain and the `UNDERMINE_MAX_MASS`=1200 cap bails
+    (so **terrain-founded structures don't undermine yet** — needs the main-mass anchor, a follow-up).
+    (3) Thresholds are conservative guesses; **live feel-tuning pending** (headless can't judge "feels
+    right"). (4) Gated on `coherentFragments` (destructive-intent path only). *Depth:* L2 met; L4
+    live-tuning is the follow-up.
 - **U5 — Retirement tier (the missing half of Phase 1b).** Freeze at rest: remove the body from
   `VoxelDynamicsWorld` (freeing the body slot and the broadphase entry), greedy-merge its
   kinematic faces once, keep geometry plus transform as plain data; lazy reactivation on

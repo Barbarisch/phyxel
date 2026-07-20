@@ -275,6 +275,11 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     // P3/P4: collapse any voxel groups the blast severed from the main mass.
     if (collapse && !removed.empty()) {
         collapseUnsupported(removed, supportY, res, coherentFragments, center, dirBias);
+        // U4: approximate statics — a non-tree mass now resting on a drastically thin
+        // support (undermined, but still connected) collapses too. Runs after the severance
+        // pass on what remains; only fires on significant masses over a near-gone base.
+        if (coherentFragments)
+            shearUnderminedStructures(removed, supportY, res, center, dirBias);
     }
     auto t2 = Clock::now();
 
@@ -1374,6 +1379,85 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
     LOG_INFO("DamageSystem", "coherent timing: gather={}ms spawn(physicalize+faces)={}ms cellRemoval={}ms",
              ms(tGather0, tSpawn0), ms(tSpawn0, tRemove0), ms(tRemove0, tEnd));
     return true;
+}
+
+int DamageSystem::shearUnderminedStructures(const std::vector<glm::ivec3>& removed, float supportY,
+                                            DamageResult& res,
+                                            const glm::vec3& impactCenter, const glm::vec3& impactDir) {
+    if (!m_cm || removed.empty()) return 0;
+    static const glm::ivec3 NB[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
+    // The anchor floor: cells at y <= yAnchor are the ground and are NOT flooded (a supported
+    // structure rests ON them). Without a designer supportY there is no cheap anchor, so the
+    // flood spreads into terrain and the UNDERMINE_MAX_MASS cap bails it (terrain-founded
+    // undermining is a follow-up needing the main-mass anchor — see §15.3 U4 notes).
+    const int yAnchor = (supportY <= NO_SUPPORT + 1.0f) ? INT_MIN : static_cast<int>(std::floor(supportY));
+
+    // Seeds: solid NON-TREE cells sitting directly above a removed cell — the overhangs the
+    // blast just created. Trees are excluded (their own felling handles them).
+    std::vector<glm::ivec3> seeds;
+    for (const glm::ivec3& r : removed) {
+        const glm::ivec3 above(r.x, r.y + 1, r.z);
+        if (above.y > yAnchor && m_cm->hasVoxelAt(above) && !isTreeCell(m_cm, above))
+            seeds.push_back(above);
+    }
+    if (seeds.empty()) return 0;
+
+    std::unordered_set<int64_t> processed;
+    int totalDetached = 0;
+    for (const glm::ivec3& seed : seeds) {
+        if (totalDetached >= MAX_COLLAPSE) break;
+        const int64_t sk = packVoxel(seed.x, seed.y, seed.z);
+        if (processed.count(sk) || !m_cm->hasVoxelAt(seed)) continue;
+
+        // Flood the connected NON-TREE mass ABOVE the anchor (never descend into the ground).
+        std::vector<glm::ivec3> comp;
+        std::unordered_set<int64_t> inComp;
+        std::vector<glm::ivec3> stack{seed};
+        inComp.insert(sk);
+        bool tooBig = false;
+        while (!stack.empty()) {
+            const glm::ivec3 v = stack.back(); stack.pop_back();
+            comp.push_back(v);
+            if (static_cast<int>(comp.size()) > UNDERMINE_MAX_MASS) { tooBig = true; break; }
+            for (const auto& n : NB) {
+                const glm::ivec3 nb = v + n;
+                if (nb.y <= yAnchor) continue;                 // the ground: anchor, don't flood
+                const int64_t k = packVoxel(nb.x, nb.y, nb.z);
+                if (inComp.count(k)) continue;
+                if (!m_cm->hasVoxelAt(nb) || isTreeCell(m_cm, nb)) continue;
+                inComp.insert(k); stack.push_back(nb);
+            }
+        }
+        for (const glm::ivec3& c : comp) processed.insert(packVoxel(c.x, c.y, c.z));
+        // Too big = it's ground, not a discrete structure; too small = an insignificant overhang.
+        if (tooBig || static_cast<int>(comp.size()) < UNDERMINE_MIN_MASS) continue;
+
+        // Support adequacy: fraction of the mass's FOOTPRINT (unique x,z columns) that actually
+        // rests on solid material NOT part of the mass (the anchor floor, or a footing). Base
+        // covering < UNDERMINE_SUPPORT_FRAC of the footprint = drastically undermined. A base of
+        // 0 is a fully severed piece (collapseUnsupported already handled it) — skip.
+        std::unordered_set<int64_t> supportedCols, allCols;
+        for (const glm::ivec3& c : comp) {
+            const int64_t col = (static_cast<int64_t>(c.x) << 32) ^ static_cast<uint32_t>(c.z);
+            allCols.insert(col);
+            const glm::ivec3 below(c.x, c.y - 1, c.z);
+            if (m_cm->hasVoxelAt(below) && !inComp.count(packVoxel(below.x, below.y, below.z)))
+                supportedCols.insert(col);
+        }
+        const int footprint = static_cast<int>(allCols.size());
+        const int supported = static_cast<int>(supportedCols.size());
+        if (supported == 0) continue;
+        if (supported >= static_cast<int>(footprint * UNDERMINE_SUPPORT_FRAC) + 1) continue;
+
+        LOG_INFO("DamageSystem", "undermine statics: mass {} cells on {}/{} footprint cols -> collapse",
+                 comp.size(), supported, footprint);
+        if (collapseComponentCoherent(comp, {}, res, impactCenter, impactDir)) {
+            totalDetached += static_cast<int>(comp.size());
+        } else {
+            for (const glm::ivec3& c : comp) totalDetached += dropDetachedCell(c, res);
+        }
+    }
+    return totalDetached;
 }
 
 int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, float supportY,

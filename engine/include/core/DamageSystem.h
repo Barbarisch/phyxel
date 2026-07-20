@@ -163,6 +163,17 @@ private:
                             DamageResult& res, bool coherent,
                             const glm::vec3& impactCenter, const glm::vec3& impactDir);
 
+    // U4 (docs/DestructionSystemV2.md §15.3): APPROXIMATE STATICS. After a blast, a NON-TREE
+    // mass left resting on a drastically thin support collapses (undermining) even though it is
+    // still technically connected to ground — "fire at the base of a wall and knock it down".
+    // Conservative: fires only when a significant mass (>= MIN_MASS cells) sits on a base
+    // covering < UNDERSUPPORT_FRAC of its footprint. Trees are EXCLUDED (they keep their own
+    // felling rules; a tree legitimately balances a big canopy on a thin trunk). Bounded by
+    // MAX_COLLAPSE. Returns cells collapsed. A separate pass — does not touch the felling flood.
+    int shearUnderminedStructures(const std::vector<glm::ivec3>& removed, float supportY,
+                                  DamageResult& res,
+                                  const glm::vec3& impactCenter, const glm::vec3& impactDir);
+
     // Try to topple one severed component as a coherent rigid slab via m_fragMgr.
     // `leafCargo` = canopy cells assigned to this component (F1): they ride the fragment
     // as render cargo (leaves are never voxel debris). Returns true if physicalized
@@ -205,6 +216,11 @@ private:
     // Coherent collapse: a severed component up to this many cells topples as one rigid
     // slab; bigger falls back to scatter. Placeholder until the P1.3 Release benchmark.
     static constexpr int   COHERENT_MAX_VOXELS = 2000;
+    // U4 approximate-statics tunables (conservative — "drastically undermined only"). Live
+    // feel-tuning pending; these bound headless behavior.
+    static constexpr int   UNDERMINE_MIN_MASS   = 12;    // ignore small overhangs (a few blocks)
+    static constexpr float UNDERMINE_SUPPORT_FRAC = 0.34f; // base covering < 1/3 of footprint = collapse
+    static constexpr int   UNDERMINE_MAX_MASS   = 1200;  // bigger flooded mass = it's ground, not a discrete structure -> bail
 };
 
 } // namespace Phyxel
