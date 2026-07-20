@@ -485,9 +485,11 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
                 return;
             }
         }
-        // Not (or no longer) sealable: if a stale seal is set (e.g. the neighbour cap broke
-        // without an edit on THIS chunk), drop it and rejoin physics before the full mesh.
-        if (chunk.isSealed()) chunk.unsealForEdit();
+        // Not (or no longer) sealable: this chunk is collidable and about to be fully meshed,
+        // so its occupancy grid MUST be in the broadphase query set. ensurePhysicsRegistered
+        // reverses any prior air/sealed unregister (a stale seal from a broken neighbour cap,
+        // or — U1a — an air chunk that has since gained content). Idempotent / O(1).
+        chunk.ensurePhysicsRegistered();
     }
 
     // Provide a neighbor lookup function that can check cubes in adjacent chunks.

@@ -389,6 +389,12 @@ public:
     // tick, not when the queued remesh runs. Idempotent and cheap when not sealed.
     void unsealForEdit();
 
+    // U1a: a collidable (neither uniform-air nor sealed) chunk must have its occupancy grid in
+    // the broadphase query set. Called on the full-mesh classification branch to reverse a prior
+    // air/sealed unregister (an air chunk that gained content, a broken neighbour cap).
+    // Idempotent — registerGrid dedups in O(1) — so it is safe to call every rebuild.
+    void ensurePhysicsRegistered();
+
 private:
 };
 

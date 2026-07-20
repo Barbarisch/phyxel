@@ -7600,6 +7600,29 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         response = {{"bodies", bodies}, {"kinematic_objects", kins}};
         return true;
 
+    } else if (action == "physics_broadphase_stats") {
+        // §15.5: last-substep terrain-broadphase cost — the instrument for confirming that a
+        // falling coherent fragment's CPU cost scales with WORLD SIZE (gridCount), not the object.
+        // queryAABBCalls = Σ awakeBoxes × gridCount. Poll while a tree is falling.
+        if (physicsWorld && physicsWorld->getVoxelWorld()) {
+            auto* vw = physicsWorld->getVoxelWorld();
+            const auto& s = vw->lastBroadphaseStats();
+            response = {
+                {"grid_count", s.gridCount},
+                {"awake_bodies", s.awakeBodies},
+                {"awake_boxes", s.awakeBoxes},
+                {"query_aabb_calls", s.queryAABBCalls},
+                {"terrain_broadphase_ms", s.terrainBroadphaseMs},
+                {"generate_contacts_ms", s.generateContactsMs},
+                {"contacts_generated", s.contactsGenerated},
+                {"total_bodies", vw->getBodyCount()},
+                {"active_bodies", vw->getActiveCount()}
+            };
+        } else {
+            response = {{"error", "no voxel dynamics world"}};
+        }
+        return true;
+
     } else if (action == "get_debug_overlay") {
         if (!renderCoordinator) {
             response = {{"error", "RenderCoordinator not available"}};

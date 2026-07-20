@@ -101,6 +101,22 @@ public:
     // Returns true if the given AABB overlaps any awake dynamic body.
     bool overlapsAnyBody(const glm::vec3& center, const glm::vec3& halfExtents) const;
 
+    // ---- Broadphase profiling (temporary instrumentation, docs/DestructionSystemV2.md §15.5) ----
+    // Snapshot of the LAST substep's terrain-broadphase cost. Written at the end of
+    // generateContacts, read on the same (main) thread by the debug endpoint. queryAABBCalls
+    // is computed arithmetically (Σ awakeBoxes × gridCount) rather than by instrumenting the
+    // parallel hot loop, so it does not perturb the timing it sits beside.
+    struct BroadphaseStats {
+        double   terrainBroadphaseMs = 0.0;  // wall-clock of the body-vs-terrain phase
+        double   generateContactsMs  = 0.0;  // wall-clock of all of generateContacts
+        uint64_t queryAABBCalls      = 0;    // Σ awakeBoxes × gridCount this substep
+        size_t   gridCount           = 0;    // registered occupancy grids scanned
+        size_t   awakeBodies         = 0;
+        size_t   awakeBoxes          = 0;    // Σ collision boxes over awake bodies
+        size_t   contactsGenerated   = 0;
+    };
+    const BroadphaseStats& lastBroadphaseStats() const { return m_broadphaseStats; }
+
     // ---- Kinematic obstacles (character segment boxes) ----
     struct KinematicObstacle {
         glm::vec3 center;
@@ -122,6 +138,8 @@ private:
     std::unordered_map<const void*, std::vector<KinematicObstacle>> m_obstaclesByOwner;
     std::vector<KinematicObstacle>               m_kinematicObstacles;  // flattened scratch (rebuilt per step)
 
+    BroadphaseStats m_broadphaseStats;
+
     glm::vec3 m_gravity{0.0f, -9.81f, 0.0f};
     float     m_fallThreshold = -20.0f;
     float     m_accumulator   = 0.0f;
@@ -134,6 +152,27 @@ private:
     void generateContacts();
     void updateSleepState(float dt);
     void cleanupDead();
+
+    // §15.5 / U1a broadphase index. m_grids stayed a flat vector scanned in full per
+    // collision box per substep — O(worldSize), not O(object). m_gridByChunk keys each
+    // registered grid by its chunk coordinate (origin/32, 1:1 with a chunk) so a query
+    // touches only the handful of chunks its AABB overlaps. Both are maintained together;
+    // the vector remains the ownership/iteration list, the map is the spatial accelerator.
+    std::unordered_map<uint64_t, VoxelOccupancyGrid*> m_gridByChunk;
+
+    // Pack a signed chunk coordinate (worldOrigin/32) into a map key (21 bits/axis).
+    static uint64_t chunkKey(int cx, int cy, int cz) {
+        uint64_t ux = static_cast<uint64_t>(static_cast<uint32_t>(cx + (1 << 20)) & 0x1FFFFF);
+        uint64_t uy = static_cast<uint64_t>(static_cast<uint32_t>(cy + (1 << 20)) & 0x1FFFFF);
+        uint64_t uz = static_cast<uint64_t>(static_cast<uint32_t>(cz + (1 << 20)) & 0x1FFFFF);
+        return ux | (uy << 21) | (uz << 42);
+    }
+
+    // Collect the registered grids whose chunk overlaps the world-space AABB [mn,mx]
+    // (usually 1, up to a few at chunk borders / for a big body). Conservative: an
+    // included grid that a specific box misses is rejected cheaply inside queryAABB.
+    void gatherGridsOverlapping(const glm::vec3& mn, const glm::vec3& mx,
+                                std::vector<VoxelOccupancyGrid*>& out) const;
 };
 
 } // namespace Physics

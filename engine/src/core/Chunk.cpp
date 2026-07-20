@@ -220,6 +220,11 @@ void Chunk::applyAirRenderState() {
     for (int f = 0; f < 6; ++f) m_faceConnect[f] = 0x3F;   // sight passes freely
     m_hasMirror = false;
     m_hasTransparent = false;
+    // U1a (§15.5): an all-air chunk has no surface to collide against, yet it stayed in
+    // the broadphase scan list forever (only SEALED chunks unregistered). In a tall
+    // streamed world air chunks are the majority of loaded chunks, so this was most of
+    // the wasted scan. Drop it from the query set; a later edit re-registers via unseal.
+    physicsManager.unregisterGridFromWorld();
 }
 
 void Chunk::unsealForEdit() {
@@ -227,6 +232,15 @@ void Chunk::unsealForEdit() {
     m_sealed = false;
     // Grid contents stayed maintained while unregistered (collision callbacks update it on
     // every voxel op); it only needs to rejoin the query list. registerGrid dedups.
+    physicsManager.registerPrebuiltGrid();
+}
+
+void Chunk::ensurePhysicsRegistered() {
+    // Reached only on the full-mesh (collidable) branch — a uniform-air or sealed chunk
+    // returns before this. Clear any stale seal flag and rejoin the query set. Grid contents
+    // are maintained live by collision callbacks, so this only re-adds it to the scan; the
+    // O(1) registerGrid dedup makes the call free when the grid is already registered.
+    m_sealed = false;
     physicsManager.registerPrebuiltGrid();
 }
 

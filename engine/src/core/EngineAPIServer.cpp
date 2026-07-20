@@ -1249,6 +1249,16 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/physics_broadphase_stats — last-substep terrain-broadphase
+    // cost (§15.5): grid_count, awake_boxes, query_aabb_calls, timing. Poll
+    // while a coherent fragment is falling to confirm world-size-linear cost.
+    // ====================================================================
+    srv.Get("/api/debug/physics_broadphase_stats", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("physics_broadphase_stats", json::object(), 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/debug/occupancy_cell?x=&y=&z= — one cell's occupancy-grid masks
     // vs its actual chunk content (SubcubeCollisionPlan P1 audit instrument).
     // ====================================================================

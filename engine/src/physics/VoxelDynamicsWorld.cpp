@@ -1,6 +1,7 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <future>
 #include <thread>
@@ -48,16 +49,49 @@ VoxelDynamicsWorld::VoxelDynamicsWorld() {
 
 void VoxelDynamicsWorld::registerGrid(VoxelOccupancyGrid* grid) {
     if (!grid) return;
-    auto it = std::find(m_grids.begin(), m_grids.end(), grid);
-    if (it == m_grids.end()) {
+    // U1a: dedup via the chunk-coord map — O(1), so re-registering on an air→content
+    // transition is cheap (it happens on the edit/rebuild path, not just once at load).
+    const glm::ivec3 o = grid->getChunkOrigin();
+    auto [it, inserted] = m_gridByChunk.try_emplace(chunkKey(o.x >> 5, o.y >> 5, o.z >> 5), grid);
+    if (inserted) {
         m_grids.push_back(grid);
         LOG_DEBUG_FMT("VoxelDynamicsWorld", "registerGrid into world=" << static_cast<const void*>(this)
                       << " grid=" << static_cast<const void*>(grid) << " total=" << m_grids.size());
+    } else if (it->second != grid) {
+        // Two grids claim one chunk coord — the 1-grid-per-chunk invariant broke. Keep the
+        // incumbent (don't silently swap the collision surface) and flag it.
+        LOG_WARN("VoxelDynamicsWorld", "registerGrid: chunk-coord collision, keeping incumbent grid");
     }
 }
 
 void VoxelDynamicsWorld::unregisterGrid(VoxelOccupancyGrid* grid) {
+    if (!grid) return;
     m_grids.erase(std::remove(m_grids.begin(), m_grids.end(), grid), m_grids.end());
+    const glm::ivec3 o = grid->getChunkOrigin();
+    auto it = m_gridByChunk.find(chunkKey(o.x >> 5, o.y >> 5, o.z >> 5));
+    if (it != m_gridByChunk.end() && it->second == grid)   // erase only if it's ours
+        m_gridByChunk.erase(it);
+}
+
+void VoxelDynamicsWorld::gatherGridsOverlapping(const glm::vec3& mn, const glm::vec3& mx,
+                                                std::vector<VoxelOccupancyGrid*>& out) const {
+    out.clear();
+    if (m_gridByChunk.empty()) return;
+    // Chunk-coord span the AABB touches. floorDiv by 32 (grids live at multiples of 32);
+    // shifting a negative int is fine here because we want arithmetic floor, so use a
+    // branch to floor toward -inf.
+    auto floorDiv32 = [](float v) -> int {
+        return static_cast<int>(std::floor(v / 32.0f));
+    };
+    const int x0 = floorDiv32(mn.x), x1 = floorDiv32(mx.x);
+    const int y0 = floorDiv32(mn.y), y1 = floorDiv32(mx.y);
+    const int z0 = floorDiv32(mn.z), z1 = floorDiv32(mx.z);
+    for (int cx = x0; cx <= x1; ++cx)
+    for (int cy = y0; cy <= y1; ++cy)
+    for (int cz = z0; cz <= z1; ++cz) {
+        auto it = m_gridByChunk.find(chunkKey(cx, cy, cz));
+        if (it != m_gridByChunk.end()) out.push_back(it->second);
+    }
 }
 
 // ---- Body management --------------------------------------------------------
@@ -192,6 +226,9 @@ void VoxelDynamicsWorld::integratePositions(float dt) {
 }
 
 void VoxelDynamicsWorld::generateContacts() {
+    using Clock = std::chrono::high_resolution_clock;
+    const auto tGen0 = Clock::now();   // §15.5 broadphase profiling
+
     size_t n  = m_bodies.size();
     int    tc = std::max(1, m_threadCount);
 
@@ -208,6 +245,13 @@ void VoxelDynamicsWorld::generateContacts() {
     }
     size_t na = awake.size();
 
+    // §15.5: the terrain broadphase visits Σ(boxes) × gridCount grids per substep — cost that
+    // scales with WORLD SIZE, not the falling object. Count the calls arithmetically (rather than
+    // atomically inside the parallel hot loop, which would distort the timing beside it).
+    size_t awakeBoxes = 0;
+    for (const AwakeBody& ab : awake) awakeBoxes += ab.body->getLocalBoxes().size();
+    const auto tTerrain0 = Clock::now();
+
     // ---- Body vs terrain (parallel, per-thread contact buffers) ----
     // Terrain is queried PER COLLISION BOX, not per body: a multi-box body's
     // whole-body AABB spans the entire object (a fallen tree ≈ 10x15x10 m →
@@ -216,9 +260,9 @@ void VoxelDynamicsWorld::generateContacts() {
     // (~225k for a 150-box fell — the "FPS ≈ 0 while the tree falls" hang;
     // 870 ms/frame measured at 46 boxes). Each box only overlaps a handful of
     // voxels, so per-box queries are O(boxes × ~4) instead.
-    if (!m_grids.empty() && na > 0) {
+    std::vector<uint64_t> threadCalls(tc, 0);   // §15.5: actual queryAABB calls (U1a proof)
+    if (!m_gridByChunk.empty() && na > 0) {
         std::vector<std::vector<ContactPoint>> threadBufs(tc);
-        const auto& grids = m_grids;
         const float expand = 0.01f;
 
         parallelRange(na, tc, [&](size_t b, size_t e) {
@@ -226,10 +270,19 @@ void VoxelDynamicsWorld::generateContacts() {
             size_t slot  = (chunk > 0) ? (b / chunk) : 0;
             slot = std::min(slot, static_cast<size_t>(tc) - 1);
             auto& buf = threadBufs[slot];
-            std::vector<OccupiedBox> terrainBoxes;   // scratch, reused across boxes
+            std::vector<OccupiedBox> terrainBoxes;         // scratch, reused across boxes
+            std::vector<VoxelOccupancyGrid*> localGrids;   // grids overlapping THIS body (U1a)
 
             for (size_t i = b; i < e; ++i) {
                 const AwakeBody& ab = awake[i];
+                // U1a: gather the few grids under this body's AABB ONCE, reuse across its
+                // boxes — a fragment's boxes are all near each other, so this replaces the
+                // full m_grids scan (O(worldSize)) with O(chunksTheBodyTouches). Widen by a
+                // margin (> the per-box `expand`) so a box whose face sits on a chunk border
+                // and expands into the neighbour still sees that neighbour's grid.
+                gatherGridsOverlapping(ab.mn - glm::vec3(0.5f), ab.mx + glm::vec3(0.5f), localGrids);
+                if (localGrids.empty()) continue;
+
                 const glm::mat3 rot = glm::mat3_cast(ab.body->orientation);
                 const glm::mat3 absRot(glm::abs(rot[0]), glm::abs(rot[1]), glm::abs(rot[2]));
                 const auto& localBoxes = ab.body->getLocalBoxes();
@@ -238,9 +291,10 @@ void VoxelDynamicsWorld::generateContacts() {
                     // Conservative world AABB of THIS box only.
                     const glm::vec3 c  = ab.body->position + rot * localBoxes[bi].offset;
                     const glm::vec3 he = absRot * localBoxes[bi].halfExtents + glm::vec3(expand);
-                    for (VoxelOccupancyGrid* grid : grids) {
+                    for (VoxelOccupancyGrid* grid : localGrids) {
                         terrainBoxes.clear();
                         grid->queryAABB(c - he, c + he, terrainBoxes);
+                        ++threadCalls[slot];
                         for (const OccupiedBox& tb : terrainBoxes)
                             VoxelContactSolver::generateOBBvsAABB(ab.body, bi, tb, buf);
                     }
@@ -251,6 +305,10 @@ void VoxelDynamicsWorld::generateContacts() {
         for (auto& buf : threadBufs)
             m_contacts.insert(m_contacts.end(), buf.begin(), buf.end());
     }
+
+    // §15.5: snapshot the terrain-broadphase cost (written at function end below).
+    const double terrainMs =
+        std::chrono::duration<double, std::milli>(Clock::now() - tTerrain0).count();
 
     // ---- Body vs kinematic obstacles (sequential — writes isAsleep) ----
     // Flatten every owner's boxes into the scratch buffer so dynamic bodies are deflected by the
@@ -298,10 +356,27 @@ void VoxelDynamicsWorld::generateContacts() {
         }
     }
 
+    // §15.5: record the substep snapshot (both this early-out and the natural end below).
+    // queryAABBCalls is now the ACTUAL count from the indexed path (U1a) — post-fix it is
+    // ~boxes × (chunks the body touches), NOT boxes × gridCount. gridCount stays reported as
+    // context so the regression test can assert calls do NOT scale with it.
+    uint64_t actualCalls = 0;
+    for (uint64_t c : threadCalls) actualCalls += c;
+    auto recordStats = [&]() {
+        m_broadphaseStats.terrainBroadphaseMs = terrainMs;
+        m_broadphaseStats.generateContactsMs  =
+            std::chrono::duration<double, std::milli>(Clock::now() - tGen0).count();
+        m_broadphaseStats.queryAABBCalls    = actualCalls;
+        m_broadphaseStats.gridCount         = m_grids.size();
+        m_broadphaseStats.awakeBodies       = na;
+        m_broadphaseStats.awakeBoxes        = awakeBoxes;
+        m_broadphaseStats.contactsGenerated = m_contacts.size();
+    };
+
     // ---- Body vs body: spatial hash broadphase ----
     // Buckets bodies into 3-D cells of CELL_SIZE. Only pairs sharing a cell are
     // tested, reducing average complexity from O(N²) to O(N) for sparse scenes.
-    if (na < 2) return;
+    if (na < 2) { recordStats(); return; }
     {
         static constexpr float CELL_SIZE = 2.0f;
         static constexpr float INV_CELL  = 1.0f / CELL_SIZE;
@@ -359,6 +434,8 @@ void VoxelDynamicsWorld::generateContacts() {
             }
         }
     }
+
+    recordStats();   // §15.5 broadphase profiling
 }
 
 void VoxelDynamicsWorld::updateSleepState(float dt) {
@@ -415,7 +492,9 @@ float VoxelDynamicsWorld::findGroundY(const glm::vec3& feetPos, float halfWidth,
 
     float best = -std::numeric_limits<float>::max();
     bool  found = false;
-    for (auto* grid : m_grids) {
+    std::vector<VoxelOccupancyGrid*> grids;                 // U1a: only chunks under the column
+    gatherGridsOverlapping(queryMin, queryMax, grids);
+    for (auto* grid : grids) {
         std::vector<OccupiedBox> boxes;
         grid->queryAABB(queryMin, queryMax, boxes);
         for (const auto& b : boxes) {
@@ -492,7 +571,9 @@ float VoxelDynamicsWorld::groundHeight(const glm::vec3& feetPos, float halfWidth
 bool VoxelDynamicsWorld::overlapsTerrain(const glm::vec3& center, const glm::vec3& halfExtents) const {
     glm::vec3 queryMin = center - halfExtents;
     glm::vec3 queryMax = center + halfExtents;
-    for (auto* grid : m_grids) {
+    std::vector<VoxelOccupancyGrid*> grids;                 // U1a: only overlapping chunks
+    gatherGridsOverlapping(queryMin, queryMax, grids);
+    for (auto* grid : grids) {
         std::vector<OccupiedBox> boxes;
         grid->queryAABB(queryMin, queryMax, boxes);
         if (!boxes.empty()) return true;

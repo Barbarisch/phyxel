@@ -1,10 +1,15 @@
 #include "IntegrationTestFixture.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelDynamicsWorld.h"
+#include "physics/VoxelOccupancyGrid.h"
 #include <glm/glm.hpp>
+#include <memory>
+#include <vector>
 
 namespace Phyxel {
 namespace Testing {
+
+using Phyxel::Physics::VoxelOccupancyGrid;   // U1a broadphase-index tests name it directly
 
 class PhysicsIntegrationTest : public PhysicsTestFixture {};
 
@@ -153,6 +158,94 @@ TEST_F(PhysicsIntegrationTest, RotatedBody_CollidesAsItsOrientedBoxes_NotConserv
     // at the slab's high end x≈+2.8).
     EXPECT_GT(voxelWorld->groundHeight(glm::vec3(2.5f, 105.0f, 0.0f), 0.25f, 4.0f), 102.0f)
         << "real oriented slab top not found by the down-ray grounding";
+}
+
+// ============================================================================
+// U1a — broadphase cost is O(object), not O(worldSize) (docs/DestructionSystemV2.md §15.5)
+// ============================================================================
+
+// THE pinning invariant: the per-substep terrain queryAABB call count must NOT grow with
+// the number of registered chunk grids. Pre-fix (flat m_grids scan) it was boxes×gridCount;
+// post-fix (chunk-coord index) it is boxes×(chunks the body touches), a small constant.
+TEST_F(PhysicsIntegrationTest, BroadphaseCallCountIndependentOfGridCount) {
+    auto* vw = physicsWorld->getVoxelWorld();
+    ASSERT_NE(vw, nullptr);
+
+    // Helper: register K grids at DISTINCT, far-apart chunk coords, drop ONE body over
+    // chunk (0,0,0), step once, return the recorded queryAABB call count.
+    auto measure = [&](int K) -> uint64_t {
+        vw->removeAllBodies();
+        std::vector<std::unique_ptr<VoxelOccupancyGrid>> grids;   // own them past stepping
+        grids.reserve(K);
+        for (int i = 0; i < K; ++i) {
+            auto g = std::make_unique<VoxelOccupancyGrid>();
+            g->setChunkOrigin(glm::ivec3(i * 32, 0, 0));   // one grid per chunk, spread along +x
+            g->setCube(glm::ivec3(0, 0, 0), true);         // a floor cell so a query can hit
+            vw->registerGrid(g.get());
+            grids.push_back(std::move(g));
+        }
+        // One body in the air over chunk (0,0,0) only — overlaps exactly one grid.
+        auto* body = vw->createVoxelBody(glm::vec3(0.5f, 20.0f, 0.5f), glm::vec3(0.5f), 1.0f);
+        EXPECT_NE(body, nullptr);
+        physicsWorld->stepSimulation(1.0f / 60.0f);
+        const auto& s = vw->lastBroadphaseStats();
+        EXPECT_EQ(s.gridCount, static_cast<size_t>(K)) << "all K grids should be registered";
+        EXPECT_EQ(s.awakeBoxes, 1u) << "one single-box body is awake";
+        uint64_t calls = s.queryAABBCalls;
+        // Cleanup registrations before the grids destruct (dangling pointers otherwise).
+        for (auto& g : grids) vw->unregisterGrid(g.get());
+        vw->removeAllBodies();
+        return calls;
+    };
+
+    const uint64_t few  = measure(10);
+    const uint64_t many = measure(500);
+
+    // The body touches one chunk in both worlds, so the call count is identical and tiny —
+    // NOT 10 vs 500. This is the assertion that fails the moment the flat scan returns.
+    EXPECT_EQ(few, many)
+        << "queryAABB call count grew with grid_count (" << few << " vs " << many
+        << ") — the O(worldSize) scan is back";
+    EXPECT_LE(many, 8u)
+        << "one single-box body should query at most a few chunks, got " << many;
+}
+
+// Correctness guard: making the broadphase indexed must not make it MISS terrain. A body
+// dropped onto a floor cell reachable only through the chunk-coord index must still land.
+TEST_F(PhysicsIntegrationTest, IndexedBroadphaseStillCollidesWithTerrain) {
+    auto* vw = physicsWorld->getVoxelWorld();
+    ASSERT_NE(vw, nullptr);
+    vw->removeAllBodies();
+
+    // A 5x5 floor slab at y=0 (top surface y=1), reachable only through the chunk index.
+    auto grid = std::make_unique<VoxelOccupancyGrid>();
+    grid->setChunkOrigin(glm::ivec3(0, 0, 0));
+    for (int x = 0; x < 5; ++x)
+        for (int z = 0; z < 5; ++z)
+            grid->setCube(glm::ivec3(x, 0, z), true);
+    // Decoys far away — must not participate, must not be needed.
+    std::vector<std::unique_ptr<VoxelOccupancyGrid>> decoys;
+    for (int i = 1; i <= 50; ++i) {
+        auto g = std::make_unique<VoxelOccupancyGrid>();
+        g->setChunkOrigin(glm::ivec3(i * 32, 0, 0));
+        vw->registerGrid(g.get());
+        decoys.push_back(std::move(g));
+    }
+    vw->registerGrid(grid.get());
+
+    // Drop from a modest height over the middle of the slab.
+    auto* body = vw->createVoxelBody(glm::vec3(2.5f, 4.0f, 2.5f), glm::vec3(0.5f), 1.0f);
+    ASSERT_NE(body, nullptr);
+    for (int i = 0; i < 300; ++i) physicsWorld->stepSimulation(1.0f / 60.0f);
+
+    // Rested on the slab (top y=1, body half-extent 0.5 → center ≈ 1.5), did NOT fall through.
+    EXPECT_GT(body->position.y, 0.8f)
+        << "body fell through terrain the indexed broadphase failed to find";
+    EXPECT_LT(body->position.y, 3.0f) << "body never settled onto the floor slab";
+
+    vw->unregisterGrid(grid.get());
+    for (auto& g : decoys) vw->unregisterGrid(g.get());
+    vw->removeAllBodies();
 }
 
 } // namespace Testing
