@@ -878,16 +878,23 @@ Each phase carries the standing project discipline: functional contract, require
 layer, red-before-green test, scale/stress test, solution-auditor sign-off. Ordered so
 scalability lands before the features that multiply body counts.
 
-- **U0 — Wire the damage entry points.** *Same-day fix.* Spell hits
-  (`Application::updatePendingSpellHits`) and the `cast_spell` destroy path each construct a bare
-  `DamageSystem` and take `coherentFragments = false` by default, so **a fireball can never fell
-  anything** — only the axe chop and the `apply_damage` MCP command opt in. Wire the persistent
-  `coherentFragmentManager` (the same three lines the chop path uses) and pass the flag. Also fix
-  the blast path's representative-material scan: it reads `getStaticSubcubesAt`, which returns
-  **subcubes only**, so a micro-only canopy cell falls through to the `"Wood"` default and
-  **emits wood voxel debris for leaves — violating F1 under blasts.** Reuse `scanCellTree`.
-  *Depth:* L4 (fireball a tree → it topples, no leaf voxels). *Red test:* a micro-only leaf cell
-  through `applyDamage` asserts zero debris spawned.
+- **U0 — Wire the damage entry points. ✅ SHIPPED 2026-07-20 (commit after U1a).** Spell hits
+  (`Application::updatePendingSpellHits`) and the `cast_spell` destroy path each constructed a bare
+  `DamageSystem` and took `coherentFragments = false`, so a fireball could never fell anything —
+  only the axe chop and `apply_damage` opted in. Both now wire the persistent
+  `coherentFragmentManager` and pass `collapse=true, coherentFragments=true`. Blast-path F1 fix: the
+  Phase-A scan read `getStaticSubcubesAt` (subcubes only), so a micro-only leaf cell fell through to
+  the `"Wood"` default and scattered wood voxel debris; it now uses `cellMaterial`
+  (cube→subcube→**microcube**), so leaf cells are recognized and emit no debris. Red-before-green:
+  `TreeCollapseIntegrationTest.BlastOnMicroLeafCell_EmitsNoVoxelDebris` (pre-fix broken=1/debris=12,
+  post-fix debris=0). Live: canopy blast 200 broken / 252 debris (leaves excluded; scatter would be
+  ~2400); fireball via `/api/spell/cast` routes through `applyDamage` with the coherent path enabled.
+  **CAVEAT (not U0):** end-to-end "spell fells the tree" is still gated by felling *reliability* — a
+  flat-ground forge oak does not sever coherently from a base blast (the flood keeps the crown
+  "supported"; F9 / hard-connectivity). The **pre-existing** `CrossSpeciesLimbContact_DoesNotTransmit
+  Support` integration test also fails on baseline (verified with U1a stashed) — likely a merge
+  regression in the felling flood's palette-store material reads. Both belong to the felling-
+  reliability thread (U2/U3), not U0's plumbing.
 - **U1a — Broadphase over the occupancy grids (see §15.5). MUST precede U1.** Today
   `generateContacts` scans **every registered chunk grid for every collision box of every awake
   body, every substep** — cost scales with *world size*, not with the falling object. Index the
