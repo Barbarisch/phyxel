@@ -905,13 +905,23 @@ scalability lands before the features that multiply body counts.
   is independent of loaded-chunk count — the assertion that pins the fix) plus L4 (FPS while
   felling in a large streamed world). *Red test:* register N chunk grids, fell one tree, assert
   call count does not grow with N — currently linear in N.
-- **U1 — Ground the budgets (the deferred P1.3).** Release-build benchmark of
-  `VoxelDynamicsWorld` producing real ceilings for `FragmentBudget.maxActiveBodies` and
-  `COHERENT_MAX_VOXELS`, encoded as an automated assertion in `tests/benchmark/` so they cannot
-  silently drift the way a hand-copied doc number can. Everything downstream is currently sized
-  against guesses. **Run this AFTER U1a**: benchmarking the body ceiling while a world-size-linear
-  scan dominates the profile would measure the chunk count, not the body count, and bake a bogus
-  ceiling into `tests/benchmark/`. *Depth:* L2 plus a benchmark gate.
+- **U1 — Ground the budgets (the deferred P1.3). NEXT — scoped 2026-07-20, not yet built.**
+  Release-build benchmark of `VoxelDynamicsWorld` producing real ceilings, encoded as an automated
+  assertion in `tests/benchmark/` so they cannot silently drift. **Scoping finding (2026-07-20):**
+  `FragmentBudget` (`CoherentFragmentService.h`, `maxActiveBodies=32`/`maxVoxelsPerBody=4000`) is
+  **dead scaffolding — grepped, referenced nowhere.** The ONLY *live* cap is
+  `DamageSystem::COHERENT_MAX_VOXELS = 2000` (the per-component bail to scatter); there is **no active-
+  body-count cap enforced at all.** So U1 splits: (1) benchmark the CPU ceiling (extend the existing
+  `PhysicsBenchmarks` — it already has `SimulationStep100Bodies` at a 16.67ms/60fps gate — into a
+  sweep on total active collision boxes, on a floor grid so real terrain contacts dominate, since a
+  fell's proxy is ~1 box/wood-cell); (2) set `COHERENT_MAX_VOXELS` from the measured per-body ceiling
+  + assert it; (3) **decide** whether to wire a real active-body cap (make `FragmentBudget` live in
+  the coherent spawn path) or delete the dead struct — that enforcement is a design choice, likely
+  co-scheduled with U5 retirement (which frees active slots). **Run AFTER U1a** (done): benchmarking
+  while the world-size-linear scan dominated would have measured chunk count, not body count. Note:
+  the felling *topple-start* cost is separate (measured ~2.2s collapse-compute for a 1023-cell fell
+  in Debug — the physicalize+flood, not the per-frame step); worth a Release re-measure here too.
+  *Depth:* L2 plus a benchmark gate.
 - **U2 — `CrossSectionAnalyzer` + de-gate the chop.** Extract and generalize the neck-shear survey
   per §15.2: material-weighted, all three voxel scales, any axis. Then remove `carveChopKerf`'s
   `Log`-prefix gating so a tool cuts any material it has affinity for (fists still bounce off
