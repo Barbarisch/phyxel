@@ -451,6 +451,13 @@ struct CellTreeScan {
 static const std::string& cellSpecies(const CellTreeScan& s) {
     return s.log ? s.logSpecies : s.leafSpecies;
 }
+// Do two tree cells belong to the same organism? Species match, OR either is
+// "Heartwood": LogHeartwood is interior/cut-face wood a chop paints WITHIN one tree
+// (species-neutral), so it must conduct to that tree's own Log — not read as a
+// different organism. (Species is the cross-organism proxy until U3 tree-object id.)
+static bool sameTreeSpecies(const std::string& a, const std::string& b) {
+    return a == b || a == "Heartwood" || b == "Heartwood";
+}
 static CellTreeScan scanCellTree(ChunkManager* cm, const glm::ivec3& wp) {
     CellTreeScan s;
     // F6 — STRUCTURAL wood = log at cube (1 m) or subcube (1/3 m) cross-section. A
@@ -1425,6 +1432,11 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
 
                 const bool vTree = isTreeCell(m_cm, v);
                 if (!vTree) hasTerrain = true;
+                // Cross-organism proxy: this tree cell's species (empty for non-tree).
+                // Used below to stop support conducting between two DIFFERENT trees whose
+                // limbs merely touch. Copied (not a ref into a temporary).
+                const std::string vSpecies = vTree ? cellSpecies(scanCellTree(m_cm, v))
+                                                   : std::string();
                 // TREE-OBJECT anchor (Phase 2): a tree is rooted to the ground ONLY through its
                 // trunk — a Log with terrain directly below. Incidental leaf-or-side terrain
                 // contact must NOT anchor a severed top, so a tree cell never propagates the
@@ -1448,6 +1460,15 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
                     if (m_cm->hasVoxelAt(nb)) {
                         if (isCargoCell(m_cm, nb)) continue;              // cargo NEVER transmits support
                         if (vTree && !isTreeCell(m_cm, nb)) continue;     // tree ↛ terrain (side contact)
+                        // Cross-species (proxy for cross-ORGANISM) contact does not transmit
+                        // support: a birch limb resting against an oak limb is two trees
+                        // touching, so a severed birch top must not draw support through the
+                        // oak's rooted trunk. Species is the available proxy; same-species
+                        // distinct trees remain a gap (U3 tree-object identity). Only gates
+                        // tree↔tree contact — terrain is already excluded above.
+                        if (vTree && isTreeCell(m_cm, nb) &&
+                            !sameTreeSpecies(vSpecies, cellSpecies(scanCellTree(m_cm, nb))))
+                            continue;
                         // F8: vertical tree↔tree steps need real structural face
                         // contact — cell adjacency alone conducted support across
                         // carved-out air gaps (top-skin cells over hollowed necks).
