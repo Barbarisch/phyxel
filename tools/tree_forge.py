@@ -324,7 +324,7 @@ def default_params(h, seed):
         "up_tropism": 0.25, "jitter": 0.35, "max_iter": 220,
         "crook": 0.25,                       # trunk/branch wander: 0 = ramrod straight, 1 = gnarled
         "trunk_r": max(0.9, h * 0.075), "r_min": 0.09, "murray_n": 2.5,
-        "leaf_r": max(0.6, h * 0.045), "leaf_below_r": 0.42, "leaf_density": 0.95,
+        "leaf_r": max(0.6, h * 0.045), "leaf_below_r": 0.42, "leaf_density": 0.55,
         "leaf_res": SUB_PER_CUBE,            # subcube leaves by default (perf lever: 9/3/1)
         # palm-style frond crown (off unless a preset sets `fronds` to a (min,max) count)
         "fronds": None, "frond_len": max(3.0, h * 0.42), "frond_r": 0.24, "frond_mat": "Leaf",

@@ -6,7 +6,7 @@
 # subcategory:  trees
 # facing:       +Z
 # bounds:       6W x 8H x 6D cubes
-# primitives:   4 C + 836 S + 2214 M = 3054
+# primitives:   4 C + 744 S + 2126 M = 2874
 # generator:    tree_forge.py --preset spruce --height 10 --seed 80 --tier forest
 # ==========================================================
 
@@ -39,13 +39,14 @@ S 1 0 3 2 2 0 LogSpruce
 S 1 0 3 2 2 1 LogSpruce
 S 1 0 4 1 0 0 LogSpruce
 S 1 0 4 2 0 0 LogSpruce
+S 2 0 0 2 2 2 LeafSpruce
 S 2 0 1 0 0 2 LogSpruce
 S 2 0 1 0 1 2 LogSpruce
 S 2 0 1 1 0 2 LogSpruce
 S 2 0 1 1 1 2 LogSpruce
 S 2 0 1 2 0 2 LogSpruce
 S 2 0 1 2 1 2 LogSpruce
-S 2 0 1 2 2 1 LeafSpruce
+S 2 0 1 2 2 0 LeafSpruce
 S 2 0 1 2 2 2 LogSpruce
 S 2 0 4 0 0 0 LogSpruce
 S 2 0 4 0 0 1 LogSpruce
@@ -58,14 +59,15 @@ S 2 0 4 2 0 0 LogSpruce
 S 2 0 4 2 0 1 LogSpruce
 S 2 0 4 2 1 0 LogSpruce
 S 2 0 4 2 2 0 LogSpruce
+S 3 0 0 0 2 2 LeafSpruce
 S 3 0 1 0 0 2 LogSpruce
 S 3 0 1 0 1 2 LogSpruce
+S 3 0 1 0 2 0 LeafSpruce
 S 3 0 1 0 2 1 LeafSpruce
 S 3 0 1 0 2 2 LogSpruce
 S 3 0 1 1 0 2 LogSpruce
 S 3 0 1 1 1 2 LogSpruce
 S 3 0 1 1 2 1 LeafSpruce
-S 3 0 1 1 2 2 LeafSpruce
 S 3 0 1 2 0 2 LogSpruce
 S 3 0 4 0 0 0 LogSpruce
 S 3 0 4 0 1 0 LogSpruce
@@ -79,7 +81,6 @@ S 4 0 2 0 0 2 LogSpruce
 S 4 0 2 0 1 1 LogSpruce
 S 4 0 2 0 1 2 LogSpruce
 S 4 0 2 0 2 2 LogSpruce
-S 4 0 2 1 2 2 LeafSpruce
 S 4 0 3 0 0 0 LogSpruce
 S 4 0 3 0 0 1 LogSpruce
 S 4 0 3 0 0 2 LogSpruce
@@ -102,52 +103,51 @@ S 0 1 2 2 1 2 LeafSpruce
 S 0 1 2 2 2 0 LeafSpruce
 S 0 1 2 2 2 1 LeafSpruce
 S 0 1 2 2 2 2 LeafSpruce
-S 1 1 1 0 0 2 LeafSpruce
+S 0 1 3 2 2 0 LeafSpruce
 S 1 1 1 0 1 2 LeafSpruce
 S 1 1 1 0 2 2 LeafSpruce
 S 1 1 2 0 0 0 LeafSpruce
 S 1 1 2 0 0 1 LeafSpruce
 S 1 1 2 0 0 2 LeafSpruce
 S 1 1 2 0 2 0 LeafSpruce
-S 1 1 2 1 0 1 LeafSpruce
-S 1 1 2 1 0 2 LeafSpruce
 S 1 1 2 1 1 0 LeafSpruce
 S 1 1 2 1 1 1 LeafSpruce
 S 1 1 2 1 1 2 LogSpruce
-S 1 1 2 1 2 0 LeafSpruce
 S 1 1 2 1 2 1 LeafSpruce
 S 1 1 2 1 2 2 LogSpruce
 S 1 1 2 2 0 1 LeafSpruce
 S 1 1 2 2 0 2 LogSpruce
-S 1 1 2 2 1 1 LeafSpruce
 S 1 1 2 2 1 2 LogSpruce
 S 1 1 2 2 2 1 LeafSpruce
 S 1 1 2 2 2 2 LogSpruce
 S 1 1 3 0 1 0 LeafSpruce
 S 1 1 3 0 2 0 LeafSpruce
-S 1 1 3 1 0 0 LeafSpruce
+S 1 1 3 0 2 1 LeafSpruce
 S 1 1 3 1 1 0 LeafSpruce
 S 1 1 3 1 2 0 LeafSpruce
-S 1 1 3 2 0 0 LeafSpruce
-S 1 1 3 2 1 0 LeafSpruce
+S 1 1 3 1 2 2 LeafSpruce
+S 1 1 3 2 1 2 LeafSpruce
 S 1 1 3 2 2 0 LeafSpruce
 S 1 1 3 2 2 2 LeafSpruce
 S 1 1 4 1 1 0 LeafSpruce
 S 1 1 4 1 1 1 LeafSpruce
 S 1 1 4 1 2 0 LeafSpruce
 S 1 1 4 1 2 1 LeafSpruce
+S 1 1 4 1 2 2 LeafSpruce
 S 1 1 4 2 1 0 LeafSpruce
 S 1 1 4 2 1 1 LeafSpruce
 S 1 1 4 2 2 2 LeafSpruce
+S 2 1 0 1 0 2 LeafSpruce
+S 2 1 0 1 1 2 LeafSpruce
 S 2 1 0 2 0 1 LeafSpruce
+S 2 1 0 2 1 1 LeafSpruce
+S 2 1 0 2 2 2 LeafSpruce
 S 2 1 1 0 2 0 LeafSpruce
 S 2 1 1 0 2 1 LeafSpruce
-S 2 1 1 1 1 2 LeafSpruce
 S 2 1 1 1 2 0 LeafSpruce
 S 2 1 1 1 2 1 LeafSpruce
 S 2 1 1 1 2 2 LeafSpruce
 S 2 1 1 2 0 0 LeafSpruce
-S 2 1 1 2 0 1 LeafSpruce
 S 2 1 1 2 0 2 LogSpruce
 S 2 1 1 2 1 0 LeafSpruce
 S 2 1 1 2 1 1 LeafSpruce
@@ -157,40 +157,29 @@ S 2 1 1 2 2 2 LeafSpruce
 S 2 1 2 0 0 0 LeafSpruce
 S 2 1 2 0 0 1 LogSpruce
 S 2 1 2 0 0 2 LogSpruce
-S 2 1 2 0 1 0 LeafSpruce
 S 2 1 2 0 1 1 LeafSpruce
 S 2 1 2 0 1 2 LogSpruce
-S 2 1 2 0 2 1 LeafSpruce
-S 2 1 2 0 2 2 LeafSpruce
 S 2 1 2 1 0 0 LogSpruce
 S 2 1 2 1 0 1 LogSpruce
 S 2 1 2 1 0 2 LogSpruce
 S 2 1 2 1 1 0 LeafSpruce
 S 2 1 2 1 1 1 LogSpruce
 S 2 1 2 1 1 2 LogSpruce
-S 2 1 2 1 2 1 LeafSpruce
 S 2 1 2 2 0 0 LogSpruce
 S 2 1 2 2 0 1 LogSpruce
 S 2 1 2 2 0 2 LogSpruce
 S 2 1 2 2 1 0 LogSpruce
 S 2 1 2 2 1 1 LogSpruce
 S 2 1 2 2 1 2 LogSpruce
-S 2 1 2 2 2 0 LeafSpruce
-S 2 1 2 2 2 1 LeafSpruce
 S 2 1 2 2 2 2 LogSpruce
 S 2 1 3 0 0 0 LogSpruce
 S 2 1 3 0 0 1 LogSpruce
 S 2 1 3 0 1 0 LogSpruce
-S 2 1 3 0 2 0 LeafSpruce
-S 2 1 3 0 2 2 LeafSpruce
 S 2 1 3 1 0 0 LogSpruce
 S 2 1 3 1 0 1 LogSpruce
 S 2 1 3 1 0 2 LogSpruce
 S 2 1 3 1 1 0 LogSpruce
 S 2 1 3 1 1 1 LogSpruce
-S 2 1 3 1 1 2 LeafSpruce
-S 2 1 3 1 2 0 LeafSpruce
-S 2 1 3 1 2 2 LeafSpruce
 S 2 1 3 2 0 0 LogSpruce
 S 2 1 3 2 0 1 LogSpruce
 S 2 1 3 2 0 2 LogSpruce
@@ -198,30 +187,20 @@ S 2 1 3 2 1 0 LogSpruce
 S 2 1 3 2 1 1 LogSpruce
 S 2 1 3 2 1 2 LogSpruce
 S 2 1 3 2 2 0 LogSpruce
-S 2 1 3 2 2 1 LeafSpruce
 S 2 1 3 2 2 2 LogSpruce
 S 2 1 4 0 1 0 LeafSpruce
 S 2 1 4 0 1 1 LeafSpruce
 S 2 1 4 0 2 1 LeafSpruce
-S 2 1 4 1 0 0 LeafSpruce
-S 2 1 4 1 1 1 LeafSpruce
-S 2 1 4 1 2 1 LeafSpruce
-S 2 1 4 2 0 0 LeafSpruce
 S 2 1 4 2 1 0 LogSpruce
-S 2 1 4 2 1 1 LeafSpruce
 S 2 1 4 2 2 0 LogSpruce
-S 2 1 4 2 2 1 LeafSpruce
 S 3 1 0 0 0 1 LeafSpruce
-S 3 1 0 1 1 1 LeafSpruce
-S 3 1 0 1 2 2 LeafSpruce
-S 3 1 0 2 0 2 LeafSpruce
-S 3 1 0 2 1 2 LeafSpruce
+S 3 1 0 0 1 1 LeafSpruce
+S 3 1 0 0 2 2 LeafSpruce
 S 3 1 1 0 0 0 LeafSpruce
 S 3 1 1 0 0 1 LogSpruce
 S 3 1 1 0 0 2 LogSpruce
 S 3 1 1 0 1 1 LogSpruce
 S 3 1 1 0 1 2 LogSpruce
-S 3 1 1 0 2 0 LeafSpruce
 S 3 1 1 0 2 1 LogSpruce
 S 3 1 1 0 2 2 LogSpruce
 S 3 1 1 1 0 0 LeafSpruce
@@ -234,6 +213,7 @@ S 3 1 1 1 2 0 LeafSpruce
 S 3 1 1 1 2 1 LeafSpruce
 S 3 1 1 1 2 2 LogSpruce
 S 3 1 1 2 0 0 LeafSpruce
+S 3 1 1 2 0 1 LeafSpruce
 S 3 1 1 2 1 0 LeafSpruce
 S 3 1 1 2 1 1 LeafSpruce
 S 3 1 1 2 1 2 LeafSpruce
@@ -251,7 +231,6 @@ S 3 1 2 0 2 2 LogSpruce
 S 3 1 2 1 0 0 LogSpruce
 S 3 1 2 1 0 1 LogSpruce
 S 3 1 2 1 0 2 LogSpruce
-S 3 1 2 1 1 0 LeafSpruce
 S 3 1 2 1 1 1 LogSpruce
 S 3 1 2 1 1 2 LogSpruce
 S 3 1 2 1 2 0 LeafSpruce
@@ -276,28 +255,20 @@ S 3 1 3 1 0 1 LogSpruce
 S 3 1 3 1 0 2 LogSpruce
 S 3 1 3 1 1 0 LogSpruce
 S 3 1 3 1 1 1 LogSpruce
-S 3 1 3 1 1 2 LeafSpruce
 S 3 1 3 1 2 0 LogSpruce
-S 3 1 3 1 2 1 LeafSpruce
-S 3 1 3 1 2 2 LeafSpruce
 S 3 1 3 2 0 0 LogSpruce
 S 3 1 3 2 0 1 LogSpruce
 S 3 1 3 2 1 0 LogSpruce
 S 3 1 3 2 1 1 LeafSpruce
 S 3 1 3 2 2 0 LogSpruce
 S 3 1 3 2 2 1 LeafSpruce
-S 3 1 4 0 0 0 LeafSpruce
 S 3 1 4 0 1 0 LogSpruce
-S 3 1 4 0 1 1 LeafSpruce
 S 3 1 4 0 2 0 LogSpruce
-S 3 1 4 0 2 1 LeafSpruce
-S 3 1 4 1 1 0 LeafSpruce
-S 3 1 4 1 2 0 LeafSpruce
 S 4 1 1 0 1 1 LeafSpruce
+S 4 1 1 0 1 2 LeafSpruce
 S 4 1 1 0 2 1 LeafSpruce
 S 4 1 1 0 2 2 LeafSpruce
 S 4 1 2 0 0 2 LeafSpruce
-S 4 1 2 0 1 1 LeafSpruce
 S 4 1 2 0 1 2 LogSpruce
 S 4 1 2 0 2 0 LeafSpruce
 S 4 1 2 0 2 2 LeafSpruce
@@ -309,7 +280,6 @@ S 4 1 2 1 2 0 LeafSpruce
 S 4 1 2 1 2 1 LeafSpruce
 S 4 1 2 1 2 2 LeafSpruce
 S 4 1 2 2 0 2 LeafSpruce
-S 4 1 2 2 1 1 LeafSpruce
 S 4 1 2 2 1 2 LeafSpruce
 S 4 1 3 0 0 0 LeafSpruce
 S 4 1 3 0 0 2 LeafSpruce
@@ -328,6 +298,7 @@ S 4 1 3 1 2 1 LogSpruce
 S 4 1 3 2 0 0 LeafSpruce
 S 4 1 3 2 0 2 LeafSpruce
 S 4 1 3 2 1 0 LeafSpruce
+S 4 1 3 2 1 1 LeafSpruce
 S 4 1 3 2 1 2 LeafSpruce
 S 4 1 3 2 2 0 LeafSpruce
 S 4 1 4 0 0 0 LeafSpruce
@@ -339,30 +310,49 @@ S 4 1 4 1 0 1 LeafSpruce
 S 4 1 4 1 1 1 LeafSpruce
 S 4 1 4 1 2 1 LeafSpruce
 S 4 1 4 2 0 0 LeafSpruce
+S 4 1 4 2 0 1 LeafSpruce
 S 4 1 4 2 1 0 LeafSpruce
 S 4 1 4 2 1 1 LeafSpruce
+S 4 1 4 2 2 1 LeafSpruce
+S 5 1 3 0 1 2 LeafSpruce
+S 5 1 3 0 2 1 LeafSpruce
 S 5 1 3 0 2 2 LeafSpruce
+S 5 1 4 0 1 0 LeafSpruce
 S 5 1 4 0 2 0 LeafSpruce
 S 0 2 2 2 0 0 LeafSpruce
 S 0 2 2 2 0 1 LeafSpruce
 S 0 2 2 2 0 2 LeafSpruce
-S 1 2 2 0 0 0 LeafSpruce
+S 0 2 2 2 1 2 LeafSpruce
+S 0 2 3 2 0 0 LeafSpruce
+S 1 2 1 2 0 1 LeafSpruce
+S 1 2 1 2 1 1 LeafSpruce
 S 1 2 2 0 0 1 LeafSpruce
 S 1 2 2 0 0 2 LeafSpruce
+S 1 2 2 0 1 1 LeafSpruce
 S 1 2 2 0 1 2 LeafSpruce
 S 1 2 2 1 0 1 LeafSpruce
 S 1 2 2 1 0 2 LeafSpruce
+S 1 2 2 1 1 1 LeafSpruce
+S 1 2 2 1 1 2 LeafSpruce
 S 1 2 2 2 0 1 LeafSpruce
 S 1 2 2 2 0 2 LeafSpruce
+S 1 2 2 2 1 2 LeafSpruce
 S 1 2 2 2 2 2 LeafSpruce
 S 1 2 3 0 0 0 LeafSpruce
+S 1 2 3 0 0 1 LeafSpruce
+S 1 2 3 0 1 0 LeafSpruce
 S 1 2 3 1 0 0 LeafSpruce
+S 1 2 3 1 0 1 LeafSpruce
+S 1 2 3 1 1 0 LeafSpruce
 S 1 2 3 2 0 0 LeafSpruce
+S 1 2 3 2 1 0 LeafSpruce
 S 1 2 3 2 2 0 LeafSpruce
 S 1 2 4 1 0 0 LeafSpruce
 S 1 2 4 1 0 1 LeafSpruce
 S 1 2 4 2 0 0 LeafSpruce
 S 1 2 4 2 0 1 LeafSpruce
+S 2 2 0 1 0 2 LeafSpruce
+S 2 2 0 1 1 2 LeafSpruce
 S 2 2 1 0 0 0 LeafSpruce
 S 2 2 1 0 0 1 LeafSpruce
 S 2 2 1 0 0 2 LeafSpruce
@@ -381,48 +371,48 @@ S 2 2 1 2 0 0 LeafSpruce
 S 2 2 1 2 1 0 LeafSpruce
 S 2 2 1 2 1 1 LeafSpruce
 S 2 2 1 2 1 2 LeafSpruce
-S 2 2 2 0 0 1 LeafSpruce
-S 2 2 2 1 0 1 LeafSpruce
-S 2 2 2 1 1 1 LeafSpruce
-S 2 2 2 2 0 1 LeafSpruce
+S 2 2 2 0 1 1 LeafSpruce
+S 2 2 2 0 2 1 LeafSpruce
+S 2 2 2 1 2 2 LeafSpruce
 S 2 2 2 2 0 2 LogSpruce
 S 2 2 2 2 1 2 LogSpruce
 S 2 2 2 2 2 2 LogSpruce
-S 2 2 3 0 0 0 LeafSpruce
-S 2 2 3 0 0 2 LeafSpruce
 S 2 2 3 0 1 0 LeafSpruce
 S 2 2 3 0 2 0 LeafSpruce
-S 2 2 3 1 0 0 LeafSpruce
-S 2 2 3 1 0 2 LeafSpruce
 S 2 2 3 1 1 0 LeafSpruce
+S 2 2 3 1 2 0 LeafSpruce
 S 2 2 3 2 0 0 LogSpruce
 S 2 2 3 2 0 1 LeafSpruce
-S 2 2 3 2 0 2 LeafSpruce
 S 2 2 3 2 1 0 LogSpruce
 S 2 2 3 2 1 1 LeafSpruce
-S 2 2 3 2 1 2 LeafSpruce
 S 2 2 3 2 2 0 LogSpruce
+S 2 2 3 2 2 1 LeafSpruce
 S 2 2 4 0 0 1 LeafSpruce
-S 2 2 4 0 1 0 LeafSpruce
-S 2 2 4 1 0 0 LeafSpruce
 S 2 2 4 1 0 1 LeafSpruce
+S 2 2 4 1 0 2 LeafSpruce
+S 2 2 4 1 1 0 LeafSpruce
 S 2 2 4 1 1 1 LeafSpruce
 S 2 2 4 1 1 2 LeafSpruce
+S 2 2 4 1 2 0 LeafSpruce
 S 2 2 4 1 2 1 LeafSpruce
 S 2 2 4 1 2 2 LeafSpruce
 S 2 2 4 2 0 0 LogSpruce
 S 2 2 4 2 0 1 LeafSpruce
+S 2 2 4 2 0 2 LeafSpruce
 S 2 2 4 2 1 0 LeafSpruce
 S 2 2 4 2 1 1 LogSpruce
 S 2 2 4 2 1 2 LeafSpruce
 S 2 2 4 2 2 0 LeafSpruce
 S 2 2 4 2 2 1 LeafSpruce
 S 2 2 4 2 2 2 LeafSpruce
+S 2 2 5 1 1 0 LeafSpruce
+S 2 2 5 1 2 0 LeafSpruce
+S 2 2 5 2 1 0 LeafSpruce
 S 2 2 5 2 2 0 LeafSpruce
 S 3 2 1 0 0 1 LeafSpruce
 S 3 2 1 0 0 2 LeafSpruce
-S 3 2 1 0 1 1 LeafSpruce
 S 3 2 1 0 1 2 LeafSpruce
+S 3 2 1 0 2 1 LeafSpruce
 S 3 2 1 0 2 2 LeafSpruce
 S 3 2 1 1 0 1 LeafSpruce
 S 3 2 1 1 0 2 LogSpruce
@@ -434,36 +424,27 @@ S 3 2 1 2 1 1 LeafSpruce
 S 3 2 1 2 1 2 LeafSpruce
 S 3 2 1 2 2 1 LeafSpruce
 S 3 2 1 2 2 2 LeafSpruce
-S 3 2 2 0 0 0 LeafSpruce
 S 3 2 2 0 0 2 LogSpruce
-S 3 2 2 0 1 0 LeafSpruce
 S 3 2 2 0 1 2 LogSpruce
 S 3 2 2 0 2 2 LogSpruce
-S 3 2 2 1 0 0 LeafSpruce
-S 3 2 2 1 0 1 LeafSpruce
 S 3 2 2 1 0 2 LeafSpruce
 S 3 2 2 1 1 0 LeafSpruce
-S 3 2 2 1 1 1 LeafSpruce
 S 3 2 2 1 1 2 LeafSpruce
 S 3 2 2 1 2 0 LeafSpruce
 S 3 2 2 1 2 2 LeafSpruce
 S 3 2 2 2 0 0 LeafSpruce
 S 3 2 2 2 0 1 LeafSpruce
 S 3 2 2 2 0 2 LeafSpruce
-S 3 2 2 2 1 0 LeafSpruce
 S 3 2 2 2 1 2 LeafSpruce
+S 3 2 2 2 2 0 LeafSpruce
 S 3 2 2 2 2 2 LeafSpruce
 S 3 2 3 0 0 0 LogSpruce
 S 3 2 3 0 0 1 LogSpruce
-S 3 2 3 0 0 2 LeafSpruce
 S 3 2 3 0 1 0 LogSpruce
 S 3 2 3 0 1 1 LogSpruce
-S 3 2 3 0 1 2 LeafSpruce
 S 3 2 3 0 2 0 LogSpruce
 S 3 2 3 0 2 1 LeafSpruce
 S 3 2 3 1 0 0 LogSpruce
-S 3 2 3 1 0 1 LeafSpruce
-S 3 2 3 1 0 2 LeafSpruce
 S 3 2 3 1 1 1 LeafSpruce
 S 3 2 3 1 2 0 LeafSpruce
 S 3 2 3 2 0 1 LeafSpruce
@@ -478,27 +459,21 @@ S 3 2 4 0 1 2 LeafSpruce
 S 3 2 4 0 2 0 LeafSpruce
 S 3 2 4 0 2 1 LeafSpruce
 S 3 2 4 0 2 2 LeafSpruce
-S 3 2 4 1 0 0 LeafSpruce
 S 3 2 4 1 0 1 LeafSpruce
-S 3 2 4 1 0 2 LeafSpruce
 S 3 2 4 1 1 0 LeafSpruce
 S 3 2 4 1 1 1 LogSpruce
 S 3 2 4 1 1 2 LeafSpruce
 S 3 2 4 1 2 0 LeafSpruce
 S 3 2 4 1 2 1 LeafSpruce
 S 3 2 4 1 2 2 LeafSpruce
-S 3 2 4 2 0 1 LeafSpruce
-S 3 2 4 2 0 2 LeafSpruce
-S 3 2 4 2 1 0 LeafSpruce
 S 3 2 4 2 1 1 LeafSpruce
 S 3 2 4 2 1 2 LeafSpruce
-S 3 2 4 2 2 0 LeafSpruce
 S 3 2 4 2 2 1 LeafSpruce
 S 3 2 4 2 2 2 LeafSpruce
-S 3 2 5 1 1 0 LeafSpruce
-S 3 2 5 1 2 0 LeafSpruce
+S 3 2 5 0 1 0 LeafSpruce
+S 3 2 5 0 2 0 LeafSpruce
 S 4 2 1 0 0 2 LeafSpruce
-S 4 2 1 1 0 2 LeafSpruce
+S 4 2 1 0 2 2 LeafSpruce
 S 4 2 2 0 0 2 LeafSpruce
 S 4 2 2 0 1 0 LeafSpruce
 S 4 2 2 0 1 1 LeafSpruce
@@ -510,104 +485,77 @@ S 4 2 2 1 1 0 LeafSpruce
 S 4 2 2 1 1 1 LeafSpruce
 S 4 2 3 0 0 0 LeafSpruce
 S 4 2 3 0 0 1 LeafSpruce
+S 4 2 3 0 0 2 LeafSpruce
 S 4 2 3 0 1 1 LeafSpruce
 S 4 2 3 0 2 1 LeafSpruce
 S 4 2 3 1 0 0 LeafSpruce
 S 4 2 3 1 0 1 LeafSpruce
 S 4 2 3 1 0 2 LeafSpruce
+S 4 2 3 1 1 0 LeafSpruce
+S 4 2 3 1 1 1 LeafSpruce
+S 4 2 3 1 1 2 LeafSpruce
 S 4 2 3 1 2 0 LeafSpruce
 S 4 2 3 1 2 1 LeafSpruce
 S 4 2 3 2 0 0 LeafSpruce
 S 4 2 3 2 0 1 LeafSpruce
 S 4 2 3 2 0 2 LeafSpruce
+S 4 2 3 2 1 1 LeafSpruce
 S 4 2 4 1 0 0 LeafSpruce
 S 4 2 4 2 0 0 LeafSpruce
+S 5 2 3 0 0 1 LeafSpruce
 S 5 2 3 0 0 2 LeafSpruce
-S 1 3 1 2 2 2 LeafSpruce
-S 1 3 2 1 1 1 LeafSpruce
-S 1 3 2 1 1 2 LeafSpruce
+S 5 2 4 0 0 0 LeafSpruce
 S 1 3 2 1 2 1 LeafSpruce
 S 1 3 2 1 2 2 LeafSpruce
-S 1 3 2 2 0 1 LeafSpruce
 S 1 3 2 2 0 2 LeafSpruce
-S 1 3 2 2 1 0 LeafSpruce
 S 1 3 2 2 1 1 LeafSpruce
 S 1 3 2 2 1 2 LeafSpruce
-S 1 3 2 2 2 0 LeafSpruce
-S 1 3 3 2 0 0 LeafSpruce
 S 1 3 3 2 1 0 LeafSpruce
 S 1 3 3 2 2 0 LeafSpruce
-S 2 3 1 0 2 2 LeafSpruce
-S 2 3 1 1 2 2 LeafSpruce
 S 2 3 2 0 0 1 LeafSpruce
-S 2 3 2 0 1 0 LeafSpruce
 S 2 3 2 0 1 1 LeafSpruce
 S 2 3 2 0 2 0 LeafSpruce
 S 2 3 2 0 2 1 LeafSpruce
-S 2 3 2 1 0 2 LeafSpruce
 S 2 3 2 1 1 1 LeafSpruce
 S 2 3 2 1 1 2 LeafSpruce
-S 2 3 2 1 2 0 LeafSpruce
 S 2 3 2 1 2 1 LeafSpruce
 S 2 3 2 1 2 2 LeafSpruce
 S 2 3 2 2 0 2 LogSpruce
-S 2 3 2 2 1 1 LeafSpruce
 S 2 3 2 2 1 2 LogSpruce
 S 2 3 2 2 2 2 LogSpruce
-S 2 3 3 0 0 0 LeafSpruce
 S 2 3 3 0 1 0 LeafSpruce
 S 2 3 3 0 2 0 LeafSpruce
-S 2 3 3 1 0 0 LeafSpruce
-S 2 3 3 1 1 0 LeafSpruce
 S 2 3 3 1 2 0 LeafSpruce
 S 2 3 3 2 0 0 LogSpruce
-S 2 3 3 2 0 1 LeafSpruce
 S 2 3 3 2 1 0 LogSpruce
-S 2 3 3 2 1 1 LeafSpruce
 S 2 3 3 2 2 0 LogSpruce
 S 2 3 3 2 2 1 LeafSpruce
+S 2 3 4 1 0 1 LeafSpruce
+S 2 3 4 1 0 2 LeafSpruce
 S 2 3 4 2 0 1 LeafSpruce
 S 2 3 4 2 0 2 LeafSpruce
 S 3 3 1 0 0 1 LeafSpruce
 S 3 3 1 0 0 2 LeafSpruce
-S 3 3 1 0 1 0 LeafSpruce
 S 3 3 1 0 1 1 LeafSpruce
 S 3 3 1 0 1 2 LeafSpruce
-S 3 3 1 0 2 0 LeafSpruce
 S 3 3 1 0 2 1 LeafSpruce
 S 3 3 1 0 2 2 LeafSpruce
-S 3 3 1 1 1 0 LeafSpruce
-S 3 3 1 1 2 0 LeafSpruce
 S 3 3 1 2 0 1 LeafSpruce
 S 3 3 1 2 0 2 LeafSpruce
-S 3 3 1 2 1 1 LeafSpruce
-S 3 3 1 2 1 2 LeafSpruce
-S 3 3 1 2 2 1 LeafSpruce
-S 3 3 1 2 2 2 LeafSpruce
-S 3 3 2 0 0 1 LeafSpruce
 S 3 3 2 0 0 2 LogSpruce
-S 3 3 2 0 1 1 LeafSpruce
 S 3 3 2 0 1 2 LogSpruce
+S 3 3 2 0 2 1 LeafSpruce
 S 3 3 2 0 2 2 LogSpruce
 S 3 3 2 1 0 0 LeafSpruce
-S 3 3 2 1 0 2 LeafSpruce
-S 3 3 2 1 1 2 LeafSpruce
-S 3 3 2 1 2 0 LeafSpruce
 S 3 3 2 1 2 2 LeafSpruce
 S 3 3 2 2 0 2 LeafSpruce
 S 3 3 2 2 1 2 LeafSpruce
-S 3 3 2 2 2 2 LeafSpruce
 S 3 3 3 0 0 0 LogSpruce
-S 3 3 3 0 0 1 LeafSpruce
 S 3 3 3 0 1 0 LogSpruce
-S 3 3 3 0 1 1 LeafSpruce
 S 3 3 3 0 2 0 LogSpruce
 S 3 3 3 0 2 1 LeafSpruce
 S 3 3 3 0 2 2 LeafSpruce
-S 3 3 3 1 0 0 LeafSpruce
-S 3 3 3 1 0 1 LeafSpruce
 S 3 3 3 1 1 0 LogSpruce
-S 3 3 3 1 1 1 LeafSpruce
 S 3 3 3 1 2 0 LeafSpruce
 S 3 3 3 1 2 1 LeafSpruce
 S 3 3 3 2 0 0 LeafSpruce
@@ -616,12 +564,8 @@ S 3 3 3 2 1 0 LeafSpruce
 S 3 3 3 2 1 1 LeafSpruce
 S 3 3 3 2 2 0 LeafSpruce
 S 3 3 4 0 0 1 LeafSpruce
-S 3 3 4 1 0 1 LeafSpruce
-S 3 3 4 1 0 2 LeafSpruce
-S 3 3 4 2 0 1 LeafSpruce
-S 3 3 4 2 0 2 LeafSpruce
+S 3 3 4 0 0 2 LeafSpruce
 S 4 3 2 0 0 2 LeafSpruce
-S 4 3 2 0 1 1 LeafSpruce
 S 4 3 2 0 1 2 LeafSpruce
 S 4 3 2 0 2 2 LeafSpruce
 S 4 3 2 1 0 2 LeafSpruce
@@ -636,9 +580,6 @@ S 4 3 3 1 0 1 LeafSpruce
 S 4 3 3 1 1 0 LeafSpruce
 S 4 3 3 1 1 1 LeafSpruce
 S 4 3 3 1 2 0 LeafSpruce
-S 4 3 3 1 2 1 LeafSpruce
-S 1 4 1 2 0 2 LeafSpruce
-S 1 4 1 2 1 2 LeafSpruce
 S 1 4 2 1 0 1 LeafSpruce
 S 1 4 2 1 0 2 LeafSpruce
 S 1 4 2 2 0 0 LeafSpruce
@@ -647,26 +588,20 @@ S 1 4 2 2 1 1 LeafSpruce
 S 1 4 2 2 1 2 LeafSpruce
 S 1 4 3 2 0 0 LeafSpruce
 S 2 4 1 0 0 2 LeafSpruce
-S 2 4 1 0 1 2 LeafSpruce
-S 2 4 1 1 0 2 LeafSpruce
-S 2 4 1 1 1 2 LeafSpruce
-S 2 4 1 2 0 1 LeafSpruce
-S 2 4 1 2 0 2 LeafSpruce
 S 2 4 2 0 0 2 LeafSpruce
 S 2 4 2 0 1 0 LeafSpruce
 S 2 4 2 0 1 1 LeafSpruce
 S 2 4 2 0 1 2 LeafSpruce
-S 2 4 2 0 2 0 LeafSpruce
 S 2 4 2 1 0 0 LeafSpruce
 S 2 4 2 1 0 1 LeafSpruce
 S 2 4 2 1 1 0 LeafSpruce
-S 2 4 2 1 1 1 LeafSpruce
-S 2 4 2 1 1 2 LeafSpruce
 S 2 4 2 2 0 2 LogSpruce
 S 2 4 2 2 1 2 LogSpruce
 S 2 4 2 2 2 2 LeafSpruce
-S 2 4 3 0 0 0 LeafSpruce
+S 2 4 3 1 0 0 LeafSpruce
 S 2 4 3 1 1 0 LeafSpruce
+S 2 4 3 1 1 2 LeafSpruce
+S 2 4 3 1 2 1 LeafSpruce
 S 2 4 3 1 2 2 LeafSpruce
 S 2 4 3 2 0 0 LogSpruce
 S 2 4 3 2 0 1 LeafSpruce
@@ -676,31 +611,28 @@ S 2 4 3 2 1 1 LeafSpruce
 S 2 4 3 2 1 2 LeafSpruce
 S 2 4 3 2 2 0 LogSpruce
 S 2 4 3 2 2 1 LeafSpruce
+S 2 4 4 1 1 0 LeafSpruce
 S 2 4 4 1 2 0 LeafSpruce
+S 2 4 4 1 2 1 LeafSpruce
 S 2 4 4 2 1 0 LeafSpruce
 S 2 4 4 2 2 1 LeafSpruce
-S 3 4 1 0 0 0 LeafSpruce
 S 3 4 1 0 0 1 LeafSpruce
 S 3 4 1 0 0 2 LeafSpruce
 S 3 4 1 0 1 1 LeafSpruce
 S 3 4 1 0 1 2 LeafSpruce
 S 3 4 1 1 0 0 LeafSpruce
-S 3 4 1 1 1 0 LeafSpruce
 S 3 4 1 1 1 1 LeafSpruce
 S 3 4 1 1 1 2 LeafSpruce
 S 3 4 1 2 0 1 LeafSpruce
 S 3 4 1 2 0 2 LeafSpruce
-S 3 4 1 2 1 1 LeafSpruce
 S 3 4 1 2 1 2 LeafSpruce
 S 3 4 2 0 0 0 LeafSpruce
+S 3 4 2 0 0 1 LeafSpruce
 S 3 4 2 0 0 2 LogSpruce
-S 3 4 2 0 1 0 LeafSpruce
-S 3 4 2 0 1 1 LeafSpruce
 S 3 4 2 0 1 2 LogSpruce
 S 3 4 2 0 2 2 LogSpruce
 S 3 4 2 1 0 0 LeafSpruce
 S 3 4 2 1 0 2 LeafSpruce
-S 3 4 2 1 1 0 LeafSpruce
 S 3 4 2 1 1 2 LeafSpruce
 S 3 4 2 1 2 2 LeafSpruce
 S 3 4 2 2 2 1 LeafSpruce
@@ -719,17 +651,13 @@ S 3 4 3 1 1 1 LeafSpruce
 S 3 4 3 1 1 2 LeafSpruce
 S 3 4 3 1 2 0 LeafSpruce
 S 3 4 3 1 2 1 LeafSpruce
-S 3 4 3 1 2 2 LeafSpruce
-S 3 4 4 0 0 0 LeafSpruce
+S 3 4 3 2 0 1 LeafSpruce
 S 3 4 4 0 1 0 LeafSpruce
 S 3 4 4 0 2 0 LeafSpruce
-S 3 4 4 1 1 0 LeafSpruce
-S 3 4 4 1 2 0 LeafSpruce
+S 3 4 4 0 2 1 LeafSpruce
 S 4 4 2 0 2 1 LeafSpruce
 S 4 4 2 0 2 2 LeafSpruce
 S 2 5 2 2 0 2 LeafSpruce
-S 2 5 2 2 1 2 LeafSpruce
-S 2 5 2 2 2 1 LeafSpruce
 S 2 5 2 2 2 2 LeafSpruce
 S 2 5 3 1 0 2 LeafSpruce
 S 2 5 3 1 2 0 LeafSpruce
@@ -737,20 +665,20 @@ S 2 5 3 1 2 1 LeafSpruce
 S 2 5 3 2 0 0 LeafSpruce
 S 2 5 3 2 0 1 LeafSpruce
 S 2 5 3 2 0 2 LeafSpruce
-S 2 5 3 2 1 0 LeafSpruce
+S 2 5 3 2 1 2 LeafSpruce
 S 2 5 3 2 2 0 LeafSpruce
 S 2 5 3 2 2 1 LeafSpruce
 S 2 5 4 1 0 0 LeafSpruce
+S 2 5 4 1 0 1 LeafSpruce
 S 2 5 4 2 0 0 LeafSpruce
+S 2 5 4 2 0 1 LeafSpruce
+S 2 5 4 2 1 0 LeafSpruce
 S 3 5 2 0 0 2 LogSpruce
-S 3 5 2 0 1 1 LeafSpruce
 S 3 5 2 0 1 2 LogSpruce
-S 3 5 2 0 2 1 LeafSpruce
 S 3 5 2 0 2 2 LogSpruce
 S 3 5 2 1 0 1 LeafSpruce
 S 3 5 2 1 0 2 LogSpruce
 S 3 5 2 1 1 1 LeafSpruce
-S 3 5 2 1 2 1 LeafSpruce
 S 3 5 2 1 2 2 LeafSpruce
 S 3 5 2 2 0 0 LeafSpruce
 S 3 5 2 2 0 1 LeafSpruce
@@ -761,12 +689,10 @@ S 3 5 3 0 0 0 LogSpruce
 S 3 5 3 0 0 1 LeafSpruce
 S 3 5 3 0 0 2 LeafSpruce
 S 3 5 3 0 1 0 LogSpruce
-S 3 5 3 0 1 1 LeafSpruce
 S 3 5 3 0 2 0 LogSpruce
 S 3 5 3 0 2 1 LeafSpruce
 S 3 5 3 1 0 0 LeafSpruce
 S 3 5 3 1 0 1 LeafSpruce
-S 3 5 3 1 1 0 LeafSpruce
 S 3 5 3 1 2 0 LeafSpruce
 S 3 5 3 2 0 0 LeafSpruce
 S 3 5 3 2 1 0 LeafSpruce
@@ -779,17 +705,14 @@ S 4 5 2 0 1 1 LeafSpruce
 S 4 5 2 0 1 2 LeafSpruce
 S 4 5 2 0 2 1 LeafSpruce
 S 4 5 2 0 2 2 LeafSpruce
-S 4 5 2 1 0 1 LeafSpruce
 S 4 5 2 1 0 2 LeafSpruce
 S 4 5 2 1 1 1 LeafSpruce
 S 4 5 2 1 1 2 LeafSpruce
 S 4 5 3 0 0 0 LeafSpruce
 S 4 5 3 0 1 0 LeafSpruce
 S 2 6 2 1 0 2 LeafSpruce
-S 2 6 2 1 1 2 LeafSpruce
 S 2 6 2 1 2 1 LeafSpruce
 S 2 6 2 1 2 2 LeafSpruce
-S 2 6 2 2 0 1 LeafSpruce
 S 2 6 2 2 0 2 LeafSpruce
 S 2 6 2 2 1 1 LeafSpruce
 S 2 6 2 2 1 2 LeafSpruce
@@ -801,34 +724,24 @@ S 2 6 3 1 1 0 LeafSpruce
 S 2 6 3 1 1 1 LeafSpruce
 S 2 6 3 2 0 0 LogSpruce
 S 2 6 3 2 0 1 LeafSpruce
-S 2 6 3 2 0 2 LeafSpruce
 S 2 6 3 2 1 0 LeafSpruce
 S 2 6 3 2 1 1 LeafSpruce
-S 2 6 3 2 2 0 LeafSpruce
-S 3 6 2 0 0 1 LeafSpruce
 S 3 6 2 0 0 2 LogSpruce
 S 3 6 2 0 1 1 LeafSpruce
-S 3 6 2 0 2 0 LeafSpruce
 S 3 6 2 1 0 2 LeafSpruce
-S 3 6 2 1 1 1 LeafSpruce
 S 3 6 2 1 1 2 LeafSpruce
-S 3 6 2 1 2 1 LeafSpruce
-S 3 6 2 1 2 2 LeafSpruce
 S 3 6 3 0 0 0 LogSpruce
 S 3 6 3 0 0 1 LeafSpruce
 S 3 6 3 0 1 0 LeafSpruce
 S 3 6 3 0 1 1 LeafSpruce
 S 3 6 3 0 2 0 LeafSpruce
 S 3 6 3 1 0 0 LeafSpruce
-S 3 6 3 1 1 0 LeafSpruce
-S 3 6 3 1 2 0 LeafSpruce
 S 2 7 2 1 0 0 LeafSpruce
 S 2 7 2 1 0 1 LeafSpruce
 S 2 7 2 1 0 2 LeafSpruce
 S 2 7 2 1 1 0 LeafSpruce
 S 2 7 2 1 1 1 LeafSpruce
 S 2 7 2 1 1 2 LeafSpruce
-S 2 7 2 1 2 1 LeafSpruce
 S 2 7 2 2 0 0 LeafSpruce
 S 2 7 2 2 0 2 LeafSpruce
 S 2 7 2 2 1 0 LeafSpruce
@@ -844,12 +757,7 @@ S 3 7 2 0 1 0 LeafSpruce
 S 3 7 2 0 1 1 LeafSpruce
 S 3 7 2 0 1 2 LeafSpruce
 S 3 7 2 0 2 1 LeafSpruce
-S 3 7 2 0 2 2 LeafSpruce
 S 3 7 2 1 0 1 LeafSpruce
-S 3 7 2 1 0 2 LeafSpruce
-S 3 7 2 1 1 1 LeafSpruce
-S 3 7 3 0 0 0 LeafSpruce
-S 3 7 3 0 1 0 LeafSpruce
 M 0 1 2 2 1 0 0 0 0 LeafSpruce
 M 0 1 2 2 1 0 0 0 1 LeafSpruce
 M 0 1 2 2 1 0 0 0 2 LeafSpruce
@@ -1147,32 +1055,7 @@ M 2 1 0 2 1 2 2 1 2 LeafSpruce
 M 2 1 0 2 1 2 2 2 0 LeafSpruce
 M 2 1 0 2 1 2 2 2 1 LeafSpruce
 M 2 1 0 2 1 2 2 2 2 LeafSpruce
-M 2 1 2 1 2 2 0 0 0 LeafSpruce
-M 2 1 2 1 2 2 0 0 1 LeafSpruce
-M 2 1 2 1 2 2 0 0 2 LeafSpruce
-M 2 1 2 1 2 2 0 1 0 LeafSpruce
-M 2 1 2 1 2 2 0 1 1 LeafSpruce
-M 2 1 2 1 2 2 0 1 2 LeafSpruce
-M 2 1 2 1 2 2 0 2 0 LeafSpruce
-M 2 1 2 1 2 2 0 2 1 LeafSpruce
-M 2 1 2 1 2 2 0 2 2 LeafSpruce
-M 2 1 2 1 2 2 1 0 0 LeafSpruce
-M 2 1 2 1 2 2 1 0 1 LeafSpruce
-M 2 1 2 1 2 2 1 0 2 LeafSpruce
-M 2 1 2 1 2 2 1 1 0 LeafSpruce
-M 2 1 2 1 2 2 1 1 1 LeafSpruce
-M 2 1 2 1 2 2 1 1 2 LeafSpruce
-M 2 1 2 1 2 2 1 2 0 LeafSpruce
-M 2 1 2 1 2 2 1 2 1 LeafSpruce
-M 2 1 2 1 2 2 1 2 2 LeafSpruce
-M 2 1 2 1 2 2 2 0 0 LeafSpruce
-M 2 1 2 1 2 2 2 0 1 LeafSpruce
-M 2 1 2 1 2 2 2 0 2 LeafSpruce
-M 2 1 2 1 2 2 2 1 0 LeafSpruce
-M 2 1 2 1 2 2 2 1 1 LeafSpruce
 M 2 1 2 1 2 2 2 1 2 LogSpruce
-M 2 1 2 1 2 2 2 2 0 LeafSpruce
-M 2 1 2 1 2 2 2 2 1 LeafSpruce
 M 2 1 2 1 2 2 2 2 2 LogSpruce
 M 2 1 4 0 2 0 0 0 0 LeafSpruce
 M 2 1 4 0 2 0 0 0 1 LeafSpruce
@@ -1201,60 +1084,17 @@ M 2 1 4 0 2 0 2 1 2 LeafSpruce
 M 2 1 4 0 2 0 2 2 0 LeafSpruce
 M 2 1 4 0 2 0 2 2 1 LogSpruce
 M 2 1 4 0 2 0 2 2 2 LeafSpruce
-M 2 1 4 1 1 0 0 0 0 LeafSpruce
-M 2 1 4 1 1 0 0 0 1 LeafSpruce
-M 2 1 4 1 1 0 0 0 2 LeafSpruce
-M 2 1 4 1 1 0 0 1 0 LeafSpruce
-M 2 1 4 1 1 0 0 1 1 LeafSpruce
-M 2 1 4 1 1 0 0 1 2 LeafSpruce
-M 2 1 4 1 1 0 0 2 0 LeafSpruce
-M 2 1 4 1 1 0 0 2 1 LeafSpruce
-M 2 1 4 1 1 0 0 2 2 LeafSpruce
-M 2 1 4 1 1 0 1 0 0 LeafSpruce
-M 2 1 4 1 1 0 1 0 1 LeafSpruce
-M 2 1 4 1 1 0 1 0 2 LeafSpruce
-M 2 1 4 1 1 0 1 1 0 LeafSpruce
-M 2 1 4 1 1 0 1 1 1 LeafSpruce
-M 2 1 4 1 1 0 1 1 2 LeafSpruce
-M 2 1 4 1 1 0 1 2 0 LeafSpruce
-M 2 1 4 1 1 0 1 2 1 LeafSpruce
-M 2 1 4 1 1 0 1 2 2 LeafSpruce
-M 2 1 4 1 1 0 2 0 0 LeafSpruce
-M 2 1 4 1 1 0 2 0 1 LeafSpruce
-M 2 1 4 1 1 0 2 0 2 LeafSpruce
-M 2 1 4 1 1 0 2 1 0 LeafSpruce
-M 2 1 4 1 1 0 2 1 1 LeafSpruce
-M 2 1 4 1 1 0 2 1 2 LeafSpruce
-M 2 1 4 1 1 0 2 2 0 LeafSpruce
 M 2 1 4 1 1 0 2 2 1 LogSpruce
-M 2 1 4 1 1 0 2 2 2 LeafSpruce
-M 2 1 4 1 2 0 0 0 0 LeafSpruce
-M 2 1 4 1 2 0 0 0 1 LeafSpruce
-M 2 1 4 1 2 0 0 0 2 LeafSpruce
 M 2 1 4 1 2 0 0 1 0 LogSpruce
 M 2 1 4 1 2 0 0 1 1 LogSpruce
-M 2 1 4 1 2 0 0 1 2 LeafSpruce
-M 2 1 4 1 2 0 0 2 0 LeafSpruce
 M 2 1 4 1 2 0 0 2 1 LogSpruce
-M 2 1 4 1 2 0 0 2 2 LeafSpruce
 M 2 1 4 1 2 0 1 0 0 LogSpruce
 M 2 1 4 1 2 0 1 0 1 LogSpruce
-M 2 1 4 1 2 0 1 0 2 LeafSpruce
 M 2 1 4 1 2 0 1 1 0 LogSpruce
 M 2 1 4 1 2 0 1 1 1 LogSpruce
-M 2 1 4 1 2 0 1 1 2 LeafSpruce
-M 2 1 4 1 2 0 1 2 0 LeafSpruce
-M 2 1 4 1 2 0 1 2 1 LeafSpruce
-M 2 1 4 1 2 0 1 2 2 LeafSpruce
 M 2 1 4 1 2 0 2 0 0 LogSpruce
 M 2 1 4 1 2 0 2 0 1 LogSpruce
-M 2 1 4 1 2 0 2 0 2 LeafSpruce
-M 2 1 4 1 2 0 2 1 0 LeafSpruce
 M 2 1 4 1 2 0 2 1 1 LogSpruce
-M 2 1 4 1 2 0 2 1 2 LeafSpruce
-M 2 1 4 1 2 0 2 2 0 LeafSpruce
-M 2 1 4 1 2 0 2 2 1 LeafSpruce
-M 2 1 4 1 2 0 2 2 2 LeafSpruce
 M 3 1 0 0 0 2 0 0 0 LeafSpruce
 M 3 1 0 0 0 2 0 0 1 LeafSpruce
 M 3 1 0 0 0 2 0 0 2 LeafSpruce
@@ -1795,33 +1635,13 @@ M 2 2 2 0 2 2 2 1 2 LeafSpruce
 M 2 2 2 0 2 2 2 2 0 LeafSpruce
 M 2 2 2 0 2 2 2 2 1 LeafSpruce
 M 2 2 2 0 2 2 2 2 2 LeafSpruce
-M 2 2 2 1 0 2 0 0 0 LeafSpruce
-M 2 2 2 1 0 2 0 0 1 LeafSpruce
-M 2 2 2 1 0 2 0 0 2 LeafSpruce
-M 2 2 2 1 0 2 0 1 0 LeafSpruce
-M 2 2 2 1 0 2 0 1 1 LeafSpruce
 M 2 2 2 1 0 2 0 1 2 LogSpruce
-M 2 2 2 1 0 2 0 2 0 LeafSpruce
-M 2 2 2 1 0 2 0 2 1 LeafSpruce
 M 2 2 2 1 0 2 0 2 2 LogSpruce
-M 2 2 2 1 0 2 1 0 0 LeafSpruce
-M 2 2 2 1 0 2 1 0 1 LeafSpruce
 M 2 2 2 1 0 2 1 0 2 LogSpruce
-M 2 2 2 1 0 2 1 1 0 LeafSpruce
-M 2 2 2 1 0 2 1 1 1 LeafSpruce
 M 2 2 2 1 0 2 1 1 2 LogSpruce
-M 2 2 2 1 0 2 1 2 0 LeafSpruce
-M 2 2 2 1 0 2 1 2 1 LeafSpruce
 M 2 2 2 1 0 2 1 2 2 LogSpruce
-M 2 2 2 1 0 2 2 0 0 LeafSpruce
-M 2 2 2 1 0 2 2 0 1 LeafSpruce
 M 2 2 2 1 0 2 2 0 2 LogSpruce
-M 2 2 2 1 0 2 2 1 0 LeafSpruce
-M 2 2 2 1 0 2 2 1 1 LeafSpruce
 M 2 2 2 1 0 2 2 1 2 LogSpruce
-M 2 2 2 1 0 2 2 2 0 LeafSpruce
-M 2 2 2 1 0 2 2 2 1 LeafSpruce
-M 2 2 2 1 0 2 2 2 2 LeafSpruce
 M 2 2 2 1 1 2 0 0 0 LeafSpruce
 M 2 2 2 1 1 2 0 0 1 LeafSpruce
 M 2 2 2 1 1 2 0 0 2 LogSpruce
