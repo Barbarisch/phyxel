@@ -905,23 +905,35 @@ scalability lands before the features that multiply body counts.
   is independent of loaded-chunk count — the assertion that pins the fix) plus L4 (FPS while
   felling in a large streamed world). *Red test:* register N chunk grids, fell one tree, assert
   call count does not grow with N — currently linear in N.
-- **U1 — Ground the budgets (the deferred P1.3). NEXT — scoped 2026-07-20, not yet built.**
-  Release-build benchmark of `VoxelDynamicsWorld` producing real ceilings, encoded as an automated
-  assertion in `tests/benchmark/` so they cannot silently drift. **Scoping finding (2026-07-20):**
-  `FragmentBudget` (`CoherentFragmentService.h`, `maxActiveBodies=32`/`maxVoxelsPerBody=4000`) is
-  **dead scaffolding — grepped, referenced nowhere.** The ONLY *live* cap is
-  `DamageSystem::COHERENT_MAX_VOXELS = 2000` (the per-component bail to scatter); there is **no active-
-  body-count cap enforced at all.** So U1 splits: (1) benchmark the CPU ceiling (extend the existing
-  `PhysicsBenchmarks` — it already has `SimulationStep100Bodies` at a 16.67ms/60fps gate — into a
-  sweep on total active collision boxes, on a floor grid so real terrain contacts dominate, since a
-  fell's proxy is ~1 box/wood-cell); (2) set `COHERENT_MAX_VOXELS` from the measured per-body ceiling
-  + assert it; (3) **decide** whether to wire a real active-body cap (make `FragmentBudget` live in
-  the coherent spawn path) or delete the dead struct — that enforcement is a design choice, likely
-  co-scheduled with U5 retirement (which frees active slots). **Run AFTER U1a** (done): benchmarking
-  while the world-size-linear scan dominated would have measured chunk count, not body count. Note:
-  the felling *topple-start* cost is separate (measured ~2.2s collapse-compute for a 1023-cell fell
-  in Debug — the physicalize+flood, not the per-frame step); worth a Release re-measure here too.
-  *Depth:* L2 plus a benchmark gate.
+- **U1 — Ground the budgets (the deferred P1.3). ✅ SHIPPED 2026-07-20.** Release contact-pile
+  benchmark added: `PhysicsBenchmarks.CoherentBudgetCeiling_PilingContacts` drops N single-box
+  bodies (a fell's proxy is ~1 collision box per wood cell) into a floor+walls arena so real
+  terrain + body-body contacts dominate, and reports the **peak (impact-frame) step time** per
+  active-box count. **Grounded ceiling (Release, two stable runs):**
+
+  | active boxes | 100 | 200 | 400 | 800 | 1200 |
+  |---|---|---|---|---|---|
+  | peak ms | ~7.2 | ~13.3 | ~27 | ~54 | ~69 |
+
+  So the worst-case simultaneous-impact **60fps knee is ~200 active collision boxes** (~one 200-cell
+  fell, or several small ones landing together); 400 halves to ~30fps for that frame. Settled (asleep)
+  step time is 2–10ms — the cost is the transient impact, not the resting population. The assertion is
+  a regression guard at the comfortable 100-box point (peak < 14ms vs ~7ms grounded) so CI variance
+  doesn't flake it while a real solver/broadphase regression trips it.
+  - **`COHERENT_MAX_VOXELS` decision: kept at 2000.** It bounds ONE compound body, which has NO
+    internal body-body collision (only terrain), so a single 2000-cell fell is materially cheaper than
+    the pile numbers above (which include body-body). 2000 is a defensible per-body cap; raising it
+    would want a dedicated single-huge-body measurement first.
+  - **`FragmentBudget` decision: DELETED** (was `maxActiveBodies=32`/`maxVoxelsPerBody=4000`). It was
+    referenced nowhere AND used the wrong unit (bodies, not boxes — one fell can be 1 or 1000 boxes).
+    The real constraint is total-active-**boxes** ≈ 200. A live cap on that is deferred to **U5
+    retirement**: a hard cap *without* retirement would just stop destruction after a couple of trees
+    (settled fells never free the budget). Freezing settled fells out of the solver is exactly what
+    makes the active budget bounded — so the cap belongs there, grounded at ~200 boxes by this bench.
+  - Also confirmed here: the branch **builds and tests clean in Release** (first Release build on this
+    branch). Deferred: a Release re-measure of the *topple-start* collapse-compute (~2.2s for a
+    1023-cell fell in Debug — physicalize + flood, separate from the per-frame step).
+  *Depth:* L2 + benchmark gate — met.
 - **U2 — `CrossSectionAnalyzer` + de-gate the chop.** Extract and generalize the neck-shear survey
   per §15.2: material-weighted, all three voxel scales, any axis. Then remove `carveChopKerf`'s
   `Log`-prefix gating so a tool cuts any material it has affinity for (fists still bounce off

@@ -31,13 +31,14 @@ struct PhysicalizedFragment {
     bool ok() const { return body != nullptr; }
 };
 
-/// Budget governing coherent fragments (docs/DestructionSystemV2.md §8, §5.G).
-/// The numeric ceilings here are PLACEHOLDERS until the Phase-1 Release benchmark
-/// (P1.3) measures the real CPU-body limit — do NOT treat them as grounded.
-struct FragmentBudget {
-    int maxActiveBodies  = 32;      ///< max concurrently-ACTIVE coherent bodies (retirement frees slots)
-    int maxVoxelsPerBody = 4000;    ///< a bigger severed set falls back to particle scatter
-};
+// NOTE (U1, 2026-07-20): a `FragmentBudget` struct (maxActiveBodies/maxVoxelsPerBody) once
+// lived here as an UNENFORCED placeholder. It was deleted — it was referenced nowhere AND used
+// the wrong unit (bodies, not collision boxes: one fell can be 1 or 1000 boxes). The Release
+// pile benchmark (tests/benchmark PhysicsBenchmarks.CoherentBudgetCeiling_PilingContacts)
+// grounds the real constraint at ~200 concurrently-active collision boxes for a 60fps worst-case
+// impact frame. A live cap on that budget belongs with U5 retirement (freezing settled fells is
+// what frees the active budget — a hard cap without it would just stop destruction after a couple
+// of trees). Until then the only live bound is DamageSystem::COHERENT_MAX_VOXELS (per-component).
 
 /// Shared machinery for turning a connected set of voxels into a coherent falling
 /// rigid body (docs/DestructionSystemV2.md §5.B). Generalized out of
@@ -74,8 +75,8 @@ public:
     ///                        nullptr = identity). Per-box mass is renormalized to it.
     ///
     /// Returns {body, kineticObjId, transform}; body == nullptr on failure (empty
-    /// input, no world, or createBody failure). Does NOT enforce FragmentBudget — the
-    /// caller decides budget/fallback before calling.
+    /// input, no world, or createBody failure). Does NOT enforce any budget — the caller
+    /// decides budget/fallback before calling (see COHERENT_MAX_VOXELS in DamageSystem).
     static PhysicalizedFragment physicalize(
         Physics::VoxelDynamicsWorld* voxelWorld,
         KinematicVoxelManager* kinematic,
