@@ -121,5 +121,45 @@ TEST_F(CoherentCollapseIntegrationTest, NoFragmentManager_FallsBackToScatter) {
     EXPECT_EQ(countSolid(cells), 0)                     << "still scatters";
 }
 
+// The user's actual scenario (not a floating block): a STONE tower ROOTED to the ground.
+// Cut its base and the section above must sever and topple as a coherent body, while the
+// rooted stub + floor stay. Proves structure felling works for a non-tree material (no
+// species/cargo/rooted-trunk tree rules — plain connectivity + the coherent gather, whose
+// "wood" partition is really "non-leaf structural material", so Stone flows through it).
+TEST_F(CoherentCollapseIntegrationTest, RootedStoneTower_BaseCut_TopTopplesCoherently) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "Vulkan/physics env not ready";
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    ASSERT_NE(voxelWorld, nullptr);
+
+    // Stone floor (ground anchor via supportY=5) + a 1x1 stone tower rooted on it.
+    for (int x = 0; x < 12; ++x)
+        for (int z = 0; z < 12; ++z)
+            chunkManager->addCubeWithMaterial(glm::ivec3(x, 5, z), "Stone");
+    std::vector<glm::ivec3> tower;
+    for (int y = 6; y <= 20; ++y) {
+        glm::ivec3 wp(6, y, 6);
+        chunkManager->addCubeWithMaterial(wp, "Stone");
+        tower.push_back(wp);
+    }
+
+    Core::KinematicVoxelManager   kin;
+    Core::CoherentFragmentManager mgr;
+    mgr.setDeps(voxelWorld, &kin);
+
+    DamageSystem dmg(chunkManager.get(), nullptr);
+    dmg.setFragmentManager(&mgr);
+    // Cut the tower at y=12 (r=0.9 reaches only that cell; neighbours are 1.0 away).
+    auto res = dmg.applyDamage(glm::vec3(6.5f, 12.5f, 6.5f), 0.9f, 1500.0f, "force",
+                               glm::vec3(0.0f), /*supportY*/ 5.0f, /*collapse*/ true, /*coherent*/ true);
+
+    EXPECT_GE(mgr.count(), 1u) << "tower top did not topple as a coherent body";
+    int aboveCut = 0;
+    for (const auto& wp : tower) if (wp.y > 12 && chunkManager->hasVoxelAt(wp)) ++aboveCut;
+    EXPECT_EQ(aboveCut, 0) << "tower top stayed up after the base cut (should sever + fall)";
+    EXPECT_TRUE(chunkManager->hasVoxelAt(glm::ivec3(6, 6, 6))) << "rooted base stub wrongly fell";
+    EXPECT_TRUE(chunkManager->hasVoxelAt(glm::ivec3(0, 5, 0))) << "anchored floor wrongly fell";
+    EXPECT_GE(res.debrisSpawned, 1);
+}
+
 } // namespace Testing
 } // namespace Phyxel

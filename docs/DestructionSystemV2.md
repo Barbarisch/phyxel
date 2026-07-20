@@ -950,14 +950,19 @@ scalability lands before the features that multiply body counts.
     of tree felling), NOT a one-line change. Split out so the analyzer foundation lands safely; the
     de-gate is scoped for its own pass. *Analyzer depth:* L2 met. *De-gate depth (L4 chop a plank
     wall):* pending U2b.
-- **U3 — Structure-object identity + flood caps.** The direct fix for "blast the base, the house
-  floats." Buildings need the object-awareness trees got in P2.2: identify the structure component
-  so it escapes `MAX_FLOOD`, anchored only through its real ground contact. Prefer querying
-  `assembly_plan` / `featureAt` metadata over sniffing voxel materials (standing project rule).
-  *Depth:* L2 (a severed building section detaches, headless, materialed fixture) plus L4.
-  *Red test:* blast the base of a >3000-cell building — currently `flood-cap-terrain`, must
-  detach. *Stress:* a settlement of adjacent buildings; assert no cross-building over-detach (the
-  P2.2 `StandingTree_AdjacentTerrainBlast` guard, structure edition).
+- **U3 — Structure-object identity + flood caps.** **FINDING (2026-07-20, verified test):**
+  structure felling for a NON-TREE material **already works when the section is fully severed** —
+  `CoherentCollapseIntegrationTest.RootedStoneTower_BaseCut_TopTopplesCoherently` cuts a rooted
+  stone tower's base and the 8 cells above topple as ONE coherent rigid body (`coherent collapse:
+  8 cells -> 1 rigid body`), rooted stub + floor stay. The coherent gather's "wood" partition is
+  really "non-leaf structural material", so Stone/Brick flow through it unchanged. So U3 is NOT
+  "structures don't collapse" — it is specifically the **>`MAX_FLOOD` (3000-cell) big-building**
+  case (a huge severed section is mislabeled `flood-cap-terrain` = supported = floats) and
+  **cross-building over-detach** (adjacent buildings sharing the flood). Those need object-awareness
+  (query `assembly_plan`/`featureAt` metadata, not material). *Depth:* L2 (a >3000-cell severed
+  section detaches, headless fixture) plus L4. *Red test:* blast the base of a >3000-cell building
+  — currently floats, must detach. Lower urgency than first scoped: most real wall/tower sections
+  are < 3000 cells and already fall.
 - **U4 — Approximate statics: support CAPACITY, not boolean connectivity.** *The architectural
   gap.* Today the anchor rule is "is there a path to ground," so a structure must be **fully
   severed** to fall: undermine a wall, leave one connected voxel path, and it hangs there,
