@@ -361,13 +361,15 @@ The doc does **not** invent these; it names them as grounding tasks.
   consolidation — still a dynamic object at an arbitrary transform, just cheaper to draw). This is the
   render answer that lets "permanent full-fidelity settled" be affordable. The distance/budget LOD
   (proxy geometry for far/over-budget fells) is the other half.
-- **Standable settled fragments (NEW required deliverable).** The character grounds on the static
-  occupancy grid, not on dynamic bodies, so "must be standable/blocking" (§11.2b decision) needs one of:
-  (a) character↔`VoxelRigidBody` OBB collision (absent today — larger lift), or (b) a **settled-footprint
-  occupancy stamp**: when a fell sleeps, voxelize its rest-pose footprint into a collision-only
-  occupancy region (axis-aligned approximation — visuals stay the true angled geometry, only the
-  standable surface is grid-approximated). (b) is the smaller path and keeps geometry un-re-baked;
-  recommend (b) for v1, revisit (a) if the approximation feels wrong underfoot.
+- **Standable settled fragments — ✅ RESOLVED via (a), 2026-07-16. See §15.1.** *(Original framing,
+  kept for context: the character grounds on the static occupancy grid, not on dynamic bodies, so
+  "must be standable/blocking" (§11.2b decision) needs one of: (a) character↔`VoxelRigidBody` OBB
+  collision (larger lift), or (b) a settled-footprint occupancy stamp — axis-aligned approximation.
+  This section recommended (b).)* **What actually shipped was (a)** — `b104101` then `86d2d85`:
+  character queries are exact against the body's ORIENTED boxes (OBB blocking + local-frame down-ray
+  grounding). Better than the recommendation: the standable surface is the true angled geometry, not
+  a grid approximation. The (b) stamp is **not** dead — it returns in §15.3 U5, scoped to *frozen*
+  fragments, which by definition have left the solver and so cannot be queried as bodies.
 - **Two occupancy grids** — every voxel removal must update **both** the CPU grid and the GPU grid
   (`updateOccupancyVoxel` already does; any new removal path must too) or debris/characters fall
   through the world (`docs/AgentContext.md` invariant).
@@ -798,3 +800,357 @@ untouched for spells/explosions. The shipped pipeline, editor side first:
   tree. Diagnosis instrument: GET /api/debug/body_boxes (world-space per-box
   AABBs + kinematic render transforms). Red tests: dumbbell + 45-deg rotated
   slab in PhysicsIntegrationTest.
+
+---
+
+# §15 Universal destruction — the plan (scoped 2026-07-19)
+
+**User goal, stated:** *"the felling mechanic is how I want ALL structures to behave — knock down
+parts of houses, topple towers, chop down trees. Fire a damage action (spell, melee) at the bottom
+of a wall and knock it down. An entire destruction system that applies to all world assets."*
+Plus: **falling causes further fracture** — a toppling tree sheds weak branches on impact; a
+toppling tower breaks into 2-3 chunks when it hits the ground.
+
+Phases 0-5 delivered that for **trees**. §15 is the generalization to structures, objects, and
+terrain. Nothing in §15 is built yet.
+
+## 15.1 Corrected baseline — what is ACTUALLY shipped (audited 2026-07-19)
+
+Correcting two stale claims elsewhere in this doc:
+
+- **Standable settled fragments: SHIPPED** via §8 option **(a)**, character-vs-`VoxelRigidBody`
+  collision — *not* the (b) footprint stamp this doc recommended. `b104101` (per-box rather than
+  whole-body AABB) then `86d2d85` (exact ORIENTED boxes: OBB blocking + local-frame down-ray
+  grounding). §8's "required deliverable" wording predates these commits and is obsolete. Path (a)
+  turned out strictly better than the recommendation: the standable surface is the true angled
+  geometry rather than an axis-aligned approximation.
+- **Phase 1b is PARTIAL, not absent.** Shipped: (i) persistence, (iii) standable/blocking.
+  Missing: (ii) freeze out of the solver, (iv) greedy-merge kinematic faces at rest, (v) lazy
+  reactivation. `CoherentFragmentManager` (113 lines) spawns with `lifetime = FLT_MAX` and syncs
+  transforms forever — bodies sleep but never leave broadphase.
+
+**General already (material-agnostic, reusable as-is):** `CoherentFragmentService::physicalize`,
+the shared greedy merge, `CoherentFragmentManager`, hinge-topple seeding (P2.3), bounded collision
+boxes (F2 + #13), per-box terrain contact queries (#7), exact oriented character queries.
+Phase 1 was in fact validated on **a wall** (`CoherentCollapseIntegrationTest`), not a tree.
+
+**Tree-gated (the layers that do NOT generalize):** the support-transmission model — cargo vs.
+structural wood, rooted-trunk anchoring, twig-bears-no-load (F1/F5/F6/F9) — is keyed on `Log*` /
+`Leaf*` name prefixes. `carveChopKerf` hard-bails unless it finds a `Log` cell, and every carve
+predicate tests the `Log` prefix. There is no general chop: a wooden door or a plank wall cannot
+be hacked through today.
+
+**Measured blockers (constants verified in source, 2026-07-19):**
+
+| Constant | Value | Consequence for structures |
+|---|---|---|
+| `MAX_FLOOD` | 3000 cells | A non-tree component larger than this is declared `flood-cap-terrain` = **supported**. A real house or tower is at or over it, so **blast its base and it floats.** This is H1, still unfixed for structures — trees escaped it via `TREE_MAX_FLOOD` = 20000. |
+| `COHERENT_MAX_VOXELS` | 2000 cells | A correctly-severed larger section **hard-bails to particle scatter** instead of toppling. |
+| `MAX_COLLAPSE` / `MAX_DEBRIS` | 6000 / 4000 | Per-blast caps; silent geometry loss past `MAX_DEBRIS`. |
+| break profiles | **6 of 102** materials | Stone, brick and glass run on the `bondStrength*120` fallback, so they do not yet *feel* materially distinct when broken. |
+
+All four are **placeholders**: the P1.3 Release benchmark meant to ground them was never run.
+`PlacedObjectManager` has zero destruction integration (§11 Q1 still open).
+
+## 15.2 The unifying abstraction — `CrossSectionAnalyzer`
+
+Three separate requirements reduce to one question: *how strong is this cross-section?*
+
+| Consumer | Question asked of a candidate plane |
+|---|---|
+| **Statics** (undermining) | Can the remaining cross-section carry the mass above it? |
+| **Chop severance** | Has the tool reduced this cross-section below its shear strength? |
+| **Impact fracture** | Does the landing moment across this plane exceed its strength? |
+
+The kerf's band neck-shear survey **already implements this**, for wood: rows are scored in
+structural units (Log cube = 9, subcube = 1, micros = 0/cargo) and the weakest row holding
+0 < units ≤ 6 shears. That is an approximate statics model in miniature, gated to trees.
+Generalizing it — score a plane's strength as `Σ (occupied area × material shear strength)` over
+any material at any voxel scale — yields **one component with three consumers**, and makes
+approximate statics substantially cheaper than a from-scratch stress-propagation subsystem.
+
+Per §9's "one coherent-fragment implementation" rule, the generalized analyzer **replaces** the
+wood-specific neck-shear survey. No second copy.
+
+## 15.3 Phases
+
+Each phase carries the standing project discipline: functional contract, required validation
+layer, red-before-green test, scale/stress test, solution-auditor sign-off. Ordered so
+scalability lands before the features that multiply body counts.
+
+- **U0 — Wire the damage entry points.** *Same-day fix.* Spell hits
+  (`Application::updatePendingSpellHits`) and the `cast_spell` destroy path each construct a bare
+  `DamageSystem` and take `coherentFragments = false` by default, so **a fireball can never fell
+  anything** — only the axe chop and the `apply_damage` MCP command opt in. Wire the persistent
+  `coherentFragmentManager` (the same three lines the chop path uses) and pass the flag. Also fix
+  the blast path's representative-material scan: it reads `getStaticSubcubesAt`, which returns
+  **subcubes only**, so a micro-only canopy cell falls through to the `"Wood"` default and
+  **emits wood voxel debris for leaves — violating F1 under blasts.** Reuse `scanCellTree`.
+  *Depth:* L4 (fireball a tree → it topples, no leaf voxels). *Red test:* a micro-only leaf cell
+  through `applyDamage` asserts zero debris spawned.
+- **U1a — Broadphase over the occupancy grids (see §15.5). MUST precede U1.** Today
+  `generateContacts` scans **every registered chunk grid for every collision box of every awake
+  body, every substep** — cost scales with *world size*, not with the falling object. Index the
+  grids by chunk coordinate (they are already keyed that way) and query only the handful a box's
+  AABB overlaps; compute the chunk-coord span once per body and reuse it across its boxes; also
+  unregister all-air chunks, which currently stay in the scan list forever (only *sealed* chunks
+  unregister — `Chunk::applyAirRenderState` does not). *Depth:* L2 (a fell's queryAABB call count
+  is independent of loaded-chunk count — the assertion that pins the fix) plus L4 (FPS while
+  felling in a large streamed world). *Red test:* register N chunk grids, fell one tree, assert
+  call count does not grow with N — currently linear in N.
+- **U1 — Ground the budgets (the deferred P1.3).** Release-build benchmark of
+  `VoxelDynamicsWorld` producing real ceilings for `FragmentBudget.maxActiveBodies` and
+  `COHERENT_MAX_VOXELS`, encoded as an automated assertion in `tests/benchmark/` so they cannot
+  silently drift the way a hand-copied doc number can. Everything downstream is currently sized
+  against guesses. **Run this AFTER U1a**: benchmarking the body ceiling while a world-size-linear
+  scan dominates the profile would measure the chunk count, not the body count, and bake a bogus
+  ceiling into `tests/benchmark/`. *Depth:* L2 plus a benchmark gate.
+- **U2 — `CrossSectionAnalyzer` + de-gate the chop.** Extract and generalize the neck-shear survey
+  per §15.2: material-weighted, all three voxel scales, any axis. Then remove `carveChopKerf`'s
+  `Log`-prefix gating so a tool cuts any material it has affinity for (fists still bounce off
+  stone). *Depth:* L2 (the analyzer scores known geometry correctly — a one-voxel neck versus a
+  full cross-section) plus L4 (chop through a plank wall). *Red test:* stone and plank
+  cross-sections score non-zero — they currently score 0, i.e. they are invisible to the survey.
+  *Stress:* a mixed-material plane spanning all three voxel scales.
+- **U3 — Structure-object identity + flood caps.** The direct fix for "blast the base, the house
+  floats." Buildings need the object-awareness trees got in P2.2: identify the structure component
+  so it escapes `MAX_FLOOD`, anchored only through its real ground contact. Prefer querying
+  `assembly_plan` / `featureAt` metadata over sniffing voxel materials (standing project rule).
+  *Depth:* L2 (a severed building section detaches, headless, materialed fixture) plus L4.
+  *Red test:* blast the base of a >3000-cell building — currently `flood-cap-terrain`, must
+  detach. *Stress:* a settlement of adjacent buildings; assert no cross-building over-detach (the
+  P2.2 `StandingTree_AdjacentTerrainBlast` guard, structure edition).
+- **U4 — Approximate statics: support CAPACITY, not boolean connectivity.** *The architectural
+  gap.* Today the anchor rule is "is there a path to ground," so a structure must be **fully
+  severed** to fall: undermine a wall, leave one connected voxel path, and it hangs there,
+  structurally fine by the engine's rules. Replace the boolean with a capacity test built on U2 —
+  propagate carried mass downward and collapse where the supporting cross-section cannot bear it.
+  *This is the phase that makes "fire at the bottom of a wall and knock it down" work.* *Depth:*
+  L2 (a progressively undermined column collapses at the grounded threshold rather than at full
+  severance) plus L3 plus L4. *Red test:* a wall with 90% of its base removed but one connected
+  voxel path — currently stands, must fall. *Stress:* deep structures with load accumulating over
+  many stories; assert no runaway cascade; measure the capacity flood's cost against the boolean
+  one.
+- **U5 — Retirement tier (the missing half of Phase 1b).** Freeze at rest: remove the body from
+  `VoxelDynamicsWorld` (freeing the body slot and the broadphase entry), greedy-merge its
+  kinematic faces once, keep geometry plus transform as plain data; lazy reactivation on
+  chop/push/blast with bounded neighbor-wake. Standability is already solved for *live* bodies
+  (§15.1), but a frozen fragment has left the solver, so the frozen state needs its own standable
+  representation — the §8 (b) footprint stamp returns **here**, scoped to frozen fragments only.
+  *Deliberately scheduled before U6, because impact fracture multiplies bodies.* *Depth:* L2 (zero
+  solver/broadphase presence; face count drops after merge) plus L3 (chop a frozen log → it
+  reactivates and moves; a stack partially collapses) plus L4 (FPS with M frozen fells present).
+  *Stress:* the persistent-population gate (§12).
+- **U6 — Impact fracture (secondary fracture on landing).** *New requirement, 2026-07-19.* A
+  landing fragment breaks along the planes the impact overloads. Design:
+  1. **Pre-score candidate weak planes at spawn** using U2's analyzer. This runs off the critical
+     path — the voxel set is already in hand at `physicalize` time — and avoids an analysis hitch
+     at the most performance-sensitive moment.
+  2. **At contact**, evaluate impulse × lever-arm as a bending moment across each pre-scored
+     plane; planes whose strength is exceeded break.
+  3. **Partition** the voxel set along the broken planes (component BFS with the planes as cuts)
+     and respawn each part as its own coherent fragment, inheriting the parent's velocity plus a
+     separation impulse. Reuses `physicalize` wholesale.
+
+  The desired behaviors are emergent rather than special-cased: branches have thin cross-sections
+  and long lever arms, so they snap off, while the trunk's fat cross-section survives; a toppling
+  tower has peak moment near mid-span, so it breaks into 2-3 chunks. **Required bounds:** a
+  recursion depth cap (a fractured piece must not re-fracture forever), a minimum fragment size
+  (below it, scatter to particles), a per-impact fracture budget, and mutation deferred to
+  end-of-step — never mid-solve. *Depth:* L2 (a barbell fragment dropped on its midpoint splits
+  into exactly 2; a thick uniform slab does not split) plus L3 (pieces settle, no interpenetration
+  or NaN) plus L4 (fell a branched tree → branches shed on landing; topple a tower → it breaks
+  into chunks). *Stress:* fracture cascade under the body budget — fell a stand of trees
+  simultaneously and assert the budget is honored, recursion stays bounded, and there is no
+  frame-time cliff at the moment of collective impact.
+- **U7 — Registry reconciliation + persistence.** Closes §11 Q1: when a structure's voxels are
+  destroyed, decide and implement the `PlacedObjectManager` outcome (shrink, retire, or ignore).
+  Persist broken/damaged state and settled fragments to the world DB. *Depth:* L4 round-trip —
+  destroy, save, load, and confirm damage state and fragments survive.
+
+**Cross-cutting, runs alongside:** grounding the remaining ~96 material break profiles (§7). This
+is required before stone/brick/glass destruction can *feel* right, and both U4 and U6 consume the
+shear strengths it produces. Also standing: the two-occupancy-grid invariant on every new removal
+path.
+
+## 15.4 Risks
+
+- **U4 is the one genuinely new subsystem.** U2 makes it far cheaper than full stress propagation,
+  but "approximate statics that feels right and never runaway-cascades" is the hardest tuning
+  problem in this plan. Expect a shakedown.
+- **Trees needed nine post-N=1 fixes (F1-F9).** Structures have worse scale properties and more
+  material variety. Budget for the same class of reality-versus-test-geometry surprises, and
+  prefer the P2.2 method (test-first, headless, materialed fixtures, logged supported-reason) over
+  live trial-and-error across two-minute engine reboots.
+- **U6 multiplies bodies at the worst possible moment** (collective impact). U1 and U5 are its
+  prerequisites for exactly that reason.
+- **Render density returns via the kinematic pipeline** (§8): fragments are not greedy-merged
+  until U5, and U6 creates more of them.
+
+## 15.5 Why a single toppled tree costs so much (MEASURED & CONFIRMED 2026-07-20)
+
+> **Status: hypothesis CONFIRMED live.** The arithmetic below was source-verified 2026-07-19, then
+> measured 2026-07-20 with temporary instrumentation (`VoxelDynamicsWorld::BroadphaseStats` +
+> `GET /api/debug/physics_broadphase_stats`, which report the last substep's `grid_count`,
+> `awake_boxes`, `query_aabb_calls = Σ boxes × gridCount`, and phase timings). Method: drop N
+> single-box CPU `VoxelRigidBody`s (each = 1 collision box, so `awake_boxes = N`) from height so the
+> fall lasts long enough to sample past the endpoint's ~2 s/call latency, holding N fixed while
+> varying the world — so `grid_count` is the only independent variable. `spawn_voxel_body` was used
+> rather than a real fell because `apply_damage` would not reliably sever the forge test trees
+> (the F9 hard-connectivity case — the crown stayed rooted; a separate issue, and irrelevant to a
+> pure broadphase measurement). See the measured table at the end of this section.
+
+**The user's intuition is correct and worth stating plainly:** a fallen trunk *is* a simple shape,
+and the engine *does* run ~10 000 GPU debris particles comfortably. The reason a couple of falling
+trunks can cost more than ten thousand debris voxels is that they run on two solvers with entirely
+different cost models — and one of them scales with the wrong variable.
+
+**GPU debris path:** each particle is one independent `SolverBody` on the Vulkan compute solver,
+contacts only, tested against a GPU occupancy structure with an O(1) indexed lookup, massively
+parallel. Cost is O(particles) with a constant-time spatial query. 10 000 is genuinely cheap.
+
+**Coherent fragment path:** a CPU compound `VoxelRigidBody` in `VoxelDynamicsWorld`, whose per-
+substep terrain broadphase is (`VoxelDynamicsWorld::generateContacts`):
+
+```
+for each awake body            (parallel over bodies)
+  for each collision box bi
+    for (VoxelOccupancyGrid* grid : m_grids)     <-- LINEAR OVER EVERY REGISTERED CHUNK
+      grid->queryAABB(...)
+```
+
+Cost per substep = `awakeBodies × boxesPerBody × gridCount`. Note what is *not* in that product:
+anything about the tree. **The dominant term is `gridCount` — the number of registered chunk
+occupancy grids, i.e. the size of the loaded world.**
+
+Concretely, with the Large-World work now merged (Phase 4.3 recorded 10.6k chunks stable, 3x the
+old ceiling) and a fell carrying ~100 merged collision boxes (§5.I cites real fells at 46 and
+~150 boxes), one falling tree issues on the order of **100 × several-thousand = hundreds of
+thousands of `queryAABB` calls per substep**, multiplied again by substeps per frame. Each call is
+individually cheap — `VoxelOccupancyGrid::queryAABB` opens with a 6-comparison chunk-level
+rejection and returns — but every iteration chases a pointer out of a multi-thousand-entry vector
+into a different grid object to read its `m_origin`, so the loop is a cache-miss generator. There
+is **no spatial index over the grids at all**; the per-grid early-out *is* the broadphase.
+
+**This explains the two things that looked contradictory:**
+- *Why a "simple shape" is expensive* — the cost is not in the shape. Every box interrogates every
+  chunk in the world.
+- *Why felling appears to have regressed after pulling in origin/main* — nothing in the destruction
+  code got slower. The Large-World work raised the loaded-chunk ceiling, and this loop is linear in
+  exactly that. Felling got slower as a **side effect of the world getting bigger.**
+
+**Aggravating detail:** only *sealed* chunks unregister their grid (`Chunk::applySealedRenderState`
+→ `unregisterGridFromWorld`, Phase 4.4). `Chunk::applyAirRenderState` does **not** — so every
+all-air chunk stays in the scan list permanently, always returning nothing. In a tall streamed
+world, air chunks are the majority of loaded chunks, so most of the scan is provably wasted work.
+
+**The fix is standard and contained (U1a):** index the grids by chunk coordinate — they are
+*already* keyed that way — and query only the handful of chunks a box's AABB actually overlaps.
+Compute the chunk-coord span once per body and reuse it across that body's boxes (a fragment's
+boxes are all near each other by construction). Unregister air chunks. Together these turn the
+inner loop from thousands of iterations into single digits, and make the cost independent of world
+size. **The pinning assertion is a call-count invariant, not a timing:** register N chunk grids,
+fell one tree, assert the `queryAABB` count does not grow with N.
+
+### U1a as-built (2026-07-20)
+
+Shipped exactly as scoped above. Changes:
+- `VoxelDynamicsWorld` gained `m_gridByChunk` (`unordered_map<chunkKey, grid*>`) alongside the
+  `m_grids` vector. `registerGrid`/`unregisterGrid` maintain both; dedup now goes through the map
+  (**O(1)**, was an O(gridCount) `std::find`). `gatherGridsOverlapping(mn, mx, out)` returns only
+  the grids whose chunk the AABB touches.
+- `generateContacts` terrain phase: per awake body, gather the overlapping grids **once** (from the
+  body AABB widened by 0.5 so a box on a chunk seam still sees the neighbour), then query only those
+  across the body's boxes. Same for the character paths `findGroundY` and `overlapsTerrain`.
+- Air chunks now leave the query set: `Chunk::applyAirRenderState` calls `unregisterGridFromWorld`
+  (previously only *sealed* chunks did). The inverse transition is handled by the new idempotent
+  `Chunk::ensurePhysicsRegistered`, called on the rebuild classifier's full-mesh branch (an air or
+  sealed chunk `return`s before it, so it runs only for genuinely collidable chunks).
+- The temporary `physics_broadphase_stats` `query_aabb_calls` now reports the **actual** call count
+  (summed per-thread), so the endpoint directly shows the drop.
+- Regression tests (`PhysicsIntegrationTest`): `BroadphaseCallCountIndependentOfGridCount` (one
+  body, gridCount 10 vs 500 → identical, tiny call count — the pinning invariant) and
+  `IndexedBroadphaseStillCollidesWithTerrain` (a body still lands on a floor cell reachable only
+  through the index, among 50 decoy grids — the correctness guard).
+
+**Measured before/after (same 400-box "several trees" drop, large streamed world):**
+
+| | `grid_count` | `awake_boxes` | free-fall `query_aabb_calls` | near-ground peak calls | free-fall `terrain_ms` |
+|---|---|---|---|---|---|
+| **Pre-fix** | 378 | 400 | **151 200** (= 400×378) | 151 200 | 1.9 |
+| **Post-fix** | 318 | 400 | **0** (over unloaded air) | **505** | 0.5 |
+
+The `boxes × grid_count` identity is broken: 400×318 would be 127 200, actual peak is **505** —
+a ~250–300× reduction, and the call count no longer tracks `grid_count`. The standout is **0 calls
+while free-falling over unloaded air**: with no registered grid beneath the bodies, the gather
+returns empty and the scan does not run at all — the altitude-independent pure-waste case (§15.5
+point 4) is eliminated outright.
+
+**Honest residual:** at ground impact `generate_contacts_ms` still peaked ~40 ms — but that is
+**body-vs-body** contact solving for 400 boxes converging into one pile at a single point, an
+artifact of this synthetic drop, NOT the terrain scan and NOT world-size-dependent. Real fells land
+in *different* places, so inter-body contact is minimal; the world-size-linear terrain cost that
+U1a targeted is gone. (Reducing the pile cost is a separate concern — the body-body spatial hash —
+outside U1a's scope.)
+
+*Tests: `BroadphaseCallCountIndependentOfGridCount` + `IndexedBroadphaseStillCollidesWithTerrain`
+pass; `ChunkSealedTest` 7/7 (sealing/air transitions intact); 39/40 collapse+chop+physics
+integration tests pass — the 1 failure (`CrossSpeciesLimbContact_DoesNotTransmitSupport`) is a
+**pre-existing merge regression**, verified failing on baseline with U1a stashed, unrelated to this
+change.*
+
+### Measured results (2026-07-20)
+
+Two worlds, N single-box falling bodies, `awake_boxes = N` held fixed while `grid_count` varies:
+
+| World | `grid_count` | `awake_boxes` | `query_aabb_calls`/substep | free-fall `terrain_ms` | impact-peak `generate_contacts_ms` |
+|---|---|---|---|---|---|
+| CharacterTestbed (DB world, small) | 99 | 150 | **14 850** | 0.52 | ~5 |
+| MiddleEarth1to1 (streamed, large) | 333 | 150 | **49 950** | 0.79 | 20.6 |
+| MiddleEarth1to1, "several trees" | 378 | 400 | **151 200** | 1.9 | **43.2** |
+
+**What the data proves:**
+1. **The identity is exact, every sample, both worlds:** `query_aabb_calls == awake_boxes ×
+   grid_count` (150×99=14 850; 150×333=49 950; 400×378=151 200). The multiplier is `grid_count` —
+   the size of the loaded world — full stop.
+2. **Linear in world size.** The *same* 150-box object costs 3.36× the broadphase work moving from
+   99 to 333 grids (14 850 → 49 950 calls) — nothing about the object changed.
+3. **Linear in box count** too — confirmed both across runs (150 → 400) and *within* a run as bodies
+   sleep off (e.g. large world: 106 boxes × 333 = 35 298; 49 × 336 = 16 464 — every intermediate
+   sample lands on the identity).
+4. **The scan is altitude/emptiness-independent** — the smoking gun. Bodies free-falling 150+ units
+   up over terrain, touching nothing, still issue the *full* `boxes × grid_count` scan every
+   substep (14 850 / 49 650 / 151 200 while in the air over empty space). Pure waste.
+5. **`grid_count` is world-driven and climbs with streaming**, standing still: 63 → 378 over a few
+   minutes as the loadRadius-16 footprint filled — and kept rising past what solid terrain needs,
+   consistent with the air-chunk-never-unregisters aggravator.
+6. **The user's exact symptom reproduced.** At the "several trees" scale (400 boxes ≈ 3–4
+   simultaneous fells) in the large world, `generate_contacts_ms` hit **43 ms in a single substep**
+   at ground impact. At 3 substeps/frame that is ~130 ms of physics in one frame — a hard visible
+   stall. That is the "several trunks tank the FPS" report, measured.
+
+**Honesty caveats on the numbers.** (a) `terrain_broadphase_ms` is wall-clock of a *parallel* loop
+(`parallelRange` over bodies), so it understates the serial work and is noisier than the call count
+— which is why 3.36× the calls showed only ~1.5× the free-fall ms. **Lead with `query_aabb_calls`
+(exact, deterministic); treat the ms as corroborating.** (b) The largest `grid_count` measured was
+~378, not the 10.6k-chunk config the plan cites — but the scaling *law* is now proven exactly, so
+extrapolation is sound: 400 boxes × 10 600 grids ≈ **4.2 M queryAABB/substep**. That specific
+extreme is extrapolated, not measured. (c) The instrumentation is temporary; remove or gate it
+after U1a lands, keeping the call-count assertion as the regression test.
+
+**Other real costs, so this is not read as a single-cause story** (each smaller, none scaling with
+world size):
+- **Kinematic faces are never greedy-merged** (§8). `buildFaces` *does* cull at micro resolution
+  (`5ce5fb7`), so a fell is not paying 6 faces per microcube — but an unmerged micro-fidelity
+  surface is still a lot of faces, and they accumulate permanently with every fell since fragments
+  never retire. This is U5's face-merge deliverable; it is a *population* cost, not a per-fell one.
+- **Character queries** test exact OBBs against every box of every body (`86d2d85`). Correct and
+  bounded, but grows linearly with the number of settled fragments near the player — another
+  argument for U5 freezing them out.
+- **Solver iterations** over the contact set, which the box count drives.
+
+**Design consequence for U6 (impact fracture).** Fracture-on-landing *increases* body and box
+count at the exact moment of peak contact activity. With the world-size-linear scan still in place,
+a stand of trees landing together would multiply an already-quadratic-feeling cost. U1a is
+therefore a hard prerequisite for U6, not merely an optimization — and it is the reason U5
+(retirement) is scheduled before U6 as well.
