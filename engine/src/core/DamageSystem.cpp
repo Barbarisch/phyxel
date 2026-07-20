@@ -86,6 +86,10 @@ void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float
     m_gpu->queueSpawn(sp);
 }
 
+// Forward decl: representative material of a cell, scanning cube -> subcube -> MICROCUBE
+// (defined below). The blast scan needs it to see micro-only leaf cells (U0/F1).
+static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp);
+
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
                                        float supportY, bool collapse, bool coherentFragments) {
@@ -138,11 +142,12 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
             // Sub-voxel cell (subcubes/microcubes, e.g. a tree). Break the whole
             // cell as a unit so the blast can sever sub-voxel structures and feed
             // the collapse pass; use a representative material for toughness.
+            // U0/F1: use cellMaterial (cube -> subcube -> MICROCUBE) rather than a
+            // subcube-only scan. Fine trees are micro-resolution, so a micro-only
+            // leaf cell used to fall through to "Wood" here and then emit wood voxel
+            // debris for foliage — the "fireballed leaves explode into blocks" bug.
             subdivided = true;
-            if (Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
-                auto subs = ch->getStaticSubcubesAt(ChunkManager::worldToLocalCoord(wp));
-                if (!subs.empty() && subs[0]) mat = subs[0]->getMaterialName();
-            }
+            mat = cellMaterial(m_cm, wp);
             if (mat.empty()) mat = "Wood";
         } else {
             continue;

@@ -4368,8 +4368,17 @@ void Application::updatePendingSpellHits(float dt) {
         it->delay -= dt;
         if (it->delay <= 0.0f) {
             Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+            // U0: opt into COHERENT collapse so a spell blast at a trunk topples the
+            // tree as one rigid body instead of scattering it into voxels (the "fireball
+            // exploded the tree" report). Same lazy fragment-manager wiring the
+            // apply_damage handler uses.
+            if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+                coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
+                dmg.setFragmentManager(&coherentFragmentManager);
+            }
             dmg.applyDamage(it->center, it->radius, it->energy, "force",
-                            glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT, true);
+                            glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT,
+                            /*collapse*/ true, /*coherentFragments*/ true);
             it = m_pendingSpellHits.erase(it);
         } else {
             ++it;
@@ -12900,7 +12909,16 @@ void Application::processAPICommands() {
                         if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
                         if (destroy && chunkManager) {
                             Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
-                            dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster));
+                            // U0: coherent collapse so a destructive spell fells a struck tree/
+                            // structure as a rigid body instead of scattering it (see the pending-
+                            // spell-hits path). Lazy fragment-manager wiring.
+                            if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
+                                coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
+                                dmg.setFragmentManager(&coherentFragmentManager);
+                            }
+                            dmg.applyDamage(tgt, radius, energy, "force", glm::normalize(tgt - caster),
+                                            Phyxel::DamageSystem::NO_SUPPORT,
+                                            /*collapse*/ true, /*coherentFragments*/ true);
                         }
                     };
 

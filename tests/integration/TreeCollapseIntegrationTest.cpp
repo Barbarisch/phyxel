@@ -530,5 +530,30 @@ TEST_F(TreeCollapseIntegrationTest, CrossSpeciesLimbContact_DoesNotTransmitSuppo
     EXPECT_TRUE(solid(13, 4, 10)) << "birch rooted stump fell";
 }
 
+// U0/F1: a blast on a MICRO-only leaf cell must emit ZERO voxel debris — leaves are
+// foliage, never voxels. Pre-fix the blast scan read subcubes only (getStaticSubcubesAt),
+// so a micro-resolution leaf cell fell through to a "Wood" representative material and
+// scattered wood voxel debris: the "fireballed leaves explode into blocks" report.
+TEST_F(TreeCollapseIntegrationTest, BlastOnMicroLeafCell_EmitsNoVoxelDebris) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+
+    // A cell containing ONLY Leaf microcubes (no cube, no subcube) — real fine-tree foliage.
+    const glm::ivec3 cell(10, 10, 10);
+    for (int mx = 0; mx < 3; ++mx)
+        for (int my = 0; my < 3; ++my)
+            for (int mz = 0; mz < 3; ++mz)
+                putMicro(cell, glm::ivec3(1, 1, 1), glm::ivec3(mx, my, mz), "LeafBirch");
+    ASSERT_TRUE(solid(10, 10, 10)) << "micro leaf cell not created";
+
+    DamageSystem dmg(chunkManager.get(), nullptr);   // no GPU: spawnDebris no-ops, counter still tallies
+    auto res = dmg.applyDamage(glm::vec3(10.5f, 10.5f, 10.5f), 1.5f, 1500.0f, "force",
+                               glm::vec3(0.0f), Phyxel::DamageSystem::NO_SUPPORT,
+                               /*collapse*/ false, /*coherentFragments*/ false);
+
+    EXPECT_GT(res.voxelsBroken, 0) << "blast never reached the leaf cell (test setup wrong)";
+    EXPECT_EQ(res.debrisSpawned, 0)
+        << "leaf foliage spawned voxel debris — F1 violated (the fireball-explodes-leaves bug)";
+}
+
 } // namespace Testing
 } // namespace Phyxel
