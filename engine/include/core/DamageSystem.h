@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <cstdint>
+#include <vector>
+#include <functional>
 
 namespace Phyxel {
 
@@ -129,6 +131,22 @@ public:
     ChopKerfResult carveChopKerf(const glm::ivec3& hitCell, const glm::vec3& chopDir,
                                  float kerfDepth, bool coherentFragments = true,
                                  const glm::vec3& contactPoint = glm::vec3(0.0f, -1.0e9f, 0.0f));
+
+    // ---- CrossSectionAnalyzer (U2, docs/DestructionSystemV2.md §15.2) ----
+    // The structural strength of a horizontal (Y) plane — the ONE primitive behind three
+    // questions that all reduce to "how strong is this cross-section?": chop neck-shear
+    // (now), statics / undermining (U4), and impact fracture (U6). Scores Σ over cells of
+    // (occupied subcube-area × material weight): a full cube contributes 9 subcube-units,
+    // each occupied static subcube 1, microcubes 0 (cargo — too thin to bear load).
+    // `materialWeight` returns a per-material multiplier (0 = ignore); pass a wood-only 0/1
+    // weight to reproduce the tree neck-shear exactly, or real shear strengths for statics.
+    struct PlaneCrossSection {
+        float strength = 0.0f;               // Σ area × weight over the plane
+        std::vector<glm::ivec3> cells;       // cells that contributed (weight > 0)
+    };
+    static PlaneCrossSection scorePlaneY(
+        ChunkManager* cm, const glm::ivec3& center, int halfExtent, int y,
+        const std::function<float(const std::string&)>& materialWeight);
 
 private:
 

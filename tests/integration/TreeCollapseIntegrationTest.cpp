@@ -51,6 +51,12 @@ protected:
         if (!ch) return false;
         return ch->addMicrocube(ChunkManager::worldToLocalCoord(cell), sub, mic, mat);
     }
+    // Add one static subcube (1/3 voxel) at subcube slot `sub` (0..2 per axis).
+    bool putSub(glm::ivec3 cell, glm::ivec3 sub, const char* mat) {
+        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(cell));
+        if (!ch) return false;
+        return ch->addSubcube(ChunkManager::worldToLocalCoord(cell), sub, mat);
+    }
     int countSolid(int x0, int y0, int z0, int x1, int y1, int z1) {
         int n = 0;
         for (int x = x0; x <= x1; ++x)
@@ -553,6 +559,45 @@ TEST_F(TreeCollapseIntegrationTest, BlastOnMicroLeafCell_EmitsNoVoxelDebris) {
     EXPECT_GT(res.voxelsBroken, 0) << "blast never reached the leaf cell (test setup wrong)";
     EXPECT_EQ(res.debrisSpawned, 0)
         << "leaf foliage spawned voxel debris — F1 violated (the fireball-explodes-leaves bug)";
+}
+
+// U2: the CrossSectionAnalyzer (DamageSystem::scorePlaneY) is the shared primitive behind
+// chop neck-shear / statics / impact fracture. Verify its material-weighted area scoring:
+// full cube = 9 subcube-units, static subcube = 1, microcubes = 0 (cargo), gated by weight.
+TEST_F(TreeCollapseIntegrationTest, CrossSectionAnalyzer_ScoresMaterialWeightedArea) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "env not ready";
+    const int Y = 20;
+    put(10, Y, 10, "Stone");                          // full Stone cube  -> 9 (stone), 0 (wood)
+    put(12, Y, 10, "Log");                            // full Log cube    -> 9 (wood)
+    // 3 Log subcubes in one cell -> 3 (wood)
+    putSub(glm::ivec3(14, Y, 10), glm::ivec3(0, 0, 0), "Log");
+    putSub(glm::ivec3(14, Y, 10), glm::ivec3(1, 0, 0), "Log");
+    putSub(glm::ivec3(14, Y, 10), glm::ivec3(2, 0, 0), "Log");
+    // A micro-only cell -> 0 (cargo, never structural)
+    for (int m = 0; m < 3; ++m) putMicro(glm::ivec3(16, Y, 10), glm::ivec3(1, 1, 1), glm::ivec3(m, 0, 0), "LeafBirch");
+
+    const glm::ivec3 center(13, Y, 10);
+    auto woodW  = [](const std::string& s) { return s.rfind("Log", 0) == 0 ? 1.0f : 0.0f; };
+    auto stoneW = [](const std::string& s) { return s == "Stone" ? 1.0f : 0.0f; };
+    auto anyW   = [](const std::string&) { return 1.0f; };
+
+    // Wood weight over x∈[9,17]: Log cube (9) + 3 Log subcubes (3) = 12; Stone + micros ignored.
+    auto wood = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, woodW);
+    EXPECT_FLOAT_EQ(wood.strength, 12.0f) << "wood cross-section = cube(9) + 3 subcubes(3)";
+    EXPECT_EQ(wood.cells.size(), 2u) << "two cells contributed wood (the cube and the subcube cell)";
+
+    // Stone weight: only the full Stone cube = 9.
+    auto stone = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, stoneW);
+    EXPECT_FLOAT_EQ(stone.strength, 9.0f);
+
+    // Any-solid weight: Stone(9) + Log(9) + 3 subcubes(3) = 21; the micro-only cell still 0.
+    auto all = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y, anyW);
+    EXPECT_FLOAT_EQ(all.strength, 21.0f) << "microcubes must contribute 0 (cargo)";
+
+    // A plane one above holds nothing -> zero strength, no cells.
+    auto empty = DamageSystem::scorePlaneY(chunkManager.get(), center, 4, Y + 5, anyW);
+    EXPECT_FLOAT_EQ(empty.strength, 0.0f);
+    EXPECT_TRUE(empty.cells.empty());
 }
 
 } // namespace Testing

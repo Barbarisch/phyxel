@@ -934,13 +934,22 @@ scalability lands before the features that multiply body counts.
     branch). Deferred: a Release re-measure of the *topple-start* collapse-compute (~2.2s for a
     1023-cell fell in Debug — physicalize + flood, separate from the per-frame step).
   *Depth:* L2 + benchmark gate — met.
-- **U2 — `CrossSectionAnalyzer` + de-gate the chop.** Extract and generalize the neck-shear survey
-  per §15.2: material-weighted, all three voxel scales, any axis. Then remove `carveChopKerf`'s
-  `Log`-prefix gating so a tool cuts any material it has affinity for (fists still bounce off
-  stone). *Depth:* L2 (the analyzer scores known geometry correctly — a one-voxel neck versus a
-  full cross-section) plus L4 (chop through a plank wall). *Red test:* stone and plank
-  cross-sections score non-zero — they currently score 0, i.e. they are invisible to the survey.
-  *Stress:* a mixed-material plane spanning all three voxel scales.
+- **U2 — `CrossSectionAnalyzer` (analyzer half ✅ SHIPPED 2026-07-20; chop de-gate deferred).**
+  `DamageSystem::scorePlaneY(cm, center, halfExtent, y, materialWeight)` is the shared cross-section
+  primitive from §15.2: it scores Σ over a horizontal plane of (occupied subcube-area × material
+  weight) — full cube = 9 subcube-units, static subcube = 1, microcube = 0 (cargo). The tree
+  neck-shear survey now *calls it* with a wood-only 0/1 weight (§9 one-implementation), producing
+  byte-identical behavior — felling + chop + collapse suite 30/30, and the live log still shows the
+  neck shearing correctly. Unit test `CrossSectionAnalyzer_ScoresMaterialWeightedArea` proves the
+  material-weighted, all-voxel-scale scoring (wood=12, stone=9, any-solid=21, micros=0). This is the
+  primitive U4 (statics) and U6 (impact fracture) consume.
+  - **DEFERRED — the chop de-gate (U2b).** `carveChopKerf` is entangled with `rfind("Log",0)` at
+    ~25 sites (anchor detection, kerf carve, heartwood repaint, wood-only limb exemption) — the
+    hard-won F1–F9 tree logic. Removing the gating so a tool cuts stone/plank is a careful, separate
+    effort (needs per-material affinities + tool power vs. the grounded shear scale + full re-verify
+    of tree felling), NOT a one-line change. Split out so the analyzer foundation lands safely; the
+    de-gate is scoped for its own pass. *Analyzer depth:* L2 met. *De-gate depth (L4 chop a plank
+    wall):* pending U2b.
 - **U3 — Structure-object identity + flood caps.** The direct fix for "blast the base, the house
   floats." Buildings need the object-awareness trees got in P2.2: identify the structure component
   so it escapes `MAX_FLOOD`, anchored only through its real ground contact. Prefer querying

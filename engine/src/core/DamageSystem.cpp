@@ -641,6 +641,35 @@ bool DamageSystem::closestWoodPointInCell(ChunkManager* cm, const glm::ivec3& wp
     return true;
 }
 
+// CrossSectionAnalyzer (U2, §15.2): structural strength of one horizontal plane. Mirrors
+// the tree neck-shear cell scan exactly (full cube = 9 subcube-units, each static subcube =
+// 1, microcubes = 0/cargo), but material-weighted so statics (U4) and impact fracture (U6)
+// can share it. Pass a wood-only 0/1 weight to reproduce the neck-shear.
+DamageSystem::PlaneCrossSection DamageSystem::scorePlaneY(
+    ChunkManager* cm, const glm::ivec3& center, int halfExtent, int y,
+    const std::function<float(const std::string&)>& materialWeight) {
+    PlaneCrossSection out;
+    if (!cm) return out;
+    for (int dx = -halfExtent; dx <= halfExtent; ++dx)
+    for (int dz = -halfExtent; dz <= halfExtent; ++dz) {
+        const glm::ivec3 c(center.x + dx, y, center.z + dz);
+        Chunk* ch = cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
+        if (!ch) continue;
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
+        float cellStrength = 0.0f;
+        if (Cube* cube = ch->getCubeAtFast(lp))
+            cellStrength += 9.0f * materialWeight(cube->getMaterialName());   // full cube = 3x3 area
+        for (Subcube* sc : ch->getStaticSubcubesAt(lp))
+            if (sc) cellStrength += materialWeight(sc->getMaterialName());
+        // microcubes contribute 0 — cargo-thin, cannot bear structural load (F6).
+        if (cellStrength > 0.0f) {
+            out.strength += cellStrength;
+            out.cells.push_back(c);
+        }
+    }
+    return out;
+}
+
 DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,
                                                          const glm::vec3& chopDir,
                                                          float kerfDepth,
@@ -1094,30 +1123,17 @@ DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCe
     if (out.microsRemoved > 0) {
         int shearUnits = INT_MAX, shearY = anchor.y;
         std::vector<glm::ivec3> shearCells;
+        // U2: the row survey is now the shared CrossSectionAnalyzer (scorePlaneY) with a
+        // wood-only weight — identical units (cube=9, subcube=1, micro=0/cargo) as the old
+        // inline scan, but one implementation the statics/fracture phases also use.
+        auto woodWeight = [](const std::string& m) { return m.rfind("Log", 0) == 0 ? 1.0f : 0.0f; };
         for (int ry = anchor.y - 1; ry <= anchor.y + 2; ++ry) {
-            int units = 0;
-            std::vector<glm::ivec3> rowCells;
-            for (int dx = -3; dx <= 3; ++dx)
-            for (int dz = -3; dz <= 3; ++dz) {
-                const glm::ivec3 c(anchor.x + dx, ry, anchor.z + dz);
-                Chunk* ch = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(c));
-                if (!ch) continue;
-                const glm::ivec3 lp = ChunkManager::worldToLocalCoord(c);
-                int n = 0;
-                if (ch->getCubeAtFast(lp)) {
-                    if (ch->getCubeAtFast(lp)->getMaterialName().rfind("Log", 0) == 0)
-                        n += 9;   // full cube = full 3x3 column area
-                }
-                for (Subcube* sc : ch->getStaticSubcubesAt(lp))
-                    if (sc && sc->getMaterialName().rfind("Log", 0) == 0) ++n;
-                if (n > 0) {
-                    units += n;
-                    rowCells.push_back(c);
-                    seedCells.push_back(c);   // re-seed the release flood (cheap: flood skips cargo)
-                }
-            }
+            PlaneCrossSection ps = scorePlaneY(m_cm, anchor, 3, ry, woodWeight);
+            int units = static_cast<int>(ps.strength);          // exact for 9/1 wood weights
+            for (const glm::ivec3& c : ps.cells)
+                seedCells.push_back(c);   // re-seed the release flood (cheap: flood skips cargo)
             if (units > 0 && units < shearUnits) {
-                shearUnits = units; shearY = ry; shearCells = rowCells;
+                shearUnits = units; shearY = ry; shearCells = std::move(ps.cells);
             }
         }
         if (shearUnits > 0 && shearUnits <= 6 && shearUnits != INT_MAX) {
