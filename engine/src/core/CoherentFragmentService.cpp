@@ -123,6 +123,71 @@ std::vector<FragmentBox> CoherentFragmentService::mergeVoxelsToBoxes(
     return result;
 }
 
+std::vector<std::vector<KinematicVoxel>> CoherentFragmentService::computeImpactFracture(
+    const std::vector<KinematicVoxel>& voxels,
+    const glm::vec3& impactLocal, float impulse,
+    const std::function<float(const std::string&)>& shear,
+    float breakK, float minChunkLen, int maxCuts)
+{
+    auto whole = [&]() {
+        std::vector<std::vector<KinematicVoxel>> one; one.push_back(voxels); return one;
+    };
+    if (voxels.empty() || impulse <= 0.0f) return whole();
+
+    // 1. Longest local axis — fracture planes are perpendicular to it (a pillar/trunk snaps
+    //    across its length; a stubby block, being short on every axis, resists).
+    glm::vec3 bmin(1e9f), bmax(-1e9f);
+    for (const auto& v : voxels) {
+        bmin = glm::min(bmin, v.localPos - v.scale * 0.5f);
+        bmax = glm::max(bmax, v.localPos + v.scale * 0.5f);
+    }
+    const glm::vec3 ext = bmax - bmin;
+    const int ax = (ext.x >= ext.y && ext.x >= ext.z) ? 0 : (ext.y >= ext.z ? 1 : 2);
+    const int a1 = (ax + 1) % 3, a2 = (ax + 2) % 3;
+    if (ext[ax] < minChunkLen * 2.0f) return whole();   // too short to fracture
+
+    // 2. Sample candidate planes along the axis; a plane breaks when moment > strength.
+    const float lo = bmin[ax], hi = bmax[ax], impactS = impactLocal[ax];
+    struct Cand { float s, ratio; };
+    std::vector<Cand> cands;
+    // Step at subcube resolution so a thin neck (a 1/3 voxel) isn't skipped between samples.
+    for (float s = lo + minChunkLen; s <= hi - minChunkLen; s += 0.5f) {
+        float strength = 0.0f;   // cross-section: Σ (face-area ⟂ axis) × material shear
+        for (const auto& v : voxels) {
+            const float vlo = v.localPos[ax] - v.scale[ax] * 0.5f;
+            const float vhi = v.localPos[ax] + v.scale[ax] * 0.5f;
+            if (vlo <= s && s <= vhi) strength += v.scale[a1] * v.scale[a2] * shear(v.materialName);
+        }
+        if (strength <= 1e-6f) continue;
+        const float moment = impulse * std::fabs(s - impactS);   // bending moment = impulse × lever
+        const float ratio  = moment / (strength * breakK);
+        if (ratio > 1.0f) cands.push_back({s, ratio});
+    }
+    if (cands.empty()) return whole();
+
+    // 3. Take the most-overloaded planes first, spaced ≥ minChunkLen apart, at most maxCuts.
+    std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) { return a.ratio > b.ratio; });
+    std::vector<float> cuts;
+    for (const Cand& c : cands) {
+        if (static_cast<int>(cuts.size()) >= maxCuts) break;
+        bool ok = true;
+        for (float cs : cuts) if (std::fabs(cs - c.s) < minChunkLen) { ok = false; break; }
+        if (ok) cuts.push_back(c.s);
+    }
+    std::sort(cuts.begin(), cuts.end());
+
+    // 4. Partition voxels by which segment their center falls in.
+    std::vector<std::vector<KinematicVoxel>> parts(cuts.size() + 1);
+    for (const auto& v : voxels) {
+        size_t seg = 0;
+        while (seg < cuts.size() && v.localPos[ax] > cuts[seg]) ++seg;
+        parts[seg].push_back(v);
+    }
+    std::vector<std::vector<KinematicVoxel>> out;
+    for (auto& p : parts) if (!p.empty()) out.push_back(std::move(p));
+    return out.size() > 1 ? out : whole();
+}
+
 PhysicalizedFragment CoherentFragmentService::physicalize(
     Physics::VoxelDynamicsWorld* voxelWorld,
     KinematicVoxelManager* kinematic,

@@ -63,6 +63,22 @@ public:
         const std::vector<KinematicVoxel>& voxels,
         const std::function<float(const KinematicVoxel&)>& voxelMass);
 
+    /// U6 IMPACT FRACTURE (docs/DestructionSystemV2.md §15.3). Pure geometry: given a
+    /// fragment's LOCAL voxels, an impact (local point + impulse magnitude) and a per-material
+    /// SHEAR strength, decide fracture planes perpendicular to the fragment's LONGEST axis and
+    /// split the voxels into chunks. A plane at position s along that axis breaks when the
+    /// bending moment (impulse × lever-arm |s − impactAlongAxis|) exceeds the cross-section
+    /// strength there (Σ voxel face-area × shear) times `breakK`. So a heavy pillar snaps into
+    /// chunks on a hard landing, a thin neck breaks under a light one, a stubby block survives.
+    /// Bounded: cuts spaced ≥ minChunkLen, at most maxCuts, no re-fracture (caller controls that).
+    /// Returns the voxel groups in axis order; a size-1 result means it did NOT fracture.
+    /// Deterministic. `impulse<=0` or too-short fragments return {voxels} unchanged.
+    static std::vector<std::vector<KinematicVoxel>> computeImpactFracture(
+        const std::vector<KinematicVoxel>& voxels,
+        const glm::vec3& impactLocal, float impulse,
+        const std::function<float(const std::string&)>& shear,
+        float breakK = 1.0f, float minChunkLen = 2.0f, int maxCuts = 3);
+
     /// Turn a connected set of local-space voxels into a coherent FALLING rigid body:
     /// greedy-merge (above) -> compound VoxelRigidBody in `voxelWorld` -> optional
     /// KinematicVoxelObject in `kinematic` for rendering. The body is re-centered on

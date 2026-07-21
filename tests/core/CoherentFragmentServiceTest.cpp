@@ -238,3 +238,59 @@ TEST(CoherentFragmentServiceTest, PhysicalizeRejectsEmptyOrNullWorld) {
         glm::vec3(0.0f), glm::vec3(0.0f), unitMass).ok());
     EXPECT_EQ(kin.count(), 0u);   // nothing registered on failure
 }
+
+// ============================================================================
+// U6 impact fracture (docs/DestructionSystemV2.md 15.3) — computeImpactFracture.
+// A heavy body fractures at cross-sections where the impact moment beats the
+// cross-section strength: a pillar chunks on a hard hit, survives a light one, a
+// thin neck breaks under a modest hit, and a stubby block resists.
+// ============================================================================
+static float uniformShear(const std::string&) { return 1.0f; }
+
+static std::vector<KinematicVoxel> pillarX(int n) {
+    std::vector<KinematicVoxel> v;
+    for (int i = 0; i < n; ++i) v.push_back(cube(float(i), 0.0f, 0.0f, 1.0f));
+    return v;
+}
+
+TEST(CoherentFragmentServiceTest, ImpactFracture_HeavyPillar_SnapsIntoChunks) {
+    auto p = pillarX(24);
+    auto parts = CoherentFragmentService::computeImpactFracture(
+        p, glm::vec3(0.0f), 5.0f, uniformShear);
+    EXPECT_GT(parts.size(), 1u) << "a hard landing did not chunk the pillar";
+    size_t total = 0;
+    for (auto& g : parts) total += g.size();
+    EXPECT_EQ(total, p.size()) << "fracture lost or duplicated voxels";
+}
+
+TEST(CoherentFragmentServiceTest, ImpactFracture_LightImpact_StaysWhole) {
+    auto p = pillarX(24);
+    auto parts = CoherentFragmentService::computeImpactFracture(
+        p, glm::vec3(0.0f), 0.01f, uniformShear);
+    EXPECT_EQ(parts.size(), 1u) << "a feather touch should not fracture";
+}
+
+TEST(CoherentFragmentServiceTest, ImpactFracture_BreaksAtThinNeck) {
+    std::vector<KinematicVoxel> v;
+    for (int i = 0; i <= 4; ++i)  v.push_back(cube(float(i), 0.0f, 0.0f, 1.0f));
+    v.push_back(cube(5.0f, 0.0f, 0.0f, 1.0f / 3.0f));      // thin neck (9x weaker section)
+    for (int i = 6; i <= 10; ++i) v.push_back(cube(float(i), 0.0f, 0.0f, 1.0f));
+    auto parts = CoherentFragmentService::computeImpactFracture(
+        v, glm::vec3(0.0f), 0.06f, uniformShear);
+    ASSERT_EQ(parts.size(), 2u) << "the thin neck should split the barbell in two";
+    bool leftHasStart = false, rightHasEnd = false;
+    for (auto& g : parts[0]) if (g.localPos.x <= 1.0f) leftHasStart = true;
+    for (auto& g : parts[1]) if (g.localPos.x >= 9.0f) rightHasEnd = true;
+    EXPECT_TRUE(leftHasStart && rightHasEnd) << "split not at the neck";
+}
+
+TEST(CoherentFragmentServiceTest, ImpactFracture_StubbyBlock_Resists) {
+    std::vector<KinematicVoxel> v;
+    for (int x = 0; x < 3; ++x)
+        for (int y = 0; y < 3; ++y)
+            for (int z = 0; z < 3; ++z)
+                v.push_back(cube(float(x), float(y), float(z), 1.0f));
+    auto parts = CoherentFragmentService::computeImpactFracture(
+        v, glm::vec3(0.0f), 5.0f, uniformShear);
+    EXPECT_EQ(parts.size(), 1u) << "a stubby block should not chunk";
+}
