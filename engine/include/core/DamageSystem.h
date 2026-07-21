@@ -155,6 +155,18 @@ public:
         ChunkManager* cm, const glm::ivec3& center, int halfExtent, int y,
         const std::function<float(const std::string&)>& materialWeight);
 
+    // §15.6 C — fold small, spatially-CONTAINED components into the largest one.
+    // A felled tree's micro-thin branch TIPS wind through cells that aren't cube-face
+    // adjacent, so the support flood splits each tip into its own tiny detached component;
+    // physicalized alone, each perches on the settled pile as a disconnected "floating
+    // branch" (live user report). This folds every component that is BOTH small
+    // (<= max(maxSatelliteCells, largest/4) cells) AND inside the largest's expanded
+    // bounds back into the largest, so the crown falls as ONE coherent body — while
+    // genuinely distinct severed pieces (two wall halves, a far chunk) stay separate.
+    // Pure + deterministic (no engine state) so it is unit-tested directly.
+    static void consolidateSatelliteComponents(std::vector<std::vector<glm::ivec3>>& components,
+                                               int maxSatelliteCells = 60);
+
 private:
 
     // Count solid voxels strictly between two world points (shielding ray-march).

@@ -14,6 +14,8 @@
 #include "core/MaterialRegistry.h"
 #include <cmath>
 #include <filesystem>
+#include <vector>
+#include <glm/glm.hpp>
 
 using namespace Phyxel;
 using Phyxel::Core::MaterialRegistry;
@@ -139,4 +141,43 @@ TEST_F(DamageSystemBreakProfileTest, AllMaterialsProduceFiniteResponse) {
         EXPECT_GT(r.s2, r.s1)         << def.name;  // microcube threshold above subcube
         EXPECT_GE(r.absorption, 0.0f) << def.name;
     }
+}
+
+// ---- §15.6 C: satellite consolidation (the "floating branches" fix) ----
+// A felled tree sheds its micro-thin branch tips as separate tiny components (their wood
+// isn't cube-connected to the trunk), each of which perches on the pile as a floating
+// branch. consolidateSatelliteComponents folds small, spatially-CONTAINED tips into the
+// crown while leaving genuinely distinct pieces (a far chunk, a second large body) alone.
+TEST(DamageSystemSatelliteConsolidation, FoldsContainedTipsKeepsDistinctPieces) {
+    using glm::ivec3;
+    std::vector<std::vector<ivec3>> comps;
+
+    // Crown: 5x5x5 = 125 cells at the origin, bounds [0,4]^3 (expanded [-2,6]^3).
+    std::vector<ivec3> crown;
+    for (int x = 0; x < 5; ++x)
+        for (int y = 0; y < 5; ++y)
+            for (int z = 0; z < 5; ++z) crown.push_back({x, y, z});
+    comps.push_back(crown);
+
+    comps.push_back({{2, 6, 2}, {2, 6, 3}});          // tip A: 2 cells INSIDE expanded bounds -> folds in
+    comps.push_back({{50, 0, 0}});                     // tip B: 1 cell FAR away -> stays
+    std::vector<ivec3> other;                          // a SECOND large block far off -> stays (distinct)
+    for (int x = 0; x < 5; ++x)
+        for (int y = 0; y < 5; ++y)
+            for (int z = 0; z < 5; ++z) other.push_back({40 + x, y, z});
+    comps.push_back(other);
+
+    DamageSystem::consolidateSatelliteComponents(comps);
+
+    // Tip A folded into the crown (125 -> 127); tip B and the distant block survive: 4 -> 3.
+    ASSERT_EQ(comps.size(), 3u) << "contained tip should have folded into the crown";
+    size_t maxSz = 0, ones = 0, fives = 0;
+    for (const auto& c : comps) {
+        maxSz = std::max(maxSz, c.size());
+        if (c.size() == 1u)   ++ones;    // tip B intact
+        if (c.size() == 125u) ++fives;   // the distinct far block, untouched
+    }
+    EXPECT_EQ(maxSz, 127u) << "crown should have absorbed the 2-cell tip";
+    EXPECT_EQ(ones, 1u)    << "the far single-cell tip must NOT be folded in";
+    EXPECT_EQ(fives, 1u)   << "the distinct far block must NOT be folded in";
 }

@@ -719,6 +719,49 @@ DamageSystem::PlaneCrossSection DamageSystem::scorePlaneY(
     return out;
 }
 
+// §15.6 C — fold tiny, spatially-contained satellite components into the largest one so a
+// felled tree lands as ONE body instead of shedding "floating branch" tips (see header doc).
+void DamageSystem::consolidateSatelliteComponents(std::vector<std::vector<glm::ivec3>>& components,
+                                                  int maxSatelliteCells) {
+    if (components.size() < 2) return;
+
+    // Largest component = the crown/trunk that everything else folds into.
+    size_t big = 0;
+    for (size_t i = 1; i < components.size(); ++i)
+        if (components[i].size() > components[big].size()) big = i;
+    if (components[big].empty()) return;
+
+    // Expanded bounds of the crown (±2 cells of slack for the sub-voxel branch gaps).
+    glm::ivec3 blo = components[big].front(), bhi = components[big].front();
+    for (const glm::ivec3& c : components[big]) { blo = glm::min(blo, c); bhi = glm::max(bhi, c); }
+    blo -= glm::ivec3(2); bhi += glm::ivec3(2);
+
+    // A satellite folds in if it is small AND fully inside the crown's expanded bounds.
+    // Scale the size gate with the crown so a big fell still absorbs proportionally-small tips.
+    const size_t satMax = std::max<size_t>(
+        static_cast<size_t>(std::max(0, maxSatelliteCells)), components[big].size() / 4);
+
+    std::vector<glm::ivec3> crown = std::move(components[big]);
+    std::vector<std::vector<glm::ivec3>> kept;
+    kept.reserve(components.size());
+    for (size_t i = 0; i < components.size(); ++i) {
+        if (i == big) continue;
+        std::vector<glm::ivec3>& comp = components[i];
+        if (comp.empty()) continue;
+        glm::ivec3 clo = comp.front(), chi = comp.front();
+        for (const glm::ivec3& c : comp) { clo = glm::min(clo, c); chi = glm::max(chi, c); }
+        const bool contained = clo.x >= blo.x && chi.x <= bhi.x &&
+                               clo.y >= blo.y && chi.y <= bhi.y &&
+                               clo.z >= blo.z && chi.z <= bhi.z;
+        if (comp.size() <= satMax && contained)
+            crown.insert(crown.end(), comp.begin(), comp.end());   // fold the tip into the crown
+        else
+            kept.push_back(std::move(comp));                       // distinct piece — keep it
+    }
+    kept.push_back(std::move(crown));
+    components.swap(kept);
+}
+
 DamageSystem::ChopKerfResult DamageSystem::carveChopKerf(const glm::ivec3& hitCell,
                                                          const glm::vec3& chopDir,
                                                          float kerfDepth,
@@ -1240,8 +1283,13 @@ bool DamageSystem::collapseComponentCoherent(const std::vector<glm::ivec3>& comp
                                              DamageResult& res,
                                              const glm::vec3& impactCenter,
                                              const glm::vec3& impactDir) {
+    // Cap on STRUCTURAL (wood) cells only — leaf cargo is render-only foliage (F3 cards; no
+    // collision boxes, no solver cost), so counting it here wrongly forced a leafy crown to
+    // bail to scatter. That, plus the flood splitting sub-voxel branch tips, is what shed the
+    // tiny perching "floating branch" bodies; with tips folded in (§15.6 C) the crown's WOOD
+    // is still well under the cap while ~16k leaves ride free.
     if (!m_fragMgr || !m_fragMgr->ready() ||
-        static_cast<int>(component.size() + leafCargo.size()) > COHERENT_MAX_VOXELS) {
+        static_cast<int>(component.size()) > COHERENT_MAX_VOXELS) {
         return false;
     }
 
@@ -1698,6 +1746,13 @@ int DamageSystem::collapseUnsupported(const std::vector<glm::ivec3>& removed, fl
             }
         }
     }
+
+    // §15.6 C — fold tiny in-crown branch tips (their thin wood isn't cube-connected to the
+    // trunk, so the flood split each into its own component) back into the largest component,
+    // so the tree falls as ONE body instead of shedding "floating branch" satellites. Runs
+    // BEFORE cargo assignment so each tip's leaves label to the merged crown. Real trunk
+    // breakage still happens on landing via impact fracture (U6).
+    consolidateSatelliteComponents(detachedComponents);
 
     // ---- CARGO ASSIGNMENT: multi-source BFS over the region with ALL sources seeded
     // at distance 0 — cargo adjacent to STANDING structural wood (label STAND, seeded
