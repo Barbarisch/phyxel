@@ -70,9 +70,10 @@ private:
     // U6 impact fracture: on a hard landing, split a fragment at overloaded cross-sections.
     void tryImpactFracture(size_t index, Physics::VoxelRigidBody* b, float impulse);
     // Tuning (needs live calibration — see docs/DestructionSystemV2.md §15.3 U6).
-    static constexpr float kImpactImpulse   = 500.0f;  // min impulse (Δv × mass) to consider fracture
-    static constexpr float kFractureBreakK  = 1.0f;    // strength multiplier (higher = harder to break)
-    static constexpr int   kMaxFractureGen  = 2;       // a chunk may re-fracture at most this deep
+    static constexpr float kImpactImpulse   = 150.0f;  // min impulse (Δv × mass) to consider fracture
+    static constexpr float kFractureBreakK  = 1.6f;    // strength multiplier (higher = harder to break)
+    static constexpr int   kMaxFractureGen  = 1;       // a chunk may re-fracture at most this deep
+    static constexpr int   kMaxCutsPerHit   = 2;       // ≤ this many cuts per impact (→ ≤ 3 chunks)
 
     Physics::VoxelDynamicsWorld* m_world     = nullptr;
     KinematicVoxelManager*       m_kinematic = nullptr;

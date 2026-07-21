@@ -9,6 +9,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include "utils/Logger.h"
 #include <algorithm>
+#include <unordered_set>
 #include <cmath>
 #include <limits>
 
@@ -144,7 +145,8 @@ void CoherentFragmentManager::tryImpactFracture(size_t index, Physics::VoxelRigi
         return def ? std::max(0.1f, def->physics.mass) : 1.0f;   // density as a shear-strength proxy
     };
     auto parts = CoherentFragmentService::computeImpactFracture(voxels, impactLocal, impulse, shear,
-                                                                kFractureBreakK);
+                                                                kFractureBreakK, /*minChunkLen*/ 2.0f,
+                                                                kMaxCutsPerHit);
     if (parts.size() <= 1) return;   // not overloaded enough to break
 
     // Fracture: retire the whole body + render, then respawn each chunk where it was, inheriting
@@ -162,7 +164,36 @@ void CoherentFragmentManager::tryImpactFracture(size_t index, Physics::VoxelRigi
     int spawned = 0;
     for (auto& part : parts) {
         if (part.size() < 4) continue;   // dust — drop (would be a scatter candidate later)
-        uint32_t id = spawn("frac", std::move(part), xf, lin, ang, voxelMass);
+        // COLLISION PROXY (mirrors the original fell, F2): the render voxels include ~18k
+        // canopy MICRO leaves that don't greedy-merge — feeding them as collision makes a
+        // thousands-of-box body that hangs the solver. Collide on a COARSE wood-only proxy
+        // (one unit box per wood cell, leaves are render-only cargo); pure-leaf chunks get a
+        // single bbox box so they still land.
+        std::vector<KinematicVoxel> collision;
+        std::unordered_set<int64_t> seenCell;
+        glm::vec3 pmin(1e9f), pmax(-1e9f);
+        for (const auto& v : part) {
+            pmin = glm::min(pmin, v.localPos);
+            pmax = glm::max(pmax, v.localPos);
+            if (v.materialName.rfind("Leaf", 0) == 0) continue;   // leaves: no collision
+            const glm::ivec3 c(glm::floor(v.localPos));
+            const int64_t key = (int64_t(c.x + 4096) << 42) ^ (int64_t(c.y + 4096) << 21) ^ int64_t(c.z + 4096);
+            if (seenCell.insert(key).second) {
+                KinematicVoxel cv;
+                cv.localPos = glm::vec3(c) + glm::vec3(0.5f);
+                cv.scale = glm::vec3(1.0f);
+                cv.materialName = v.materialName;
+                collision.push_back(cv);
+            }
+        }
+        if (collision.empty()) {   // pure-canopy chunk: one box covering it, so it still collides
+            KinematicVoxel cv;
+            cv.localPos = (pmin + pmax) * 0.5f;
+            cv.scale = glm::max(pmax - pmin, glm::vec3(0.5f));
+            cv.materialName = "Leaf";
+            collision.push_back(cv);
+        }
+        uint32_t id = spawn("frac", std::move(part), collision, xf, lin, ang, voxelMass);
         if (id != 0) { m_frags.back().gen = newGen; ++spawned; }
     }
     LOG_INFO_FMT("CoherentFragment", "impact fracture: impulse=" << impulse
