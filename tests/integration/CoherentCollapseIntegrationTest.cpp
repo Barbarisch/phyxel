@@ -121,6 +121,43 @@ TEST_F(CoherentCollapseIntegrationTest, NoFragmentManager_FallsBackToScatter) {
     EXPECT_EQ(countSolid(cells), 0)                     << "still scatters";
 }
 
+// §15.6 B — anisotropic (ellipsoid) blast. A THIN, WIDE disc must reach along its wide axis
+// but NOT along its thin axis, unlike a sphere which reaches equally in all directions. This
+// is the primitive that lets a flat disc sever a full trunk cross-section in a 1-voxel slice
+// (clean fell, canopy spared) instead of a sphere's notch-or-vaporize. Differential + self-
+// validating: the SAME two probes are broken by a sphere but the thin-axis one survives the
+// disc — so a regression back to spherical math (thin-axis probe breaks) fails this test.
+TEST_F(CoherentCollapseIntegrationTest, EllipsoidBlast_ThinDisc_SeversWideAxisSparesThinAxis) {
+    if (!isEnvironmentReady() || !chunkManager) GTEST_SKIP() << "Vulkan/physics env not ready";
+
+    // Two ISOLATED probe cubes 3 units from the blast center — one along X (the disc's wide
+    // axis), one along Y (the thin axis). Isolated so nothing shields them (clean shape test).
+    auto probe = [&](glm::ivec3 wp) { chunkManager->addCube(wp); };
+    auto solid = [&](glm::ivec3 wp) { return chunkManager->hasVoxelAt(wp); };
+
+    // --- Sphere control (radius 5): both probes (dist 3 < 5) break. ---
+    const glm::vec3 cS(6.5f, 6.5f, 5.5f);
+    probe({9, 6, 5});   // +X, 3 away
+    probe({6, 9, 5});   // +Y, 3 away
+    DamageSystem dmgS(chunkManager.get(), nullptr);
+    dmgS.applyDamage(cS, 5.0f, 8000.0f, "force", glm::vec3(0.0f),
+                     DamageSystem::NO_SUPPORT, /*collapse*/ false, /*coherent*/ false);
+    EXPECT_FALSE(solid({9, 6, 5})) << "sphere should break the +X probe";
+    EXPECT_FALSE(solid({6, 9, 5})) << "sphere should ALSO break the +Y probe (isotropic)";
+
+    // --- Thin disc {5, 1, 5} (wide X/Z, thin Y): +X breaks (d=0.6), +Y survives (d=3>1). ---
+    const glm::vec3 cD(6.5f, 16.5f, 5.5f);
+    probe({9, 16, 5});   // +X, 3 away  -> normalized 3/5 = 0.6 inside
+    probe({6, 19, 5});   // +Y, 3 away  -> normalized 3/1 = 3.0 outside
+    DamageSystem dmgD(chunkManager.get(), nullptr);
+    dmgD.applyDamage(cD, 5.0f, 8000.0f, "force", glm::vec3(0.0f),
+                     DamageSystem::NO_SUPPORT, /*collapse*/ false, /*coherent*/ false,
+                     /*radii*/ glm::vec3(5.0f, 1.0f, 5.0f));
+    EXPECT_FALSE(solid({9, 16, 5})) << "thin disc must still sever along its WIDE (X) axis";
+    EXPECT_TRUE (solid({6, 19, 5})) << "thin disc must SPARE the thin (Y) axis — this is the "
+                                       "whole point: it can't reach up into the canopy";
+}
+
 // The user's actual scenario (not a floating block): a STONE tower ROOTED to the ground.
 // Cut its base and the section above must sever and topple as a coherent body, while the
 // rooted stub + floor stay. Proves structure felling works for a non-tree material (no

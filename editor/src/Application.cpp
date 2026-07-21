@@ -12283,6 +12283,22 @@ void Application::registerEffectsCommands() {
         // Coherent topple is OPT-IN (default false) until the DamageSystem-level glue has
         // automated coverage — until then the shipped scatter path stays the default.
         bool coherent = cmd.params.value("coherent", false);
+        // Blast SHAPE (§15.6 B). Explicit `radii:{x,y,z}` wins; else a `shape` convenience
+        // expands from `radius` + `thickness`: "disc" = thin horizontal slab (the clean
+        // tree-fell), "wall" = thin in Z / tall in Y, "line" = thin on both lateral axes.
+        // Omitted -> {0,0,0} -> spherical `radius` (back-compat).
+        glm::vec3 radii(0.0f);
+        if (cmd.params.contains("radii")) {
+            auto rr = cmd.params["radii"];
+            radii = glm::vec3(rr.value("x", 0.0f), rr.value("y", 0.0f), rr.value("z", 0.0f));
+        } else if (cmd.params.contains("shape")) {
+            const std::string shape = cmd.params.value("shape", std::string("sphere"));
+            const float th = cmd.params.value("thickness", 0.7f);
+            if      (shape == "disc") radii = glm::vec3(radius, th,     radius);
+            else if (shape == "wall") radii = glm::vec3(radius, radius, th);
+            else if (shape == "line") radii = glm::vec3(radius, th,     th);
+            // "sphere" (or anything else) leaves radii {0,0,0} -> scalar radius.
+        }
         Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
         // Coherent collapse: a severed component topples as ONE rigid slab via the
         // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
@@ -12291,7 +12307,7 @@ void Application::registerEffectsCommands() {
             coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
             dmg.setFragmentManager(&coherentFragmentManager);
         }
-        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent);
+        auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
              {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
              {"coherent_bodies", coherentFragmentManager.count()}};

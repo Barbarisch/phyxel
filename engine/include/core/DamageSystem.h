@@ -43,12 +43,19 @@ public:
     // Per-event collapse is hard-capped (MAX_COLLAPSE) as a chain-reaction stop-gap.
     // Pass collapse=false to disable (e.g. pure cosmetic blasts).
     static constexpr float NO_SUPPORT = -1.0e8f;
+    // `radii` (optional) makes the blast an ELLIPSOID instead of a sphere: a thin, wide
+    // disc (e.g. {4, 0.7, 4}) severs a full trunk cross-section in a 1-voxel-tall slice
+    // (clean fell, canopy survives) where a sphere either notches or vaporizes; it is also
+    // the shaped-spell primitive (wall = long/thin/tall, line = long/thin/thin). Any
+    // component > 0 activates it; {0,0,0} (default) keeps the spherical `radius`.
+    // docs/DestructionSystemV2.md §15.6 B.
     DamageResult applyDamage(const glm::vec3& center, float radius, float energy,
                              const std::string& damageType = "force",
                              const glm::vec3& direction = glm::vec3(0.0f),
                              float supportY = NO_SUPPORT,
                              bool  collapse = true,
-                             bool  coherentFragments = false);
+                             bool  coherentFragments = false,
+                             const glm::vec3& radii = glm::vec3(0.0f));
 
     // Sink for coherent-collapse: when set (and coherentFragments=true), a severed
     // component small enough is toppled as ONE rigid slab via this manager instead of

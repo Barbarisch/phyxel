@@ -92,9 +92,18 @@ static std::string cellMaterial(ChunkManager* cm, const glm::ivec3& wp);
 
 DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, float energy,
                                        const std::string& /*damageType*/, const glm::vec3& direction,
-                                       float supportY, bool collapse, bool coherentFragments) {
+                                       float supportY, bool collapse, bool coherentFragments,
+                                       const glm::vec3& radii) {
     DamageResult res;
-    if (!m_cm || radius <= 0.0f || energy <= 0.0f) return res;
+    if (!m_cm || energy <= 0.0f) return res;
+
+    // Ellipsoid radii (§15.6 B): any positive component activates a shaped blast; otherwise
+    // fall back to a sphere of scalar `radius`. Distance is normalized by R per axis below, so
+    // a thin/wide disc removes a flat slice, a wall removes a slab, etc. Floor each axis so a
+    // zero-thickness axis can't divide-by-zero.
+    const bool shaped = (radii.x > 0.0f || radii.y > 0.0f || radii.z > 0.0f);
+    const glm::vec3 R = shaped ? glm::max(radii, glm::vec3(0.05f)) : glm::vec3(radius);
+    if (R.x <= 0.0f || R.y <= 0.0f || R.z <= 0.0f) return res;
 
     using Clock = std::chrono::high_resolution_clock;
     auto t0 = Clock::now();
@@ -102,12 +111,12 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     glm::vec3 dirBias = (glm::length(direction) > 1e-3f) ? glm::normalize(direction) : glm::vec3(0.0f);
     std::vector<glm::ivec3> removed; // for the P3 collapse pass
 
-    glm::ivec3 lo(static_cast<int>(std::floor(center.x - radius)),
-                  static_cast<int>(std::floor(center.y - radius)),
-                  static_cast<int>(std::floor(center.z - radius)));
-    glm::ivec3 hi(static_cast<int>(std::ceil(center.x + radius)),
-                  static_cast<int>(std::ceil(center.y + radius)),
-                  static_cast<int>(std::ceil(center.z + radius)));
+    glm::ivec3 lo(static_cast<int>(std::floor(center.x - R.x)),
+                  static_cast<int>(std::floor(center.y - R.y)),
+                  static_cast<int>(std::floor(center.z - R.z)));
+    glm::ivec3 hi(static_cast<int>(std::ceil(center.x + R.x)),
+                  static_cast<int>(std::ceil(center.y + R.y)),
+                  static_cast<int>(std::ceil(center.z + R.z)));
 
     // A voxel that the blast breaks. Decided in the scan pass below, applied after.
     struct BreakRec {
@@ -154,10 +163,13 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         }
 
         glm::vec3 vc(x + 0.5f, y + 0.5f, z + 0.5f);
-        float dist = glm::distance(center, vc);
-        if (dist > radius) continue;
+        // Ellipsoid-normalized distance: d<=1 inside the (possibly anisotropic) shape.
+        // For a sphere R = {radius,radius,radius} this is exactly dist/radius as before.
+        glm::vec3 rel = (vc - center) / R;
+        float d = glm::length(rel);
+        if (d > 1.0f) continue;
 
-        float fall = std::pow(std::max(0.0f, 1.0f - dist / radius), FALLOFF_P);
+        float fall = std::pow(std::max(0.0f, 1.0f - d), FALLOFF_P);
         if (fall <= 0.0f) continue;
 
         MatResponse mr = responseFor(mat);
@@ -177,8 +189,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
             continue;
         }
 
-        // Outward launch direction (radial + optional hit-direction bias).
-        glm::vec3 outDir = (dist > 1e-3f) ? (vc - center) / dist : glm::vec3(0.0f, 1.0f, 0.0f);
+        // Outward launch direction (world-space radial + optional hit-direction bias).
+        const glm::vec3 off = vc - center;
+        const float wdist = glm::length(off);
+        glm::vec3 outDir = (wdist > 1e-3f) ? off / wdist : glm::vec3(0.0f, 1.0f, 0.0f);
         outDir = glm::normalize(outDir + dirBias * 0.5f);
         float speed = BASE_SPEED * std::sqrt(ratio);
 
