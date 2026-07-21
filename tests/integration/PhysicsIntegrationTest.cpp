@@ -248,5 +248,44 @@ TEST_F(PhysicsIntegrationTest, IndexedBroadphaseStillCollidesWithTerrain) {
     vw->removeAllBodies();
 }
 
+// Anti-tunneling (docs/DestructionSystemV2.md §15 A): a body moving FAST (a fracture
+// child inheriting a hard-landing velocity, or a big fell dropping onto a thin platform)
+// must not skip through a 1-voxel-thick terrain surface. Without a per-substep displacement
+// clamp the integrator is plain Euler + current-AABB contacts (no CCD), so at >1 voxel/step
+// the body jumps from above the slab to the empty void below and free-falls to the fall
+// threshold (~y-20). This reproduced the "trunk fell to y-20" bug from the live fell demo.
+TEST_F(PhysicsIntegrationTest, FastBodyDoesNotTunnelThroughThinTerrain) {
+    auto* vw = physicsWorld->getVoxelWorld();
+    ASSERT_NE(vw, nullptr);
+    vw->removeAllBodies();
+
+    // 5x5 floor slab, ONE voxel thick, at y=0 (top surface y=1).
+    auto grid = std::make_unique<VoxelOccupancyGrid>();
+    grid->setChunkOrigin(glm::ivec3(0, 0, 0));
+    for (int x = 0; x < 5; ++x)
+        for (int z = 0; z < 5; ++z)
+            grid->setCube(glm::ivec3(x, 0, z), true);
+    vw->registerGrid(grid.get());
+
+    // Body just above the slab, hurled DOWNWARD at 150 u/s. At dt=1/60 that is 2.5
+    // voxels/substep — more than the 1-thick slab, so an unclamped step tunnels straight
+    // through it.
+    auto* body = vw->createVoxelBody(glm::vec3(2.5f, 2.5f, 2.5f), glm::vec3(0.5f), 1.0f);
+    ASSERT_NE(body, nullptr);
+    body->linearVelocity = glm::vec3(0.0f, -150.0f, 0.0f);
+
+    for (int i = 0; i < 300; ++i) physicsWorld->stepSimulation(1.0f / 60.0f);
+
+    // Must have rested ON the slab (top y=1, half-extent 0.5 → center ≈ 1.5), NOT punched
+    // through it to the fall threshold.
+    EXPECT_GT(body->position.y, 0.8f)
+        << "fast body tunneled through the 1-thick platform (rested at y=" << body->position.y
+        << ", fall threshold is -20) — no anti-tunneling clamp";
+    EXPECT_LT(body->position.y, 3.0f) << "body never settled onto the slab";
+
+    vw->unregisterGrid(grid.get());
+    vw->removeAllBodies();
+}
+
 } // namespace Testing
 } // namespace Phyxel

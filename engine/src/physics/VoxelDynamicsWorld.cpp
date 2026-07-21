@@ -203,6 +203,17 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
             float ad = std::pow(1.0f - body->angularDamping, dt);
             body->linearVelocity  *= ld;
             body->angularVelocity *= ad;
+            // Anti-tunneling (docs/DestructionSystemV2.md §15.6 A): this solver integrates
+            // plain Euler and generates terrain contacts only from a body's current AABB —
+            // there is NO CCD. A body moving > ~1 voxel/substep therefore skips clean through
+            // a 1-voxel-thick surface (a floating platform, a thin roof) into the void and
+            // free-falls to the fall threshold. Cap the per-substep displacement to < the
+            // terrain cell size so the discrete contact check can't be jumped. Speed above
+            // this is unphysical for CPU rigid bodies (furniture, fells, fracture chunks).
+            constexpr float kMaxStepVoxels = 0.9f;
+            const float     maxSpeed = kMaxStepVoxels / std::max(dt, 1e-4f);
+            const float     sp = glm::length(body->linearVelocity);
+            if (sp > maxSpeed) body->linearVelocity *= (maxSpeed / sp);
         }
     });
 }

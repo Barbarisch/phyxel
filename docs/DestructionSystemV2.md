@@ -1219,3 +1219,54 @@ count at the exact moment of peak contact activity. With the world-size-linear s
 a stand of trees landing together would multiply an already-quadratic-feeling cost. U1a is
 therefore a hard prerequisite for U6, not merely an optimization — and it is the reason U5
 (retirement) is scheduled before U6 as well.
+
+## 15.6 Fell-quality bugs surfaced by the live demo — fix plan (2026-07-20)
+
+A full-size `forge_oak_l` felled on the CharacterTestbed platform exposed three defects the
+prior N=1 (small autumn tree) verification missed — the exact stress-test failure CLAUDE.md
+warns about. All three are confirmed in code, not speculation:
+
+1. **Fall-through to y-20 (tunneling).** `VoxelDynamicsWorld` integrates plain semi-implicit
+   Euler (`integratePositions`: `position += v·dt`) with terrain contacts generated only from the
+   body's CURRENT AABB (`generateContacts` → `gatherGridsOverlapping(ab±0.5)`). **No CCD, no
+   per-step displacement clamp.** The testbed ground is a thin floating platform, so a body moving
+   >1 voxel/substep jumps from above the 1-thick surface to the void below and free-falls to
+   `m_fallThreshold = -20`. Amplifier: fracture children inherit the parent's *impact* velocity
+   verbatim (`CoherentFragmentManager` `lin = b->linearVelocity`) — supersonic at the worst moment.
+   Log evidence: bodies 2 and 10 asleep at y=-20.1.
+2. **Leaves vanish.** The orphan-leaf rule (`DamageSystem` ~1743, ~1769) silently removes leaves
+   whose supporting wood is destroyed (leaves must never become voxel debris). A high-energy blast
+   destroys canopy twig-wood wholesale → leaves orphan → removed. At a CLEAN sever the canopy wood
+   survives and the code already attaches it as cargo (`fragVoxels = wood + leaves`). Root cause is
+   the felling tool, not the leaf code.
+3. **Float at y21-22.** Mixed: tilted long bodies legitimately have a high COM (not a bug), plus a
+   real contributor — the fell collision proxy is coarse whole-cell for >800-cell trunks
+   (`fineCollision = component.size() <= 800`), padding sub-cell wood to full 1-unit boxes so the
+   collision hull sits below the render. Needs a live render-bottom vs collision-bottom measurement
+   before touching.
+
+Also root-caused: a **spherical** blast physically cannot cleanly sever a thick trunk — it
+self-shields horizontally, so below ~900 energy it makes a notch (no fell) and above it vaporizes
+the canopy. The falloff is hard-wired spherical in three lines of `applyDamage` (`dist =
+glm::distance`, `dist > radius`, `pow(1 - dist/radius)`); everything downstream (shielding,
+tiering, the coherent-fell path) is shape-agnostic.
+
+### Fix plan (A → B → C)
+
+- **A. Anti-tunneling (physics, do first).** Clamp per-substep linear displacement in
+  `VoxelDynamicsWorld::integrateVelocities` so `|v|·dt ≤ ~0.9` voxel (a discrete step can't skip a
+  1-thick surface); plus clamp fracture-child inherited velocity. Red test:
+  `FastBodyDoesNotTunnelThroughThinTerrain` (a body hurled down at 150 u/s must rest on a 1-thick
+  slab, not reach the fall threshold). L4: fell on the testbed, assert every body rests ≥ surface.
+- **B. Anisotropic blast shape (replaces the earlier "wire the kerf to the API" idea).** Replace
+  scalar `radius` in `applyDamage` with a per-axis `glm::vec3 radii`; normalize the distance
+  (`d = length((vc-center)/radii)`, break if `d>1`, `fall = pow(1-d,p)`). A thin wide **disc**
+  (radii ~{4, 0.7, 4}) at the trunk base severs the full cross-section in a 1-voxel-tall slice —
+  high in-plane energy punches the horizontal shielding while the thin Y keeps it off the canopy →
+  clean coherent fell with leaves riding. This is also the primitive behind every shaped spell
+  (thunderwave = wide/flat, wall_of_fire = wall, lightning = line). API gains `radii:{x,y,z}` or an
+  ergonomic `shape` + size that expands to radii; scalar `radius` stays for back-compat. *L2:* disc
+  sever keeps canopy leaf-count ≈ pre-fell. *L4:* leafy tree topples as one body.
+- **C. Float polish (measure first).** Instrument render-bottom vs collision-bottom on a settled
+  body; if the gap is real, extend the subcube-resolution proxy to big trunks (bounded by greedy
+  merge) instead of the coarse whole-cell fallback.
