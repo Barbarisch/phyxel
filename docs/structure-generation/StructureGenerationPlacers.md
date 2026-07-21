@@ -28,7 +28,7 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 9 | `place_doors` | door leaves, correct handedness/swing, register with `DoorManager` | **M** |
 | 10 | `place_windows` | glazing / shutters / boards / open per period+status | **M** |
 | 11 | `place_ceiling` / `place_intermediate_floor` | ceiling or upper-story floor; defer stairwell holes | **P** (fused; single story — no upper-story floor built) |
-| 12 | `place_stairs` | stairs between stories / to cellar, with landings + headroom | **M** (realizer never reads `ProgStair`) |
+| 12 | `place_stairs` | stairs between stories / to cellar, with landings + headroom | **D** (realizer reads every `ProgStair`, cuts the stairwell hole through the upper floor slab, and builds the climbable flight via `StairPlanner` — `StructureRealizer.cpp` "place_stairs (#12)" pass; `ValidationLedger.md` row 12 = L3, exemplar) |
 | 13 | `place_roof` | gable/hip/valley over the real outline + eaves/fascia/soffit + ridge + attic void | **P** (gable on rect, blocky, floats; attic void sealed & inaccessible) |
 | 14 | `place_chimney` | flue from each hearth up through the roof | **M** |
 | 15 | `place_trim` | baseboards, casings, quoins, exposed framing, string courses (micro detail) | **M** |
@@ -52,7 +52,7 @@ testable. They run in order; each is gated by the relevant checklist items in Pa
 | 33 | `apply_seasonal_state` | *(final dressing pass)* snow / foliage / crops / smoke / shutters / ice by season + time | **M** |
 | 34 | `excavate_basement` | *(vertical; see Part 5)* dig the below-grade box into terrain; spoil removal; drainage; window wells / bulkhead | **M** |
 | 35 | `place_basement` | occupiable below-grade story at level −1: retaining walls (stone, thick) + base slab + cellar floor/ceiling; runs the per-story placers | **M** |
-| 36 | `stack_stories` | the multi-story loop — run the per-story placers at each story's base-Y, then realize each `ProgStair`; prerequisite for upper floors, basements & attics | **M** (missing — realizer hard-codes `stories[0]`) |
+| 36 | `stack_stories` | the multi-story loop — run the per-story placers at each story's base-Y, then realize each `ProgStair`; prerequisite for upper floors, basements & attics | **P** (`StructureRealizer::realizeShell` now iterates `program.stories` building floor/walls/openings per story at a running base-Y and realizes every adjacent-story `ProgStair`; footprint/exterior-outline is still derived once from `stories[0]`. `ValidationLedger.md` row 36 = L3 via `TavernUpstairsTest`) |
 | 37 | `place_attic` | story inside the roof volume: usable-area mask from pitch (headroom ≥ 1.5 m), knee walls, sloped ceiling, dormers/gable lights, hatch/stair access | **M** |
 | 38 | `site_settlement` | *(settlement tier; see Part 7)* justify the location (water / defence / crossroads / harbour / resource); set growth seed + axis | **M** |
 | 39 | `lay_street_network` | road hierarchy (high street → lane → alley), organic vs planned, market at the crossing; widths from canon | **M** |

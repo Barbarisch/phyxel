@@ -3,12 +3,12 @@
 The single consolidated list of every un-grounded value in the structure-generation spec, so the remaining
 grounding work is visible in one place. There are **two kinds**, and the distinction matters:
 
-- **`NEEDS-RESEARCH` (4 real items)** — a value we *tried* to source and couldn't; it needs a specialist source. **These are the genuine gaps.**
+- **`NEEDS-RESEARCH` (8 real items)** — a value we *tried* to source and couldn't; it needs a specialist source. **These are the genuine gaps.**
 - **`to_ground` (~265)** — values deliberately **deferred to the bay/program model** + the brief's status/period at generation time. These are *design choices*, not missing facts (a room's size = its bay count × the style, not a pre-baked constant). Counted in aggregate, not listed individually.
 
 Everything else in the spec is **cited** or **reuse-canon** — and Parts 5–8 + all 45 archetype-sheet numbers passed a grounding-auditor pass.
 
-## NEEDS-RESEARCH — the real gaps (4)
+## NEEDS-RESEARCH — the real gaps (8)
 
 | # | Value | Where | What to consult |
 |---|---|---|---|

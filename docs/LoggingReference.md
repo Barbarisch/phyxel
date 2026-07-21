@@ -52,7 +52,8 @@ This document provides a quick reference for the logging implementation across t
   - Levels: DEBUG (generation), ERROR (validation)
 
 ### Physics & Forces
-- **Physics** - Bullet Physics world operations
+- **Physics** - `PhysicsWorld` operations (a thin wrapper over the custom CPU `VoxelDynamicsWorld`
+  rigid-body stack — Bullet Physics was removed entirely; the module name "Physics" is unchanged)
   - Levels: DEBUG (body creation), ERROR (failures)
   
 - **ForceSystem** - Force propagation and material properties
@@ -72,7 +73,13 @@ This document provides a quick reference for the logging implementation across t
 
 ## File-by-File Log Usage
 
-### Application.cpp (~110 statements)
+> **Stale — historical snapshot only.** The counts and paths below were captured at the November
+> 2025 logging migration and have since drifted (spot-checked 2026-07: `Chunk.cpp` now has only
+> ~2 `LOG_*` calls, not ~54; `Application.cpp` now lives at `editor/src/Application.cpp` with
+> ~196 calls, not `src/Application.cpp` with ~110). Treat this section as illustrative of the
+> module/level conventions, not as a current inventory.
+
+### Application.cpp (now `editor/src/Application.cpp`; ~110 statements at time of writing, ~196 now)
 ```cpp
 Categories: "Application"
 Levels:
@@ -82,7 +89,7 @@ Levels:
   - ERROR: Invalid operations, missing components
 ```
 
-### Chunk.cpp (~54 statements)
+### Chunk.cpp (~54 statements at time of writing, ~2 now)
 ```cpp
 Categories: "Chunk"
 Levels:

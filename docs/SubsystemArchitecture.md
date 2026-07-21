@@ -72,9 +72,9 @@ class Parent {
 ### 2. Chunk Subsystems
 
 **Chunk** (801 lines) - 32x32x32 voxel section manager
-- **ChunkRenderManager** (Graphics) - Face generation, Vulkan buffer management (~328 lines)
+- **ChunkRenderManager** (Graphics) - Face generation, Vulkan buffer management (~328 lines); GPU buffers are suballocated from the process-wide **ChunkArenaSystem** / `ChunkArenaAllocator` (region-keyed arena — `docs/RegionArenaPlan.md`)
 - **ChunkPhysicsManager** (Physics) - Collision shapes, rigid body management (~833 lines)
-- **ChunkVoxelManager** - Voxel hierarchy operations (cubes→subcubes→microcubes) (~616 lines)
+- **ChunkVoxelManager** - Voxel hierarchy operations (cubes→subcubes→microcubes) (~616 lines); owns a **ChunkVoxelStore** (palette-compressed static voxel state — `addCube`/`getCubeAtFast`/`hasVoxelAt` route through it; replaces the removed `ChunkStorage` class)
 - **ChunkVoxelBreaker** - Static→dynamic voxel conversion (~120 lines)
 
 **Original size**: 2,444 lines  

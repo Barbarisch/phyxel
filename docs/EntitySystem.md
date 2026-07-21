@@ -69,18 +69,23 @@ The base abstract class defining the interface for all game objects.
 - **Key Methods**: `update()`, `render()`.
 
 ### PhysicsCharacter (DEPRECATED — Bullet removed)
-> **No longer in active builds.** `PhysicsCharacter` (and `Character`, `SpiderCharacter`,
-> `VoxelCharacter`, `PhysicsDriveMode`) were moved to `engine/deprecated/bullet/` when Bullet
-> Physics was removed. The active character is `AnimatedVoxelCharacter` (kinematic capsule;
-> grounds against `VoxelDynamicsWorld` occupancy grids). The Bullet-based descriptions below
-> are historical. See [PhysicsCharacter.md](PhysicsCharacter.md).
+> **No longer in active builds, and no longer present in the working tree at all.**
+> `PhysicsCharacter` (and `Character`, `SpiderCharacter`, `VoxelCharacter`, `Player`, `Enemy`,
+> `PhysicsDriveMode`) briefly lived under `engine/deprecated/bullet/` after the initial Bullet
+> removal (commit `2ddc367`), but that directory was itself deleted entirely in a later cleanup
+> commit (`c8803a2`, "Remove Bullet Physics and dead/stale files") — it is **not** on disk today,
+> only recoverable from git history. The active character is `AnimatedVoxelCharacter` (kinematic
+> capsule; grounds against `VoxelDynamicsWorld` occupancy grids). The Bullet-based descriptions
+> below are historical. See [PhysicsCharacter.md](PhysicsCharacter.md) (which has the same stale
+> "archived in engine/deprecated/bullet/" framing).
 
 A (deprecated) active-ragdoll based character controller.
 - **Physics**: Used `btRigidBody` and `btHingeConstraint` with motors.
 - **Balance**: Used a PID controller to maintain upright orientation.
 
 ### Character (Legacy — DEPRECATED, Bullet removed)
-A specialization of `Entity` that used Bullet Physics for movement (archived in `engine/deprecated/bullet/`).
+A specialization of `Entity` that used Bullet Physics for movement (fully deleted from the repo,
+not merely archived — recoverable only via git history, see note above).
 - **Physics Integration**: Uses `btKinematicCharacterController` for robust character movement (handling slopes, stairs, gravity) without the instability of pure rigid bodies.
 - **Collision**: Uses `btPairCachingGhostObject` to detect collisions without applying forces to static geometry in a way that would cause jitter.
 - **Rendering**: Renders as a voxel-style cube using a dedicated pipeline.
@@ -103,7 +108,13 @@ A voxel character loaded from `.anim` files with a skeleton, box-based geometry,
 ### NPCEntity
 A non-player character that wraps an `AnimatedVoxelCharacter` and delegates logic to a pluggable `NPCBehavior`.
 - **Ownership**: Owned by `NPCManager`, registered in `EntityRegistry` with type tag `"npc"`.
-- **Behaviors**: `IdleBehavior` (stationary), `PatrolBehavior` (waypoint patrol with configurable speed/wait time, includes `PerceptionComponent` for FOV/LOS detection and look-around sweep at waypoints), `BehaviorTreeBehavior` (composable behavior tree with perception, blackboard, utility scoring), `WanderBehavior` (random movement).
+- **Behaviors**: concrete `NPCBehavior` subclasses in `engine/include/scene/behaviors/` are
+  `IdleBehavior` (stationary), `PatrolBehavior` (waypoint patrol with configurable speed/wait time,
+  includes FOV/LOS perception and a look-around sweep at waypoints), `BehaviorTreeBehavior`
+  (composable behavior tree with perception, blackboard, utility scoring — "Wander" is one of its
+  blackboard `currentActivity` string values, not a separate class), `CombatBehavior`,
+  `ScheduledBehavior`, `StoryDrivenBehavior`. (There is no standalone `WanderBehavior` class —
+  corrected from a prior version of this doc.)
 - **Rendering**: `RenderCoordinator` pulls the inner `AnimatedVoxelCharacter*` via `getAnimatedCharacter()` and renders it alongside regular entities in the instanced batch.
 - **Dialogue**: Supports an attached `DialogueProvider` for NPC conversations.
 - **Lights**: Optional attached point light via `setAttachedLightId()`.

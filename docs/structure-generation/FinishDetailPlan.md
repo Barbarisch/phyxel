@@ -139,6 +139,17 @@ today):** facade-relief metric — sample exterior wall faces; the fraction lyin
 plane must drop below a threshold (today it is ~100%); corners on quoin-bearing styles must have
 alternating protruding cells. C5 gates ornament by wealth tier from the brief.
 
+**INCREMENT A (corner quoins) DONE** (commit `fc852f1`, red-before-green
+`tests/core/TrimForgeTest.cpp`, see `TrimGrounding.md`): `StructureRealizer` pass 4.5 paints
+alternating long/short dressed-stone corner blocks (4/3 micro legs, proud of both facade planes,
+grounded to reclaimed-stone quoins 450×300×145 mm) on rectangular footprints where
+`style.flag("quoins")` is set (stone_manor, stone_keep). L-plan notch corners are deferred to the
+P2.6 composition work. **REMAINING in P2:** plinth course, string courses, eave cornice/fascia +
+bargeboards, and exposed timber framing are still unimplemented — `courseBand`, `timberBrace` (and
+a general `frameOpening` beyond the P1 door/window carve) have no `MicroCanvas` implementation yet;
+only `quoinCorner`-equivalent logic (inlined in the realizer, not a named `MicroCanvas` method) and
+`chamferEdge` exist.
+
 ### P2.5 — roof slope resolution (roof_forge; added 2026-07-06, user-reported) — **GABLE CORE DONE 2026-07-06**
 Shipped red-before-green: `tests/core/RoofForgeTest.cpp` (slope-surface step metric on the real
 canvas, shown failing "12 vs 2" against the cube-stepped rasterizer; coverage + eave-flush guards
@@ -236,9 +247,10 @@ C/S/M mix per building, `get_render_stats` faces vs the 412k→49FPS tavern datu
 in ValidationLedger. If trim blows the budget, it thins by DISTANCE-TO-PLAYER tiering at
 placement time — never by removing the pass.
 
-## Validation ledger entries (to add when work starts)
-- `cut_openings` — required L2 (frame invariant), current L1.
-- `place_trim` — required L2 (relief metric), current L0.
+## Validation ledger entries (see `ValidationLedger.md` for the authoritative/current status)
+- `cut_openings` — required L2 (frame invariant); **now L2** (`FinishForgeTest`, P1 shipped 2026-07-05).
+- `place_trim` — required L2 (relief metric); **L2 for quoins only** (`TrimForgeTest`, increment A
+  shipped 2026-07-06); remaining sub-placers (plinth, string courses, cornice, timber framing) still L0.
 - Interior finish — required L3 where it touches traversal (railings), else L2.
 
 ## Why this will read as dramatic as the trees did

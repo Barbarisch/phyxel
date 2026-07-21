@@ -10,11 +10,11 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 |---|---|---|---|
 | **Shader** | `static_voxel.vert` | `kinematic_voxel.vert` | `dynamic_voxel.vert` |
 | **Draw type** | `vkCmdDrawIndexed` | `vkCmdDrawIndexed` | `vkCmdDrawIndirect` (non-indexed) |
-| **Instance data** | `InstanceData` (20B) | `KinematicFaceData` (40B) | `DynamicSubcubeInstanceData` (64B) |
+| **Instance data** | `InstanceData` (24B) | `KinematicFaceData` (48B) | `DynamicSubcubeInstanceData` (64B) |
 | **UV offset** | GPU decodes from packed grid bits | CPU pre-computes per face in `buildFaces()` | GPU decodes from `localPosition` ivec3 |
 | **Face culling** | CPU-side per chunk (only exposed faces) | None (all 6 faces per voxel) | None (all 6 faces per particle) |
 | **Owner** | `ChunkManager` / `Chunk` | `KinematicVoxelPipeline` + `KinematicVoxelManager` | `GpuParticlePhysics` |
-| **Physics** | None (world-static) | Bullet kinematic body (AABB box) | GPU XPBD compute |
+| **Physics** | None (world-static) | None today — `KinematicVoxelManager` no longer creates a collider (Bullet removed; `syncCollidersToPhysics()` is a no-op) | GPU XPBD compute |
 | **Persistence** | SQLite world DB | None (reconstructed at load) | None (transient) |
 
 ```
@@ -73,7 +73,7 @@ The static vertex shader (`static_voxel.vert`) uses `vertexID` to index into har
 
 ### Instance Buffer (Binding 1)
 
-`InstanceData` — 20 bytes per instance, packed:
+`InstanceData` — 24 bytes per instance, packed:
 
 ```
 Bits  0-4:  X position (0-31 within chunk)
@@ -88,7 +88,7 @@ Bits 26-31: Microcube encoded position
 + uint32 light  + uint32 light2 + uint32 light3   (per-corner lighting)
 ```
 
-The three trailing `light`/`light2`/`light3` words (12 bytes) hold the smooth per-corner skylight + per-corner block-light values baked by the lighting overhaul — they grew the struct from 8B to 20B.
+The three trailing `light`/`light2`/`light3` words (12 bytes) hold the smooth per-corner skylight + per-corner block-light values baked by the lighting overhaul — they grew the struct from 8B to 20B, and a later `tint` word (4 bytes, per-voxel 0xRRGGBB multiplier) grew it again to the current 24B.
 
 Each chunk has its own instance buffer. A push constant provides the chunk's world-space origin offset. The GPU decodes grid positions from the packed bits to compute the per-face UV offset for subcubes and microcubes.
 
@@ -106,14 +106,15 @@ Kinematic objects are groups of voxels that move together under a shared world t
 
 ### Instance Buffer (Binding 1)
 
-`KinematicFaceData` — 40 bytes per face, pre-built by `KinematicVoxelManager::buildFaces()`:
+`KinematicFaceData` — 48 bytes per face (`static_assert`-enforced, `KinematicVoxelManager.h`), pre-built by `KinematicVoxelManager::buildFaces()`:
 
 ```
 offset  0: vec3  localPosition  (12 bytes) — voxel center in object-local (hinge) space
 offset 12: vec3  scale          (12 bytes) — (1,1,1)=cube, (1/3,1/3,1/3)=subcube, (1/9,1/9,1/9)=microcube
-offset 24: vec2  uvOffset       (8 bytes)  — pre-computed UV offset within parent cube face
-offset 32: uint32 textureIndex  (4 bytes)
-offset 36: uint32 faceId        (4 bytes)  — 0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y
+offset 24: vec2  uvOffset       (8 bytes)  — UV min within the texture for this face's sub-rectangle
+offset 32: vec2  uvScale        (8 bytes)  — per-axis UV span (sub-tile tiling or planar-projected surface fraction)
+offset 40: uint32 textureIndex  (4 bytes)
+offset 44: uint32 faceId        (4 bytes)  — bits 0-2 face (0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y); bits 3-26 packed 0xRRGGBB tint
 ```
 
 All 6 faces are emitted for every voxel (no inter-voxel face culling). The `uvOffset` is computed on the CPU from each voxel's `parentFrac` field, which stores the voxel's position within its parent cube in [0,1) normalized coords.
@@ -124,9 +125,7 @@ Each object's world transform is passed as a push constant (`mat4`, 64 bytes). T
 
 ### Physics Collider
 
-`KinematicVoxelManager::add()` creates a Bullet kinematic box body (AABB-sized) by default. The collider tracks the object's world transform via `syncCollidersToPhysics()` each frame, giving other physics objects something to collide against.
-
-**Important:** Pass `skipCollider=true` when the owning system (e.g. `DynamicFurnitureManager`) already manages a `btRigidBody` for the object. Two overlapping colliders at the same position causes Bullet to eject the dynamic body. See `KinematicVoxelManager.h` for details.
+**Stale (Bullet removal):** `KinematicVoxelManager::add()` no longer creates any collider. `skipCollider` is accepted for API-compatibility only and has no effect, `syncCollidersToPhysics()` is a no-op (`engine/include/core/KinematicVoxelManager.h`), and the constructor's `physicsWorld` parameter is unused. Kinematic voxel objects (doors, furniture, fragments) currently have **no physics presence** from this path — other systems (e.g. `DynamicFurnitureManager`) that need collision manage their own body separately. This section previously described a Bullet `btRigidBody`-based kinematic collider; Bullet has been removed from the engine entirely (see CLAUDE.md) and no replacement collider has been wired up here yet.
 
 ---
 
@@ -187,7 +186,7 @@ If GPU particle physics is not active, `renderDynamicSubcubes()` falls back to t
 vulkanDevice->drawIndexed(currentFrame, 6, faces.size());
 ```
 
-This path reads `DynamicSubcubeInstanceData` from a host-visible buffer updated each frame by Bullet Physics position readback. It uses the **same** pipeline and shaders as the GPU path, but the index buffer **is** used here (6 indices = 1 face = 2 triangles).
+This path reads `DynamicSubcubeInstanceData` from a host-visible buffer updated each frame by the custom CPU rigid-body world's (`VoxelDynamicsWorld`) position readback — Bullet has been removed from the engine entirely. It uses the **same** pipeline and shaders as the GPU path, but the index buffer **is** used here (6 indices = 1 face = 2 triangles).
 
 > **Note**: The CPU fallback uses `drawIndexed` (indexed) while the GPU path uses `drawIndirect` (non-indexed). The vertex shader handles both because the `vertexID` range (0–5) maps to the same corner remap regardless of whether the ID comes from the index buffer or direct vertex count.
 
@@ -260,7 +259,7 @@ Kinematic voxels (doors, furniture, fragments) also reflect. `KinematicVoxelPipe
 
 ### What does *not* reflect yet
 
-Dynamic voxels / debris (the GPU-particle + CPU-Bullet `renderDynamicSubcubes` paths). Same approach would work — a BACK_BIT reflection pipeline + replay the indirect/CPU draws with the reflected descriptor set — but debris counts can reach ~10k particles, so it is best paired with a reduced-resolution reflection target. Deferred.
+Dynamic voxels / debris (the GPU-particle + CPU `renderDynamicSubcubes` paths, the latter backed by `VoxelDynamicsWorld` — Bullet removed). Same approach would work — a BACK_BIT reflection pipeline + replay the indirect/CPU draws with the reflected descriptor set — but debris counts can reach ~10k particles, so it is best paired with a reduced-resolution reflection target. Deferred.
 
 ---
 
@@ -278,7 +277,7 @@ Dynamic voxels / debris (the GPU-particle + CPU-Bullet `renderDynamicSubcubes` p
 
 6. **Sleeping particles skip collision**: The sleep early-return in `particle_collide.comp` skips ALL collision checks. Any new collision source (e.g. NPC AABBs, projectiles) must check before the sleep gate or wake particles in a pre-check, as the character AABB does.
 
-7. **Kinematic duplicate colliders**: Registering a `KinematicVoxelObject` with `skipCollider=false` when the owning system already has a `btRigidBody` at the same position causes violent Bullet ejection. Always use `skipCollider=true` in those cases.
+7. **Kinematic duplicate colliders (STALE — historical):** this described a Bullet-era hazard (a `KinematicVoxelObject` collider double-registered against an owning system's `btRigidBody`). Bullet has since been removed and `KinematicVoxelManager` no longer creates any collider at all (`skipCollider` is now a no-op parameter kept for API compatibility) — the hazard as described no longer applies; kept here as a historical note only.
 
 8. **Rebind vertex binding 0 in every custom pass**: The static draw is `drawIndexed(36, numInstances)` — the full 36-index cube buffer is replayed for each one-face instance, and the shader collapses it onto a single quad, relying on face culling to leave a covering set of triangles. Entity, kinematic, dynamic, mirror, and reflection passes all rebind vertex **binding 0** to their own buffers. Any pass that issues the static draw **must call `vulkanDevice->bindVertexBuffers(frameIndex)` first** to restore the shared cube geometry. If you forget, the chunk faces pull cube vertices from whatever buffer was left bound (a previous frame's, or another pass's) and you get **torn geometry / per-quad triangle holes** that depend on view angle and frame timing. This bit both the reflection pass (runs at frame start, inherits the previous frame's binding) and the mirror geometry pass (runs after the entity pass). The main scene pass already does this — see the comment in `renderScene`.
 
@@ -287,7 +286,6 @@ Dynamic voxels / debris (the GPU-particle + CPU-Bullet `renderDynamicSubcubes` p
 ## See Also
 
 - [VoxelSystem.md](VoxelSystem.md) — Conceptual model: voxel sizes, static/kinematic/dynamic states, fragment routing
-- [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) — Hybrid Bullet+GPU physics system, routing logic, performance data
+- [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU), routing logic, performance data (Bullet removed)
 - [CoordinateSystem.md](CoordinateSystem.md) — World vs local coordinates
-- [MultiChunkSystem.md](MultiChunkSystem.md) — Chunk management overview
 - [SubsystemArchitecture.md](SubsystemArchitecture.md) — Engine subsystem overview

@@ -62,7 +62,7 @@ Use this checklist after every change to `create_project.py`, `EngineRuntime`,
 
 | # | Test | Expected Result | Pass? |
 |---|------|-----------------|-------|
-| 2.1 | Player exists | After "New Game", a physics character is visible in 3rd person | |
+| 2.1 | Player exists | After "New Game", an animated voxel character is visible in 3rd person | |
 | 2.2 | Camera mode | Camera orbits behind the player (ThirdPerson mode) | |
 | 2.3 | WASD movement | Player walks on terrain surface, camera follows | |
 | 2.4 | Mouse look | Camera orbits around player when mouse moves | |
@@ -152,10 +152,11 @@ This definition exercises all the systems changed in Phases 1–5.
 Always run these before and after changes:
 
 ```powershell
-# Unit tests (should be 1033+)
+# Unit tests (~2,900+ as of this audit; CLAUDE.md cites ~2,300 as the round figure — both were
+# 1033+ at time of writing, now far higher)
 .\build\tests\Debug\phyxel_tests.exe --gtest_brief=1
 
-# Integration tests (should be 36)
+# Integration tests (86 as of this audit, not 36)
 .\build\tests\integration\Debug\phyxel_integration_tests.exe --gtest_brief=1
 
 # PatrolBehavior-specific (velocity-based movement)
@@ -171,8 +172,11 @@ Always run these before and after changes:
 ## Key Implementation Details (for debugging)
 
 ### Player Character (Phase 1)
-- Created via `spawnEntity("physics", pos, "")` in generated `onInitialize()`
-- `PhysicsCharacter` constructor: `(PhysicsWorld*, InputManager*, Camera*, startPos)`
+- Created via `spawnEntity("animated", pos, "")` in generated `onInitialize()` — the scaffolder
+  (`tools/create_project.py`) now spawns `Phyxel::Scene::AnimatedVoxelCharacter` directly.
+  `"physics"`/`"spider"` are handled as deprecated aliases that log a warning and fall back to
+  `spawnEntity("animated", ...)` — the Bullet-era `PhysicsCharacter`/`SpiderCharacter` classes no
+  longer exist anywhere in the engine.
 - Fallback spawn at (16, 25, 16) if no player in `game.json`
 - Camera set to `CameraMode::ThirdPerson` after player spawn
 - `playerCharacter_->update(dt)` + `updateCamera()` in `onUpdate()`
@@ -180,7 +184,8 @@ Always run these before and after changes:
 ### NPC Movement (Phase 2)
 - `PatrolBehavior::update()` calls `ctx.self->setMoveVelocity(direction * speed)`
 - `setMoveVelocity()` on `AnimatedVoxelCharacter`: sets XZ velocity, preserves Y
-- Gravity is `btVector3(0, -9.81, 0)` in `PhysicsWorld`
+- Gravity is applied by the custom CPU `VoxelDynamicsWorld` (Bullet was removed entirely; no
+  `btVector3` remains anywhere in `PhysicsWorld`)
 - NPCs zero velocity when waiting at waypoints or after arrival
 - `controllerBody->activate(true)` prevents physics body from sleeping
 

@@ -19,9 +19,13 @@ Picked-up order is up to priority; all are independent. None block anything.
 - **Damage-roughness prototype → product** — normalize damage by each material's break *toughness*
   (lives in `DamageSystem`, not the mesh build) instead of the `kDamageRef=30` placeholder; and
   extend it to **placed-object templates** (they render via a different mesh path than chunk terrain).
-- **Re-source stragglers** — leaves (5 variants) still 64px (opaque CC0 photos don't tile as
-  foliage — may want hand-authored or alpha-cutout); birch/spruce logs use generic bark (species
-  color approximate); Gold could use a true gold-metal albedo (metallic already makes it shine).
+- **Re-source stragglers** — ~~leaves (5 variants) still 64px~~ **RESOLVED (verified 2026-07-21):**
+  all 5 leaf variants (`leaf_top.png`, `leaf_autumn_top.png`, `leaf_birch_top.png`,
+  `leaf_jungle_top.png`, `leaf_spruce_top.png`, and their side/bottom faces) are now **512×512**,
+  generated procedurally via `tools/gen_nature_textures.py`/`tools/leaf_forge.py` (not opaque CC0
+  photos) — the tiling concern this bullet raised no longer applies. Materials remain class-0/512px
+  (no `"resolution":1024"` in `materials.json`), just no longer low-res. Birch/spruce logs using
+  generic bark and Gold's albedo are still open (unverified against current textures in this pass).
 - **Phase 3 (original plan, not started)** — unique per-object/template 1024 textures (paintings,
   signs, hero props): the whole reason the 1024 class exists. Lives in the kinematic/dynamic path
   (40 B/64 B structs have room for uvOffset/scale), NOT the tight 8 B static path.
@@ -132,6 +136,17 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 > 18 layers @ 1024 (24 MB BC7); SSBO `count512=144, count1024=18`; building (StoneBricks/Wood/
 > Bricks) renders from the 1024 array, terrain from 512; no magenta, no validation errors,
 > 500 FPS. Tests updated (registry counts + class-aware index range).
+>
+> **STALE COUNTS (flagged 2026-07-21):** this 144/18 split is a dated (2026-06-23) snapshot, not
+> current. `resources/materials.json` now has **102 total material entries** (up from the ~19 in
+> the original Phase-1 push), of which **30 carry `"resolution": 1024`** (class 1) — roughly double
+> the 18 this section reports — including LogPine/LogJungle/LogPalm/LogRedwood/WoodPlanks/Thatch/
+> ClayTile/WoodShingle/Slate/StoneSlab/etc. added since. The re-baked leaf materials from the recent
+> merge (Leaf/LeafBirch/LeafSpruce/LeafJungle/LeafAutumn) remain unresolved-field (class 0/512px) —
+> the leaf re-bake did not move them to the 1024 class. `AtlasManager.h`'s `TEXTURE_SIZE=512` /
+> `TEXTURE_SIZE_HI=1024` / two-class split (§2 "Mixed-resolution implication") is still exactly how
+> the code works — only the specific 144/18 layer-count snapshot is out of date. Nobody has
+> re-verified the live layer counts in-engine since; treat 144/18 as historical, not current.
 >
 > **PHASE 1 COMPLETE.** Net VRAM ≈ 72 MB BC7 (48 + 24) for the whole voxel texture set.
 >

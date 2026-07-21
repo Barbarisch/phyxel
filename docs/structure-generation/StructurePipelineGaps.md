@@ -22,17 +22,6 @@ after `world/clear`, `world/fill`, or a structure spawn. After building a house 
   region after world edits / `placed_object` spawns. Until then Tier B (offline walkable grid) is
   the authoritative navigability check and Tier C navigation is advisory-only.
 
-### [realize] Roof doesn't cover lower (single-story) wings
-The realizer only roofs the **top story's** footprint. In a multi-story building whose
-ground floor is bigger than the upper floor (e.g. the Burgomaster's Mansion: 2-story
-front block + single-story wing tails), the parts of a lower story that stick out past
-the top story are left **open-topped**. Visible in the mansion: the rear ends of both
-wings have no roof and you can see the interior floor from above.
-- *Why it matters:* any articulated multi-story massing (wings, ells, lean-tos) looks
-  unfinished and isn't weatherproof / enclosed for gameplay.
-- *Fix:* roof **every exterior-exposed top surface at its own local height** — walk all
-  occupied (x,z) across all stories and cap each column at the cube above its tallest
-  room, not just the global top-story union.
 
 ### [realize] No pitched / hipped roof over non-rectangular (L / U / T) outlines
 Pitched roofs only trigger when a footprint is a **true rectangle**; L/U/T get a flat
@@ -51,10 +40,16 @@ Window openings are framed reveals left **open**. Curse of Strahd specifically c
   realizer support to fill the reveal with Glass / crossed Wood planks / subcube shutters.
 
 ### [content] No courtyard / yard props (fountain, well, garden)
-The mansion's rear courtyard is empty grass. The module describes a **dried fountain**.
-We have no fountain/well/planter templates and no "place a prop in this open cell" path.
+**Partially resolved (2026-07-09) at the settlement/parcel level:** `planYardProps` (pure placer,
+`SettlementLayout.cpp`) now places a `garden_bed` + `woodpile` in a plot's rear toft and a `well` on
+the main street's verge for `public.well`-tier settlements (`YardPropsTest`, L4-verified on a seed-3
+village; see `ValidationLedger.md` #25/#29). A `barony_fountain.voxel` template also exists on disk
+but is NOT wired into `FurnitureCatalog` or any placer — still unused. Still open: a single
+building's own interior/rear COURTYARD (the original mansion case — a multi-wing footprint's
+enclosed open cell, distinct from a settlement parcel's toft) has no placer at all.
 - *Why it matters:* courtyards and yards are dead space without features.
-- *Fix:* a small library of yard-prop templates + an optional `props` list on open regions.
+- *Fix:* wire `barony_fountain` into the catalog; add a courtyard-open-region prop pass for
+  multi-wing single buildings (the settlement-parcel case is now covered).
 
 ---
 
@@ -75,11 +70,13 @@ each prop is a grabbable item with a pickup interaction, not baked geometry.
 - *Fix:* a `pickable: true` flag on clutter placements + spawn them as items/props with a grab verb.
 
 ### [realize] Wall-mounted props (shelf, sconce, torch) need height + wall placement
-`wall_shelf` is a low FLOOR console for now; `sconce`/`torch` are authored but get floor-placed
-(they read as wall lights but sit on the floor). A true wall mount needs the realizer to place them
-at a wall at chest/head height (against a perimeter/partition wall), and the connectivity check to
-treat them as wall-anchored rather than floor-anchored. `candelabra` (table light) + `fireplace`
-work today; `chandelier` (ceiling-hung) is unbuilt and needs ceiling placement.
+**Partially resolved (2026-07-10):** `FurniturePlacer::mountFor` + `mountedMicroY` now mount
+`wall_lantern` (the sconce replacement) and `tool_rack` at the wall at a grounded height (60 in
+sconce convention / reach height), and hang `chandelier` from the ceiling over the room centre with
+no floor-cell reservation — `FurnitureMountTest` (red→green) + L4 (tavern_2: sconce on the wall
+beside the fireplace, chandelier under the ceiling; see `ValidationLedger.md`). `wall_shelf` is
+still a low FLOOR console (not migrated to `Mount::Wall`), and `torch` is not in the current
+`FurnitureCatalog` type list — those two remain open.
 
 ### [engine] Furniture detail capped by microcube resolution (0.11 m)
 The smallest voxel is a microcube = 1/9 cube = 0.11 m. A 0.5 m chair is only ~5 micro-cells

@@ -11,7 +11,8 @@ item (Part 4). This is how the engine, not Claude, remembers.
 **Priority:** P1 (unblocks the most / biggest visual gap) → P3 (nice-to-have).
 
 Initial contents are driven by the **Baldur's Gate 3 Act 3 gap analysis** (a dense fantasy city) measured against
-the 28-material atlas (`materials.json`) and the Part 6 archetype library. All materials below are **real**
+the atlas (`materials.json`) — 28 materials when this analysis was written, **102 as of 2026-07-21** (verified
+count; several rows below have since shipped — see status updates) — and the Part 6 archetype library. All materials below are **real**
 (medieval-plausible) unless noted; building *types* that are post-medieval/fantasy are genre-flagged in Part 6,
 not here — materials don't need that flag.
 
@@ -19,14 +20,15 @@ not here — materials don't need that flag.
 
 ## 1. Materials (atlas)
 
-The atlas currently has 28 materials (terrain, stone family, wood family, Glass, Metal, Gold, Ice, foliage,
-`glow`, Mirror, Thatch). A believable city reads through surfaces we don't have:
+The atlas has grown to **102 materials** (verified 2026-07-21, `resources/materials.json`) — well beyond the
+28 (terrain, stone family, wood family, Glass, Metal, Gold, Ice, foliage, `glow`, Mirror, Thatch) this analysis
+was originally measured against. A believable city still reads through some surfaces we don't have:
 
 | Material | Driver (who needs it) | Priority | Status | Note |
 |---|---|---|---|---|
 | **Plaster / stucco / lime render** | every timber-framed `townhouse` / dwelling (half-timber infill) | **P1** | WANTED | the single biggest wall-surface gap; today a townhouse is bare wood or stone |
-| **Roof tile (clay)** | all urban roofs (`townhouse`, civic, shops) | **P1** | WANTED | we only have rural `Thatch`; a city of thatch is wrong |
-| **Slate** | better roofs, wealthier/civic buildings | P2 | WANTED | grounded medieval roofing |
+| **Roof tile (clay)** | all urban roofs (`townhouse`, civic, shops) | **P1** | ✅ DONE | `ClayTile` shipped (verified in `resources/materials.json`; also see `docs/MaterialTextureNeeds.md` "Period ROOFING — DONE") |
+| **Slate** | better roofs, wealthier/civic buildings | P2 | ✅ DONE | `Slate` shipped (verified in `resources/materials.json`) |
 | **Marble** | `temple`, `cathedral`, `civic_palace`, ornate interiors | P2 | WANTED | — |
 | **Stained / coloured glass** | `church`/`temple`, `arcane_emporium` | P2 | WANTED | we have clear `Glass` only; needs the decal/image path too (§2) |
 | **Lead / copper + verdigris** | domes, spires, flashing, civic roofs | P3 | WANTED | — |
@@ -73,7 +75,7 @@ These gate entire categories above and must be built in the engine, not authored
 | Feature | Unblocks | Priority | Status |
 |---|---|---|---|
 | **Wall-art / decal system** (place an image/decal on a face, with a frame) | all of §2 — signs, stained glass, banners, murals | **P1** | not started |
-| **Water / shoreline + harbour** | the entire `Maritime` group + waterfront districts + sea-temples | **P1** | not started |
+| **Water / shoreline + harbour** | the entire `Maritime` group + waterfront districts + sea-temples | **P1** | PARTIAL — the engine-side water/shoreline system (`WaterManager`, oceans/lakes/rivers, shoreline snap) has since shipped (`docs/WaterSystemV2.md`), but settlement-side siting/integration (waterfront parcels, the `Maritime` building group) is still unbuilt per `docs/structure-generation/StructureGenerationPlacers.md` |
 | **Subterranean: terrain excavation + multi-level connectivity** | Part 5 basements, Part 8 sewers/crypts/dungeons, castle dungeons | **P1** | not started (the same gap behind the basement stub) |
 | **Style-overlay system** (gothic-horror, condition/decay) | the BG3 overlay buildings (vampire palace, haunted mansion) | P2 | thin/partial |
 | **Settlement waterfront sub-tier** (Part 7) | siting wharves/quays relative to water | P2 | not started |

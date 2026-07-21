@@ -17,7 +17,7 @@ link only against `phyxel_core` via the `GameCallbacks` interface.
 |---|---|
 | **An AI engine-dev session** (new machine / fresh context) | **[AgentContext.md](AgentContext.md)** — portable working context: operational gotchas, engine ground truth, current workstreams + roadmap, user preferences. This is the substitute for per-machine memory. |
 | **Building a game on the engine** | [GameCreationGuide.md](GameCreationGuide.md) → [GameDevWorkflow.md](GameDevWorkflow.md). Or just use the `phyxel-gamedev` skills (world / characters / assets / mechanics / playtest / package). |
-| **New to the engine internals** | [ArchitectureOverview.md](ArchitectureOverview.md) → [SubsystemArchitecture.md](SubsystemArchitecture.md) → [CoordinateSystem.md](CoordinateSystem.md) → [VoxelRenderPipelines.md](VoxelRenderPipelines.md) |
+| **New to the engine internals** | [SubsystemArchitecture.md](SubsystemArchitecture.md) → [CoordinateSystem.md](CoordinateSystem.md) → [VoxelRenderPipelines.md](VoxelRenderPipelines.md) |
 | **Changing engine code** | [ForwardingSurface.md](ForwardingSurface.md) — what docs/skills/tools must stay in sync (enforced by `tools/check_doc_sync.py`). |
 
 The repo-root **[`CLAUDE.md`](../CLAUDE.md)** is the canonical quick-reference (build pipeline,
@@ -32,7 +32,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[GameDevPromptCatalog.md](GameDevPromptCatalog.md)** — ready-to-use game-creation & feature-testing prompts
 - **[GameMechanicsRoadmap.md](GameMechanicsRoadmap.md)** — gameplay systems status (lights, cameras, NPCs, dialogue — all shipped)
 - **[StandaloneGameTesting.md](StandaloneGameTesting.md)** — manual standalone-game test checklist
-- **[MCPIntegration.md](MCPIntegration.md)** — MCP server + ~275 AI-agent tools (authoritative per-tool docs live in each tool's own description)
+- **[MCPIntegration.md](MCPIntegration.md)** — MCP server + ~280 AI-agent tools (authoritative per-tool docs live in each tool's own description)
 
 ## World & Structure Generation
 
@@ -43,7 +43,6 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 ## Engine architecture
 
-- **[ArchitectureOverview.md](ArchitectureOverview.md)** — layered architecture + diagrams
 - **[SubsystemArchitecture.md](SubsystemArchitecture.md)** — callback-based subsystem pattern
 - **[EntitySystem.md](EntitySystem.md)** — entity types, characters, AI (note: Bullet ragdoll path deprecated)
 - **[SceneSystem.md](SceneSystem.md)** — multi-scene games (per-scene world DB, transitions)
@@ -53,17 +52,19 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[VoxelSystem.md](VoxelSystem.md)** — voxel sizes (cube/subcube/microcube) + static/kinematic/dynamic lifecycle
 - **[VoxelRenderPipelines.md](VoxelRenderPipelines.md)** — three Vulkan voxel pipelines (static / kinematic / GPU particle)
-- **[MultiChunkSystem.md](MultiChunkSystem.md)** — 32³ chunk world architecture
 - **[ChunkUpdateOptimization.md](ChunkUpdateOptimization.md)** — face culling, instance batching, dirty-chunk tracking
 - **[LightingPipeline.md](LightingPipeline.md)** — shadows, SSAO, baked per-voxel light field
 - **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** — voxel object import & spawning
 - **[TextureSystemOverhaul.md](TextureSystemOverhaul.md)** — PBR texture-array system (Phases 1–2 merged)
+- **[LargeWorldScalePlan.md](LargeWorldScalePlan.md)** — active workstream: chunk RAM (`ChunkVoxelStore` palette storage), region GPU buffer arenas, sealed/uniform chunks
+- **[RegionArenaPlan.md](RegionArenaPlan.md)** — region-keyed GPU buffer arena suballocation (`ChunkArenaAllocator`/`ChunkArenaSystem`), shipped/default-on
+- **[CameraRelativeRendering.md](CameraRelativeRendering.md)** — camera-at-origin rendering, the continental-coordinate float-precision fix
 
 ## Terrain, structures & assets
 
 - **[TerrainGenerationBiomes.md](TerrainGenerationBiomes.md)** — streaming + data-driven biomes (implemented on main)
 - **[WorldRecipeAndFlora.md](WorldRecipeAndFlora.md)** — per-world generation recipe + flora decoration
-- **[StructureGenerationPipeline.md](StructureGenerationPipeline.md)** — LLM-architect → deterministic C++ realizer for buildings
+- **[structure-generation/StructureGenerationPipeline.md](structure-generation/StructureGenerationPipeline.md)** — LLM-architect → deterministic C++ realizer for buildings
 - **[StructurePipelineGaps.md](StructurePipelineGaps.md)** — running log of pipeline gaps to implement
 - **[AssetPipeline.md](AssetPipeline.md)** — importing 3D models / animations into voxel templates
 - **[MaterialTextureNeeds.md](MaterialTextureNeeds.md)** — standing list of missing materials/textures
@@ -76,9 +77,9 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Physics
 
 - **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
-- **[DestructionSystem.md](DestructionSystem.md)** — voxel destruction design (bonds → coherent fragments)
-- **[WaterSystem.md](WaterSystem.md)** — water design + roadmap (Phase 0+ scaffolding on main)
-- **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character archived; see EntitySystem.md)
+- **[DestructionSystem.md](DestructionSystem.md)** — voxel destruction design (bonds → coherent fragments; P1–P3 shipped); superseded/continued by **[DestructionSystemV2.md](DestructionSystemV2.md)** (active workstream — coherent fracture/topple, tool-driven impact, gatherable aftermath)
+- **[WaterSystem.md](WaterSystem.md)** — water design (Phase 0+ shipped on main); scaling to oceans/rivers/lakes continued in **[WaterSystemV2.md](WaterSystemV2.md)**
+- **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation
 
@@ -104,8 +105,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 ## Integration, AI & testing
 
-- **[GooseIntegration.md](GooseIntegration.md)** — Goose AI NPC integration (design intent; not yet wired)
-- **[GoogleTestIntegration.md](GoogleTestIntegration.md)** — test framework setup (FetchContent / GoogleTest)
+- **[GooseIntegration.md](GooseIntegration.md)** — Goose AI NPC integration (Phase 1 + parts of 2/3 shipped and live-wired)
 - **[IntegrationTesting.md](IntegrationTesting.md)** — integration-test fixtures & patterns
 - **[LoggingSystem.md](LoggingSystem.md)** — logging system internals + migration guide
 - **[LoggingReference.md](LoggingReference.md)** — logging quick-reference card

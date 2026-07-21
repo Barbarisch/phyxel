@@ -6,7 +6,11 @@
 > `Core::GameplayCameraController` that drives both — so the editor and standalone games
 > share one input→character→camera path. Selection is **data-driven** and supports **live
 > switching** (`set_camera` MCP tool + editor panel). The engine-side **`Core::GameShell`**
-> base owns the shared loop; MazeRunner and the scaffold template subclass it.
+> base owns the shared loop; the generic scaffold template (`tools/create_project.py`) subclasses
+> it (confirmed: `class {class_name} : public Phyxel::Core::GameShell`). MazeRunner was an earlier
+> scaffolded test project referenced throughout this doc's rationale below — it no longer exists
+> in this repo or under `Documents/PhyxelProjects/` on this machine, so treat those mentions as
+> historical illustration, not a currently-checkable project.
 > Remaining polish is deferred: `game.json` rig knobs (§4.1), migrating the rest of the
 > scaffold shell into `GameShell`, and regenerating older scaffolds.
 > The sections below remain the authoritative design rationale.
@@ -119,9 +123,13 @@ Shipped defaults:
 
 | Scheme | Mapping |
 |--------|---------|
-| `FpsScheme` | mouse → yaw/pitch (always-on look), W/S forward (neg=fwd), A/D strafe, `coupleFacingToYaw=true`. *(This is exactly the loop we hand-coded into MazeRunner — now defined once, correctly.)* |
+| `FpsScheme` | mouse → yaw/pitch (always-on look), W/S forward (neg=fwd), A/D strafe, `coupleFacingToYaw=true`. *(This is exactly the loop originally hand-coded into the standalone scaffold's shell — now defined once, correctly.)* |
 | `TankScheme` | A/D → `turn`, W/S forward, mouse orbits only while RMB held. The editor's classic feel. |
-| `TopDownScheme` | WASD moves along world/screen axes (independent of facing), mouse aims; pairs with overhead/iso rigs. |
+
+> **Not yet implemented:** `TopDownScheme` (WASD along world/screen axes, mouse aims, pairs with
+> overhead/iso rigs) is described below as part of the design but does not exist in code —
+> `engine/include/input/ControlScheme.h`'s `makeControlScheme()` factory only recognizes
+> `"fps"`/`"tank"`. Treat `TopDownScheme`/`"topdown"` mentions in this doc as planned, not shipped.
 
 The **negative-forward convention** and the **`90 - camYaw` facing offset** (derived + runtime-
 confirmed 2026-06-08) live in `FpsScheme` only — never re-derived per game again.

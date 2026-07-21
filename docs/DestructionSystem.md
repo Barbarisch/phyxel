@@ -1,6 +1,10 @@
 # Destruction System — Design
 
-Status: **design + P1 in progress** (2026-05-31). Goal: tactile, satisfying destructible voxels/terrain — cast a spell at a chunk and watch it break apart.
+Status: **historical — superseded by [`docs/DestructionSystemV2.md`](DestructionSystemV2.md).**
+P1–P3 below shipped; P4–P5 and everything past this roadmap are tracked in the v2 doc instead
+(this file is kept for the original design rationale, not as a live status page).
+
+Original status line (2026-05-31, now stale): "design + P1 in progress". Goal: tactile, satisfying destructible voxels/terrain — cast a spell at a chunk and watch it break apart.
 
 ## Core model: energy vs. toughness (a game heuristic, not FEM)
 

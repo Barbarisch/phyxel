@@ -99,8 +99,10 @@ physics ragdoll — it's a container of rigidly-bone-parented voxel boxes (`Ragd
   no visual model), `character_dragon.anim` (113 bones) **load as skeletons+clips but are not
   functional gameplay creatures**: the FSM can't select their clips, they get no segment
   boxes/IK/sit, and `GameDefinitionLoader` defaults `animFile` to `humanoid.anim`
-  (`GameDefinitionLoader.cpp:613,738`). Removed `SpiderCharacter`/`PhysicsCharacter` classes only
-  survive as comments.
+  (`GameDefinitionLoader.cpp`, exact line numbers have drifted since this doc's 2026-07-09 snapshot
+  but the default still resolves to `humanoid.anim`). Removed `SpiderCharacter`/`PhysicsCharacter`
+  classes are gone entirely as of this update — re-verified 2026-07-21, they no longer survive even
+  as comments anywhere in `engine/`.
 
 > **Takeaway:** the code is one well-tuned humanoid, not a character *system*. The D&D-creatures
 > goal is blocked at the rig layer before any paradigm question is even reached.

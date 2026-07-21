@@ -54,6 +54,11 @@ SceneManager           ← lives in EngineRuntime
 | Global story characters | Objectives |
 | Camera position (saved per-scene) | Locations |
 
+> Note: this table describes what `SceneManager` is *designed* to do via `SceneCallbacks`. As of
+> this writing, only entity/NPC clearing, dialogue-ending, and location clearing are actually wired
+> by the editor and by `create_project.py`'s generated scaffold — see the "Known gap" callout under
+> Editor Integration below for which callbacks are still no-ops in both hosts.
+
 ## Game Definition Format
 
 A multi-scene game.json has a `"scenes"` array instead of a top-level `"world"` key:
@@ -112,9 +117,11 @@ A multi-scene game.json has a `"scenes"` array instead of a top-level `"world"` 
 | `worldDatabase` | string | no | SQLite DB filename, resolved relative to the project `worlds/` dir (defaults to `<id>.db`). A leading `worlds/` prefix is tolerated and stripped — `"worlds/foo.db"` and `"foo.db"` both resolve to `worlds/foo.db`. |
 | `description` | string | no | Optional description text |
 | `transitionStyle` | string | no | `"cut"`, `"fade"`, or `"loading_screen"` (default) |
-| `onEnterScript` | string | no | Python script run when entering |
-| `onExitScript` | string | no | Python script run when leaving |
+| `onEnterScript` | string | no | Python script run when entering (currently inert — see Editor Integration "Known gap") |
+| `onExitScript` | string | no | Python script run when leaving (currently inert — see Editor Integration "Known gap") |
 | `definition` | object | no | Full game definition (world, camera, npcs, story, etc.) |
+| `sceneType` | string | no | `"World"` (default), `"Menu"` (no world DB, uses `menuLayout`), or `"Cutscene"` (future) — not in the original design, added since |
+| `menuLayout` | object | no | Menu UI tree (root `UIPanel`), only used when `sceneType == "Menu"` |
 
 ### Manifest Fields
 
@@ -145,8 +152,10 @@ camera->setPosition(glm::vec3(rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ));
 |-------|--------|-------------|
 | `/api/scenes` | GET | List all scenes |
 | `/api/scene/active` | GET | Active scene details |
+| `/api/scene/:id` | GET | Get a specific scene definition by ID |
 | `/api/scene/transition` | POST | Transition to scene by ID |
 | `/api/scene/add` | POST | Add scene at runtime |
+| `/api/scene/update` | POST | Update fields of an existing scene definition |
 | `/api/scene/remove` | POST | Remove non-active scene |
 | `/api/scene/manifest/save` | POST | Save manifest to JSON |
 
@@ -156,20 +165,38 @@ camera->setPosition(glm::vec3(rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ));
 |------|-------------|
 | `list_scenes` | List all registered scenes |
 | `get_active_scene` | Get active scene info + reentry data |
+| `get_scene` | Get a specific scene definition by ID |
 | `transition_scene` | Trigger scene transition |
 | `add_scene` | Add scene definition at runtime |
+| `update_scene` | Update fields of an existing scene definition |
 | `remove_scene` | Remove a non-active scene |
 | `save_scene_manifest` | Persist manifest to file |
 
 ## Editor Integration
 
-The editor provides a **Scenes** panel (View → Scenes):
-- Lists all scenes, highlights active scene in green
-- Double-click to transition
-- Hover tooltip shows DB, transition style, scripts, reentry position
-- Shows last transition result (success/fail, timing)
+Scene management is NOT a separate "View → Scenes" panel — there is no such menu item. It is a
+**"Scenes" collapsing section inside the World Outliner panel** (`editor/src/WorldOutlinerPanel.cpp`,
+`renderScenesSection()`):
+- Lists all scenes, highlights the active scene in green, tags it `[active]`
+- Double-click a non-active scene to switch to it; right-click for a context menu
+  (Switch to Scene / Delete Scene / Convert to Multi-Scene Project)
+- A "+" button opens a Create Scene popup (type World/Menu/Cutscene, name, DB file)
 
-A **loading screen overlay** appears during transitions with centered text.
+Selecting a scene (single click) shows its details in the **Properties panel**
+(`editor/src/PropertiesPanel.cpp`) — NOT a hover tooltip: type, name, world DB, transition style,
+enter/exit script paths (all editable), and the last transition result (from → to scene, timing
+ms, error text on failure). **Reentry position is not currently displayed anywhere in the editor UI.**
+
+**Known gap:** `SceneCallbacks::setLoadingScreen` is declared in `SceneManager.h` and invoked by
+`SceneManager::update()`, but neither the editor (`Application.cpp`) nor `create_project.py`'s
+generated scaffold code actually assigns it — so **no loading-screen overlay currently renders**
+during a transition in either host, despite the state machine driving it. The same is true for
+`resetLighting`, `clearMusic`, `clearObjectives`, `clearSceneStoryCharacters`, `rebuildNavGrid`, and
+`runScript` (`onEnterScript`/`onExitScript`) — only `clearEntities`, `clearNPCs`, and `endDialogue`
+are currently wired by both hosts. `locationRegistry->clear()` is the one "Cleared" behavior done
+directly by `SceneManager` itself (not via a callback), so it does fire. Until the remaining
+callbacks are wired, lighting/music/objectives/scene-local story characters/nav grid are not
+actually reset on a scene transition, and `onEnterScript`/`onExitScript` are inert JSON fields.
 
 ## GameCallbacks Hooks
 

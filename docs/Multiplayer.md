@@ -130,9 +130,18 @@ orchestration is a **~50-line generated `onUpdate`** emitted by `create_project.
 StoryEngine → SpeechBubbleManager → InteractionManager → DialogueSystem. Every existing project
 owns a **copy** of that ordering — engine features can't live in generated code, hence Phase 1.
 
-**Standalones do NOT contain:** `EngineAPIServer` / `APICommandQueue` / `CommandRegistry` (all
-editor-only, `editor/include/Application.h:258,262`), combat, respawn, water, doors, furniture,
+**Standalones do NOT contain (for gameplay purposes):** combat, respawn, water, doors, furniture,
 GPU debris, Python scripting, JobSystem. v1 replication surface is therefore small.
+
+**Update (2026-07-13, post-dates this design):** standalones now CAN optionally host a scoped
+`EngineAPIServer` / `APICommandQueue` / `CommandRegistry` via `Core::GameApiService`
+(`engine/include/core/GameApiService.h`, wired into `GameShell`, gated behind
+`EngineConfig::testApiEnabled` / the `--test` launch flag — see CLAUDE.md "Standalone test API").
+This is dev/test-only (localhost bind, must be explicitly enabled, never shipped on) and serves a
+small harness-oriented subset (`/api/state`, `inject_input`, `get_screen_state`, `fire_trigger`,
+`navgrid_*`, `ui_click`, `engine_timing`, …) — it is NOT the multiplayer protocol and does not
+change §5's intent-vocabulary plan; noted here only because the "Standalones do NOT contain
+EngineAPIServer" ground-truth claim above is no longer accurate as stated.
 
 **Renderer coupling (why headless is tabled, not free):** `EngineRuntime::initialize()`
 unconditionally creates `WindowManager` + `VulkanDevice` + render pipelines

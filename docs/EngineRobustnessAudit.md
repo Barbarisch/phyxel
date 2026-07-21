@@ -155,18 +155,23 @@ this was a crash (assert/NaN at extreme coords) vs. normal close.
 
 ## 🟠 5. No format/schema versioning → silent world staleness
 
-**Where:** `VoxelTemplate`, `WorldStorage`, `ChunkStreamingManager` — no `version`,
-`magic`, or `FORMAT_VERSION` field anywhere.
+**Update (post chunk-blob-v2 merge):** `WorldStorage` now HAS binary-format versioning at
+the chunk-storage layer — `ChunkBlobCodec` (`engine/include/core/ChunkBlobCodec.h`) writes
+magic `'PXB2'` + `kCodecVersion` per per-chunk palette+RLE blob row (`WorldStorage.cpp`
+~432-452, ~659-665), and `WorldRecipe` (`engine/include/core/WorldRecipe.h:48`) round-trips
+an `int version` through `world.db`. Neither addresses the content-drift problem below,
+though: **`VoxelTemplate`** (`engine/include/core/VoxelTemplate.h`) still has no
+`version`/content-hash field, so placed-template staleness is still undetected.
 
 Worlds bake placed templates into the DB as static voxels (per CLAUDE.md: "World
 terrain pre-baked in worlds/default.db"). When a template's `.voxel` changes (many were
 modified in checkpoint 2db4b49), existing worlds keep the OLD baked geometry with no way
-to detect or migrate → silent staleness (the "outdated world" symptom).
+to detect or migrate → silent staleness (the "outdated world" symptom) — this part is
+still OPEN.
 
-**Fix direction:** add a schema/format version to the world DB and to `.voxel`/template
-files; on load, compare and either migrate or warn. For content drift specifically,
-store template name + version per placed object and re-voxelize on load when the
-template is newer, or provide a "re-bake world" tool.
+**Fix direction:** for content drift specifically, store template name + version per
+placed object and re-voxelize on load when the template is newer, or provide a "re-bake
+world" tool.
 
 ## 🟠 6. API thread vs. physics/grid reads — race risk
 
@@ -243,6 +248,13 @@ clear by chunk/region. This compounds finding #2/#5: orphaned baked subcubes fro
 chair bug had no placed-object entry AND were invisible to the scan tool, so the only
 reliable cleanup was `clear_chunk` + regenerate. (Observed 2026-05-25 while cleaning the
 CharacterTestbed world.) Fix direction: make scan/query traverse subcube/microcube grids.
+
+**Partial mitigation since this finding:** a `scan_region_micro` debug action
+(`Application.cpp` ~7199, cube coords, per-cell material/count breakdown across
+cube+subcube+microcube) now exists and is what the P1 occupancy-grid audit
+(`fb707a7`) used — but it's a raw debug endpoint (not exposed as an MCP tool
+alongside `scan_region`/`query_voxel`), so the original gap in the two public
+tools is still open.
 
 ## Areas pending (next pass)
 

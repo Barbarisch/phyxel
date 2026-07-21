@@ -136,14 +136,21 @@ voxel = {
 - The importer (`vox_import.py`) emits `material + tint=` per primitive (see §6).
 
 ### Render data
-- **Tint (chunk path):** pack an **8-bit tint index** into `packedData`'s 11 free
-  bits; shader does `albedo *= tintPalette[idx]` (idx 0 → vec3(1) → no-op). Global
-  tint palette as a small UBO/SSBO (≤256 × vec3), fed by `vox_palette.json`.
-- **Tint (kinematic/dynamic):** add a tint index/word to `KinematicFaceData` /
-  `DynamicSubcubeInstanceData`; same multiply.
-- **State:** start by reusing the `reserved` modifier pattern (emissive/alpha/gloss
-  bits); a per-state visual descriptor table maps `state → {emissiveBoost, hueShift,
-  roughnessDelta, particleEmitterId}`.
+- **Tint (chunk path):** ~~pack an 8-bit tint index into `packedData`'s 11 free
+  bits; shader does `albedo *= tintPalette[idx]`~~ — **as shipped (verified 2026-07-21), this is not
+  what was built.** `InstanceData` gained a whole new `tint` field (4 bytes, total struct now 24 B —
+  see `docs/CoordinateSystem.md`'s InstanceData section) carrying a direct **0xRRGGBB multiplier in
+  bits 0-23**, not a palette index; `packedData`'s 11 free bits are untouched. There is no
+  `tintPalette` UBO/SSBO anywhere in the codebase — `static_voxel.vert` reads `inTint` and does
+  `vTint = vec3(...)/255.0` straight from the packed color. Simpler than planned, at the cost of the
+  palette's implied memory/consistency win.
+- **Tint (kinematic/dynamic):** `KinematicFaceData::faceId` bits 3-26 carry the same packed
+  0xRRGGBB tint (decoded in `kinematic_voxel.vert`) — confirms the "add a tint word" plan, but again
+  packed directly rather than as a palette index.
+- **State:** shipped riding the *same* `tint` field rather than the `reserved` modifier bits as
+  originally planned here — bits 24-31 of `InstanceData.tint` are the per-voxel `state`
+  (0=normal/1=flaming/2=smoldering/3=charred/4=wet), decoded as `vState` in `static_voxel.vert`.
+  The `reserved` field (emissive/transparent/alpha/mirror/damage bits) is unchanged and separate.
 - **Projected texture (Tier 2 only):** extend `KinematicVoxelManager`'s UV step to
   compute object-space UV from the face's position within the group extent, instead of
   per-cube tiling.

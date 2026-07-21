@@ -27,7 +27,7 @@ resources/spells/*.json       EncumbranceSystem          resources/factions/*.js
 Phase 6 — Rest & Time         Phase 7 — Campaign GM      Phase 8 — MCP Layer
 ─────────────────────         ─────────────────────      ────────────────────
 RestSystem                    Party                      /api/rpg/* HTTP routes
-WorldClock                    LootTable                  14 MCP tools
+WorldClock                    LootTable                  16 MCP tools
                               EncounterBuilder           roll_dice, check_dc
                               CampaignJournal            (+ engine-connected tools)
 ```
@@ -47,22 +47,22 @@ Static class with internal seeded `mt19937` RNG.
 // Die types
 enum class DieType { D4, D6, D8, D10, D12, D20, D100 };
 
-// Single die
-RollResult DiceSystem::roll(DieType die);
-RollResult DiceSystem::rollAdvantage(DieType die);   // roll twice, take higher
-RollResult DiceSystem::rollDisadvantage(DieType die);// roll twice, take lower
-RollResult DiceSystem::rollCritical(DieType die);    // double the dice
+// Single die (modifier defaults to 0)
+RollResult DiceSystem::roll(DieType die, int modifier = 0);
+RollResult DiceSystem::rollAdvantage(DieType die, int modifier = 0);   // roll twice, take higher
+RollResult DiceSystem::rollDisadvantage(DieType die, int modifier = 0);// roll twice, take lower
+RollResult DiceSystem::rollCritical(const DiceExpression& baseDamage); // doubles dice count, e.g. "2d6+3"->"4d6+3"
 
 // Expression parsing
 RollResult DiceSystem::rollExpression(const std::string& expr); // "2d6+3"
 
 // DC check
-bool DiceSystem::checkDC(int roll, int dc);
+bool DiceSystem::checkDC(int rollTotal, int dc);
 
 // Utility
-float  DiceSystem::rollFloat();         // [0.0, 1.0) — used by LootTable
-double DiceSystem::averageValue(const std::string& expr);
-void   DiceSystem::setSeed(uint32_t seed); // 0 = restore randomness
+float DiceSystem::rollFloat();         // [0.0, 1.0) — used by LootTable
+float DiceSystem::averageValue(const std::string& expr);
+void  DiceSystem::setSeed(uint64_t seed); // 0 = restore randomness
 ```
 
 `RollResult` carries: `dice[]`, `modifier`, `total`, `isCriticalSuccess`,
@@ -100,15 +100,16 @@ struct CharacterAttributes {
 enum class Skill { Acrobatics, AnimalHandling, Arcana, Athletics,
                    Deception, History, Insight, Intimidation, Investigation,
                    Medicine, Nature, Perception, Performance, Persuasion,
-                   Religion, SlightOfHand, Stealth, Survival };
+                   Religion, SleightOfHand, Stealth, Survival };
 
 enum class ProficiencyLevel { None, HalfProf, Proficient, Expert };
 
-// All static helpers
-int  ProficiencySystem::proficiencyBonus(int characterLevel);  // 2 at L1, 6 at L17+
-int  ProficiencySystem::skillBonus(Skill, ProficiencyLevel, int abilityMod, int charLevel);
-int  ProficiencySystem::passiveCheck(int skillBonus);          // 10 + bonus
-int  ProficiencySystem::savingThrowBonus(AbilityType, ProficiencyLevel, int abilityMod, int charLevel);
+// All static helpers — skillBonus/savingThrowBonus take the full CharacterAttributes
+// (they look up the governing ability internally), not a bare ability-modifier int
+int  ProficiencySystem::proficiencyBonus(int totalLevel);  // 2 at L1-4, 6 at L17+
+int  ProficiencySystem::skillBonus(const CharacterAttributes&, Skill, ProficiencyLevel, int totalLevel);
+int  ProficiencySystem::passiveCheck(int activeBonus);          // 10 + bonus
+int  ProficiencySystem::savingThrowBonus(const CharacterAttributes&, AbilityType, bool proficient, int totalLevel);
 ```
 
 ---
@@ -165,17 +166,20 @@ Data files in `resources/rpg/classes/*.json`, `resources/rpg/races/*.json`,
 
 ### ActionEconomy (`ActionEconomy.h`)
 
-Tracks available actions per entity per turn.
+Tracks available actions per entity per turn. The header is `ActionEconomy.h` but the type it
+defines is `struct ActionBudget` (not a class named `ActionEconomy`).
 
 ```cpp
-struct ActionEconomy {
-    bool hasAction = true, hasBonusAction = true, hasReaction = true;
+struct ActionBudget {
+    bool action = true, bonusAction = true, reaction = true, freeObjectInteraction = true;
     int movementRemaining = 30; // feet
-    void reset(int speedFeet = 30);
-    bool useAction();       // returns false if already used
-    bool useBonusAction();
-    bool useReaction();
-    void useMovement(int feet);
+    void reset(int speed = 30);
+    bool spendAction();       // returns false if already used
+    bool spendBonusAction();
+    bool spendReaction();
+    bool spendFreeObject();
+    int  spendMovement(int feet); // returns actual amount spent
+    void applyDash(int speed);    // doubles movement for the turn
 };
 ```
 
@@ -183,9 +187,9 @@ struct ActionEconomy {
 
 ```cpp
 class InitiativeTracker {
-    void startCombat();
-    void rollInitiative(const std::string& entityId, int dexBonus);
-    void setInitiative(const std::string& entityId, int value);
+    void startCombat(const std::vector<std::string>& entityIds, int defaultSpeed = 30);
+    void rollInitiative(const std::string& entityId, int dexMod, DiceSystem& dice);
+    void setInitiative(const std::string& entityId, int roll, int modifier = 0);
     void setSurprised(const std::string& entityId, bool surprised);
     void sortOrder();
 
@@ -208,19 +212,31 @@ class InitiativeTracker {
 ### AttackResolver + ConditionSystem
 
 ```cpp
-// AttackResolver
-AttackResult AttackResolver::resolve(
-    const AttackParams& attacker, const DefenseParams& defender, DiceSystem&);
-// Returns: hit, critical, damageRolls[], totalDamage, missedBy/hitBy
+// AttackResolver — stateless static rules engine (no resolve()/AttackParams/DefenseParams;
+// callers pass already-computed bonuses/AC directly)
+static AttackRollResult AttackResolver::resolveAttack(
+    int attackBonus, int targetAC, const DiceExpression& damageDice,
+    DamageType damageType, DamageResistance resistance,
+    bool hasAdvantage, bool hasDisadvantage, DiceSystem&);
+// AttackRollResult: hit, critical, fumble, d20Roll, attackTotal, damageRoll, finalDamage
+static SavingThrowResult AttackResolver::resolveSavingThrow(
+    const CharacterAttributes&, AbilityType, bool proficient, int proficiencyBonus,
+    int dc, bool hasAdvantage, bool hasDisadvantage, DiceSystem&);
+static int   AttackResolver::calculateAC(const CharacterAttributes&, int armorBaseAC = 0,
+    int maxDexBonus = -1, int shieldBonus = 0, int magicBonus = 0);
+static float AttackResolver::hitChance(int attackBonus, int targetAC,
+    bool hasAdvantage = false, bool hasDisadvantage = false); // pure, no roll consumed
 
 // ConditionSystem — 15 standard conditions
 enum class Condition {
-    Blinded, Charmed, Deafened, Exhaustion, Frightened, Grappled,
+    Blinded, Charmed, Deafened, Frightened, Grappled,
     Incapacitated, Invisible, Paralyzed, Petrified, Poisoned,
-    Prone, Restrained, Stunned, Unconscious
+    Prone, Restrained, Stunned, Unconscious, Exhausted // "Exhausted" (6 cumulative levels), not "Exhaustion"
 };
 class ConditionSystem {
-    void applyCondition(entityId, Condition, float durationSeconds = -1);
+    // applyCondition takes a ConditionInstance{type, durationRemaining, sourceEntityId, ...},
+    // not a bare (Condition, duration) pair
+    void applyCondition(entityId, ConditionInstance instance);
     void removeCondition(entityId, Condition);
     bool hasCondition(entityId, Condition) const;
     void update(float dt); // ticks duration, removes expired
@@ -235,21 +251,28 @@ Spells are data-driven JSON in `resources/spells/`. The engine ships with a
 starter library covering all schools.
 
 ```cpp
-// SpellcasterComponent — attached to a CharacterSheet
-struct SpellcasterComponent {
-    std::string castingType;      // "full", "half", "pact"
-    int         spellcastingLevel;
-    SpellSlots  slots();          // accessor (not getSlots())
-    void onShortRest();           // pact magic restores
-    void onLongRest();            // full restore
+// SpellcasterComponent — per-entity spellcasting state (not literally attached
+// to CharacterSheet; classes wire it up alongside one)
+class SpellcasterComponent {
+public:
+    void initialize(castingClassId, AbilityType, characterLevel, castingType = "full"); // "full"/"half"/"third"/"pact"
+    SpellSlots& slots();           // accessor (not getSlots())
+    void onShortRest(castingType = "full");  // pact magic restores
+    void onLongRest();             // full restore
 
-    bool canCast(const SpellDefinition&, int atSlotLevel) const;
-    CastResult cast(const SpellDefinition&, int atSlotLevel, DiceSystem&);
+    bool canCast(const std::string& spellId, int slotLevel = 0) const;
+    bool spendSlot(int slotLevel);
+    // Actual casting happens via SpellResolver::castSpell() (below), which
+    // spends the slot on this component and resolves the outcome.
 };
 ```
 
-`SpellResolver::resolve()` handles area targeting, saves, concentration checks,
-and upcast scaling.
+`SpellResolver::castSpell()` is the static entry point that actually resolves a
+cast (attack roll / saving throw / auto-hit, resistance, slot spend) given a
+`spellId` looked up from `resources/spells/`; it handles single-target
+resolution — area targeting/AoE lives in `Application::castSpell`'s AoE
+template code (see `docs/TurnBasedCombat.md` S6), and concentration is managed
+by the caller via `SpellcasterComponent::startConcentration()`.
 
 ---
 
@@ -340,10 +363,11 @@ struct SocialResult {
 };
 
 class SocialInteractionResolver {
-    static SocialResult resolve(SocialSkill, int skillBonus,
-                                ReputationTier targetTier, DiceSystem&,
-                                bool advantage=false, bool disadvantage=false);
-    static InsightResult resolveInsight(int playerBonus, int npcBonus, DiceSystem&);
+    // resolve() takes a plain DC (int), not a ReputationTier — callers compute
+    // the DC first via persuasionDC()/intimidationDC() and pass it in
+    static SocialResult resolve(SocialSkill, int skillBonus, int dc,
+                                bool hasAdvantage, bool hasDisadvantage, DiceSystem&);
+    static InsightResult resolveInsight(int insightBonus, int deceptionBonus, DiceSystem&);
     static int persuasionDC(ReputationTier);    // Exalted=5 … Hostile=25
     static int intimidationDC(ReputationTier);
     static int reputationDelta(SocialSkill, bool succeeded); // +25 persuasion success etc.
@@ -531,11 +555,13 @@ class CampaignJournal {
 All D&D state is exposed over the engine's HTTP API at `/api/rpg/<action>` and
 through 16 MCP tools in `scripts/mcp/phyxel_mcp_server.py`.
 
-The `Application` owns four value-type RPG members:
+The `Application` owns these RPG members (as of the turn-based-combat work, `InitiativeTracker`
+moved out of a standalone `m_rpgInitiative` and is now owned internally by `CombatDirector` —
+see `docs/TurnBasedCombat.md` S1):
 
 ```cpp
 Core::Party           m_rpgParty;
-Core::InitiativeTracker m_rpgInitiative;
+Core::CombatDirector  m_combatDirector;   // owns the InitiativeTracker (initiative() accessor)
 Core::WorldClock      m_rpgWorldClock;
 Core::CampaignJournal m_rpgJournal;
 ```

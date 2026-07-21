@@ -47,19 +47,34 @@ Memory per Chunk: ~393 KB (32,768 × 12 bytes per cube)
 
 ### Coordinate Conversion Functions
 
+> Verified against current source: `ChunkManager::worldToChunkCoord/worldToLocalCoord/chunkCoordToOrigin`
+> (`engine/include/core/ChunkManager.h`) are thin static forwarders to `Utils::CoordinateUtils`
+> (`engine/include/utils/CoordinateUtils.h`, `engine/src/utils/CoordinateUtils.cpp`), which **already
+> implements proper floor division/modulo for negative coordinates** — the naive `/32`/`%32` shown in
+> older drafts of this doc is not what ships. The "Common Pitfalls" section below documents the bug
+> this replaced; treat it as historical rationale, not an open risk.
+
 ```cpp
-// Convert world position to chunk coordinate
-static glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) { 
-    return worldPos / 32; 
+// ChunkManager::worldToChunkCoord() → Utils::CoordinateUtils::worldToChunkCoord()
+glm::ivec3 worldToChunkCoord(const glm::ivec3& worldPos) {
+    glm::ivec3 chunk;
+    chunk.x = worldPos.x >= 0 ? worldPos.x / 32 : (worldPos.x - 31) / 32;
+    chunk.y = worldPos.y >= 0 ? worldPos.y / 32 : (worldPos.y - 31) / 32;
+    chunk.z = worldPos.z >= 0 ? worldPos.z / 32 : (worldPos.z - 31) / 32;
+    return chunk;
 }
 
-// Convert world position to local position within chunk
-static glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) { 
-    return worldPos % 32; 
+// ChunkManager::worldToLocalCoord() → Utils::CoordinateUtils::worldToLocalCoord()
+glm::ivec3 worldToLocalCoord(const glm::ivec3& worldPos) {
+    glm::ivec3 local;
+    local.x = ((worldPos.x % 32) + 32) % 32;
+    local.y = ((worldPos.y % 32) + 32) % 32;
+    local.z = ((worldPos.z % 32) + 32) % 32;
+    return local;
 }
 
-// Convert chunk coordinate to world origin
-static glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { 
+// ChunkManager::chunkCoordToOrigin() → Utils::CoordinateUtils::chunkCoordToOrigin()
+glm::ivec3 chunkCoordToOrigin(const glm::ivec3& chunkCoord) { 
     return chunkCoord * 32; 
 }
 ```
@@ -81,28 +96,27 @@ World Position: (35, 17, 63)
 
 This is the most important concept to understand, as it was the source of the X/Z axis flipping bug.
 
-#### Cube Creation Loop Order (X-Major)
+#### Cube Creation Loop Order (X-Major) — historical framing, formula still current
 
-In `ChunkManager::populateChunk()`, cubes are created with **X-major ordering**:
+> **Post chunk-storage-rewrite correction:** there is no longer a literal `ChunkManager::populateChunk()`
+> triple-nested loop. A freshly filled chunk goes through `Chunk::populateWithCubes()`
+> (`engine/src/core/Chunk.cpp`), which does an **O(1) palette-store fill**
+> (`voxelManager.fillAllVoxels("Default")` against `ChunkVoxelStore`,
+> `engine/include/core/ChunkVoxelStore.h`) rather than materializing 32,768 heap `Cube` objects one
+> at a time. The **Z-minor index formula below is still exactly what's live** — `ChunkVoxelStore`'s
+> own doc comment states it explicitly ("flat index (z + y*32 + x*1024)") — so the memory-layout
+> reasoning in this section remains correct; only the "created via an explicit X-major loop" framing
+> is now conceptual/historical rather than literal code.
+
+**Conceptual memory layout** (still how the flat index decodes): `[x=0,y=0,z=0], [x=0,y=0,z=1], [x=0,y=0,z=2], ..., [x=0,y=1,z=0], ...`
+
+#### Index Calculation Formula (current source: `Chunk::localToIndex()`)
+
+> **Correction:** this is a static method on **`Chunk`** (`engine/include/core/Chunk.h`,
+> `engine/src/core/Chunk.cpp`), not on `ChunkManager` — `ChunkManager` has no `localToIndex`.
 
 ```cpp
-for (int x = 0; x < 32; ++x) {        // X changes SLOWEST (outermost loop)
-    for (int y = 0; y < 32; ++y) {    // Y changes medium speed
-        for (int z = 0; z < 32; ++z) { // Z changes FASTEST (innermost loop)
-            // Cube creation...
-        }
-    }
-}
-```
-
-**Memory Layout**: `[x=0,y=0,z=0], [x=0,y=0,z=1], [x=0,y=0,z=2], ..., [x=0,y=1,z=0], ...`
-
-#### Index Calculation Formula (Must Match Loop Order)
-
-The `localToIndex()` function **must match the loop order**:
-
-```cpp
-// CORRECT: Z-minor indexing (Z changes fastest)
+// CORRECT: Z-minor indexing (Z changes fastest) — Chunk::localToIndex()
 static size_t localToIndex(const glm::ivec3& localPos) { 
     return localPos.z + localPos.y * 32 + localPos.x * 32 * 32; 
 }
@@ -145,7 +159,8 @@ Local Coords: (0,0,0) (0,0,1) (0,0,2) ... (0,0,31) (0,1,0) (0,1,1) ...
 
 ### 2. Negative Coordinate Handling
 
-**Problem**: Integer division behaves differently for negative numbers.
+**Historical problem (already fixed in current source — see note above):** Integer division
+behaves differently for negative numbers.
 
 ```cpp
 // Potential issue with negative world coordinates
@@ -229,12 +244,13 @@ bool validateIndexMapping(const glm::ivec3& localPos) {
 - **Output**: Local position (0-31 range)
 - **Usage**: Finding position within a specific chunk
 
-#### `ChunkManager::localToIndex()`
+#### `Chunk::localToIndex()`
 - **Purpose**: Convert 3D local position to 1D array index
 - **Input**: Local position (0-31 range)
 - **Output**: Array index (0-32767 range)
 - **Formula**: `z + y*32 + x*32²`
-- **Critical**: Must use Z-minor ordering to match loop order
+- **Critical**: Must use Z-minor ordering (this is a static method on `Chunk`, not `ChunkManager` —
+  corrected 2026-07-21; verified against `engine/include/core/Chunk.h`)
 
 ### Performance Characteristics
 
@@ -301,21 +317,29 @@ spaces, each expressed relative to its parent:
 Net effect: **15 bits of position per face instead of 96 bits** (3× float32), an ~87%
 reduction, because the chunk origin is factored out into a single shared push constant.
 
-### InstanceData layout (current — 20 bytes)
+### InstanceData layout (current — 24 bytes)
 
-> ⚠️ Correction: earlier drafts of this material described `InstanceData` as 8 (or 16) bytes.
-> The live struct is **20 bytes** — the light fields were added for the baked-lighting system:
+> ⚠️ Correction (2026-07-21, re-verified against `engine/include/core/Types.h`): earlier drafts of
+> this material described `InstanceData` as 8, 16, then 20 bytes. The live struct is **24 bytes** —
+> a `tint` field was added on top of the 20-byte (packedData/textureIndex/reserved/light×3) layout
+> for the per-voxel tint + state work (`docs/VoxelAppearanceModel.md` Phase 1, shipped):
 
 ```cpp
 struct InstanceData {
     uint32_t packedData;      // 4 bytes — packed cube pos + face + scale/subcube grid
     uint16_t textureIndex;    // 2 bytes
-    uint16_t reserved;        // 2 bytes
+    uint16_t reserved;        // 2 bytes — flags: emissive/transparent/alpha/mirror/damage bits
     uint32_t light;           // 4 bytes — baked light field
     uint32_t light2;          // 4 bytes
     uint32_t light3;          // 4 bytes
-}  // Total: 20 bytes
+    uint32_t tint;            // 4 bytes — bits 0-23: 0xRRGGBB tint multiplier; bits 24-31: state
+}  // Total: 24 bytes
 ```
+`static_voxel.vert` decodes `tint` as `inTint`: low 24 bits are the RGB multiplier, high 8 bits are
+the per-voxel `state` (0=normal, 1=flaming, 2=smoldering, 3=charred, 4=wet) — confirmed in
+`shaders/static_voxel.vert` lines ~29, 61-62, 365-371. There is **no separate tint-palette UBO/SSBO**;
+despite `docs/VoxelAppearanceModel.md` §5 describing an 8-bit palette-index plan, what shipped is a
+direct full-precision multiplier field (simpler, and it doubles as the state carrier).
 
 ### `packedData` bit field (decoded in `static_voxel.vert`)
 
@@ -402,12 +426,17 @@ size_t index = z + (y << 5) + (x << 10);   // equivalent to z + y*32 + x*1024
 
 ### Related files
 
-- [`ChunkManager.h`](../include/core/ChunkManager.h) / [`ChunkManager.cpp`](../src/core/ChunkManager.cpp) — index calculation + populate loops
-- [`Math.cpp`](../src/utils/Math.cpp) — alternative indexing helpers
-- [`Application.cpp`](../src/Application.cpp) — coordinate debugging code
+> Paths corrected 2026-07-21 — `docs/` and `engine/` are sibling directories at repo root, so a
+> `../include/...` link (as if `docs/` were inside `engine/`) 404s; the real prefix is `../engine/include/...`.
+
+- [`Chunk.h`](../engine/include/core/Chunk.h) / [`Chunk.cpp`](../engine/src/core/Chunk.cpp) — `localToIndex`/`indexToLocal` (index calculation)
+- [`ChunkVoxelStore.h`](../engine/include/core/ChunkVoxelStore.h) — palette-compressed static voxel storage (post chunk-storage-rewrite); same flat z-minor index
+- [`ChunkManager.h`](../engine/include/core/ChunkManager.h) / [`ChunkManager.cpp`](../engine/src/core/ChunkManager.cpp) — `worldToChunkCoord`/`worldToLocalCoord`/`chunkCoordToOrigin` forwarders
+- [`CoordinateUtils.h`](../engine/include/utils/CoordinateUtils.h) / [`CoordinateUtils.cpp`](../engine/src/utils/CoordinateUtils.cpp) — actual floor-division/modulo implementation
+- [`Math.cpp`](../engine/src/utils/Math.cpp) — alternative indexing helpers
+- [`Application.cpp`](../editor/src/Application.cpp) — coordinate debugging code (lives under `editor/`, not repo-root `src/`)
 
 ## See Also
 
-- [MultiChunkSystem.md](MultiChunkSystem.md) - Multi-chunk rendering architecture
-- [DDA Algorithm Implementation](../src/Application.cpp#L1200) - Ray casting code
-- [ChunkManager API](../include/core/ChunkManager.h) - Core chunk management
+- [DDA Algorithm Implementation](../editor/src/Application.cpp) - Ray casting code (path corrected 2026-07-21; line anchor not re-verified)
+- [ChunkManager API](../engine/include/core/ChunkManager.h) - Core chunk management

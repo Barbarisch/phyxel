@@ -1,8 +1,10 @@
 # Terrain Generation v2 — Grand Worlds Design
 
-> Status: **DESIGN / not yet started** (2026-07-09). This is the canonical plan for the
-> next-generation terrain system: art-directable, hydrologically-correct, drawn-map-capable
-> worlds at both bounded (Middle-earth map) and infinite-streaming scale.
+> Status: **P0-P2 (coarse model, biome overhaul, hydrology bake) SHIPPED on main; P4's grayscale
+> heightmap import has ALSO shipped** (`core/MapCoarseSource`, commit 74e9eb9, 2026-07-16 — see the
+> §P4 note below). Only P3 (cave overhaul) and P4's color-mask/polyline import remain unstarted.
+> Trust the per-phase status markers in §3 below over this top-of-doc line, which is not
+> continuously updated.
 >
 > It **supersedes the roadmap** in [`docs/TerrainGenerationBiomes.md`](TerrainGenerationBiomes.md)
 > (the v1 column-first pipeline) and folds in [`docs/WorldRecipeAndFlora.md`](WorldRecipeAndFlora.md)
@@ -384,10 +386,20 @@ ranges, sea level, cave dimensions) before shipping.
   Note the existing **occlusion-culling** lever helps most underground (see AgentContext).
 
 ### P4 — Drawn-map importer
-- Image → coarse control fields: **grayscale → heightfield** (Azgaar-style, `<20%`=water),
-  **color mask → biome IDs**, optional **polyline layer → river paths** the hydrology bake biases
-  toward. Feed straight into the bounded `CoarseWorldModel`. Everything P1–P3 then applies to the
-  hand-drawn map unchanged.
+> **Grayscale → heightfield SHIPPED (commit 74e9eb9, 2026-07-16):** `core/MapCoarseSource`
+> (`engine/{include,src}/core/MapCoarseSource.*`) loads a `me_height_<N>.u16` raw heightmap +
+> `me_terrain_meta.json` (an `import_terrain.py`-produced output dir) into an immutable
+> `MapCoarseData`; `WorldGenerator::setHeightmapSource()` drives `rebuildCoarseModel()`'s base
+> elevation + continentalness from it instead of noise (nearest-pixel height, bilinear via
+> `CoarseWorldModel`'s existing lerp) and skips the procedural hydrology bake (the map's rivers are
+> already carved into the height). Wired through `game.json` `world.heightmap.dir`. Verified L2
+> (`tests/core/MapCoarseSourceTest.cpp`) + L4 (a 96,000-block continent streams and the player
+> grounds at the map's true height). **Still NOT done:** the **color mask → biome IDs** and
+> **polyline layer → river paths** channels below — only the grayscale heightfield import shipped.
+- Image → coarse control fields: **grayscale → heightfield** (Azgaar-style, `<20%`=water) — ✅
+  shipped, see above; **color mask → biome IDs**, optional **polyline layer → river paths** the
+  hydrology bake biases toward — still open. Feed straight into the bounded `CoarseWorldModel`.
+  Everything P1–P3 then applies to the hand-drawn map unchanged.
 - Optional follow-on: an **offline erosion / uplift bake** (Sebastian Lague droplet erosion, or
   Cordonnier uplift + stream-power) on the coarse grid for weathered valleys — runs once, bakes
   into Layer 0, stays fully streamable.

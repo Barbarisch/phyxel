@@ -12,6 +12,12 @@
 > [`BinaryGreedyMeshingPlan.md`](BinaryGreedyMeshingPlan.md). Key discovery: 32 provably-unused
 > bits in the existing lighting words hold merged-quad extents with **zero struct widening**,
 > sidestepping the failure surface of the reverted Phase 2 attempt.
+>
+> **➡ SHIPPED 2026-07-07 (stale by the time of this audit):** sub/microcube greedy merge landed
+> and is **ON by default** — `s_fineGreedyMerge` in `engine/include/graphics/ChunkRenderManager.h`
+> (used in `ChunkRenderManager.cpp`), confirmed 10-12× face reduction / 5-8× FPS recovery on
+> face-bound scenes per `docs/LargeWorldScalePlan.md` §0. The "Verdict"/sequencing text below still
+> frames this as a future campaign to schedule — that framing is out of date; treat it as done.
 
 **What:** meshing sub/micro voxel faces with bitwise ops — cull 64 faces at a time with bitmasks,
 merge quads via bit manipulation. Reference implementation:
@@ -46,7 +52,13 @@ where dense settlement scenes (many buildings occluding each other) would pay of
 reduces faces per chunk, GPU culling reduces chunks drawn at all. Complementary to #1.
 
 **Cost:** high — restructures how ChunkManager feeds the renderer (per-chunk instance buffers →
-one big buffer + offsets, depth pyramid pass, indirect buffer plumbing). **Verdict: right
+one big buffer + offsets, depth pyramid pass, indirect buffer plumbing). **Partially de-risked
+since this was written:** the "per-chunk instance buffers → one big buffer + offsets" half of that
+restructuring already shipped as `ChunkArenaAllocator`/`ChunkArenaSystem` (`docs/RegionArenaPlan.md`,
+region-keyed arena blocks with span offsets bound at draw sites) — built for the allocation-count
+crash ceiling, not for indirect draws, but it leaves this item's remaining cost as depth-pyramid
+occlusion + indirect-command generation + `vkCmdDrawIndexedIndirect` plumbing (still absent from the
+engine; `docs/RegionArenaPlan.md` §3.3 "4.3b multidraw" is listed as future work). **Verdict: right
 long-term direction; adopt after #1, starting with GPU frustum culling only (no occlusion) as a
 low-risk first increment.**
 
@@ -131,17 +143,24 @@ regions).
 **Cost:** very high (parallel renderer). **Verdict (superseded 2026-07-09): promoted from "hold"
 to a slated workstream — see [`RayTracingPlan.md`](RayTracingPlan.md) for the researched, phased
 plan (micro-detail trace prototype → HW-RT shadows/AO → RT reflections → GI). The hybrid form
-(trace only micro-detail volumes) remains the entry point (its Phase 1); greedy meshing still
-lands first.**
+(trace only micro-detail volumes) remains the entry point (its Phase 1); greedy meshing was the
+prerequisite sequencing note here — it has since shipped (`s_fineGreedyMerge`, see item #1 above),
+so this item is now unblocked by that dependency (still not started itself).**
 
 ## 7. Small, opportunistic wins
 
 - **Vertex pooling / persistent-mapped chunk buffers** ([Nick's blog](https://nickmcd.me/2021/04/04/high-performance-voxel-engine/)):
-  reduce per-chunk (re)allocation churn on edits. Check whether ChunkManager already pools;
-  if rebuilds allocate fresh Vulkan buffers, this is cheap latency insurance for destruction-heavy
-  scenes.
+  reduce per-chunk (re)allocation churn on edits.
+  **➡ SHIPPED 2026-07-18 (stale by the time of this audit):** region-keyed GPU buffer arena
+  suballocation — `ChunkArenaAllocator`/`ChunkArenaSystem`
+  (`engine/include/graphics/ChunkArenaAllocator.h`, `ChunkArenaSystem.h`), default ON, per
+  `docs/RegionArenaPlan.md` (A0-A4 shipped): collapsed 4,693 raw per-chunk `vkAllocateMemory`
+  calls down to 38 blocks at ~4k resident chunks (127×), sustaining 10,609 resident chunks / 12,054
+  spans in 81 blocks past the old `maxMemoryAllocationCount` crash ceiling. The open question this
+  bullet posed ("check whether ChunkManager already pools") is answered: it now does.
 - **Fixed-precision instance attributes** (vkguide ascendant chapter): chunk-local coords need
-  ≤6 bits/axis (10 for micro) — Phyxel's 20 B static `InstanceData` is already tight, but the
+  ≤6 bits/axis (10 for micro) — Phyxel's static `InstanceData` is already tight (24 B, not the 20 B
+  once quoted here — a `tint` field was added since; see `engine/include/core/Types.h`), but the
   64 B `DynamicSubcubeInstanceData` likely compresses (quantized rotation, half-float scale) →
   less bandwidth on the debris path at high particle counts.
 
@@ -149,7 +168,8 @@ lands first.**
 
 1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
 2. **Next render campaign:** binary greedy meshing for sub/micro (#1) — ✅ plan written
-   (`BinaryGreedyMeshingPlan.md`), ready to execute.
+   (`BinaryGreedyMeshingPlan.md`), ready to execute. **Stale note: this has since SHIPPED**
+   (`s_fineGreedyMerge`, ON by default 2026-07-07 — see the item #1 update above).
 3. **Cheap parallel audit:** AVBD paper vs `GpuParticlePhysics` (#3) — ✅ done
    (`AvbdSolverAudit.md`); its R1 (fix two silent-failure defects) is now an actionable item.
 4. **After meshing lands:** GPU frustum culling → occlusion culling (#2).

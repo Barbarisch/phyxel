@@ -28,7 +28,7 @@ the real output (no overlap, continuous, fits, clearance — `BuildingProgramVal
 
 Validation-FIRST response to a batch of crude visible defects: build the DETECTOR (proven red on real
 output, with teeth) before touching any generator. `RealizedStructureValidator` (+ `MicroCanvas::materialAt`),
-`RealizedStructureValidatorTest` (14 tests):
+`RealizedStructureValidatorTest` (17 tests):
 - **V1 roof-eave-flush** — ✅ REAL (auditor-confirmed): fires on a realized cottage — the realizer's
   `eaveSub = ceil(ceilTop/3)` rounding leaves a **1-micro air row** between the wall/ceiling top and the
   roof (the visible hover). `maxGapMicro=0` (a roof must touch its support).
@@ -56,8 +56,9 @@ output, with teeth) before touching any generator. `RealizedStructureValidator` 
 `tests/core/BuildingHarnessTest.cpp` runs the pipeline across a **corpus** (1/2/3/5/10 stories,
 small→large footprints, switchback & straight stairs, slab/crawlspace/basement) and prints a per-layer
 PASS/FAIL **matrix** + a pass rate — the number you sign off on. It carries NEGATIVE CONTROLS
-(stairless multi-story → unreachable; sealed room → unreachable) so the checks have teeth. **Current:
-12/14** (only the two controls fail). Layers: `build` (L1), `floors` (L2 room-has-floor), `reach`
+(stairless multi-story → unreachable; sealed room → unreachable; generated layout with doors
+stripped → unreachable) so the checks have teeth. **Current:
+17/20** (only the three controls fail). Layers: `build` (L1), `floors` (L2 room-has-floor), `reach`
 (L3 every floor reachable), `rooms` (L3 every room reachable from the entrance — `n/a` for single-room
 cases, not a false "ok"). All L3 via `TraversalProbe`. The `rooms` layer (auditor-PASS, red→green)
 immediately caught + drove the fix of a real bug: **interior doorways were impassable** (the carve
@@ -93,7 +94,7 @@ floor scan, paths…).
 | 16 | place_furniture | D | L2 | **L2+** ✅ (KI-2 + footprint-aware + **MICRO-PRECISE no-clip**: pieces no longer snap to cubes — `spawnTemplateMicro`/`placeTemplateMicro` re-rasterize each piece to the micro grid at `microWorldPos` (inset off EVERY abutted wall via geometry-derived `backDir`, on the exact walkable surface). `MicroPlacementOverlapTest` scans real shell `occupiedMicro`: inset = 0 wall overlap, naive cube placement >0 (teeth); caught + fixed a corner perpendicular-wall clip (63→0). +z facing now VERIFIED: all directional assets z-high-front via `mirror_z` (fireplace/counter/bar/back_bar/forge), runtime-confirmed. both auditors PASS). **Increment C (refactor #2, 2026-07-02): settlement furniture-defect batch → 0** on the deterministic 5-house settlement (was 4 chest_facing + 4 drops): (1) **registered-bbox accuracy** — `placeTemplateMicro` now registers `computeMicroPlacedBounds` (mirrors `spawnTemplateMicro`'s micro-AABB+rotation+worldMicro+floorDiv) so reservation==registration==render incl. the sub-cube micro-spill (`PlacedObjectBoundsTest`, teeth; live chest bbox z23-24 matches render); (2) **chest facing** — `gen_chest` was the lone directional asset with NO `mirror_z` (clasp authored at z=0/-Z), so every chest opened into its backing wall; added `mirror_z()`+hinge `front_top` (clasp→+Z), chest_facing 4→ (see C); (3) **over-inset DROP bug** — furniture inset used raw `lround(exterior_wall*9)` (=27 for a stone_keep 3.0 m wall) while the realizer CLAMPS walls to [1,9] micro (`thicknessMicro`), so pieces were inset 3 cubes off a 1-cube wall and their reserved span spilled out of narrow rooms → dropped; now inset = `thicknessMicro(exterior_wall)`; 4 drops→0 (`ThicknessMicroClampsToOneCube` + `OverInsetExtTDropsPieceThatClampedInsetPlaces`); (4) **room norms** — chest prefers the wall opening into the room's longer axis + scans offsets MIDDLE-OUT to avoid corner-abutment (clasp clear); bench SEATS at the table via `placeNear` (footprint touches the table when the surround is free; nearest-free-slot in cramped rooms, recovering the drop) — 3 red-before-green `FurniturePlacerTest` cases; (5) **detector** `checkChestFacing` refined from "back must face the single nearest wall" (false-positive on corner/narrow rooms) to "clasp opens toward a wall NEARER than the back" (fires on a genuinely backwards chest, passes a corner chest opening into the room — `ChestFacingDetectorHasTeeth` corner regression guard). **V8 re-audited:** chimney still centers on the (now render-accurate) hearth bbox — Bricks stack at x51,z2 dead-centre on the rotated fireplace_4 (x51,z1-3), 0 chimney errors. solution-auditor: 5/6 claims REAL first pass; the bench test was re-done to real red-before-green (gap 2 wall-packed → gap 1 touching). Caveats: the over-inset unit test pins `furnish`'s extT-sensitivity (the actual 1-line fix is in `Application.cpp`, proven by the settlement 4→0, not a unit test); `fence_along_cliff` (1) remains but is a terrain/terrace issue orthogonal to furniture. | 1/2/2 = **5** | ✅ bbox-accuracy + chest-facing + drops + room-norms FIXED (red-before-green; settlement furniture defects 0). Remaining: surface-clutter pass not yet micro-precise; spawned-object↔object overlap scan; `placeNear` bench seating picks first-nearest slot (diagonal-adjacent, not always the front-of-table cell) |
 | 17 | place_fixtures | P | L2 | L2 (mount heights + tiered recipes unit-pinned; L4 tavern run) | 1/1/1 = **3** | wall/ceiling mounts grounded (FurnitureMountTest); recipes data-driven + wealth-tiered (RecipeDataTest) |
 | 16a | furniture_asset_coverage | D | L2 | **L2** ✅ (`FurnitureCatalogTest`: every emittable type maps to a loadable template; teeth + on-disk L2 + red-first chest gap, auditor PASS) | 2/2/2 = **6** | ✅ **silent-drop killed** — `FurnitureCatalog` single source + `validateFurnitureCoverage` flags missing assets by room (`asset_gaps`), not a buried skip count |
-| 16c | furniture_dim_conformance | D | L2 | **L2** ✅ (`FurnitureConformanceTest`: per-asset dims vs `object_dimensions.json` canon ±tol; no vacuous "ok"; real audit pins all 7 statuses, auditor PASS) | 1/2/1 = **4** | ✅ **regenerate-list** — `checkFurnitureConformance` flags drift/no_metrics/no_canon/no_checkable_dims. Current: 6 of 7 non-conforming ([`AssetConformance.md`](AssetConformance.md)). Remaining: regenerate the assets; +z-axis caveat; runtime/MCP surface |
+| 16c | furniture_dim_conformance | D | L2 | **L2** ✅ (`FurnitureConformanceTest`: per-asset dims vs `object_dimensions.json` canon ±tol; no vacuous "ok"; real audit now pins all 20 tracked types, auditor PASS) | 1/2/1 = **4** | ✅ **regenerate-list** — `checkFurnitureConformance` flags drift/no_metrics/no_canon/no_checkable_dims. Current: 0 of 20 non-conforming ([`AssetConformance.md`](AssetConformance.md)). Remaining: +z-axis caveat; runtime/MCP surface |
 | 16b | fixture_semantics (session-edit step 1) | D | L2 | **L2** ✅ (`FixtureLabelTest` ordinal red→green + `PlacedObjectMetadataTest` persistence round-trip, auditor PASS) | 2/1/2 = **5** | ✅ each fixture tagged `metadata.fixture`={structure,room,purpose,purpose_index,type,story} + returned in `response.fixtures` — addressable ("2nd bedroom's bed"). Next: 16c `adjust_furniture` intents |
 | 18 | place_lights | M | L1 | L0 | 0/1/1 = **2** | L0→L1: light coverage per room |
 | 19 | place_clutter | M | L1 | L0 | 0/0/1 = **1** | decorative |
@@ -149,7 +150,7 @@ Validate when each lands; required layer noted so the plan is set up front.
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);
-  CUT columns included. `StreetPaverTest` 6 tests, **coverage + end-to-end TraversalProbe walk proven
+  CUT columns included. `StreetPaverTest` 7 tests, **coverage + end-to-end TraversalProbe walk proven
   red against a fill/level-only stub** (the old ribbon behavior: ridge cut columns skipped → probe
   blocked) then green. **L4:** flat village = 49k Gravel columns, 11/11 spurs, `cut_cells_unpaved: 0`,
   street-level screenshots; hills = 2673 cut columns honored/0 unpaved. **L4 caught TWO real bugs,
@@ -322,7 +323,7 @@ A town is its **functional** buildings, not a scatter of identical houses. Typol
 ## Prioritized backlog (required > current, by score)
 
 The actual work queue — the placers shipping below their required depth, highest-leverage first.
-**Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 11/12), so they drop
+**Multi-story reach (36) + floor continuity (11) are now corpus-green** (harness 17/20), so they drop
 off the top; the real frontier is *automatic interiors* and the remaining usability holes:
 
 1. **24 place_path (5)** — L0 → L3 walkable path entry ↔ gate (parcel scale).

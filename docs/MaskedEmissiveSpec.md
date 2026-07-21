@@ -1,5 +1,16 @@
 # Masked-Emissive Rendering — Spec (enchanted-log glowing cracks)
 
+> **STATUS UPDATE (verified 2026-07-21): Option A (luminance-gated) is SHIPPED.** Confirmed in
+> source: `resources/materials.json` has the `enchanted_log` material (`emissiveStrength: 1.5`,
+> `emissiveThreshold: 0.6`); `MaterialRegistry.cpp:133-134` parses `emissiveStrength`/
+> `emissiveThreshold` (no separate `emissiveColor` field was added — the shipped version tints
+> from the albedo's own bright pixels, per §4 Option A, not a distinct hue); `shaders/voxel.frag`
+> implements the masked-emission add-term (`emStrength`/`emThreshold`, explicitly citing this doc
+> in a comment) after the normal lit path; `ChunkRenderManager.cpp` gates block-light seeding on
+> `emissive || emissiveStrength > 0` (multiple sites). Option B (dedicated mask array) was **not**
+> built. Sections below describe the original plan; read them as "what got built (mostly Option A)"
+> rather than an open proposal.
+
 > Goal: a material can be **lit normally AND emit light from part of its texture** — e.g. an
 > "enchanted log": ordinary bark that is normally sun/shadow-lit, with **glowing cracks** that emit a
 > colored light *and cast that colored light into the surrounding world* (magical forest ambiance).

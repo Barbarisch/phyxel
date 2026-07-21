@@ -29,6 +29,7 @@ python tools/asset_pipeline/obj_to_template.py <input_file> <output_file> [optio
 *   `--hollow`: Keeps the interior empty (shell only).
 *   `--shell`: Forces generation of a hollow shell from the outer surface.
 *   `--shell-thickness <int>`: Thickness of the shell in micro-voxels.
+*   `--thicken <int>`: Dilation iterations (not previously documented).
 
 **Example:**
 ```bash
@@ -72,17 +73,21 @@ The engine uses a custom binary format (`.anim`) for animated characters. This f
 
 **Usage:**
 ```bash
-python tools/asset_pipeline/batch_import_anims.py <input_directory> <output_file.anim> [options]
+python tools/asset_pipeline/batch_import_anims.py <input_directory> --out <output_file.anim> [options]
 ```
 
 **Options:**
-*   `--skin <filename>`: Name of the file to use as the base skin (default: looks for `t-pose`, `skin`, or `idle`).
+*   `--out <path>`: **Required.** Output `.anim` file path (not positional, despite how some
+    older examples show it).
+*   `--skin <filename>`: Name of the file to use as the base skin (default: looks for `skin`,
+    `mesh`, or `t-pose` — not `idle`).
 *   `--scale <float>`: Scale factor for the model (default: 1.0).
-*   `--converter <path>`: Path to `FBX2glTF` executable (if not in PATH).
+*   `--fbx2gltf <path>`: Path to `FBX2glTF` executable (if not in PATH). (Previously documented
+    as `--converter` — the actual flag is `--fbx2gltf`.)
 
 **Example:**
 ```bash
-python tools/asset_pipeline/batch_import_anims.py raw_assets/knight resources/animated_characters/knight.anim --scale 0.1
+python tools/asset_pipeline/batch_import_anims.py raw_assets/knight --out resources/animated_characters/knight.anim --scale 0.1
 ```
 
 ### How it Works

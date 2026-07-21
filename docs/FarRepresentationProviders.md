@@ -3,9 +3,22 @@
 > Design doc spun out of the 2026-07-11/12 far-terrain debugging session (LodTest, 2048u).
 > Companion to [`LargeWorldScalePlan.md`](LargeWorldScalePlan.md) Phase 5. Captures the
 > architecture the far-terrain LOD system should grow into, so the immediate depth-arbiter
-> fix lands against a written plan instead of ad hoc. **Status: design only** — the sole
-> shipped provider today is generator-derived far terrain (`FarTerrain*`), OFF by default
-> because it "didn't work right" (root-caused below).
+> fix lands against a written plan instead of ad hoc. **Status: design only for the provider
+> taxonomy (Axis 1-4, provider layer)** — the sole shipped provider today is generator-derived
+> far terrain (`FarTerrain*`), still **OFF by default** (`FarTerrainManager::Params::enabled =
+> false`, `engine/include/graphics/FarTerrainManager.h`; re-verified 2026-07-21).
+>
+> **UPDATE (verified 2026-07-21): the "Immediate next step" compositing fix below already
+> shipped**, in the *same* commit as this doc (`07ba0a7`, 2026-07-12) — `FarTerrainMesher`
+> gained `kBelowSurfaceBias = 0.5f`, a guaranteed geometric push-down applied to **every** ring
+> (`yBias = -kBelowSurfaceBias - 0.01*max(0,ring-1)`, `engine/src/graphics/FarTerrainMesher.cpp`
+> line ~299; constant in `engine/include/graphics/FarTerrainMesher.h` line 28), not just the
+> `-0.01/ring` cross-ring term this doc originally described as ring-1's *only* (zero) bias. A
+> regression test (`tests/graphics/FarTerrainMesherTest.cpp`, "below-surface contract") covers
+> it. The root-cause narrative below (why the flicker happened) is still accurate as history;
+> the "Immediate next step" section's compositing-fix instruction is DONE, not still pending —
+> only the provider-layer roadmap (fog fade, `StorageFarProvider`, landmark/water/pop polish)
+> remains open.
 
 ## The problem this solves
 
@@ -17,13 +30,15 @@ bug users hit (medium-distance "shadow jitter" flicker):
 
 Today both live in `FarTerrainManager`, which draws generator-sampled tiles from distance
 **0** outward (total overlap with real chunks) and relies on the depth buffer + a coarse
-coverage-skip to hide them under real chunks. The near ring (`ring=1`, `startR=0`) adds
-**zero depth bias** (`yBias = -0.01·max(0,ring-1) = 0`) and `quantizeTop` lands tile tops
-*coplanar* with the real surface — so the depth test can't resolve the overlap and the
-winner flickers per-pixel as the camera moves. Because far tiles are flat-lit and real
-chunks are shadow-mapped, the flicker shows up specifically in shadowed areas (dark↔light),
+coverage-skip to hide them under real chunks. **(Historical bug narrative — see the shipped-fix
+note above.)** At the time this was diagnosed, the near ring (`ring=1`, `startR=0`) added only
+the `-0.01·max(0,ring-1)` cross-ring term, which is **0** at ring 1, and `quantizeTop` landed tile
+tops *coplanar* with the real surface — so the depth test couldn't resolve the overlap and the
+winner flickered per-pixel as the camera moved. Because far tiles are flat-lit and real
+chunks are shadow-mapped, the flicker showed up specifically in shadowed areas (dark↔light),
 which reads as "shadow jitter." Far terrain OFF → rock-solid → confirmed the fight, not the
-shadow map. See the "Compositing" section for the fix.
+shadow map. See the "Compositing" section for the fix — **now shipped as `kBelowSurfaceBias`,
+a flat 0.5-unit push-down applied on top of the per-ring term on every ring, including ring 1.**
 
 ## Axis 1 — data source (the axis the world-type taxonomy is really about)
 
@@ -155,8 +170,10 @@ geometry. World type selects the provider (via `game.json` far-terrain config).
 
 ## Immediate next step
 
-Land the **compositing fix** (depth arbiter: guaranteed real-chunk depth win on all rings)
-against this doc — it's provider-agnostic and correct regardless of how the taxonomy
-resolves. Then, in priority order: fog fade (Axis 4, also needed by every provider) →
-`StorageFarProvider` + DB LOD pyramid (unlocks #3 and hybrid #2) → landmark/water/pop polish.
-Volume LOD (Axis 2) is the reverted Phase-5.4 track, revisited only for vertical worlds.
+~~Land the **compositing fix** (depth arbiter: guaranteed real-chunk depth win on all rings)
+against this doc~~ — **DONE (verified 2026-07-21, shipped in `07ba0a7` alongside this doc as
+`FarTerrainMesher::kBelowSurfaceBias`).** Remaining, in priority order: fog fade (Axis 4, also
+needed by every provider) → `StorageFarProvider` + DB LOD pyramid (unlocks #3 and hybrid #2) →
+landmark/water/pop polish. Volume LOD (Axis 2) is the reverted Phase-5.4 track, revisited only
+for vertical worlds. (Far terrain is still off by default even with the compositing fix landed —
+turning it on is a separate decision, not blocked on more code here.)

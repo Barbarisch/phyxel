@@ -81,10 +81,26 @@ good ground, route paths over terrain, cap cut/fill, or limit on steep terrain.
     still populating, `groundTopAt` reads incomplete columns and seats low — buildings buried (≈7 in
     the rough-terrain repro). In normal use the world is pre-generated (loaded from DB) so no race; the
     driver waits until terrain is complete (`voxel_top==terrain_height`) before building.
-- ☐ Phases 3–4 — planned (this doc): walkable paths over terrain; terrain stress + degradation.
+- ✅ **Phase 3** (smart path routing over terrain) — DONE + LIVE-VERIFIED, shipped 2026-07-09 alongside
+  Phase 2's glue (see [`ValidationLedger.md`](ValidationLedger.md) `place_path` #24 + the settlement
+  tier's `lay_street_network`/`StreetPaver` entries). `planTerrainPath` hugs the hill contour instead
+  of tunneling (`TerrainPathHugsHillWhereStraightTunnels`, red-before-green); `StreetPaver` grades each
+  street's centerline, broadcasts a level cross-section, and **removes terrain over cut columns**
+  (`cut_cells_unpaved` → 0 on a live hills settlement: 17845 columns = 9268 level + 5904 fill + 2673
+  cut honored). L3 `TraversalProbe` walks street → building spurs end-to-end on real terrain+path.
+  Found + fixed two real L4 bugs in the process: `chooseStreetAxis` biased to the short axis, and
+  flora (tree canopy/trunks) was misread as terrain relief until the flora-blind `terrainTopAt`
+  sampler was added. Owed: a runtime walkability probe over the actually-stamped chunks; the
+  cluster/legacy MST ribbon still skips cut cells (only the main-street path is closed).
+- 🟡 **Phase 4** (terrain stress + graceful degradation) — PARTIAL. The degradation half is proven at
+  the plot-selection layer (`SettlementLayoutTest.SteepMountainYieldsNoPlots`: an all-too-steep fixture
+  yields zero plots, not a broken result) and Phase 2's live hills run (98%/60%/92.6% buildable
+  discrimination). NOT yet proven: a whole-settlement stress run on a REAL hills-with-water/cliffs
+  fixture asserting every placed building is reachable by a walkable path end-to-end (the L3 whole-
+  settlement walkability invariant this phase calls for).
   **Phase 2 follow-up (carried):** the v2 build path seats the floor at the footprint-centre ground
   but does NOT yet cut/fill flush across the footprint, so on a slope corners can clip/float by the
-  local grade — Phase 3 (cut/fill budget + steps) closes this.
+  local grade — a cut/fill budget across the full footprint remains open.
 
 ### Follow-ups surfaced (not yet scheduled)
 - **Per-typology plot sizing** — the uniform grid mismatches croft (narrow) / manor (elongated); plots

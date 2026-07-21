@@ -54,6 +54,14 @@ To ensure your animations are picked up correctly, rename your source files (e.g
 | **Walk Left (Diag)** | `left_strafe_walk` | `left_strafe_walk.fbx` | Diagonal movement (Forward + Left). Often same as Strafe Walk. |
 | **Walk Right (Diag)** | `right_strafe_walk` | `right_strafe_walk.fbx` | Diagonal movement (Forward + Right). Often same as Strafe Walk. |
 
+> **Note:** `AnimatedCharacterState` (`engine/include/scene/AnimatedVoxelCharacter.h`) has since grown
+> combat/RPG/interaction states beyond this table — `BackwardWalk`, `StopWalk`, `StopRun`,
+> `ClimbStairs`, `DescendStairs`, `SitDown`, `SittingIdle`, `SitStandUp`, `Cast`, `Block`, `Dodge`,
+> `HitReact`, `Death`, `KnockedOut`, `GetUp`, `Celebrate` — with their own internal clip-key
+> conventions (e.g. `Dodge` falls back to `roll_forward`, `KnockedOut` uses `ko_lay`,
+> `Death`/`Celebrate` use configurable `m_deathClip`/`m_celebrateClip`). Not itemized here; see
+> `AnimatedVoxelCharacter.cpp`'s clip-selection switch for the authoritative mapping.
+
 ## Importing Animations
 
 To create a compatible character asset:
@@ -86,7 +94,7 @@ Only body-relevant bones (Hips, Spine, Neck, Head, Shoulder, Arm, ForeArm, Hand,
 
 ## Fine-Tuning
 
-If animations look incorrect in-game (e.g., character floating during a jump, or rotated 90 degrees), you can apply offsets in `src/scene/AnimatedVoxelCharacter.cpp` inside the `configureAnimationFixes()` function.
+If animations look incorrect in-game (e.g., character floating during a jump, or rotated 90 degrees), you can apply offsets in `engine/src/scene/AnimatedVoxelCharacter.cpp` inside the `configureAnimationFixes()` function.
 
 ```cpp
 void AnimatedVoxelCharacter::configureAnimationFixes() {

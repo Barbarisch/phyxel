@@ -165,7 +165,10 @@ Constraint modes:
 
 ### Step 6: Set Player & Camera
 
-- **Player type**: `physics` (humanoid with ragdoll), `animated` (voxel character), `spider`
+- **Player type**: `animated` (voxel character) — the only functional type. `physics` and `spider`
+  are accepted but silently aliased to `animated` (the Bullet-era `PhysicsCharacter`/
+  `SpiderCharacter` ragdoll classes were removed with the Bullet Physics removal); use `animated`
+  directly.
 - **Camera**: Position 30-50 units from the action, pitch -25° to -35° for overview
 
 ### Step 7: Load & Verify
@@ -210,8 +213,9 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - `damage_entity` / `heal_entity` — Apply damage/healing to any entity
 
 **Crafting:**
-- `add_recipe` — Define crafting recipes with ingredients and outputs
-- `craft_item` — Craft from player inventory
+- Not currently exposed over MCP/HTTP — `CraftingSystem` exists as a C++ gameplay class, but
+  `add_recipe`/`craft_item` tools don't exist in `phyxel_mcp_server.py` or `EngineAPIServer.cpp`
+  as of this writing.
 
 **Pause System:**
 - ESC key toggles pause (freezes world simulation, shows pause menu)
@@ -364,7 +368,7 @@ MyGame/
     {"type": "fill", "from": {"x":4,"y":16,"z":4}, "to": {"x":28,"y":16,"z":28}, "material": "Stone"},
     {"type": "fill", "from": {"x":4,"y":17,"z":4}, "to": {"x":28,"y":20,"z":28}, "material": "Stone", "hollow": true}
   ],
-  "player": {"type": "physics", "position": {"x":16,"y":18,"z":16}},
+  "player": {"type": "animated", "position": {"x":16,"y":18,"z":16}},
   "camera": {"position": {"x":16,"y":35,"z":-5}, "yaw": 0, "pitch": -35}
 }
 ```
@@ -380,7 +384,7 @@ MyGame/
     {"type": "fill", "from": {"x":12,"y":21,"z":12}, "to": {"x":20,"y":25,"z":20}, "material": "Wood", "hollow": true},
     {"type": "template", "name": "tree.voxel", "position": {"x":25,"y":21,"z":15}}
   ],
-  "player": {"type": "physics", "position": {"x":16,"y":28,"z":16}},
+  "player": {"type": "animated", "position": {"x":16,"y":28,"z":16}},
   "camera": {"position": {"x":50,"y":50,"z":50}, "yaw": -135, "pitch": -30},
   "npcs": [
     {
@@ -426,13 +430,20 @@ Standalone games use the standard `GameSettings::defaultKeybindings()`:
 | Shift | Sprint |
 | Ctrl | Crouch |
 | E | Interact (talk to NPC) |
-| F | Attack |
+| Left Click | Attack |
 | V | Toggle camera mode (1st/3rd/free) |
 | Tab | Inventory |
 | ESC | Pause menu / back |
 | C | Place cube |
 
-These can be rebound in the Settings → Keybindings screen.
+`GameSettings::defaultKeybindings()` also registers an `Attack → F` binding, but no code path
+currently reads that action — attack is hardcoded to Left Mouse Button in both `FpsScheme` and
+`TankScheme` (`engine/include/input/ControlScheme.h`). Likewise `Tab`/`ToggleInventory` and
+`C`/`PlaceCube` are registered as rebindable actions but no `isActionPressed()` call consumes them
+in the standalone `GameShell` path yet — treat those two as configured-but-not-yet-wired rather
+than confirmed functional.
+
+These can be rebound in the Settings → Keybindings screen (once wired to gameplay).
 
 > **Editor-only controls** (not available in standalone games):
 > K = toggle character, T = spawn template, F1-F7 = debug overlays

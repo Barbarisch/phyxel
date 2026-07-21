@@ -1,6 +1,7 @@
 # Game Production Workflow — Design Plan (v2)
 
-> **Status:** DESIGN — not yet implemented. Canonical design entry for the **production-completeness
+> **Status:** MOSTLY BUILT (see §0) — Phases 0-6 and 8 shipped on `main`, Phase 7 has its first slices
+> (adversarial playtest + trace-replay) in. Canonical design entry for the **production-completeness
 > spine**: the per-project tracker, milestone validation, session onboarding, and guided process that
 > carry a Phyxel game from empty project to *shippable* — and keep it shippable as it changes.
 >

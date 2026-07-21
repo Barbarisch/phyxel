@@ -4,9 +4,14 @@
 
 Phyxel now has comprehensive integration testing alongside its unit tests. Integration tests verify that components work correctly together with real Vulkan and Physics subsystems.
 
-**Test Count Summary:**
+**Test Count Summary (stale — see note):**
 - **Unit Tests**: 251 fast tests (<120ms total) - pure functions, no dependencies
 - **Integration Tests**: 47 tests (~5-10 seconds total) - real Vulkan/Physics initialization
+
+> These counts are from an earlier snapshot. As of this audit, `tests/` has ~2,900+ unit-test
+> macros (`TEST`/`TEST_F`/`TEST_P`) across 229+ files, and `tests/integration/` has **86**
+> `TEST_F` cases (not 47) — see CLAUDE.md's "~2,300" unit-test figure for the current ballpark.
+> The fixture/class names and directory layout below are still accurate.
 
 ## Philosophy
 
@@ -59,7 +64,9 @@ class MyVulkanTest : public VulkanTestFixture {
 ```
 
 ### 2. PhysicsTestFixture
-Provides initialized Bullet Physics world.
+Provides an initialized `Physics::PhysicsWorld` (a thin wrapper over the custom CPU
+`VoxelDynamicsWorld` rigid-body stack — Bullet Physics was removed entirely; this fixture no
+longer touches Bullet).
 
 ```cpp
 class MyPhysicsTest : public PhysicsTestFixture {
@@ -121,20 +128,25 @@ TEST_F(MyIntegrationTest, CreateAndModifyChunk) {
 class MyPhysicsTest : public PhysicsTestFixture {};
 
 TEST_F(MyPhysicsTest, RigidBodyFalls) {
-    btRigidBody* body = physicsWorld->createBoxRigidBody(
+    auto* voxelWorld = physicsWorld->getVoxelWorld();
+    auto* body = voxelWorld->createVoxelBody(
         {0, 10, 0}, {1, 1, 1}, 1.0f
     );
-    
-    float startY = /* get Y position */;
-    
+
+    float startY = body->position.y;
+
     for (int i = 0; i < 60; i++) {
         physicsWorld->stepSimulation(1.0f / 60.0f);
     }
-    
-    float endY = /* get Y position */;
+
+    float endY = body->position.y;
     EXPECT_LT(endY, startY); // Fell due to gravity
 }
 ```
+
+(This is illustrative — see `tests/integration/PhysicsIntegrationTest.cpp` for the real,
+`VoxelDynamicsWorld`/`VoxelOccupancyGrid`-based test bodies; no `btRigidBody`/`btVector3` symbols
+remain anywhere under `tests/`.)
 
 ## Running Tests
 

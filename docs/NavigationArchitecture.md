@@ -4,11 +4,17 @@
 > (`engine/include/core/NavGraph.h`) — the voxel-native TRUE-3D walkable-surface graph
 > (every standable level per XZ column, built alongside the legacy `NavGrid`) — and
 > `Core::PathService` (`engine/include/core/PathService.h`) — async worker-thread A*
-> query owner — are on main. The legacy flat 2.5D `Core::NavGrid` + `Core::AStarPathfinder`
-> still drive `PatrolBehavior` during migration. Deferred / **TODO**: Layer-2 HPA*
-> hierarchical routing, path caching + voxel-change dirtying, smoothing, ORCA/RVO local
-> avoidance, and full NPC-behavior integration. The sections below remain the
-> authoritative design rationale.
+> query owner — are on main. **Also shipped** (verified in source, not just this doc's
+> original plan): `PathService` **path caching (LRU) + voxel-change dirtying**
+> (`invalidateAllCache`/`invalidateCacheNear`/`invalidateCacheRegion`) and **waypoint
+> smoothing** (`NavGraph::smoothWaypoints`, invoked from the worker in `PathService.cpp`).
+> `StoryDrivenBehavior` now consumes `PathService`/`NavGraph` directly (no longer
+> direct-line movement). The legacy flat 2.5D `Core::NavGrid` + `Core::AStarPathfinder`
+> still drive `PatrolBehavior`, which has not migrated yet. Deferred / **TODO**: Layer-2
+> HPA* hierarchical routing, ORCA/RVO local avoidance, and migrating `PatrolBehavior` off
+> the legacy grid. The sections below remain the authoritative design rationale, though
+> some "current state" / "phased plan" text further down predates the shipped caching/
+> dirtying/smoothing/StoryDrivenBehavior work described above.
 
 ## Goals
 - **True 3D navigation** — multi-floor building interiors, bridges over paths,
@@ -34,8 +40,10 @@
   surface per column** — the core limitation for 3D.
 - Sparse hashmap storage (multi-chunk capable), incremental `rebuildCell`/`rebuildRegion`,
   `NavLink` jump/climb links, path-intersection invalidation.
-- `Core::AStarPathfinder` runs A* over cells + links. `PatrolBehavior` consumes it;
-  `StoryDrivenBehavior` currently does *direct-line* movement (no pathfinding).
+- `Core::AStarPathfinder` runs A* over cells + links. `PatrolBehavior` still consumes it.
+  `StoryDrivenBehavior` **no longer** does direct-line movement — it has since migrated
+  onto `Core::NavGraph` + `Core::PathService` (see
+  `engine/src/scene/behaviors/StoryDrivenBehavior.cpp`).
 
 Verdict: the surface-detection, headroom, link, incremental-update, and invalidation
 machinery is sound and reusable. The **data model** (one cell per column, flat graph,

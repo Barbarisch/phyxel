@@ -1253,20 +1253,35 @@ tiering, the coherent-fell path) is shape-agnostic.
 
 ### Fix plan (A → B → C)
 
-- **A. Anti-tunneling (physics, do first).** Clamp per-substep linear displacement in
-  `VoxelDynamicsWorld::integrateVelocities` so `|v|·dt ≤ ~0.9` voxel (a discrete step can't skip a
-  1-thick surface); plus clamp fracture-child inherited velocity. Red test:
+- **A. Anti-tunneling (physics, do first). ✅ SHIPPED (`43071c8`).** Clamp per-substep linear
+  displacement in `VoxelDynamicsWorld::integrateVelocities` so `|v|·dt ≤ ~0.9` voxel (`kMaxStepVoxels
+  = 0.9f`, `VoxelDynamicsWorld.cpp:213`) — a discrete step can't skip a 1-thick surface. Red test
   `FastBodyDoesNotTunnelThroughThinTerrain` (a body hurled down at 150 u/s must rest on a 1-thick
-  slab, not reach the fall threshold). L4: fell on the testbed, assert every body rests ≥ surface.
-- **B. Anisotropic blast shape (replaces the earlier "wire the kerf to the API" idea).** Replace
-  scalar `radius` in `applyDamage` with a per-axis `glm::vec3 radii`; normalize the distance
-  (`d = length((vc-center)/radii)`, break if `d>1`, `fall = pow(1-d,p)`). A thin wide **disc**
-  (radii ~{4, 0.7, 4}) at the trunk base severs the full cross-section in a 1-voxel-tall slice —
-  high in-plane energy punches the horizontal shielding while the thin Y keeps it off the canopy →
-  clean coherent fell with leaves riding. This is also the primitive behind every shaped spell
-  (thunderwave = wide/flat, wall_of_fire = wall, lightning = line). API gains `radii:{x,y,z}` or an
-  ergonomic `shape` + size that expands to radii; scalar `radius` stays for back-compat. *L2:* disc
-  sever keeps canopy leaf-count ≈ pre-fell. *L4:* leafy tree topples as one body.
-- **C. Float polish (measure first).** Instrument render-bottom vs collision-bottom on a settled
-  body; if the gap is real, extend the subcube-resolution proxy to big trunks (bounded by greedy
-  merge) instead of the coarse whole-cell fallback.
+  slab, not reach the fall threshold) — landed in `tests/integration/PhysicsIntegrationTest.cpp`.
+  L4: felling on the testbed left all 9 coherent bodies on the surface, zero at the fall threshold.
+- **B. Anisotropic blast shape (replaces the earlier "wire the kerf to the API" idea). ✅ SHIPPED
+  (`ec93e32`).** `applyDamage` (`engine/include/core/DamageSystem.h:52-58`) gained an optional
+  per-axis `glm::vec3 radii` (ellipsoid): distance is normalized per axis
+  (`d = length((vc-center)/radii)`, break if `d>1`); omitting `radii` keeps the spherical `radius`
+  path (back-compat). A thin wide **disc** (radii ~{4, 0.7, 4}) at the trunk base severs the full
+  cross-section in a 1-voxel-tall slice — high in-plane energy punches the horizontal shielding
+  while the thin Y keeps it off the canopy → clean coherent fell with leaves riding. Also the
+  primitive behind every shaped spell (thunderwave = wide/flat, wall_of_fire = wall, lightning =
+  line). API (`/api/damage/apply`) gained `radii:{x,y,z}` and an ergonomic `shape`
+  ("disc"|"wall"|"line") + `thickness`. Red test `EllipsoidBlast_ThinDisc_SeversWideAxisSparesThinAxis`.
+  L4: disc-felling a full oak (radii {4,0.7,4}, energy 4000) gave a clean sever — 6 coherent bodies,
+  only 78 particle debris (vs ~400 for the sphere), 15516+ canopy voxels riding.
+- **C. Float polish (measure first) — NOT shipped; a different bug (floating branch satellites)
+  was fixed instead under the same "15.6 C" label.** `fineCollision = component.size() <= 800`
+  (`DamageSystem.cpp:1396`) still pads sub-cell wood to full 1-unit boxes for big trunks, so the
+  render-bottom-vs-collision-bottom gap this item targeted is **still open** — unmeasured. What
+  `0f545e7` actually shipped as "15.6 C" is a related but distinct defect: a fell's support flood
+  was splitting one tree into up to six separate bodies (thin branch tips routed around
+  non-cube-face-adjacent cells, perching as "floating branches" once physicalized alone).
+  Fix: `consolidateSatelliteComponents` (`DamageSystem.cpp:724`, unit-tested) folds small,
+  spatially-contained components into the largest post-flood so the crown falls as ONE body;
+  the coherent-cap check was also changed to count structural WOOD cells only (not wood+leaf
+  cargo), since leaf cargo carries no collision cost. L4: a disc-felled oak now yields one body
+  (`308+698 cells -> 1 rigid body`, was 6) that fractures into 3 large chunks on impact, all
+  resting at the ground. The original float-polish item (extend the subcube-resolution proxy to
+  big trunks) remains an open follow-up.

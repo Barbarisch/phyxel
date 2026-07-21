@@ -52,16 +52,16 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    // resources/materials.json currently defines 101 materials (grew from the original 27 with biome
-    // variants, cloth Linen/Wool, Snow + SnowGrass etc.). Keep in sync with the "materials" array
-    // length in materials.json.
-    EXPECT_EQ(registry_->getMaterialCount(), 101);
+    // resources/materials.json currently defines 102 materials (grew from the original 27 with biome
+    // variants, cloth Linen/Wool, Snow + SnowGrass, LogHeartwood etc.). Keep in sync with the
+    // "materials" array length in materials.json.
+    EXPECT_EQ(registry_->getMaterialCount(), 102);
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    // 101 materials × 6 face textures = 606 texture slots. Keep in sync with materials.json.
-    EXPECT_EQ(registry_->getTextureCount(), 606);
+    // 102 materials × 6 face textures = 612 texture slots. Keep in sync with materials.json.
+    EXPECT_EQ(registry_->getTextureCount(), 612);
     // Total splits across the two resolution classes (512 + 1024).
     EXPECT_EQ(registry_->getTextureCount(0) + registry_->getTextureCount(1),
               registry_->getTextureCount());
@@ -73,7 +73,8 @@ TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
 
 TEST_F(MaterialRegistryTest, MaterialIDs_MatchJSON) {
     ASSERT_TRUE(loaded_);
-    // IDs assigned by JSON array order (alphabetical after system materials)
+    // IDs assigned by JSON array order (alphabetical after system materials).
+    // LogHeartwood was inserted at index 10 (after Log), shifting every ID below by +1.
     EXPECT_EQ(registry_->getMaterialID("Default"),      0);
     EXPECT_EQ(registry_->getMaterialID("Dirt"),         1);
     EXPECT_EQ(registry_->getMaterialID("Grass"),        2);
@@ -84,14 +85,15 @@ TEST_F(MaterialRegistryTest, MaterialIDs_MatchJSON) {
     EXPECT_EQ(registry_->getMaterialID("Gravel"),       7);
     EXPECT_EQ(registry_->getMaterialID("Wood"),         8);
     EXPECT_EQ(registry_->getMaterialID("Log"),          9);
-    EXPECT_EQ(registry_->getMaterialID("Bricks"),      10);
-    EXPECT_EQ(registry_->getMaterialID("Sandstone"),   11);
-    EXPECT_EQ(registry_->getMaterialID("Glass"),       12);
-    EXPECT_EQ(registry_->getMaterialID("Metal"),       13);
-    EXPECT_EQ(registry_->getMaterialID("Gold"),        14);
-    EXPECT_EQ(registry_->getMaterialID("Ice"),         15);
-    EXPECT_EQ(registry_->getMaterialID("Leaf"),        16);
-    EXPECT_EQ(registry_->getMaterialID("glow"),        17);
+    EXPECT_EQ(registry_->getMaterialID("LogHeartwood"), 10);
+    EXPECT_EQ(registry_->getMaterialID("Bricks"),      11);
+    EXPECT_EQ(registry_->getMaterialID("Sandstone"),   12);
+    EXPECT_EQ(registry_->getMaterialID("Glass"),       13);
+    EXPECT_EQ(registry_->getMaterialID("Metal"),       14);
+    EXPECT_EQ(registry_->getMaterialID("Gold"),        15);
+    EXPECT_EQ(registry_->getMaterialID("Ice"),         16);
+    EXPECT_EQ(registry_->getMaterialID("Leaf"),        17);
+    EXPECT_EQ(registry_->getMaterialID("glow"),        18);
 }
 
 TEST_F(MaterialRegistryTest, UnknownMaterial_FallsBackToDefault) {

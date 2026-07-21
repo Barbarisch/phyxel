@@ -4,12 +4,14 @@
 > don't have, record it HERE. The user plans to overhaul the texture system for more detailed,
 > better-looking results (explicitly *not* Minecraft-style flat blocks), so this list feeds that.
 
-## Current materials (19, from `resources/materials.json`)
-Default, Dirt, Grass, Stone, Cobblestone, StoneBricks, Sand, Gravel, Wood, Log, Bricks,
-Sandstone, Glass, Metal, Gold, Ice, Leaf, glow, Mirror.
-
-These skew **terrain/exterior**. Interiors, furniture, and finish work are starved — we keep
-substituting (e.g. bed mattress = Sandstone, pillow = Sand) because nothing better exists.
+## Current materials (102, from `resources/materials.json` — verified 2026-07-21; up from 19 when
+this doc was first written)
+The atlas has grown substantially since this doc's original terrain/exterior-only snapshot: the
+period roofing family (below), biome log/leaf variants, `StoneTiles`, `WoodWalnut` (dark stained
+furniture wood), `Linen`/`Wool` (first cloth materials), `rug_oriental` (a real projected rug
+texture), `enchanted_log`, and the `vox_00`-`vox_47` legacy palette (48 entries, being retired)
+now sit alongside the original terrain/exterior set. See the sections below for what's still
+missing — several rows here were satisfied by these additions and have been marked accordingly.
 
 ## Period ROOFING — DONE (2026-07-02, `tools/gen_roof_materials.py`)
 Full vernacular roof family shipped: **Thatch** (redo), **ClayTile**, **WoodShingle**,
@@ -49,7 +51,7 @@ whole prop — see `docs/VoxelAppearanceModel.md` §7 Phase 3). It needs real ar
 placeholder `surface_test` (asymmetric labeled grid, `tools/gen_surface_textures.py`) exists.
 | Need | Used for | Notes |
 |------|----------|-------|
-| **Rug / carpet patterns** (Persian, woven, braided) | floor rugs (`# surface: … axis=y`) | the demo `rug_test.voxel` uses `surface_test` as a stand-in |
+| **Rug / carpet patterns** (Persian, woven, braided) | floor rugs (`# surface: … axis=y`) | ✅ partially done — `rug_oriental` material + `resources/templates/rug_oriental.voxel` now ship a real projected rug (verified in `resources/materials.json`); more patterns/colourways still wanted, and `rug.voxel`/other floor props may still use `surface_test` |
 | **Painting / portrait images** | wall paintings (`axis=z`/`x`) | framed canvas; pairs with a thin frame prop |
 | **Banner / tapestry / heraldry** | hanging wall banners | tall vertical projection |
 | **Mosaic / tile floor patterns** | floor medallions | same path as rugs |
@@ -61,7 +63,7 @@ array, so each surface image is a texture-carrier material like `burning_wood`/`
 |------|----------|-------|
 | Plaster / stucco (white & tinted) | interior walls | most interior walls aren't bare stone |
 | Wallpaper (patterned) | manor/parlor walls | gothic damask for Strahd interiors |
-| Dark / stained / polished wood | fine furniture, panelling, floors | Wood is light oak only |
+| Dark / stained / polished wood | fine furniture, panelling, floors | ✅ done — `WoodWalnut` (dark chocolate-brown, oiled/waxed) shipped, verified in `resources/materials.json` |
 | Wood floorboards (distinct from planks) | floors | directional plank floor |
 | Marble / tile (floor + wall) | grand floors, baths | checkerboard, veined |
 | Carpet / rug (patterned) | floors | area rugs, runners |
@@ -75,16 +77,20 @@ shows up all over the interior. Highest-impact additions:
   NOT be brick-red stone. This alone fixes much of the "too much brick" look.
 - **Cloth/linen/wool/velvet** in several colours (white linen sheets, wool blankets, velvet
   drapes/upholstery) — replaces Bricks/Sandstone/Sand stand-ins on beds, coverlets, valances,
-  armchairs.
+  armchairs. ✅ `Linen` (undyed sheets/sacks) and `Wool` (dyed madder-red coverlets/blankets) now
+  ship — velvet/upholstery colourways still wanted.
 - **Book-binding material** (leather/cloth spines, reds/greens/browns/gilt) — replaces the
   Bricks/Log/Gold spine stand-ins.
-- **Dark/stained wood** distinct from light Wood — for ornate/manor furniture vs plain.
+- **Dark/stained wood** distinct from light Wood — for ornate/manor furniture vs plain. ✅ done
+  (`WoodWalnut`).
 
-## Missing — soft goods / cloth (no cloth material exists at all)
+## Missing — soft goods / cloth
+`Linen` and `Wool` now exist (verified in `resources/materials.json`, 2026-07-21) — this category
+is no longer "no cloth material exists at all." Remaining gaps:
 | Need | Used for |
 |------|----------|
-| Linen / bedsheet (white/cream) | mattress, sheets |
-| Wool blanket / quilt (colored) | beds |
+| ~~Linen / bedsheet (white/cream)~~ | ✅ done — `Linen` |
+| ~~Wool blanket / quilt (colored)~~ | ✅ done — `Wool` (madder red; more colourways still wanted) |
 | Cushion / upholstery (leather, velvet) | chairs, sofas, padded furniture |
 | Book bindings (leather, cloth — reds/greens/browns/gilt) | books on shelves currently reuse Bricks/Sandstone/Log/Gold/Metal/Leaf as spine stand-ins |
 | Drapery / curtain (heavy, colored) | windows, four-poster beds |
@@ -103,7 +109,7 @@ shows up all over the interior. Highest-impact additions:
 ## Missing — nature / misc
 | Need | Used for |
 |------|----------|
-| Thatch | cottage roofs |
+| ~~Thatch~~ | ✅ done, see "Period ROOFING — DONE" above — this row was stale, left over from before roofing shipped |
 | Cracked / mossy stone variants | ruins, age (Strahd is decayed) |
 | Cobweb | abandoned interiors |
 | Bone / skull | crypts |

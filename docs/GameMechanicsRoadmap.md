@@ -266,7 +266,9 @@ Phase 2 (Cameras) ─┘
    - Registers in EntityRegistry with type tag "npc"
    - Manages NPC lifecycle (owns the entities)
    - `removeNPC(name)`, `getNPC(name)`, `getAllNPCs()`
-   - `behaviorType` enum: `Idle`, `Patrol`, `Goose`
+   - `behaviorType` enum: `Idle`, `Patrol`, `Goose` (as shipped: `NPCBehaviorType` in
+     `engine/include/core/NPCManager.h` is `Idle`, `Patrol`, `BehaviorTree`, `Scheduled`, `Combat` —
+     the plan's single "Goose" catch-all was superseded by these more specific types)
 
 6. **Wire into Application**
    - `Application` owns `NPCManager` and `InteractionManager`

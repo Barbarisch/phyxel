@@ -126,8 +126,46 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **★ CURRENT FOCUS (2026-07-17): LARGE-WORLD SCALE Phase 4 (chunk RAM) — branch
-  `feature/large-world-scale` (LOCAL, not pushed).** Plan:
+- **★ CURRENT FOCUS (2026-07-20/21): DESTRUCTION SYSTEM v2 §15 "universal destruction" +
+  LARGE-WORLD SCALE Phase 4.3 — now on branch `destruction-system-v2` (a 51-commit
+  fast-forward merge from origin/main landed the large-world-scale work onto this branch;
+  `git status` clean).** This supersedes the "Phase 4 (chunk RAM)" entry below as the most
+  recent work — that entry's ChunkStorage-removal/ChunkVoxelStore history is still accurate,
+  read it for background, but its "NEXT" section is stale. Since then, all on this branch:
+  - **Destruction §15 universal-destruction plan** (`docs/DestructionSystemV2.md` §15) —
+    U0-U6 shipped 2026-07-20 (spell-opt-in coherent collapse, budget grounding, indexed
+    broadphase, `CrossSectionAnalyzer` neck-shear, approximate statics, retirement tier,
+    impact fracture into chunks with a coarse wood-only collision proxy). **§15.6 fell-quality
+    fixes SHIPPED** (commits `43071c8`/`ec93e32`/`0f545e7`): (A) per-substep displacement clamp
+    (no tunneling through thin terrain), (B) anisotropic disc/wall/line blast shape (a felled
+    tree keeps its canopy), (C) a fell topples as ONE coherent body (no floating branch
+    satellites). Also: material census fixed (101→102 — `LogHeartwood` was added without
+    updating the count, `058fbdf`) and an `occupancy_cell` debug-audit endpoint shipped with a
+    P1 audit result of "grid is CLEAN" (`fb707a7`).
+  - **Region arenas — Phase 4.3 SHIPPED, DEFAULT ON** (`docs/RegionArenaPlan.md`; commits
+    `20da8b3`…`5870c65`): `ChunkArenaAllocator`/`ChunkArenaSystem` (region-keyed GPU buffer
+    span suballocation) replace one-`vkAllocateMemory`-per-chunk; A0-A4 gates pass — the
+    1:1 Middle-earth benchmark holds 10,609 resident chunks / 12,054 spans in 81 blocks
+    stable, 3x past the old ~4,096-allocation ceiling.
+  - **Camera-relative rendering SHIPPED** (`docs/CameraRelativeRendering.md`; commit
+    `7705dd5` + the far-terrain seam close `7011b0d`) — the continental-coordinate float-
+    precision fix (camera-at-origin view matrix, CPU double-subtract before truncating to
+    float). Increments 1-4 (core/static, kinematic/character, grass/foliage, dynamic debris,
+    varied-tile restore, far-terrain) are shipped and gated; only increment 5 (debug-overlay
+    lines/voxels) remains.
+  - **Vegetation wind Phase 4 v1 SHIPPED** (`docs/VegetationWindPlan.md`, 2026-07-18) —
+    stateless character grass-displacers + flatten (`/api/debug/grass {pushStrength}`) on top
+    of the earlier Phase 1 wind system; phases 2-3 + a v2 trail bend-field remain planned.
+  - **Chunk voxel storage**: `ChunkStorage` is now fully deleted from the engine (confirmed —
+    no `engine/` source references it); `ChunkVoxelStore` is the sole static-voxel store (see
+    the 4.1/4.2a/4.2b entries below, still accurate).
+  - **NEW**: `core/MapCoarseSource` (heightmap-backed coarse world source for
+    `WorldGenerator::setHeightmapSource`, feeding the Middle-earth 1:1 benchmark) — see the
+    Phase-4 entry below for its role.
+
+- **Prior focus (2026-07-17): LARGE-WORLD SCALE Phase 4 (chunk RAM) — branch
+  `feature/large-world-scale` (LOCAL, not pushed; since fast-forward-merged into
+  `destruction-system-v2`, see above).** Plan:
   [`docs/LargeWorldScalePlan.md`](LargeWorldScalePlan.md) — read §0 (ground truth + the benchmark)
   and the Phase 4 "Measured re-scope" before touching chunk RAM/culling/streaming.
   - **BENCHMARK — Middle-earth 1:1** (§0 of the plan). A real 96,000×96,000-block continent

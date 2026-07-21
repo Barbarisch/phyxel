@@ -3,12 +3,17 @@
 > Status: **largely implemented on main.** Chunk streaming, column-first generation with
 > depth profiles, data-driven biomes (`resources/biomes.json`: temperature / moisture /
 > continentalness climate with Gaussian-blended per-biome height), and the flora
-> decoration pass (branch-driven trees via `Core::ProceduralTree` / `gen_tree.py`
-> templates) all landed. Per-world generation tuning is persisted via `Core::WorldRecipe`
-> (`world.db` `world_meta`). See **`docs/WorldRecipeAndFlora.md`** for the flora + world-recipe
-> design and remaining work. Deferred / **TODO**: caves/ore carving, water integration,
-> and the streaming worker thread (Phase 1c). The sections below remain the authoritative
-> design rationale.
+> decoration pass (branch-driven trees via `Core::ProceduralTree` for `"procedural"`-mode flora;
+> the `"pool"`-mode template AUTHORING tool is now `tools/tree_forge.py` — `gen_tree.py` was marked
+> DEPRECATED 2026-07-05 and superseded, `resources/biomes.json` pool items are all `forge_*`
+> templates now) all landed. Per-world generation tuning is persisted via
+> `Core::WorldRecipe` (`world.db` `world_meta`). See **`docs/WorldRecipeAndFlora.md`** for the
+> flora + world-recipe design and remaining work. **Update (verified against source):** the
+> streaming worker thread (Phase 1c) has SHIPPED (`ChunkStreamingManager`'s async generation
+> worker pool, `kGenWorkerCount`), and water integration is now a large active workstream
+> (`docs/WaterSystemV2.md`, `docs/TerrainGenerationV2.md` §P2) — neither is still deferred.
+> Genuinely still **TODO**: caves/ore carving (`docs/TerrainGenerationV2.md` §P3, not started).
+> The sections below remain the authoritative design rationale for the v1 pipeline.
 
 ## Goals (agreed scope)
 
@@ -201,7 +206,6 @@ fall-through, confirm the memory ceiling holds) **before** layering biomes on to
 
 ## Related
 
-- `docs/WaterSystem.md` — underground water table / sea level interplay (Phase 4).
-- `docs/MultiChunkSystem.md` — chunk lifecycle fundamentals.
+- `docs/WaterSystemV2.md` — underground water table / sea level interplay (supersedes WaterSystem.md).
 - Memory: `reference_collision_occupancy` (the fall-through rule), `project_biome_flora`
   (the flora generators), `reference_empty_world` (current project-load regen behavior).

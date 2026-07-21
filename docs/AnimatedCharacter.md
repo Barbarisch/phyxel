@@ -24,6 +24,14 @@ The `AnimatedVoxelCharacter` uses a finite state machine (FSM) to manage its beh
 | **WalkStrafeLeft/Right** | Moving sideways (Walking/Slow). | `left_strafe_walk` / `right_strafe_walk` |
 | **Preview** | Debug state for previewing animations. | (Selected Animation) |
 
+> **Note (verified against current `AnimatedCharacterState` enum,
+> `engine/include/scene/AnimatedVoxelCharacter.h`):** the table above is no longer
+> exhaustive. The enum has grown substantially beyond this document — it also includes
+> `BackwardWalk`, `StopWalk`, `StopRun`, `ClimbStairs`, `DescendStairs`, `SitDown`,
+> `SittingIdle`, `SitStandUp`, `Cast`, `Block`, `Dodge`, `HitReact`, `Death`, `KnockedOut`,
+> `GetUp`, and `Celebrate` (combat/RPG/interaction states), each wired to real clip
+> selection in `AnimatedVoxelCharacter.cpp`. See the header for the authoritative list.
+
 ## State Transitions
 
 The state machine is updated every frame in `AnimatedVoxelCharacter::updateStateMachine`.
@@ -76,9 +84,17 @@ If the wrong animation plays for a state:
 3.  Check the fuzzy matching logic in `update` (e.g., ensuring "walk" doesn't match "strafe_walk").
 
 ## Input Handling
-Input is passed from `Application::handleInput` to `AnimatedVoxelCharacter::setControlInput`.
+Input now flows through the shared `Core::GameplayCameraController` (`engine/include/core/GameplayCameraController.h`):
+a `ControlScheme::sample()` produces a `ControlIntent`, and `GameplayCameraController::update()` calls
+`AnimatedVoxelCharacter::setControlInput(in.forward, in.turn, in.strafe)` — the same path for both the editor
+and standalone games. `Application::handleInput` (editor) no longer drives character movement directly; it's
+limited to editor-only concerns (animation preview cycling via N/B) and delegates gameplay input to
+`cameraCtl_`.
 *   `forward`: -1.0 to 1.0
 *   `turn`: -1.0 to 1.0
 *   `strafe`: -1.0 to 1.0
 
-The character physics controller (`controllerBody`) is moved based on these inputs relative to the camera/character orientation.
+The character is moved by a hand-written kinematic controller (`m_kinVelocity`/`m_kinGrounded` in
+`AnimatedVoxelCharacter.h`, explicitly commented as replacing the old Bullet `controllerBody`) based on
+these inputs relative to the camera/character orientation. There is no `controllerBody` member anymore —
+Bullet Physics has been removed from the engine.

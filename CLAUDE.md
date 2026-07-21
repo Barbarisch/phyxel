@@ -151,7 +151,7 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
 
 ## Materials
 
-Data-driven from `resources/materials.json` (97 materials — the table below is the core subset;
+Data-driven from `resources/materials.json` (102 materials — the table below is the core subset;
 roofing/finish/state materials live in the JSON). Names are **case-sensitive**; an unknown name
 renders as a magenta missing-texture checkerboard. Confirm live with the `list_materials` MCP
 tool. (Cork and Rubber no longer exist.) CC0 photo sources + asset IDs:
@@ -215,7 +215,7 @@ Three separate vertex shaders handle voxels in different states. All share `voxe
 
 | Shader | Purpose | Instance Data | Sub-tile UV Method |
 |--------|---------|---------------|--------------------|
-| `static_voxel.vert` | Chunk voxels (baked into 32³ grid) | `InstanceData` (20B) — packed position/face/scale + texture/flags + 3 per-corner lighting words (skylight + block light) | GPU decodes grid positions per face |
+| `static_voxel.vert` | Chunk voxels (baked into 32³ grid) | `InstanceData` (24B) — packed position/face/scale + texture/flags + tint + 3 per-corner lighting words (skylight + block light) | GPU decodes grid positions per face |
 | `dynamic_voxel.vert` | GPU particle debris (compute-expanded) | `DynamicSubcubeInstanceData` (64B) — world pos, scale, rotation, localPosition for grid | GPU decodes localPosition per face |
 | `kinematic_voxel.vert` | Moving rigid groups (doors, furniture, fragments) | `KinematicFaceData` (40B) — local pos, scale, pre-computed uvOffset | CPU pre-computes uvOffset in `buildFaces()` |
 
@@ -391,20 +391,20 @@ In `resources/animated_characters/`:
 | ` | Scripting Console |
 | V | Toggle Camera Mode (First/Third/Free) |
 | C / Ctrl+C / Alt+C | Place Cube / Subcube / Microcube |
-| Left Click | Break Voxel |
+| B | Break Voxel (plain Left Click no longer breaks — see below) |
 | Middle Click | Subdivide Cube |
-| T / Shift+T | Spawn Static / Dynamic Template |
+| T / Shift+T | Spawn Static / Dynamic Template (via Template Spawner panel or MCP `spawn_template` — not a live keybind) |
 | P | Toggle Template Preview |
 | -/= | Ambient Light |
 | [/] | Spawn Speed |
-| K | Toggle Character Control (Physics/Spider/Animated) |
+| K | Toggle Character Control (only one control target — AnimatedCharacter — exists now; effectively a no-op) |
 | W/A/S/D | Movement |
 | Space | Jump (Animated) |
 | Shift | Sprint |
 | Ctrl | Crouch (Animated) |
-| Left Click | Attack (Animated) |
+| Left Click | Attack / Cast / Furniture Throw+Activate (Animated) |
 | X | Derez character |
-| N/B | Next/Prev Animation (Preview Mode) |
+| N/B | Next/Prev Animation (Preview Mode only — B breaks voxels outside preview mode) |
 
 > Full, authoritative keybinding list (incl. F2/Shift+F5/O/G, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
 

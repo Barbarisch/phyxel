@@ -1,8 +1,12 @@
 # PhysicsCharacter — DEPRECATED
 
-> **This class has been moved to `engine/deprecated/bullet/` and is no longer compiled or available in active builds.**
+> **This class was moved to `engine/deprecated/bullet/` when Bullet was first removed from active
+> builds, then that whole `engine/deprecated/` tree (including `bullet/` and `active/`) was
+> DELETED outright by commit `c8803a2` ("Remove Bullet Physics and dead/stale files"). The
+> directory no longer exists in the working tree — the classes below are recoverable only from
+> git history (pre-`c8803a2`), not present anywhere in the current source.**
 >
-> Bullet Physics has been removed from the Phyxel build. `PhysicsCharacter`, `SpiderCharacter`, `VoxelCharacter`, `Character`, and `PhysicsDriveMode` are archived in `engine/deprecated/bullet/` for historical reference only.
+> Bullet Physics has been removed from the Phyxel build. `PhysicsCharacter`, `SpiderCharacter`, `VoxelCharacter`, `Character`, and `PhysicsDriveMode` no longer exist in the tree — recoverable from git history only.
 >
 > For the current character system, see [AnimatedCharacter.md](AnimatedCharacter.md).
 
@@ -18,9 +22,9 @@
 - `AnimatedVoxelCharacter` with `VoxelDynamicsWorld`-backed ragdoll parts provides the same character simulation without Bullet
 - The `VoxelDynamicsWorld` custom engine is purpose-built for voxel debris and compound rigid bodies, replacing all Bullet CPU use cases
 
-### Archived files
+### Archived files (DELETED — git history only, pre-`c8803a2`)
 
-| File | Location |
+| File | Last location before deletion |
 |------|----------|
 | `PhysicsCharacter.h/.cpp` | `engine/deprecated/bullet/` |
 | `SpiderCharacter.h/.cpp` | `engine/deprecated/bullet/` |

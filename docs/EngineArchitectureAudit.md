@@ -27,8 +27,11 @@ knowing where state lives and who mutates it, not from generic interfaces.
 `Application.cpp` (15k) mixes composition-root wiring + ~hundreds of MCP handlers + game
 logic + per-frame update. `EngineAPIServer.cpp` (4k) holds all 233 action handlers.
 `AnimatedVoxelCharacter::resolveKinematicMovement` is one ~700-line method with ~6
-interacting state flags (caused the subtle fall-through). Effect: every feature edits a
-hub file → merge friction, hard to test, hard to reason about.
+interacting state flags (caused the subtle fall-through) — *update 2026-07-21: now
+~320 lines (`engine/src/scene/AnimatedVoxelCharacter.cpp`, lines 54-374), shrunk since
+this audit was written; still a single mega-method, just smaller than recorded here.*
+Effect: every feature edits a hub file → merge friction, hard to test, hard to reason
+about.
 
 ### B. No single source of truth per entity
 One logical "chair" exists simultaneously as: voxels baked in a chunk · a
@@ -72,6 +75,13 @@ and its panels through one entry point. Move the 233 handlers out of
 `EngineAPIServer.cpp` into per-domain handler files that self-register. This is the
 concrete "plug a component in" mechanism — adding a feature becomes adding one module
 file, not editing 3 hubs.
+*Update 2026-07-21: partially started.* `engine/include/core/CommandRegistry.h` exists
+(commit `28944ed`, 2026-06-15) and `Application` now dispatches through it: ~86
+`reg.on(...)` registrations across 10 `registerXCommands()` methods (water, settlement,
+door, light, snapshot, effects, story, camera, envAudio, profiling), tried first with
+fallthrough to the legacy if-chain. Handlers still live inline in `Application.cpp`
+rather than separate self-registering module files, so the "per-domain handler files"
+part of this phase remains open.
 
 **Phase 3 — Decompose `Application.cpp`.**
 Extract a thin composition root (owns + wires subsystems) from the game/editor logic and
@@ -222,6 +232,9 @@ struct EngineContext {
 **3. `CommandRegistry` — the MCP seam** (replaces 233 hand-written handlers in
 `EngineAPIServer.cpp`). `EngineAPIServer` becomes a thin dispatcher: name → handler,
 marshaled via `queueAndWait`. A new MCP tool is a registration line in your feature.
+*(Update 2026-07-21: the registry class itself already exists and is live — see the
+Phase 2 note above; the per-domain self-registering module-file structure described
+below is still the target, not yet built.)*
 ```cpp
 ctx.commands.add("activate_furniture", [](const json& p) -> json { /* ... */ });
 ```

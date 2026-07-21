@@ -92,7 +92,7 @@ individually, including:
 |---|---|
 | `list_entities` | List all entities with IDs and positions |
 | `get_entity` | Get details of one entity by ID |
-| `spawn_entity` | Spawn a physics/spider/animated character |
+| `spawn_entity` | Spawn a character. `type` accepts `physics`/`spider`/`animated` but `physics` and `spider` are silently aliased to `animated` (the underlying `PhysicsCharacter`/`SpiderCharacter` classes were deleted with the Bullet removal) — the response's `type` field always comes back `"animated"`. Use `type:"animated"` directly. |
 | `move_entity` | Teleport entity to new position |
 | `remove_entity` | Remove entity from world |
 | `update_entity` | Update entity position/rotation/scale/color |
@@ -288,12 +288,11 @@ individually, including:
 
 ### Crafting
 
-| Tool | Description |
-|---|---|
-| `list_recipes` | List all crafting recipes |
-| `get_recipe` | Get recipe details |
-| `craft_item` | Craft item from recipe |
-| `add_recipe` | Add new crafting recipe |
+> **Not currently exposed.** `CraftingSystem` exists as a C++ gameplay class (see CLAUDE.md's
+> subsystem list), but as of this writing it has no MCP tools or `/api/craft*`/`/api/recipe*` HTTP
+> routes — `list_recipes`/`get_recipe`/`craft_item`/`add_recipe` do not exist in
+> `phyxel_mcp_server.py` or `EngineAPIServer.cpp`. Treat any reference to these tools elsewhere as
+> aspirational until this surface is built.
 
 ### Game Definition
 
@@ -476,7 +475,7 @@ POST /api/entity/remove     {"id":"npc_01"}
 
 # Voxels
 GET  /api/world/voxel?x=0&y=0&z=0
-POST /api/world/voxel       {"x":0,"y":5,"z":0,"material":"stone"}
+POST /api/world/voxel       {"x":0,"y":5,"z":0,"material":"Stone"}
 POST /api/world/voxel/remove {"x":0,"y":5,"z":0}
 POST /api/world/voxel/batch {"voxels":[{"x":0,"y":5,"z":0},{"x":1,"y":5,"z":0}]}
 

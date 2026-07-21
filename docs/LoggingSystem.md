@@ -39,8 +39,8 @@ LOG_DEBUG_FMT("Chunk", "Position: (" << x << "," << y << "," << z << ")");
 Utils::Logger::loadConfig("logging.ini");
 
 // Or configure programmatically
-Utils::Logger::setGlobalLevel(LogLevel::DEBUG);
-Utils::Logger::enableModule("Physics", LogLevel::TRACE);
+Utils::Logger::setGlobalLevel(LogLevel::Debug);
+Utils::Logger::enableModule("Physics", LogLevel::Trace);
 Utils::Logger::enableFileOutput(true, "game.log");
 ```
 
@@ -69,7 +69,8 @@ The system uses these module categories throughout the codebase:
 - `Application` - Main application logic, user interactions, cube operations
 - `Rendering` - Rendering pipeline, frame rendering, Vulkan initialization  
 - `Vulkan` - Vulkan device, validation, and graphics operations
-- `Physics` - Bullet Physics operations and rigid body management
+- `Physics` - `PhysicsWorld` operations and rigid body management (Bullet Physics was removed
+  entirely; this now backs the custom CPU `VoxelDynamicsWorld` — the module name is unchanged)
 - `Chunk` - Chunk operations, collision system, voxel management
 - `ChunkManager` - Global chunk management and dynamic cubes
 - `WorldStorage` - Database persistence and chunk loading/saving
@@ -94,13 +95,13 @@ LOG_TRACE("AI", "Pathfinding iteration complete");
 
 ```cpp
 // Enable specific module at DEBUG level
-Utils::Logger::enableModule("Physics", LogLevel::DEBUG);
+Utils::Logger::enableModule("Physics", LogLevel::Debug);
 
 // Disable noisy module
 Utils::Logger::disableModule("ImGui");
 
 // Set module-specific level
-Utils::Logger::setModuleLevel("Vulkan", LogLevel::WARN); // Only warnings and errors
+Utils::Logger::setModuleLevel("Vulkan", LogLevel::Warn); // Only warnings and errors
 
 // Enable all modules at INFO level
 Utils::Logger::enableAllModules(LogLevel::INFO);
@@ -156,7 +157,7 @@ Utils::Logger::saveConfig("logging_backup.ini");
 Only log if level is enabled (avoids expensive string formatting):
 
 ```cpp
-if (Utils::Logger::isLevelEnabled(LogLevel::DEBUG, "Physics")) {
+if (Utils::Logger::isLevelEnabled(LogLevel::Debug, "Physics")) {
     std::ostringstream oss;
     // Expensive formatting here
     for (auto& body : rigidBodies) {
@@ -305,7 +306,7 @@ LOG_FATAL("Physics", "Physics world corrupted");         // Critical failure
 
 ```cpp
 // For expensive operations, check if logging is enabled first
-if (Utils::Logger::isLevelEnabled(LogLevel::TRACE, "Profiling")) {
+if (Utils::Logger::isLevelEnabled(LogLevel::Trace, "Profiling")) {
     std::string detailedStats = generateDetailedProfilingReport(); // Expensive
     LOG_TRACE("Profiling", detailedStats);
 }
@@ -416,18 +417,21 @@ LOG_INFO_FMT("Processing", "Processed " << processedCount << " items");
 
 ## Examples
 
+> Paths below are stale in places — the tree has since reorganized into `engine/src/` and
+> `editor/src/`. Corrected where checked; `src/graphics/Renderer.cpp` no longer exists at all
+> (its responsibilities moved into `RenderCoordinator`/`RenderPipeline`).
+
 See the migrated logging in these files:
-- `src/Application.cpp` - Application initialization, user interactions, cube operations
-- `src/vulkan/VulkanDevice.cpp` - Vulkan operations and validation callbacks
-- `src/vulkan/RenderPipeline.cpp` - Pipeline creation and shader loading
-- `src/graphics/Renderer.cpp` - Rendering initialization and frame rendering
-- `src/physics/PhysicsWorld.cpp` - Physics world management
-- `src/core/Chunk.cpp` - Chunk operations and collision system
-- `src/core/ChunkManager.cpp` - Global chunk and dynamic cube management
-- `src/core/WorldStorage.cpp` - Database persistence operations
-- `src/scene/SceneManager.cpp` - Scene management
-- `src/ui/ImGuiRenderer.cpp` - UI rendering
-- `src/utils/PerformanceProfiler.cpp` - Performance metrics
+- `editor/src/Application.cpp` - Application initialization, user interactions, cube operations
+- `engine/src/vulkan/VulkanDevice.cpp` - Vulkan operations and validation callbacks
+- `engine/src/vulkan/RenderPipeline.cpp` - Pipeline creation and shader loading
+- `engine/src/physics/PhysicsWorld.cpp` - Physics world management (VoxelDynamicsWorld-backed)
+- `engine/src/core/Chunk.cpp` - Chunk operations and collision system
+- `engine/src/core/ChunkManager.cpp` - Global chunk and dynamic cube management
+- `engine/src/core/WorldStorage.cpp` - Database persistence operations
+- `engine/src/core/SceneManager.cpp` - Scene management
+- `engine/src/ui/ImGuiRenderer.cpp` - UI rendering
+- `engine/src/utils/PerformanceProfiler.cpp` - Performance metrics
 
 All console output has been migrated to use the centralized Logger system.
 

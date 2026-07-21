@@ -1,5 +1,20 @@
 # Goose AI Integration Architecture
 
+> **STATUS UPDATE (audit finding): Phase 1 (and parts of 2/3) were actually built** — this doc's
+> "Implementation Phases" checklist below is stale (every box shows unchecked). Confirmed present
+> in the repo: `engine/include/ai/GooseBridge.h` + `engine/src/ai/GooseBridge.cpp` (real HTTP-client
+> class, ~650 lines), `AICommandQueue.h/.cpp`, `AICharacterComponent.h/.cpp`, `editor/include+src/
+> ai/AISystem.h/.cpp` (the top-level owner — not in this doc's original planned file tree),
+> `editor/include+src/ai/StoryDirector.h/.cpp` (implements the "Story Director" concept below,
+> also not in the original tree), `scripts/mcp/phyxel_extension.py` (718 lines — also referenced
+> as real/current in `docs/MCPIntegration.md`), `scripts/goose_bridge.py`, and a populated
+> `resources/ai/` (characters/guard.yaml, characters/merchant.yaml, skills/combat.yaml,
+> skills/dialog.yaml, skills/patrol.yaml, stories/story_director.yaml). It's wired into the live
+> editor: `Application` constructs an `AI::AISystem`, and **F9** toggles it at runtime
+> (`Application::toggleAISystem()`, bound in `InputController.cpp`); **F8** spawns a test AI NPC.
+> The architecture below matches what was built closely enough to remain the reference doc — treat
+> the checklist as a to-be-rewritten status list, not evidence that nothing exists.
+
 ## Vision
 
 Integrate [block/goose](https://github.com/block/goose) into phyxel to create a dual-purpose agentic AI system:
@@ -177,23 +192,28 @@ The same goose-server also powers developer workflows:
 
 ## Implementation Phases
 
-### Phase 1: Foundation
-- [ ] Build `GooseBridge` C++ class (HTTP client to goose-server)
-- [ ] Create `PhyxelMCPExtension` Python MCP server with basic tools
-- [ ] Add goosed process lifecycle management (start/stop with engine)
-- [ ] Wire up a single NPC to test the full loop
+### Phase 1: Foundation — SHIPPED
+- [x] Build `GooseBridge` C++ class (HTTP client to goose-server)
+- [x] Create `PhyxelMCPExtension` Python MCP server with basic tools (`scripts/mcp/
+      phyxel_extension.py`)
+- [x] Add goosed process lifecycle management (start/stop with engine) — `AISystem` +
+      `Application::toggleAISystem()`, bound to **F9**
+- [x] Wire up a single NPC to test the full loop — **F8** spawns a test AI NPC
+      (`Application::spawnTestAINPC()`)
 
-### Phase 2: Character Skills
-- [ ] Define Recipe YAML schema for character archetypes
-- [ ] Implement subagent-based skill system
-- [ ] Build command queue for async AI → engine actions
-- [ ] Add idle behavior system for latency masking
+### Phase 2: Character Skills — PARTIALLY SHIPPED
+- [x] Define Recipe YAML schema for character archetypes — `resources/ai/characters/*.yaml`,
+      `resources/ai/skills/*.yaml`
+- [ ] Implement subagent-based skill system (unverified — not confirmed by this audit)
+- [x] Build command queue for async AI → engine actions — `AICommandQueue`
+- [ ] Add idle behavior system for latency masking (unverified — not confirmed by this audit)
 
-### Phase 3: Story Director
-- [ ] Create Story Director recipe with sub-recipe orchestration
-- [ ] Implement quest state tracking via MCP tools
-- [ ] Build event system connecting game triggers to story beats
-- [ ] Add NPC mood/disposition system driven by AI
+### Phase 3: Story Director — PARTIALLY SHIPPED
+- [x] Create Story Director — `editor/include+src/ai/StoryDirector.h/.cpp` (real `QuestStatus`,
+      `QuestState`, story-beat types); `resources/ai/stories/story_director.yaml`
+- [ ] Implement quest state tracking via MCP tools (unverified — not confirmed by this audit)
+- [ ] Build event system connecting game triggers to story beats (unverified — not confirmed)
+- [ ] Add NPC mood/disposition system driven by AI (unverified — not confirmed by this audit)
 
 ### Phase 4: Developer Tools
 - [ ] Create developer-focused MCP extension (code gen, asset creation)

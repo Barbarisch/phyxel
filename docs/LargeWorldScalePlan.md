@@ -417,10 +417,13 @@ first refactor's before/after is what confirms it):
    `Cube`s themselves — and it does **not** depend on the palette refactor. `cubes` is *already* a
    dense positional 32³ array (`cubes.resize(32*32*32)`; `index = z + y*32 + x*1024`), so
    `cubeMap` is a 32k-node hash duplicate of an O(1) array index; `voxelTypeMap` likewise derives
-   from it. `ChunkStorage` carries **another** `cubeMap` copy. Blast radius is far smaller than
+   from it. `ChunkStorage` carries **another** `cubeMap` copy (note: `ChunkStorage.h/.cpp` were
+   since deleted and replaced by `ChunkVoxelStore.h/.cpp` in a later merge — this sentence
+   describes the pre-rename state at the time of this survey). Blast radius is far smaller than
    "the largest refactor in the plan" implies: `getCubeMap()`/`getVoxelTypeMap()` have **zero
    external consumers** (their only reference is their own declaration), and the internal uses sit
-   almost entirely in `ChunkVoxelManager.cpp` (95) + `ChunkStorage.cpp` (20), with 4 stragglers in
+   almost entirely in `ChunkVoxelManager.cpp` (95) + `ChunkStorage.cpp` (20, now `ChunkVoxelStore.cpp`),
+   with 4 stragglers in
    `ChunkVoxelBreaker`/`VoxelManipulationSystem`. Independently shippable; red-before-green with a
    per-chunk RSS gate.
 2. ~~**THEN: palette-compressed static storage (items 2a/2b).**~~ ✅ **SHIPPED 2026-07-17**

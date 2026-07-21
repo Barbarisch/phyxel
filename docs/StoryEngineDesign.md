@@ -1,7 +1,11 @@
 # Phyxel — Story Engine Design
 
 *Created: March 21, 2026*
-*Status: Design Phase*
+*Status: Design Phase (superseded — this design has since been fully IMPLEMENTED. All phases
+S1-S6 below shipped and are wired into the running engine; see `docs/StoryEngineProgress.md` for
+the as-built file list, test counts, and the March 23, 2026 Application-integration commit. Kept
+here as the original architecture reference — verify current behavior against source, not this
+status line.)*
 
 ## Design Philosophy
 

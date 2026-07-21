@@ -65,7 +65,7 @@ Key properties:
 - Persisted in `worlds/default.db` (or per-scene DB) on save
 - Cannot move — world position is implicit from chunk origin + local coords
 
-See [CoordinateSystem.md](CoordinateSystem.md) and [MultiChunkSystem.md](MultiChunkSystem.md).
+See [CoordinateSystem.md](CoordinateSystem.md).
 
 ---
 
@@ -85,7 +85,13 @@ Uses include:
 
 The `KinematicVoxelObject` stores voxels in **hinge-local space** — positions relative to the object's pivot point. The CPU pre-builds one `KinematicFaceData` entry per face (6 per voxel) including pre-computed UV offsets for sub-tile texture mapping. No face culling is performed between voxels in the same object.
 
-Physics: by default `KinematicVoxelManager::add()` creates a Bullet kinematic box body sized to the object's AABB. Pass `skipCollider=true` when the owning system (e.g. `DynamicFurnitureManager`) manages its own `btRigidBody` — two overlapping colliders cause violent ejection.
+Physics: **stale as of the Bullet removal — corrected 2026-07-21.** Bullet Physics has been removed
+from the engine entirely (see CLAUDE.md). `KinematicVoxelManager::add()` no longer creates any
+collider itself: `setPhysicsWorld()` is a no-op, `syncCollidersToPhysics()` is a no-op retained only
+for API compatibility, and the `skipCollider` parameter is "accepted for API compatibility but has
+no effect" (verified in `engine/include/core/KinematicVoxelManager.h`). Collision for kinematic
+objects (furniture, doors) is owned by the custom CPU `VoxelDynamicsWorld` stack via whichever
+system creates the object (e.g. `DynamicFurnitureManager`), not by `KinematicVoxelManager` itself.
 
 ---
 
@@ -123,6 +129,5 @@ This keeps the kinematic object count manageable while still producing visible s
 ## See Also
 
 - [VoxelRenderPipelines.md](VoxelRenderPipelines.md) — How each state is rendered (shaders, instance data, draw calls)
-- [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) — Physics routing, Bullet vs GPU particle decision logic
+- [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) — Physics routing, VoxelDynamicsWorld vs GPU particle decision logic (Bullet removed)
 - [CoordinateSystem.md](CoordinateSystem.md) — World and chunk-local coordinate conventions
-- [MultiChunkSystem.md](MultiChunkSystem.md) — Chunk management, streaming, persistence
