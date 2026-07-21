@@ -1,5 +1,7 @@
 #include "core/CoherentFragmentManager.h"
 #include "core/CoherentFragmentService.h"
+#include "core/KinematicVoxelManager.h"
+#include "core/MaterialRegistry.h"
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelRigidBody.h"
 
@@ -95,6 +97,76 @@ void CoherentFragmentManager::update(float dt) {
             return false;
         }),
         m_frags.end());
+
+    // U6 IMPACT FRACTURE. A hard landing (sharp velocity drop × mass = impulse) splits a
+    // fragment at overloaded cross-sections. Runs AFTER the sync/reap so indices are stable;
+    // tryImpactFracture may APPEND new fragments (so scan only the pre-existing prefix and use
+    // indices, never references, across the call) and marks the fractured one dead (bodyId 0).
+    const size_t nBefore = m_frags.size();
+    for (size_t i = 0; i < nBefore; ++i) {
+        Physics::VoxelRigidBody* b = m_world->getBodyById(m_frags[i].bodyId);
+        if (!b) continue;
+        if (!m_frags[i].primed) { m_frags[i].prevVel = b->linearVelocity; m_frags[i].primed = true; continue; }
+        const glm::vec3 dv = b->linearVelocity - m_frags[i].prevVel;
+        m_frags[i].prevVel = b->linearVelocity;
+        if (b->isAsleep || m_frags[i].gen >= kMaxFractureGen) continue;
+        const float mass    = (b->invMass > 0.0f) ? 1.0f / b->invMass : 0.0f;
+        const float impulse = glm::length(dv) * mass;
+        if (impulse >= kImpactImpulse) tryImpactFracture(i, b, impulse);
+    }
+    // Reap fragments that fracture consumed.
+    m_frags.erase(std::remove_if(m_frags.begin(), m_frags.end(),
+                                 [](const Frag& f) { return f.bodyId == 0; }),
+                  m_frags.end());
+}
+
+void CoherentFragmentManager::tryImpactFracture(size_t index, Physics::VoxelRigidBody* b, float impulse) {
+    // Copy what we need before anything mutates m_frags / removes the body.
+    const std::string kinId = m_frags[index].kinId;
+    const int newGen = m_frags[index].gen + 1;
+    const auto& objs = m_kinematic->getObjects();
+    auto oit = objs.find(kinId);
+    if (oit == objs.end()) return;
+    const std::vector<KinematicVoxel> voxels = oit->second.voxels;   // LOCAL frame
+    if (voxels.size() < 24) return;                                  // too small to bother chunking
+
+    // Impact point (local) ≈ the voxel that struck lowest in world; lever-arm is measured from it.
+    const glm::mat4 xf = bodyToTransform(b);
+    glm::vec3 impactLocal = voxels[0].localPos;
+    float lowest = 1e9f;
+    for (const auto& v : voxels) {
+        const float wy = (xf * glm::vec4(v.localPos, 1.0f)).y;
+        if (wy < lowest) { lowest = wy; impactLocal = v.localPos; }
+    }
+
+    auto shear = [](const std::string& m) -> float {
+        const auto* def = Core::MaterialRegistry::instance().getMaterial(m);
+        return def ? std::max(0.1f, def->physics.mass) : 1.0f;   // density as a shear-strength proxy
+    };
+    auto parts = CoherentFragmentService::computeImpactFracture(voxels, impactLocal, impulse, shear,
+                                                                kFractureBreakK);
+    if (parts.size() <= 1) return;   // not overloaded enough to break
+
+    // Fracture: retire the whole body + render, then respawn each chunk where it was, inheriting
+    // the parent's motion (the cut gap + solver push the chunks apart).
+    const glm::vec3 lin = b->linearVelocity, ang = b->angularVelocity;
+    m_world->removeBody(b);
+    m_kinematic->remove(kinId);
+    m_frags[index].bodyId = 0;   // mark dead (reaped after the loop)
+
+    auto voxelMass = [](const KinematicVoxel& v) {
+        const float vol = v.scale.x * v.scale.y * v.scale.z;
+        const auto* def = Core::MaterialRegistry::instance().getMaterial(v.materialName);
+        return std::max((def ? std::max(0.05f, def->physics.mass) : 1.0f) * vol, 0.001f);
+    };
+    int spawned = 0;
+    for (auto& part : parts) {
+        if (part.size() < 4) continue;   // dust — drop (would be a scatter candidate later)
+        uint32_t id = spawn("frac", std::move(part), xf, lin, ang, voxelMass);
+        if (id != 0) { m_frags.back().gen = newGen; ++spawned; }
+    }
+    LOG_INFO_FMT("CoherentFragment", "impact fracture: impulse=" << impulse
+                 << " -> " << spawned << " chunks (gen " << newGen << ")");
 }
 
 void CoherentFragmentManager::clear() {

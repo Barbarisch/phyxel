@@ -61,8 +61,18 @@ private:
     struct Frag {
         uint32_t    bodyId;   ///< VoxelRigidBody id (looked up each tick; robust to removal)
         std::string kinId;    ///< KinematicVoxelManager render id
+        glm::vec3   prevVel{0.0f};   ///< last tick's linear velocity (U6 impact detection)
+        bool        primed = false;  ///< prevVel valid yet? (skip fracture on the spawn frame)
+        int         gen    = 0;      ///< fracture generation (bounds re-fracture recursion)
     };
     std::vector<Frag> m_frags;
+
+    // U6 impact fracture: on a hard landing, split a fragment at overloaded cross-sections.
+    void tryImpactFracture(size_t index, Physics::VoxelRigidBody* b, float impulse);
+    // Tuning (needs live calibration — see docs/DestructionSystemV2.md §15.3 U6).
+    static constexpr float kImpactImpulse   = 500.0f;  // min impulse (Δv × mass) to consider fracture
+    static constexpr float kFractureBreakK  = 1.0f;    // strength multiplier (higher = harder to break)
+    static constexpr int   kMaxFractureGen  = 2;       // a chunk may re-fracture at most this deep
 
     Physics::VoxelDynamicsWorld* m_world     = nullptr;
     KinematicVoxelManager*       m_kinematic = nullptr;
