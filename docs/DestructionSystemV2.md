@@ -993,8 +993,21 @@ scalability lands before the features that multiply body counts.
   solver/broadphase presence; face count drops after merge) plus L3 (chop a frozen log → it
   reactivates and moves; a stack partially collapses) plus L4 (FPS with M frozen fells present).
   *Stress:* the persistent-population gate (§12).
-- **U6 — Impact fracture (secondary fracture on landing).** *New requirement, 2026-07-19.* A
-  landing fragment breaks along the planes the impact overloads. Design:
+- **U6 — Impact fracture (secondary fracture on landing). v1 ✅ SHIPPED 2026-07-20.** A hard
+  landing splits a coherent fragment into chunks. As built: `CoherentFragmentService::
+  computeImpactFracture` (pure core, 4 unit tests — pillar chunks / light-tap intact / thin-neck
+  break / stubby-block resist) scans planes perpendicular to the fragment's LONGEST axis and cuts
+  where impulse×lever-arm > cross-section strength (Σ face-area × material shear). `CoherentFragment
+  Manager` detects a hard landing (Δlinear-velocity × mass = impulse, > `kImpactImpulse`) and
+  re-physicalizes each chunk in place, inheriting velocity. Bounds: `kMaxFractureGen` re-fracture
+  depth, min voxel counts, impact pass after sync (indices, not refs — fracture appends). **Live:
+  a tall stone pillar severed at its base topples, hits the ground → `impact fracture: impulse=1079
+  → 4 chunks (gen 1)`, a chunk hits again → `919 → 3 chunks (gen 2)` → several stone chunks strung
+  along the fall.** *Pending:* live tuning of `kImpactImpulse`/`kFractureBreakK` (fit the pillar
+  ~1000 impulse; trees are lighter — likely per-material). **v2 = branch shedding** (fracture at
+  per-branch junction necks in any orientation, not just the long axis) + canopy shed on impact —
+  the harder "branches in the trunk's path snap off" behavior. Original design sketch follows:
+  A landing fragment breaks along the planes the impact overloads. Design:
   1. **Pre-score candidate weak planes at spawn** using U2's analyzer. This runs off the critical
      path — the voxel set is already in hand at `physicalize` time — and avoids an analysis hitch
      at the most performance-sensitive moment.
