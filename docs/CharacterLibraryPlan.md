@@ -81,9 +81,19 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   standard 0.25/0.444, ogre 0.376/0.693. New presets **goblin 3'3"** and
   **ogre 9'0"** (composite 1.59 — the band-stretch extreme; verified coherent
   walking, minor waist box seams). Tests: `CharacterCapsuleScalingTest.cpp`
-  (red-before-green). REMAINING (part 2): bone-clipping metric in
-  `anim_lint.py`, per-preset seat recalibration, narrow-door differential
-  matrix (ogre honestly blocked where goblin fits).
+  (red-before-green). **Silhouette shaping (2026-07-22):** two new
+  CharacterAppearance scalars close part of the "big human ≠ ogre" gap —
+  `bellyScale` (extra depth + half-width on hips/spine/spine1 boxes only, so a
+  gut reads as a gut) and `postureLeanDeg` (forward spine hunch distributed
+  across the spine chain, applied after animation sampling at the single
+  per-frame pose choke point, so it shows in every clip). Ogre preset now
+  belly 1.45 / lean 12° / shoulders 1.40 — verified hunched + pot-bellied
+  walking in profile. CEILING ACKNOWLEDGED: jaw/tusks, knuckle-drag arms, and
+  asymmetric features cannot come from scalars — that is Phase C's variant-rig
+  deliverable (same Mixamo bone topology + names = drop-in compatible with the
+  whole FSM/IK stack, as the character_female rigs prove). REMAINING (part 2):
+  bone-clipping metric in `anim_lint.py`, per-preset seat recalibration,
+  narrow-door differential matrix (ogre honestly blocked where goblin fits).
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a

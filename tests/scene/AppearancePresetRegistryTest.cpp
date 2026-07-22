@@ -83,6 +83,12 @@ TEST_F(AppearancePresetRegistryTest, ApplyProportionsFromKeepsColors) {
     app.applyProportionsFrom(*dwarf);
     EXPECT_FLOAT_EQ(app.heightScale, 0.80f);
     EXPECT_EQ(app.presetId, "dwarf");
+    // Silhouette-shaping fields travel with the preset too.
+    const auto* ogre = AppearancePresetRegistry::instance().getPreset("ogre");
+    ASSERT_NE(ogre, nullptr);
+    app.applyProportionsFrom(*ogre);
+    EXPECT_FLOAT_EQ(app.bellyScale, 1.45f);
+    EXPECT_FLOAT_EQ(app.postureLeanDeg, 12.0f);
     // Colors and morphology untouched — a preset is proportions only.
     EXPECT_FLOAT_EQ(app.skinColor.r, 0.1f);
     EXPECT_FLOAT_EQ(app.torsoColor.g, 0.5f);

@@ -553,6 +553,8 @@ void CharacterAppearance::applyProportionsFrom(const CharacterAppearance& preset
     tailLengthScale    = preset.tailLengthScale;
     wingSpanScale      = preset.wingSpanScale;
     neckLengthScale    = preset.neckLengthScale;
+    bellyScale         = preset.bellyScale;
+    postureLeanDeg     = preset.postureLeanDeg;
     presetId           = preset.presetId;
 }
 
@@ -635,6 +637,10 @@ CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j, const
     app.wingSpanScale   = j.value("wingSpanScale",   app.wingSpanScale);
     app.neckLengthScale = j.value("neckLengthScale", app.neckLengthScale);
 
+    // Silhouette shaping
+    app.bellyScale     = j.value("bellyScale",     app.bellyScale);
+    app.postureLeanDeg = j.value("postureLeanDeg", app.postureLeanDeg);
+
     return app;
 }
 
@@ -656,7 +662,9 @@ nlohmann::json CharacterAppearance::toJson() const {
         {"shoulderWidthScale", shoulderWidthScale},
         {"tailLengthScale",  tailLengthScale},
         {"wingSpanScale",    wingSpanScale},
-        {"neckLengthScale",  neckLengthScale}
+        {"neckLengthScale",  neckLengthScale},
+        {"bellyScale",       bellyScale},
+        {"postureLeanDeg",   postureLeanDeg}
     };
 }
 

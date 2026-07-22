@@ -739,6 +739,27 @@ namespace Scene {
         return maxX - minX;
     }
 
+    void AnimatedVoxelCharacter::applyPostureLean() {
+        if (appearance_.postureLeanDeg == 0.0f) return;
+
+        // Collect the spine chain (Spine, Spine1, Spine2 on Mixamo rigs) and
+        // distribute the total lean across it so the hunch curves naturally.
+        std::vector<Bone*> spineBones;
+        for (auto& bone : skeleton.bones) {
+            std::string nameLower = bone.name;
+            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+            if (nameLower.find("spine") != std::string::npos) spineBones.push_back(&bone);
+        }
+        if (spineBones.empty()) return;
+
+        const float perBoneRad =
+            glm::radians(appearance_.postureLeanDeg) / static_cast<float>(spineBones.size());
+        const glm::quat pitch = glm::angleAxis(perBoneRad, glm::vec3(1.0f, 0.0f, 0.0f));
+        for (Bone* bone : spineBones) {
+            bone->currentRotation = bone->currentRotation * pitch;
+        }
+    }
+
     void AnimatedVoxelCharacter::resizeController() {
         std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
         for (size_t i = 0; i < skeleton.bones.size(); ++i) {
@@ -942,13 +963,24 @@ namespace Scene {
                 float limbLength = 1.0f, limbThickness = 1.0f;
                 getLimbScales(nameLower, appearance_, limbLength, limbThickness);
 
+                // Belly shaping: extra depth (+half as much width) on the
+                // lower torso only — hips/spine/spine1, not the chest — so
+                // a gut reads as a gut instead of uniform thickness.
+                const bool isBellyBone =
+                    (nameLower.find("spine") != std::string::npos &&
+                     nameLower.find("spine2") == std::string::npos) ||
+                    nameLower.find("hip") != std::string::npos;
+                const float bellyZ = isBellyBone ? appearance_.bellyScale : 1.0f;
+                const float bellyX = isBellyBone
+                    ? 1.0f + (appearance_.bellyScale - 1.0f) * 0.5f : 1.0f;
+
                 if (nameLower.find("head") != std::string::npos) {
                     totalSize *= appearance_.headScale;
                     centerOffset *= appearance_.headScale;
                 } else {
-                    totalSize.x *= limbThickness;
+                    totalSize.x *= limbThickness * bellyX;
                     totalSize.y *= limbLength;
-                    totalSize.z *= limbThickness;
+                    totalSize.z *= limbThickness * bellyZ;
                     centerOffset.y *= limbLength;
                 }
 
@@ -966,9 +998,9 @@ namespace Scene {
                             scaledSize *= appearance_.headScale;
                             relativeOffset *= appearance_.headScale;
                         } else {
-                            scaledSize.x *= limbThickness;
+                            scaledSize.x *= limbThickness * bellyX;
                             scaledSize.y *= limbLength;
-                            scaledSize.z *= limbThickness;
+                            scaledSize.z *= limbThickness * bellyZ;
                             relativeOffset.y *= limbLength;
                         }
 
@@ -3688,6 +3720,7 @@ namespace Scene {
             skeleton.bones[0].currentPosition.y += m_warpPreviewExtraY * fade;
         }
 
+        applyPostureLean();
         animSystem.updateGlobalTransforms(skeleton);
 
         // Hook for subclass IK corrections (e.g. HybridCharacter)

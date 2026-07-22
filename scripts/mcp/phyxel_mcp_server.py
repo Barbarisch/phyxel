@@ -1738,6 +1738,8 @@ async def list_tools() -> list[Tool]:
                             "tailLengthScale": {"type": "number"},
                             "wingSpanScale": {"type": "number"},
                             "neckLengthScale": {"type": "number"},
+                            "bellyScale": {"type": "number", "description": "Lower-torso depth (gut) — 1.0 none, ~1.45 ogre pot belly"},
+                            "postureLeanDeg": {"type": "number", "description": "Forward spine hunch in degrees — 0 upright, ~12 ogre"},
                             "skinColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "torsoColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "armColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},

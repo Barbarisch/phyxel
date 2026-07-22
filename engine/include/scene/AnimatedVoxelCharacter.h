@@ -518,6 +518,12 @@ namespace Scene {
         /// Base implementation runs foot IK; override in subclass to add extra corrections.
         virtual void applyIKCorrections(float deltaTime);
 
+        /// Additive posture: lean the spine chain forward by
+        /// appearance_.postureLeanDeg (distributed across the spine bones so
+        /// the hunch curves instead of hinging), applied after animation
+        /// sampling and before global-transform composition. No-op at 0.
+        void applyPostureLean();
+
     private:
         // ---- Foot IK ----
         struct FootIKBones {

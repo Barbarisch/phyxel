@@ -134,15 +134,17 @@
     {
       "presetId": "ogre",
       "_heightRatio": 1.59,
-      "description": "~9'0\" (D&D ogre, Large monster) — the band-stretch extreme: massive bulk, broad shoulders. Verified coherent in motion 2026-07-21; minor waist box seams at this scale (clipping-metric follow-up).",
+      "description": "~9'0\" (D&D ogre, Large monster) — the band-stretch extreme: massive bulk, broad shoulders, pot belly, hunched posture. Verified coherent in motion; minor waist box seams at this scale (clipping-metric follow-up).",
       "morphology": "Humanoid",
       "heightScale": 1.38,
       "bulkScale": 1.55,
-      "headScale": 0.95,
-      "armLengthScale": 1.14,
+      "headScale": 0.92,
+      "armLengthScale": 1.18,
       "legLengthScale": 1.13,
       "torsoLengthScale": 1.18,
-      "shoulderWidthScale": 1.35
+      "shoulderWidthScale": 1.40,
+      "bellyScale": 1.45,
+      "postureLeanDeg": 12
     },
     {
       "presetId": "goliath",

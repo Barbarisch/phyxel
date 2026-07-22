@@ -74,6 +74,15 @@ struct CharacterAppearance {
     float wingSpanScale   = 1.0f;   // Wing span (dragon)
     float neckLengthScale = 1.0f;   // Neck length (dragon, quadruped)
 
+    // ---- Silhouette shaping (beyond uniform bulk) ----
+    // Belly: extra depth (+half as much width) on the lower-torso boxes only
+    // (hips/spine/spine1, not the chest) — a gut, not uniform thickness.
+    float bellyScale = 1.0f;
+    // Posture: forward spine lean in degrees, distributed across the spine
+    // chain after animation sampling — hunched brutes (ogre ~12) vs upright
+    // (0). Applied at pose time, so it shows in every clip.
+    float postureLeanDeg = 0.0f;
+
     /// Get the color for a bone based on its name, using morphology-aware mapping.
     glm::vec4 getColorForBone(const std::string& boneName) const;
 
