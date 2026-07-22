@@ -9,6 +9,7 @@
   "proficiencies": ["tinkers_tools"],
   "visual": {
     "appearancePreset": "gnome",
+    "animationMapping": { "Walk": "scamper_walk" },
     "palette": {
       "skinTones": [
         { "r": 0.96, "g": 0.80, "b": 0.64 },

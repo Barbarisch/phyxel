@@ -107,6 +107,23 @@ TEST_F(CharacterVisualResolverTest, AllShippedRacesResolveInsideValidatedBand) {
     }
 }
 
+TEST_F(CharacterVisualResolverTest, RaceAnimationMappingPropagates) {
+    // Halfling walks with scamper_walk (race visual animationMapping), and a
+    // definition-level mapping overrides the race's.
+    nlohmann::json def = {{"race", "halfling_lightfoot"}};
+    auto res = CharacterVisualResolver::resolve(def, "Pippin");
+    ASSERT_TRUE(res.raceFound);
+    EXPECT_EQ(res.animationMapping.at("Walk"), "scamper_walk");
+
+    nlohmann::json def2 = {
+        {"race", "halfling_lightfoot"},
+        {"animationMapping", {{"Walk", "run"}, {"Idle", "wave"}}}
+    };
+    auto res2 = CharacterVisualResolver::resolve(def2, "Pippin");
+    EXPECT_EQ(res2.animationMapping.at("Walk"), "run");   // def wins
+    EXPECT_EQ(res2.animationMapping.at("Idle"), "wave");
+}
+
 TEST_F(CharacterVisualResolverTest, RaceDefinitionVisualRoundTrips) {
     Core::RaceRegistry::instance().ensureLoaded();
     const auto* dwarf = Core::RaceRegistry::instance().getRace("dwarf_mountain");

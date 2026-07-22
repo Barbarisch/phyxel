@@ -1,6 +1,7 @@
 #pragma once
 #include "scene/CharacterAppearance.h"
 
+#include <map>
 #include <string>
 #include <nlohmann/json.hpp>
 
@@ -30,6 +31,12 @@ struct CharacterVisualResolver {
         Scene::CharacterAppearance appearance;
         std::string raceId;    ///< resolved race id, empty if none
         bool raceFound = false; ///< true if a requested race id existed
+        /// FSM state-name -> clip-name overrides (race gait flavor: a halfling
+        /// walks with scamper_walk, an ogre with ogre_walk). Sourced from the
+        /// race visual "animationMapping" object, then the definition's own
+        /// "animationMapping" merged on top. Callers apply via
+        /// AnimatedVoxelCharacter::setAnimationMapping.
+        std::map<std::string, std::string> animationMapping;
     };
 
     /// def: NPC/character definition JSON. Recognized keys: "race" (or

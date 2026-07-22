@@ -102,6 +102,12 @@ CharacterVisualResolver::Resolved CharacterVisualResolver::resolve(
             out.appearance = Scene::CharacterAppearance::fromJson(
                 race->visual["appearanceOverrides"], out.appearance);
         }
+        if (race->visual.contains("animationMapping") &&
+            race->visual["animationMapping"].is_object()) {
+            for (const auto& [state, clip] : race->visual["animationMapping"].items()) {
+                if (clip.is_string()) out.animationMapping[state] = clip.get<std::string>();
+            }
+        }
     }
 
     // ---- 3. Explicit appearance JSON (may itself name a preset) ----
@@ -119,6 +125,13 @@ CharacterVisualResolver::Resolved CharacterVisualResolver::resolve(
             }
         }
         out.appearance = Scene::CharacterAppearance::fromJson(aj, out.appearance);
+    }
+
+    // ---- 4. Definition-level animation mapping (overrides the race's) ----
+    if (def.contains("animationMapping") && def["animationMapping"].is_object()) {
+        for (const auto& [state, clip] : def["animationMapping"].items()) {
+            if (clip.is_string()) out.animationMapping[state] = clip.get<std::string>();
+        }
     }
 
     return out;

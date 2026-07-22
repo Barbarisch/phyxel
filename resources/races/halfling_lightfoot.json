@@ -9,6 +9,7 @@
   "proficiencies": [],
   "visual": {
     "appearancePreset": "halfling",
+    "animationMapping": { "Walk": "scamper_walk" },
     "palette": {
       "skinTones": [
         { "r": 0.97, "g": 0.82, "b": 0.66 },

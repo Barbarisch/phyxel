@@ -1647,6 +1647,7 @@ async def list_tools() -> list[Tool]:
                     "race": {"type": "string", "description": "Race id from resources/races/ (human, elf_high, dwarf_mountain, halfling_lightfoot, half_orc, tiefling, gnome_rock, goliath, dragonborn). Applies the race's appearance preset, palette, and model."},
                     "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim, or the race's model if 'race' is given)", "default": "resources/animated_characters/humanoid.anim"},
                     "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset (dwarf, halfling, giant, ...). Overrides race defaults field-by-field."},
+                    "animationMapping": {"type": "object", "description": "FSM state -> clip overrides for gait flavor, e.g. {\"Walk\":\"ogre_walk\",\"Idle\":\"ogre_idle\"}. Merged over the race's own mapping."},
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
@@ -5192,6 +5193,8 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["race"] = args["race"]
         if "appearance" in args:
             body["appearance"] = args["appearance"]
+        if "animationMapping" in args:
+            body["animationMapping"] = args["animationMapping"]
         if "animFile" in args:
             body["animFile"] = args["animFile"]
         if "position" in args:

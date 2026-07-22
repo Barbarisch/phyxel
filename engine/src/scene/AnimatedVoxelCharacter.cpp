@@ -2204,6 +2204,10 @@ namespace Scene {
         animationMapping[stateName] = animName;
     }
 
+    void AnimatedVoxelCharacter::removeAnimationMapping(const std::string& stateName) {
+        animationMapping.erase(stateName);
+    }
+
     std::string AnimatedVoxelCharacter::getAnimationMapping(const std::string& stateName) const {
         auto it = animationMapping.find(stateName);
         if (it != animationMapping.end()) {
@@ -3125,11 +3129,21 @@ namespace Scene {
                     currentState == AnimatedCharacterState::Cast   ||
                     currentState == AnimatedCharacterState::Block;
                 if (!actionStateOwnsClip) {
+                    // The user/race animationMapping override wins here too —
+                    // NPCs move on this external-velocity path, so without
+                    // this a halfling's scamper_walk / ogre's ogre_walk
+                    // mapping would only apply to player-controlled movement.
                     std::vector<std::string> candidates;
                     if (speed > 0.1f) {
-                        candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
+                        auto mapIt = animationMapping.find("Walk");
+                        if (mapIt != animationMapping.end()) candidates.push_back(mapIt->second);
+                        candidates.insert(candidates.end(),
+                            {"walk", "walking", "Walk", "Walking", "unarmed_walk"});
                     } else {
-                        candidates = {"idle", "Idle", "Standing", "standing"};
+                        auto mapIt = animationMapping.find("Idle");
+                        if (mapIt != animationMapping.end()) candidates.push_back(mapIt->second);
+                        candidates.insert(candidates.end(),
+                            {"idle", "Idle", "Standing", "standing"});
                     }
                     int targetIndex = -1;
                     for (const auto& candidate : candidates) {

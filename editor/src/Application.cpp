@@ -9016,6 +9016,26 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                     return true;
                 }
                 if (hasError && !blocking) compatOverridden = true;
+
+                // Tall-seat mount (EXPERIMENTAL, default OFF): swapping
+                // stand_to_sit for hop_onto_seat is QUARANTINED — the sitAt
+                // anchor math samples its Hips reference from "stand_to_sit"
+                // by name, so a mapped hop clip renders the body inside the
+                // seat (observed live 2026-07-22), and Box Jump ends in a
+                // STANDING pose, not seated. Re-enable only after (a) the
+                // anchor resolves the MAPPED SitDown clip and (b) a
+                // purpose-built seat-mount clip exists, and (c) the
+                // interaction validity gauntlet measures the transition
+                // penetration-free. Opt-in via experimental_hop for tuning.
+                const float seatTop = seatFeatures.value("seat_top_y", 0.0f);
+                const bool experimentalHop = cmd.params.value("experimental_hop", false);
+                if (seatTop > 0.0f && m.leg_length > 0.0f) {
+                    if (experimentalHop && seatTop > m.leg_length) {
+                        character->setAnimationMapping("SitDown", "hop_onto_seat");
+                    } else if (character->getAnimationMapping("SitDown") == "hop_onto_seat") {
+                        character->removeAnimationMapping("SitDown");
+                    }
+                }
             }
         }
         // ---------------------------------------------------------------------
@@ -9059,6 +9079,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                     {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation},
                     {"compatibility_issues", compatIssues},
                     {"compatibility_overridden", compatOverridden},
+                    {"tall_seat_hop", character->getAnimationMapping("SitDown") == "hop_onto_seat"},
                     {"forced", force}};
         return true;
     }
@@ -15048,6 +15069,14 @@ void Application::processAPICommands() {
                         }
 
                         if (npc) {
+                            // Race/definition gait flavor: FSM state -> clip
+                            // overrides (halfling scamper, ogre prowl).
+                            if (!visual.animationMapping.empty()) {
+                                if (auto* ch = npc->getAnimatedCharacter()) {
+                                    for (const auto& [state, clip] : visual.animationMapping)
+                                        ch->setAnimationMapping(state, clip);
+                                }
+                            }
                             // Optional weapon for combat NPCs — drives their moveset
                             // through the same mapper as the player's held weapon.
                             if (behaviorType == Core::NPCBehaviorType::Combat &&

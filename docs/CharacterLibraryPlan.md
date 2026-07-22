@@ -189,9 +189,44 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   de-hardcode `mixamorig:*` from segment boxes / foot IK / clip map; BodyPlan
   descriptor with auto-derivation for existing rigs; golden-regression humanoid
   neutrality; brings wolf → spider → dragon (ground gait) to life.
+  EVIDENCE (2026-07-22): clip selection is forked across THREE hardcoded sites
+  in AnimatedVoxelCharacter.cpp — input-driven FSM switch (~3310), sit-state
+  block (~3019), and the external-velocity NPC candidates (~3132) — each
+  needed `animationMapping` support patched separately when race gaits landed.
+  One clip-resolution choke point is part of Phase D's brief.
 - **E — Bestiary at volume**: `resources/monsters/` visual blocks, variant
   multiplication (one goblinoid rig × goblin/hobgoblin/bugbear presets),
   manifest-driven batch import with auto lint→load→traversal→screenshot gauntlet.
+
+## Interaction Validity Gauntlet (MANDATED 2026-07-22 — next milestone)
+
+User directive after the tall-seat-hop defect (character rendered inside the
+stool while my instruments said "verified"): **the entire character /
+animation / object-interaction system gets inspected and MEASURED for
+validity.** The gauntlet is the instrument, and becomes the gate for every
+interaction claim:
+
+1. **Transition penetration trace** — for every (preset × seat × interaction
+   {sit, sitting_idle, stand}): sample bone AABBs (`get_bone_positions`) at
+   ≥10 Hz through the full transition; measure per-frame interpenetration of
+   torso/head/arm bone volumes vs the object's solid geometry (from its
+   .voxel/metrics) and the world floor. FAIL if penetration exceeds tolerance
+   (calibrate from a known-good case: standard × chair_wood).
+2. **Final-pose contracts** — seated: pelvis within tolerance of seat surface
+   (use `validate_ie_pose` bone-vs-voxel checker + seat_top_y), feet never
+   below floor, facing matches seat yaw. Stand: returns to pre-sit ground
+   pose.
+3. **Anchor-system audit** — sitAt caches Hips references from clips BY NAME
+   ("stand_to_sit" etc.) regardless of animationMapping; per-clip refs were
+   tuned on the standard body. The gauntlet's failures decide whether the
+   anchoring needs per-preset refs, mapped-clip resolution, or a full
+   rewrite. If sitting logic needs a ground-up refresh, that is in scope.
+4. Known quarantined defect: tall-seat hop (experimental_hop opt-in only) —
+   wrong anchor clip + Box Jump ends standing. Re-enable only after 1–3 pass
+   and a purpose-built seat-mount clip is sourced.
+
+Standing rule (memory: geometric-validation-not-proxies): "the clip plays" is
+NOT "the interaction works" — every claim ships with measured numbers.
 
 ## Risks / decisions
 

@@ -448,6 +448,7 @@ namespace Scene {
         // Animation Mapping
         void setAnimationMapping(const std::string& stateName, const std::string& animName);
         std::string getAnimationMapping(const std::string& stateName) const;
+        void removeAnimationMapping(const std::string& stateName);
         void setAnimationRotationOffset(const std::string& animName, float rotationDegrees);
         void setAnimationPositionOffset(const std::string& animName, const glm::vec3& offset);
 

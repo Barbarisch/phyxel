@@ -799,6 +799,15 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         }
         result.npcsSpawned++;
 
+        // Race/definition gait flavor: FSM state -> clip overrides (halfling
+        // scamper, ogre prowl) resolved by CharacterVisualResolver.
+        if (!visual.animationMapping.empty()) {
+            if (auto* ch = npc->getAnimatedCharacter()) {
+                for (const auto& [state, clip] : visual.animationMapping)
+                    ch->setAnimationMapping(state, clip);
+            }
+        }
+
         // Configure schedule if this is a scheduled NPC
         if (behaviorType == NPCBehaviorType::Scheduled) {
             auto* sb = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior());
