@@ -22,12 +22,16 @@
       ],
       "facing_yaw": 0.0,
       "features": {
-        "seat_top_y": 0.444,
+        "seat_top_y": 0.4444444444444444,
+        "seat_width_x": 0.3333333333333333,
+        "seat_depth_z": 0.3333333333333333,
         "seat_center": [
-          0.167,
-          0.444,
-          0.167
+          0.16666666666666666,
+          0.4444444444444444,
+          0.16666666666666666
         ],
+        "front_edge_z": 0.3333333333333333,
+        "backrest_height": 0.0,
         "backrest_present": false
       }
     }

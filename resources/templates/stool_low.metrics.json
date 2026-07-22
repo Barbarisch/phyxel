@@ -1,0 +1,39 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "stool_low",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    0.6666666666666666,
+    0.3333333333333333,
+    0.6666666666666666
+  ],
+  "interaction_points": [
+    {
+      "point_id": "seat_0",
+      "kind": "seat",
+      "local_position": [
+        0.3333,
+        0.3333,
+        0.3333
+      ],
+      "facing_yaw": 3.141593,
+      "features": {
+        "seat_top_y": 0.3333333333333333,
+        "seat_width_x": 0.6666666666666666,
+        "seat_depth_z": 0.6666666666666666,
+        "seat_center": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "front_edge_z": 0.0,
+        "backrest_height": 0.0,
+        "backrest_present": false
+      }
+    }
+  ]
+}

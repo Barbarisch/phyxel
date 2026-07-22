@@ -3828,7 +3828,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="sit_character",
-            description="Sit an animated entity at a placed object's named interaction point. Looks up the seat's world position and facing (rotation-corrected), applies any existing calibration profile, then drives the stand_to_sit → sitting_idle animation sequence.",
+            description="Sit an animated entity at a placed object's named interaction point. HARD-GATED on fit: refuses (success:false + nearest_fitting_seat redirect) when the character does not fit the seat (SEAT_TOO_NARROW/SHALLOW/TALL/LOW) or the seat has no metrics sidecar (accuracy over coverage — characterize with tools/characterize_asset.py). Use find_fitting_seat or can_interact to pick a legal seat first.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -3837,6 +3837,34 @@ async def list_tools() -> list[Tool]:
                     "point_id":  {"type": "string", "description": "Interaction point ID on the object (default: 'seat_0')"}
                 },
                 "required": ["entity_id", "object_id"]
+            }
+        ),
+        Tool(
+            name="can_interact",
+            description="Read-only fit check: would this character be allowed to use this interaction point? Runs the same compatibility rules as sit_character without executing anything. Returns can_interact plus the rule-level issues (SEAT_TOO_NARROW/SHALLOW/TALL/LOW, BACKREST_BLOCKS_VIEW). Seats without metrics sidecars report can_interact=false (deny-on-missing).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "object_id": {"type": "string", "description": "Placed object ID"},
+                    "point_id":  {"type": "string", "description": "Interaction point ID (default: 'seat_0')"},
+                    "kind":      {"type": "string", "description": "Interaction kind (default: 'sit')"}
+                },
+                "required": ["entity_id", "object_id"]
+            }
+        ),
+        Tool(
+            name="find_fitting_seat",
+            description="Find free seats the character actually FITS, nearest first. Runs the full fit gate per candidate, so any returned seat is one sit_character will allow. Excludes occupied seats and seats without metrics sidecars. Use this for seat selection instead of guessing.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "radius": {"type": "number", "description": "Search radius in voxels (default 30)"},
+                    "position": {"type": "object", "description": "Optional search origin {x,y,z} (default: the character's position)", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}}
+                },
+                "required": ["entity_id"]
             }
         ),
         Tool(
@@ -5860,6 +5888,22 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "point_id" in args:
             body["point_id"] = args["point_id"]
         return await api_post("/api/interaction/sit", body)
+
+    elif name == "can_interact":
+        body = {"entity_id": args["entity_id"], "object_id": args["object_id"]}
+        if "point_id" in args:
+            body["point_id"] = args["point_id"]
+        if "kind" in args:
+            body["kind"] = args["kind"]
+        return await api_post("/api/interaction/can_interact", body)
+
+    elif name == "find_fitting_seat":
+        body = {"entity_id": args["entity_id"]}
+        if "radius" in args:
+            body["radius"] = args["radius"]
+        if "position" in args:
+            body["position"] = args["position"]
+        return await api_post("/api/interaction/find_seat", body)
 
     elif name == "stand_up_character":
         return await api_post("/api/interaction/stand_up", {"entity_id": args["entity_id"]})

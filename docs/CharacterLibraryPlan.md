@@ -120,8 +120,36 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   thighs). Calibration: dwarf is the worst shipped preset at +52.4pt (145%
   bulk on short legs — visually acceptable on chunky voxel bodies);
   `tests/test_preset_clipping.py` gates every preset at ≤ +55pt so future
-  edits cannot clip worse than today's dwarf. REMAINING (part 2): per-preset
-  seat recalibration (halfling clips backrests when seated).
+  edits cannot clip worse than today's dwarf.
+  **SEAT-FIT ENFORCEMENT SHIPPED (2026-07-22) — Phase B part 2 complete.**
+  USER PRINCIPLE: accuracy over coverage — a character NEVER sits where it
+  doesn't fit. What changed:
+  - Fit rules are HARD errors: SEAT_TOO_NARROW / SEAT_TOO_SHALLOW /
+    SEAT_TOO_TALL (feet dangle > 0.20) / new SEAT_TOO_LOW (knees rise > 0.35)
+    all refuse the sit. BACKREST_BLOCKS_VIEW stays a cosmetic warn. Rules
+    live TWICE and must stay in sync: `runSitCompatChecks`
+    (editor/src/Application.cpp) + `interaction_kinds/sit.py`.
+  - DENY-ON-MISSING: a seat with no metrics sidecar cannot prove fit → sit
+    and can_interact refuse it (was allow). Characterize with
+    tools/characterize_asset.py. Bypasses: force_interact (raw HTTP,
+    test-only, deliberately NOT on MCP) or requireCompatibility=false points.
+  - Refusals return `nearest_fitting_seat`; new `find_fitting_seat` API/MCP
+    query enumerates free seats the character passes the gate on (the
+    building block for NPC seat selection). `can_interact` is now on MCP.
+  - Seat inventory covers every preset (tools/gen_seat_variants.py):
+    `stool_low` (0.33 — smallfolk) and `bench_great` (1.33 — sized from
+    MEASURED legs: ogre 1.58, goliath 1.27); fixed chair_wood's malformed
+    `# interaction_point:` header (missing "# " — it was never sit-enabled
+    live!) and added headers to stool/bench_wood/bar_stool.
+  - GATE: `tools/interaction_pipeline/seat_matrix.py` — 9 presets × 7 seats:
+    coverage (every preset ≥1 fitting seat), expectation cells, and gate
+    parity (real sit result == can_interact verdict). Verified matrix:
+    smallfolk→stool/bench_wood, dwarf also chair_wood, standard/elf/half_orc→
+    chair_wood/bar_stool, goliath+ogre→bench_great only, test_chair (0.11
+    sliver seat) refuses everyone.
+  - Hop/climb-onto-tall-seat transitions intentionally deferred to Phase C
+    (needs a sourced clip; the conditional remap via animationMapping is the
+    planned mechanism — never force existing clips onto wrong-size seats).
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a
