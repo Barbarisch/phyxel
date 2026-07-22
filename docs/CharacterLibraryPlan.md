@@ -104,9 +104,16 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   = +Z — docs/CoordinateSystem.md §Character Facing (authoritative, from
   code), CLAUDE.md one-liner, `CharacterFacingTest.cpp` pins engine + asset,
   derive script asserts features at +Z. Never read facing from screenshots of
-  patrolling NPCs. REMAINING (part 2): bone-clipping metric in
-  `anim_lint.py`, per-preset seat recalibration, narrow-door differential
-  matrix (ogre honestly blocked where goblin fits).
+  patrolling NPCs. **Narrow-door differential matrix PASSED (2026-07-22,
+  `tools/interaction_pipeline/door_matrix.py` — builds/tears down per its
+  docstring; run one race per wave, simultaneous NPCs in one lane block each
+  other and contaminate the result):** goblin passes 2/3/4-tall doors; ogre
+  honestly BLOCKED at 2-tall, passes 3-tall (visual 2.66 < 3.0); nobody
+  tunnels the solid wall. Finding: standard (capsule 2.12, visual ~1.97)
+  passes a 2-tall door — the capsule's +0.3 headroom pad is forgiven by the
+  controller, so door fit tracks VISUAL height; sensible contract, kept.
+  REMAINING (part 2): bone-clipping metric in `anim_lint.py`, per-preset
+  seat recalibration.
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a
