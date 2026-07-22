@@ -634,13 +634,24 @@ namespace Scene {
         // Without this, only the visual box sizes change but joints stay in place,
         // so characters all look the same height/shape.
         for (auto& bone : skeleton.bones) {
-            if (bone.parentId == -1) continue; // Skip root bone
-
-            std::string nameLower = bone.name;
-            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-
             float lengthScale = 1.0f, thicknessScale = 1.0f;
-            getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+            if (bone.parentId == -1) {
+                // ROOT (Hips): scale its bind height by heightScale so the
+                // whole model space is uniformly scaled. Leaving it unscaled
+                // (the old skip) hung a shrunken skeleton from a
+                // standard-height root: resizeController compensated with a
+                // large skeletonFootOffset_ (0.61 for a halfling) so
+                // STANDING looked right, but the seat anchor math does not
+                // apply that offset while the renderer subtracts it — every
+                // proportioned character sat sunk by exactly that offset
+                // (validity gauntlet 2026-07-22: halfling pelvis error
+                // 0.725, constant per preset across all seats).
+                lengthScale = appearance_.heightScale;
+            } else {
+                std::string nameLower = bone.name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+            }
 
             // Scale the bone's position relative to its parent (this is what determines
             // actual limb length / body proportions)
@@ -650,18 +661,30 @@ namespace Scene {
 
         // Scale animation position keyframes to match the new skeleton proportions.
         // Otherwise animations would snap joints back to their original unscaled positions.
+        //
+        // The ROOT (Hips, bone 0) channel is scaled too, by heightScale: its
+        // position keys carry the body's trajectory — seated hip heights,
+        // locomotion bob, jump arcs. Leaving it unscaled (the old `boneId <= 0`
+        // skip) left every proportioned character animating around a
+        // STANDARD-sized trajectory; the sit anchoring samples its Hips
+        // references from these keys, which sank every small preset through
+        // the floor when seated (validity gauntlet, 2026-07-22: constant
+        // per-preset pelvis error — halfling 0.725, gnome 0.653, dwarf 0.480).
         for (auto& clip : clips) {
             for (auto& channel : clip.channels) {
-                if (channel.boneId <= 0 ||
+                if (channel.boneId < 0 ||
                     channel.boneId >= static_cast<int>(skeleton.bones.size()))
                     continue;
                 if (channel.positionKeys.empty()) continue;
 
-                std::string nameLower = skeleton.bones[channel.boneId].name;
-                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-
                 float lengthScale = 1.0f, thicknessScale = 1.0f;
-                getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+                if (channel.boneId == 0) {
+                    lengthScale = appearance_.heightScale;
+                } else {
+                    std::string nameLower = skeleton.bones[channel.boneId].name;
+                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                    getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+                }
 
                 for (auto& key : channel.positionKeys) {
                     key.value *= lengthScale;

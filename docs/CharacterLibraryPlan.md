@@ -228,6 +228,26 @@ interaction claim:
 Standing rule (memory: geometric-validation-not-proxies): "the clip plays" is
 NOT "the interaction works" — every claim ships with measured numbers.
 
+**RESULTS (2026-07-22, gauntlet run 1 → 2):** instrument
+`tools/interaction_pipeline/validity_gauntlet.py` (self-calibrating: must
+measure known-good standard×chair_wood PASS and known-bad hop FAIL, and a
+skipped case is NOT a passed case). Run 1 found **14 invalid pairs** with a
+constant-per-preset pelvis error (halfling 0.725, gnome 0.653, goblin 0.736,
+dwarf 0.480 — identical across seats) + floor breaches. Root cause isolated:
+**the skeleton ROOT bone bind position was never scaled** (`parentId == -1`
+skip in applySkeletonProportions) — proportioned skeletons hung from a
+standard-height root; standing was silently compensated by
+`skeletonFootOffset_` (halfling: 0.60!) but the seat anchor math doesn't
+apply that offset while the renderer subtracts it. Fix: scale root bind (and
+root clip position keys) by heightScale — model space is now uniformly
+scaled. Run 2: **all 27 measured pairs VALID** (smallfolk pelvis errors →
+0.26–0.29 contact band; zero floor breaches; ogre×bench_great 0.409 → 0.013),
+foot offsets collapsed (halfling 0.60→0.15), walk matrix all-grounded, full
+suite green. Lesson: the anchor self-cancels root-key scaling, so clip-key
+scaling alone was measurably a no-op — only the bind-position fix moved the
+numbers. Also found: sitAt's LOG_DEBUG prints literal {:.2f} (broken format,
+never printed real values) — minor, unfixed.
+
 ## Risks / decisions
 
 1. **Voxelization aesthetic** (top risk): naive voxelized meshes look "melted" —
