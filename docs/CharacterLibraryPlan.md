@@ -112,8 +112,16 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   tunnels the solid wall. Finding: standard (capsule 2.12, visual ~1.97)
   passes a 2-tall door — the capsule's +0.3 headroom pad is forgiven by the
   controller, so door fit tracks VISUAL height; sensible contract, kept.
-  REMAINING (part 2): bone-clipping metric in `anim_lint.py`, per-preset
-  seat recalibration.
+  **Bone-clipping metric SHIPPED (2026-07-22):** `anim_lint.py clipcheck`
+  (impl `tools/anim_pipeline/clip_metric.py`) — replicates the engine's
+  proportion pipeline in Python, poses the skeleton through a clip, measures
+  pairwise foreign-bone AABB overlap. The DELTA over the standard baseline is
+  the signal (absolute % is inflated by conservative posed AABBs near the
+  thighs). Calibration: dwarf is the worst shipped preset at +52.4pt (145%
+  bulk on short legs — visually acceptable on chunky voxel bodies);
+  `tests/test_preset_clipping.py` gates every preset at ≤ +55pt so future
+  edits cannot clip worse than today's dwarf. REMAINING (part 2): per-preset
+  seat recalibration (halfling clips backrests when seated).
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a
