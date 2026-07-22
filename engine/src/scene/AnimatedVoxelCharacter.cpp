@@ -701,6 +701,44 @@ namespace Scene {
         return (maxY - minY) + 0.3f;
     }
 
+    // X-span of a skeleton's torso at bind pose (joint positions). Forearm,
+    // hand, and finger bones are excluded — the bind pose extends arms
+    // sideways (T-pose), which would inflate the span to wingspan. The
+    // upper-arm joint origin IS the shoulder socket, so "arm" bones stay
+    // included and the span captures shoulderWidthScale.
+    static float computeTorsoSpanX(const Skeleton& skel) {
+        std::vector<glm::mat4> transforms(skel.bones.size(), glm::mat4(1.0f));
+        float minX = 0.0f, maxX = 0.0f;
+        bool first = true;
+        for (size_t i = 0; i < skel.bones.size(); ++i) {
+            const auto& bone = skel.bones[i];
+            glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition);
+            local = local * glm::mat4_cast(bone.localRotation);
+            if (bone.parentId == -1)
+                transforms[i] = local;
+            else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skel.bones.size()))
+                transforms[i] = transforms[bone.parentId] * local;
+
+            std::string nameLower = bone.name;
+            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+            if (nameLower.find("forearm") != std::string::npos ||
+                nameLower.find("hand") != std::string::npos ||
+                nameLower.find("thumb") != std::string::npos ||
+                nameLower.find("index") != std::string::npos ||
+                nameLower.find("middle") != std::string::npos ||
+                nameLower.find("ring") != std::string::npos ||
+                nameLower.find("pinky") != std::string::npos ||
+                nameLower.find("end") != std::string::npos) {
+                continue;
+            }
+
+            float x = transforms[i][3][0];
+            if (first) { minX = maxX = x; first = false; }
+            else { minX = std::min(minX, x); maxX = std::max(maxX, x); }
+        }
+        return maxX - minX;
+    }
+
     void AnimatedVoxelCharacter::resizeController() {
         std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
         for (size_t i = 0; i < skeleton.bones.size(); ++i) {
@@ -725,9 +763,32 @@ namespace Scene {
 
         skeletonFootOffset_ = minY;
         m_originalHalfHeight = characterHeight * 0.5f;
-        m_originalHalfWidth  = 0.25f;
+
+        // Capsule width scales with the proportioned skeleton: ratio of the
+        // scaled torso X-span vs the unscaled template's, applied to the
+        // legacy 0.25 base. A standard character (ratio 1.0) keeps exactly
+        // the legacy capsule; wide presets (goliath) widen it, small races
+        // narrow it. Clamped to sane bounds whatever the preset does.
+        float widthRatio = 1.0f;
+        if (hasOriginalTemplate_) {
+            float templateSpan = computeTorsoSpanX(originalSkeleton_);
+            float scaledSpan   = computeTorsoSpanX(skeleton);
+            if (templateSpan > 0.01f) widthRatio = scaledSpan / templateSpan;
+        }
+        m_originalHalfWidth = glm::clamp(0.25f * widthRatio, 0.12f, 0.60f);
+
+        // Step height scales with leg length (longer legs step higher).
+        // Floored just above the 1/3-voxel subcube riser so every race can
+        // climb generated stairs (L3 navigability contract — structures are
+        // built on the subcube-step grid); capped so giants don't glide over
+        // half-walls. Standard (factor 1.0) keeps the legacy 4/9 exactly.
+        // The debug-UI setMaxStepHeight slider still overrides after load.
+        float legFactor = appearance_.heightScale * appearance_.legLengthScale;
+        m_maxStepHeight = glm::clamp((4.0f / 9.0f) * legFactor, 0.34f, 0.70f);
 
         LOG_INFO_FMT("Character", "resizeController: height=" << characterHeight
+                      << " halfWidth=" << m_originalHalfWidth
+                      << " maxStep=" << m_maxStepHeight
                       << " footOffset=" << skeletonFootOffset_
                       << " minY=" << minY << " maxY=" << maxY);
     }

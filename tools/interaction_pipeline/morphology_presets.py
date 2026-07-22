@@ -93,6 +93,8 @@ TIEFLING   = _BUILT_INS["tiefling"]
 DRAGONBORN = _BUILT_INS["dragonborn"]
 HALF_ORC   = _BUILT_INS["half_orc"]
 GOLIATH    = _BUILT_INS["goliath"]
+GOBLIN     = _BUILT_INS["goblin"]
+OGRE       = _BUILT_INS["ogre"]
 
 
 def get(preset_id: str) -> MorphologyPreset:
@@ -113,5 +115,6 @@ __all__ = [
     "STANDARD", "GIANT", "DWARF", "CHILD",
     "HALFLING", "GNOME", "ELF", "TIEFLING",
     "DRAGONBORN", "HALF_ORC", "GOLIATH",
+    "GOBLIN", "OGRE",
     "get", "all_presets",
 ]

@@ -71,10 +71,19 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
 
 - **A — Humanoid race library on the existing rig** (this phase): wiring above,
   9 races, L3 validation matrix, stress test. No new art.
-- **B — Scale-band hardening**: capsule width from skeleton (hardcoded 0.25 today,
-  `resizeController()` AnimatedVoxelCharacter.cpp), step-height scaling,
-  bone-clipping metric in `anim_lint.py`, widen validated band ~0.6–1.3× toward
-  0.45–1.6×, goblin + ogre presets.
+- **B — Scale-band hardening** (part 1 SHIPPED 2026-07-21): capsule half-width
+  now scales as the ratio of the proportioned skeleton's torso X-span vs the
+  unscaled template (standard keeps exactly the legacy 0.25 — golden-neutral;
+  forearm/hand bones excluded so the T-pose doesn't inflate to wingspan);
+  step height scales with heightScale×legLengthScale, floored just above the
+  1/3-voxel subcube riser (every race can climb generated stairs) and capped
+  at 0.70 (giants don't glide over half-walls). Live values: goblin 0.156/0.34,
+  standard 0.25/0.444, ogre 0.376/0.693. New presets **goblin 3'3"** and
+  **ogre 9'0"** (composite 1.59 — the band-stretch extreme; verified coherent
+  walking, minor waist box seams). Tests: `CharacterCapsuleScalingTest.cpp`
+  (red-before-green). REMAINING (part 2): bone-clipping metric in
+  `anim_lint.py`, per-preset seat recalibration, narrow-door differential
+  matrix (ogre honestly blocked where goblin fits).
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a

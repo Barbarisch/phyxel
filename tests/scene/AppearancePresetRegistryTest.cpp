@@ -18,10 +18,10 @@ protected:
 
 TEST_F(AppearancePresetRegistryTest, LoadsAllBuiltInPresets) {
     auto& reg = AppearancePresetRegistry::instance();
-    EXPECT_EQ(reg.count(), 11u);
+    EXPECT_EQ(reg.count(), 13u);
     for (const char* id : {"standard", "giant", "dwarf", "child", "halfling",
                            "gnome", "elf", "tiefling", "dragonborn", "half_orc",
-                           "goliath"}) {
+                           "goliath", "goblin", "ogre"}) {
         EXPECT_TRUE(reg.hasPreset(id)) << "missing preset: " << id;
     }
 }
@@ -55,6 +55,9 @@ TEST_F(AppearancePresetRegistryTest, DndRaceHeightOrdering) {
     // And the dwarf must be the bulkiest of the small/medium races.
     EXPECT_GT(reg.getPreset("dwarf")->bulkScale, reg.getPreset("halfling")->bulkScale);
     EXPECT_GT(reg.getPreset("dwarf")->bulkScale, reg.getPreset("standard")->bulkScale);
+    // Monster extremes bracket the playable races (Phase B band stretch).
+    EXPECT_GT(reg.getPreset("ogre")->heightScale, h("goliath"));
+    EXPECT_LE(reg.getPreset("goblin")->heightScale, h("gnome"));
 }
 
 TEST_F(AppearancePresetRegistryTest, UnknownPresetReturnsNull) {
@@ -78,7 +81,7 @@ TEST_F(AppearancePresetRegistryTest, ApplyProportionsFromKeepsColors) {
     app.morphology = MorphologyType::Humanoid;
 
     app.applyProportionsFrom(*dwarf);
-    EXPECT_FLOAT_EQ(app.heightScale, 0.60f);
+    EXPECT_FLOAT_EQ(app.heightScale, 0.80f);
     EXPECT_EQ(app.presetId, "dwarf");
     // Colors and morphology untouched — a preset is proportions only.
     EXPECT_FLOAT_EQ(app.skinColor.r, 0.1f);

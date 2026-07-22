@@ -119,6 +119,32 @@
       "shoulderWidthScale": 1.25
     },
     {
+      "presetId": "goblin",
+      "_heightRatio": 0.57,
+      "description": "~3'3\" (D&D goblin, Small monster) — big head, thin frame, longish arms.",
+      "morphology": "Humanoid",
+      "heightScale": 0.57,
+      "bulkScale": 0.75,
+      "headScale": 1.25,
+      "armLengthScale": 0.92,
+      "legLengthScale": 0.70,
+      "torsoLengthScale": 0.78,
+      "shoulderWidthScale": 0.85
+    },
+    {
+      "presetId": "ogre",
+      "_heightRatio": 1.59,
+      "description": "~9'0\" (D&D ogre, Large monster) — the band-stretch extreme: massive bulk, broad shoulders. Verified coherent in motion 2026-07-21; minor waist box seams at this scale (clipping-metric follow-up).",
+      "morphology": "Humanoid",
+      "heightScale": 1.38,
+      "bulkScale": 1.55,
+      "headScale": 0.95,
+      "armLengthScale": 1.14,
+      "legLengthScale": 1.13,
+      "torsoLengthScale": 1.18,
+      "shoulderWidthScale": 1.35
+    },
+    {
       "presetId": "goliath",
       "_heightRatio": 1.30,
       "description": "~7'6\" (D&D goliath), the tallest and heaviest of the playable races.",
