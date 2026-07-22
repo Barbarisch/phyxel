@@ -32,6 +32,27 @@ Phyxel uses a **right-handed coordinate system** with the following conventions:
 - **Chunk Coordinates**: Integer division of world coordinates by 32
 - **Local Coordinates**: 0-31 range within each chunk dimension
 
+### Character Facing (AUTHORITATIVE — do not re-derive from screenshots)
+
+**Character model-space forward — the face — is +Z.** Ground truth in code
+(`engine/src/scene/AnimatedVoxelCharacter.cpp`):
+
+- `getForwardDirection() = (sin(yaw), 0, cos(yaw))` → at yaw 0, world **+Z**
+- the render model matrix is `translate(pos) * rotateY(yaw)` with no extra
+  flip (`configureAnimationFixes()` is empty for the humanoid rig), so
+  model-space +Z always maps onto the movement-forward direction
+
+Consequences:
+
+- **Face features on rigs** (jaw, tusks, snout, eyes) go at **positive Z** in
+  bone-local space. `tools/anim_pipeline/derive_ogre_rig.py` asserts this.
+- `.anim` MODEL body-shell voxels happen to cluster at negative Z offsets on
+  the torso bones — that is the character's BACK surface bias, not the front.
+- To verify facing at runtime, use `getForwardDirection()`/deterministic bone
+  data — never a screenshot of a patrolling NPC (it turns at waypoints, and
+  misreading a turnaround has caused repeated backward-face bugs).
+- Unit pin: `tests/scene/CharacterFacingTest.cpp`.
+
 ---
 
 ## Chunk System Architecture

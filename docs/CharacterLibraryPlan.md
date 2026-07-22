@@ -88,12 +88,25 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   across the spine chain, applied after animation sampling at the single
   per-frame pose choke point, so it shows in every clip). Ogre preset now
   belly 1.45 / lean 12° / shoulders 1.40 — verified hunched + pot-bellied
-  walking in profile. CEILING ACKNOWLEDGED: jaw/tusks, knuckle-drag arms, and
-  asymmetric features cannot come from scalars — that is Phase C's variant-rig
-  deliverable (same Mixamo bone topology + names = drop-in compatible with the
-  whole FSM/IK stack, as the character_female rigs prove). REMAINING (part 2):
-  bone-clipping metric in `anim_lint.py`, per-preset seat recalibration,
-  narrow-door differential matrix (ogre honestly blocked where goblin fits).
+  walking in profile. **Variant-rig pattern SHIPPED (2026-07-22):**
+  `resources/animated_characters/ogre.anim`, derived by
+  `tools/anim_pipeline/derive_ogre_rig.py` — same skeleton/bone names/clips as
+  humanoid.anim (drop-in with the whole FSM/IK stack), resculpted MODEL boxes:
+  massive hands (×1.45), thick forearms, jaw slab + two ivory tusks on the
+  face. Supporting format extension: MODEL `Box` lines take an optional
+  trailing `r g b` explicit color (tusks/claws/teeth override the bone's
+  appearance color) — parser + builder + anim_format.py round-trip. Base-rig
+  fix: humanoid.anim was voxelized from a FEMALE Mixamo model; `tools/
+  anim_pipeline/widen_base_torso.py` (idempotent — restores the pristine
+  baseline from git first) widens chest ×1.14/shoulders + hips ×1.10 +
+  thighs/calves ×1.07 for a neutral-male build. **Character facing is now an
+  executable convention** (repeated backward-face mistakes): model-space face
+  = +Z — docs/CoordinateSystem.md §Character Facing (authoritative, from
+  code), CLAUDE.md one-liner, `CharacterFacingTest.cpp` pins engine + asset,
+  derive script asserts features at +Z. Never read facing from screenshots of
+  patrolling NPCs. REMAINING (part 2): bone-clipping metric in
+  `anim_lint.py`, per-preset seat recalibration, narrow-door differential
+  matrix (ogre honestly blocked where goblin fits).
 - **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
   baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
   (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a

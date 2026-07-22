@@ -991,7 +991,11 @@ namespace Scene {
 
                     for (const auto& shape : shapes) {
                         glm::vec3 relativeOffset = shape.offset - centerOffset;
-                        glm::vec4 color = appearance_.getColorForBone(boneName);
+                        // Explicit per-box color (alpha > 0) wins over the
+                        // bone's appearance region color.
+                        glm::vec4 color = (shape.color.a > 0.0f)
+                            ? shape.color
+                            : appearance_.getColorForBone(boneName);
 
                         glm::vec3 scaledSize = shape.size;
                         if (nameLower.find("head") != std::string::npos) {

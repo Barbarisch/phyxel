@@ -82,11 +82,17 @@ namespace Phyxel {
                     glm::vec3 size, center;
                     
                     ssBox >> boxToken >> id >> size.x >> size.y >> size.z >> center.x >> center.y >> center.z;
-                    
+
                     BoneShape shape;
                     shape.boneId = id;
                     shape.size = size;
                     shape.offset = center;
+                    // Optional trailing "r g b": explicit box color (tusks,
+                    // claws, ...) overriding the bone's appearance color.
+                    glm::vec3 rgb;
+                    if (ssBox >> rgb.r >> rgb.g >> rgb.b) {
+                        shape.color = glm::vec4(rgb, 1.0f);
+                    }
                     outModel.shapes.push_back(shape);
                 }
             }
