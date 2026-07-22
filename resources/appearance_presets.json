@@ -1,0 +1,135 @@
+{
+  "_comment": "Morphology/appearance presets — CharacterAppearance-compatible proportion sets applied on top of a base rig (no separate .anim per race). Loaded by AppearancePresetRegistry (C++) and tools/interaction_pipeline/morphology_presets.py (Python) — single source of truth, do not fork. NOTE: limb scales COMPOUND with heightScale (effective leg length = heightScale x legLengthScale), so a preset's standing height is NOT its heightScale. Race presets below were tuned live against measured bone-AABB standing height to match D&D 5e averages (ratio vs the 5'8\" standard rig); the measured composite is recorded per preset as _heightRatio. Tuning procedure: docs/CharacterLibraryPlan.md. standard/giant/child are interaction-pipeline testing presets, not D&D races.",
+  "presets": [
+    {
+      "presetId": "standard",
+      "description": "Default humanoid proportions (1.0 across the board). ~5'8\".",
+      "morphology": "Humanoid"
+    },
+    {
+      "presetId": "giant",
+      "description": "Oversized testing preset (composite ~1.4x). Tests SEAT_TOO_NARROW / SEAT_TOO_SHALLOW.",
+      "morphology": "Humanoid",
+      "heightScale": 1.25,
+      "bulkScale": 1.30,
+      "legLengthScale": 1.25,
+      "torsoLengthScale": 1.20,
+      "shoulderWidthScale": 1.20,
+      "armLengthScale": 1.20
+    },
+    {
+      "presetId": "child",
+      "description": "Small, thin character; slightly larger head. Testing preset.",
+      "morphology": "Humanoid",
+      "heightScale": 0.70,
+      "bulkScale": 0.75,
+      "legLengthScale": 0.65,
+      "torsoLengthScale": 0.80,
+      "headScale": 1.15
+    },
+    {
+      "presetId": "halfling",
+      "_heightRatio": 0.54,
+      "description": "~3'0\" (D&D halfling), slight build, slightly larger head.",
+      "morphology": "Humanoid",
+      "heightScale": 0.57,
+      "bulkScale": 0.80,
+      "headScale": 1.12,
+      "armLengthScale": 0.75,
+      "legLengthScale": 0.72,
+      "torsoLengthScale": 0.85,
+      "shoulderWidthScale": 0.85
+    },
+    {
+      "presetId": "gnome",
+      "_heightRatio": 0.62,
+      "description": "~3'6\" (D&D gnome), slim, large head. A head taller than a halfling.",
+      "morphology": "Humanoid",
+      "heightScale": 0.62,
+      "bulkScale": 0.75,
+      "headScale": 1.18,
+      "armLengthScale": 0.78,
+      "legLengthScale": 0.78,
+      "torsoLengthScale": 0.88,
+      "shoulderWidthScale": 0.85
+    },
+    {
+      "presetId": "dwarf",
+      "_heightRatio": 0.75,
+      "description": "~4'4\" (D&D dwarf) — clearly taller than halfling/gnome, very stocky: 145% bulk, broad shoulders, short legs, long torso.",
+      "morphology": "Humanoid",
+      "heightScale": 0.80,
+      "bulkScale": 1.45,
+      "headScale": 1.10,
+      "armLengthScale": 0.85,
+      "legLengthScale": 0.82,
+      "torsoLengthScale": 1.02,
+      "shoulderWidthScale": 1.15
+    },
+    {
+      "presetId": "elf",
+      "_heightRatio": 1.03,
+      "description": "~5'9\" (D&D elf), slender; slightly long limbs, narrow frame.",
+      "morphology": "Humanoid",
+      "heightScale": 1.00,
+      "bulkScale": 0.85,
+      "headScale": 0.98,
+      "armLengthScale": 1.04,
+      "legLengthScale": 1.05,
+      "torsoLengthScale": 0.98,
+      "shoulderWidthScale": 0.95
+    },
+    {
+      "presetId": "tiefling",
+      "_heightRatio": 1.02,
+      "description": "~5'10\" (D&D tiefling); near-human proportions.",
+      "morphology": "Humanoid",
+      "heightScale": 1.01,
+      "bulkScale": 1.00,
+      "headScale": 1.00,
+      "armLengthScale": 1.02,
+      "legLengthScale": 1.01,
+      "torsoLengthScale": 1.01,
+      "shoulderWidthScale": 1.00
+    },
+    {
+      "presetId": "dragonborn",
+      "_heightRatio": 1.16,
+      "description": "~6'6\" (D&D dragonborn), broad shoulders, heavy torso.",
+      "morphology": "Humanoid",
+      "heightScale": 1.10,
+      "bulkScale": 1.20,
+      "headScale": 1.00,
+      "armLengthScale": 1.06,
+      "legLengthScale": 1.04,
+      "torsoLengthScale": 1.08,
+      "shoulderWidthScale": 1.20
+    },
+    {
+      "presetId": "half_orc",
+      "_heightRatio": 1.09,
+      "description": "~6'2\" (D&D half-orc), heavy bulk and very broad shoulders.",
+      "morphology": "Humanoid",
+      "heightScale": 1.06,
+      "bulkScale": 1.25,
+      "headScale": 1.00,
+      "armLengthScale": 1.06,
+      "legLengthScale": 1.02,
+      "torsoLengthScale": 1.05,
+      "shoulderWidthScale": 1.25
+    },
+    {
+      "presetId": "goliath",
+      "_heightRatio": 1.30,
+      "description": "~7'6\" (D&D goliath), the tallest and heaviest of the playable races.",
+      "morphology": "Humanoid",
+      "heightScale": 1.18,
+      "bulkScale": 1.30,
+      "headScale": 1.00,
+      "armLengthScale": 1.12,
+      "legLengthScale": 1.11,
+      "torsoLengthScale": 1.10,
+      "shoulderWidthScale": 1.25
+    }
+  ]
+}

@@ -542,6 +542,20 @@ CharacterAppearance CharacterAppearance::generateFromSeed(const std::string& nam
     return app;
 }
 
+void CharacterAppearance::applyProportionsFrom(const CharacterAppearance& preset) {
+    heightScale        = preset.heightScale;
+    bulkScale          = preset.bulkScale;
+    headScale          = preset.headScale;
+    armLengthScale     = preset.armLengthScale;
+    legLengthScale     = preset.legLengthScale;
+    torsoLengthScale   = preset.torsoLengthScale;
+    shoulderWidthScale = preset.shoulderWidthScale;
+    tailLengthScale    = preset.tailLengthScale;
+    wingSpanScale      = preset.wingSpanScale;
+    neckLengthScale    = preset.neckLengthScale;
+    presetId           = preset.presetId;
+}
+
 // ============================================================================
 // JSON serialization
 // ============================================================================
@@ -580,7 +594,11 @@ static const char* morphologyToString(MorphologyType m) {
 }
 
 CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j) {
-    CharacterAppearance app;
+    return fromJson(j, CharacterAppearance{});
+}
+
+CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j, const CharacterAppearance& base) {
+    CharacterAppearance app = base;
 
     // Morphology
     if (j.contains("morphology")) {

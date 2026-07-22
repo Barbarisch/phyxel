@@ -255,10 +255,18 @@ def _build_character_npc_def(args: dict, profile: dict) -> dict:
 
     npc_def: dict = {
         "name": args["name"],
-        "animFile": args.get("animFile", "resources/animated_characters/humanoid.anim"),
         "behavior": args.get("behavior", "idle"),
         "storyCharacter": profile,
     }
+    # Visual selection: pass race/appearance/animFile through to the engine's
+    # CharacterVisualResolver (race -> preset + palette + model) instead of
+    # hard-defaulting humanoid.anim here.
+    if "animFile" in args:
+        npc_def["animFile"] = args["animFile"]
+    if "race" in args:
+        npc_def["race"] = args["race"]
+    if "appearance" in args:
+        npc_def["appearance"] = args["appearance"]
     if "position" in args:
         npc_def["position"] = args["position"]
     elif all(k in args for k in ("x", "y", "z")):
@@ -1631,12 +1639,14 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="spawn_npc",
-            description="Spawn an NPC with an animated voxel character. NPCs can have idle or patrol behaviors and can be interacted with using the E key. Supports dialogue trees via set_npc_dialogue.",
+            description="Spawn an NPC with an animated voxel character. NPCs can have idle or patrol behaviors and can be interacted with using the E key. Supports dialogue trees via set_npc_dialogue. Pass 'race' (e.g. dwarf_mountain, halfling_lightfoot, goliath — ids from resources/races/) to get that race's body proportions, skin tone, and model automatically.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Unique NPC name/identifier"},
-                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)", "default": "resources/animated_characters/humanoid.anim"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ (human, elf_high, dwarf_mountain, halfling_lightfoot, half_orc, tiefling, gnome_rock, goliath, dragonborn). Applies the race's appearance preset, palette, and model."},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim, or the race's model if 'race' is given)", "default": "resources/animated_characters/humanoid.anim"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset (dwarf, halfling, giant, ...). Overrides race defaults field-by-field."},
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
@@ -1700,9 +1710,13 @@ async def list_tools() -> list[Tool]:
                 "Set or update appearance (colors and proportions) of an existing NPC. "
                 "Only provided fields are changed; others keep their current values. "
                 "Proportion changes rebuild the character's skeleton in real-time. "
+                "Pass 'preset' (dwarf, halfling, gnome, elf, giant, goliath, half_orc, "
+                "tiefling, dragonborn, child, standard) to apply a full proportion set; "
+                "other given fields then override it. "
                 "Fields: heightScale (0.4-1.6), bulkScale (0.5-1.8), headScale (0.6-1.6), "
                 "armLengthScale (0.5-1.5), legLengthScale (0.5-1.5), torsoLengthScale (0.6-1.5), "
-                "shoulderWidthScale (0.5-1.6), "
+                "shoulderWidthScale (0.5-1.6), tailLengthScale/wingSpanScale/neckLengthScale "
+                "(creature rigs), "
                 "skinColor/torsoColor/armColor/legColor ({r,g,b,a} 0.0-1.0)."
             ),
             inputSchema={
@@ -1713,6 +1727,7 @@ async def list_tools() -> list[Tool]:
                         "type": "object",
                         "description": "Partial appearance object — only include fields you want to change",
                         "properties": {
+                            "preset": {"type": "string", "description": "Appearance preset id from resources/appearance_presets.json — applies its full proportion set first"},
                             "heightScale": {"type": "number"},
                             "bulkScale": {"type": "number"},
                             "headScale": {"type": "number"},
@@ -1720,6 +1735,9 @@ async def list_tools() -> list[Tool]:
                             "legLengthScale": {"type": "number"},
                             "torsoLengthScale": {"type": "number"},
                             "shoulderWidthScale": {"type": "number"},
+                            "tailLengthScale": {"type": "number"},
+                            "wingSpanScale": {"type": "number"},
+                            "neckLengthScale": {"type": "number"},
                             "skinColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "torsoColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "armColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
@@ -2108,7 +2126,9 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "NPC name (unique identifier)"},
-                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ (human, elf_high, dwarf_mountain, halfling_lightfoot, half_orc, tiefling, gnome_rock, goliath, dragonborn). Applies the race's appearance preset, palette, and model."},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim, or the race's model if 'race' is given)"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset. Overrides race defaults field-by-field."},
                     "position": {"type": "object", "description": "{x, y, z} world coordinates",
                                  "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
                     "behavior": {"type": "string", "enum": ["idle", "patrol"], "description": "NPC behavior type"},
@@ -2155,6 +2175,8 @@ async def list_tools() -> list[Tool]:
                     "role": {"type": "string", "description": "Primary role tag, e.g. 'merchant', 'guard'"},
                     "agency": {"type": "string", "enum": ["scripted", "templated", "guided", "autonomous"],
                                "description": "How much the AI drives the character (default: guided)"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ — applies the race's body proportions, skin tone, and model"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON; may include 'preset'. Overrides race defaults field-by-field."},
                     "animFile": {"type": "string"},
                     "behavior": {"type": "string", "enum": ["idle", "patrol"]},
                     "waypoints": {"type": "array", "items": {"type": "object"}}
@@ -5136,6 +5158,10 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- NPC Management ---
     elif name == "spawn_npc":
         body: dict[str, Any] = {"name": args["name"]}
+        if "race" in args:
+            body["race"] = args["race"]
+        if "appearance" in args:
+            body["appearance"] = args["appearance"]
         if "animFile" in args:
             body["animFile"] = args["animFile"]
         if "position" in args:

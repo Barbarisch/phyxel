@@ -480,6 +480,13 @@ namespace Scene {
             }
 
             configureAnimationFixes();
+            // Apply appearance proportions set before load (race presets etc.)
+            // — same order as loadFromSkeleton()/rebuildWithAppearance().
+            // Without this, buildBodiesFromModel scales the boxes but the
+            // skeleton and animation keys stay at standard height, so a
+            // proportioned character renders as scattered fragments.
+            applySkeletonProportions();
+            resizeController();
             buildBodiesFromModel();
             return true;
         }

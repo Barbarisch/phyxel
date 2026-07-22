@@ -6,5 +6,17 @@
   "darkvisionRange": 60,
   "traits": ["Darkvision", "Hellish Resistance", "Infernal Legacy"],
   "languages": ["Common", "Infernal"],
-  "proficiencies": []
+  "proficiencies": [],
+  "visual": {
+    "appearancePreset": "tiefling",
+    "palette": {
+      "skinTones": [
+        { "r": 0.72, "g": 0.22, "b": 0.20 },
+        { "r": 0.62, "g": 0.18, "b": 0.24 },
+        { "r": 0.55, "g": 0.24, "b": 0.42 },
+        { "r": 0.46, "g": 0.20, "b": 0.50 },
+        { "r": 0.80, "g": 0.36, "b": 0.28 }
+      ]
+    }
+  }
 }

@@ -32,6 +32,7 @@ nlohmann::json RaceDefinition::toJson() const {
         bonuses[abilityShortName(ability)] = bonus;
     }
     j["abilityBonuses"] = bonuses;
+    if (hasVisual()) j["visual"] = visual;
     return j;
 }
 
@@ -45,6 +46,7 @@ RaceDefinition RaceDefinition::fromJson(const nlohmann::json& j) {
     if (j.contains("traits"))        r.traits       = j["traits"].get<std::vector<std::string>>();
     if (j.contains("languages"))     r.languages    = j["languages"].get<std::vector<std::string>>();
     if (j.contains("proficiencies")) r.proficiencies= j["proficiencies"].get<std::vector<std::string>>();
+    if (j.contains("visual") && j["visual"].is_object()) r.visual = j["visual"];
 
     if (j.contains("abilityBonuses")) {
         for (const auto& [key, val] : j["abilityBonuses"].items()) {
@@ -143,8 +145,16 @@ int RaceRegistry::loadFromJson(const nlohmann::json& j) {
     return count;
 }
 
+void RaceRegistry::ensureLoaded() {
+    if (m_loadAttempted || !m_races.empty()) return;
+    m_loadAttempted = true;
+    int n = loadFromDirectory("resources/races");
+    LOG_INFO("RaceRegistry", "Loaded {} races from resources/races", n);
+}
+
 void RaceRegistry::clear() {
     m_races.clear();
+    m_loadAttempted = false;
 }
 
 } // namespace Core

@@ -29,6 +29,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/AppearancePresetRegistry.h"
 #include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
 #include "scene/CharacterTurnBody.h"
@@ -69,6 +70,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
+#include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
@@ -14876,7 +14878,10 @@ void Application::processAPICommands() {
                     if (name.empty()) {
                         response = {{"error", "NPC name required"}};
                     } else {
-                        std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
+                        // Resolve visual (race / preset / explicit appearance /
+                        // animFile) through the single shared path.
+                        auto visual = Core::CharacterVisualResolver::resolve(cmd.params, name);
+                        const std::string& animFile = visual.animFile;
                         float x = 0, y = 20, z = 0;
                         if (cmd.params.contains("position")) {
                             x = cmd.params["position"].value("x", 0.0f);
@@ -14911,28 +14916,12 @@ void Application::processAPICommands() {
                             behaviorType = Core::NPCBehaviorType::Combat;
                         }
 
-                        // Parse optional appearance
-                        Scene::CharacterAppearance appearance;
+                        // Appearance already resolved by CharacterVisualResolver above.
+                        const Scene::CharacterAppearance& appearance = visual.appearance;
                         std::string role = cmd.params.value("role", "");
                         bool procedural = cmd.params.value("procedural", false);
                         std::string driveModeStr = cmd.params.value("driveMode", "animated");
                         bool physicsDriven = (driveModeStr == "physics");
-
-                        if (cmd.params.contains("appearance")) {
-                            appearance = Scene::CharacterAppearance::fromJson(cmd.params["appearance"]);
-                        } else if (!role.empty()) {
-                            // Detect morphology from anim file name
-                            std::string animLower = animFile;
-                            std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
-                            Scene::MorphologyType morph = Scene::MorphologyType::Humanoid;
-                            if (animLower.find("wolf") != std::string::npos)
-                                morph = Scene::MorphologyType::Quadruped;
-                            else if (animLower.find("spider") != std::string::npos)
-                                morph = Scene::MorphologyType::Arachnid;
-                            else if (animLower.find("dragon") != std::string::npos)
-                                morph = Scene::MorphologyType::Dragon;
-                            appearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
-                        }
 
                         Scene::NPCEntity* npc = nullptr;
                         if (physicsDriven) {
@@ -15104,8 +15093,22 @@ void Application::processAPICommands() {
                             if (!character) {
                                 response = {{"error", "NPC has no animated character"}};
                             } else {
-                                // Merge provided fields with current appearance
+                                // Merge provided fields with current appearance.
+                                // A "preset"/"presetId" naming a registry preset
+                                // expands to its proportions first; other given
+                                // fields then override.
                                 auto currentApp = character->getAppearance();
+                                if (cmd.params.contains("appearance")) {
+                                    const auto& aj = cmd.params["appearance"];
+                                    std::string presetId = aj.value("preset", aj.value("presetId", ""));
+                                    if (!presetId.empty()) {
+                                        auto& presets = Scene::AppearancePresetRegistry::instance();
+                                        presets.ensureLoaded();
+                                        if (const auto* preset = presets.getPreset(presetId)) {
+                                            currentApp.applyProportionsFrom(*preset);
+                                        }
+                                    }
+                                }
                                 auto newJson = currentApp.toJson();
                                 if (cmd.params.contains("appearance")) {
                                     for (auto& [key, val] : cmd.params["appearance"].items()) {

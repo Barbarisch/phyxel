@@ -1,0 +1,24 @@
+{
+  "id": "dragonborn",
+  "name": "Dragonborn",
+  "abilityBonuses": { "STR": 2, "CHA": 1 },
+  "speed": 30,
+  "darkvisionRange": 0,
+  "traits": ["Draconic Ancestry", "Breath Weapon", "Damage Resistance"],
+  "languages": ["Common", "Draconic"],
+  "proficiencies": [],
+  "visual": {
+    "_comment": "Humanoid-approx on the shared rig for now; a true draconic rig (tail, snout) is a Phase C/E upgrade — see docs/CharacterLibraryPlan.md.",
+    "appearancePreset": "dragonborn",
+    "palette": {
+      "skinTones": [
+        { "r": 0.72, "g": 0.30, "b": 0.18 },
+        { "r": 0.70, "g": 0.56, "b": 0.28 },
+        { "r": 0.28, "g": 0.44, "b": 0.62 },
+        { "r": 0.30, "g": 0.54, "b": 0.36 },
+        { "r": 0.80, "g": 0.78, "b": 0.72 },
+        { "r": 0.44, "g": 0.36, "b": 0.52 }
+      ]
+    }
+  }
+}
