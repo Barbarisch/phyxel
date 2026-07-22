@@ -150,12 +150,41 @@ MCP: `spawn_npc` / `create_game_npc` / `define_character` accept `race` +
   - Hop/climb-onto-tall-seat transitions intentionally deferred to Phase C
     (needs a sourced clip; the conditional remap via animationMapping is the
     planned mechanism — never force existing clips onto wrong-size seats).
-- **C — External service bake-off + `tools/character_import.py`**: Mixamo (free
-  baseline; pipeline exists — it built humanoid.anim) vs Meshy vs Tripo for
-  (i) new humanoid-variant models, (ii) race-flavored animation sets, (iii) a
-  quadruped. Budget $20–50; verify commercial licenses before assets land in
-  resources/. Durable output: generalized glTF/FBX→voxelize→.anim importer with
-  per-service bone maps that fail loudly.
+- **C — External content: three lanes, animation-first (reframed 2026-07-22)**.
+  Strategic ground truth: Meshy/Tripo are NOT LLMs — they're 3D generative
+  diffusion/reconstruction models trained on millions of assets (a
+  foundation-model moat we cannot and should not replicate). BUT most of what
+  makes them expensive — clean topology, quad remesh, 4K PBR — is IRRELEVANT
+  to a voxel engine: we collapse everything into 0.05–0.11 voxel shells. What
+  we actually consume: (1) SHAPE (silhouette — even mediocre meshes voxelize
+  fine; our derive_ogre_rig.py box-sculpting already makes on-style bodies by
+  hand), (2) RIGGING (skeleton+weights → retarget to mixamorig names),
+  (3) ANIMATION CLIPS — **the genuinely scarce resource**. (BlockSmith's
+  failed LLM→asset experiment is a different tech class; not predictive.)
+
+  Three lanes, scored animation-first:
+  1. **Mixamo (free, Adobe login)** — humanoid clip library; the pipeline
+     already targets it (it built humanoid.anim). Covers most of the clip
+     shopping list. FIRST.
+  2. **Local open-weight models (free, self-hosted)** — TRELLIS (MIT),
+     TripoSR (MIT), Hunyuan3D (community license): same tech class as the
+     paid services for SHAPE generation, unlimited, license-clean. No
+     rigging/animation included.
+  3. **Paid services ($20–50, user-approved)** — spend ONLY on what lanes
+     1–2 can't do: Meshy's auto-rig + 500-preset animation library for
+     creature/quadruped motion; verify commercial terms before any asset
+     lands in resources/.
+
+  **Clip shopping list** (priority order): hop-onto-tall-seat + climb-down
+  (completes the seat-fit system), dwarf stomp-walk, halfling scamper, ogre
+  lumber + club swing, one full quadruped gait set (walk/run/idle/attack —
+  feeds Phase D). Model list: ogre-brute (compare vs hand-derived rig),
+  one quadruped body.
+
+  Durable output regardless of lane winner: `tools/character_import.py` —
+  generalized glTF/FBX → voxelize/retarget → .anim with pluggable per-source
+  bone maps that FAIL LOUDLY on unmapped bones, resolution knobs, --dry-run
+  report, anim_lint gate.
 - **D — Body-plan abstraction** (implements CharacterAnimationV2.md §4 item 0):
   de-hardcode `mixamorig:*` from segment boxes / foot IK / clip map; BodyPlan
   descriptor with auto-derivation for existing rigs; golden-regression humanoid
