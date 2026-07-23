@@ -528,7 +528,7 @@ namespace Scene {
     void AnimatedVoxelCharacter::adoptBodyPlan() {
         auto& registry = Scene::BodyPlanRegistry::instance();
         registry.ensureLoaded();
-        m_bodyPlan = registry.planFor(appearance_.morphology);
+        m_bodyPlan = registry.planForSkeleton(appearance_.morphology, skeleton);
         m_bodyPlanResolved = m_bodyPlan.resolveAgainst(skeleton);
         LOG_DEBUG("Character", "adopted body plan '{}' (root={}, legs={}, segments={})",
                   m_bodyPlan.id, m_bodyPlanResolved.rootBoneId,

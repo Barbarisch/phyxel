@@ -238,6 +238,28 @@ const BodyPlan& BodyPlanRegistry::planFor(MorphologyType m) const {
     return sBuiltin;
 }
 
+const BodyPlan& BodyPlanRegistry::planForSkeleton(MorphologyType m,
+                                                  const Skeleton& skeleton) const {
+    const BodyPlan* best = nullptr;
+    int bestScore = -1;
+    for (const auto& [id, plan] : m_plans) {
+        if (plan.morphology != m) continue;
+        BodyPlan::Resolved r = plan.resolveAgainst(skeleton);
+        int score = (r.rootBoneId >= 0 ? 1 : 0);
+        for (const auto& leg : r.legs)
+            score += (leg.upperId >= 0) + (leg.midId >= 0) + (leg.footId >= 0);
+        score += (int)r.segments.size();
+        if (score > bestScore) {
+            bestScore = score;
+            best = &plan;
+        }
+    }
+    // A plan that resolves almost nothing is not a match — fall back to the
+    // morphology default (which itself falls back to humanoid).
+    if (best && bestScore >= 3) return *best;
+    return planFor(m);
+}
+
 const BodyPlan* BodyPlanRegistry::planById(const std::string& id) const {
     auto it = m_plans.find(id);
     return it != m_plans.end() ? &it->second : nullptr;

@@ -82,6 +82,13 @@ public:
 
     /// Plan for a morphology; Unknown (and anything unregistered) -> humanoid.
     const BodyPlan& planFor(MorphologyType m) const;
+
+    /// Skeleton-aware selection: among plans of the morphology, pick the one
+    /// whose bones actually resolve on this skeleton (score = resolved root +
+    /// legs + segments). Lets rig families share a morphology — the engine
+    /// wolf (pelvis/upper_leg_front_L) and every Meshy quadruped
+    /// (Hips/frontleg0) each get their own plan. Falls back to planFor(m).
+    const BodyPlan& planForSkeleton(MorphologyType m, const Skeleton& skeleton) const;
     const BodyPlan* planById(const std::string& id) const;
     std::vector<std::string> getAllPlanIds() const;
     size_t count() const { return m_plans.size(); }

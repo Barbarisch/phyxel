@@ -26,6 +26,7 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
     bool hasPaw = false, hasFang = false, hasWing = false;
     bool hasLeg1Coxa = false, hasAbdomen = false, hasThorax = false;
     bool hasNeck1 = false, hasMixamoHips = false;
+    bool hasFrontLeg = false, hasBackLeg = false;
 
     for (const auto& name : boneNames) {
         std::string lower = name;
@@ -49,6 +50,12 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
         // Dragon markers
         if (lower.find("wing") != std::string::npos) hasWing = true;
         if (lower == "neck_1") hasNeck1 = true;
+
+        // Meshy auto-rig quadruped markers (frontleg/backleg chains). Checked
+        // before the humanoid marker below because Meshy names the quadruped
+        // root "Hips".
+        if (lower.find("frontleg") != std::string::npos) hasFrontLeg = true;
+        if (lower.find("backleg") != std::string::npos) hasBackLeg = true;
     }
 
     // Arachnid: has leg1_coxa pattern + thorax/abdomen
@@ -63,6 +70,12 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
 
     // Quadruped: has pelvis + paw/tail + chest (but not wings)
     if (hasPelvis && (hasPaw || hasTail) && hasChest && !hasWing) {
+        return MorphologyType::Quadruped;
+    }
+
+    // Meshy-rigged quadruped: frontleg/backleg chains. Must precede the
+    // humanoid check — Meshy quadruped roots are literally named "Hips".
+    if (hasFrontLeg && hasBackLeg) {
         return MorphologyType::Quadruped;
     }
 

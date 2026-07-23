@@ -1,0 +1,26 @@
+{
+  "id": "meshy_quadruped",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Hips",
+  "hipAliases": ["hip"],
+  "gripBone": "head",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.2, "maxHalfWidth": 1.2 },
+  "legs": [
+    { "id": "front_left",  "upper": "frontleg0",   "mid": "frontleg1",   "foot": "frontleg2",   "footIK": false },
+    { "id": "front_right", "upper": "R_frontleg0", "mid": "R_frontleg1", "foot": "R_frontleg2", "footIK": false },
+    { "id": "back_left",   "upper": "backleg0",    "mid": "backleg1",    "foot": "backleg2",    "footIK": false },
+    { "id": "back_right",  "upper": "R_backleg0",  "mid": "R_backleg1",  "foot": "R_backleg2",  "footIK": false }
+  ],
+  "segments": [
+    { "bone": "head",        "isArm": false },
+    { "bone": "chest",       "isArm": false },
+    { "bone": "Hips",        "isArm": false },
+    { "bone": "tail1",       "isArm": false },
+    { "bone": "frontleg0",   "isArm": false },
+    { "bone": "R_frontleg0", "isArm": false },
+    { "bone": "backleg0",    "isArm": false },
+    { "bone": "R_backleg0",  "isArm": false }
+  ],
+  "clipDefaults": {}
+}

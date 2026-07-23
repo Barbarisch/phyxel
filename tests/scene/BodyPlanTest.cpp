@@ -60,12 +60,17 @@ void expectPlanEqual(const BodyPlan& a, const BodyPlan& b) {
 
 } // namespace
 
-TEST(BodyPlan, RegistryLoadsAllFourPlans) {
+TEST(BodyPlan, RegistryLoadsAllShippedPlans) {
     auto& reg = freshRegistry();
-    for (const char* id : {"humanoid", "quadruped_wolf", "arachnid_spider", "dragon"})
+    for (const char* id : {"humanoid", "quadruped_wolf", "meshy_quadruped",
+                           "arachnid_spider", "dragon"})
         EXPECT_NE(reg.planById(id), nullptr) << id;
     EXPECT_EQ(reg.planFor(MorphologyType::Humanoid).id, "humanoid");
-    EXPECT_EQ(reg.planFor(MorphologyType::Quadruped).id, "quadruped_wolf");
+    // Quadruped has TWO plans (engine wolf + Meshy family); the skeleton-blind
+    // default just has to be one of them — real callers use planForSkeleton
+    // (pinned in SkeletonAwareSelectionKeepsFamiliesApart).
+    EXPECT_EQ(reg.planFor(MorphologyType::Quadruped).morphology,
+              MorphologyType::Quadruped);
     EXPECT_EQ(reg.planFor(MorphologyType::Arachnid).id, "arachnid_spider");
     EXPECT_EQ(reg.planFor(MorphologyType::Dragon).id, "dragon");
     // Unknown morphology falls back to humanoid — never a null/garbage plan.
@@ -217,6 +222,50 @@ TEST(BodyPlan, DragonPlanResolvesOnDragonRig) {
     expectPlanResolvesOnRig("dragon",
                             "resources/animated_characters/character_dragon.anim",
                             4, 12);
+}
+
+TEST(BodyPlan, SkeletonAwareSelectionKeepsFamiliesApart) {
+    // Two quadruped rig families share the Quadruped morphology: the engine
+    // wolf (pelvis / upper_leg_front_L) and Meshy auto-rigs (Hips /
+    // frontleg0). planForSkeleton must give each its own plan — filename
+    // registration order must not matter.
+    auto& reg = freshRegistry();
+
+    Skeleton wolfSkel, meshySkel;
+    std::vector<AnimationClip> clips;
+    VoxelModel model;
+    ASSERT_TRUE(loadRig("resources/animated_characters/character_wolf.anim",
+                        wolfSkel, clips, model));
+    clips.clear();
+    ASSERT_TRUE(loadRig("resources/animated_characters/wolf_meshy.anim",
+                        meshySkel, clips, model));
+
+    EXPECT_EQ(reg.planForSkeleton(MorphologyType::Quadruped, wolfSkel).id,
+              "quadruped_wolf");
+    EXPECT_EQ(reg.planForSkeleton(MorphologyType::Quadruped, meshySkel).id,
+              "meshy_quadruped");
+    // Humanoid unaffected: single plan for the morphology.
+    Skeleton humSkel;
+    clips.clear();
+    ASSERT_TRUE(loadRig("resources/animated_characters/humanoid.anim",
+                        humSkel, clips, model));
+    EXPECT_EQ(reg.planForSkeleton(MorphologyType::Humanoid, humSkel).id, "humanoid");
+    EXPECT_EQ(reg.planForSkeleton(MorphologyType::Unknown, humSkel).id, "humanoid");
+}
+
+TEST(BodyPlan, MeshyQuadrupedDetectsAndResolves) {
+    // Meshy rigs name the root "Hips" — pre-fix they classified as HUMANOID.
+    // The frontleg/backleg markers must win, and the meshy plan must fully
+    // resolve on the imported wolf.
+    auto ch = std::make_unique<AnimatedVoxelCharacter>(nullptr, glm::vec3(0.0f));
+    ASSERT_TRUE(ch->loadModel("resources/animated_characters/wolf_meshy.anim"));
+    EXPECT_EQ(ch->getAppearance().morphology, MorphologyType::Quadruped);
+
+    auto segs = ch->getSegmentBoxInfo();
+    EXPECT_GE(segs.size(), 8u) << "meshy plan segments did not resolve";
+    auto ik = ch->resolveFootIKForTest();
+    EXPECT_FALSE(ik.cacheReady);
+    EXPECT_GE(ik.hipBoneId, 0);
 }
 
 TEST(BodyPlan, WolfGetsRealSegmentBoxesAndCapsule) {
