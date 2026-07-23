@@ -243,9 +243,14 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
     // cube — flush against the wall's interior face, never inside it. (backDir 0 -> no inset.)
     // Y: the absolute walkable-surface micro-Y, NOT the integer-truncated cube worldPos.y (which sank
     // furniture by the floor thickness). Whole-micro shifts are exact (extTMicro is a micro count).
-    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * extTMicro,
+    // KI-5b: the placement carries PER-AXIS wall-band insets (a corner piece backs an
+    // exterior wall on one axis and an interior partition on the other — one shared
+    // inset can't be flush to both); -1 falls back to the caller's exterior thickness.
+    const int tx = p.insetMicroX >= 0 ? p.insetMicroX : extTMicro;
+    const int tz = p.insetMicroZ >= 0 ? p.insetMicroZ : extTMicro;
+    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * tx,
                       surfaceMicroY,
-                      p.worldPos.z * 9 - p.backDir.z * extTMicro);
+                      p.worldPos.z * 9 - p.backDir.z * tz);
 }
 
 // ---- MOUNTING (quality B): sconces/racks on the wall, the chandelier from the ceiling. ----
@@ -310,8 +315,18 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
     std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier,
-    const std::vector<Rect>& reservedRects) {
+    const std::vector<Rect>& reservedRects, int intTMicro) {
     std::vector<FurniturePlacement> out;
+    // KI-5b: footprint bounds (union of room rects) distinguish EXTERIOR walls
+    // (footprint edge, full extTMicro band inside the edge cube) from INTERIOR
+    // partitions (band straddles the boundary — only its half sits in this room's
+    // edge cube). Approximation: winged notch edges read as interior (bbox test);
+    // over-inset there is the old behavior, disclosed.
+    int fpMinX = INT_MAX, fpMinZ = INT_MAX, fpMaxX1 = INT_MIN, fpMaxZ1 = INT_MIN;
+    for (const auto& r2 : story.rooms) {
+        fpMinX = std::min(fpMinX, r2.rect.x);   fpMinZ = std::min(fpMinZ, r2.rect.z);
+        fpMaxX1 = std::max(fpMaxX1, r2.rect.x1()); fpMaxZ1 = std::max(fpMaxZ1, r2.rect.z1());
+    }
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
         if (rw < 2 || rd < 2) continue;   // too small to furnish
@@ -418,6 +433,27 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             f.type = type; f.room = room.id; f.rotation = rot;
             f.backDir = backDirOf(mnx, mnz, mxx, mxz);
             f.worldPos = glm::ivec3(origin.x + mnx, floorY, origin.z + mnz);   // anchor = footprint corner
+            // KI-5b: PER-AXIS wall insets. Exterior wall -> the full band; interior
+            // partition -> the half of the straddling band inside this room's edge
+            // cube (a sconce inset 9 micro off a 2-micro partition floated ~0.8 m off
+            // the wall). Corners get each axis's own inset — flush to both walls.
+            // ONLY when the caller supplied the thickness (extTMicro > 0): the legacy
+            // two-step convention (furnish with extTMicro=0, real thickness applied
+            // later via microWorldPos's parameter) must keep the -1 sentinel — baking
+            // 0 here poisoned the fallback and embedded furniture INSIDE walls
+            // (auditor-caught: MicroPlacementOverlapTest went 0 -> 234 overlaps).
+            if (extTMicro > 0) {
+                if (f.backDir.x != 0) {
+                    const bool extX = (f.backDir.x < 0 && rx == fpMinX) ||
+                                      (f.backDir.x > 0 && rx + rw == fpMaxX1);
+                    f.insetMicroX = extX ? extTMicro : (intTMicro + 1) / 2;
+                }
+                if (f.backDir.z != 0) {
+                    const bool extZ = (f.backDir.z < 0 && rz == fpMinZ) ||
+                                      (f.backDir.z > 0 && rz + rd == fpMaxZ1);
+                    f.insetMicroZ = extZ ? extTMicro : (intTMicro + 1) / 2;
+                }
+            }
             out.push_back(f);
         };
 

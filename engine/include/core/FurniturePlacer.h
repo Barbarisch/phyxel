@@ -35,6 +35,11 @@ struct FurniturePlacement {
     glm::ivec3  backDir{0};  ///< OUTWARD normal of the wall this piece backs onto (0 = centre/interior);
                              ///< the consumer insets the piece by the wall thickness along -backDir so
                              ///< it sits flush against the wall's interior face, not inside the wall.
+    int         insetMicroX = -1; ///< KI-5b: PER-AXIS wall-band insets — exterior thickness on
+    int         insetMicroZ = -1; ///< footprint-edge walls, the straddling band's half on interior
+                             ///< partitions (a sconce inset 9 micro off a 2-micro partition floated
+                             ///< ~0.8 m off the wall; a CORNER piece needs different insets per
+                             ///< axis to be flush to both walls). -1 = legacy (extTMicro param).
 };
 
 /// A fixture's real footprint in CUBES (from the asset library's .metrics.json bounding box).
@@ -102,7 +107,8 @@ public:
                                                    std::vector<UnplacedFixture>* unplaced = nullptr,
                                                    int extTMicro = 0,
                                                    const std::string& wealthTier = "",
-                                                   const std::vector<Rect>& reservedRects = {});
+                                                   const std::vector<Rect>& reservedRects = {},
+                                                   int intTMicro = 2);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

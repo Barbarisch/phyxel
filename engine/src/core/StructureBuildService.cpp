@@ -699,7 +699,10 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             auto placements = FurniturePlacer::furnish(
                 story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
                 &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span
-                wealthTier, stairRects);
+                wealthTier, stairRects,
+                // KI-5b: interior partitions inset by their own (thin) band, not the
+                // exterior thickness — wall fixtures sit flush on partition walls too.
+                StructureRealizer::thicknessMicro(style.thicknessOf("interior_wall", 0.222)));
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);
