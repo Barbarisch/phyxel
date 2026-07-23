@@ -33,10 +33,15 @@ from ..detectors import detect_seated_posture as posture_detector  # noqa: F401
 
 
 # Margins for compatibility checks (metres).
+# MUST stay in sync with runSitCompatChecks in editor/src/Application.cpp
+# (rule set, thresholds, AND severities — the runtime matrix asserts parity).
+# Seat-fit policy (docs/CharacterLibraryPlan.md): fit failures are HARD errors
+# — accuracy over coverage, a character never sits where it doesn't fit.
 _HIP_CLEARANCE = 0.05      # seat must exceed hip width by at least this.
 _DEPTH_CLEARANCE = 0.10    # buttock-to-knee depth headroom.
 _FOOT_DROP_MAX = 0.20      # how far feet can dangle below seat before "too tall".
 _BACKREST_HEAD_MAX = 0.10  # backrest may exceed shoulder height by this; above that warns.
+_KNEE_RISE_MAX = 0.35      # how far knees may rise above hips before "too low".
 
 
 class _Sit:
@@ -117,7 +122,7 @@ class _Sit:
                 issues.append(CompatibilityIssue(
                     rule_id="SEAT_TOO_SHALLOW",
                     message=f"Seat depth {seat_depth:.3f}m too shallow for body depth {body_depth:.3f}m",
-                    measured=seat_depth, required=need, severity="warn",
+                    measured=seat_depth, required=need, severity="error",
                 ))
         # Height: feet shouldn't dangle absurdly. Use seat_top_y as floor-to-seat.
         if seat_top_y > 0.0 and leg_length > 0.0:
@@ -127,7 +132,16 @@ class _Sit:
                     rule_id="SEAT_TOO_TALL",
                     message=f"Seat {seat_top_y:.3f}m above floor; legs only {leg_length:.3f}m "
                             f"(feet dangle {overhang:.3f}m, max {_FOOT_DROP_MAX:.2f}m)",
-                    measured=overhang, required=_FOOT_DROP_MAX, severity="warn",
+                    measured=overhang, required=_FOOT_DROP_MAX, severity="error",
+                ))
+            # Big body on a tiny seat: knees rise far above the hips (squat).
+            knee_rise = leg_length - seat_top_y
+            if knee_rise > _KNEE_RISE_MAX:
+                issues.append(CompatibilityIssue(
+                    rule_id="SEAT_TOO_LOW",
+                    message=f"Seat {seat_top_y:.3f}m too low for leg length {leg_length:.3f}m "
+                            f"(knees rise {knee_rise:.3f}m, max {_KNEE_RISE_MAX:.2f}m)",
+                    measured=knee_rise, required=_KNEE_RISE_MAX, severity="error",
                 ))
         # Backrest blocks the view: warn if backrest top extends well above eye level
         # measured from seat-relative-to-eye (eye is from floor, backrest is from seat).

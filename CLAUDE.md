@@ -148,6 +148,9 @@ Use the `/visual-test` skill — it handles the full lifecycle (build check → 
   chunkOrigin = chunkCoord * 32;
   ```
 - World coordinates can be negative. Local coordinates are always 0–31.
+- **Character facing: model-space face = +Z** (`getForwardDirection()` = +Z at yaw 0; face
+  features on rigs go at positive Z). Authoritative: `docs/CoordinateSystem.md` §Character
+  Facing; pinned by `CharacterFacingTest`. Never read facing off screenshots of patrolling NPCs.
 
 ## Materials
 

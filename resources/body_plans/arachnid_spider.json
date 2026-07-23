@@ -1,0 +1,42 @@
+{
+  "id": "arachnid_spider",
+  "morphology": "arachnid",
+  "gaitClass": "arachnid_clips",
+  "rootBone": "root",
+  "hipAliases": ["cephalothorax", "root"],
+  "gripBone": "fang_L",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.2, "maxHalfWidth": 1.2 },
+  "legs": [
+    { "id": "leg1_left",  "upper": "leg1_coxa_L", "mid": "leg1_femur_L", "foot": "leg1_tibia_L", "footIK": false },
+    { "id": "leg2_left",  "upper": "leg2_coxa_L", "mid": "leg2_femur_L", "foot": "leg2_tibia_L", "footIK": false },
+    { "id": "leg3_left",  "upper": "leg3_coxa_L", "mid": "leg3_femur_L", "foot": "leg3_tibia_L", "footIK": false },
+    { "id": "leg4_left",  "upper": "leg4_coxa_L", "mid": "leg4_femur_L", "foot": "leg4_tibia_L", "footIK": false },
+    { "id": "leg1_right", "upper": "leg1_coxa_R", "mid": "leg1_femur_R", "foot": "leg1_tibia_R", "footIK": false },
+    { "id": "leg2_right", "upper": "leg2_coxa_R", "mid": "leg2_femur_R", "foot": "leg2_tibia_R", "footIK": false },
+    { "id": "leg3_right", "upper": "leg3_coxa_R", "mid": "leg3_femur_R", "foot": "leg3_tibia_R", "footIK": false },
+    { "id": "leg4_right", "upper": "leg4_coxa_R", "mid": "leg4_femur_R", "foot": "leg4_tibia_R", "footIK": false }
+  ],
+  "segments": [
+    { "bone": "cephalothorax", "isArm": false },
+    { "bone": "thorax",        "isArm": false },
+    { "bone": "abdomen",       "isArm": false },
+    { "bone": "leg1_femur_L",  "isArm": false },
+    { "bone": "leg2_femur_L",  "isArm": false },
+    { "bone": "leg3_femur_L",  "isArm": false },
+    { "bone": "leg4_femur_L",  "isArm": false },
+    { "bone": "leg1_femur_R",  "isArm": false },
+    { "bone": "leg2_femur_R",  "isArm": false },
+    { "bone": "leg3_femur_R",  "isArm": false },
+    { "bone": "leg4_femur_R",  "isArm": false }
+  ],
+  "clipDefaults": {
+    "Idle":      "Spider_Armature|warte_pose",
+    "Walk":      "Spider_Armature|walk_ani_vor",
+    "StartWalk": "Spider_Armature|walk_ani_vor",
+    "Run":       "Spider_Armature|run_ani_vor",
+    "Jump":      "Spider_Armature|Jump",
+    "Fall":      "Spider_Armature|fall",
+    "Attack":    "Spider_Armature|Attack",
+    "Death":     "Spider_Armature|die"
+  }
+}

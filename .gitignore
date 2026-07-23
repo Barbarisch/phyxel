@@ -270,3 +270,6 @@ tools/interaction_pipeline/reports/
 # Stray backup / generation-metrics artifacts
 *.bak
 *.metrics.json
+# EXCEPT template seat/interaction metrics sidecars — the seat-fit gate
+# (deny-on-missing) makes them required runtime data, not artifacts.
+!resources/templates/*.metrics.json

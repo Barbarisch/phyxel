@@ -6,7 +6,7 @@
 # materials:    WoodWalnut, Log, Sandstone, Sand, Bricks, Gold, Metal, Leaf
 # facing:       +Z (seat faces +Z, backrest at -Z)
 # seat_height:  0.667
-interaction_point: seat_0 seat 0.333 0.667 0.333 0.0 *
+# interaction_point: seat_0 seat 0.333 0.667 0.333 0.0 *
 # primitives:   0 C + 0 S + 138 M = 138
 # method:       structure_pipeline.furniture (multi-resolution DetailCanvas)
 # ==========================================================

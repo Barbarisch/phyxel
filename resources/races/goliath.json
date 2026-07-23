@@ -1,0 +1,21 @@
+{
+  "id": "goliath",
+  "name": "Goliath",
+  "abilityBonuses": { "STR": 2, "CON": 1 },
+  "speed": 30,
+  "darkvisionRange": 0,
+  "traits": ["Natural Athlete", "Stone's Endurance", "Powerful Build", "Mountain Born"],
+  "languages": ["Common", "Giant"],
+  "proficiencies": ["athletics"],
+  "visual": {
+    "appearancePreset": "goliath",
+    "palette": {
+      "skinTones": [
+        { "r": 0.62, "g": 0.62, "b": 0.64 },
+        { "r": 0.55, "g": 0.56, "b": 0.58 },
+        { "r": 0.48, "g": 0.50, "b": 0.52 },
+        { "r": 0.68, "g": 0.66, "b": 0.62 }
+      ]
+    }
+  }
+}

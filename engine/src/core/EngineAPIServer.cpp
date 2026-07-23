@@ -2590,6 +2590,24 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/interaction/find_seat — "Find me a seat that fits."
+    // Body: { "entity_id": "...", "radius": 30.0, "position": {x,y,z}? }
+    // Returns nearest-first list of FREE seat points the character passes the
+    // fit gate on: { success, count, seats: [{object_id, point_id,
+    // template_name, distance, seat_world_pos}] }. Uncharacterized seats are
+    // excluded (deny-on-missing, matches the sit gate).
+    srv.Post("/api/interaction/find_seat", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("find_fitting_seat", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
+
     // POST /api/interaction/force_interact — Scripted/cutscene path.
     // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0" }
     // Bypasses the compatibility gate (use for cutscenes / mocap capture /

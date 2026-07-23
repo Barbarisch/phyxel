@@ -255,10 +255,18 @@ def _build_character_npc_def(args: dict, profile: dict) -> dict:
 
     npc_def: dict = {
         "name": args["name"],
-        "animFile": args.get("animFile", "resources/animated_characters/humanoid.anim"),
         "behavior": args.get("behavior", "idle"),
         "storyCharacter": profile,
     }
+    # Visual selection: pass race/appearance/animFile through to the engine's
+    # CharacterVisualResolver (race -> preset + palette + model) instead of
+    # hard-defaulting humanoid.anim here.
+    if "animFile" in args:
+        npc_def["animFile"] = args["animFile"]
+    if "race" in args:
+        npc_def["race"] = args["race"]
+    if "appearance" in args:
+        npc_def["appearance"] = args["appearance"]
     if "position" in args:
         npc_def["position"] = args["position"]
     elif all(k in args for k in ("x", "y", "z")):
@@ -1631,12 +1639,15 @@ async def list_tools() -> list[Tool]:
         # ================================================================
         Tool(
             name="spawn_npc",
-            description="Spawn an NPC with an animated voxel character. NPCs can have idle or patrol behaviors and can be interacted with using the E key. Supports dialogue trees via set_npc_dialogue.",
+            description="Spawn an NPC with an animated voxel character. NPCs can have idle or patrol behaviors and can be interacted with using the E key. Supports dialogue trees via set_npc_dialogue. Pass 'race' (e.g. dwarf_mountain, halfling_lightfoot, goliath — ids from resources/races/) to get that race's body proportions, skin tone, and model automatically.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Unique NPC name/identifier"},
-                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)", "default": "resources/animated_characters/humanoid.anim"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ (human, elf_high, dwarf_mountain, halfling_lightfoot, half_orc, tiefling, gnome_rock, goliath, dragonborn). Applies the race's appearance preset, palette, and model."},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim, or the race's model if 'race' is given)", "default": "resources/animated_characters/humanoid.anim"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset (dwarf, halfling, giant, ...). Overrides race defaults field-by-field."},
+                    "animationMapping": {"type": "object", "description": "FSM state -> clip overrides for gait flavor, e.g. {\"Walk\":\"ogre_walk\",\"Idle\":\"ogre_idle\"}. Merged over the race's own mapping."},
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
@@ -1700,9 +1711,13 @@ async def list_tools() -> list[Tool]:
                 "Set or update appearance (colors and proportions) of an existing NPC. "
                 "Only provided fields are changed; others keep their current values. "
                 "Proportion changes rebuild the character's skeleton in real-time. "
+                "Pass 'preset' (dwarf, halfling, gnome, elf, giant, goliath, half_orc, "
+                "tiefling, dragonborn, child, standard) to apply a full proportion set; "
+                "other given fields then override it. "
                 "Fields: heightScale (0.4-1.6), bulkScale (0.5-1.8), headScale (0.6-1.6), "
                 "armLengthScale (0.5-1.5), legLengthScale (0.5-1.5), torsoLengthScale (0.6-1.5), "
-                "shoulderWidthScale (0.5-1.6), "
+                "shoulderWidthScale (0.5-1.6), tailLengthScale/wingSpanScale/neckLengthScale "
+                "(creature rigs), "
                 "skinColor/torsoColor/armColor/legColor ({r,g,b,a} 0.0-1.0)."
             ),
             inputSchema={
@@ -1713,6 +1728,7 @@ async def list_tools() -> list[Tool]:
                         "type": "object",
                         "description": "Partial appearance object — only include fields you want to change",
                         "properties": {
+                            "preset": {"type": "string", "description": "Appearance preset id from resources/appearance_presets.json — applies its full proportion set first"},
                             "heightScale": {"type": "number"},
                             "bulkScale": {"type": "number"},
                             "headScale": {"type": "number"},
@@ -1720,6 +1736,11 @@ async def list_tools() -> list[Tool]:
                             "legLengthScale": {"type": "number"},
                             "torsoLengthScale": {"type": "number"},
                             "shoulderWidthScale": {"type": "number"},
+                            "tailLengthScale": {"type": "number"},
+                            "wingSpanScale": {"type": "number"},
+                            "neckLengthScale": {"type": "number"},
+                            "bellyScale": {"type": "number", "description": "Lower-torso depth (gut) — 1.0 none, ~1.45 ogre pot belly"},
+                            "postureLeanDeg": {"type": "number", "description": "Forward spine hunch in degrees — 0 upright, ~12 ogre"},
                             "skinColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "torsoColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
                             "armColor": {"type": "object", "properties": {"r": {"type": "number"}, "g": {"type": "number"}, "b": {"type": "number"}, "a": {"type": "number"}}},
@@ -2108,7 +2129,9 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "NPC name (unique identifier)"},
-                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim)"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ (human, elf_high, dwarf_mountain, halfling_lightfoot, half_orc, tiefling, gnome_rock, goliath, dragonborn). Applies the race's appearance preset, palette, and model."},
+                    "animFile": {"type": "string", "description": "Animation file (default: resources/animated_characters/humanoid.anim, or the race's model if 'race' is given)"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset. Overrides race defaults field-by-field."},
                     "position": {"type": "object", "description": "{x, y, z} world coordinates",
                                  "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
                     "behavior": {"type": "string", "enum": ["idle", "patrol"], "description": "NPC behavior type"},
@@ -2155,6 +2178,8 @@ async def list_tools() -> list[Tool]:
                     "role": {"type": "string", "description": "Primary role tag, e.g. 'merchant', 'guard'"},
                     "agency": {"type": "string", "enum": ["scripted", "templated", "guided", "autonomous"],
                                "description": "How much the AI drives the character (default: guided)"},
+                    "race": {"type": "string", "description": "Race id from resources/races/ — applies the race's body proportions, skin tone, and model"},
+                    "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON; may include 'preset'. Overrides race defaults field-by-field."},
                     "animFile": {"type": "string"},
                     "behavior": {"type": "string", "enum": ["idle", "patrol"]},
                     "waypoints": {"type": "array", "items": {"type": "object"}}
@@ -3804,7 +3829,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="sit_character",
-            description="Sit an animated entity at a placed object's named interaction point. Looks up the seat's world position and facing (rotation-corrected), applies any existing calibration profile, then drives the stand_to_sit → sitting_idle animation sequence.",
+            description="Sit an animated entity at a placed object's named interaction point. HARD-GATED on fit: refuses (success:false + nearest_fitting_seat redirect) when the character does not fit the seat (SEAT_TOO_NARROW/SHALLOW/TALL/LOW) or the seat has no metrics sidecar (accuracy over coverage — characterize with tools/characterize_asset.py). Use find_fitting_seat or can_interact to pick a legal seat first.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -3813,6 +3838,34 @@ async def list_tools() -> list[Tool]:
                     "point_id":  {"type": "string", "description": "Interaction point ID on the object (default: 'seat_0')"}
                 },
                 "required": ["entity_id", "object_id"]
+            }
+        ),
+        Tool(
+            name="can_interact",
+            description="Read-only fit check: would this character be allowed to use this interaction point? Runs the same compatibility rules as sit_character without executing anything. Returns can_interact plus the rule-level issues (SEAT_TOO_NARROW/SHALLOW/TALL/LOW, BACKREST_BLOCKS_VIEW). Seats without metrics sidecars report can_interact=false (deny-on-missing).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "object_id": {"type": "string", "description": "Placed object ID"},
+                    "point_id":  {"type": "string", "description": "Interaction point ID (default: 'seat_0')"},
+                    "kind":      {"type": "string", "description": "Interaction kind (default: 'sit')"}
+                },
+                "required": ["entity_id", "object_id"]
+            }
+        ),
+        Tool(
+            name="find_fitting_seat",
+            description="Find free seats the character actually FITS, nearest first. Runs the full fit gate per candidate, so any returned seat is one sit_character will allow. Excludes occupied seats and seats without metrics sidecars. Use this for seat selection instead of guessing.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entity_id": {"type": "string", "description": "Entity ID (e.g. 'player', 'npc_Guard')"},
+                    "radius": {"type": "number", "description": "Search radius in voxels (default 30)"},
+                    "position": {"type": "object", "description": "Optional search origin {x,y,z} (default: the character's position)", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}}
+                },
+                "required": ["entity_id"]
             }
         ),
         Tool(
@@ -5136,6 +5189,12 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- NPC Management ---
     elif name == "spawn_npc":
         body: dict[str, Any] = {"name": args["name"]}
+        if "race" in args:
+            body["race"] = args["race"]
+        if "appearance" in args:
+            body["appearance"] = args["appearance"]
+        if "animationMapping" in args:
+            body["animationMapping"] = args["animationMapping"]
         if "animFile" in args:
             body["animFile"] = args["animFile"]
         if "position" in args:
@@ -5832,6 +5891,22 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "point_id" in args:
             body["point_id"] = args["point_id"]
         return await api_post("/api/interaction/sit", body)
+
+    elif name == "can_interact":
+        body = {"entity_id": args["entity_id"], "object_id": args["object_id"]}
+        if "point_id" in args:
+            body["point_id"] = args["point_id"]
+        if "kind" in args:
+            body["kind"] = args["kind"]
+        return await api_post("/api/interaction/can_interact", body)
+
+    elif name == "find_fitting_seat":
+        body = {"entity_id": args["entity_id"]}
+        if "radius" in args:
+            body["radius"] = args["radius"]
+        if "position" in args:
+            body["position"] = args["position"]
+        return await api_post("/api/interaction/find_seat", body)
 
     elif name == "stand_up_character":
         return await api_post("/api/interaction/stand_up", {"entity_id": args["entity_id"]})

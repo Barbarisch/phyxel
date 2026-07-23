@@ -10,13 +10,23 @@ pipeline: load a chair, spawn each preset in turn via the
 `spawn_for_test` engine endpoint, characterise the resulting metrics, run
 `can_interact`, then sit and capture posture telemetry.
 
+SOURCE OF TRUTH: resources/appearance_presets.json — shared with the engine's
+C++ AppearancePresetRegistry (races resolve presets through it at spawn).
+This module loads that file; do not hardcode proportion values here, edit the
+JSON instead so Python and C++ can never drift.
+
 Fields mirror `engine/include/scene/CharacterAppearance.h::CharacterAppearance`.
 Only the proportion scales are set here; colors are left at defaults.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PRESETS_JSON = _REPO_ROOT / "resources" / "appearance_presets.json"
 
 
 @dataclass(frozen=True)
@@ -49,149 +59,42 @@ class MorphologyPreset:
         }
 
 
-# ---------------------------------------------------------------------------
-# Built-in presets
-# ---------------------------------------------------------------------------
-
-# Numbers chosen to span the morphology space we care about for furniture
-# interaction. Keep extremes inside what the rig handles without bone clipping:
-# the rig has been tested up to ~1.3x and down to ~0.6x.
-
-STANDARD = MorphologyPreset(
-    preset_id="standard",
-    description="Default humanoid proportions (1.0 across the board).",
-)
-
-GIANT = MorphologyPreset(
-    preset_id="giant",
-    description="~7ft tall, heavier build. Tests SEAT_TOO_NARROW / SEAT_TOO_SHALLOW.",
-    height_scale=1.25,
-    bulk_scale=1.30,
-    leg_length_scale=1.25,
-    torso_length_scale=1.20,
-    shoulder_width_scale=1.20,
-    arm_length_scale=1.20,
-)
-
-DWARF = MorphologyPreset(
-    preset_id="dwarf",
-    description="~60% height with 150% bulk. Tests SEAT_TOO_TALL.",
-    height_scale=0.60,
-    bulk_scale=1.50,
-    leg_length_scale=0.55,
-    torso_length_scale=0.70,
-    shoulder_width_scale=1.10,
-    head_scale=1.10,
-)
-
-CHILD = MorphologyPreset(
-    preset_id="child",
-    description="Small, thin character. Easy fit for everything.",
-    height_scale=0.70,
-    bulk_scale=0.75,
-    leg_length_scale=0.65,
-    torso_length_scale=0.80,
-    head_scale=1.15,
-)
-
-# ---------------------------------------------------------------------------
-# D&D race presets (Phase K)
-#
-# Sized against the canonical "Standard" rig at 1.0. We aim for *relative*
-# silhouette differences — the engine sit-code reads the preset_id off
-# CharacterAppearance and resolves per-character interaction overrides.
-#
-# All scales kept inside the rig-tested band (0.6 .. 1.3) to avoid bone
-# clipping. Dwarf reuses the existing testing preset.
-# ---------------------------------------------------------------------------
-
-HALFLING = MorphologyPreset(
-    preset_id="halfling",
-    description="~3ft tall, slight build, slightly larger head.",
-    height_scale=0.65,
-    bulk_scale=0.80,
-    leg_length_scale=0.60,
-    torso_length_scale=0.75,
-    arm_length_scale=0.70,
-    shoulder_width_scale=0.85,
-    head_scale=1.10,
-)
-
-GNOME = MorphologyPreset(
-    preset_id="gnome",
-    description="~3.5ft, slim, large head.",
-    height_scale=0.70,
-    bulk_scale=0.75,
-    leg_length_scale=0.65,
-    torso_length_scale=0.80,
-    arm_length_scale=0.75,
-    shoulder_width_scale=0.85,
-    head_scale=1.15,
-)
-
-ELF = MorphologyPreset(
-    preset_id="elf",
-    description="Tall and slender; long limbs, narrow frame.",
-    height_scale=1.05,
-    bulk_scale=0.85,
-    leg_length_scale=1.10,
-    torso_length_scale=1.00,
-    arm_length_scale=1.10,
-    shoulder_width_scale=0.95,
-)
-
-TIEFLING = MorphologyPreset(
-    preset_id="tiefling",
-    description="Slightly above human height; balanced proportions.",
-    height_scale=1.05,
-    bulk_scale=1.00,
-    leg_length_scale=1.05,
-    torso_length_scale=1.05,
-    arm_length_scale=1.05,
-    shoulder_width_scale=1.00,
-)
-
-DRAGONBORN = MorphologyPreset(
-    preset_id="dragonborn",
-    description="~6.5ft, broad shoulders, heavy torso.",
-    height_scale=1.15,
-    bulk_scale=1.20,
-    leg_length_scale=1.10,
-    torso_length_scale=1.15,
-    arm_length_scale=1.15,
-    shoulder_width_scale=1.20,
-)
-
-HALF_ORC = MorphologyPreset(
-    preset_id="half_orc",
-    description="~6.5ft, heavy bulk and very broad shoulders.",
-    height_scale=1.15,
-    bulk_scale=1.25,
-    leg_length_scale=1.10,
-    torso_length_scale=1.15,
-    arm_length_scale=1.15,
-    shoulder_width_scale=1.25,
-)
-
-GOLIATH = MorphologyPreset(
-    preset_id="goliath",
-    description="~7-8ft, the heaviest of the playable races.",
-    height_scale=1.28,
-    bulk_scale=1.30,
-    leg_length_scale=1.28,
-    torso_length_scale=1.22,
-    arm_length_scale=1.22,
-    shoulder_width_scale=1.25,
-)
+def _load_builtins() -> Mapping[str, MorphologyPreset]:
+    with open(_PRESETS_JSON, encoding="utf-8") as f:
+        doc = json.load(f)
+    presets: dict[str, MorphologyPreset] = {}
+    for entry in doc["presets"]:
+        pid = entry["presetId"]
+        presets[pid] = MorphologyPreset(
+            preset_id=pid,
+            description=entry.get("description", ""),
+            height_scale=entry.get("heightScale", 1.0),
+            bulk_scale=entry.get("bulkScale", 1.0),
+            head_scale=entry.get("headScale", 1.0),
+            arm_length_scale=entry.get("armLengthScale", 1.0),
+            leg_length_scale=entry.get("legLengthScale", 1.0),
+            torso_length_scale=entry.get("torsoLengthScale", 1.0),
+            shoulder_width_scale=entry.get("shoulderWidthScale", 1.0),
+        )
+    return presets
 
 
-_BUILT_INS: Mapping[str, MorphologyPreset] = {
-    p.preset_id: p for p in (
-        STANDARD, GIANT, DWARF, CHILD,
-        HALFLING, GNOME, ELF, TIEFLING,
-        DRAGONBORN, HALF_ORC, GOLIATH,
-    )
-}
+_BUILT_INS: Mapping[str, MorphologyPreset] = _load_builtins()
+
+# Named constants kept for existing imports (test matrices reference these).
+STANDARD   = _BUILT_INS["standard"]
+GIANT      = _BUILT_INS["giant"]
+DWARF      = _BUILT_INS["dwarf"]
+CHILD      = _BUILT_INS["child"]
+HALFLING   = _BUILT_INS["halfling"]
+GNOME      = _BUILT_INS["gnome"]
+ELF        = _BUILT_INS["elf"]
+TIEFLING   = _BUILT_INS["tiefling"]
+DRAGONBORN = _BUILT_INS["dragonborn"]
+HALF_ORC   = _BUILT_INS["half_orc"]
+GOLIATH    = _BUILT_INS["goliath"]
+GOBLIN     = _BUILT_INS["goblin"]
+OGRE       = _BUILT_INS["ogre"]
 
 
 def get(preset_id: str) -> MorphologyPreset:
@@ -212,5 +115,6 @@ __all__ = [
     "STANDARD", "GIANT", "DWARF", "CHILD",
     "HALFLING", "GNOME", "ELF", "TIEFLING",
     "DRAGONBORN", "HALF_ORC", "GOLIATH",
+    "GOBLIN", "OGRE",
     "get", "all_presets",
 ]

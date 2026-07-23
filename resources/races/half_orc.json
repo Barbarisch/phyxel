@@ -6,5 +6,17 @@
   "darkvisionRange": 60,
   "traits": ["Darkvision", "Menacing", "Relentless Endurance", "Savage Attacks"],
   "languages": ["Common", "Orc"],
-  "proficiencies": []
+  "proficiencies": [],
+  "visual": {
+    "appearancePreset": "half_orc",
+    "palette": {
+      "skinTones": [
+        { "r": 0.55, "g": 0.65, "b": 0.42 },
+        { "r": 0.48, "g": 0.58, "b": 0.38 },
+        { "r": 0.42, "g": 0.52, "b": 0.36 },
+        { "r": 0.52, "g": 0.56, "b": 0.44 },
+        { "r": 0.54, "g": 0.60, "b": 0.46 }
+      ]
+    }
+  }
 }

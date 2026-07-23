@@ -478,8 +478,16 @@ namespace Scene {
             if (appearance_.morphology == MorphologyType::Unknown) {
                 appearance_.morphology = detectMorphology(skeleton);
             }
+            adoptBodyPlan();
 
             configureAnimationFixes();
+            // Apply appearance proportions set before load (race presets etc.)
+            // — same order as loadFromSkeleton()/rebuildWithAppearance().
+            // Without this, buildBodiesFromModel scales the boxes but the
+            // skeleton and animation keys stay at standard height, so a
+            // proportioned character renders as scattered fragments.
+            applySkeletonProportions();
+            resizeController();
             buildBodiesFromModel();
             return true;
         }
@@ -508,12 +516,23 @@ namespace Scene {
         if (appearance_.morphology == MorphologyType::Unknown) {
             appearance_.morphology = detectMorphology(skeleton);
         }
+        adoptBodyPlan();
 
         configureAnimationFixes();
         applySkeletonProportions();
         resizeController();
         buildBodiesFromModel();
         return true;
+    }
+
+    void AnimatedVoxelCharacter::adoptBodyPlan() {
+        auto& registry = Scene::BodyPlanRegistry::instance();
+        registry.ensureLoaded();
+        m_bodyPlan = registry.planForSkeleton(appearance_.morphology, skeleton);
+        m_bodyPlanResolved = m_bodyPlan.resolveAgainst(skeleton);
+        LOG_DEBUG("Character", "adopted body plan '{}' (root={}, legs={}, segments={})",
+                  m_bodyPlan.id, m_bodyPlanResolved.rootBoneId,
+                  m_bodyPlanResolved.legs.size(), m_bodyPlanResolved.segments.size());
     }
 
     // Determine per-limb scale factors for a bone based on its lowercased name.
@@ -627,13 +646,24 @@ namespace Scene {
         // Without this, only the visual box sizes change but joints stay in place,
         // so characters all look the same height/shape.
         for (auto& bone : skeleton.bones) {
-            if (bone.parentId == -1) continue; // Skip root bone
-
-            std::string nameLower = bone.name;
-            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-
             float lengthScale = 1.0f, thicknessScale = 1.0f;
-            getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+            if (bone.parentId == -1) {
+                // ROOT (Hips): scale its bind height by heightScale so the
+                // whole model space is uniformly scaled. Leaving it unscaled
+                // (the old skip) hung a shrunken skeleton from a
+                // standard-height root: resizeController compensated with a
+                // large skeletonFootOffset_ (0.61 for a halfling) so
+                // STANDING looked right, but the seat anchor math does not
+                // apply that offset while the renderer subtracts it — every
+                // proportioned character sat sunk by exactly that offset
+                // (validity gauntlet 2026-07-22: halfling pelvis error
+                // 0.725, constant per preset across all seats).
+                lengthScale = appearance_.heightScale;
+            } else {
+                std::string nameLower = bone.name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+            }
 
             // Scale the bone's position relative to its parent (this is what determines
             // actual limb length / body proportions)
@@ -643,18 +673,30 @@ namespace Scene {
 
         // Scale animation position keyframes to match the new skeleton proportions.
         // Otherwise animations would snap joints back to their original unscaled positions.
+        //
+        // The ROOT (Hips, bone 0) channel is scaled too, by heightScale: its
+        // position keys carry the body's trajectory — seated hip heights,
+        // locomotion bob, jump arcs. Leaving it unscaled (the old `boneId <= 0`
+        // skip) left every proportioned character animating around a
+        // STANDARD-sized trajectory; the sit anchoring samples its Hips
+        // references from these keys, which sank every small preset through
+        // the floor when seated (validity gauntlet, 2026-07-22: constant
+        // per-preset pelvis error — halfling 0.725, gnome 0.653, dwarf 0.480).
         for (auto& clip : clips) {
             for (auto& channel : clip.channels) {
-                if (channel.boneId <= 0 ||
+                if (channel.boneId < 0 ||
                     channel.boneId >= static_cast<int>(skeleton.bones.size()))
                     continue;
                 if (channel.positionKeys.empty()) continue;
 
-                std::string nameLower = skeleton.bones[channel.boneId].name;
-                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-
                 float lengthScale = 1.0f, thicknessScale = 1.0f;
-                getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+                if (channel.boneId == 0) {
+                    lengthScale = appearance_.heightScale;
+                } else {
+                    std::string nameLower = skeleton.bones[channel.boneId].name;
+                    std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                    getLimbScales(nameLower, appearance_, lengthScale, thicknessScale);
+                }
 
                 for (auto& key : channel.positionKeys) {
                     key.value *= lengthScale;
@@ -694,6 +736,65 @@ namespace Scene {
         return (maxY - minY) + 0.3f;
     }
 
+    // X-span of a skeleton's torso at bind pose (joint positions). Forearm,
+    // hand, and finger bones are excluded — the bind pose extends arms
+    // sideways (T-pose), which would inflate the span to wingspan. The
+    // upper-arm joint origin IS the shoulder socket, so "arm" bones stay
+    // included and the span captures shoulderWidthScale.
+    static float computeTorsoSpanX(const Skeleton& skel) {
+        std::vector<glm::mat4> transforms(skel.bones.size(), glm::mat4(1.0f));
+        float minX = 0.0f, maxX = 0.0f;
+        bool first = true;
+        for (size_t i = 0; i < skel.bones.size(); ++i) {
+            const auto& bone = skel.bones[i];
+            glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition);
+            local = local * glm::mat4_cast(bone.localRotation);
+            if (bone.parentId == -1)
+                transforms[i] = local;
+            else if (bone.parentId >= 0 && bone.parentId < static_cast<int>(skel.bones.size()))
+                transforms[i] = transforms[bone.parentId] * local;
+
+            std::string nameLower = bone.name;
+            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+            if (nameLower.find("forearm") != std::string::npos ||
+                nameLower.find("hand") != std::string::npos ||
+                nameLower.find("thumb") != std::string::npos ||
+                nameLower.find("index") != std::string::npos ||
+                nameLower.find("middle") != std::string::npos ||
+                nameLower.find("ring") != std::string::npos ||
+                nameLower.find("pinky") != std::string::npos ||
+                nameLower.find("end") != std::string::npos) {
+                continue;
+            }
+
+            float x = transforms[i][3][0];
+            if (first) { minX = maxX = x; first = false; }
+            else { minX = std::min(minX, x); maxX = std::max(maxX, x); }
+        }
+        return maxX - minX;
+    }
+
+    void AnimatedVoxelCharacter::applyPostureLean() {
+        if (appearance_.postureLeanDeg == 0.0f) return;
+
+        // Collect the spine chain (Spine, Spine1, Spine2 on Mixamo rigs) and
+        // distribute the total lean across it so the hunch curves naturally.
+        std::vector<Bone*> spineBones;
+        for (auto& bone : skeleton.bones) {
+            std::string nameLower = bone.name;
+            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+            if (nameLower.find("spine") != std::string::npos) spineBones.push_back(&bone);
+        }
+        if (spineBones.empty()) return;
+
+        const float perBoneRad =
+            glm::radians(appearance_.postureLeanDeg) / static_cast<float>(spineBones.size());
+        const glm::quat pitch = glm::angleAxis(perBoneRad, glm::vec3(1.0f, 0.0f, 0.0f));
+        for (Bone* bone : spineBones) {
+            bone->currentRotation = bone->currentRotation * pitch;
+        }
+    }
+
     void AnimatedVoxelCharacter::resizeController() {
         std::vector<glm::mat4> globalTransforms(skeleton.bones.size(), glm::mat4(1.0f));
         for (size_t i = 0; i < skeleton.bones.size(); ++i) {
@@ -718,9 +819,47 @@ namespace Scene {
 
         skeletonFootOffset_ = minY;
         m_originalHalfHeight = characterHeight * 0.5f;
-        m_originalHalfWidth  = 0.25f;
+
+        if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {
+            // Long-bodied plans (quadruped/arachnid/dragon): the biped
+            // torso-span ratio under-sizes a body that is long, not tall.
+            // Half-width = the larger bind-pose |x|/|z| bone extent, clamped
+            // to the plan's bounds.
+            float maxAbsXZ = 0.0f;
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][0]));
+                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][2]));
+            }
+            m_originalHalfWidth = glm::clamp(maxAbsXZ,
+                                             m_bodyPlan.capsule.minHalfWidth,
+                                             m_bodyPlan.capsule.maxHalfWidth);
+        } else {
+            // Legacy (biped) path — byte-for-byte the pre-body-plan behavior
+            // (golden layer 2 pins it): capsule width scales with the
+            // proportioned skeleton via the torso X-span ratio applied to the
+            // legacy 0.25 base. Standard (ratio 1.0) keeps exactly the legacy
+            // capsule; wide presets widen, small races narrow.
+            float widthRatio = 1.0f;
+            if (hasOriginalTemplate_) {
+                float templateSpan = computeTorsoSpanX(originalSkeleton_);
+                float scaledSpan   = computeTorsoSpanX(skeleton);
+                if (templateSpan > 0.01f) widthRatio = scaledSpan / templateSpan;
+            }
+            m_originalHalfWidth = glm::clamp(0.25f * widthRatio, 0.12f, 0.60f);
+        }
+
+        // Step height scales with leg length (longer legs step higher).
+        // Floored just above the 1/3-voxel subcube riser so every race can
+        // climb generated stairs (L3 navigability contract — structures are
+        // built on the subcube-step grid); capped so giants don't glide over
+        // half-walls. Standard (factor 1.0) keeps the legacy 4/9 exactly.
+        // The debug-UI setMaxStepHeight slider still overrides after load.
+        float legFactor = appearance_.heightScale * appearance_.legLengthScale;
+        m_maxStepHeight = glm::clamp((4.0f / 9.0f) * legFactor, 0.34f, 0.70f);
 
         LOG_INFO_FMT("Character", "resizeController: height=" << characterHeight
+                      << " halfWidth=" << m_originalHalfWidth
+                      << " maxStep=" << m_maxStepHeight
                       << " footOffset=" << skeletonFootOffset_
                       << " minY=" << minY << " maxY=" << maxY);
     }
@@ -874,13 +1013,24 @@ namespace Scene {
                 float limbLength = 1.0f, limbThickness = 1.0f;
                 getLimbScales(nameLower, appearance_, limbLength, limbThickness);
 
+                // Belly shaping: extra depth (+half as much width) on the
+                // lower torso only — hips/spine/spine1, not the chest — so
+                // a gut reads as a gut instead of uniform thickness.
+                const bool isBellyBone =
+                    (nameLower.find("spine") != std::string::npos &&
+                     nameLower.find("spine2") == std::string::npos) ||
+                    nameLower.find("hip") != std::string::npos;
+                const float bellyZ = isBellyBone ? appearance_.bellyScale : 1.0f;
+                const float bellyX = isBellyBone
+                    ? 1.0f + (appearance_.bellyScale - 1.0f) * 0.5f : 1.0f;
+
                 if (nameLower.find("head") != std::string::npos) {
                     totalSize *= appearance_.headScale;
                     centerOffset *= appearance_.headScale;
                 } else {
-                    totalSize.x *= limbThickness;
+                    totalSize.x *= limbThickness * bellyX;
                     totalSize.y *= limbLength;
-                    totalSize.z *= limbThickness;
+                    totalSize.z *= limbThickness * bellyZ;
                     centerOffset.y *= limbLength;
                 }
 
@@ -891,16 +1041,20 @@ namespace Scene {
 
                     for (const auto& shape : shapes) {
                         glm::vec3 relativeOffset = shape.offset - centerOffset;
-                        glm::vec4 color = appearance_.getColorForBone(boneName);
+                        // Explicit per-box color (alpha > 0) wins over the
+                        // bone's appearance region color.
+                        glm::vec4 color = (shape.color.a > 0.0f)
+                            ? shape.color
+                            : appearance_.getColorForBone(boneName);
 
                         glm::vec3 scaledSize = shape.size;
                         if (nameLower.find("head") != std::string::npos) {
                             scaledSize *= appearance_.headScale;
                             relativeOffset *= appearance_.headScale;
                         } else {
-                            scaledSize.x *= limbThickness;
+                            scaledSize.x *= limbThickness * bellyX;
                             scaledSize.y *= limbLength;
-                            scaledSize.z *= limbThickness;
+                            scaledSize.z *= limbThickness * bellyZ;
                             relativeOffset.y *= limbLength;
                         }
 
@@ -1479,9 +1633,14 @@ namespace Scene {
         if (m_isSitting) return;
 
         // --- Cache hip bone index for per-frame tracking ---
-        m_hipBoneIndex = -1;
+        // Body-plan-driven: the plan's resolved root IS the hip/pelvis bone
+        // (exact name, then alias fallback — same algorithm the old substring
+        // scan approximated). Humanoid resolves the identical bone (index 0,
+        // pinned in BodyPlanTest); wolf now finds "pelvis" instead of falling
+        // through to the 0.8 default.
+        m_hipBoneIndex = m_bodyPlanResolved.rootBoneId;
         m_bindPoseHipHeight = 0.8f;  // sensible fallback
-        if (!skeleton.bones.empty()) {
+        if (m_hipBoneIndex >= 0 && m_hipBoneIndex < (int)skeleton.bones.size()) {
             std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
             for (size_t i = 0; i < skeleton.bones.size(); ++i) {
                 const auto& bone = skeleton.bones[i];
@@ -1489,16 +1648,8 @@ namespace Scene {
                                 * glm::mat4_cast(bone.localRotation);
                 globalT[i] = (bone.parentId < 0) ? local : globalT[bone.parentId] * local;
             }
-            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                std::string n = skeleton.bones[i].name;
-                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                if (n.find("hip") != std::string::npos) {
-                    m_hipBoneIndex = static_cast<int>(i);
-                    float h = globalT[i][3][1] - skeletonFootOffset_;
-                    if (h >= 0.1f) m_bindPoseHipHeight = h;
-                    break;
-                }
-            }
+            float h = globalT[m_hipBoneIndex][3][1] - skeletonFootOffset_;
+            if (h >= 0.1f) m_bindPoseHipHeight = h;
         }
 
         // Store seat anchor and apply height offset
@@ -1525,7 +1676,7 @@ namespace Scene {
         // Per-frame snap will subtract these from the seat anchor so that for
         // every state, the visible Hips lands at the seat at the reference frame,
         // and animates around it elsewhere in the clip.
-        auto findClipByName = [&](const char* name) -> int {
+        auto findClipByName = [&](const std::string& name) -> int {
             std::string lower = name;
             std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
             for (size_t i = 0; i < clips.size(); ++i) {
@@ -1535,17 +1686,28 @@ namespace Scene {
             }
             return -1;
         };
-        int sitDownIdx     = findClipByName("stand_to_sit");
-        int sittingIdleIdx = findClipByName("sitting_idle");
-        int sitStandUpIdx  = findClipByName("sit_to_stand");
+        // THE FIX for the quarantined tall-seat hop: the anchor sampling now
+        // resolves the SAME clips the render path will play (mapping -> plan
+        // -> legacy), instead of hardcoded names. A "SitDown" ->
+        // "hop_onto_seat" mapping (or a wolf plan's "SittingIdle" ->
+        // "Wolf_seat_") reaches the hips-ref sampling and the seated pose
+        // anchors from the correct clip.
+        int sitDownIdx     = findClipByName(clipForState(AnimatedCharacterState::SitDown, false));
+        int sittingIdleIdx = findClipByName(clipForState(AnimatedCharacterState::SittingIdle, false));
+        int sitStandUpIdx  = findClipByName(clipForState(AnimatedCharacterState::SitStandUp, false));
+        // Sample the plan's root bone (== bone 0 on Mixamo rigs, pinned in
+        // BodyPlanTest), not a literal 0 — a rig whose root isn't first in
+        // the bone list would otherwise anchor sitting off a random bone.
+        const int hipsBone = (m_bodyPlanResolved.rootBoneId >= 0)
+                                 ? m_bodyPlanResolved.rootBoneId : 0;
         m_hipsRef_sitDown     = (sitDownIdx >= 0)
-            ? sampleClipBonePos(sitDownIdx, 0, clips[sitDownIdx].duration)
+            ? sampleClipBonePos(sitDownIdx, hipsBone, clips[sitDownIdx].duration)
             : glm::vec3(0.0f);
         m_hipsRef_sittingIdle = (sittingIdleIdx >= 0)
-            ? sampleClipBonePos(sittingIdleIdx, 0, 0.0f)
+            ? sampleClipBonePos(sittingIdleIdx, hipsBone, 0.0f)
             : glm::vec3(0.0f);
         m_hipsRef_sitStandUp  = (sitStandUpIdx >= 0)
-            ? sampleClipBonePos(sitStandUpIdx, 0, 0.0f)
+            ? sampleClipBonePos(sitStandUpIdx, hipsBone, 0.0f)
             : glm::vec3(0.0f);
         // Keep Y component too: it represents the Hips height in model space at
         // the seated reference frame (typically ~0.45m for a humanoid). Including
@@ -2100,6 +2262,10 @@ namespace Scene {
         animationMapping[stateName] = animName;
     }
 
+    void AnimatedVoxelCharacter::removeAnimationMapping(const std::string& stateName) {
+        animationMapping.erase(stateName);
+    }
+
     std::string AnimatedVoxelCharacter::getAnimationMapping(const std::string& stateName) const {
         auto it = animationMapping.find(stateName);
         if (it != animationMapping.end()) {
@@ -2155,6 +2321,70 @@ namespace Scene {
             case AnimatedCharacterState::Celebrate: return "Celebrate";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
+        }
+    }
+
+    std::string AnimatedVoxelCharacter::clipForState(AnimatedCharacterState state,
+                                                     bool isSprinting) const {
+        // Layer 1: per-character animationMapping (user/race/NPC-def override).
+        const std::string stateKey = stateToString(state);
+        auto mapIt = animationMapping.find(stateKey);
+        if (mapIt != animationMapping.end()) return mapIt->second;
+
+        // Layer 2: body-plan clip vocabulary (creature rigs). EMPTY on the
+        // humanoid plan by design — humanoids fall through to layer 3 so the
+        // sprint variants and member-driven states behave exactly as before.
+        auto planIt = m_bodyPlan.clipDefaults.find(stateKey);
+        if (planIt != m_bodyPlan.clipDefaults.end()) return planIt->second;
+
+        // Layer 3: the legacy humanoid switch, verbatim (pinned state-by-state
+        // in ClipSelectionTest — edit that table if you edit this).
+        switch (state) {
+            case AnimatedCharacterState::Idle: return "idle";
+            case AnimatedCharacterState::StartWalk: return "start_walking";
+            case AnimatedCharacterState::Walk: return "walk";
+            case AnimatedCharacterState::Run: return isSprinting ? "fast_run" : "run";
+            case AnimatedCharacterState::Jump: return "jump";
+            case AnimatedCharacterState::Fall: return "jump_down";
+            case AnimatedCharacterState::Land: return "landing";
+            case AnimatedCharacterState::Crouch: return "standing_to_crouched";
+            case AnimatedCharacterState::CrouchIdle: return "crouch_idle";
+            case AnimatedCharacterState::CrouchWalk: return "crouched_walking";
+            case AnimatedCharacterState::StandUp: return "crouch_to_stand";
+            case AnimatedCharacterState::Attack: return m_currentAttackClip;
+            case AnimatedCharacterState::Block:
+                return m_moveset.block.empty() ? "body_block" : m_moveset.block;
+            case AnimatedCharacterState::Cast:
+                return (m_castSegIdx < m_castSegments.size())
+                           ? m_castSegments[m_castSegIdx].clip : "idle";
+            case AnimatedCharacterState::Dodge:
+                return m_currentDodgeClip.empty() ? "roll_forward" : m_currentDodgeClip;
+            case AnimatedCharacterState::HitReact:
+                return m_currentHitClip.empty() ? "idle" : m_currentHitClip;
+            case AnimatedCharacterState::Death:
+                return m_deathClip.empty() ? "idle" : m_deathClip;
+            case AnimatedCharacterState::KnockedOut: return "ko_lay";
+            case AnimatedCharacterState::GetUp: return "get_up";
+            case AnimatedCharacterState::Celebrate:
+                return m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
+            case AnimatedCharacterState::TurnLeft: return "left_turn";
+            case AnimatedCharacterState::TurnRight: return "right_turn";
+            case AnimatedCharacterState::StrafeLeft:
+            case AnimatedCharacterState::WalkStrafeLeft:
+                return isSprinting ? "left_strafe" : "left_strafe_walk";
+            case AnimatedCharacterState::StrafeRight:
+            case AnimatedCharacterState::WalkStrafeRight:
+                return isSprinting ? "right_strafe" : "right_strafe_walk";
+            case AnimatedCharacterState::BackwardWalk: return "walking_backward";
+            case AnimatedCharacterState::StopWalk: return "female_stop_walking";
+            case AnimatedCharacterState::StopRun: return "run_to_stop";
+            case AnimatedCharacterState::ClimbStairs: return "stair_up";
+            case AnimatedCharacterState::DescendStairs: return "stair_down";
+            case AnimatedCharacterState::SitDown: return "stand_to_sit";
+            case AnimatedCharacterState::SittingIdle: return "sitting_idle";
+            case AnimatedCharacterState::SitStandUp: return "sit_to_stand";
+            case AnimatedCharacterState::Preview: return "";
+            default: return "idle";
         }
     }
 
@@ -2724,10 +2954,14 @@ namespace Scene {
                             std::transform(n.begin(), n.end(), n.begin(), ::tolower);
                             if (n == "idle") { idleIdx = (int)i; break; }
                         }
+                        // Plan root == Hips (bone 0 on Mixamo rigs, pinned in
+                        // BodyPlanTest); guard for rigs with no resolvable root.
+                        const int hipsBone = (m_bodyPlanResolved.rootBoneId >= 0)
+                                                 ? m_bodyPlanResolved.rootBoneId : 0;
                         glm::vec3 idleStartHips = (idleIdx >= 0)
-                            ? sampleClipBonePos(idleIdx, 0, 0.0f)
-                            : skeleton.bones[0].localPosition;
-                        glm::vec3 currentHips = skeleton.bones[0].currentPosition;
+                            ? sampleClipBonePos(idleIdx, hipsBone, 0.0f)
+                            : skeleton.bones[hipsBone].localPosition;
+                        glm::vec3 currentHips = skeleton.bones[hipsBone].currentPosition;
                         float dx = currentHips.x - idleStartHips.x;
                         float dy = currentHips.y - idleStartHips.y;
                         float dz = currentHips.z - idleStartHips.z;
@@ -2911,15 +3145,9 @@ namespace Scene {
             // movement path, so we must do it explicitly here for clips to actually switch)
             {
                 std::string targetAnim;
-                switch (currentState) {
-                    case AnimatedCharacterState::SitDown:     targetAnim = "stand_to_sit"; break;
-                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
-                    case AnimatedCharacterState::SitStandUp:  targetAnim = "sit_to_stand"; break;
-                    default: targetAnim = "idle"; break;
-                }
-                // Respect user-defined mapping overrides
-                auto mapIt = animationMapping.find(stateToString(currentState));
-                if (mapIt != animationMapping.end()) targetAnim = mapIt->second;
+                // Layered selection (mapping -> plan -> legacy); sit states
+                // resolve identically to the old switch-plus-override.
+                targetAnim = clipForState(currentState, false);
 
                 // Find and switch clip (case-insensitive)
                 std::string targetLower = targetAnim;
@@ -3021,11 +3249,27 @@ namespace Scene {
                     currentState == AnimatedCharacterState::Cast   ||
                     currentState == AnimatedCharacterState::Block;
                 if (!actionStateOwnsClip) {
+                    // The user/race animationMapping override wins here too —
+                    // NPCs move on this external-velocity path, so without
+                    // this a halfling's scamper_walk / ogre's ogre_walk
+                    // mapping would only apply to player-controlled movement.
                     std::vector<std::string> candidates;
+                    auto pushLayered = [&](const char* stateKey) {
+                        auto mIt = animationMapping.find(stateKey);
+                        if (mIt != animationMapping.end()) candidates.push_back(mIt->second);
+                        // Body-plan vocabulary (wolf Walk_cycle etc.) sits
+                        // between the mapping and the legacy literal list.
+                        auto pIt = m_bodyPlan.clipDefaults.find(stateKey);
+                        if (pIt != m_bodyPlan.clipDefaults.end()) candidates.push_back(pIt->second);
+                    };
                     if (speed > 0.1f) {
-                        candidates = {"walk", "walking", "Walk", "Walking", "unarmed_walk"};
+                        pushLayered("Walk");
+                        candidates.insert(candidates.end(),
+                            {"walk", "walking", "Walk", "Walking", "unarmed_walk"});
                     } else {
-                        candidates = {"idle", "Idle", "Standing", "standing"};
+                        pushLayered("Idle");
+                        candidates.insert(candidates.end(),
+                            {"idle", "Idle", "Standing", "standing"});
                     }
                     int targetIndex = -1;
                     for (const auto& candidate : candidates) {
@@ -3197,82 +3441,9 @@ namespace Scene {
             static int debugFrameCounter = 0;
             bool shouldLog = (debugFrameCounter++ % 30 == 0);
 
-            // Check user-defined mapping first
-            std::string stateKey = stateToString(currentState);
-            if (animationMapping.find(stateKey) != animationMapping.end()) {
-                targetAnim = animationMapping[stateKey];
-            } else {
-                // Default hardcoded mapping
-                switch (currentState) {
-                    case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
-                    case AnimatedCharacterState::StartWalk: targetAnim = "start_walking"; break;
-                    case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
-                    case AnimatedCharacterState::Run: 
-                        if (isSprinting) targetAnim = "fast_run";
-                        else targetAnim = "run"; 
-                        break;
-                    case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
-                    case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
-                    case AnimatedCharacterState::Land: targetAnim = "landing"; break;
-                    case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
-                    case AnimatedCharacterState::CrouchIdle: targetAnim = "crouch_idle"; break;
-                    case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
-                    case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
-                    case AnimatedCharacterState::Attack: targetAnim = m_currentAttackClip; break;
-                    case AnimatedCharacterState::Block:
-                        targetAnim = m_moveset.block.empty() ? "body_block" : m_moveset.block;
-                        break;
-                    case AnimatedCharacterState::Cast:
-                        targetAnim = (m_castSegIdx < m_castSegments.size())
-                                         ? m_castSegments[m_castSegIdx].clip : "idle";
-                        break;
-                    case AnimatedCharacterState::Dodge:
-                        targetAnim = m_currentDodgeClip.empty() ? "roll_forward"
-                                                               : m_currentDodgeClip;
-                        break;
-                    case AnimatedCharacterState::HitReact:
-                        targetAnim = m_currentHitClip.empty() ? "idle" : m_currentHitClip;
-                        break;
-                    case AnimatedCharacterState::Death:
-                        targetAnim = m_deathClip.empty() ? "idle" : m_deathClip;
-                        break;
-                    case AnimatedCharacterState::KnockedOut: targetAnim = "ko_lay"; break;
-                    case AnimatedCharacterState::GetUp:      targetAnim = "get_up"; break;
-                    case AnimatedCharacterState::Celebrate:
-                        targetAnim = m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
-                        break;
-                    case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
-                    case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
-                    case AnimatedCharacterState::StrafeLeft: 
-                        // Differentiate between walking strafe and running strafe based on sprint state
-                        if (isSprinting) targetAnim = "left_strafe"; // Run strafe
-                        else targetAnim = "left_strafe_walk"; // Walk strafe
-                        break;
-                    case AnimatedCharacterState::StrafeRight: 
-                        // Differentiate between walking strafe and running strafe based on sprint state
-                        if (isSprinting) targetAnim = "right_strafe"; // Run strafe
-                        else targetAnim = "right_strafe_walk"; // Walk strafe
-                        break;
-                    case AnimatedCharacterState::WalkStrafeLeft: 
-                        if (isSprinting) targetAnim = "left_strafe"; 
-                        else targetAnim = "left_strafe_walk"; 
-                        break;
-                    case AnimatedCharacterState::WalkStrafeRight: 
-                        if (isSprinting) targetAnim = "right_strafe"; 
-                        else targetAnim = "right_strafe_walk"; 
-                        break;
-                    case AnimatedCharacterState::BackwardWalk: targetAnim = "walking_backward"; break;
-                    case AnimatedCharacterState::StopWalk: targetAnim = "female_stop_walking"; break;
-                    case AnimatedCharacterState::StopRun: targetAnim = "run_to_stop"; break;
-                    case AnimatedCharacterState::ClimbStairs: targetAnim = "stair_up"; break;
-                    case AnimatedCharacterState::DescendStairs: targetAnim = "stair_down"; break;
-                    case AnimatedCharacterState::SitDown: targetAnim = "stand_to_sit"; break;
-                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
-                    case AnimatedCharacterState::SitStandUp: targetAnim = "sit_to_stand"; break;
-                    case AnimatedCharacterState::Preview: targetAnim = ""; break;
-                    default: targetAnim = "idle"; break;
-                }
-            }
+            // Layered selection: mapping -> body-plan clipDefaults -> legacy
+            // switch (all moved verbatim into clipForState).
+            targetAnim = clipForState(currentState, isSprinting);
 
             if (shouldLog) {
                 std::cout << "DEBUG: Selected TargetAnim=" << targetAnim << std::endl;
@@ -3620,6 +3791,7 @@ namespace Scene {
             skeleton.bones[0].currentPosition.y += m_warpPreviewExtraY * fade;
         }
 
+        applyPostureLean();
         animSystem.updateGlobalTransforms(skeleton);
 
         // Hook for subclass IK corrections (e.g. HybridCharacter)
@@ -3804,30 +3976,46 @@ namespace Scene {
     // =========================================================================
 
     void AnimatedVoxelCharacter::resolveFootBoneIds() {
-        auto find = [&](const std::string& name) -> int {
-            auto it = skeleton.boneMap.find(name);
-            return (it != skeleton.boneMap.end()) ? it->second : -1;
-        };
-        m_leftFoot.upLegId  = find("mixamorig:LeftUpLeg");
-        m_leftFoot.legId    = find("mixamorig:LeftLeg");
-        m_leftFoot.footId   = find("mixamorig:LeftFoot");
-        m_rightFoot.upLegId = find("mixamorig:RightUpLeg");
-        m_rightFoot.legId   = find("mixamorig:RightLeg");
-        m_rightFoot.footId  = find("mixamorig:RightFoot");
-
-        // Cache pelvis bone for body-adjustment during IK
-        m_ikHipBoneId = find("mixamorig:Hips");
-        if (m_ikHipBoneId < 0) {
-            for (const auto& [name, id] : skeleton.boneMap) {
-                std::string n = name;
-                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                if (n.find("hip") != std::string::npos) { m_ikHipBoneId = id; break; }
-            }
+        // Body-plan-driven: leg/hip ids come from the resolved plan. The
+        // humanoid plan's legs are the byte-exact legacy mixamorig:* names,
+        // so a biped resolves the same ids the old hardcoded lookups did
+        // (pinned by CharacterGoldenPoseTest.FootIKBoneIdentity*). Non-biped
+        // plans (footIK=false on every leg) leave the cache not-ready, which
+        // matches the old behavior where creature rigs failed the name
+        // lookups — the two-bone IK below is biped-only until P3.
+        m_leftFoot  = {};
+        m_rightFoot = {};
+        const auto& legs = m_bodyPlanResolved.legs;
+        if (legs.size() == 2 && legs[0].footIK && legs[1].footIK) {
+            m_leftFoot.upLegId  = legs[0].upperId;
+            m_leftFoot.legId    = legs[0].midId;
+            m_leftFoot.footId   = legs[0].footId;
+            m_rightFoot.upLegId = legs[1].upperId;
+            m_rightFoot.legId   = legs[1].midId;
+            m_rightFoot.footId  = legs[1].footId;
         }
+
+        // Pelvis bone for body-adjustment during IK (also the sit anchor).
+        // resolveAgainst already applied the exact-name -> hip-alias fallback.
+        m_ikHipBoneId = m_bodyPlanResolved.rootBoneId;
 
         m_footIKCacheReady =
             (m_leftFoot.upLegId  >= 0 && m_leftFoot.legId  >= 0 && m_leftFoot.footId  >= 0) ||
             (m_rightFoot.upLegId >= 0 && m_rightFoot.legId >= 0 && m_rightFoot.footId >= 0);
+    }
+
+    AnimatedVoxelCharacter::FootIKResolutionInfo AnimatedVoxelCharacter::resolveFootIKForTest() {
+        resolveFootBoneIds();
+        FootIKResolutionInfo info;
+        info.leftUpLeg  = m_leftFoot.upLegId;
+        info.leftLeg    = m_leftFoot.legId;
+        info.leftFoot   = m_leftFoot.footId;
+        info.rightUpLeg = m_rightFoot.upLegId;
+        info.rightLeg   = m_rightFoot.legId;
+        info.rightFoot  = m_rightFoot.footId;
+        info.hipBoneId  = m_ikHipBoneId;
+        info.cacheReady = m_footIKCacheReady;
+        return info;
     }
 
     void AnimatedVoxelCharacter::resetFootLocks() {
@@ -4513,20 +4701,13 @@ namespace Scene {
     void AnimatedVoxelCharacter::buildSegmentBoxes() {
         clearSegmentBoxes();
 
-        static const struct { const char* name; bool isArm; } kSegments[12] = {
-            { "mixamorig:Head",         false },
-            { "mixamorig:Spine2",       false },  // Upper chest / shoulders
-            { "mixamorig:Spine1",       false },  // Mid torso / abdomen
-            { "mixamorig:Hips",         false },  // Pelvis / lower torso
-            { "mixamorig:LeftArm",      true  },
-            { "mixamorig:RightArm",     true  },
-            { "mixamorig:LeftForeArm",  true  },
-            { "mixamorig:RightForeArm", true  },
-            { "mixamorig:LeftUpLeg",    false },
-            { "mixamorig:RightUpLeg",   false },
-            { "mixamorig:LeftLeg",      false },
-            { "mixamorig:RightLeg",     false },
-        };
+        // Body-plan-driven: the segment table (names, isArm flags, ORDER —
+        // order is contract for getSegmentBoxInfo/getAttackOrigin/MCP
+        // get_bone_positions) comes from the plan. The humanoid plan carries
+        // the legacy 12-entry mixamorig table verbatim, so humanoid output is
+        // byte-identical (golden layer 2 pins it); creature plans finally get
+        // real segment boxes instead of 12 warn-and-skips.
+        const auto& planSegments = m_bodyPlan.segments;
 
         // Build children map for skeleton-based size fallback
         std::map<int, std::vector<int>> childrenMap;
@@ -4534,10 +4715,10 @@ namespace Scene {
             if (b.parentId != -1) childrenMap[b.parentId].push_back(b.id);
         }
 
-        for (const auto& seg : kSegments) {
-            auto boneIt = skeleton.boneMap.find(seg.name);
+        for (const auto& seg : planSegments) {
+            auto boneIt = skeleton.boneMap.find(seg.bone);
             if (boneIt == skeleton.boneMap.end()) {
-                LOG_WARN_FMT("Character", "Segment box: bone not in skeleton: " << seg.name);
+                LOG_WARN_FMT("Character", "Segment box: bone not in skeleton: " << seg.bone);
                 continue;
             }
             int boneId = boneIt->second;
@@ -4596,10 +4777,10 @@ namespace Scene {
 
             halfExtents = glm::max(halfExtents, glm::vec3(0.04f));
 
-            LOG_INFO_FMT("Character", "  Segment [" << seg.name << "] source=" << source
+            LOG_INFO_FMT("Character", "  Segment [" << seg.bone << "] source=" << source
                 << " he=(" << halfExtents.x << "," << halfExtents.y << "," << halfExtents.z << ")");
 
-            m_segmentBoxes.push_back({ seg.name, boneId, glm::vec3(0.0f), halfExtents, glm::vec3(0.0f), seg.isArm, false });
+            m_segmentBoxes.push_back({ seg.bone, boneId, glm::vec3(0.0f), halfExtents, glm::vec3(0.0f), seg.isArm, false });
         }
 
         LOG_INFO_FMT("Character", "Built " << m_segmentBoxes.size() << "/8 segment collision boxes");

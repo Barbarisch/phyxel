@@ -315,6 +315,35 @@ def _cmd_report(args):
     return 0
 
 
+def _cmd_clipcheck(args):
+    from clip_metric import clip_metric, load_preset, DEFAULT_APPEARANCE
+    import json as _json
+
+    doc = _json.loads((Path(__file__).resolve().parents[2] /
+                       "resources" / "appearance_presets.json").read_text(encoding="utf-8"))
+    all_ids = [e["presetId"] for e in doc["presets"]]
+    ids = [args.preset] if args.preset else all_ids
+
+    base = clip_metric(args.file, DEFAULT_APPEARANCE, args.clip)
+    print(f"standard baseline: {base['overlap_pct']:.2f}% overlap "
+          f"(worst frame {base['frame']})")
+
+    failed = False
+    for pid in ids:
+        m = clip_metric(args.file, load_preset(pid), args.clip)
+        delta = m["overlap_pct"] - base["overlap_pct"]
+        flag = ""
+        if args.max_delta is not None and delta > args.max_delta:
+            flag = "  <-- EXCEEDS BAND"
+            failed = True
+        print(f"{pid:12s} overlap={m['overlap_pct']:6.2f}%  delta=+{max(delta,0):5.2f}pt  "
+              f"worst={m['frame']}{flag}")
+        for v, a, b in m["pairs"][:3]:
+            if v > 0.0005:
+                print(f"{'':14s}{a} x {b}: {v:.4f}")
+    return 1 if failed else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Phyxel .anim quality linter")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -338,6 +367,19 @@ def main(argv=None):
     p.add_argument("--clips", help="comma-separated clip names (default: all)")
     p.add_argument("--top", type=int, default=10, help="show top-N fastest bones")
     p.set_defaults(fn=_cmd_report)
+
+    p = sub.add_parser("clipcheck",
+                       help="bone-box interpenetration for an appearance preset "
+                            "(where does the scale band break?)")
+    p.add_argument("file")
+    p.add_argument("--preset", default=None,
+                   help="preset id from resources/appearance_presets.json "
+                        "(default: all presets, table output)")
+    p.add_argument("--clip", default="walk", help="clip to pose through (default: walk)")
+    p.add_argument("--max-delta", type=float, default=None,
+                   help="fail (exit 1) if overlap_pct exceeds standard's by more "
+                        "than this many points")
+    p.set_defaults(fn=_cmd_clipcheck)
 
     args = ap.parse_args(argv)
     return args.fn(args)

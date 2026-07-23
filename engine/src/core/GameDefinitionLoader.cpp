@@ -7,6 +7,7 @@
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/NPCManager.h"
+#include "core/CharacterVisualResolver.h"
 #include "core/EntityRegistry.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/VoxelTemplate.h"
@@ -623,20 +624,28 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
         y = playerDef["position"].value("y", 20.0f);
         z = playerDef["position"].value("z", 16.0f);
     }
-    std::string animFile = playerDef.value("animFile", "resources/animated_characters/humanoid.anim");
+    // Race/appearance-aware players resolve through the shared visual path;
+    // plain players keep the legacy default appearance + recolor.
+    const bool hasVisualDef = playerDef.contains("race") || playerDef.contains("raceId") ||
+                              playerDef.contains("appearance");
+    std::string playerName = playerDef.value("id", "player");
+    auto visual = CharacterVisualResolver::resolve(playerDef, playerName);
 
-    Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), animFile);
+    Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), visual.animFile);
     if (entity) {
         // Apply appearance to animated characters
         if (type == "animated") {
             auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
             if (animChar) {
-                Scene::CharacterAppearance appearance;
-                if (playerDef.contains("appearance")) {
-                    appearance = Scene::CharacterAppearance::fromJson(playerDef["appearance"]);
+                if (hasVisualDef) {
+                    // Full rebuild so proportions apply too (recolor alone
+                    // silently dropped them).
+                    animChar->setAppearance(visual.appearance);
+                    animChar->rebuildWithAppearance(visual.appearance);
+                } else {
+                    animChar->setAppearance(Scene::CharacterAppearance{});
+                    animChar->recolorFromAppearance();
                 }
-                animChar->setAppearance(appearance);
-                animChar->recolorFromAppearance();
             }
         }
 
@@ -748,7 +757,6 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
     for (const auto& npcDef : npcsDef) {
         std::string name = npcDef["name"].get<std::string>();
-        std::string animFile = npcDef.value("animFile", "resources/animated_characters/humanoid.anim");
 
         float x = 0.0f, y = 20.0f, z = 0.0f;
         if (npcDef.contains("position")) {
@@ -776,33 +784,29 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             behaviorType = NPCBehaviorType::Scheduled;
         }
 
-        // Parse or generate appearance
         std::string npcRole = npcDef.value("role", "");
-        Scene::CharacterAppearance appearance;
-        if (npcDef.contains("appearance")) {
-            appearance = Scene::CharacterAppearance::fromJson(npcDef["appearance"]);
-        } else {
-            // Detect morphology from anim file name
-            std::string animLower = animFile;
-            std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
-            Scene::MorphologyType morph = Scene::MorphologyType::Humanoid;
-            if (animLower.find("wolf") != std::string::npos)
-                morph = Scene::MorphologyType::Quadruped;
-            else if (animLower.find("spider") != std::string::npos)
-                morph = Scene::MorphologyType::Arachnid;
-            else if (animLower.find("dragon") != std::string::npos)
-                morph = Scene::MorphologyType::Dragon;
-            appearance = Scene::CharacterAppearance::generateFromSeed(name, npcRole, morph);
-        }
 
-        auto* npc = sub.npcManager->spawnNPC(name, animFile, glm::vec3(x, y, z),
+        // Resolve visual (race / preset / explicit appearance / animFile)
+        // through the single shared path — see CharacterVisualResolver.
+        auto visual = CharacterVisualResolver::resolve(npcDef, name);
+
+        auto* npc = sub.npcManager->spawnNPC(name, visual.animFile, glm::vec3(x, y, z),
                                                behaviorType, waypoints, walkSpeed, waitTime,
-                                               appearance);
+                                               visual.appearance);
         if (!npc) {
             LOG_WARN("GameDefinitionLoader", "Failed to spawn NPC: " + name);
             continue;
         }
         result.npcsSpawned++;
+
+        // Race/definition gait flavor: FSM state -> clip overrides (halfling
+        // scamper, ogre prowl) resolved by CharacterVisualResolver.
+        if (!visual.animationMapping.empty()) {
+            if (auto* ch = npc->getAnimatedCharacter()) {
+                for (const auto& [state, clip] : visual.animationMapping)
+                    ch->setAnimationMapping(state, clip);
+            }
+        }
 
         // Configure schedule if this is a scheduled NPC
         if (behaviorType == NPCBehaviorType::Scheduled) {

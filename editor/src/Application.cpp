@@ -29,6 +29,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/AppearancePresetRegistry.h"
 #include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
 #include "scene/CharacterTurnBody.h"
@@ -69,6 +70,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/EngineConfig.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
+#include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
@@ -8132,6 +8134,7 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
     constexpr float DEPTH_CLEARANCE = 0.10f;
     constexpr float FOOT_DROP_MAX   = 0.20f;
     constexpr float BACKREST_HEAD_MAX = 0.10f;
+    constexpr float KNEE_RISE_MAX   = 0.35f;
 
     const float seat_width  = seatFeatures.value("seat_width_x", 0.0f);
     const float seat_depth  = seatFeatures.value("seat_depth_z", 0.0f);
@@ -8166,12 +8169,14 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
                  seat_width, need, "error");
         }
     }
+    // Fit failures are HARD errors — accuracy over coverage: a character never
+    // sits where it doesn't fit (docs/CharacterLibraryPlan.md seat-fit policy).
     if (seat_depth > 0.0f && c.body_depth > 0.0f) {
         float need = c.body_depth + DEPTH_CLEARANCE;
         if (seat_depth < need) {
             push("SEAT_TOO_SHALLOW",
                  fmt("Seat depth ", seat_depth, "m too shallow for body depth ", c.body_depth, "m"),
-                 seat_depth, need, "warn");
+                 seat_depth, need, "error");
         }
     }
     if (seat_top_y > 0.0f && c.leg_length > 0.0f) {
@@ -8179,7 +8184,14 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
         if (overhang > FOOT_DROP_MAX) {
             push("SEAT_TOO_TALL",
                  fmt("Seat ", seat_top_y, "m above floor, legs only ", c.leg_length, "m"),
-                 overhang, FOOT_DROP_MAX, "warn");
+                 overhang, FOOT_DROP_MAX, "error");
+        }
+        // Big body on a tiny seat: knees rise far above the hips (squat).
+        float kneeRise = c.leg_length - seat_top_y;
+        if (kneeRise > KNEE_RISE_MAX) {
+            push("SEAT_TOO_LOW",
+                 fmt("Seat ", seat_top_y, "m too low for leg length ", c.leg_length, "m"),
+                 kneeRise, KNEE_RISE_MAX, "error");
         }
     }
     if (backrest_h > 0.0f && c.sitting_height > 0.0f) {
@@ -8192,6 +8204,45 @@ static bool runSitCompatChecks(const CharScalarMetrics& c,
         }
     }
     return hasError;
+}
+
+/// Enumerate free, FITTING seats for a character near `origin` — the same
+/// runSitCompatChecks gate is run per candidate, so a seat in this list is
+/// one the character is guaranteed to be allowed to sit on. Seats without
+/// metrics features are excluded (deny-on-missing: an uncharacterized seat
+/// cannot prove fit). Sorted nearest-first.
+static nlohmann::json collectFittingSeats(Core::PlacedObjectManager& pom,
+                                          const CharScalarMetrics& m,
+                                          const glm::vec3& origin,
+                                          float radius,
+                                          const std::string& excludeObjectId = {})
+{
+    struct Hit { float dist; nlohmann::json j; };
+    std::vector<Hit> hits;
+    for (const auto& [id, obj] : pom.getAllObjects()) {
+        if (id == excludeObjectId) continue;
+        for (const auto& p : obj.interactionPoints) {
+            if (p.type != "seat" || !p.isFree()) continue;
+            float dist = glm::distance(origin, p.worldPos);
+            if (radius > 0.0f && dist > radius) continue;
+            nlohmann::json sidecar = loadAssetMetricsSidecar(obj.templateName);
+            nlohmann::json feat = findSeatFeaturesInSidecar(sidecar, p.pointId);
+            if (!feat.is_object() || feat.empty()) continue;
+            nlohmann::json issues = nlohmann::json::array();
+            if (runSitCompatChecks(m, feat, issues)) continue;
+            hits.push_back({dist, {
+                {"object_id", id},
+                {"point_id", p.pointId},
+                {"template_name", obj.templateName},
+                {"distance", dist},
+                {"seat_world_pos", {p.worldPos.x, p.worldPos.y, p.worldPos.z}}}});
+        }
+    }
+    std::sort(hits.begin(), hits.end(),
+              [](const Hit& a, const Hit& b) { return a.dist < b.dist; });
+    nlohmann::json out = nlohmann::json::array();
+    for (auto& h : hits) out.push_back(std::move(h.j));
+    return out;
 }
 
 } // anonymous namespace
@@ -8957,38 +9008,74 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             return true;
         }
 
-        // ---- Compatibility gate (Phase 2.3) ---------------------------------
-        // If a sidecar `<template>.metrics.json` exists, run the sit-kind
-        // rules. Errors block the interaction; warnings are reported but the
-        // sit proceeds. Missing sidecar -> degrade gracefully (no checks).
-        //
-        // Phase B: errors are downgraded to warnings when either
-        //   (a) the caller passed `force=true` (scripted/cutscene path), or
-        //   (b) the point itself has `requireCompatibility=false` (author
-        //       marked it forgiving).
-        // In both cases the issues array is still surfaced so the caller can
-        // log/display them; only the gate decision flips.
+        // ---- Compatibility gate (seat-fit policy: accuracy over coverage) ---
+        // Fit failures are HARD refusals — a character never sits where it
+        // doesn't fit. A seat with no metrics sidecar cannot PROVE fit, so it
+        // is refused too (deny-on-missing; characterize the template with
+        // tools/characterize_asset.py). The only bypasses are `force=true`
+        // (test/cutscene path via force_interact) or the point being authored
+        // forgiving (requireCompatibility=false); both surface the issues and
+        // set compatibility_overridden. Refusals include the nearest seat the
+        // character DOES fit so callers get a redirect, not a dead end.
         nlohmann::json compatIssues = nlohmann::json::array();
         bool compatOverridden = false;
         {
             nlohmann::json sidecar = loadAssetMetricsSidecar(obj->templateName);
             nlohmann::json seatFeatures = findSeatFeaturesInSidecar(sidecar, pointId);
-            if (seatFeatures.is_object() && !seatFeatures.empty()) {
-                CharScalarMetrics m = computeCharScalarMetrics(character);
+            const bool blocking = pt->requireCompatibility && !force;
+            CharScalarMetrics m = computeCharScalarMetrics(character);
+            const bool missingMetrics =
+                !(seatFeatures.is_object() && !seatFeatures.empty());
+
+            auto refuse = [&](const std::string& why) {
+                nlohmann::json fitting = collectFittingSeats(
+                    *placedObjectManager, m, character->getPosition(), 30.0f, objectId);
+                response = {
+                    {"success", false},
+                    {"error", why},
+                    {"entity_id", entityId},
+                    {"object_id", objectId},
+                    {"point_id", pointId},
+                    {"compatibility_issues", compatIssues},
+                    {"nearest_fitting_seat",
+                     fitting.empty() ? nlohmann::json(nullptr) : fitting[0]},
+                };
+            };
+
+            if (missingMetrics) {
+                if (blocking) {
+                    refuse("Seat has no metrics sidecar — cannot verify fit; run "
+                           "tools/characterize_asset.py " + obj->templateName);
+                    return true;
+                }
+                compatOverridden = true;
+            } else {
                 bool hasError = runSitCompatChecks(m, seatFeatures, compatIssues);
-                const bool blocking = pt->requireCompatibility && !force;
                 if (hasError && blocking) {
-                    response = {
-                        {"success", false},
-                        {"error", "Character is not compatible with this seat"},
-                        {"entity_id", entityId},
-                        {"object_id", objectId},
-                        {"point_id", pointId},
-                        {"compatibility_issues", compatIssues},
-                    };
+                    refuse("Character does not fit this seat");
                     return true;
                 }
                 if (hasError && !blocking) compatOverridden = true;
+
+                // Tall-seat mount (EXPERIMENTAL, default OFF): swapping
+                // stand_to_sit for hop_onto_seat is QUARANTINED — the sitAt
+                // anchor math samples its Hips reference from "stand_to_sit"
+                // by name, so a mapped hop clip renders the body inside the
+                // seat (observed live 2026-07-22), and Box Jump ends in a
+                // STANDING pose, not seated. Re-enable only after (a) the
+                // anchor resolves the MAPPED SitDown clip and (b) a
+                // purpose-built seat-mount clip exists, and (c) the
+                // interaction validity gauntlet measures the transition
+                // penetration-free. Opt-in via experimental_hop for tuning.
+                const float seatTop = seatFeatures.value("seat_top_y", 0.0f);
+                const bool experimentalHop = cmd.params.value("experimental_hop", false);
+                if (seatTop > 0.0f && m.leg_length > 0.0f) {
+                    if (experimentalHop && seatTop > m.leg_length) {
+                        character->setAnimationMapping("SitDown", "hop_onto_seat");
+                    } else if (character->getAnimationMapping("SitDown") == "hop_onto_seat") {
+                        character->removeAnimationMapping("SitDown");
+                    }
+                }
             }
         }
         // ---------------------------------------------------------------------
@@ -9032,6 +9119,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                     {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation},
                     {"compatibility_issues", compatIssues},
                     {"compatibility_overridden", compatOverridden},
+                    {"tall_seat_hop", character->getAnimationMapping("SitDown") == "hop_onto_seat"},
                     {"forced", force}};
         return true;
     }
@@ -9076,10 +9164,12 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         nlohmann::json sidecar = loadAssetMetricsSidecar(obj->templateName);
-        if (!sidecar.is_object()) {
-            // No sidecar => unknown, default to allow (matches gate semantics).
+        if (!sidecar.is_object() && kind == "sit") {
+            // Deny-on-missing for seats (seat-fit policy: accuracy over
+            // coverage) — an uncharacterized seat cannot prove fit. Matches
+            // the sit_character gate. Non-seat kinds keep allow-on-missing.
             response = {
-                {"success", true}, {"can_interact", true},
+                {"success", true}, {"can_interact", !requireCompatibility},
                 {"reason", "no_asset_metrics_sidecar"},
                 {"compatibility_issues", nlohmann::json::array()},
             };
@@ -9090,10 +9180,12 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         bool hasError = false;
         if (kind == "sit") {
             nlohmann::json seatFeatures = findSeatFeaturesInSidecar(sidecar, pointId);
-            if (!seatFeatures.is_object()) {
+            if (!seatFeatures.is_object() || seatFeatures.empty()) {
+                // Point isn't a seat, or a seat with no measured features —
+                // either way fit cannot be verified (deny-on-missing).
                 response = {
                     {"success", false}, {"can_interact", false},
-                    {"reason", "point_is_not_a_seat"},
+                    {"reason", "seat_features_missing_or_not_a_seat"},
                 };
                 return true;
             }
@@ -9146,6 +9238,43 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         forwarded.action = "sit_character";
         forwarded.params["force"] = true;
         return dispatchAnimationAPICommand(forwarded, response);
+    }
+
+    if (action == "find_fitting_seat") {
+        // "Find me a seat that fits" — enumerate free seat points near the
+        // character (or an explicit position), run the same fit gate per
+        // candidate, return nearest-first. A seat in this list is one
+        // sit_character is guaranteed to allow. Building block for NPC seat
+        // selection; also the source of sit_character's refusal redirect.
+        std::string entityId = cmd.params.value("entity_id", "");
+        float radius = cmd.params.value("radius", 30.0f);
+
+        auto* character = resolveCharacter(entityId);
+        if (!character) {
+            response = {{"error", "No animated character found for entity_id: " + entityId}};
+            return true;
+        }
+        if (!placedObjectManager) {
+            response = {{"error", "PlacedObjectManager not available"}};
+            return true;
+        }
+
+        glm::vec3 origin = character->getPosition();
+        if (cmd.params.contains("position") && cmd.params["position"].is_object()) {
+            const auto& p = cmd.params["position"];
+            origin = {p.value("x", origin.x), p.value("y", origin.y), p.value("z", origin.z)};
+        }
+
+        CharScalarMetrics m = computeCharScalarMetrics(character);
+        nlohmann::json seats = collectFittingSeats(*placedObjectManager, m, origin, radius);
+        response = {
+            {"success", true},
+            {"entity_id", entityId},
+            {"radius", radius},
+            {"count", seats.size()},
+            {"seats", seats},
+        };
+        return true;
     }
 
     // Phase D — pivot-hinge kind (doors / gates / trapdoors / chest lids).
@@ -15114,7 +15243,10 @@ void Application::processAPICommands() {
                     if (name.empty()) {
                         response = {{"error", "NPC name required"}};
                     } else {
-                        std::string animFile = cmd.params.value("animFile", "resources/animated_characters/humanoid.anim");
+                        // Resolve visual (race / preset / explicit appearance /
+                        // animFile) through the single shared path.
+                        auto visual = Core::CharacterVisualResolver::resolve(cmd.params, name);
+                        const std::string& animFile = visual.animFile;
                         float x = 0, y = 20, z = 0;
                         if (cmd.params.contains("position")) {
                             x = cmd.params["position"].value("x", 0.0f);
@@ -15149,28 +15281,12 @@ void Application::processAPICommands() {
                             behaviorType = Core::NPCBehaviorType::Combat;
                         }
 
-                        // Parse optional appearance
-                        Scene::CharacterAppearance appearance;
+                        // Appearance already resolved by CharacterVisualResolver above.
+                        const Scene::CharacterAppearance& appearance = visual.appearance;
                         std::string role = cmd.params.value("role", "");
                         bool procedural = cmd.params.value("procedural", false);
                         std::string driveModeStr = cmd.params.value("driveMode", "animated");
                         bool physicsDriven = (driveModeStr == "physics");
-
-                        if (cmd.params.contains("appearance")) {
-                            appearance = Scene::CharacterAppearance::fromJson(cmd.params["appearance"]);
-                        } else if (!role.empty()) {
-                            // Detect morphology from anim file name
-                            std::string animLower = animFile;
-                            std::transform(animLower.begin(), animLower.end(), animLower.begin(), ::tolower);
-                            Scene::MorphologyType morph = Scene::MorphologyType::Humanoid;
-                            if (animLower.find("wolf") != std::string::npos)
-                                morph = Scene::MorphologyType::Quadruped;
-                            else if (animLower.find("spider") != std::string::npos)
-                                morph = Scene::MorphologyType::Arachnid;
-                            else if (animLower.find("dragon") != std::string::npos)
-                                morph = Scene::MorphologyType::Dragon;
-                            appearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
-                        }
 
                         Scene::NPCEntity* npc = nullptr;
                         if (physicsDriven) {
@@ -15191,6 +15307,14 @@ void Application::processAPICommands() {
                         }
 
                         if (npc) {
+                            // Race/definition gait flavor: FSM state -> clip
+                            // overrides (halfling scamper, ogre prowl).
+                            if (!visual.animationMapping.empty()) {
+                                if (auto* ch = npc->getAnimatedCharacter()) {
+                                    for (const auto& [state, clip] : visual.animationMapping)
+                                        ch->setAnimationMapping(state, clip);
+                                }
+                            }
                             // Optional weapon for combat NPCs — drives their moveset
                             // through the same mapper as the player's held weapon.
                             if (behaviorType == Core::NPCBehaviorType::Combat &&
@@ -15342,8 +15466,22 @@ void Application::processAPICommands() {
                             if (!character) {
                                 response = {{"error", "NPC has no animated character"}};
                             } else {
-                                // Merge provided fields with current appearance
+                                // Merge provided fields with current appearance.
+                                // A "preset"/"presetId" naming a registry preset
+                                // expands to its proportions first; other given
+                                // fields then override.
                                 auto currentApp = character->getAppearance();
+                                if (cmd.params.contains("appearance")) {
+                                    const auto& aj = cmd.params["appearance"];
+                                    std::string presetId = aj.value("preset", aj.value("presetId", ""));
+                                    if (!presetId.empty()) {
+                                        auto& presets = Scene::AppearancePresetRegistry::instance();
+                                        presets.ensureLoaded();
+                                        if (const auto* preset = presets.getPreset(presetId)) {
+                                            currentApp.applyProportionsFrom(*preset);
+                                        }
+                                    }
+                                }
                                 auto newJson = currentApp.toJson();
                                 if (cmd.params.contains("appearance")) {
                                     for (auto& [key, val] : cmd.params["appearance"].items()) {

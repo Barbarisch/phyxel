@@ -114,6 +114,11 @@ namespace Phyxel {
         int boneId;
         glm::vec3 size;
         glm::vec3 offset;
+        /// Optional explicit color (alpha 0 = unset — use the appearance's
+        /// per-bone region color). Authored via the optional trailing
+        /// "r g b" on a MODEL Box line; lets variant rigs give feature boxes
+        /// (tusks, claws, teeth) a color distinct from their bone's skin.
+        glm::vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     struct VoxelModel {

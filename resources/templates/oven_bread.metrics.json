@@ -1,0 +1,29 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "oven_bread",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.5555555555555556,
+    2.3333333333333335,
+    1.3333333333333333
+  ],
+  "interaction_points": [
+    {
+      "point_id": "work_0",
+      "kind": "work_surface",
+      "local_position": [
+        0.778,
+        0.778,
+        1.222
+      ],
+      "facing_yaw": 0.0,
+      "features": {
+        "work_top_y": 0.778
+      }
+    }
+  ]
+}

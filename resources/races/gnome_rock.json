@@ -1,0 +1,22 @@
+{
+  "id": "gnome_rock",
+  "name": "Rock Gnome",
+  "abilityBonuses": { "INT": 2, "CON": 1 },
+  "speed": 25,
+  "darkvisionRange": 60,
+  "traits": ["Darkvision", "Gnome Cunning", "Artificer's Lore", "Tinker"],
+  "languages": ["Common", "Gnomish"],
+  "proficiencies": ["tinkers_tools"],
+  "visual": {
+    "appearancePreset": "gnome",
+    "animationMapping": { "Walk": "scamper_walk" },
+    "palette": {
+      "skinTones": [
+        { "r": 0.96, "g": 0.80, "b": 0.64 },
+        { "r": 0.90, "g": 0.72, "b": 0.56 },
+        { "r": 0.82, "g": 0.64, "b": 0.48 },
+        { "r": 0.74, "g": 0.58, "b": 0.44 }
+      ]
+    }
+  }
+}

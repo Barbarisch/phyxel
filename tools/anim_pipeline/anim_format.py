@@ -9,7 +9,7 @@ Format (mirrors engine/src/graphics/AnimationSystem.cpp loadFromFile):
     Bone <id> <name> <parentId> px py pz qx qy qz qw sx sy sz
     MODEL
     BoxCount N
-    Box <boneId> sx sy sz cx cy cz
+    Box <boneId> sx sy sz cx cy cz [r g b]   (optional explicit box color)
     ANIMATION <name>
     Duration <sec>
     Speed <units/sec>                     <- optional
@@ -53,6 +53,9 @@ class BoxShape:
     bone_id: int
     size: tuple   # (x, y, z)
     center: tuple  # (x, y, z)
+    # Optional explicit color (r, g, b) or None — overrides the bone's
+    # appearance region color in-engine (tusks, claws, teeth on variant rigs).
+    color: Optional[tuple] = None
 
 
 @dataclass
@@ -196,7 +199,8 @@ def parse(path) -> AnimFile:
                 af.boxes.append(BoxShape(
                     bone_id=int(p[1]),
                     size=tuple(float(x) for x in p[2:5]),
-                    center=tuple(float(x) for x in p[5:8])))
+                    center=tuple(float(x) for x in p[5:8]),
+                    color=tuple(float(x) for x in p[8:11]) if len(p) >= 11 else None))
         elif token == "ANIMATION":
             clip = Clip(name=stripped.split(None, 1)[1], duration=0.0)
             parts = next_line().split()
@@ -260,10 +264,13 @@ def write(af: AnimFile, path) -> None:
     out.append("MODEL")
     out.append(f"BoxCount {len(af.boxes)}")
     for box in af.boxes:
-        out.append("Box {} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}".format(
+        line = "Box {} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}".format(
             box.bone_id,
             box.size[0], box.size[1], box.size[2],
-            box.center[0], box.center[1], box.center[2]))
+            box.center[0], box.center[1], box.center[2])
+        if box.color is not None:
+            line += " {:.6f} {:.6f} {:.6f}".format(*box.color)
+        out.append(line)
 
     for clip in af.clips:
         out.append(f"ANIMATION {clip.name}")

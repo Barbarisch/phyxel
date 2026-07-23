@@ -1,6 +1,7 @@
 #pragma once
 #include "scene/RagdollCharacter.h"
 #include "scene/CharacterAppearance.h"
+#include "scene/BodyPlan.h"
 #include "scene/CharacterSkeleton.h"
 #include "scene/VoxelContactProbe.h"
 #include "graphics/AnimationSystem.h"
@@ -136,6 +137,28 @@ namespace Scene {
             bool colliding;
         };
         std::vector<SegmentBoxInfo> getSegmentBoxInfo() const;
+
+        // Test-only introspection: force foot-IK bone resolution and expose the
+        // resolved ids. The golden regression (CharacterGoldenPoseTest) pins these
+        // to the legacy mixamorig:* lookups so the body-plan refactor cannot
+        // silently re-wire which bones drive foot IK.
+        struct FootIKResolutionInfo {
+            int leftUpLeg = -1, leftLeg = -1, leftFoot = -1;
+            int rightUpLeg = -1, rightLeg = -1, rightFoot = -1;
+            int hipBoneId = -1;
+            bool cacheReady = false;
+        };
+        FootIKResolutionInfo resolveFootIKForTest();
+
+        /// Resolve which clip a state should play, layered:
+        ///   1. per-character animationMapping[stateKey] (user/race/NPC-def)
+        ///   2. body-plan clipDefaults[stateKey] (creature vocabulary;
+        ///      EMPTY on the humanoid plan by design)
+        ///   3. the legacy humanoid switch, verbatim (sprint variants,
+        ///      member-driven Attack/Block/Cast/... states)
+        /// Humanoid resolution is pinned state-by-state to the pre-refactor
+        /// switch in ClipSelectionTest.
+        std::string clipForState(AnimatedCharacterState state, bool isSprinting) const;
 
         // Animation state queries
         AnimatedCharacterState getAnimationState() const { return currentState; }
@@ -448,6 +471,7 @@ namespace Scene {
         // Animation Mapping
         void setAnimationMapping(const std::string& stateName, const std::string& animName);
         std::string getAnimationMapping(const std::string& stateName) const;
+        void removeAnimationMapping(const std::string& stateName);
         void setAnimationRotationOffset(const std::string& animName, float rotationDegrees);
         void setAnimationPositionOffset(const std::string& animName, const glm::vec3& offset);
 
@@ -518,6 +542,12 @@ namespace Scene {
         /// Base implementation runs foot IK; override in subclass to add extra corrections.
         virtual void applyIKCorrections(float deltaTime);
 
+        /// Additive posture: lean the spine chain forward by
+        /// appearance_.postureLeanDeg (distributed across the spine bones so
+        /// the hunch curves instead of hinging), applied after animation
+        /// sampling and before global-transform composition. No-op at 0.
+        void applyPostureLean();
+
     private:
         // ---- Foot IK ----
         struct FootIKBones {
@@ -552,6 +582,11 @@ namespace Scene {
         /// Populate m_leftFoot / m_rightFoot bone IDs from skeleton.boneMap.
         void resolveFootBoneIds();
 
+        /// Adopt the BodyPlan for the detected morphology and resolve it
+        /// against the loaded skeleton. Called by every load path right after
+        /// morphology detection (loadModel / loadFromSkeleton).
+        void adoptBodyPlan();
+
         /// Analytical 2-bone IK (law of cosines). Modifies upLeg and leg currentRotation.
         /// targetWorld is the desired foot world-space position; invModel converts it to model space.
         /// blend ∈ [0,1] lerps between the animated foot pos and the IK target.
@@ -569,6 +604,12 @@ namespace Scene {
         Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
 
     private:
+        // Body-plan descriptor for the loaded rig (docs/BodyPlan.md): names
+        // the root/legs/segments/clip vocabulary so runtime code consumes plan
+        // data instead of humanoid hardcodes. Populated by adoptBodyPlan().
+        Scene::BodyPlan m_bodyPlan;
+        Scene::BodyPlan::Resolved m_bodyPlanResolved;
+
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;
         Phyxel::VoxelModel voxelModel;

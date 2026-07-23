@@ -1,0 +1,108 @@
+# ==========================================================
+# ASSET METADATA
+# name:         bench_great
+# display_name: Great Bench
+# description:  A massive high bench for giant-kin — ogres and goliaths.
+# category:     furniture
+# subcategory:  seating
+# tags:         bench, seat, large, ogre, giant
+# ==========================================================
+# interaction_point: seat_0 seat 1.0000 1.3333 0.6667 3.141593 *
+# Format: S CubeX CubeY CubeZ SubX SubY SubZ Material
+
+S 0 0 0 0 0 0 Wood
+S 0 0 0 0 0 1 Wood
+S 0 0 0 0 0 2 Wood
+S 0 0 1 0 0 0 Wood
+S 0 0 0 0 1 0 Wood
+S 0 0 0 0 1 1 Wood
+S 0 0 0 0 1 2 Wood
+S 0 0 1 0 1 0 Wood
+S 0 0 0 0 2 0 Wood
+S 0 0 0 0 2 1 Wood
+S 0 0 0 0 2 2 Wood
+S 0 0 1 0 2 0 Wood
+S 0 1 0 0 0 0 Wood
+S 0 1 0 0 0 1 Wood
+S 0 1 0 0 0 2 Wood
+S 0 1 1 0 0 0 Wood
+S 0 0 0 1 0 0 Wood
+S 0 0 0 1 0 1 Wood
+S 0 0 0 1 0 2 Wood
+S 0 0 1 1 0 0 Wood
+S 0 0 0 1 1 0 Wood
+S 0 0 0 1 1 1 Wood
+S 0 0 0 1 1 2 Wood
+S 0 0 1 1 1 0 Wood
+S 0 0 0 1 2 0 Wood
+S 0 0 0 1 2 1 Wood
+S 0 0 0 1 2 2 Wood
+S 0 0 1 1 2 0 Wood
+S 0 1 0 1 0 0 Wood
+S 0 1 0 1 0 1 Wood
+S 0 1 0 1 0 2 Wood
+S 0 1 1 1 0 0 Wood
+S 0 0 0 2 0 0 Wood
+S 0 0 0 2 0 1 Wood
+S 0 0 0 2 0 2 Wood
+S 0 0 1 2 0 0 Wood
+S 0 0 0 2 1 0 Wood
+S 0 0 0 2 1 1 Wood
+S 0 0 0 2 1 2 Wood
+S 0 0 1 2 1 0 Wood
+S 0 0 0 2 2 0 Wood
+S 0 0 0 2 2 1 Wood
+S 0 0 0 2 2 2 Wood
+S 0 0 1 2 2 0 Wood
+S 0 1 0 2 0 0 Wood
+S 0 1 0 2 0 1 Wood
+S 0 1 0 2 0 2 Wood
+S 0 1 1 2 0 0 Wood
+S 1 0 0 0 0 0 Wood
+S 1 0 0 0 0 1 Wood
+S 1 0 0 0 0 2 Wood
+S 1 0 1 0 0 0 Wood
+S 1 0 0 0 1 0 Wood
+S 1 0 0 0 1 1 Wood
+S 1 0 0 0 1 2 Wood
+S 1 0 1 0 1 0 Wood
+S 1 0 0 0 2 0 Wood
+S 1 0 0 0 2 1 Wood
+S 1 0 0 0 2 2 Wood
+S 1 0 1 0 2 0 Wood
+S 1 1 0 0 0 0 Wood
+S 1 1 0 0 0 1 Wood
+S 1 1 0 0 0 2 Wood
+S 1 1 1 0 0 0 Wood
+S 1 0 0 1 0 0 Wood
+S 1 0 0 1 0 1 Wood
+S 1 0 0 1 0 2 Wood
+S 1 0 1 1 0 0 Wood
+S 1 0 0 1 1 0 Wood
+S 1 0 0 1 1 1 Wood
+S 1 0 0 1 1 2 Wood
+S 1 0 1 1 1 0 Wood
+S 1 0 0 1 2 0 Wood
+S 1 0 0 1 2 1 Wood
+S 1 0 0 1 2 2 Wood
+S 1 0 1 1 2 0 Wood
+S 1 1 0 1 0 0 Wood
+S 1 1 0 1 0 1 Wood
+S 1 1 0 1 0 2 Wood
+S 1 1 1 1 0 0 Wood
+S 1 0 0 2 0 0 Wood
+S 1 0 0 2 0 1 Wood
+S 1 0 0 2 0 2 Wood
+S 1 0 1 2 0 0 Wood
+S 1 0 0 2 1 0 Wood
+S 1 0 0 2 1 1 Wood
+S 1 0 0 2 1 2 Wood
+S 1 0 1 2 1 0 Wood
+S 1 0 0 2 2 0 Wood
+S 1 0 0 2 2 1 Wood
+S 1 0 0 2 2 2 Wood
+S 1 0 1 2 2 0 Wood
+S 1 1 0 2 0 0 Wood
+S 1 1 0 2 0 1 Wood
+S 1 1 0 2 0 2 Wood
+S 1 1 1 2 0 0 Wood

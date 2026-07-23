@@ -4,6 +4,7 @@
 #include "scene/CharacterAppearance.h"
 #include "graphics/LightManager.h"
 #include "core/EntityRegistry.h"
+#include "core/CharacterVisualResolver.h"
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -158,6 +159,18 @@ void NPCEntity::setCharacterSheet(const Core::CharacterSheet& sheet) {
     if (m_health) {
         m_health->setMaxHealth(static_cast<float>(sheet.maxHP));
         m_health->setHealth(static_cast<float>(sheet.currentHP > 0 ? sheet.currentHP : sheet.maxHP));
+    }
+
+    // Apply the sheet race's visual (preset proportions + palette) — but only
+    // if this NPC wasn't already given a race/preset appearance at spawn
+    // (presetId set means someone chose a silhouette; don't clobber it).
+    if (!sheet.raceId.empty() && m_character &&
+        m_character->getAppearance().presetId.empty()) {
+        nlohmann::json def = {{"race", sheet.raceId}};
+        auto visual = Core::CharacterVisualResolver::resolve(def, m_name);
+        if (visual.raceFound) {
+            m_character->rebuildWithAppearance(visual.appearance);
+        }
     }
 }
 

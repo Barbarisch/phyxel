@@ -74,8 +74,22 @@ struct CharacterAppearance {
     float wingSpanScale   = 1.0f;   // Wing span (dragon)
     float neckLengthScale = 1.0f;   // Neck length (dragon, quadruped)
 
+    // ---- Silhouette shaping (beyond uniform bulk) ----
+    // Belly: extra depth (+half as much width) on the lower-torso boxes only
+    // (hips/spine/spine1, not the chest) — a gut, not uniform thickness.
+    float bellyScale = 1.0f;
+    // Posture: forward spine lean in degrees, distributed across the spine
+    // chain after animation sampling — hunched brutes (ogre ~12) vs upright
+    // (0). Applied at pose time, so it shows in every clip.
+    float postureLeanDeg = 0.0f;
+
     /// Get the color for a bone based on its name, using morphology-aware mapping.
     glm::vec4 getColorForBone(const std::string& boneName) const;
+
+    /// SET this appearance's proportion scalars (and presetId) from another —
+    /// colors and morphology are untouched. Used when applying a named preset
+    /// (dwarf, halfling, ...) on top of an existing appearance.
+    void applyProportionsFrom(const CharacterAppearance& preset);
 
     /// Returns the default appearance (matches the original hardcoded colors).
     static CharacterAppearance defaultAppearance();
@@ -89,6 +103,11 @@ struct CharacterAppearance {
 
     /// Parse appearance from JSON. Missing fields use defaults.
     static CharacterAppearance fromJson(const nlohmann::json& j);
+
+    /// Parse appearance from JSON on top of an existing base — fields present
+    /// in `j` override `base`, missing fields keep the base value. Used for
+    /// partial updates (set_npc_appearance) and preset/override layering.
+    static CharacterAppearance fromJson(const nlohmann::json& j, const CharacterAppearance& base);
 
     /// Serialize to JSON.
     nlohmann::json toJson() const;

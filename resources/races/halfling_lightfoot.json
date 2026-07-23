@@ -6,5 +6,18 @@
   "darkvisionRange": 0,
   "traits": ["Lucky", "Brave", "Halfling Nimbleness", "Naturally Stealthy"],
   "languages": ["Common", "Halfling"],
-  "proficiencies": []
+  "proficiencies": [],
+  "visual": {
+    "appearancePreset": "halfling",
+    "animationMapping": { "Walk": "scamper_walk" },
+    "palette": {
+      "skinTones": [
+        { "r": 0.97, "g": 0.82, "b": 0.66 },
+        { "r": 0.92, "g": 0.74, "b": 0.58 },
+        { "r": 0.84, "g": 0.64, "b": 0.48 },
+        { "r": 0.72, "g": 0.54, "b": 0.38 },
+        { "r": 0.56, "g": 0.40, "b": 0.28 }
+      ]
+    }
+  }
 }

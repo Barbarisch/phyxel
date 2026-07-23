@@ -37,6 +37,21 @@ struct RaceDefinition {
     /// Proficiencies granted by race (skill, weapon, tool, or armor strings).
     std::vector<std::string> proficiencies;
 
+    /// Optional visual block wiring the race to a renderable character.
+    /// Schema (all keys optional):
+    ///   {
+    ///     "animFile": "resources/animated_characters/humanoid.anim",
+    ///     "appearancePreset": "dwarf",              // id in AppearancePresetRegistry
+    ///     "appearanceOverrides": { ... },           // partial CharacterAppearance JSON
+    ///     "palette": { "skinTones": [{"r":..,"g":..,"b":..}, ...] }
+    ///   }
+    /// Interpreted by Core::CharacterVisualResolver — engine code should go
+    /// through the resolver rather than reading this blob directly.
+    nlohmann::json visual;
+
+    /// True if a visual block was provided.
+    bool hasVisual() const { return visual.is_object() && !visual.empty(); }
+
     /// Apply racial ability score bonuses to an attribute set.
     void applyTo(CharacterAttributes& attrs) const;
 
@@ -66,6 +81,10 @@ public:
     /// Load from a JSON object (single race) or array of races.
     int loadFromJson(const nlohmann::json& j);
 
+    /// Load the default resources/races/ directory once if empty.
+    /// Safe to call on every lookup path.
+    void ensureLoaded();
+
     void clear();
 
 private:
@@ -74,6 +93,7 @@ private:
     RaceRegistry& operator=(const RaceRegistry&) = delete;
 
     std::unordered_map<std::string, RaceDefinition> m_races;
+    bool m_loadAttempted = false;
 };
 
 } // namespace Core

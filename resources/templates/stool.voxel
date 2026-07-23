@@ -12,6 +12,7 @@
 # method:       tools/regen_furniture.py (deterministic, canon-proportioned)
 # ==========================================================
 
+# interaction_point: seat_0 seat 0.1670 0.4440 0.1670 0.0 *
 M 0 0 0 0 0 0 0 0 0 WoodWalnut
 M 0 0 0 0 0 0 0 0 2 WoodWalnut
 M 0 0 0 0 0 0 0 1 0 WoodWalnut

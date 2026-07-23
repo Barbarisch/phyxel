@@ -26,6 +26,7 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
     bool hasPaw = false, hasFang = false, hasWing = false;
     bool hasLeg1Coxa = false, hasAbdomen = false, hasThorax = false;
     bool hasNeck1 = false, hasMixamoHips = false;
+    bool hasFrontLeg = false, hasBackLeg = false;
 
     for (const auto& name : boneNames) {
         std::string lower = name;
@@ -49,6 +50,12 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
         // Dragon markers
         if (lower.find("wing") != std::string::npos) hasWing = true;
         if (lower == "neck_1") hasNeck1 = true;
+
+        // Meshy auto-rig quadruped markers (frontleg/backleg chains). Checked
+        // before the humanoid marker below because Meshy names the quadruped
+        // root "Hips".
+        if (lower.find("frontleg") != std::string::npos) hasFrontLeg = true;
+        if (lower.find("backleg") != std::string::npos) hasBackLeg = true;
     }
 
     // Arachnid: has leg1_coxa pattern + thorax/abdomen
@@ -63,6 +70,12 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
 
     // Quadruped: has pelvis + paw/tail + chest (but not wings)
     if (hasPelvis && (hasPaw || hasTail) && hasChest && !hasWing) {
+        return MorphologyType::Quadruped;
+    }
+
+    // Meshy-rigged quadruped: frontleg/backleg chains. Must precede the
+    // humanoid check — Meshy quadruped roots are literally named "Hips".
+    if (hasFrontLeg && hasBackLeg) {
         return MorphologyType::Quadruped;
     }
 
@@ -542,6 +555,22 @@ CharacterAppearance CharacterAppearance::generateFromSeed(const std::string& nam
     return app;
 }
 
+void CharacterAppearance::applyProportionsFrom(const CharacterAppearance& preset) {
+    heightScale        = preset.heightScale;
+    bulkScale          = preset.bulkScale;
+    headScale          = preset.headScale;
+    armLengthScale     = preset.armLengthScale;
+    legLengthScale     = preset.legLengthScale;
+    torsoLengthScale   = preset.torsoLengthScale;
+    shoulderWidthScale = preset.shoulderWidthScale;
+    tailLengthScale    = preset.tailLengthScale;
+    wingSpanScale      = preset.wingSpanScale;
+    neckLengthScale    = preset.neckLengthScale;
+    bellyScale         = preset.bellyScale;
+    postureLeanDeg     = preset.postureLeanDeg;
+    presetId           = preset.presetId;
+}
+
 // ============================================================================
 // JSON serialization
 // ============================================================================
@@ -580,7 +609,11 @@ static const char* morphologyToString(MorphologyType m) {
 }
 
 CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j) {
-    CharacterAppearance app;
+    return fromJson(j, CharacterAppearance{});
+}
+
+CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j, const CharacterAppearance& base) {
+    CharacterAppearance app = base;
 
     // Morphology
     if (j.contains("morphology")) {
@@ -617,6 +650,10 @@ CharacterAppearance CharacterAppearance::fromJson(const nlohmann::json& j) {
     app.wingSpanScale   = j.value("wingSpanScale",   app.wingSpanScale);
     app.neckLengthScale = j.value("neckLengthScale", app.neckLengthScale);
 
+    // Silhouette shaping
+    app.bellyScale     = j.value("bellyScale",     app.bellyScale);
+    app.postureLeanDeg = j.value("postureLeanDeg", app.postureLeanDeg);
+
     return app;
 }
 
@@ -638,7 +675,9 @@ nlohmann::json CharacterAppearance::toJson() const {
         {"shoulderWidthScale", shoulderWidthScale},
         {"tailLengthScale",  tailLengthScale},
         {"wingSpanScale",    wingSpanScale},
-        {"neckLengthScale",  neckLengthScale}
+        {"neckLengthScale",  neckLengthScale},
+        {"bellyScale",       bellyScale},
+        {"postureLeanDeg",   postureLeanDeg}
     };
 }
 
