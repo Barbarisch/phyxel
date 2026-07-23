@@ -150,6 +150,16 @@ namespace Scene {
         };
         FootIKResolutionInfo resolveFootIKForTest();
 
+        /// Resolve which clip a state should play, layered:
+        ///   1. per-character animationMapping[stateKey] (user/race/NPC-def)
+        ///   2. body-plan clipDefaults[stateKey] (creature vocabulary;
+        ///      EMPTY on the humanoid plan by design)
+        ///   3. the legacy humanoid switch, verbatim (sprint variants,
+        ///      member-driven Attack/Block/Cast/... states)
+        /// Humanoid resolution is pinned state-by-state to the pre-refactor
+        /// switch in ClipSelectionTest.
+        std::string clipForState(AnimatedCharacterState state, bool isSprinting) const;
+
         // Animation state queries
         AnimatedCharacterState getAnimationState() const { return currentState; }
         std::string getCurrentClipName() const;

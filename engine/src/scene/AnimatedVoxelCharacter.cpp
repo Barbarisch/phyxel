@@ -1676,7 +1676,7 @@ namespace Scene {
         // Per-frame snap will subtract these from the seat anchor so that for
         // every state, the visible Hips lands at the seat at the reference frame,
         // and animates around it elsewhere in the clip.
-        auto findClipByName = [&](const char* name) -> int {
+        auto findClipByName = [&](const std::string& name) -> int {
             std::string lower = name;
             std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
             for (size_t i = 0; i < clips.size(); ++i) {
@@ -1686,9 +1686,15 @@ namespace Scene {
             }
             return -1;
         };
-        int sitDownIdx     = findClipByName("stand_to_sit");
-        int sittingIdleIdx = findClipByName("sitting_idle");
-        int sitStandUpIdx  = findClipByName("sit_to_stand");
+        // THE FIX for the quarantined tall-seat hop: the anchor sampling now
+        // resolves the SAME clips the render path will play (mapping -> plan
+        // -> legacy), instead of hardcoded names. A "SitDown" ->
+        // "hop_onto_seat" mapping (or a wolf plan's "SittingIdle" ->
+        // "Wolf_seat_") reaches the hips-ref sampling and the seated pose
+        // anchors from the correct clip.
+        int sitDownIdx     = findClipByName(clipForState(AnimatedCharacterState::SitDown, false));
+        int sittingIdleIdx = findClipByName(clipForState(AnimatedCharacterState::SittingIdle, false));
+        int sitStandUpIdx  = findClipByName(clipForState(AnimatedCharacterState::SitStandUp, false));
         // Sample the plan's root bone (== bone 0 on Mixamo rigs, pinned in
         // BodyPlanTest), not a literal 0 — a rig whose root isn't first in
         // the bone list would otherwise anchor sitting off a random bone.
@@ -2315,6 +2321,70 @@ namespace Scene {
             case AnimatedCharacterState::Celebrate: return "Celebrate";
             case AnimatedCharacterState::Preview: return "Preview";
             default: return "Unknown";
+        }
+    }
+
+    std::string AnimatedVoxelCharacter::clipForState(AnimatedCharacterState state,
+                                                     bool isSprinting) const {
+        // Layer 1: per-character animationMapping (user/race/NPC-def override).
+        const std::string stateKey = stateToString(state);
+        auto mapIt = animationMapping.find(stateKey);
+        if (mapIt != animationMapping.end()) return mapIt->second;
+
+        // Layer 2: body-plan clip vocabulary (creature rigs). EMPTY on the
+        // humanoid plan by design — humanoids fall through to layer 3 so the
+        // sprint variants and member-driven states behave exactly as before.
+        auto planIt = m_bodyPlan.clipDefaults.find(stateKey);
+        if (planIt != m_bodyPlan.clipDefaults.end()) return planIt->second;
+
+        // Layer 3: the legacy humanoid switch, verbatim (pinned state-by-state
+        // in ClipSelectionTest — edit that table if you edit this).
+        switch (state) {
+            case AnimatedCharacterState::Idle: return "idle";
+            case AnimatedCharacterState::StartWalk: return "start_walking";
+            case AnimatedCharacterState::Walk: return "walk";
+            case AnimatedCharacterState::Run: return isSprinting ? "fast_run" : "run";
+            case AnimatedCharacterState::Jump: return "jump";
+            case AnimatedCharacterState::Fall: return "jump_down";
+            case AnimatedCharacterState::Land: return "landing";
+            case AnimatedCharacterState::Crouch: return "standing_to_crouched";
+            case AnimatedCharacterState::CrouchIdle: return "crouch_idle";
+            case AnimatedCharacterState::CrouchWalk: return "crouched_walking";
+            case AnimatedCharacterState::StandUp: return "crouch_to_stand";
+            case AnimatedCharacterState::Attack: return m_currentAttackClip;
+            case AnimatedCharacterState::Block:
+                return m_moveset.block.empty() ? "body_block" : m_moveset.block;
+            case AnimatedCharacterState::Cast:
+                return (m_castSegIdx < m_castSegments.size())
+                           ? m_castSegments[m_castSegIdx].clip : "idle";
+            case AnimatedCharacterState::Dodge:
+                return m_currentDodgeClip.empty() ? "roll_forward" : m_currentDodgeClip;
+            case AnimatedCharacterState::HitReact:
+                return m_currentHitClip.empty() ? "idle" : m_currentHitClip;
+            case AnimatedCharacterState::Death:
+                return m_deathClip.empty() ? "idle" : m_deathClip;
+            case AnimatedCharacterState::KnockedOut: return "ko_lay";
+            case AnimatedCharacterState::GetUp: return "get_up";
+            case AnimatedCharacterState::Celebrate:
+                return m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
+            case AnimatedCharacterState::TurnLeft: return "left_turn";
+            case AnimatedCharacterState::TurnRight: return "right_turn";
+            case AnimatedCharacterState::StrafeLeft:
+            case AnimatedCharacterState::WalkStrafeLeft:
+                return isSprinting ? "left_strafe" : "left_strafe_walk";
+            case AnimatedCharacterState::StrafeRight:
+            case AnimatedCharacterState::WalkStrafeRight:
+                return isSprinting ? "right_strafe" : "right_strafe_walk";
+            case AnimatedCharacterState::BackwardWalk: return "walking_backward";
+            case AnimatedCharacterState::StopWalk: return "female_stop_walking";
+            case AnimatedCharacterState::StopRun: return "run_to_stop";
+            case AnimatedCharacterState::ClimbStairs: return "stair_up";
+            case AnimatedCharacterState::DescendStairs: return "stair_down";
+            case AnimatedCharacterState::SitDown: return "stand_to_sit";
+            case AnimatedCharacterState::SittingIdle: return "sitting_idle";
+            case AnimatedCharacterState::SitStandUp: return "sit_to_stand";
+            case AnimatedCharacterState::Preview: return "";
+            default: return "idle";
         }
     }
 
@@ -3075,15 +3145,9 @@ namespace Scene {
             // movement path, so we must do it explicitly here for clips to actually switch)
             {
                 std::string targetAnim;
-                switch (currentState) {
-                    case AnimatedCharacterState::SitDown:     targetAnim = "stand_to_sit"; break;
-                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
-                    case AnimatedCharacterState::SitStandUp:  targetAnim = "sit_to_stand"; break;
-                    default: targetAnim = "idle"; break;
-                }
-                // Respect user-defined mapping overrides
-                auto mapIt = animationMapping.find(stateToString(currentState));
-                if (mapIt != animationMapping.end()) targetAnim = mapIt->second;
+                // Layered selection (mapping -> plan -> legacy); sit states
+                // resolve identically to the old switch-plus-override.
+                targetAnim = clipForState(currentState, false);
 
                 // Find and switch clip (case-insensitive)
                 std::string targetLower = targetAnim;
@@ -3190,14 +3254,20 @@ namespace Scene {
                     // this a halfling's scamper_walk / ogre's ogre_walk
                     // mapping would only apply to player-controlled movement.
                     std::vector<std::string> candidates;
+                    auto pushLayered = [&](const char* stateKey) {
+                        auto mIt = animationMapping.find(stateKey);
+                        if (mIt != animationMapping.end()) candidates.push_back(mIt->second);
+                        // Body-plan vocabulary (wolf Walk_cycle etc.) sits
+                        // between the mapping and the legacy literal list.
+                        auto pIt = m_bodyPlan.clipDefaults.find(stateKey);
+                        if (pIt != m_bodyPlan.clipDefaults.end()) candidates.push_back(pIt->second);
+                    };
                     if (speed > 0.1f) {
-                        auto mapIt = animationMapping.find("Walk");
-                        if (mapIt != animationMapping.end()) candidates.push_back(mapIt->second);
+                        pushLayered("Walk");
                         candidates.insert(candidates.end(),
                             {"walk", "walking", "Walk", "Walking", "unarmed_walk"});
                     } else {
-                        auto mapIt = animationMapping.find("Idle");
-                        if (mapIt != animationMapping.end()) candidates.push_back(mapIt->second);
+                        pushLayered("Idle");
                         candidates.insert(candidates.end(),
                             {"idle", "Idle", "Standing", "standing"});
                     }
@@ -3371,82 +3441,9 @@ namespace Scene {
             static int debugFrameCounter = 0;
             bool shouldLog = (debugFrameCounter++ % 30 == 0);
 
-            // Check user-defined mapping first
-            std::string stateKey = stateToString(currentState);
-            if (animationMapping.find(stateKey) != animationMapping.end()) {
-                targetAnim = animationMapping[stateKey];
-            } else {
-                // Default hardcoded mapping
-                switch (currentState) {
-                    case AnimatedCharacterState::Idle: targetAnim = "idle"; break;
-                    case AnimatedCharacterState::StartWalk: targetAnim = "start_walking"; break;
-                    case AnimatedCharacterState::Walk: targetAnim = "walk"; break;
-                    case AnimatedCharacterState::Run: 
-                        if (isSprinting) targetAnim = "fast_run";
-                        else targetAnim = "run"; 
-                        break;
-                    case AnimatedCharacterState::Jump: targetAnim = "jump"; break;
-                    case AnimatedCharacterState::Fall: targetAnim = "jump_down"; break;
-                    case AnimatedCharacterState::Land: targetAnim = "landing"; break;
-                    case AnimatedCharacterState::Crouch: targetAnim = "standing_to_crouched"; break;
-                    case AnimatedCharacterState::CrouchIdle: targetAnim = "crouch_idle"; break;
-                    case AnimatedCharacterState::CrouchWalk: targetAnim = "crouched_walking"; break;
-                    case AnimatedCharacterState::StandUp: targetAnim = "crouch_to_stand"; break;
-                    case AnimatedCharacterState::Attack: targetAnim = m_currentAttackClip; break;
-                    case AnimatedCharacterState::Block:
-                        targetAnim = m_moveset.block.empty() ? "body_block" : m_moveset.block;
-                        break;
-                    case AnimatedCharacterState::Cast:
-                        targetAnim = (m_castSegIdx < m_castSegments.size())
-                                         ? m_castSegments[m_castSegIdx].clip : "idle";
-                        break;
-                    case AnimatedCharacterState::Dodge:
-                        targetAnim = m_currentDodgeClip.empty() ? "roll_forward"
-                                                               : m_currentDodgeClip;
-                        break;
-                    case AnimatedCharacterState::HitReact:
-                        targetAnim = m_currentHitClip.empty() ? "idle" : m_currentHitClip;
-                        break;
-                    case AnimatedCharacterState::Death:
-                        targetAnim = m_deathClip.empty() ? "idle" : m_deathClip;
-                        break;
-                    case AnimatedCharacterState::KnockedOut: targetAnim = "ko_lay"; break;
-                    case AnimatedCharacterState::GetUp:      targetAnim = "get_up"; break;
-                    case AnimatedCharacterState::Celebrate:
-                        targetAnim = m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
-                        break;
-                    case AnimatedCharacterState::TurnLeft: targetAnim = "left_turn"; break;
-                    case AnimatedCharacterState::TurnRight: targetAnim = "right_turn"; break;
-                    case AnimatedCharacterState::StrafeLeft: 
-                        // Differentiate between walking strafe and running strafe based on sprint state
-                        if (isSprinting) targetAnim = "left_strafe"; // Run strafe
-                        else targetAnim = "left_strafe_walk"; // Walk strafe
-                        break;
-                    case AnimatedCharacterState::StrafeRight: 
-                        // Differentiate between walking strafe and running strafe based on sprint state
-                        if (isSprinting) targetAnim = "right_strafe"; // Run strafe
-                        else targetAnim = "right_strafe_walk"; // Walk strafe
-                        break;
-                    case AnimatedCharacterState::WalkStrafeLeft: 
-                        if (isSprinting) targetAnim = "left_strafe"; 
-                        else targetAnim = "left_strafe_walk"; 
-                        break;
-                    case AnimatedCharacterState::WalkStrafeRight: 
-                        if (isSprinting) targetAnim = "right_strafe"; 
-                        else targetAnim = "right_strafe_walk"; 
-                        break;
-                    case AnimatedCharacterState::BackwardWalk: targetAnim = "walking_backward"; break;
-                    case AnimatedCharacterState::StopWalk: targetAnim = "female_stop_walking"; break;
-                    case AnimatedCharacterState::StopRun: targetAnim = "run_to_stop"; break;
-                    case AnimatedCharacterState::ClimbStairs: targetAnim = "stair_up"; break;
-                    case AnimatedCharacterState::DescendStairs: targetAnim = "stair_down"; break;
-                    case AnimatedCharacterState::SitDown: targetAnim = "stand_to_sit"; break;
-                    case AnimatedCharacterState::SittingIdle: targetAnim = "sitting_idle"; break;
-                    case AnimatedCharacterState::SitStandUp: targetAnim = "sit_to_stand"; break;
-                    case AnimatedCharacterState::Preview: targetAnim = ""; break;
-                    default: targetAnim = "idle"; break;
-                }
-            }
+            // Layered selection: mapping -> body-plan clipDefaults -> legacy
+            // switch (all moved verbatim into clipForState).
+            targetAnim = clipForState(currentState, isSprinting);
 
             if (shouldLog) {
                 std::cout << "DEBUG: Selected TargetAnim=" << targetAnim << std::endl;
