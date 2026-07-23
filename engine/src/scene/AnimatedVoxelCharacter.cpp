@@ -820,18 +820,33 @@ namespace Scene {
         skeletonFootOffset_ = minY;
         m_originalHalfHeight = characterHeight * 0.5f;
 
-        // Capsule width scales with the proportioned skeleton: ratio of the
-        // scaled torso X-span vs the unscaled template's, applied to the
-        // legacy 0.25 base. A standard character (ratio 1.0) keeps exactly
-        // the legacy capsule; wide presets (goliath) widen it, small races
-        // narrow it. Clamped to sane bounds whatever the preset does.
-        float widthRatio = 1.0f;
-        if (hasOriginalTemplate_) {
-            float templateSpan = computeTorsoSpanX(originalSkeleton_);
-            float scaledSpan   = computeTorsoSpanX(skeleton);
-            if (templateSpan > 0.01f) widthRatio = scaledSpan / templateSpan;
+        if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {
+            // Long-bodied plans (quadruped/arachnid/dragon): the biped
+            // torso-span ratio under-sizes a body that is long, not tall.
+            // Half-width = the larger bind-pose |x|/|z| bone extent, clamped
+            // to the plan's bounds.
+            float maxAbsXZ = 0.0f;
+            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][0]));
+                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][2]));
+            }
+            m_originalHalfWidth = glm::clamp(maxAbsXZ,
+                                             m_bodyPlan.capsule.minHalfWidth,
+                                             m_bodyPlan.capsule.maxHalfWidth);
+        } else {
+            // Legacy (biped) path — byte-for-byte the pre-body-plan behavior
+            // (golden layer 2 pins it): capsule width scales with the
+            // proportioned skeleton via the torso X-span ratio applied to the
+            // legacy 0.25 base. Standard (ratio 1.0) keeps exactly the legacy
+            // capsule; wide presets widen, small races narrow.
+            float widthRatio = 1.0f;
+            if (hasOriginalTemplate_) {
+                float templateSpan = computeTorsoSpanX(originalSkeleton_);
+                float scaledSpan   = computeTorsoSpanX(skeleton);
+                if (templateSpan > 0.01f) widthRatio = scaledSpan / templateSpan;
+            }
+            m_originalHalfWidth = glm::clamp(0.25f * widthRatio, 0.12f, 0.60f);
         }
-        m_originalHalfWidth = glm::clamp(0.25f * widthRatio, 0.12f, 0.60f);
 
         // Step height scales with leg length (longer legs step higher).
         // Floored just above the 1/3-voxel subcube riser so every race can
@@ -1618,9 +1633,14 @@ namespace Scene {
         if (m_isSitting) return;
 
         // --- Cache hip bone index for per-frame tracking ---
-        m_hipBoneIndex = -1;
+        // Body-plan-driven: the plan's resolved root IS the hip/pelvis bone
+        // (exact name, then alias fallback — same algorithm the old substring
+        // scan approximated). Humanoid resolves the identical bone (index 0,
+        // pinned in BodyPlanTest); wolf now finds "pelvis" instead of falling
+        // through to the 0.8 default.
+        m_hipBoneIndex = m_bodyPlanResolved.rootBoneId;
         m_bindPoseHipHeight = 0.8f;  // sensible fallback
-        if (!skeleton.bones.empty()) {
+        if (m_hipBoneIndex >= 0 && m_hipBoneIndex < (int)skeleton.bones.size()) {
             std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
             for (size_t i = 0; i < skeleton.bones.size(); ++i) {
                 const auto& bone = skeleton.bones[i];
@@ -1628,16 +1648,8 @@ namespace Scene {
                                 * glm::mat4_cast(bone.localRotation);
                 globalT[i] = (bone.parentId < 0) ? local : globalT[bone.parentId] * local;
             }
-            for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                std::string n = skeleton.bones[i].name;
-                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                if (n.find("hip") != std::string::npos) {
-                    m_hipBoneIndex = static_cast<int>(i);
-                    float h = globalT[i][3][1] - skeletonFootOffset_;
-                    if (h >= 0.1f) m_bindPoseHipHeight = h;
-                    break;
-                }
-            }
+            float h = globalT[m_hipBoneIndex][3][1] - skeletonFootOffset_;
+            if (h >= 0.1f) m_bindPoseHipHeight = h;
         }
 
         // Store seat anchor and apply height offset
@@ -1677,14 +1689,19 @@ namespace Scene {
         int sitDownIdx     = findClipByName("stand_to_sit");
         int sittingIdleIdx = findClipByName("sitting_idle");
         int sitStandUpIdx  = findClipByName("sit_to_stand");
+        // Sample the plan's root bone (== bone 0 on Mixamo rigs, pinned in
+        // BodyPlanTest), not a literal 0 — a rig whose root isn't first in
+        // the bone list would otherwise anchor sitting off a random bone.
+        const int hipsBone = (m_bodyPlanResolved.rootBoneId >= 0)
+                                 ? m_bodyPlanResolved.rootBoneId : 0;
         m_hipsRef_sitDown     = (sitDownIdx >= 0)
-            ? sampleClipBonePos(sitDownIdx, 0, clips[sitDownIdx].duration)
+            ? sampleClipBonePos(sitDownIdx, hipsBone, clips[sitDownIdx].duration)
             : glm::vec3(0.0f);
         m_hipsRef_sittingIdle = (sittingIdleIdx >= 0)
-            ? sampleClipBonePos(sittingIdleIdx, 0, 0.0f)
+            ? sampleClipBonePos(sittingIdleIdx, hipsBone, 0.0f)
             : glm::vec3(0.0f);
         m_hipsRef_sitStandUp  = (sitStandUpIdx >= 0)
-            ? sampleClipBonePos(sitStandUpIdx, 0, 0.0f)
+            ? sampleClipBonePos(sitStandUpIdx, hipsBone, 0.0f)
             : glm::vec3(0.0f);
         // Keep Y component too: it represents the Hips height in model space at
         // the seated reference frame (typically ~0.45m for a humanoid). Including
@@ -2867,10 +2884,14 @@ namespace Scene {
                             std::transform(n.begin(), n.end(), n.begin(), ::tolower);
                             if (n == "idle") { idleIdx = (int)i; break; }
                         }
+                        // Plan root == Hips (bone 0 on Mixamo rigs, pinned in
+                        // BodyPlanTest); guard for rigs with no resolvable root.
+                        const int hipsBone = (m_bodyPlanResolved.rootBoneId >= 0)
+                                                 ? m_bodyPlanResolved.rootBoneId : 0;
                         glm::vec3 idleStartHips = (idleIdx >= 0)
-                            ? sampleClipBonePos(idleIdx, 0, 0.0f)
-                            : skeleton.bones[0].localPosition;
-                        glm::vec3 currentHips = skeleton.bones[0].currentPosition;
+                            ? sampleClipBonePos(idleIdx, hipsBone, 0.0f)
+                            : skeleton.bones[hipsBone].localPosition;
+                        glm::vec3 currentHips = skeleton.bones[hipsBone].currentPosition;
                         float dx = currentHips.x - idleStartHips.x;
                         float dy = currentHips.y - idleStartHips.y;
                         float dz = currentHips.z - idleStartHips.z;
@@ -3958,26 +3979,28 @@ namespace Scene {
     // =========================================================================
 
     void AnimatedVoxelCharacter::resolveFootBoneIds() {
-        auto find = [&](const std::string& name) -> int {
-            auto it = skeleton.boneMap.find(name);
-            return (it != skeleton.boneMap.end()) ? it->second : -1;
-        };
-        m_leftFoot.upLegId  = find("mixamorig:LeftUpLeg");
-        m_leftFoot.legId    = find("mixamorig:LeftLeg");
-        m_leftFoot.footId   = find("mixamorig:LeftFoot");
-        m_rightFoot.upLegId = find("mixamorig:RightUpLeg");
-        m_rightFoot.legId   = find("mixamorig:RightLeg");
-        m_rightFoot.footId  = find("mixamorig:RightFoot");
-
-        // Cache pelvis bone for body-adjustment during IK
-        m_ikHipBoneId = find("mixamorig:Hips");
-        if (m_ikHipBoneId < 0) {
-            for (const auto& [name, id] : skeleton.boneMap) {
-                std::string n = name;
-                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                if (n.find("hip") != std::string::npos) { m_ikHipBoneId = id; break; }
-            }
+        // Body-plan-driven: leg/hip ids come from the resolved plan. The
+        // humanoid plan's legs are the byte-exact legacy mixamorig:* names,
+        // so a biped resolves the same ids the old hardcoded lookups did
+        // (pinned by CharacterGoldenPoseTest.FootIKBoneIdentity*). Non-biped
+        // plans (footIK=false on every leg) leave the cache not-ready, which
+        // matches the old behavior where creature rigs failed the name
+        // lookups — the two-bone IK below is biped-only until P3.
+        m_leftFoot  = {};
+        m_rightFoot = {};
+        const auto& legs = m_bodyPlanResolved.legs;
+        if (legs.size() == 2 && legs[0].footIK && legs[1].footIK) {
+            m_leftFoot.upLegId  = legs[0].upperId;
+            m_leftFoot.legId    = legs[0].midId;
+            m_leftFoot.footId   = legs[0].footId;
+            m_rightFoot.upLegId = legs[1].upperId;
+            m_rightFoot.legId   = legs[1].midId;
+            m_rightFoot.footId  = legs[1].footId;
         }
+
+        // Pelvis bone for body-adjustment during IK (also the sit anchor).
+        // resolveAgainst already applied the exact-name -> hip-alias fallback.
+        m_ikHipBoneId = m_bodyPlanResolved.rootBoneId;
 
         m_footIKCacheReady =
             (m_leftFoot.upLegId  >= 0 && m_leftFoot.legId  >= 0 && m_leftFoot.footId  >= 0) ||
@@ -4681,20 +4704,13 @@ namespace Scene {
     void AnimatedVoxelCharacter::buildSegmentBoxes() {
         clearSegmentBoxes();
 
-        static const struct { const char* name; bool isArm; } kSegments[12] = {
-            { "mixamorig:Head",         false },
-            { "mixamorig:Spine2",       false },  // Upper chest / shoulders
-            { "mixamorig:Spine1",       false },  // Mid torso / abdomen
-            { "mixamorig:Hips",         false },  // Pelvis / lower torso
-            { "mixamorig:LeftArm",      true  },
-            { "mixamorig:RightArm",     true  },
-            { "mixamorig:LeftForeArm",  true  },
-            { "mixamorig:RightForeArm", true  },
-            { "mixamorig:LeftUpLeg",    false },
-            { "mixamorig:RightUpLeg",   false },
-            { "mixamorig:LeftLeg",      false },
-            { "mixamorig:RightLeg",     false },
-        };
+        // Body-plan-driven: the segment table (names, isArm flags, ORDER —
+        // order is contract for getSegmentBoxInfo/getAttackOrigin/MCP
+        // get_bone_positions) comes from the plan. The humanoid plan carries
+        // the legacy 12-entry mixamorig table verbatim, so humanoid output is
+        // byte-identical (golden layer 2 pins it); creature plans finally get
+        // real segment boxes instead of 12 warn-and-skips.
+        const auto& planSegments = m_bodyPlan.segments;
 
         // Build children map for skeleton-based size fallback
         std::map<int, std::vector<int>> childrenMap;
@@ -4702,10 +4718,10 @@ namespace Scene {
             if (b.parentId != -1) childrenMap[b.parentId].push_back(b.id);
         }
 
-        for (const auto& seg : kSegments) {
-            auto boneIt = skeleton.boneMap.find(seg.name);
+        for (const auto& seg : planSegments) {
+            auto boneIt = skeleton.boneMap.find(seg.bone);
             if (boneIt == skeleton.boneMap.end()) {
-                LOG_WARN_FMT("Character", "Segment box: bone not in skeleton: " << seg.name);
+                LOG_WARN_FMT("Character", "Segment box: bone not in skeleton: " << seg.bone);
                 continue;
             }
             int boneId = boneIt->second;
@@ -4764,10 +4780,10 @@ namespace Scene {
 
             halfExtents = glm::max(halfExtents, glm::vec3(0.04f));
 
-            LOG_INFO_FMT("Character", "  Segment [" << seg.name << "] source=" << source
+            LOG_INFO_FMT("Character", "  Segment [" << seg.bone << "] source=" << source
                 << " he=(" << halfExtents.x << "," << halfExtents.y << "," << halfExtents.z << ")");
 
-            m_segmentBoxes.push_back({ seg.name, boneId, glm::vec3(0.0f), halfExtents, glm::vec3(0.0f), seg.isArm, false });
+            m_segmentBoxes.push_back({ seg.bone, boneId, glm::vec3(0.0f), halfExtents, glm::vec3(0.0f), seg.isArm, false });
         }
 
         LOG_INFO_FMT("Character", "Built " << m_segmentBoxes.size() << "/8 segment collision boxes");

@@ -219,6 +219,32 @@ TEST(BodyPlan, DragonPlanResolvesOnDragonRig) {
                             4, 12);
 }
 
+TEST(BodyPlan, WolfGetsRealSegmentBoxesAndCapsule) {
+    // Pre-body-plan, a wolf got ZERO segment boxes (12 mixamorig warn-skips),
+    // a biped 0.25 capsule, and no resolvable hip. All three must now be real.
+    auto ch = std::make_unique<AnimatedVoxelCharacter>(nullptr, glm::vec3(0.0f));
+    ASSERT_TRUE(ch->loadModel("resources/animated_characters/character_wolf.anim"));
+
+    auto segs = ch->getSegmentBoxInfo();
+    EXPECT_GE(segs.size(), 8u) << "wolf plan segments did not resolve";
+    for (const auto& s : segs) {
+        EXPECT_GT(s.halfExtents.x, 0.0f) << s.boneName;
+        EXPECT_GT(s.halfExtents.y, 0.0f) << s.boneName;
+        EXPECT_GT(s.halfExtents.z, 0.0f) << s.boneName;
+    }
+
+    // XZExtent capsule: wider than the legacy biped 0.25, inside plan clamps.
+    EXPECT_GT(ch->getControllerHalfWidth(), 0.25f);
+    EXPECT_LE(ch->getControllerHalfWidth(), 0.90f);
+
+    // Foot-IK stays OFF for quadrupeds (plan legs footIK=false) — the
+    // two-bone solver is biped-only until P3.
+    auto ik = ch->resolveFootIKForTest();
+    EXPECT_FALSE(ik.cacheReady);
+    // But the hip/root resolves (pelvis) — sitting no longer 0.8-fallbacks.
+    EXPECT_GE(ik.hipBoneId, 0);
+}
+
 // ---------------------------------------------------------------------------
 // Stress (CharacterAnimationV2.md §10 P0b acceptance): all four rig families
 // load into the real character class without crashing.
