@@ -1,11 +1,34 @@
 #include "Application.h"
 #include "utils/Logger.h"
+#include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <filesystem>
 
+// Silent-crash hunter (recurring class: log ends mid-frame, no error, no WER event —
+// i.e. terminate/abort, likely an uncaught exception OFF the main thread which the
+// main() try/catch can never see). Log + FLUSH the reason before dying so the next
+// occurrence finally has a name. Kept permanently: costs nothing until it fires.
+static void phyxelTerminateHandler() {
+    if (auto eptr = std::current_exception()) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch (const std::exception& e) {
+            LOG_ERROR_FMT("Terminate", "std::terminate with uncaught exception: " << e.what());
+        } catch (...) {
+            LOG_ERROR("Terminate", "std::terminate with uncaught NON-std exception");
+        }
+    } else {
+        LOG_ERROR("Terminate", "std::terminate with NO active exception (direct abort/terminate)");
+    }
+    Phyxel::Utils::Logger::flush();
+    std::abort();
+}
+
 int main(int argc, char* argv[]) {
+    std::set_terminate(&phyxelTerminateHandler);
     Phyxel::Application app;
 
     // Parse command-line arguments
