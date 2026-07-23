@@ -47,6 +47,20 @@ VoxelDynamicsWorld::VoxelDynamicsWorld() {
 
 // ---- Terrain ----
 
+bool VoxelDynamicsWorld::anyStaticSolidInAABB(const glm::vec3& lo, const glm::vec3& hi) const {
+    std::vector<OccupiedBox> hits;
+    for (const auto* g : m_grids) {
+        if (!g) continue;
+        const glm::vec3 cLo = g->chunkWorldMin(), cHi = g->chunkWorldMax();
+        if (hi.x < cLo.x || lo.x > cHi.x || hi.y < cLo.y || lo.y > cHi.y ||
+            hi.z < cLo.z || lo.z > cHi.z)
+            continue;
+        g->queryAABB(lo, hi, hits);
+        if (!hits.empty()) return true;
+    }
+    return false;
+}
+
 void VoxelDynamicsWorld::registerGrid(VoxelOccupancyGrid* grid) {
     if (!grid) return;
     // U1a: dedup via the chunk-coord map — O(1), so re-registering on an air→content

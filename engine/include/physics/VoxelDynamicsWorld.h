@@ -47,6 +47,13 @@ public:
     // static-terrain collision is invisible to this world (characters fall through).
     size_t gridCount() const { return m_grids.size(); }
 
+    // True if ANY registered static occupancy (cube/subcube/microcube) overlaps the
+    // world-space AABB. This is the solidity characters actually collide with — nav
+    // consumers use it so micro-thin geometry (parcel fences) blocks paths the same
+    // way it blocks bodies (cube-level hasVoxelAt misses it; measured: residents
+    // treadmilling on fence lines the NavGraph routed straight through).
+    bool anyStaticSolidInAABB(const glm::vec3& lo, const glm::vec3& hi) const;
+
     // ---- Body management ----
     // Create a new rigid body from one or more local boxes (compound-aware).
     // worldPos is the initial world-space position of the center of mass.
