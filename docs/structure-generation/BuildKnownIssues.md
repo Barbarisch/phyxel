@@ -15,10 +15,18 @@ HYPOTHESIS until confirmed in code.
   window spec places along the front wall without a minimum jamb offset from wall ends;
   corner cells host two wall bands. Fix in the openings layout (min 1-cube corner clearance)
   + a `RealizedStructureValidator` window-position check.
-- **KI-5b — Objects not flush against walls, especially wall lanterns.** Likely:
-  `FurniturePlacer::mountFor` wall attachment inset vs the CLAMPED subcube wall band
-  (thicknessMicro) drifts for some wall thicknesses/orientations. Fix at the mount-inset
-  arithmetic + an L2 adjacency check (fixture bbox must touch the wall band via `featureAt`).
+- **KI-5b — Objects not flush against walls, especially wall lanterns — FIXED at unit
+  level (2026-07-23, solution-auditor PASS after a two-round audit).** Root cause: every
+  wall-backed piece was inset by the EXTERIOR wall thickness; on thin interior partitions
+  (2 micro) pieces floated extT−1 micro (~0.8-0.9 m on stone styles) off the wall —
+  style/wall dependent, hence "sometimes". Fix: PER-AXIS insets on `FurniturePlacement`
+  (`insetMicroX/Z`; exterior = full band, partition = the straddling band's half, corners
+  flush to BOTH walls), gated to the modern calling convention (`extTMicro > 0`) after the
+  auditor's round-1 FAIL reproduced a legacy-convention regression (furniture embedded in
+  walls, `MicroPlacementOverlapTest` 0→234→0 overlaps across the fix). Guard:
+  `FixtureFlushnessTest`. REMAINING: live L4 sconce confirmation on the next
+  post-typology-reorder village (the current one has no wall lantern); winged-notch edges
+  still read as interior (old over-inset behavior there, disclosed).
 - **KI-5c — Rug texture doesn't fit / isn't centered on the rug object.** Asset-level: the
   1-micro rug slab's per-face sub-tiling doesn't align the rug_oriental field with the
   template extent (same micro-sampling family as the washed-out Log fences). Fix in
