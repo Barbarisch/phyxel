@@ -5,7 +5,53 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
 
 ## Open
 
-*(none currently)*
+### KI-5 batch — USER visual observations, 2026-07-23 (procedural settlement quality)
+
+Reported from live inspection of generated villages. Each gets the standard treatment:
+root-cause → red validator/test shown failing → fix → auditor. Triage below is
+HYPOTHESIS until confirmed in code.
+
+- **KI-5a — Windows sometimes placed on the corner of a structure.** Likely: the autofill
+  window spec places along the front wall without a minimum jamb offset from wall ends;
+  corner cells host two wall bands. Fix in the openings layout (min 1-cube corner clearance)
+  + a `RealizedStructureValidator` window-position check.
+- **KI-5b — Objects not flush against walls, especially wall lanterns.** Likely:
+  `FurniturePlacer::mountFor` wall attachment inset vs the CLAMPED subcube wall band
+  (thicknessMicro) drifts for some wall thicknesses/orientations. Fix at the mount-inset
+  arithmetic + an L2 adjacency check (fixture bbox must touch the wall band via `featureAt`).
+- **KI-5c — Rug texture doesn't fit / isn't centered on the rug object.** Asset-level: the
+  1-micro rug slab's per-face sub-tiling doesn't align the rug_oriental field with the
+  template extent (same micro-sampling family as the washed-out Log fences). Fix in
+  `tools/regen_furniture.py` rug generation (size the field to the slab / center the motif),
+  possibly renderer sub-tile origin.
+- **KI-5d — Stairs overlap furniture in some cases.** The furniture pass doesn't reserve the
+  stair footprint + its well/landing; only door clearances are reserved. Fix: thread
+  `StairPlanner` rects into the placer's reservation grid; L2 check: no fixture bbox
+  intersects stair cells.
+- **KI-5e — Generated paths should remove the grass.** Grass blades render through thin
+  paving (the blade layer reads the Grass cube under the road — logged as a Phase-2
+  follow-up, still open). Fix: paving/path stamping converts the underlying Grass-family
+  cube to Dirt (same rule the building pad uses, V10 grass_under_house).
+- **KI-5g — Furniture generates OUTSIDE walls (USER, 2026-07-23).** Evidence captured live:
+  the L-plan stone_keep tavern at (60,16,1) has a wardrobe standing on grass WEST of its
+  x=60 exterior wall and a rug tilted through a wall opening (screenshot
+  screenshot_20260723_152444_484.png + scan). Suspect: L-plan (`footprintShape:"L"` /
+  generateWingedLayout) room rects disagree with the realized wing walls, so the placer's
+  wall-backed positions fall outside the built shell — the L-plan cluster's fourth defect
+  class (wrong-side door anchors, bbox-perimeter door misses, and the tall-tower read are
+  the others). Fix likely = make winged room rects match realized geometry + an L2
+  furniture-inside-shell validator (fixture bbox ⊂ interior cells via `featureAt`).
+- **KI-5h — Interior walls sometimes FULL-CUBE thick, can block doorways (USER,
+  2026-07-23).** Confirmed in scan data: the same tavern has an interior wall line at
+  x=62 (z9-16, y18-19) built of full StoneBricks CUBES — the v2 rule says interior walls
+  are subcube-thick (interior_wall 0.222 ≈ 2 micro). Suspect: the L-plan wing-joint wall
+  (main-range + wing exterior walls overlapping into a cube-read band) or the winged
+  layout emitting cube walls; a cube-thick partition also breaks the door-carve arithmetic
+  (the carve clears the thin band, leaving cube remnants that narrow/block the doorway).
+- **KI-5f — Fences don't always come to a neat corner.** `FenceBuilder` corner joins leave
+  ragged meets (missing corner post or overlapping rails) on some parcel orientations,
+  despite the earlier fence-corner fix (which covered a different defect). Fix in the corner
+  join emission + a corner-topology unit test across all 4 orientations.
 
 ## Resolved
 

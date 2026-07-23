@@ -11919,6 +11919,37 @@ void Application::registerSettlementCommands() {
             }
             const long placedMicros =
                 Core::StructureGenerator::place(chunkManager, paveBatch).placed;
+            // Pass E (KI-5e): a road KILLS the grass under it. Thin paving micros don't
+            // suppress the ground cube's exposed-top blade layer, so grass sprouted
+            // through the gravel. Convert the ground cube under every paved column to
+            // Dirt — the same rule building pads already apply (V10 grass_under_house).
+            long grassConverted = 0;
+            {
+                auto isGrassMat = [](const std::string& m) {
+                    return m == "Grass" || m == "GrassForest" || m == "GrassSavanna" ||
+                           m == "SnowGrass";
+                };
+                std::vector<glm::ivec3> gcut;
+                Core::StructureResult gfill;
+                for (const auto& [cbx, cbz] : pavedCols) {
+                    const int gy = groundMicro(cbx * 9 + 4, cbz * 9 + 4) / 9 - 1;
+                    const glm::ivec3 gp(cbx, gy, cbz);
+                    if (const auto* cu = chunkManager->getCubeAt(gp))
+                        if (isGrassMat(cu->getMaterialName())) {
+                            gcut.push_back(gp);
+                            Core::VoxelPlacement vp;
+                            vp.position = gp;
+                            vp.material = "Dirt";
+                            vp.level = Core::VoxelLevel::Cube;
+                            gfill.voxels.push_back(vp);
+                        }
+                }
+                if (!gcut.empty()) {
+                    Core::StructureGenerator::removeVoxels(chunkManager, gcut);
+                    Core::StructureGenerator::place(chunkManager, gfill);
+                }
+                grassConverted = static_cast<long>(gcut.size());
+            }
             chunkManager->rebuildOccupancyFromChunks();
             const double stampMs = (glfwGetTime() - t0) * 1000.0;
             LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
@@ -11934,6 +11965,7 @@ void Application::registerSettlementCommands() {
                          {"cut_cols_honored", pave.cutCols},
                          {"cut_cubes_removed", static_cast<long>(cutCubes.size())},
                          {"cut_cells_unpaved", 0},
+                         {"grass_converted", grassConverted},
                          {"spurs", pave.spursPlanned}, {"spurs_too_steep", pave.spursFailed},
                          {"material", paveMat}, {"stamp_ms", static_cast<long>(stampMs)}};
             }});
