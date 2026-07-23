@@ -7,6 +7,7 @@
 #include <string>
 
 #include "core/RoomProgram.h"
+#include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
@@ -371,14 +372,38 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
         RoomLayout rl;
-        // ground floor: a winged (non-rect) plan if requested, else the typology's linear plan.
-        if (i == 0 && !program.footprintShape.empty() && program.footprintShape != "rect") {
-            rl = generateWingedLayout(W, D, program.footprintShape, seed);
-            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through
-        }
-        if (rl.rooms.empty() && typology && i == 0) {        // ground floor = the typology's plan
+        // Ground floor: the TYPOLOGY's grounded plan comes FIRST. The winged (L) layout
+        // used to take precedence and REPLACED the typology with generic hall/service/
+        // solar — an L-shaped TAVERN had no taproom (found live 2026-07-23, L-plan hunt).
+        // Until winged variants of the typology programs exist, a requested non-rect
+        // shape applies only when no typology plan fits; the skip is surfaced.
+        if (typology && i == 0) {                            // ground floor = the typology's plan
             rl = generateRoomLayoutFromProgram(W, D, *typology, 2, program.front);
-            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
+            if (!rl.rooms.empty()) {
+                typologyApplied = true;                      // fit; else fall through
+                if (!program.footprintShape.empty() && program.footprintShape != "rect")
+                    LOG_INFO_FMT("RoomLayout", "footprintShape '" << program.footprintShape
+                                 << "' requested but the typology has no winged variant"
+                                 " — building RECT (surfaced, not silent)");
+            }
+        }
+        if (rl.rooms.empty() && i == 0 && !program.footprintShape.empty() &&
+            program.footprintShape != "rect") {
+            rl = generateWingedLayout(W, D, program.footprintShape, seed);
+            if (!rl.rooms.empty()) {
+                typologyApplied = true;                      // fit; else fall through
+                // A winged GROUND floor caps the building at ONE story: upper layouts
+                // (chambers or generic BSP) span the full RECT, so their rooms — and
+                // their furniture — would hover over the empty L-notch (found live:
+                // an L-tavern's upstairs wardrobe floated in mid-air at the notch,
+                // KI-5g). Truncate + surface until winged upper stories exist.
+                if (program.stories.size() > 1) {
+                    LOG_WARN_FMT("RoomLayout", "winged ground floor: truncating "
+                                 << program.stories.size() << " stories to 1 (upper "
+                                 "layouts would overhang the notch — surfaced, not silent)");
+                    program.stories.resize(1);
+                }
+            }
         }
         // upper floor of a multi-story typology: grounded guest chambers (linear, landing = room 0).
         if (rl.rooms.empty() && i != 0 && typology && typology->stories > 1) {

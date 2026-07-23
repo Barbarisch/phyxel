@@ -32,15 +32,22 @@ HYPOTHESIS until confirmed in code.
   paving (the blade layer reads the Grass cube under the road — logged as a Phase-2
   follow-up, still open). Fix: paving/path stamping converts the underlying Grass-family
   cube to Dirt (same rule the building pad uses, V10 grass_under_house).
-- **KI-5g — Furniture generates OUTSIDE walls (USER, 2026-07-23).** Evidence captured live:
-  the L-plan stone_keep tavern at (60,16,1) has a wardrobe standing on grass WEST of its
-  x=60 exterior wall and a rug tilted through a wall opening (screenshot
-  screenshot_20260723_152444_484.png + scan). Suspect: L-plan (`footprintShape:"L"` /
-  generateWingedLayout) room rects disagree with the realized wing walls, so the placer's
-  wall-backed positions fall outside the built shell — the L-plan cluster's fourth defect
-  class (wrong-side door anchors, bbox-perimeter door misses, and the tall-tower read are
-  the others). Fix likely = make winged room rects match realized geometry + an L2
-  furniture-inside-shell validator (fixture bbox ⊂ interior cells via `featureAt`).
+- **KI-5g — Furniture appears outside walls (USER, 2026-07-23) — SPLIT after audit
+  (2026-07-23 evening).** The reproduced-and-fixed case: the L-plan tavern's UPPER story
+  was laid out on the full RECT over an L-shaped ground floor, so upstairs chamber
+  fixtures (wardrobe/stool at (65,21,13-14)) hovered over the empty notch — visually
+  "furniture outside the building" (the user's coordinate (64,16,13) is the notch).
+  Fixed red-before-green (auditor-verified via stash-mutation): typology plans beat the
+  winged layout, and a winged ground floor truncates to ONE story
+  (`FixtureInsideShellTest.WingedGroundFloorTruncatesUpperStories`). **The ORIGINAL
+  description (a wardrobe on grass west of the wall) is NOT currently reproducible:** an
+  auditor registry-wide scan of all 14 live structures found ZERO fixtures with any bbox
+  outside their structure's footprint — the "wardrobe on grass" in
+  screenshot_20260723_152444_484.png was most likely a legitimate yard WOODPILE, and the
+  "rug tilted through the wall" is KI-5c's 1-micro-slab rendering, untouched so far.
+  KEPT OPEN, narrowly: exterior fixture escape, if it exists, awaits the L2
+  bbox⊂exterior-shell validator (the auditor's ad-hoc registry scan is the recipe) +
+  wall-lantern flushness is KI-5b.
 - **KI-5h — Interior walls sometimes FULL-CUBE thick, can block doorways (USER,
   2026-07-23).** Confirmed in scan data: the same tavern has an interior wall line at
   x=62 (z9-16, y18-19) built of full StoneBricks CUBES — the v2 rule says interior walls
