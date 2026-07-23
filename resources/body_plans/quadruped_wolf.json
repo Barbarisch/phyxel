@@ -1,0 +1,35 @@
+{
+  "id": "quadruped_wolf",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "pelvis",
+  "hipAliases": ["pelvis", "hip"],
+  "gripBone": "head",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.2, "maxHalfWidth": 0.9 },
+  "legs": [
+    { "id": "front_left",  "upper": "upper_leg_front_L", "mid": "lower_leg_front_L", "foot": "front_paw_L", "footIK": false },
+    { "id": "front_right", "upper": "upper_leg_front_R", "mid": "lower_leg_front_R", "foot": "front_paw_R", "footIK": false },
+    { "id": "rear_left",   "upper": "upper_leg_rear_L",  "mid": "lower_leg_rear_L",  "foot": "rear_paw_L",  "footIK": false },
+    { "id": "rear_right",  "upper": "upper_leg_rear_R",  "mid": "lower_leg_rear_R",  "foot": "rear_paw_R",  "footIK": false }
+  ],
+  "segments": [
+    { "bone": "head_base",          "isArm": false },
+    { "bone": "neck",               "isArm": false },
+    { "bone": "chest",              "isArm": false },
+    { "bone": "belly_upper",        "isArm": false },
+    { "bone": "belly",              "isArm": false },
+    { "bone": "pelvis",             "isArm": false },
+    { "bone": "upper_leg_front_L",  "isArm": false },
+    { "bone": "upper_leg_front_R",  "isArm": false },
+    { "bone": "upper_leg_rear_L",   "isArm": false },
+    { "bone": "upper_leg_rear_R",   "isArm": false }
+  ],
+  "clipDefaults": {
+    "Idle":        "Wolf_Skeleton|Wolf_Idle_",
+    "Walk":        "Wolf_Skeleton|Wolf_Walk_cycle_",
+    "StartWalk":   "Wolf_Skeleton|Wolf_Walk_cycle_",
+    "Run":         "Wolf_Skeleton|Wolf_Run_Cycle_",
+    "CrouchWalk":  "Wolf_Skeleton|Wolf_creep_cycle",
+    "SittingIdle": "Wolf_Skeleton|Wolf_seat_"
+  }
+}

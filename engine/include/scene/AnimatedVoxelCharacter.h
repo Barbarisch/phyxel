@@ -1,6 +1,7 @@
 #pragma once
 #include "scene/RagdollCharacter.h"
 #include "scene/CharacterAppearance.h"
+#include "scene/BodyPlan.h"
 #include "scene/CharacterSkeleton.h"
 #include "scene/VoxelContactProbe.h"
 #include "graphics/AnimationSystem.h"
@@ -136,6 +137,18 @@ namespace Scene {
             bool colliding;
         };
         std::vector<SegmentBoxInfo> getSegmentBoxInfo() const;
+
+        // Test-only introspection: force foot-IK bone resolution and expose the
+        // resolved ids. The golden regression (CharacterGoldenPoseTest) pins these
+        // to the legacy mixamorig:* lookups so the body-plan refactor cannot
+        // silently re-wire which bones drive foot IK.
+        struct FootIKResolutionInfo {
+            int leftUpLeg = -1, leftLeg = -1, leftFoot = -1;
+            int rightUpLeg = -1, rightLeg = -1, rightFoot = -1;
+            int hipBoneId = -1;
+            bool cacheReady = false;
+        };
+        FootIKResolutionInfo resolveFootIKForTest();
 
         // Animation state queries
         AnimatedCharacterState getAnimationState() const { return currentState; }
@@ -559,6 +572,11 @@ namespace Scene {
         /// Populate m_leftFoot / m_rightFoot bone IDs from skeleton.boneMap.
         void resolveFootBoneIds();
 
+        /// Adopt the BodyPlan for the detected morphology and resolve it
+        /// against the loaded skeleton. Called by every load path right after
+        /// morphology detection (loadModel / loadFromSkeleton).
+        void adoptBodyPlan();
+
         /// Analytical 2-bone IK (law of cosines). Modifies upLeg and leg currentRotation.
         /// targetWorld is the desired foot world-space position; invModel converts it to model space.
         /// blend ∈ [0,1] lerps between the animated foot pos and the IK target.
@@ -576,6 +594,12 @@ namespace Scene {
         Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
 
     private:
+        // Body-plan descriptor for the loaded rig (docs/BodyPlan.md): names
+        // the root/legs/segments/clip vocabulary so runtime code consumes plan
+        // data instead of humanoid hardcodes. Populated by adoptBodyPlan().
+        Scene::BodyPlan m_bodyPlan;
+        Scene::BodyPlan::Resolved m_bodyPlanResolved;
+
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;
         Phyxel::VoxelModel voxelModel;

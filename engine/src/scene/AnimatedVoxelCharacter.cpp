@@ -478,6 +478,7 @@ namespace Scene {
             if (appearance_.morphology == MorphologyType::Unknown) {
                 appearance_.morphology = detectMorphology(skeleton);
             }
+            adoptBodyPlan();
 
             configureAnimationFixes();
             // Apply appearance proportions set before load (race presets etc.)
@@ -515,12 +516,23 @@ namespace Scene {
         if (appearance_.morphology == MorphologyType::Unknown) {
             appearance_.morphology = detectMorphology(skeleton);
         }
+        adoptBodyPlan();
 
         configureAnimationFixes();
         applySkeletonProportions();
         resizeController();
         buildBodiesFromModel();
         return true;
+    }
+
+    void AnimatedVoxelCharacter::adoptBodyPlan() {
+        auto& registry = Scene::BodyPlanRegistry::instance();
+        registry.ensureLoaded();
+        m_bodyPlan = registry.planFor(appearance_.morphology);
+        m_bodyPlanResolved = m_bodyPlan.resolveAgainst(skeleton);
+        LOG_DEBUG("Character", "adopted body plan '{}' (root={}, legs={}, segments={})",
+                  m_bodyPlan.id, m_bodyPlanResolved.rootBoneId,
+                  m_bodyPlanResolved.legs.size(), m_bodyPlanResolved.segments.size());
     }
 
     // Determine per-limb scale factors for a bone based on its lowercased name.
@@ -3970,6 +3982,20 @@ namespace Scene {
         m_footIKCacheReady =
             (m_leftFoot.upLegId  >= 0 && m_leftFoot.legId  >= 0 && m_leftFoot.footId  >= 0) ||
             (m_rightFoot.upLegId >= 0 && m_rightFoot.legId >= 0 && m_rightFoot.footId >= 0);
+    }
+
+    AnimatedVoxelCharacter::FootIKResolutionInfo AnimatedVoxelCharacter::resolveFootIKForTest() {
+        resolveFootBoneIds();
+        FootIKResolutionInfo info;
+        info.leftUpLeg  = m_leftFoot.upLegId;
+        info.leftLeg    = m_leftFoot.legId;
+        info.leftFoot   = m_leftFoot.footId;
+        info.rightUpLeg = m_rightFoot.upLegId;
+        info.rightLeg   = m_rightFoot.legId;
+        info.rightFoot  = m_rightFoot.footId;
+        info.hipBoneId  = m_ikHipBoneId;
+        info.cacheReady = m_footIKCacheReady;
+        return info;
     }
 
     void AnimatedVoxelCharacter::resetFootLocks() {
