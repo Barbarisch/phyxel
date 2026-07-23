@@ -93,12 +93,16 @@ public:
     /// the legacy footprint reservation.
     /// `wealthTier` ("humble" | "middling" | "high", from the typology's room_program
     /// wealth_tier) filters tiered recipe pieces; "" = no filtering (every piece).
+    /// `reservedRects` (KI-5d): footprint-local rects no furniture may cover — the
+    /// STAIR rects touching this story (departing base AND the arriving well cut) plus
+    /// a 1-cell landing margin. Furniture used to be placed straight onto stair cells.
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
                                                    const glm::ivec3& origin, int floorY,
                                                    const std::map<std::string, Footprint>& footprints = {},
                                                    std::vector<UnplacedFixture>* unplaced = nullptr,
                                                    int extTMicro = 0,
-                                                   const std::string& wealthTier = "");
+                                                   const std::string& wealthTier = "",
+                                                   const std::vector<Rect>& reservedRects = {});
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

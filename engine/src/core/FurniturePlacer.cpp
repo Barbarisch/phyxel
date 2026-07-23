@@ -309,7 +309,8 @@ void FurniturePlacer::clearRecipes() { dataRecipes().clear(); }
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
-    std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier) {
+    std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier,
+    const std::vector<Rect>& reservedRects) {
     std::vector<FurniturePlacement> out;
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
@@ -331,6 +332,13 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     if (cx >= rx && cx < rx + rw && cz >= rz && cz < rz + rd) blocked.insert({cx, cz});
                 }
         }
+        // KI-5d: reserved rects (stair bases + arriving stair wells) + a 1-cell landing
+        // margin — furniture used to be placed straight onto stair cells.
+        for (const auto& rr : reservedRects)
+            for (int x = rr.x - 1; x < rr.x + rr.w + 1; ++x)
+                for (int z = rr.z - 1; z < rr.z + rr.d + 1; ++z)
+                    if (x >= rx && x < rx + rw && z >= rz && z < rz + rd)
+                        blocked.insert({x, z});
 
         std::set<std::pair<int, int>> occupied;
         auto footprintOf = [&](const std::string& type) -> Footprint {

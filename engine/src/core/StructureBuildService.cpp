@@ -689,10 +689,17 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             const auto& story = program.stories[si];
             // KI-2: per-story floor Y — else all furniture stacks on the ground floor.
             int storyFloorY = (si < floorYByStory.size()) ? floorYByStory[si] : floorY;
+            // KI-5d: stairs touching this story (departing base OR arriving well) are
+            // reserved — furniture used to land straight on the stair cells.
+            std::vector<Rect> stairRects;
+            for (const auto& st2 : program.stories)
+                for (const auto& sr : st2.stairs)
+                    if (sr.fromStory == static_cast<int>(si) || sr.toStory == static_cast<int>(si))
+                        stairRects.push_back(sr.rect);
             auto placements = FurniturePlacer::furnish(
                 story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
                 &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span
-                wealthTier);
+                wealthTier, stairRects);
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);
