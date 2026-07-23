@@ -126,7 +126,40 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **★ CURRENT FOCUS (2026-07-20/21): DESTRUCTION SYSTEM v2 §15 "universal destruction" +
+- **★ CURRENT FOCUS (2026-07-21→23): PLAYABLE TOWNS — residents living in generated
+  settlements** (continues Settlement Morphology v2; standing user directive: towns must be
+  **walkable BY CONSTRUCTION** — fix the generator, don't just make NPC pathing cope).
+  Shipped across three sessions (each auditor-PASSed unless noted):
+  1. **Settlement nav rebuild** — `build_settlement` ends with a full `buildNavGrid()` unit
+     (street/terrace terrain used to leave the grid empty → `navgrid/path found:false`).
+  2. **Typed locations** — every v2 build derives + registers a `LocationMarker`
+     (`StructureRealizer::deriveLocations`: tavern→Tavern, shops→Work, dwellings→Home;
+     front-door anchor, `snapToStandable` outdoor snap in `placeAndRegisterImpl`); building
+     semantics persist as placed-object metadata `building` {typology, rooms}.
+  3. **Residents** — `ResidentPlanner` (one NPC per building; sleep 20-6 @home, trades work
+     own shop, evenings @tavern; ±0.3 h deterministic stagger) spawned by a settlement unit;
+     `ScheduledBehavior` got a built-in mover (PathService route + replan backoff + stuck
+     watchdog + sidestep + escape-steer; `moverState` diagnosable via the blackboard) +
+     NPCManager O(n²) separation pushes. NOT audited yet (measured: evening 8-11/14 at the
+     tavern, night 11/14 home, minY stable 17; ~3 stragglers jam at a pinch corridor —
+     **next: corridor-width guarantee + post-build per-resident walkability validator**).
+  4. **Grounding gate** — structures/settlements REFUSE to build over air by default
+     (`allow_ungrounded` overrides); the NPC "mass fall to y=-1.2M" was the ungrounded-world
+     consequence (user's call), confirmed by a 44 h grounded soak at y=17.0.
+  5. **Multi-res blindness purge (NOT audited)** — nav = what characters collide with
+     (NavGraph composite query: cubes ∥ placed-object obstacle boxes ∥ occupancy upper-cell
+     band via `VoxelDynamicsWorld::anyStaticSolidInAABB`); corridor clearing + `settlementTopScan`
+     floraBlind now resolution-complete/cube-only-ground (a spruce's micro branches once read
+     as a HILL → the street was graded OVER the tree); late "street sweep" re-clears + re-stamps.
+  6. **Parcel clearing (auditor PASS)** — every plot + 4-cell canopy margin cleared at all
+     resolutions before site prep; trees no longer overlap structures.
+  ⚠ Known open: silent-crash class fired 2× during settlement builds (std::set_terminate
+  logger now installed in editor main.cpp, unfired so far); Debug pad/grass phases ~30 s per
+  building (profile before trusting build times); `GET /api/navgraph/path` debug endpoint =
+  what movers actually route with (2.5D `navgrid/path` is a conservative proxy); em-dashes in
+  engine strings mojibake JSON (CP-1252) — ASCII only; `scan_region` is cube-view only.
+
+- **Prior focus (2026-07-20/21): DESTRUCTION SYSTEM v2 §15 "universal destruction" +
   LARGE-WORLD SCALE Phase 4.3 — now on branch `destruction-system-v2` (a 51-commit
   fast-forward merge from origin/main landed the large-world-scale work onto this branch;
   `git status` clean).** This supersedes the "Phase 4 (chunk RAM)" entry below as the most

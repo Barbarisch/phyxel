@@ -64,6 +64,81 @@ int StructureRealizer::thicknessMicro(double cubes) {
     return std::max(1, std::min(t, 9));
 }
 
+namespace {
+LocationType locationTypeForTypology(const std::string& t) {
+    if (t == "tavern") return LocationType::Tavern;
+    if (t == "blacksmith" || t == "bakery" || t == "general_store" ||
+        t == "apothecary" || t == "butcher")
+        return LocationType::Work;
+    if (t == "croft" || t == "longhouse" || t == "hall_house" || t == "manor_hall")
+        return LocationType::Home;
+    return LocationType::Custom;
+}
+} // namespace
+
+std::vector<LocationMarker> StructureRealizer::deriveLocations(const BuildingProgram& program,
+                                                               const std::string& typology,
+                                                               const AssemblyPlan& plan,
+                                                               const glm::ivec3& worldOrigin,
+                                                               int floorTopMicro) {
+    const int W = std::max(program.footprintW, 1);
+    const int D = std::max(program.footprintD, 1);
+
+    // Ground-story exterior door: openings record the portal's WALL coordinate, so a
+    // perimeter door sits on the footprint boundary line (px in {0,W} or pz in {0,D});
+    // interior doors have interior coords. Lowest y = ground story. Doors on an L-plan's
+    // inner walls miss the boundary test — those buildings fall back to the centre anchor.
+    // Dwellings carry OPPOSED cross-passage door pairs, so "any perimeter door" can pick
+    // the back door and anchor the marker facing AWAY from the street (measured live:
+    // 6/14 village anchors unreachable) — prefer the door on program.front, the wall the
+    // settlement planner faced at the street.
+    auto onFrontWall = [&](const OpeningCut& o) {
+        if (program.front == "x0") return o.x == 0;
+        if (program.front == "x1") return o.x == W;
+        if (program.front == "z0") return o.z == 0;
+        if (program.front == "z1") return o.z == D;
+        return false;
+    };
+    const OpeningCut* door = nullptr;
+    bool doorOnFront = false;
+    for (const auto& o : plan.openings) {
+        if (o.kind != "door") continue;
+        if (o.x != 0 && o.x != W && o.z != 0 && o.z != D) continue;
+        const bool f = onFrontWall(o);
+        if (!door || (f && !doorOnFront) || (f == doorOnFront && o.y < door->y)) {
+            door = &o;
+            doorOnFront = f;
+        }
+    }
+
+    LocationMarker m;
+    m.type = locationTypeForTypology(typology);
+    glm::ivec3 local;
+    if (door) {
+        // A door on an X-facing wall (px in {0,W}) runs along Z, and vice versa. Anchor
+        // two cells beyond the wall cube so the marker is open ground clear of trim —
+        // reachable street-side, never inside the wall band.
+        const bool onXWall = (door->x == 0 || door->x == W);
+        const int cz = onXWall ? door->z + door->w / 2 : door->z;
+        const int cx = onXWall ? door->x : door->x + door->w / 2;
+        if (door->x == 0)      local = {-2, 0, cz};
+        else if (door->x == W) local = {W + 1, 0, cz};
+        else if (door->z == 0) local = {cx, 0, -2};
+        else                   local = {cx, 0, D + 1};
+        local.y = 0;   // outdoor grade: worldOrigin.y is the standing level beside the pad
+    } else {
+        local = {W / 2, floorTopMicro / 9, D / 2};
+    }
+    const glm::ivec3 wpos = worldOrigin + local;
+    const std::string base = typology.empty()
+        ? (program.function.empty() ? std::string("building") : program.function)
+        : typology;
+    m.id = base + "_" + std::to_string(wpos.x) + "_" + std::to_string(wpos.z);
+    m.name = base;
+    m.position = glm::vec3(wpos);
+    return {m};
+}
+
 StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingProgram& program,
                                                                const StyleProfile& style) {
     ShellResult res;

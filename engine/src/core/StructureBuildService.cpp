@@ -116,6 +116,30 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
     nlohmann::json locationsJson = nlohmann::json::array();
     if (locationRegistry) {
         auto locations = placement.locations;
+        // Snap each anchor to a standable cell BEFORE registering: derived anchors
+        // can land in dead columns (eave overhang, fence line) where the NavGraph
+        // cannot resolve a goal node and every scheduled NPC gets no_route.
+        if (chunkManager) {
+            auto solidAt = [&](const glm::ivec3& p) {
+                return chunkManager->hasVoxelAt(p);
+            };
+            // Never snap INTO the structure's own XZ footprint: interior floor is
+            // standable but the NavGraph can't route exterior->interior yet, so an
+            // indoor anchor is a dead schedule target (measured: 12x no_route).
+            auto insideBuilding = [&](const glm::ivec3& p) {
+                return p.x >= out.smin.x && p.x <= out.smax.x &&
+                       p.z >= out.smin.z && p.z <= out.smax.z;
+            };
+            for (auto& loc : locations) {
+                const glm::ivec3 cell(static_cast<int>(std::floor(loc.position.x)),
+                                      static_cast<int>(std::floor(loc.position.y)),
+                                      static_cast<int>(std::floor(loc.position.z)));
+                const glm::ivec3 snapped = StructureBuildService::snapToStandable(
+                    solidAt, cell, 5, insideBuilding);
+                loc.position = glm::vec3(snapped.x + 0.5f, static_cast<float>(snapped.y),
+                                         snapped.z + 0.5f);
+            }
+        }
         for (auto& loc : locations) {
             if (loc.id.empty()) {
                 std::string stype = params.value("type", std::string("structure"));
@@ -214,6 +238,34 @@ nlohmann::json StructureBuildService::placeAndRegister(const StructureResult& st
     if (structure.voxels.empty())
         return {{"error", "Failed to generate structure (unknown type or invalid params)"}};
     return placeAndRegisterImpl(structure, params, deps, planMeta, /*doSnapshot=*/true).response;
+}
+
+glm::ivec3 StructureBuildService::snapToStandable(
+    const std::function<bool(const glm::ivec3&)>& solidAt,
+    const glm::ivec3& cell, int radius,
+    const std::function<bool(const glm::ivec3&)>& avoid) {
+    // Standable = solid floor underfoot + 2 cells of clear air (feet + head).
+    auto standable = [&](const glm::ivec3& p) {
+        return solidAt(glm::ivec3(p.x, p.y - 1, p.z)) &&
+               !solidAt(p) && !solidAt(glm::ivec3(p.x, p.y + 1, p.z));
+    };
+    // Same-level FIRST across the whole radius, then |dy| outward: a lateral step to
+    // open ground must beat climbing onto whatever capped the column (an eave/roof at
+    // dy=+3 is "standable" but unreachable — the exact dead-anchor case).
+    static constexpr int kDy[] = {0, 1, -1, 2, -2, 3, -3};
+    for (int dy : kDy) {
+        for (int r = 0; r <= radius; ++r) {
+            for (int dx = -r; dx <= r; ++dx) {
+                for (int dz = -r; dz <= r; ++dz) {
+                    if (std::max(std::abs(dx), std::abs(dz)) != r) continue;   // ring shell only
+                    const glm::ivec3 p(cell.x + dx, cell.y + dy, cell.z + dz);
+                    if (avoid && avoid(p)) continue;
+                    if (standable(p)) return p;
+                }
+            }
+        }
+    }
+    return cell;   // nothing standable in range — leave unchanged (honest no-op)
 }
 
 nlohmann::json StructureBuildService::aliasLegacyParams(const nlohmann::json& params) {
@@ -371,6 +423,23 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                     if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) { top = y; break; }
                 if (top >= 0) { tops.push_back(top); cells.push_back(glm::ivec2(x, z)); }
             }
+        // GROUNDING GATE: every footprint column must have terrain under it. Columns
+        // with no terrain used to be silently SKIPPED by the pad-leveler and the
+        // building seated on air (found live: a whole village east of the generated
+        // chunk hung in the void). Refuse by default — {"allow_ungrounded": true}
+        // overrides for tests/special cases.
+        const int missingCols = W * D - static_cast<int>(tops.size());
+        if (missingCols > 0 && !params.value("allow_ungrounded", false)) {
+            LOG_WARN_FMT("StructureBuild", "REFUSING ungrounded build at (" << ox << "," << oz
+                         << "): " << missingCols << "/" << (W * D)
+                         << " footprint columns have no terrain (allow_ungrounded overrides)");
+            return {{"error", "ungrounded footprint: " + std::to_string(missingCols) + " of " +
+                              std::to_string(W * D) + " columns have no terrain below y=" +
+                              std::to_string(scanTop) +
+                              " - generate terrain there first, or pass allow_ungrounded:true"},
+                    {"ungrounded_columns", missingCols},
+                    {"footprint_columns", W * D}};
+        }
         if (!tops.empty()) {
             const int padLevel = StructureGenerator::planPadLevel(tops);
             std::vector<glm::ivec3> cut;          // terrain above the pad -> remove
@@ -432,6 +501,12 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     if (structure.voxels.empty())
         return {{"error", "Failed to generate structure (unknown type or invalid params)"}};
 
+    // Playable-town: every building carries its schedule-target LocationMarker
+    // (Home/Work/Tavern at the front door). placeAndRegisterImpl auto-registers
+    // whatever StructureResult.locations holds — v2 populated none until now.
+    structure.locations = StructureRealizer::deriveLocations(
+        program, typ, shell.plan, glm::ivec3(ox, oy, oz), shell.floorTopMicro);
+
     // Persist the assembly plan with its placement origin: featureAt(local) + origin =
     // a post-build structural-feature query (wall/floor/ceiling/...) that no consumer
     // has to re-derive from voxel materials.
@@ -490,6 +565,22 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     if (!out.ok) return response;
     const std::string objectId = out.objectId;
     const int posX = out.posX, posZ = out.posZ;
+
+    // Persist habitation semantics on the placed object (saved with the chunks, like
+    // assembly_plan): typology + purposed rooms. assembly_plan records geometry only —
+    // without this, "which building is the bakery / where is the chamber" is
+    // unanswerable after the build response is gone.
+    if (placedObjectManager && !objectId.empty()) {
+        nlohmann::json roomsJ = nlohmann::json::array();
+        for (size_t si = 0; si < program.stories.size(); ++si)
+            for (const auto& rm : program.stories[si].rooms)
+                roomsJ.push_back({{"story", static_cast<int>(si)},
+                                  {"purpose", rm.purpose},
+                                  {"rect", rm.rect.toJson()}});
+        placedObjectManager->setMetadata(objectId, "building",
+            {{"typology", typ}, {"function", program.function},
+             {"style", program.style}, {"rooms", roomsJ}});
+    }
 
     // ------------------------------------------------------------------------
     // v2: the ENGINE decides furniture placement. FurniturePlacer derives
