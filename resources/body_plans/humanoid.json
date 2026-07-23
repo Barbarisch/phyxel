@@ -1,0 +1,28 @@
+{
+  "id": "humanoid",
+  "morphology": "humanoid",
+  "gaitClass": "biped_fsm",
+  "rootBone": "mixamorig:Hips",
+  "hipAliases": ["hip"],
+  "gripBone": "RightHand",
+  "capsule": { "mode": "legacy", "minHalfWidth": 0.12, "maxHalfWidth": 0.6 },
+  "legs": [
+    { "id": "left",  "upper": "mixamorig:LeftUpLeg",  "mid": "mixamorig:LeftLeg",  "foot": "mixamorig:LeftFoot",  "footIK": true },
+    { "id": "right", "upper": "mixamorig:RightUpLeg", "mid": "mixamorig:RightLeg", "foot": "mixamorig:RightFoot", "footIK": true }
+  ],
+  "segments": [
+    { "bone": "mixamorig:Head",         "isArm": false },
+    { "bone": "mixamorig:Spine2",       "isArm": false },
+    { "bone": "mixamorig:Spine1",       "isArm": false },
+    { "bone": "mixamorig:Hips",         "isArm": false },
+    { "bone": "mixamorig:LeftArm",      "isArm": true },
+    { "bone": "mixamorig:RightArm",     "isArm": true },
+    { "bone": "mixamorig:LeftForeArm",  "isArm": true },
+    { "bone": "mixamorig:RightForeArm", "isArm": true },
+    { "bone": "mixamorig:LeftUpLeg",    "isArm": false },
+    { "bone": "mixamorig:RightUpLeg",   "isArm": false },
+    { "bone": "mixamorig:LeftLeg",      "isArm": false },
+    { "bone": "mixamorig:RightLeg",     "isArm": false }
+  ],
+  "clipDefaults": {}
+}

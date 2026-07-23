@@ -1,0 +1,13 @@
+{
+  "id": "wolf",
+  "name": "Wolf",
+  "abilityBonuses": { "STR": 1, "DEX": 2 },
+  "speed": 40,
+  "darkvisionRange": 0,
+  "traits": ["Keen Hearing and Smell", "Pack Tactics"],
+  "languages": [],
+  "proficiencies": [],
+  "visual": {
+    "animFile": "resources/animated_characters/character_wolf.anim"
+  }
+}

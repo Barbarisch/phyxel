@@ -1,0 +1,35 @@
+{
+  "id": "dragon",
+  "morphology": "dragon",
+  "gaitClass": "dragon_clips",
+  "rootBone": "pelvis",
+  "hipAliases": ["pelvis", "hip"],
+  "gripBone": "head",
+  "capsule": { "mode": "xz_extent", "minHalfWidth": 0.3, "maxHalfWidth": 2.0 },
+  "legs": [
+    { "id": "hind_left",  "upper": "upper_leg_L", "mid": "lowerleg_L", "foot": "kneecap_L",  "footIK": false },
+    { "id": "hind_right", "upper": "upper_leg_R", "mid": "lowerleg_R", "foot": "kneecap_R",  "footIK": false },
+    { "id": "front_left",  "upper": "upper_arm_L", "mid": "forearm_L", "foot": "forearm_L_end", "footIK": false },
+    { "id": "front_right", "upper": "upper_arm_R", "mid": "forearm_R", "foot": "forearm_R_end", "footIK": false }
+  ],
+  "segments": [
+    { "bone": "head",        "isArm": false },
+    { "bone": "neck_2",      "isArm": false },
+    { "bone": "breast",      "isArm": false },
+    { "bone": "abdomen",     "isArm": false },
+    { "bone": "belly",       "isArm": false },
+    { "bone": "pelvis",      "isArm": false },
+    { "bone": "tail_1",      "isArm": false },
+    { "bone": "tail_2",      "isArm": false },
+    { "bone": "upper_leg_L", "isArm": false },
+    { "bone": "upper_leg_R", "isArm": false },
+    { "bone": "upper_arm_L", "isArm": true },
+    { "bone": "upper_arm_R", "isArm": true }
+  ],
+  "clipDefaults": {
+    "Idle":      "Dragon_Baked_Actions_fbx_6.1_ASCII_Idel_New",
+    "Walk":      "Dragon_Baked_Actions_fbx_6.1_ASCII_Walk_New",
+    "StartWalk": "Dragon_Baked_Actions_fbx_6.1_ASCII_Walk_New",
+    "Run":       "Dragon_Baked_Actions_fbx_6.1_ASCII_Run_New"
+  }
+}
