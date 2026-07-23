@@ -948,7 +948,15 @@ def read_accessor(gltf, accessor):
     elif accessor.componentType == 5120: # BYTE
         fmt_char = "b"
         stride = 1
-    
+    elif accessor.componentType == 5125: # UNSIGNED_INT (indices on meshes >65535 verts)
+        fmt_char = "I"
+        stride = 4
+    elif accessor.componentType == 5122: # SHORT
+        fmt_char = "h"
+        stride = 2
+    else:
+        raise ValueError(f"read_accessor: unsupported componentType {accessor.componentType}")
+
     num_components = 1
     if accessor.type == "VEC2": num_components = 2
     elif accessor.type == "VEC3": num_components = 3
