@@ -35,11 +35,26 @@ HYPOTHESIS until confirmed in code.
   `FixtureFlushnessTest`. REMAINING: live L4 sconce confirmation on the next
   post-typology-reorder village (the current one has no wall lantern); winged-notch edges
   still read as interior (old over-inset behavior there, disclosed).
-- **KI-5c — Rug texture doesn't fit / isn't centered on the rug object.** Asset-level: the
-  1-micro rug slab's per-face sub-tiling doesn't align the rug_oriental field with the
-  template extent (same micro-sampling family as the washed-out Log fences). Fix in
-  `tools/regen_furniture.py` rug generation (size the field to the slab / center the motif),
-  possibly renderer sub-tile origin.
+- **KI-5c — Rug texture doesn't fit / isn't centered on the rug object.** ROOT CAUSE FOUND
+  (2026-07-24 investigation), DEFERRED by user to do walkability. The `rug_oriental.png` is one
+  whole-rug image (single medallion + its own border); the rug is 18×13 micro = ~2 cubes wide,
+  and **placed furniture renders through the STATIC chunk path** (`PlacedObjectManager` →
+  `spawnTemplateMicro` → `chunk->addMicrocube` → `static_voxel.vert`, **per-cube UV tiling**),
+  so the image repeats ~2× across the width and never centres. The engine's planar-projection
+  feature (`# surface: texture=… projection=planar axis=y`) that would fit one image across the
+  object is wired **ONLY into the kinematic path** (`KinematicVoxelManager::buildFaces`, used by
+  `ItemPropManager`) — NOT into static-baked placed furniture. Confirmed 3 ways: code, design doc
+  (`docs/VoxelAppearanceModel.md` §7: static path = "placed static props … per-cube tiling";
+  projection "validated" only in ItemPropManager), and empirically — adding the surface header to
+  `rug.voxel` rendered a **plain red slab** (header silently ignored; evidence
+  screenshot_20260724_154106_744.png). An asset-only header therefore CANNOT fix this (and
+  regresses to plain fill). Two real fix paths: **(A) asset-only** — redesign the rug texture as a
+  seamless *tileable all-over field* (no single medallion/baked border) + keep the wool border
+  geometry, so per-cube tiling reads as a continuous woven field (loses the centred-medallion
+  look); **(B) engine** — wire placed furniture with an active `# surface:` to render via the
+  kinematic Tier-2 projection path (matches the design-doc intent; keeps the medallion; also
+  unlocks projected paintings/banners as placed props; touches furniture render/lifecycle). Not a
+  1-micro sub-tile bug as originally guessed.
 - **KI-5d — Stairs overlap furniture in some cases.** The furniture pass doesn't reserve the
   stair footprint + its well/landing; only door clearances are reserved. Fix: thread
   `StairPlanner` rects into the placer's reservation grid; L2 check: no fixture bbox
