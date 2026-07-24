@@ -22,6 +22,7 @@
 
 #include <glm/glm.hpp>
 
+#include "core/AssemblyPlan.h"      // AssemblyPlan (Claims Ledger: furnish from the plan)
 #include "core/BuildingProgram.h"   // ProgStory, ProgRoom, ProgPortal, Rect
 
 namespace Phyxel {
@@ -109,6 +110,30 @@ public:
                                                    const std::string& wealthTier = "",
                                                    const std::vector<Rect>& reservedRects = {},
                                                    int intTMicro = 2);
+
+    /// Claims Ledger increment 3: furnish FROM THE PLAN. Derives every geometric
+    /// side-channel from the realized AssemblyPlan — exterior/interior wall thickness
+    /// (micro) from the recorded WallSegments, this story's reserved stair rects from
+    /// plan.stairs — then runs the same core placer. Consumers hand over the anatomy;
+    /// they no longer re-derive numbers the realizer already knows. Placements are
+    /// IDENTICAL to the legacy side-channel call for the same shell
+    /// (FurnishPlanEquivalenceTest pins it field-by-field).
+    static std::vector<FurniturePlacement> furnishFromPlan(
+        const ProgStory& story, int storyIndex,
+        const glm::ivec3& origin, int floorY,
+        const AssemblyPlan& plan,
+        const std::map<std::string, Footprint>& footprints = {},
+        std::vector<UnplacedFixture>* unplaced = nullptr,
+        const std::string& wealthTier = "");
+
+    /// Plan-derivation helpers (exposed for equivalence tests + other consumers).
+    /// Thickness comes from the FIRST wall segment of the given type — the realizer
+    /// paints every segment of a type at one style thickness — through the same
+    /// clamped converter the realizer built with (StructureRealizer::thicknessMicro).
+    static int planExteriorThicknessMicro(const AssemblyPlan& plan);
+    static int planInteriorThicknessMicro(const AssemblyPlan& plan);
+    /// Stair well rects touching `storyIndex` (departing base OR arriving well).
+    static std::vector<Rect> planStairRects(const AssemblyPlan& plan, int storyIndex);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

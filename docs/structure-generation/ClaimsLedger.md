@@ -1,7 +1,7 @@
 # Claims Ledger — completing the AssemblyPlan so consumers stop re-deriving geometry
 
-> Status: **ACTIVE plan** (2026-07-24). Increments 1 + 2 SHIPPED (auditor PASS each);
-> increment 3 next.
+> Status: **ACTIVE plan** (2026-07-24). Increments 1 + 2 + 3 SHIPPED (auditor PASS each);
+> increment 4 next.
 > Origin: user direction after the KI-5 defect arc — *"the pipeline/pathway for generating
 > structures has some weakpoints… address that at an algorithm/architecture level so that we
 > don't get stuck in such time-consuming audit loops."*
@@ -76,10 +76,21 @@ fixtures deterministically hash to closed). Auditor mutations confirmed the
 record-vs-canvas cross-checks have teeth: a lying jamb x and a dropped lintel role were
 both caught by `AssemblyPlanRevealTest`.
 
-**Increment 3 — furniture consumes the plan.** `furnish` takes the `AssemblyPlan` (+ origin)
-and derives doorway blocks, stair reservations, and wall insets from plan records; the five
-side-channels become dead parameters and are removed. Locks: `FixtureInsideShellTest`,
-`StairReservationTest`, `MicroPlacementOverlapTest`, furniture census unchanged.
+**Increment 3 — furniture consumes the plan.** *(SHIPPED, auditor PASS)*
+`furnishFromPlan(story, storyIndex, origin, floorY, plan, …)` derives exterior/interior
+wall thickness (from recorded `WallSegment`s through the same clamped converter) and stair
+reservations (from `plan.stairs`) inside the placer; `StructureBuildService` hands over the
+anatomy and computes no geometric side-channels (`extTMicro` for `microWorldPos` is the
+same plan-derived helper). Equivalence pinned field-by-field
+(`FurnishPlanEquivalenceTest`): two styles including the 3.0 m clamp case (plan-derived =
+9 micro, never 27), both stories of a stair house, and the unplaced out-param; the legacy
+arm reaches back to the pre-ledger behavior (thickness expressions verbatim; stair arm =
+the original program re-scan). Auditor mutations all caught: unclamped thickness (27-vs-9
++ placement drift 11-vs-8), dropped `toStory` arm (story-1 failure exactly), swapped
+ext/int args (inset field mismatches). Remaining inside `furnish` core: doorway blocked
+cells still derive from `story.portals` (provably identical data to `OpeningCut` records —
+candidate for a later increment with the reveal records); per-axis insets still
+thickness-value-based rather than wall-face-position queries.
 
 **Increment 4 — openings/trim query claims.** `addTypologyWindows` corner margin becomes a
 query against corner-zone claims (the KI-5a rule moves from a local re-derivation to the

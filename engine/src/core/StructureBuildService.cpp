@@ -523,8 +523,9 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     // Exterior-wall thickness in micro — MUST equal what the REALIZER built (its
     // converter CLAMPS to [1,9]), not the raw style value: a stone_keep authors 3.0 m
     // and an unclamped 27-micro inset pushes furniture out of narrow rooms (dropped).
-    const int extTMicro = StructureRealizer::thicknessMicro(
-        style.thicknessOf("exterior_wall", 0.333));
+    // Claims Ledger increment 3: derived from the PLAN's recorded walls (what was
+    // built), through the same clamped converter — no longer re-derived from style.
+    const int extTMicro = FurniturePlacer::planExteriorThicknessMicro(shell.plan);
     // Roof apex (world micro) for place_chimney (#14): the stack must clear it.
     int roofApexWorldMicro = 0;
     {
@@ -689,24 +690,15 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             const auto& story = program.stories[si];
             // KI-2: per-story floor Y — else all furniture stacks on the ground floor.
             int storyFloorY = (si < floorYByStory.size()) ? floorYByStory[si] : floorY;
-            // KI-5d: stairs touching this story (departing base OR arriving well) are
-            // reserved — furniture used to land straight on the stair cells. Rects come
-            // from the plan's StairRecords — what the realizer BUILT — not a re-scan of
-            // program.stories (Claims Ledger increment 1). Equivalent to the old re-scan
-            // for adjacent well-formed stairs (AssemblyPlanStairTest.PlanStairRects-
-            // MatchProgramDerivedRects); stairs the realizer SKIPS deliberately reserve
-            // nothing, since nothing was built (…SkippedStairsReserveNothing…).
-            std::vector<Rect> stairRects;
-            for (const auto& sr : shell.plan.stairs)
-                if (sr.fromStory == static_cast<int>(si) || sr.toStory == static_cast<int>(si))
-                    stairRects.push_back(Rect{sr.x, sr.z, sr.w, sr.d});
-            auto placements = FurniturePlacer::furnish(
-                story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
-                &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span
-                wealthTier, stairRects,
-                // KI-5b: interior partitions inset by their own (thin) band, not the
-                // exterior thickness — wall fixtures sit flush on partition walls too.
-                StructureRealizer::thicknessMicro(style.thicknessOf("interior_wall", 0.222)));
+            // Claims Ledger increment 3: furnish FROM THE PLAN. Wall thicknesses
+            // (exterior span reservation + KI-5b interior partition insets) and the
+            // KI-5d stair reservations all derive from the recorded AssemblyPlan —
+            // what the realizer BUILT — inside furnishFromPlan; this call site no
+            // longer computes side-channels. Placement equivalence pinned
+            // field-by-field by FurnishPlanEquivalenceTest.
+            auto placements = FurniturePlacer::furnishFromPlan(
+                story, static_cast<int>(si), glm::ivec3(posX, 0, posZ), storyFloorY,
+                shell.plan, fixtureFootprints, &unplaced, wealthTier);
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);

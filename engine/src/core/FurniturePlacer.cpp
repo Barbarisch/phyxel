@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "core/StructureRealizer.h"   // thicknessMicro — the clamped converter the realizer built with
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -118,6 +119,41 @@ std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& p
     // vocabulary any tier could emit.
     for (const auto& pc : recipeFor(purpose, "")) types.push_back(pc.type);
     return types;
+}
+
+// ---- Claims Ledger increment 3: plan-derived furnishing --------------------
+
+int FurniturePlacer::planExteriorThicknessMicro(const AssemblyPlan& plan) {
+    for (const auto& w : plan.walls)
+        if (w.type == "exterior") return StructureRealizer::thicknessMicro(w.thickness);
+    return StructureRealizer::thicknessMicro(0.333);
+}
+
+int FurniturePlacer::planInteriorThicknessMicro(const AssemblyPlan& plan) {
+    for (const auto& w : plan.walls)
+        if (w.type == "interior") return StructureRealizer::thicknessMicro(w.thickness);
+    return StructureRealizer::thicknessMicro(0.222);
+}
+
+std::vector<Rect> FurniturePlacer::planStairRects(const AssemblyPlan& plan, int storyIndex) {
+    std::vector<Rect> rects;
+    for (const auto& sr : plan.stairs)
+        if (sr.fromStory == storyIndex || sr.toStory == storyIndex)
+            rects.push_back(Rect{sr.x, sr.z, sr.w, sr.d});
+    return rects;
+}
+
+std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
+        const ProgStory& story, int storyIndex,
+        const glm::ivec3& origin, int floorY,
+        const AssemblyPlan& plan,
+        const std::map<std::string, Footprint>& footprints,
+        std::vector<UnplacedFixture>* unplaced,
+        const std::string& wealthTier) {
+    return furnish(story, origin, floorY, footprints, unplaced,
+                   planExteriorThicknessMicro(plan), wealthTier,
+                   planStairRects(plan, storyIndex),
+                   planInteriorThicknessMicro(plan));
 }
 
 std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
