@@ -82,6 +82,25 @@ struct RoofPanel {
     nlohmann::json toJson() const;
 };
 
+/// A realized stair flight connecting two ADJACENT stories — recorded by the
+/// realizer's stair pass at the moment it builds the treads (Claims Ledger
+/// increment 1; docs/structure-generation/ClaimsLedger.md). The well rect is
+/// footprint-local cubes; the well-hole cut through the upper floor slab is in
+/// structure-local MICRO coords (the hole is genuinely sub-cube).
+struct StairRecord {
+    int x = 0, z = 0, w = 0, d = 0;          ///< stair well rect (cubes)
+    int fromStory = 0, toStory = 1;          ///< normalized: fromStory < toStory
+    int baseY = 0;                           ///< first-tread cube Y (lower walkable)
+    int topY = 0;                            ///< one PAST the emergence-slab cube (exclusive)
+    int botWalkMicro = 0, topWalkMicro = 0;  ///< exact walkable surfaces (micro Y)
+    std::string form = "switchback";         ///< StairPlanner form actually built
+    int holeX = 0, holeZ = 0;                ///< upper-slab hole min corner (micro)
+    int holeW = 0, holeD = 0;                ///< upper-slab hole size (micro)
+
+    static StairRecord fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
 /// A fixture/furniture placement resolved to a world cell + rotation.
 struct FixturePlacement {
     std::string archetype;          ///< DimensionCanon archetype (chair_dining, ...)
@@ -108,15 +127,17 @@ struct AssemblyPlan {
     std::vector<WallSegment>      walls;
     std::vector<FloorPatch>       floors;
     std::vector<OpeningCut>       openings;
+    std::vector<StairRecord>      stairs;
     std::vector<RoofPanel>        roof;
     std::vector<FixturePlacement> fixtures;
     std::vector<LightPlacement>   lights;
 
     /// Structural-feature classifier: what part of the building occupies a LOCAL cube
     /// cell (plan coords are footprint-local cubes; callers subtract the placed world
-    /// origin first). Returns "wall" | "floor" | "ceiling" | "foundation" | "roof" | ""
-    /// (open interior/exterior space). Consumers should ask the anatomy — never sniff
-    /// voxel materials — so "is this a wall?" keeps working whatever the style palette.
+    /// origin first). Returns "wall" | "stair" | "floor" | "ceiling" | "foundation" |
+    /// "roof" | "" (open interior/exterior space). Consumers should ask the anatomy —
+    /// never sniff voxel materials — so "is this a wall?" keeps working whatever the
+    /// style palette.
     std::string featureAt(const glm::ivec3& cubePos) const;
 
     static AssemblyPlan fromJson(const nlohmann::json& j);

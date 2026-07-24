@@ -690,12 +690,16 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             // KI-2: per-story floor Y — else all furniture stacks on the ground floor.
             int storyFloorY = (si < floorYByStory.size()) ? floorYByStory[si] : floorY;
             // KI-5d: stairs touching this story (departing base OR arriving well) are
-            // reserved — furniture used to land straight on the stair cells.
+            // reserved — furniture used to land straight on the stair cells. Rects come
+            // from the plan's StairRecords — what the realizer BUILT — not a re-scan of
+            // program.stories (Claims Ledger increment 1). Equivalent to the old re-scan
+            // for adjacent well-formed stairs (AssemblyPlanStairTest.PlanStairRects-
+            // MatchProgramDerivedRects); stairs the realizer SKIPS deliberately reserve
+            // nothing, since nothing was built (…SkippedStairsReserveNothing…).
             std::vector<Rect> stairRects;
-            for (const auto& st2 : program.stories)
-                for (const auto& sr : st2.stairs)
-                    if (sr.fromStory == static_cast<int>(si) || sr.toStory == static_cast<int>(si))
-                        stairRects.push_back(sr.rect);
+            for (const auto& sr : shell.plan.stairs)
+                if (sr.fromStory == static_cast<int>(si) || sr.toStory == static_cast<int>(si))
+                    stairRects.push_back(Rect{sr.x, sr.z, sr.w, sr.d});
             auto placements = FurniturePlacer::furnish(
                 story, glm::ivec3(posX, 0, posZ), storyFloorY, fixtureFootprints,
                 &unplaced, extTMicro,    // extTMicro -> reserve the TRUE placed span

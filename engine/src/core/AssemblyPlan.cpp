@@ -84,6 +84,26 @@ nlohmann::json RoofPanel::toJson() const {
             {"pitch", pitch}, {"style", style}, {"material", material}};
 }
 
+StairRecord StairRecord::fromJson(const nlohmann::json& j) {
+    StairRecord s;
+    s.x = ji(j, "x"); s.z = ji(j, "z"); s.w = ji(j, "w"); s.d = ji(j, "d");
+    s.fromStory = ji(j, "from_story"); s.toStory = ji(j, "to_story", 1);
+    s.baseY = ji(j, "base_y"); s.topY = ji(j, "top_y");
+    s.botWalkMicro = ji(j, "bot_walk_micro"); s.topWalkMicro = ji(j, "top_walk_micro");
+    s.form = js(j, "form", "switchback");
+    s.holeX = ji(j, "hole_x"); s.holeZ = ji(j, "hole_z");
+    s.holeW = ji(j, "hole_w"); s.holeD = ji(j, "hole_d");
+    return s;
+}
+nlohmann::json StairRecord::toJson() const {
+    return {{"x", x}, {"z", z}, {"w", w}, {"d", d},
+            {"from_story", fromStory}, {"to_story", toStory},
+            {"base_y", baseY}, {"top_y", topY},
+            {"bot_walk_micro", botWalkMicro}, {"top_walk_micro", topWalkMicro},
+            {"form", form},
+            {"hole_x", holeX}, {"hole_z", holeZ}, {"hole_w", holeW}, {"hole_d", holeD}};
+}
+
 FixturePlacement FixturePlacement::fromJson(const nlohmann::json& j) {
     FixturePlacement f;
     f.archetype = js(j, "archetype");
@@ -130,6 +150,21 @@ std::string AssemblyPlan::featureAt(const glm::ivec3& p) const {
             return "wall";
         }
     }
+    // Stairs before floors: the flight volume inside the well is "stair", and — at
+    // the emergence (upper-slab) level — so is the well HOLE, which the floor patch
+    // rect still covers even though the realizer cut it (the standing
+    // misclassification of stairwell holes as slab). Outside the hole at that level
+    // the slab is intact and falls through to the floor records.
+    for (const auto& s : stairs) {
+        if (p.y < s.baseY || p.y >= s.topY) continue;
+        if (p.x < s.x || p.x >= s.x + s.w || p.z < s.z || p.z >= s.z + s.d) continue;
+        if (p.y == s.topY - 1 && s.holeW > 0 && s.holeD > 0) {
+            const int hx0 = s.holeX / 9, hx1 = (s.holeX + s.holeW - 1) / 9;
+            const int hz0 = s.holeZ / 9, hz1 = (s.holeZ + s.holeD - 1) / 9;
+            if (p.x < hx0 || p.x > hx1 || p.z < hz0 || p.z > hz1) continue;
+        }
+        return "stair";
+    }
     for (const auto& f : floors) {
         if (p.y == f.y && p.x >= f.x && p.x < f.x + f.w && p.z >= f.z && p.z < f.z + f.d)
             return f.role == "ceiling" ? "ceiling" : "floor";
@@ -157,6 +192,7 @@ AssemblyPlan AssemblyPlan::fromJson(const nlohmann::json& j) {
     load("walls",      p.walls,      WallSegment::fromJson);
     load("floors",     p.floors,     FloorPatch::fromJson);
     load("openings",   p.openings,   OpeningCut::fromJson);
+    load("stairs",     p.stairs,     StairRecord::fromJson);
     load("roof",       p.roof,       RoofPanel::fromJson);
     load("fixtures",   p.fixtures,   FixturePlacement::fromJson);
     load("lights",     p.lights,     LightPlacement::fromJson);
@@ -169,8 +205,8 @@ nlohmann::json AssemblyPlan::toJson() const {
         return a;
     };
     return {{"foundation", dump(foundation)}, {"walls", dump(walls)}, {"floors", dump(floors)},
-            {"openings", dump(openings)}, {"roof", dump(roof)}, {"fixtures", dump(fixtures)},
-            {"lights", dump(lights)}};
+            {"openings", dump(openings)}, {"stairs", dump(stairs)}, {"roof", dump(roof)},
+            {"fixtures", dump(fixtures)}, {"lights", dump(lights)}};
 }
 
 } // namespace Core

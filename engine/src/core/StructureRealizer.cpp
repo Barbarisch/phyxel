@@ -425,17 +425,31 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 // BuildingProgramValidator, so what we build is exactly what the gate checks.
                 // maxStepMicro = the character's step-up (m_maxStepHeight 4/9 m) on the grid.
                 const int maxStepMicro = 4;
-                StairPlan plan = planStair(rc.w, rc.d, riseMicro,
-                                           stairFormFromString(sr.form), maxStepMicro);
+                StairPlan sp = planStair(rc.w, rc.d, riseMicro,
+                                         stairFormFromString(sr.form), maxStepMicro);
 
                 // (1) cut the stairwell hole through the upper story's floor slab
-                c.fillMicroBox(rc.x * 9 + plan.holeX, holeBase, rc.z * 9 + plan.holeZ,
-                               plan.holeW, topMicro - holeBase, plan.holeD, "");
+                c.fillMicroBox(rc.x * 9 + sp.holeX, holeBase, rc.z * 9 + sp.holeZ,
+                               sp.holeW, topMicro - holeBase, sp.holeD, "");
 
                 // (2) build the planned treads + landings (local micro → offset into the well)
-                for (const auto& s : plan.solids)
+                for (const auto& s : sp.solids)
                     c.fillMicroBox(rc.x * 9 + s.x, botMicro + s.y, rc.z * 9 + s.z,
                                    s.w, s.h, s.d, matFloor);
+
+                // (3) RECORD the flight in the plan at the moment it is built (Claims
+                // Ledger increment 1): furniture reservation, featureAt, and validators
+                // query this record instead of re-planning from ProgStair.
+                StairRecord rec;
+                rec.x = rc.x; rec.z = rc.z; rec.w = rc.w; rec.d = rc.d;
+                rec.fromStory = a; rec.toStory = b;
+                rec.baseY = botMicro / 9;
+                rec.topY = (topMicro + 8) / 9;
+                rec.botWalkMicro = botMicro; rec.topWalkMicro = topMicro;
+                rec.form = sr.form;
+                rec.holeX = rc.x * 9 + sp.holeX; rec.holeZ = rc.z * 9 + sp.holeZ;
+                rec.holeW = sp.holeW; rec.holeD = sp.holeD;
+                plan.stairs.push_back(rec);
             }
     }
 
