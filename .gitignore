@@ -275,3 +275,4 @@ tools/interaction_pipeline/reports/
 !resources/templates/*.metrics.json
 
 window_census_actual.txt
+canvas_digest_actual.txt

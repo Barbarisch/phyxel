@@ -1,6 +1,7 @@
 # Claims Ledger — completing the AssemblyPlan so consumers stop re-deriving geometry
 
-> Status: **ACTIVE plan** (2026-07-24). Increment 1 in progress.
+> Status: **ACTIVE plan** (2026-07-24). Increments 1 + 2 SHIPPED (auditor PASS each);
+> increment 3 next.
 > Origin: user direction after the KI-5 defect arc — *"the pipeline/pathway for generating
 > structures has some weakpoints… address that at an algorithm/architecture level so that we
 > don't get stuck in such time-consuming audit loops."*
@@ -60,10 +61,20 @@ adjacent, well-formed stairs (all current typologies); stairs the realizer *skip
 built — a divergence pinned with canvas cross-checks in
 `AssemblyPlanStairTest.SkippedStairsReserveNothingBecauseNothingWasBuilt`.
 
-**Increment 2 — owner channel.** Opening reveals (jamb/lintel/sill boxes) and quoin/corner
-zones recorded by the passes that paint them (`OpeningCut` gains reveal boxes; new
-`CornerZone` records). `featureAt` learns `"opening"` / `"quoin"`. Pure recording — zero
-canvas-output change, provable by canvas-diff test.
+**Increment 2 — reveals + corner zones recorded.** *(SHIPPED, auditor PASS round 1)*
+Every paint call in the openings pass routes through a `rec()` wrapper recording a
+`TrimBox` (role clear/jamb/lintel/sill/ledge/leaf + material, structure-local micro) into
+the `OpeningCut`; interior clear bands recorded; quoin pass records 4 `CornerZone` entries.
+`featureAt` learns `"opening"` (from *clear* boxes only — trim never drives classification)
+and `"quoin"`, fixing carved-doorway-cubes-answer-"wall". Zero canvas change proven two
+ways: the `CanvasDigestTest` harness (4 fixtures covering every painting path; sorted
+cells + material folded into FNV-64) byte-identical before/after — reproduced
+independently by the auditor via selective `git stash push -- engine/` — and by
+construction (`rec()` is an unconditional passthrough with identical args at every call
+site, which also covers the one branch no fixture reaches: open-shutter leaves, whose
+fixtures deterministically hash to closed). Auditor mutations confirmed the
+record-vs-canvas cross-checks have teeth: a lying jamb x and a dropped lintel role were
+both caught by `AssemblyPlanRevealTest`.
 
 **Increment 3 — furniture consumes the plan.** `furnish` takes the `AssemblyPlan` (+ origin)
 and derives doorway blocks, stair reservations, and wall insets from plan records; the five
