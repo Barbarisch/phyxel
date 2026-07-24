@@ -63,10 +63,19 @@ HYPOTHESIS until confirmed in code.
   (main-range + wing exterior walls overlapping into a cube-read band) or the winged
   layout emitting cube walls; a cube-thick partition also breaks the door-carve arithmetic
   (the carve clears the thin band, leaving cube remnants that narrow/block the doorway).
-- **KI-5f — Fences don't always come to a neat corner.** `FenceBuilder` corner joins leave
-  ragged meets (missing corner post or overlapping rails) on some parcel orientations,
-  despite the earlier fence-corner fix (which covered a different defect). Fix in the corner
-  join emission + a corner-topology unit test across all 4 orientations.
+- **KI-5f — Fences don't always come to a neat corner — FIXED at unit level (2026-07-24,
+  solution-auditor PASS after a two-round audit).** Two composition defects: W/E runs
+  shortened by a cube left an 8-9 micro rail/picket gap beside every corner post, and
+  whole-cube spans made the N/E fence planes MISS the perpendicular fence entirely at some
+  corners (planes sit at micro row 0 of their boundary cubes). Fix:
+  `Core::planParcelFenceRuns` — micro-precise runs ending exactly on the corner-plane
+  intersections; single corner ownership (N/S own posts; W/E omit end posts AND end slats
+  — the counting guard caught picket infill double-writing corners); gate window
+  cube-aligned to exact legacy centering. Guard: `FenceCornerTest` (post ownership counted
+  per contributing run; rails must reach every corner along both planes; auditor
+  mutation-verified in both failure directions). Honestly unverified: the
+  Application-embedded gate math has no unit test; live corner neatness is
+  screenshot-subjective.
 
 ## Resolved
 

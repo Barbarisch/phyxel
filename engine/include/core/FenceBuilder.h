@@ -52,5 +52,26 @@ std::vector<int> fencePostPositions(int runLenMicro, int postSpacingMicro, bool 
 FenceProfile planFenceProfile(int runLenMicro, int heightMicro, int postSpacingMicro, int rails,
                               FenceType type, int thickMicro = 1, bool endPosts = true);
 
+/// One perimeter run of a parcel fence, in MICRO coords (KI-5f). Micro precision is
+/// load-bearing: the fence planes sit at micro row 0 of their boundary cubes, so the
+/// N/E planes are 8 micro INSIDE the parcel's outer corner — cube-granular runs
+/// overshoot/undershoot the perpendicular plane and the fences pass each other.
+struct FenceRun {
+    bool alongX = true;      ///< run direction (true: along X at fixed z; false: along Z)
+    int  fixedMicro = 0;     ///< the plane's world-micro row (perpendicular axis)
+    int  fromMicro = 0;      ///< [fromMicro, toMicro) world-micro span along the run
+    int  toMicro = 0;
+    bool cornerPosts = true; ///< this run OWNS the corner posts (planFenceProfile endPosts)
+    char side = 'S';         ///< S|N|W|E (gate matching)
+};
+
+/// The 4 perimeter runs of a rectangular parcel (cube rect in, micro runs out).
+/// Corner contract (KI-5f, "fences don't come to a neat corner"): all four runs END
+/// exactly ON the corner intersection points of the four fence planes; N/S own the
+/// corner posts, W/E omit end posts (one post per corner) but their rails/pickets
+/// reach it. The old composition used whole-cube spans + corner-excluded W/E: the
+/// planes missed each other by up to 8 micro and rails stopped a cube short.
+std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD);
+
 }  // namespace Core
 }  // namespace Phyxel

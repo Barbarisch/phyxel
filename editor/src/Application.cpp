@@ -12096,20 +12096,32 @@ void Application::registerSettlementCommands() {
                 ++parcels;
                 // stamp one parcel edge: run along an axis at a fixed boundary cube row; leave the gate gap.
                 const int NDX[4] = {1, -1, 0, 0}, NDZ[4] = {0, 0, 1, -1};
-                auto stampEdge = [&](bool alongX, int fixedCube, int runFrom, int runTo, char thisSide) {
-                    const int runLenMicro = (runTo - runFrom) * 9;
-                    if (runLenMicro <= 0) return;                              // empty run (corner-excluded W/E)
-                    // endPosts = alongX: the N/S runs own the corner posts; the W/E runs omit their end
-                    // posts so each corner is ONE shared post (no doubled corner). (fence_posts_adjacent)
-                    const Core::FenceProfile prof =
-                        Core::planFenceProfile(runLenMicro, fH, fSp, fRails, fenceType, 1, alongX);
+                // KI-5f: runs are MICRO-precise (FenceRun) so all four ends land exactly
+                // on the corner-plane intersections — cube-granular spans made the N/E
+                // planes miss the perpendicular fence by up to 8 micro (ragged corners).
+                auto stampEdge = [&](const Core::FenceRun& run) {
+                    const int runLenMicro = run.toMicro - run.fromMicro;
+                    if (runLenMicro <= 0) return;
+                    const Core::FenceProfile prof = Core::planFenceProfile(
+                        runLenMicro, fH, fSp, fRails, fenceType, 1, run.cornerPosts);
                     if (!prof.ok) return;
                     int gLo = -1, gHi = -1;
-                    if (thisSide == gate) { const int gs = ((runTo - runFrom) - gateW) / 2; gLo = gs * 9; gHi = (gs + gateW) * 9; }
+                    if (run.side == gate) {
+                        // Cube-aligned gate window, EXACTLY the legacy centering: derive
+                        // the cube span (runLenMicro = (cubes-1)*9+1, so ceil-div
+                        // recovers it) and center in cubes — the naive micro formula
+                        // drifted up to 4 micro off the old center on odd spans
+                        // (auditor-caught).
+                        const int cubeSpan = (runLenMicro + 8) / 9;
+                        const int gs = ((cubeSpan - gateW) / 2) * 9;
+                        gLo = gs; gHi = gs + gateW * 9;
+                    }
                     for (const auto& c : prof.cells) {
                         if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
-                        const int wx = alongX ? (ox + runFrom) * 9 + c.u : (ox + fixedCube) * 9 + c.w;
-                        const int wz = alongX ? (oz + fixedCube) * 9 + c.w : (oz + runFrom) * 9 + c.u;
+                        const int wx = run.alongX ? ox * 9 + run.fromMicro + c.u
+                                                  : ox * 9 + run.fixedMicro + c.w;
+                        const int wz = run.alongX ? oz * 9 + run.fixedMicro + c.w
+                                                  : oz * 9 + run.fromMicro + c.u;
                         const int ccx = fl9(wx), ccz = fl9(wz);
                         if (pavedCols.count({ccx, ccz})) continue;            // V1: gap where a path crosses (gate straddle)
                         const int g0 = gtAt(ccx, ccz);
@@ -12121,12 +12133,12 @@ void Application::registerSettlementCommands() {
                         emitMicro(fenceBatch, wx, base + c.y, wz, "Log");
                     }
                 };
-                // N/S run the full width (incl. corners); W/E EXCLUDE the corner rows so each corner is
-                // stamped exactly once (V6 fence_corner_overlap: two runs doubling the corner post).
-                stampEdge(true,  pr.z,        pr.x, pr.x1(), 'S');
-                stampEdge(true,  pr.z1() - 1, pr.x, pr.x1(), 'N');
-                stampEdge(false, pr.x,        pr.z + 1, pr.z1() - 1, 'W');
-                stampEdge(false, pr.x1() - 1, pr.z + 1, pr.z1() - 1, 'E');
+                // KI-5f: composition from planParcelFenceRuns — every run ends exactly on
+                // the corner intersections; one post per corner (endPosts mechanism),
+                // perpendicular rails reach it (duplicate cells at the shared corner
+                // column are deduped by place()).
+                for (const auto& run : Core::planParcelFenceRuns(pr.x, pr.z, pr.w, pr.d))
+                    stampEdge(run);
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             chunkManager->rebuildOccupancyFromChunks();
