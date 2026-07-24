@@ -11,10 +11,18 @@ Reported from live inspection of generated villages. Each gets the standard trea
 root-cause → red validator/test shown failing → fix → auditor. Triage below is
 HYPOTHESIS until confirmed in code.
 
-- **KI-5a — Windows sometimes placed on the corner of a structure.** Likely: the autofill
-  window spec places along the front wall without a minimum jamb offset from wall ends;
-  corner cells host two wall bands. Fix in the openings layout (min 1-cube corner clearance)
-  + a `RealizedStructureValidator` window-position check.
+- **KI-5a — Windows sometimes placed on the corner of a structure — FIXED at unit level
+  (2026-07-24, solution-auditor PASS after a THREE-round audit).** Root cause: blocked-slot
+  shifting clamped windows into the footprint-corner cube (red: hall_house 12xD placed a
+  window at exactly (0,0)). Fix: a 1-cube corner margin (REASONED — masonry corner
+  integrity, not sourced) on footprint-corner edge ends only; window COUNT still derives
+  from the wall's full architectural length (per-bay rule) with placement confined to the
+  corner-safe band + an exhaustive slot-scan fallback. The audit caught TWO silent-loss
+  regressions in intermediate versions (18 cases 1→0, then 13 cases 2→1) — closed by the
+  auditor-prescribed WINDOW CENSUS: all 260 sweep cases pinned to a reviewed golden
+  (tests/core/golden/window_census.txt); any count drift fails with a reviewable diff.
+  Reviewed reductions documented in-test: tavern Wx5 = 0 (5-wide gable front proven
+  slotless), tavern Wx6 = 1 of 2 (band fits one window beside the door).
 - **KI-5b — Objects not flush against walls, especially wall lanterns — FIXED at unit
   level (2026-07-23, solution-auditor PASS after a two-round audit).** Root cause: every
   wall-backed piece was inset by the EXTERIOR wall thickness; on thin interior partitions

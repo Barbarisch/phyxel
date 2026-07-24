@@ -291,25 +291,49 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
         if (r.x == 0     && wants('x', 0, !longWallsAreZ)) edges.push_back({'x', 0, r.z, r.z1()});
         if (r.x1() == W  && wants('x', W, !longWallsAreZ)) edges.push_back({'x', W, r.z, r.z1()});
         for (const auto& ed : edges) {
-            const int len = ed.hi - ed.lo;
+            // KI-5a corner margin: a window must never intrude into the footprint-corner
+            // cube (the quoin/corner-post zone) — the blocked-slot shift used to clamp
+            // windows straight onto the building corner. 1-cube margin is REASONED
+            // (masonry corner integrity), not a sourced dimension; only edge ends that
+            // ARE footprint corners get it (mid-wall room boundaries keep full span).
+            const int axisMax = (ed.axis == 'z') ? W : D;
+            const int sLo = (ed.lo == 0) ? 1 : ed.lo;
+            const int sHi = (ed.hi == axisMax) ? axisMax - 1 : ed.hi;
+            const int len = sHi - sLo;               // placeable band (corner-safe)
             if (len < spec.width) continue;
-            const int nWin = (int)std::lround((len / bayLength) * spec.perBay);
+            // Window COUNT comes from the wall's full architectural length (the
+            // grounded windows-per-bay rule); only PLACEMENT is confined to the
+            // corner-safe band. Deriving the count from the shrunk band rounded
+            // corner rooms down to zero windows (auditor-caught silent loss).
+            const int fullLen = ed.hi - ed.lo;
+            const int nWin = (int)std::lround((fullLen / bayLength) * spec.perBay);
             for (int k = 0; k < nWin; ++k) {
-                const int ideal = ed.lo + (int)std::lround((k + 1) * (double)len / (nWin + 1));
-                // A blocked slot (the door +-1) shifts along the wall instead of dropping the
-                // window (the croft's mid-wall door sits exactly on the single window's slot).
-                for (int off : {0, 2, -2, 3, -3, 4, -4}) {
-                    const int at = std::min(std::max(ideal + off, ed.lo), ed.hi - spec.width);
+                const int ideal = sLo + (int)std::lround((k + 1) * (double)len / (nWin + 1));
+                // A blocked slot (the door +-1) shifts along the wall instead of dropping
+                // the window; on narrow corner-shrunk spans the fixed offsets can ALL
+                // collapse onto blocked cells (auditor-caught: 18 footprints silently
+                // lost their only window), so fall back to an exhaustive scan of every
+                // valid slot. A window is dropped ONLY when the wall genuinely has no
+                // unblocked slot (short wall + centred door + corner margins).
+                auto tryAt = [&](int at) -> bool {
                     const int px = (ed.axis == 'z') ? at : ed.coord;
                     const int pz = (ed.axis == 'z') ? ed.coord : at;
-                    if (blocked(px, pz)) continue;
+                    if (blocked(px, pz)) return false;
                     ProgPortal w; w.a = "exterior"; w.b = room.id;
                     w.kind = "window"; w.width = spec.width; w.height = spec.height;
                     w.infill = spec.infill;   // grounded reveal fill (shuttered default / glass)
                     w.px = px; w.pz = pz;
                     rl.portals.push_back(w);
-                    break;
+                    return true;
+                };
+                bool placedWin = false;
+                for (int off : {0, 2, -2, 3, -3, 4, -4}) {
+                    const int at = std::min(std::max(ideal + off, sLo), sHi - spec.width);
+                    if (tryAt(at)) { placedWin = true; break; }
                 }
+                if (!placedWin)
+                    for (int at = sLo; at <= sHi - spec.width && !placedWin; ++at)
+                        placedWin = tryAt(at);
             }
         }
     }
