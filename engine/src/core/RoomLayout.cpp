@@ -6,6 +6,7 @@
 #include <queue>
 #include <string>
 
+#include "core/CornerPolicy.h"
 #include "core/RoomProgram.h"
 #include "utils/Logger.h"
 
@@ -292,13 +293,13 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
         if (r.x1() == W  && wants('x', W, !longWallsAreZ)) edges.push_back({'x', W, r.z, r.z1()});
         for (const auto& ed : edges) {
             // KI-5a corner margin: a window must never intrude into the footprint-corner
-            // cube (the quoin/corner-post zone) — the blocked-slot shift used to clamp
-            // windows straight onto the building corner. 1-cube margin is REASONED
-            // (masonry corner integrity), not a sourced dimension; only edge ends that
-            // ARE footprint corners get it (mid-wall room boundaries keep full span).
+            // cube (the quoin/corner-post zone). The rule is QUERIED from CornerPolicy —
+            // the one definition shared with the realize-time CornerZone claims (Claims
+            // Ledger increment 4) — not re-derived here; only edge ends that ARE
+            // footprint corners get the margin (mid-wall room boundaries keep full span).
             const int axisMax = (ed.axis == 'z') ? W : D;
-            const int sLo = (ed.lo == 0) ? 1 : ed.lo;
-            const int sHi = (ed.hi == axisMax) ? axisMax - 1 : ed.hi;
+            int sLo = 0, sHi = 0;
+            CornerPolicy::windowSafeBand(ed.lo, ed.hi, axisMax, sLo, sHi);
             const int len = sHi - sLo;               // placeable band (corner-safe)
             if (len < spec.width) continue;
             // Window COUNT comes from the wall's full architectural length (the

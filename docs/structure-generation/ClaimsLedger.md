@@ -1,7 +1,7 @@
 # Claims Ledger — completing the AssemblyPlan so consumers stop re-deriving geometry
 
-> Status: **ACTIVE plan** (2026-07-24). Increments 1 + 2 + 3 SHIPPED (auditor PASS each);
-> increment 4 next.
+> Status: **ALL FOUR INCREMENTS SHIPPED** (2026-07-24, auditor PASS each). Follow-on
+> candidates listed under increment 3/4 notes remain open.
 > Origin: user direction after the KI-5 defect arc — *"the pipeline/pathway for generating
 > structures has some weakpoints… address that at an algorithm/architecture level so that we
 > don't get stuck in such time-consuming audit loops."*
@@ -92,9 +92,20 @@ cells still derive from `story.portals` (provably identical data to `OpeningCut`
 candidate for a later increment with the reveal records); per-axis insets still
 thickness-value-based rather than wall-face-position queries.
 
-**Increment 4 — openings/trim query claims.** `addTypologyWindows` corner margin becomes a
-query against corner-zone claims (the KI-5a rule moves from a local re-derivation to the
-model). Lock: `window_census.txt` golden byte-identical.
+**Increment 4 — the corner rule becomes a shared policy.** *(SHIPPED, auditor PASS)*
+The KI-5a corner margin moved out of `addTypologyWindows` into `CornerPolicy`
+(`engine/include/core/CornerPolicy.h`) — precise scope: a single shared *definition* the
+program-time window placer queries, bridged to the realize-time `CornerZone` claims by
+`CornerPolicyTest.RealizedCornerZonesLieInsidePolicyMargin` (a literal runtime query
+against `plan.corners` is impossible at program time, before `realizeShell` runs).
+Locks: full input-space band-equivalence sweep vs the legacy inline rule (>2000 cases);
+the 260-case `window_census.txt` golden byte-identical (untouched since `3fd87ae`).
+Propagation proof: mutating `kMarginCubes` 1→0 failed all four guard tests (corner
+windows returned, census diverged); the auditor's second asymmetric mutation (drop the
+hi-side inset only) was caught with correct localization (hi-side corners flagged, census
+diverged). Auditor noted the bridging test is directionally weak (cannot distinguish
+margin 1 from 2+) but sound and load-bearing against under-margin drift — the class it
+guards.
 
 ## 4. Non-goals / risks
 
