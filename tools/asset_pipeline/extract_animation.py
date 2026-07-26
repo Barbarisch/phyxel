@@ -681,12 +681,45 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     vertex_offset += num_vertices
 
     voxel_shapes = []
-    
+
     # Update effective scale factor for voxelization
     effective_scale_factor = scale_factor * root_scale_mult
-    
+
+    # Bind-space normalization: glTF unit stacks are wildly inconsistent
+    # (Meshy exports stack two 0.01 node scales — a bear arrives 0.014 units
+    # tall and voxelizes to a single blob). When target_height is given,
+    # derive the scale from the LARGEST extent of the bind-space vertices the
+    # pipeline actually consumes, so skeleton, boxes, and clips all come out
+    # coherently sized. (Largest extent, not Y: bind space's up-axis varies.)
+    if target_height is not None and all_positions:
+        mins = [min(p[a] for p in all_positions) for a in range(3)]
+        maxs = [max(p[a] for p in all_positions) for a in range(3)]
+        largest = max(maxs[a] - mins[a] for a in range(3))
+        if largest > 1e-9:
+            old_scale_factor = scale_factor
+            effective_scale_factor = target_height / largest
+            # The bind-space vertices ALREADY fold the baked root scale (their
+            # IBMs include it), and root offsets / clip root keys live in that
+            # same small space — so every path wants the plain effective
+            # factor. scale_factor is what lines 267-271 / the clip writer
+            # multiply by (children get x root_scale_mult on top, which is
+            # exactly the fold that maps their big raw locals into vertex
+            # space first).
+            scale_factor = effective_scale_factor
+            ratio = scale_factor / old_scale_factor if old_scale_factor else 1.0
+            for b in bones:
+                b["pos"] = [p * ratio for p in b["pos"]]
+            normalized_root_scale = effective_scale_factor
+            print(f"Bind-space normalize: largest extent {largest:.5f} -> "
+                  f"{target_height} (effective x{effective_scale_factor:.2f})")
+        else:
+            normalized_root_scale = None
+    else:
+        normalized_root_scale = None
+
     if style == 'voxel' and trimesh is not None:
-        voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch)
+        voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch,
+                                     local_scale=scale_factor * root_scale_mult)
     elif style == 'box':
         print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
@@ -823,16 +856,31 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     # We can check if bones[bid]['parent'] == -1
                     
                     is_root = (bones[bid]['parent'] == -1)
-                    current_scale = scale_factor
-                    if not is_root:
-                        current_scale *= root_scale_mult
-                    
+                    if is_root and normalized_root_scale is not None:
+                        # Root translation keys are world-space like the root
+                        # bind — use the effective factor under normalization.
+                        current_scale = normalized_root_scale
+                    else:
+                        current_scale = scale_factor
+                        if not is_root:
+                            current_scale *= root_scale_mult
+
                     for k in channels_by_bone[bid]['pos']:
                         k['v'] = [x * current_scale for x in k['v']]
                 elif ch['type'] == 'rotation':
                     channels_by_bone[bid]['rot'] = ch['keys']
                 elif ch['type'] == 'scale':
                     channels_by_bone[bid]['scl'] = ch['keys']
+                    # The bind bake resets the root node's scale to 1 (its
+                    # 0.01 was folded into positions), but the ANIMATION still
+                    # keys the raw node scale — the engine then scales the
+                    # whole skeleton to 1% mid-clip and the model implodes
+                    # (live-caught: every walking Meshy creature collapsed to
+                    # a point while its bind pose was perfect). Re-express
+                    # root scale keys relative to the baked scale.
+                    if bones[bid]['parent'] == -1 and root_scale_mult not in (0, 1.0):
+                        for k in channels_by_bone[bid]['scl']:
+                            k['v'] = [x / root_scale_mult for x in k['v']]
             
             f.write(f"BoneChannelCount {len(channels_by_bone)}\n")
             for bid, keys in channels_by_bone.items():
@@ -983,7 +1031,13 @@ def read_accessor(gltf, accessor):
         
     return results
 
-def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05):
+def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05, local_scale=None):
+    # scale_factor: vertex/bind space -> final world (mesh scaling + center unscaling).
+    # local_scale: raw bone-local space -> final world for box offsets — the
+    # IBMs map into RAW bone space, which under bind-space normalization is
+    # NOT the same factor (live-caught: bear boxes 69 units from their bones).
+    if local_scale is None:
+        local_scale = scale_factor
     if trimesh is None:
         return []
 
@@ -1056,8 +1110,8 @@ def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, sk
                 p_unscaled = list(unscaled_centers[i])
                 if joint_idx < len(ibms):
                     p_local_unscaled = transform_point(p_unscaled, ibms[joint_idx])
-                    # Scale the local offset
-                    p = [x * scale_factor for x in p_local_unscaled]
+                    # Scale the local offset (raw bone space -> final world)
+                    p = [x * local_scale for x in p_local_unscaled]
                 else:
                     p = list(center) # Fallback if no IBM?
                 

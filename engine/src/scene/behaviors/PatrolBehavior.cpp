@@ -144,9 +144,17 @@ arrived:
                   moveTarget.x, moveTarget.y, moveTarget.z);
     }
 
-    // Phase 5 — Arrival deceleration: slow down when close to the next waypoint.
+    // Phase 5 — Arrival deceleration: slow down only when approaching the FINAL
+    // destination waypoint, NOT intermediate path nodes. Decelerating at every
+    // node made slow NPCs (low walkSpeed) dip to 0.3x speed at each node; when
+    // that fell below the walk-vs-idle animation threshold the FSM flickered
+    // them into Idle mid-path, freezing the legs every node (live-caught on the
+    // mocap wolf at walkSpeed 0.25 -> 0.075). Intermediate nodes are now passed
+    // through at full speed; only the last node (the waypoint) decelerates.
     float effectiveSpeed = m_walkSpeed;
-    if (distXZ < DECEL_RADIUS) {
+    bool finalApproach = m_pathNodes.empty()
+                         || (m_currentPathNode + 1 >= m_pathNodes.size());
+    if (finalApproach && distXZ < DECEL_RADIUS) {
         effectiveSpeed *= glm::clamp(distXZ / DECEL_RADIUS, 0.3f, 1.0f);
     }
 

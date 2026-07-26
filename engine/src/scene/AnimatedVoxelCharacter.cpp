@@ -823,14 +823,19 @@ namespace Scene {
         if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {
             // Long-bodied plans (quadruped/arachnid/dragon): the biped
             // torso-span ratio under-sizes a body that is long, not tall.
-            // Half-width = the larger bind-pose |x|/|z| bone extent, clamped
-            // to the plan's bounds.
-            float maxAbsXZ = 0.0f;
+            // The capsule RADIUS is the body's LATERAL half-width (across the
+            // spine), NOT its fore-aft length. Taking the larger horizontal
+            // extent grabbed nose->tail length and produced a barrel-wide
+            // capsule (wolf 0.89) that snagged the navgrid, triggering the
+            // 1.5s stuck-timer and freezing patrol motion. Bind pose is
+            // axis-aligned, so the width axis is whichever horizontal axis has
+            // the SMALLER extent; use it (robust to facing along X or Z).
+            float maxAbsX = 0.0f, maxAbsZ = 0.0f;
             for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][0]));
-                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][2]));
+                maxAbsX = std::max(maxAbsX, std::abs(globalTransforms[i][3][0]));
+                maxAbsZ = std::max(maxAbsZ, std::abs(globalTransforms[i][3][2]));
             }
-            m_originalHalfWidth = glm::clamp(maxAbsXZ,
+            m_originalHalfWidth = glm::clamp(std::min(maxAbsX, maxAbsZ),
                                              m_bodyPlan.capsule.minHalfWidth,
                                              m_bodyPlan.capsule.maxHalfWidth);
         } else {

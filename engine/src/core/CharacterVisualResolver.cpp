@@ -18,6 +18,12 @@ Scene::MorphologyType morphologyFromAnimFile(const std::string& animFile) {
     if (lower.find("wolf") != std::string::npos)   return Scene::MorphologyType::Quadruped;
     if (lower.find("spider") != std::string::npos) return Scene::MorphologyType::Arachnid;
     if (lower.find("dragon") != std::string::npos) return Scene::MorphologyType::Dragon;
+    // Meshy-imported rigs (naming convention *_meshy) carry their own bone
+    // markers (frontleg/backleg) — leave Unknown so detectMorphology decides
+    // at load instead of stamping Humanoid here, which would suppress it and
+    // route the rig to the wrong body plan (live-caught: bear_meshy spawned
+    // with zero segment boxes).
+    if (lower.find("_meshy") != std::string::npos) return Scene::MorphologyType::Unknown;
     return Scene::MorphologyType::Humanoid;
 }
 
