@@ -3336,6 +3336,20 @@ void Application::update(float deltaTime) {
         npcManager->update(deltaTime);
     }
 
+    // Biome-driven wildlife population: scatter/despawn wandering animals around the camera
+    // as it moves through a streaming world. Only active when a streaming generator exists
+    // (fixed-region worlds don't stream biomes); configured lazily once it's available.
+    if (npcManager && chunkManager && camera) {
+        if (auto* sg = chunkManager->getStreamingGenerator()) {
+            if (!m_faunaConfigured) {
+                m_faunaSpawner.configure(sg, npcManager.get(), chunkManager);
+                m_faunaSpawner.setEnabled(true);
+                m_faunaConfigured = true;
+            }
+            m_faunaSpawner.update(camera->getPosition(), deltaTime);
+        }
+    }
+
     // Update combat system (invulnerability timers)
     if (combatSystem) {
         combatSystem->update(deltaTime);
