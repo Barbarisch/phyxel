@@ -694,11 +694,20 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                             s = node.scale
                             positions = [[p[0]*s[0], p[1]*s[1], p[2]*s[2]] for p in positions]
                     
-                    prim_color = material_color(gltf, prim.material)
+                    # Per-vertex color: sample the atlas at each vertex UV if the material is
+                    # texture-mapped, else fall back to the flat material baseColorFactor.
+                    tex_img = load_material_texture(gltf, prim.material)
+                    uvs = None
+                    if tex_img is not None and prim.attributes.TEXCOORD_0 is not None:
+                        uvs = read_accessor(gltf, gltf.accessors[prim.attributes.TEXCOORD_0])
+                    if uvs is not None and len(uvs) == num_vertices:
+                        prim_colors = [sample_texture(tex_img, uv[0], uv[1]) for uv in uvs]
+                    else:
+                        prim_colors = [material_color(gltf, prim.material)] * num_vertices
                     all_positions.extend(positions)
                     all_joints.extend(joints)
                     all_weights.extend(weights)
-                    all_colors.extend([prim_color] * num_vertices)
+                    all_colors.extend(prim_colors)
                     vertex_offset += num_vertices
 
     voxel_shapes = []
@@ -1080,6 +1089,66 @@ def material_color(gltf, material_index):
     return [round(_linear_to_srgb(bcf[0]), 4),
             round(_linear_to_srgb(bcf[1]), 4),
             round(_linear_to_srgb(bcf[2]), 4)]
+
+
+def _buffer_blob(gltf, buffer_index):
+    """Raw bytes of a glTF buffer (embedded data-URI or the .glb binary blob)."""
+    buf = gltf.buffers[buffer_index]
+    if buf.uri is None:
+        return gltf.binary_blob()
+    if buf.uri.startswith("data:"):
+        import base64
+        return base64.b64decode(buf.uri.split(",", 1)[1])
+    return None   # external .bin (unused by these packs)
+
+
+_texture_cache = {}
+
+
+def load_material_texture(gltf, material_index):
+    """PIL RGB Image for a material's baseColorTexture (atlas), or None. Many packs
+    (Quaternius Ultimate Monsters, KayKit, ...) store the whole model's colors in ONE
+    UV-mapped atlas with a white baseColorFactor -- material_color would return white, so
+    those must be sampled from the texture per vertex instead."""
+    if material_index is None:
+        return None
+    if material_index in _texture_cache:
+        return _texture_cache[material_index]
+    img_obj = None
+    try:
+        mat = gltf.materials[material_index]
+        pbr = getattr(mat, "pbrMetallicRoughness", None)
+        bct = getattr(pbr, "baseColorTexture", None) if pbr else None
+        if bct is not None:
+            from PIL import Image
+            import io
+            image = gltf.images[gltf.textures[bct.index].source]
+            data = None
+            if image.bufferView is not None:
+                bv = gltf.bufferViews[image.bufferView]
+                blob = _buffer_blob(gltf, bv.buffer)
+                if blob is not None:
+                    off = bv.byteOffset or 0
+                    data = blob[off: off + bv.byteLength]
+            elif image.uri and image.uri.startswith("data:"):
+                import base64
+                data = base64.b64decode(image.uri.split(",", 1)[1])
+            if data:
+                img_obj = Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception as e:
+        print(f"  texture load failed (material {material_index}): {e}")
+        img_obj = None
+    _texture_cache[material_index] = img_obj
+    return img_obj
+
+
+def sample_texture(img, u, v):
+    """Nearest-texel sRGB (r,g,b) 0..1 at glTF UV (origin top-left, V down)."""
+    W, H = img.size
+    x = int(min(max(u, 0.0), 1.0) * (W - 1))
+    y = int(min(max(v, 0.0), 1.0) * (H - 1))
+    px = img.getpixel((x, y))
+    return [round(px[0] / 255.0, 4), round(px[1] / 255.0, 4), round(px[2] / 255.0, 4)]
 
 
 def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05, local_scale=None, vertex_colors=None):
