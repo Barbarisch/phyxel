@@ -1,0 +1,4802 @@
+[
+  {
+    "id": "cockatrice",
+    "name": "Cockatrice",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Small",
+    "alignment": "unaligned",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "6d6+6",
+    "averageHP": 27,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d4+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one creature. Hit: 3 (1d4 + 1) piercing damage, and the target must succeed on a DC 11 Constitution saving throw against being magically petrified. On a failed save, the creature begins to turn to stone and is restrained. It must repeat the saving throw at the end of its next turn. On a success, the effect ends. On a failure, the creature is petrified for 24 hours."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "darkmantle",
+    "name": "Darkmantle",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Small",
+    "alignment": "unaligned",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "5d6+5",
+    "averageHP": 22,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Crush",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one creature. Hit: 6 (1d6 + 3) bludgeoning damage, and the darkmantle attaches to the target. If the target is Medium or smaller and the darkmantle has advantage on the attack roll, it attaches by engulfing the target's head, and the target is also blinded and unable to breathe while the darkmantle is attached in this way.\nWhile attached to the target, the darkmantle can attack no other creature except the target but has advantage on its attack rolls. The darkmantle's speed also becomes 0, it can't benefit from any bonus to its speed, and it moves with the target.\nA creature can detach the darkmantle by making a successful DC 13 Strength check as an action. On its turn, the darkmantle can detach itself from the target by using 5 feet of movement."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Echolocation",
+        "description": "The darkmantle can't use its blindsight while deafened."
+      },
+      {
+        "name": "False Appearance",
+        "description": "While the darkmantle remains motionless, it is indistinguishable from a cave formation such as a stalactite or stalagmite."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "rust-monster",
+    "name": "Rust Monster",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "5d8+5",
+    "averageHP": 27,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d8+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 5 (1d8 + 1) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Iron Scent",
+        "description": "The rust monster can pinpoint, by scent, the location of ferrous metal within 30 feet of it."
+      },
+      {
+        "name": "Rust Metal",
+        "description": "Any nonmagical weapon made of metal that hits the rust monster corrodes. After dealing damage, the weapon takes a permanent and cumulative -1 penalty to damage rolls. If its penalty drops to -5, the weapon is destroyed. Nonmagical ammunition made of metal that hits the rust monster is destroyed after dealing damage."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "worg",
+    "name": "Worg",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "4d10+4",
+    "averageHP": 26,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Goblin",
+      "Worg"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) piercing damage. If the target is a creature, it must succeed on a DC 13 Strength saving throw or be knocked prone."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The worg has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "death-dog",
+    "name": "Death Dog",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "6d8+12",
+    "averageHP": 39,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage. If the target is a creature, it must succeed on a DC 12 Constitution saving throw against disease or become poisoned until the disease is cured. Every 24 hours that elapse, the creature must repeat the saving throw, reducing its hit point maximum by 5 (1d10) on a failure. This reduction lasts until the disease is cured. The creature dies if the disease reduces its hit point maximum to 0."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Two-Headed",
+        "description": "The dog has advantage on Wisdom (Perception) checks and on saving throws against being blinded, charmed, deafened, frightened, stunned, or knocked unconscious."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "harpy",
+    "name": "Harpy",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "7d8+7",
+    "averageHP": 38,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "2d4+1",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 6 (2d4 + 1) slashing damage."
+      },
+      {
+        "name": "Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d4+1",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 3 (1d4 + 1) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "hippogriff",
+    "name": "Hippogriff",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "3d10+3",
+    "averageHP": 19,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 3) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Sight",
+        "description": "The hippogriff has advantage on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "ankheg",
+    "name": "Ankheg",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "6d10+6",
+    "averageHP": 39,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage plus 3 (1d6) acid damage. If the target is a Large or smaller creature, it is grappled (escape DC 13). Until this grapple ends, the ankheg can bite only the grappled creature and has advantage on attack rolls to do so."
+      },
+      {
+        "name": "Acid Spray",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "3d6",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 13,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The ankheg spits acid in a line that is 30 ft. long and 5 ft. wide, provided that it has no creature grappled. Each creature in that line must make a DC 13 Dexterity saving throw, taking 10 (3d6) acid damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "centaur",
+    "name": "Centaur",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral good",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "6d10+12",
+    "averageHP": 45,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1,
+      "Survival": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Elvish",
+      "Sylvan"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Pike",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 10 ft., one target. Hit: 9 (1d10 + 4) piercing damage."
+      },
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) bludgeoning damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Charge",
+        "description": "If the centaur moves at least 30 ft. straight toward a target and then hits it with a pike attack on the same turn, the target takes an extra 10 (3d6) piercing damage."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "ettercap",
+    "name": "Ettercap",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "8d8+8",
+    "averageHP": 44,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1,
+      "Survival": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 6 (1d8 + 2) piercing damage plus 4 (1d8) poison damage. The target must succeed on a DC 11 Constitution saving throw or be poisoned for 1 minute. The creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d4+2",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (2d4 + 2) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Spider Climb",
+        "description": "The ettercap can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Web Sense",
+        "description": "While in contact with a web, the ettercap knows the exact location of any other creature in contact with the same web."
+      },
+      {
+        "name": "Web Walker",
+        "description": "The ettercap ignores movement restrictions caused by webbing."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "grick",
+    "name": "Grick",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "6d8",
+    "averageHP": 27,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Tentacles",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d6+2",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 9 (2d6 + 2) slashing damage."
+      },
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Stone Camouflage",
+        "description": "The grick has advantage on Dexterity (Stealth) checks made to hide in rocky terrain."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "griffon",
+    "name": "Griffon",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "7d10+21",
+    "averageHP": 59,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 4) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Sight",
+        "description": "The griffon has advantage on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "merrow",
+    "name": "Merrow",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "6d10+12",
+    "averageHP": 45,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Abyssal",
+      "Aquan"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 4) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d4+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 9 (2d4 + 4) slashing damage."
+      },
+      {
+        "name": "Harpoon",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 20,
+        "rangeLong": 60,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +6 to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 11 (2d6 + 4) piercing damage. If the target is a Huge or smaller creature, it must succeed on a Strength contest against the merrow or be pulled up to 20 feet toward the merrow."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The merrow can breathe air and water."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "mimic",
+    "name": "Mimic",
+    "type": "monstrosity",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 15,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [
+      "Prone"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Pseudopod",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) bludgeoning damage. If the mimic is in object form, the target is subjected to its Adhesive trait."
+      },
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) piercing damage plus 4 (1d8) acid damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The mimic can use its action to polymorph into an object or back into its true, amorphous form. Its statistics are the same in each form. Any equipment it is wearing or carrying isn 't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Adhesive (Object Form Only)",
+        "description": "The mimic adheres to anything that touches it. A Huge or smaller creature adhered to the mimic is also grappled by it (escape DC 13). Ability checks made to escape this grapple have disadvantage."
+      },
+      {
+        "name": "False Appearance (Object Form Only)",
+        "description": "While the mimic remains motionless, it is indistinguishable from an ordinary object."
+      },
+      {
+        "name": "Grappler",
+        "description": "The mimic has advantage on attack rolls against any creature grappled by it."
+      }
+    ],
+    "tags": [
+      "monstrosity",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "basilisk",
+    "name": "Basilisk",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "8d8+16",
+    "averageHP": 52,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 9,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) piercing damage plus 7 (2d6) poison damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Petrifying Gaze",
+        "description": "If a creature starts its turn within 30 ft. of the basilisk and the two of them can see each other, the basilisk can force the creature to make a DC 12 Constitution saving throw if the basilisk isn't incapacitated. On a failed save, the creature magically begins to turn to stone and is restrained. It must repeat the saving throw at the end of its next turn. On a success, the effect ends. On a failure, the creature is petrified until freed by the greater restoration spell or other magic.\nA creature that isn't surprised can avert its eyes to avoid the saving throw at the start of its turn. If it does so, it can't see the basilisk until the start of its next turn, when it can avert its eyes again. If it looks at the basilisk in the meantime, it must immediately make the save.\nIf the basilisk sees its reflection within 30 ft. of it in bright light, it mistakes itself for a rival and targets itself with its gaze."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "doppelganger",
+    "name": "Doppelganger",
+    "type": "monstrosity",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 14,
+    "armorSource": "dex",
+    "hitPointDice": "8d8+16",
+    "averageHP": 52,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Slam",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 7 (1d6 + 4) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The doppelganger can use its action to polymorph into a Small or Medium humanoid it has seen, or back into its true form. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Ambusher",
+        "description": "In the first round of combat, the doppelganger has advantage on attack rolls against any creature it has surprised."
+      },
+      {
+        "name": "Surprise Attack",
+        "description": "If the doppelganger surprises a creature and hits it with an attack during the first round of combat, the target takes an extra 10 (3d6) damage from the attack."
+      }
+    ],
+    "tags": [
+      "monstrosity",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "manticore",
+    "name": "Manticore",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "8d10+24",
+    "averageHP": 68,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage."
+      },
+      {
+        "name": "Tail Spike",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 200,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +5 to hit, range 100/200 ft., one target. Hit: 7 (1d8 + 3) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Tail Spike Regrowth",
+        "description": "The manticore has twenty-four tail spikes. Used spikes regrow when the manticore finishes a long rest."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "minotaur",
+    "name": "Minotaur",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "9d10+27",
+    "averageHP": 76,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Abyssal"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d12+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 17 (2d12 + 4) slashing damage."
+      },
+      {
+        "name": "Gore",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Charge",
+        "description": "If the minotaur moves at least 10 ft. straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 9 (2d8) piercing damage. If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 ft. away and knocked prone."
+      },
+      {
+        "name": "Labyrinthine Recall",
+        "description": "The minotaur can perfectly recall any path it has traveled."
+      },
+      {
+        "name": "Reckless",
+        "description": "At the start of its turn, the minotaur can gain advantage on all melee weapon attack rolls it makes during that turn, but attack rolls against it have advantage until the start of its next turn."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "owlbear",
+    "name": "Owlbear",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "7d10+21",
+    "averageHP": 59,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d10+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one creature. Hit: 10 (1d10 + 5) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+5",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 14 (2d8 + 5) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Sight and Smell",
+        "description": "The owlbear has advantage on Wisdom (Perception) checks that rely on sight or smell."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ],
+    "rig": "bear_meshy"
+  },
+  {
+    "id": "phase-spider",
+    "name": "Phase Spider",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "5d10+5",
+    "averageHP": 32,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 7 (1d10 + 2) piercing damage, and the target must make a DC 11 Constitution saving throw, taking 18 (4d8) poison damage on a failed save, or half as much damage on a successful one. If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Ethereal Jaunt",
+        "description": "As a bonus action, the spider can magically shift from the Material Plane to the Ethereal Plane, or vice versa."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The spider can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Web Walker",
+        "description": "The spider ignores movement restrictions caused by webbing."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ],
+    "rig": "character_spider2"
+  },
+  {
+    "id": "winter-wolf",
+    "name": "Winter Wolf",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "10d10+20",
+    "averageHP": 75,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Common",
+      "Giant",
+      "Winter Wolf"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) piercing damage. If the target is a creature, it must succeed on a DC 14 Strength saving throw or be knocked prone."
+      },
+      {
+        "name": "Cold Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "4d8",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 12,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The wolf exhales a blast of freezing wind in a 15-foot cone. Each creature in that area must make a DC 12 Dexterity saving throw, taking 18 (4d8) cold damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The wolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      },
+      {
+        "name": "Pack Tactics",
+        "description": "The wolf has advantage on an attack roll against a creature if at least one of the wolf's allies is within 5 ft. of the creature and the ally isn't incapacitated."
+      },
+      {
+        "name": "Snow Camouflage",
+        "description": "The wolf has advantage on Dexterity (Stealth) checks made to hide in snowy terrain."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ],
+    "rig": "quad_wolf"
+  },
+  {
+    "id": "lamia",
+    "name": "Lamia",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "13d10+26",
+    "averageHP": 97,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Abyssal",
+      "Common"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d10+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 14 (2d10 + 3) slashing damage."
+      },
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The lamia's innate spellcasting ability is Charisma (spell save DC 13). It can innately cast the following spells, requiring no material components. At will: disguise self (any humanoid form), major image 3/day each: charm person, mirror image, scrying, suggestion 1/day: geas"
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "bulette",
+    "name": "Bulette",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "9d10+45",
+    "averageHP": 94,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "4d12+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 30 (4d12 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Standing Leap",
+        "description": "The bulette's long jump is up to 30 ft. and its high jump is up to 15 ft., with or without a running start."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "gorgon",
+    "name": "Gorgon",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "12d10+48",
+    "averageHP": 114,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Petrified"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Gore",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d12+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 18 (2d12 + 5) piercing damage."
+      },
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d10+5",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 16 (2d10 + 5) bludgeoning damage."
+      },
+      {
+        "name": "Petrifying Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 13,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The gorgon exhales petrifying gas in a 30-foot cone. Each creature in that area must succeed on a DC 13 Constitution saving throw. On a failed save, a target begins to turn to stone and is restrained. The restrained target must repeat the saving throw at the end of its next turn. On a success, the effect ends on the target. On a failure, the target is petrified until freed by the greater restoration spell or other magic."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Trampling Charge",
+        "description": "If the gorgon moves at least 20 feet straight toward a creature and then hits it with a gore attack on the same turn, that target must succeed on a DC 16 Strength saving throw or be knocked prone. If the target is prone, the gorgon can make one attack with its hooves against it as a bonus action."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "roper",
+    "name": "Roper",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral evil",
+    "armorClass": 20,
+    "armorSource": "natural",
+    "hitPointDice": "11d10+33",
+    "averageHP": 93,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "4d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 22 (4d8 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "False Appearance",
+        "description": "While the roper remains motionless, it is indistinguishable from a normal cave formation, such as a stalagmite."
+      },
+      {
+        "name": "Grasping Tendrils",
+        "description": "The roper can have up to six tendrils at a time. Each tendril can be attacked (AC 20; 10 hit points; immunity to poison and psychic damage). Destroying a tendril deals no damage to the roper, which can extrude a replacement tendril on its next turn. A tendril can also be broken if a creature takes an action and succeeds on a DC 15 Strength check against it."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The roper can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "chimera",
+    "name": "Chimera",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "12d10+48",
+    "averageHP": 114,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 18,
+    "languages": [],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) piercing damage."
+      },
+      {
+        "name": "Horns",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d12+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 10 (1d12 + 4) bludgeoning damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "7d8",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon head exhales fire in a 15-foot cone. Each creature in that area must make a DC 15 Dexterity saving throw, taking 31 (7d8) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "drider",
+    "name": "Drider",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "13d10+52",
+    "averageHP": 123,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Elvish",
+      "Undercommon"
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one creature. Hit: 2 (1d4) piercing damage plus 9 (2d8) poison damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +6 to hit, range 150/600 ft., one target. Hit: 7 (1d8 + 3) piercing damage plus 4 (1d8) poison damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Fey Ancestry",
+        "description": "The drider has advantage on saving throws against being charmed, and magic can't put the drider to sleep."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The drider's innate spellcasting ability is Wisdom (spell save DC 13). The drider can innately cast the following spells, requiring no material components:\nAt will: dancing lights\n1/day each: darkness, faerie fire"
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The drider can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the drider has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      },
+      {
+        "name": "Web Walker",
+        "description": "The drider ignores movement restrictions caused by webbing."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "medusa",
+    "name": "Medusa",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "17d8+51",
+    "averageHP": 127,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Snake Hair",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one creature. Hit: 4 (1d4 + 2) piercing damage plus 14 (4d6) poison damage."
+      },
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +5 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage plus 7 (2d6) poison damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Petrifying Gaze",
+        "description": "When a creature that can see the medusa's eyes starts its turn within 30 ft. of the medusa, the medusa can force it to make a DC 14 Constitution saving throw if the medusa isn't incapacitated and can see the creature. If the saving throw fails by 5 or more, the creature is instantly petrified. Otherwise, a creature that fails the save begins to turn to stone and is restrained. The restrained creature must repeat the saving throw at the end of its next turn, becoming petrified on a failure or ending the effect on a success. The petrification lasts until the creature is freed by the greater restoration spell or other magic.\nUnless surprised, a creature can avert its eyes to avoid the saving throw at the start of its turn. If the creature does so, it can't see the medusa until the start of its next turn, when it can avert its eyes again. If the creature looks at the medusa in the meantime, it must immediately make the save.\nIf the medusa sees itself reflected on a polished surface within 30 ft. of it and in an area of bright light, the medusa is, due to its curse, affected by its own gaze."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "hydra",
+    "name": "Hydra",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "unaligned",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "15d12+75",
+    "averageHP": 172,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "1d10+5",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 10 (1d10 + 5) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Hold Breath",
+        "description": "The hydra can hold its breath for 1 hour."
+      },
+      {
+        "name": "Multiple Heads",
+        "description": "The hydra has five heads. While it has more than one head, the hydra has advantage on saving throws against being blinded, charmed, deafened, frightened, stunned, and knocked unconscious.\nWhenever the hydra takes 25 or more damage in a single turn, one of its heads dies. If all its heads die, the hydra dies.\nAt the end of its turn, it grows two heads for each of its heads that died since its last turn, unless it has taken fire damage since its last turn. The hydra regains 10 hit points for each head regrown in this way."
+      },
+      {
+        "name": "Reactive Heads",
+        "description": "For each head the hydra has beyond one, it gets an extra reaction that can be used only for opportunity attacks."
+      },
+      {
+        "name": "Wakeful",
+        "description": "While the hydra sleeps, at least one of its heads is awake."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "spirit-naga",
+    "name": "Spirit Naga",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "10d10+20",
+    "averageHP": 75,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Abyssal",
+      "Common"
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d6+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one creature. Hit: 7 (1d6 + 4) piercing damage, and the target must make a DC 13 Constitution saving throw, taking 31 (7d8) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Rejuvenation",
+        "description": "If it dies, the naga returns to life in 1d6 days and regains all its hit points. Only a wish spell can prevent this trait from functioning."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The naga is a 10th-level spellcaster. Its spellcasting ability is Intelligence (spell save DC 14, +6 to hit with spell attacks), and it needs only verbal components to cast its spells. It has the following wizard spells prepared:\n\n- Cantrips (at will): mage hand, minor illusion, ray of frost\n- 1st level (4 slots): charm person, detect magic, sleep\n- 2nd level (3 slots): detect thoughts, hold person\n- 3rd level (3 slots): lightning bolt, water breathing\n- 4th level (3 slots): blight, dimension door\n- 5th level (2 slots): dominate person"
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "guardian-naga",
+    "name": "Guardian Naga",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "15d10+45",
+    "averageHP": 127,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Celestial",
+      "Common"
+    ],
+    "challengeRating": 10.0,
+    "xpValue": 5900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "1d8+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one creature. Hit: 8 (1d8 + 4) piercing damage, and the target must make a DC 15 Constitution saving throw, taking 45 (10d8) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Rejuvenation",
+        "description": "If it dies, the naga returns to life in 1d6 days and regains all its hit points. Only a wish spell can prevent this trait from functioning."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The naga is an 11th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 16, +8 to hit with spell attacks), and it needs only verbal components to cast its spells. It has the following cleric spells prepared:\n\n- Cantrips (at will): mending, sacred flame, thaumaturgy\n- 1st level (4 slots): command, cure wounds, shield of faith\n- 2nd level (3 slots): calm emotions, hold person\n- 3rd level (3 slots): bestow curse, clairvoyance\n- 4th level (3 slots): banishment, freedom of movement\n- 5th level (2 slots): flame strike, geas\n- 6th level (1 slot): true seeing"
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "behir",
+    "name": "Behir",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "neutral evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "16d12+64",
+    "averageHP": 168,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 90,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 11.0,
+    "xpValue": 7200,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "3d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 22 (3d10 + 6) piercing damage."
+      },
+      {
+        "name": "Constrict",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d10+6",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one Large or smaller creature. Hit: 17 (2d10 + 6) bludgeoning damage plus 17 (2d10 + 6) slashing damage. The target is grappled (escape DC 16) if the behir isn't already constricting a creature, and the target is restrained until this grapple ends."
+      },
+      {
+        "name": "Lightning Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The behir exhales a line of lightning that is 20 ft. long and 5 ft. wide. Each creature in that line must make a DC 16 Dexterity saving throw, taking 66 (12d10) lightning damage on a failed save, or half as much damage on a successful one."
+      },
+      {
+        "name": "Swallow",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "6d6",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The behir makes one bite attack against a Medium or smaller target it is grappling. If the attack hits, the target is also swallowed, and the grapple ends. While swallowed, the target is blinded and restrained, it has total cover against attacks and other effects outside the behir, and it takes 21 (6d6) acid damage at the start of each of the behir's turns. A behir can have only one creature swallowed at a time.\nIf the behir takes 30 damage or more on a single turn from the swallowed creature, the behir must succeed on a DC 14 Constitution saving throw at the end of that turn or regurgitate the creature, which falls prone in a space within 10 ft. of the behir. If the behir dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 15 ft. of movement, exiting prone."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "gynosphinx",
+    "name": "Gynosphinx",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful neutral",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+48",
+    "averageHP": 136,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1,
+      "Perception": 1,
+      "Religion": 1
+    },
+    "damageResistances": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "psychic"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 18,
+    "languages": [
+      "Common",
+      "Sphinx"
+    ],
+    "challengeRating": 11.0,
+    "xpValue": 7200,
+    "attacks": [
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Inscrutable",
+        "description": "The sphinx is immune to any effect that would sense its emotions or read its thoughts, as well as any divination spell that it refuses. Wisdom (Insight) checks made to ascertain the sphinx's intentions or sincerity have disadvantage."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The sphinx's weapon attacks are magical."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The sphinx is a 9th-level spellcaster. Its spellcasting ability is Intelligence (spell save DC 16, +8 to hit with spell attacks). It requires no material components to cast its spells. The sphinx has the following wizard spells prepared:\n\n- Cantrips (at will): mage hand, minor illusion, prestidigitation\n- 1st level (4 slots): detect magic, identify, shield\n- 2nd level (3 slots): darkness, locate object, suggestion\n- 3rd level (3 slots): dispel magic, remove curse, tongues\n- 4th level (3 slots): banishment, greater invisibility\n- 5th level (1 slot): legend lore"
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "remorhaz",
+    "name": "Remorhaz",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "unaligned",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "17d12+85",
+    "averageHP": 195,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 4,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold",
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 11.0,
+    "xpValue": 7200,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "6d10+7",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 40 (6d10 + 7) piercing damage plus 10 (3d6) fire damage. If the target is a creature, it is grappled (escape DC 17). Until this grapple ends, the target is restrained, and the remorhaz can't bite another target."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Heated Body",
+        "description": "A creature that touches the remorhaz or hits it with a melee attack while within 5 feet of it takes 10 (3d6) fire damage."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "roc",
+    "name": "Roc",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "unaligned",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "16d20+80",
+    "averageHP": 248,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 28,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [],
+    "challengeRating": 11.0,
+    "xpValue": 7200,
+    "attacks": [
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "4d8+9",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 27 (4d8 + 9) piercing damage."
+      },
+      {
+        "name": "Talons",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "4d6+9",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 5 ft., one target. Hit: 23 (4d6 + 9) slashing damage, and the target is grappled (escape DC 19). Until this grapple ends, the target is restrained, and the roc can't use its talons on another target."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Sight",
+        "description": "The roc has advantage on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "purple-worm",
+    "name": "Purple Worm",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "unaligned",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "15d20+90",
+    "averageHP": 247,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 28,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 4,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 9,
+    "languages": [],
+    "challengeRating": 15.0,
+    "xpValue": 13000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "3d8+9",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 22 (3d8 + 9) piercing damage. If the target is a Large or smaller creature, it must succeed on a DC 19 Dexterity saving throw or be swallowed by the worm. A swallowed creature is blinded and restrained, it has total cover against attacks and other effects outside the worm, and it takes 21 (6d6) acid damage at the start of each of the worm's turns.\nIf the worm takes 30 damage or more on a single turn from a creature inside it, the worm must succeed on a DC 21 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the worm. If the worm dies, a swallowed creature is no longer restrained by it and can escape from the corpse by using 20 feet of movement, exiting prone."
+      },
+      {
+        "name": "Tail Stinger",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "3d6+9",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one creature. Hit: 19 (3d6 + 9) piercing damage, and the target must make a DC 19 Constitution saving throw, taking 42 (12d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Tunneler",
+        "description": "The worm can burrow through solid rock at half its burrow speed and leaves a 10-foot-diameter tunnel in its wake."
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "androsphinx",
+    "name": "Androsphinx",
+    "type": "monstrosity",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful neutral",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "19d10+95",
+    "averageHP": 199,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "INT",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "Perception": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "psychic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 20,
+    "languages": [
+      "Common",
+      "Sphinx"
+    ],
+    "challengeRating": 17.0,
+    "xpValue": 18000,
+    "attacks": [
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d10+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 5 ft., one target. Hit: 17 (2d10 + 6) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Inscrutable",
+        "description": "The sphinx is immune to any effect that would sense its emotions or read its thoughts, as well as any divination spell that it refuses. Wisdom (Insight) checks made to ascertain the sphinx's intentions or sincerity have disadvantage."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The sphinx's weapon attacks are magical."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The sphinx is a 12th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 18, +10 to hit with spell attacks). It requires no material components to cast its spells. The sphinx has the following cleric spells prepared:\n\n- Cantrips (at will): sacred flame, spare the dying, thaumaturgy\n- 1st level (4 slots): command, detect evil and good, detect magic\n- 2nd level (3 slots): lesser restoration, zone of truth\n- 3rd level (3 slots): dispel magic, tongues\n- 4th level (3 slots): banishment, freedom of movement\n- 5th level (2 slots): flame strike, greater restoration\n- 6th level (1 slot): heroes' feast"
+      }
+    ],
+    "tags": [
+      "monstrosity"
+    ]
+  },
+  {
+    "id": "kraken",
+    "name": "Kraken",
+    "type": "monstrosity",
+    "subtype": "titan",
+    "size": "Gargantuan",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "27d20+189",
+    "averageHP": 472,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "DEX",
+      "CON",
+      "INT",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [
+      "Frightened",
+      "Paralyzed"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 14,
+    "languages": [
+      "Celestial",
+      "Infernal",
+      "and Primordial but can't speak",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 23.0,
+    "xpValue": 50000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "3d8+10",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 23 (3d8 + 10) piercing damage. If the target is a Large or smaller creature grappled by the kraken, that creature is swallowed, and the grapple ends. While swallowed, the creature is blinded and restrained, it has total cover against attacks and other effects outside the kraken, and it takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone in a space within 10 feet of the kraken. If the kraken dies, a swallowed creature is no longer restrained by it and can escape from the corpse using 15 feet of movement, exiting prone."
+      },
+      {
+        "name": "Tentacle",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "3d6+10",
+        "damageType": "bludgeoning",
+        "reach": 30,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 30 ft., one target. Hit: 20 (3d6 + 10) bludgeoning damage, and the target is grappled (escape DC 18). Until this grapple ends, the target is restrained. The kraken has ten tentacles, each of which can grapple one target."
+      },
+      {
+        "name": "Lightning Storm",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "4d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 23,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The kraken magically creates three bolts of lightning, each of which can strike a target the kraken can see within 120 feet of it. A target must make a DC 23 Dexterity saving throw, taking 22 (4d10) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The kraken can breathe air and water."
+      },
+      {
+        "name": "Freedom of Movement",
+        "description": "The kraken ignores difficult terrain, and magical effects can't reduce its speed or cause it to be restrained. It can spend 5 feet of movement to escape from nonmagical restraints or being grappled."
+      },
+      {
+        "name": "Siege Monster",
+        "description": "The kraken deals double damage to objects and structures."
+      }
+    ],
+    "tags": [
+      "monstrosity",
+      "titan"
+    ]
+  },
+  {
+    "id": "tarrasque",
+    "name": "Tarrasque",
+    "type": "monstrosity",
+    "subtype": "titan",
+    "size": "Gargantuan",
+    "alignment": "unaligned",
+    "armorClass": 25,
+    "armorSource": "natural",
+    "hitPointDice": "33d20+330",
+    "averageHP": 676,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire",
+      "poison",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 120,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 30.0,
+    "xpValue": 155000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 19,
+        "damageDice": "4d12+10",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +19 to hit, reach 10 ft., one target. Hit: 36 (4d12 + 10) piercing damage. If the target is a creature, it is grappled (escape DC 20). Until this grapple ends, the target is restrained, and the tarrasque can't bite another target."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 19,
+        "damageDice": "4d8+10",
+        "damageType": "slashing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +19 to hit, reach 15 ft., one target. Hit: 28 (4d8 + 10) slashing damage."
+      },
+      {
+        "name": "Horns",
+        "isWeaponAttack": true,
+        "toHitBonus": 19,
+        "damageDice": "4d10+10",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +19 to hit, reach 10 ft., one target. Hit: 32 (4d10 + 10) piercing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 19,
+        "damageDice": "4d6+10",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +19 to hit, reach 20 ft., one target. Hit: 24 (4d6 + 10) bludgeoning damage. If the target is a creature, it must succeed on a DC 20 Strength saving throw or be knocked prone."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the tarrasque's choice within 120 feet of it and aware of it must succeed on a DC 17 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, with disadvantage if the tarrasque is within line of sight, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the tarrasque's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the tarrasque fails a saving throw, it can choose to succeed instead."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The tarrasque has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Reflective Carapace",
+        "description": "Any time the tarrasque is targeted by a magic missile spell, a line spell, or a spell that requires a ranged attack roll, roll a d6. On a 1 to 5, the tarrasque is unaffected. On a 6, the tarrasque is unaffected, and the effect is reflected back at the caster as though it originated from the tarrasque, turning the caster into the target."
+      },
+      {
+        "name": "Siege Monster",
+        "description": "The tarrasque deals double damage to objects and structures."
+      }
+    ],
+    "tags": [
+      "monstrosity",
+      "titan"
+    ]
+  }
+]

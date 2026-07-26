@@ -1,0 +1,1154 @@
+[
+  {
+    "id": "swarm-of-bats",
+    "name": "Swarm of Bats",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 4,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 0 ft., one creature in the swarm's space. Hit: 5 (2d4) piercing damage, or 2 (1d4) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Echolocation",
+        "description": "The swarm can't use its blindsight while deafened."
+      },
+      {
+        "name": "Keen Hearing",
+        "description": "The swarm has advantage on Wisdom (Perception) checks that rely on hearing."
+      },
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny bat. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-rats",
+    "name": "Swarm of Rats",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 10,
+    "armorSource": "dex",
+    "hitPointDice": "7d8-7",
+    "averageHP": 24,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 30,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "2d6",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 0 ft., one target in the swarm's space. Hit: 7 (2d6) piercing damage, or 3 (1d6) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Smell",
+        "description": "The swarm has advantage on Wisdom (Perception) checks that rely on smell."
+      },
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny rat. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-ravens",
+    "name": "Swarm of Ravens",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "7d8-7",
+    "averageHP": 24,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Beaks",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d6",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target in the swarm's space. Hit: 7 (2d6) piercing damage, or 3 (1d6) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny raven. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-beetles",
+    "name": "Swarm of Beetles",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "4d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 0 ft., one target in the swarm's space. Hit: 10 (4d4) piercing damage, or 5 (2d4) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny insect. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-centipedes",
+    "name": "Swarm of Centipedes",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "4d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 0 ft., one target in the swarm's space. Hit: 10 (4d4) piercing damage, or 5 (2d4) piercing damage if the swarm has half of its hit points or fewer.\nA creature reduced to 0 hit points by a swarm of centipedes is stable but poisoned for 1 hour, even after regaining hit points, and paralyzed while poisoned in this way."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny insect. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-insects",
+    "name": "Swarm of Insects",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "4d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 0 ft., one target in the swarm's space. Hit: 10 (4d4) piercing damage, or 5 (2d4) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny insect. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-spiders",
+    "name": "Swarm of Spiders",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "4d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 0 ft., one target in the swarm's space. Hit: 10 (4d4) piercing damage, or 5 (2d4) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny insect. The swarm can't regain hit points or gain temporary hit points."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The swarm can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Web Sense",
+        "description": "While in contact with a web, the swarm knows the exact location of any other creature in contact with the same web."
+      },
+      {
+        "name": "Web Walker",
+        "description": "The swarm ignores movement restrictions caused by webbing."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ],
+    "rig": "character_spider2"
+  },
+  {
+    "id": "swarm-of-wasps",
+    "name": "Swarm of Wasps",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 5,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "4d4",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 0 ft., one target in the swarm's space. Hit: 10 (4d4) piercing damage, or 5 (2d4) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny insect. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-quippers",
+    "name": "Swarm of Quippers",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "8d8-8",
+    "averageHP": 28,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "4d6",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 0 ft., one creature in the swarm's space. Hit: 14 (4d6) piercing damage, or 7 (2d6) piercing damage if the swarm has half of its hit points or fewer."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Blood Frenzy",
+        "description": "The swarm has advantage on melee attack rolls against any creature that doesn't have all its hit points."
+      },
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny quipper. The swarm can't regain hit points or gain temporary hit points."
+      },
+      {
+        "name": "Water Breathing",
+        "description": "The swarm can breathe only underwater."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  },
+  {
+    "id": "swarm-of-poisonous-snakes",
+    "name": "Swarm of Poisonous Snakes",
+    "type": "swarm of Tiny beasts",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "unaligned",
+    "armorClass": 14,
+    "armorSource": "dex",
+    "hitPointDice": "8d8",
+    "averageHP": 36,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Prone",
+      "Restrained",
+      "Stunned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bites",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6",
+        "damageType": "piercing",
+        "reach": 0,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 0 ft., one creature in the swarm's space. Hit: 7 (2d6) piercing damage, or 3 (1d6) piercing damage if the swarm has half of its hit points or fewer. The target must make a DC 10 Constitution saving throw, taking 14 (4d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Swarm",
+        "description": "The swarm can occupy another creature's space and vice versa, and the swarm can move through any opening large enough for a Tiny snake. The swarm can't regain hit points or gain temporary hit points."
+      }
+    ],
+    "tags": [
+      "swarm of Tiny beasts"
+    ]
+  }
+]

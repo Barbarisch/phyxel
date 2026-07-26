@@ -1,0 +1,3186 @@
+[
+  {
+    "id": "lemure",
+    "name": "Lemure",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 7,
+    "armorSource": "dex",
+    "hitPointDice": "3d8",
+    "averageHP": 13,
+    "speed": 15,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Frightened",
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 0.0,
+    "xpValue": 10,
+    "attacks": [
+      {
+        "name": "Fist",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 2 (1d4) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the lemure's darkvision."
+      },
+      {
+        "name": "Hellish Rejuvenation",
+        "description": "A lemure that dies in the Nine Hells comes back to life with all its hit points in 1d10 days unless it is killed by a good-aligned creature with a bless spell cast on that creature or its remains are sprinkled with holy water."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ]
+  },
+  {
+    "id": "dretch",
+    "name": "Dretch",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Small",
+    "alignment": "chaotic evil",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "4d6+4",
+    "averageHP": 18,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 9,
+    "languages": [
+      "Abyssal"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 25,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d6",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 3 (1d6) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "2d4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 5 (2d4) slashing damage."
+      },
+      {
+        "name": "Fetid Cloud",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 11,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "A 10-foot radius of disgusting green gas extends out from the dretch. The gas spreads around corners, and its area is lightly obscured. It lasts for 1 minute or until a strong wind disperses it. Any creature that starts its turn in that area must succeed on a DC 11 Constitution saving throw or be poisoned until the start of its next turn. While poisoned in this way, the target can take either an action or a bonus action on its turn, not both, and can't take reactions."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "imp",
+    "name": "Imp",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Tiny",
+    "alignment": "lawful evil",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "3d4+3",
+    "averageHP": 10,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Infernal",
+      "Common"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Sting (Bite in Beast Form)",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) piercing damage, and the target must make on a DC 11 Constitution saving throw, taking 10 (3d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The imp can use its action to polymorph into a beast form that resembles a rat (speed 20 ft.), a raven (20 ft., fly 60 ft.), or a spider (20 ft., climb 20 ft.), or back into its true form. Its statistics are the same in each form, except for the speed changes noted. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the imp's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The imp has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ]
+  },
+  {
+    "id": "quasit",
+    "name": "Quasit",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Tiny",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "3d4",
+    "averageHP": 7,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Abyssal",
+      "Common"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Claw (Bite in Beast Form)",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) piercing damage, and the target must succeed on a DC 10 Constitution saving throw or take 5 (2d4) poison damage and become poisoned for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      },
+      {
+        "name": "Scare",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 10,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "One creature of the quasit's choice within 20 ft. of it must succeed on a DC 10 Wisdom saving throw or be frightened for 1 minute. The target can repeat the saving throw at the end of each of its turns, with disadvantage if the quasit is within line of sight, ending the effect on itself on a success."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The quasit can use its action to polymorph into a beast form that resembles a bat (speed 10 ft. fly 40 ft.), a centipede (40 ft., climb 40 ft.), or a toad (40 ft., swim 40 ft.), or back into its true form . Its statistics are the same in each form, except for the speed changes noted. Any equipment it is wearing or carrying isn't transformed . It reverts to its true form if it dies."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The quasit has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "bearded-devil",
+    "name": "Bearded Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "8d8+16",
+    "averageHP": 52,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Beard",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one creature. Hit: 6 (1d8 + 2) piercing damage, and the target must succeed on a DC 12 Constitution saving throw or be poisoned for 1 minute. While poisoned in this way, the target can't regain hit points. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      },
+      {
+        "name": "Glaive",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 10 ft., one target. Hit: 8 (1d10 + 3) slashing damage. If the target is a creature other than an undead or a construct, it must succeed on a DC 12 Constitution saving throw or lose 5 (1d10) hit points at the start of each of its turns due to an infernal wound. Each time the devil hits the wounded target with this attack, the damage dealt by the wound increases by 5 (1d10). Any creature can take an action to stanch the wound with a successful DC 12 Wisdom (Medicine) check. The wound also closes if the target receives magical healing."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Steadfast",
+        "description": "The devil can't be frightened while it can see an allied creature within 30 feet of it."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "hell-hound",
+    "name": "Hell Hound",
+    "type": "fiend",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "7d8+14",
+    "averageHP": 45,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) piercing damage plus 7 (2d6) fire damage."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "6d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 12,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The hound exhales fire in a 15-foot cone. Each creature in that area must make a DC 12 Dexterity saving throw, taking 21 (6d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The hound has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      },
+      {
+        "name": "Pack Tactics",
+        "description": "The hound has advantage on an attack roll against a creature if at least one of the hound's allies is within 5 ft. of the creature and the ally isn't incapacitated."
+      }
+    ],
+    "tags": [
+      "fiend"
+    ]
+  },
+  {
+    "id": "nightmare",
+    "name": "Nightmare",
+    "type": "fiend",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "8d10+24",
+    "averageHP": 68,
+    "speed": 60,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Common",
+      "and Infernal but can't speak"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) bludgeoning damage plus 7 (2d6) fire damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Confer Fire Resistance",
+        "description": "The nightmare can grant resistance to fire damage to anyone riding it."
+      },
+      {
+        "name": "Illumination",
+        "description": "The nightmare sheds bright light in a 10-foot radius and dim light for an additional 10 feet."
+      }
+    ],
+    "tags": [
+      "fiend"
+    ]
+  },
+  {
+    "id": "succubus-incubus",
+    "name": "Succubus/Incubus",
+    "type": "fiend",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "12d8+12",
+    "averageHP": 66,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "poison",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Abyssal",
+      "Common",
+      "Infernal",
+      "telepathy 60 ft."
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Claw (Fiend Form Only)",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage."
+      },
+      {
+        "name": "Charm",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "One humanoid the fiend can see within 30 feet of it must succeed on a DC 15 Wisdom saving throw or be magically charmed for 1 day. The charmed target obeys the fiend's verbal or telepathic commands. If the target suffers any harm or receives a suicidal command, it can repeat the saving throw, ending the effect on a success. If the target successfully saves against the effect, or if the effect on it ends, the target is immune to this fiend's Charm for the next 24 hours.\nThe fiend can have only one target charmed at a time. If it charms another, the effect on the previous target ends."
+      },
+      {
+        "name": "Draining Kiss",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "5d10+5",
+        "damageType": "psychic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The fiend kisses a creature charmed by it or a willing creature. The target must make a DC 15 Constitution saving throw against this magic, taking 32 (5d10 + 5) psychic damage on a failed save, or half as much damage on a successful one. The target's hit point maximum is reduced by an amount equal to the damage taken. This reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Telepathic Bond",
+        "description": "The fiend ignores the range restriction on its telepathy when communicating with a creature it has charmed. The two don't even need to be on the same plane of existence."
+      },
+      {
+        "name": "Shapechanger",
+        "description": "The fiend can use its action to polymorph into a Small or Medium humanoid, or back into its true form. Without wings, the fiend loses its flying speed. Other than its size and speed, its statistics are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "barbed-devil",
+    "name": "Barbed Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "13d8+52",
+    "averageHP": 110,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1
+    },
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 18,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) piercing damage."
+      },
+      {
+        "name": "Hurl Flame",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "3d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Spell Attack: +5 to hit, range 150 ft., one target. Hit: 10 (3d6) fire damage. If the target is a flammable object that isn't being worn or carried, it also catches fire."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Barbed Hide",
+        "description": "At the start of each of its turns, the barbed devil deals 5 (1d10) piercing damage to any creature grappling it."
+      },
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "night-hag",
+    "name": "Night Hag",
+    "type": "fiend",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "15d8+45",
+    "averageHP": 112,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "cold",
+      "fire",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Abyssal",
+      "Common",
+      "Infernal",
+      "Primordial"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Claws (Hag Form Only)",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The hag's innate spellcasting ability is Charisma (spell save DC 14, +6 to hit with spell attacks). She can innately cast the following spells, requiring no material components:\n\nAt will: detect magic, magic missile\n2/day each: plane shift (self only), ray of enfeeblement, sleep"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The hag has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Night Hag Items",
+        "description": "A night hag carries two very rare magic items that she must craft for herself If either object is lost, the night hag will go to great lengths to retrieve it, as creating a new tool takes time and effort.\nHeartstone: This lustrous black gem allows a night hag to become ethereal while it is in her possession. The touch of a heartstone also cures any disease. Crafting a heartstone takes 30 days.\nSoul Bag: When an evil humanoid dies as a result of a night hag's Nightmare Haunting, the hag catches the soul in this black sack made of stitched flesh. A soul bag can hold only one evil soul at a time, and only the night hag who crafted the bag can catch a soul with it. Crafting a soul bag takes 7 days and a humanoid sacrifice (whose flesh is used to make the bag)."
+      }
+    ],
+    "tags": [
+      "fiend"
+    ]
+  },
+  {
+    "id": "vrock",
+    "name": "Vrock",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "11d10+44",
+    "averageHP": 104,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Beak",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) piercing damage."
+      },
+      {
+        "name": "Talons",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d10+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 14 (2d10 + 3) slashing damage."
+      },
+      {
+        "name": "Spores",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "A 15-foot-radius cloud of toxic spores extends out from the vrock. The spores spread around corners. Each creature in that area must succeed on a DC 14 Constitution saving throw or become poisoned. While poisoned in this way, a target takes 5 (1d10) poison damage at the start of each of its turns. A target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. Emptying a vial of holy water on the target also ends the effect on it."
+      },
+      {
+        "name": "Stunning Screech",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The vrock emits a horrific screech. Each creature within 20 feet of it that can hear it and that isn't a demon must succeed on a DC 14 Constitution saving throw or be stunned until the end of the vrock's next turn ."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The vrock has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "chain-devil",
+    "name": "Chain Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "10d8+40",
+    "averageHP": 85,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Chain",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 11 (2d6 + 4) slashing damage. The target is grappled (escape DC 14) if the devil isn't already grappling a creature. Until this grapple ends, the target is restrained and takes 7 (2d6) piercing damage at the start of each of its turns."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "hezrou",
+    "name": "Hezrou",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "13d10+65",
+    "averageHP": 136,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 15 (2d10 + 4) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The hezrou has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Stench",
+        "description": "Any creature that starts its turn within 10 feet of the hezrou must succeed on a DC 14 Constitution saving throw or be poisoned until the start of its next turn. On a successful saving throw, the creature is immune to the hezrou's stench for 24 hours."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "bone-devil",
+    "name": "Bone Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "15d10+60",
+    "averageHP": 142,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1
+    },
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "1d8+4",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 8 (1d8 + 4) slashing damage."
+      },
+      {
+        "name": "Sting",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d8+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 13 (2d8 + 4) piercing damage plus 17 (5d6) poison damage, and the target must succeed on a DC 14 Constitution saving throw or become poisoned for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "glabrezu",
+    "name": "Glabrezu",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "15d10+75",
+    "averageHP": 157,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 13,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Pincer",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d10+5",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 16 (2d10 + 5) bludgeoning damage. If the target is a Medium or smaller creature, it is grappled (escape DC 15). The glabrezu has two pincers, each of which can grapple only one target."
+      },
+      {
+        "name": "Fist",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d4+2",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 7 (2d4 + 2) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The glabrezu's spellcasting ability is Intelligence (spell save DC 16). The glabrezu can innately cast the following spells, requiring no material components:\nAt will: darkness, detect magic, dispel magic\n1/day each: confusion, fly, power word stun"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The glabrezu has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "horned-devil",
+    "name": "Horned Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "17d10+85",
+    "averageHP": 178,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 11.0,
+    "xpValue": 7200,
+    "attacks": [
+      {
+        "name": "Fork",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d8+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 15 (2d8 + 6) piercing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "1d8+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 10 (1d8 + 6) piercing damage. If the target is a creature other than an undead or a construct, it must succeed on a DC 17 Constitution saving throw or lose 10 (3d6) hit points at the start of each of its turns due to an infernal wound. Each time the devil hits the wounded target with this attack, the damage dealt by the wound increases by 10 (3d6). Any creature can take an action to stanch the wound with a successful DC 12 Wisdom (Medicine) check. The wound also closes if the target receives magical healing."
+      },
+      {
+        "name": "Hurl Flame",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "4d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Spell Attack: +7 to hit, range 150 ft., one target. Hit: 14 (4d6) fire damage. If the target is a flammable object that isn't being worn or carried, it also catches fire."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "erinyes",
+    "name": "Erinyes",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "Plate Armor",
+    "hitPointDice": "18d8+72",
+    "averageHP": 153,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 12,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 12.0,
+    "xpValue": 8400,
+    "attacks": [
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +7 to hit, range 150/600 ft., one target. Hit: 7 (1d8 + 3) piercing damage plus 13 (3d8) poison damage, and the target must succeed on a DC 14 Constitution saving throw or be poisoned. The poison lasts until it is removed by the lesser restoration spell or similar magic."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Hellish Weapons",
+        "description": "The erinyes's weapon attacks are magical and deal an extra 13 (3d8) poison damage on a hit (included in the attacks)."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The erinyes has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ]
+  },
+  {
+    "id": "nalfeshnee",
+    "name": "Nalfeshnee",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+96",
+    "averageHP": 184,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 11,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "5d10+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 32 (5d10 + 5) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "3d6+5",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 15 (3d6 + 5) slashing damage."
+      },
+      {
+        "name": "Horror Nimbus",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The nalfeshnee magically emits scintillating, multicolored light. Each creature within 15 feet of the nalfeshnee that can see the light must succeed on a DC 15 Wisdom saving throw or be frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the nalfeshnee's Horror Nimbus for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The nalfeshnee has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "rakshasa",
+    "name": "Rakshasa",
+    "type": "fiend",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "13d8+52",
+    "averageHP": 110,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Common",
+      "Infernal"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+2",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 9 (2d6 + 2) slashing damage, and the target is cursed if it is a creature. The magical curse takes effect whenever the target takes a short or long rest, filling the target's thoughts with horrible images and dreams. The cursed target gains no benefit from finishing a short or long rest. The curse lasts until it is lifted by a remove curse spell or similar magic."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Limited Magic Immunity",
+        "description": "The rakshasa can't be affected or detected by spells of 6th level or lower unless it wishes to be. It has advantage on saving throws against all other spells and magical effects."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The rakshasa's innate spellcasting ability is Charisma (spell save DC 18, +10 to hit with spell attacks). The rakshasa can innately cast the following spells, requiring no material components:\n\nAt will: detect thoughts, disguise self, mage hand, minor illusion\n3/day each: charm person, detect magic, invisibility, major image, suggestion\n1/day each: dominate person, fly, plane shift, true seeing"
+      }
+    ],
+    "tags": [
+      "fiend"
+    ]
+  },
+  {
+    "id": "ice-devil",
+    "name": "Ice Devil",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "19d10+76",
+    "averageHP": 180,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 14.0,
+    "xpValue": 11500,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 12 (2d6 + 5) piercing damage plus 10 (3d6) cold damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d4+5",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 10 (2d4 + 5) slashing damage plus 10 (3d6) cold damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+5",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 12 (2d6 + 5) bludgeoning damage plus 10 (3d6) cold damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Devil's Sight",
+        "description": "Magical darkness doesn't impede the devil's darkvision."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The devil has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ],
+    "rig": "monster_bluedemon"
+  },
+  {
+    "id": "marilith",
+    "name": "Marilith",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "18d10+90",
+    "averageHP": 189,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "fire",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 13,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 16.0,
+    "xpValue": 15000,
+    "attacks": [
+      {
+        "name": "Longsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d10+4",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one creature. Hit: 15 (2d10 + 4) bludgeoning damage. If the target is Medium or smaller, it is grappled (escape DC 19). Until this grapple ends, the target is restrained, the marilith can automatically hit the target with its tail, and the marilith can't make tail attacks against other targets."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The marilith has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The marilith's weapon attacks are magical."
+      },
+      {
+        "name": "Reactive",
+        "description": "The marilith can take one reaction on every turn in combat."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "balor",
+    "name": "Balor",
+    "type": "fiend",
+    "subtype": "demon",
+    "size": "Huge",
+    "alignment": "chaotic evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "21d12+126",
+    "averageHP": 262,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "lightning",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 13,
+    "languages": [
+      "Abyssal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 19.0,
+    "xpValue": 22000,
+    "attacks": [
+      {
+        "name": "Longsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "3d8+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 21 (3d8 + 8) slashing damage plus 13 (3d8) lightning damage. If the balor scores a critical hit, it rolls damage dice three times, instead of twice."
+      },
+      {
+        "name": "Whip",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 30,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 30 ft., one target. Hit: 15 (2d6 + 8) slashing damage plus 10 (3d6) fire damage, and the target must succeed on a DC 20 Strength saving throw or be pulled up to 25 feet toward the balor."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Death Throes",
+        "description": "When the balor dies, it explodes, and each creature within 30 feet of it must make a DC 20 Dexterity saving throw, taking 70 (20d6) fire damage on a failed save, or half as much damage on a successful one. The explosion ignites flammable objects in that area that aren't being worn or carried, and it destroys the balor's weapons."
+      },
+      {
+        "name": "Fire Aura",
+        "description": "At the start of each of the balor's turns, each creature within 5 feet of it takes 10 (3d6) fire damage, and flammable objects in the aura that aren't being worn or carried ignite. A creature that touches the balor or hits it with a melee attack while within 5 feet of it takes 10 (3d6) fire damage."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The balor has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The balor's weapon attacks are magical."
+      }
+    ],
+    "tags": [
+      "fiend",
+      "demon"
+    ]
+  },
+  {
+    "id": "pit-fiend",
+    "name": "Pit Fiend",
+    "type": "fiend",
+    "subtype": "devil",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "24d10+168",
+    "averageHP": 300,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "cold",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "fire",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 14,
+    "languages": [
+      "Infernal",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 20.0,
+    "xpValue": 25000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "4d6+8",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 5 ft., one target. Hit: 22 (4d6 + 8) piercing damage. The target must succeed on a DC 21 Constitution saving throw or become poisoned. While poisoned in this way, the target can't regain hit points, and it takes 21 (6d6) poison damage at the start of each of its turns. The poisoned target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d8+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 17 (2d8 + 8) slashing damage."
+      },
+      {
+        "name": "Mace",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 15 (2d6 + 8) bludgeoning damage plus 21 (6d6) fire damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "3d10+8",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 24 (3d10 + 8) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Fear Aura",
+        "description": "Any creature hostile to the pit fiend that starts its turn within 20 feet of the pit fiend must make a DC 21 Wisdom saving throw, unless the pit fiend is incapacitated. On a failed save, the creature is frightened until the start of its next turn. If a creature's saving throw is successful, the creature is immune to the pit fiend's Fear Aura for the next 24 hours."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The pit fiend has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The pit fiend's weapon attacks are magical."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The pit fiend's spellcasting ability is Charisma (spell save DC 21). The pit fiend can innately cast the following spells, requiring no material components:\nAt will: detect magic, fireball\n3/day each: hold monster, wall of fire"
+      }
+    ],
+    "tags": [
+      "fiend",
+      "devil"
+    ]
+  }
+]

@@ -327,3 +327,32 @@ TEST_F(RegistryTest, DuplicateRegistrationOverwrites) {
     EXPECT_EQ(MonsterRegistry::instance().count(), 1u); // still one
     EXPECT_EQ(MonsterRegistry::instance().getMonster("goblin")->armorClass, 999);
 }
+
+// The full SRD bestiary (tools/ingest_srd_monsters.py output) must load through the real
+// MonsterDefinition::fromJson parser -- proving the ingested JSON matches the engine format.
+TEST_F(RegistryTest, LoadsFullSrdBestiaryFromDirectory) {
+    auto& reg = MonsterRegistry::instance();
+    reg.clear();
+    reg.loadFromDirectory("resources/monsters");   // returns FILE count, not monster count
+    EXPECT_GT(reg.count(), 320u) << "SRD bestiary did not load (count=" << reg.count() << ")";
+
+    // A high-CR dragon parsed with real stats + a damaging action.
+    const auto* dragon = reg.getMonster("adult-red-dragon");
+    ASSERT_NE(dragon, nullptr) << "adult-red-dragon missing";
+    EXPECT_GT(dragon->averageHP, 200);
+    EXPECT_GE(dragon->challengeRating, 17.0f);
+    EXPECT_FALSE(dragon->attacks.empty());
+    bool hasDamage = false;
+    for (const auto& atk : dragon->attacks)
+        if (!atk.damageDice.empty()) { hasDamage = true; break; }
+    EXPECT_TRUE(hasDamage) << "dragon has no damaging attack";
+
+    // A legendary undead + traits.
+    const auto* lich = reg.getMonster("lich");
+    ASSERT_NE(lich, nullptr);
+    EXPECT_GE(lich->challengeRating, 20.0f);
+    EXPECT_FALSE(lich->traits.empty());
+
+    // Curated stat blocks coexist with SRD (hand-tuned goblin not clobbered).
+    EXPECT_TRUE(reg.hasMonster("goblin"));
+}
