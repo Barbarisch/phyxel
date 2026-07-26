@@ -150,11 +150,15 @@ def measure_walk_speed(af, clip_name="Walk"):
         return None
     # The DRIVING feet (largest stance sweep) set how far the body must travel
     # per cycle. The median under-shoots when fore/hind sweeps differ (canine
-    # clips: front paws barely stride), leaving the body lagging the animation.
-    # Take the largest plausible per-foot speed (outliers filtered vs median).
+    # clips: front paws barely stride) -> body lags the animation. But the raw
+    # max over-shoots a CONSISTENT gait with one noisy outlier foot (horse: all
+    # feet ~0.8 but a stray 1.2 -> a sliding gallop-walk). The 75th percentile
+    # of the plausible speeds threads both: it tracks the wolf's driving legs
+    # yet ignores the horse's single outlier.
     med = statistics.median(speeds)
-    good = [s for s in speeds if 0.3 * med <= s <= 3.0 * med]
-    return max(good) if good else med
+    good = sorted(s for s in speeds if 0.3 * med <= s <= 3.0 * med) or sorted(speeds)
+    idx = min(len(good) - 1, int(round(0.75 * (len(good) - 1))))
+    return good[idx]
 
 
 def main():
