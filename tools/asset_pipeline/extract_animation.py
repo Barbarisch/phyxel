@@ -311,7 +311,25 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
              
              roots = list(joint_set - children_set)
              if roots:
-                 root_node_idx = roots[0]
+                 # A rig can expose several skeleton roots: the real deform
+                 # armature PLUS an IK-target helper root per limb (Quaternius
+                 # animals have "Body" + 4x "IK*Leg" 2-joint roots). Since
+                 # list(set - set) order is non-deterministic, roots[0] could be
+                 # a 2-joint IK root -- which silently dropped the ENTIRE body
+                 # (Stag: 38 joints -> 2 bones -> a 0.2^3 blob). Pick the root
+                 # whose subtree covers the MOST joints = the deform armature.
+                 def _subtree_size(r):
+                     seen, stack = set(), [r]
+                     while stack:
+                         n = stack.pop()
+                         if n in seen:
+                             continue
+                         seen.add(n)
+                         for c in (gltf.nodes[n].children or []):
+                             if c in joint_set:
+                                 stack.append(c)
+                     return len(seen)
+                 root_node_idx = max(roots, key=_subtree_size)
              else:
                  root_node_idx = skin.joints[0] # Fallback
 
@@ -604,6 +622,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     all_joints = []
     all_weights = []
     all_faces = []
+    all_colors = []          # per-vertex sRGB material color (parallel to all_positions)
     vertex_offset = 0
     
     # Iterate meshes to collect data
@@ -675,9 +694,11 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                             s = node.scale
                             positions = [[p[0]*s[0], p[1]*s[1], p[2]*s[2]] for p in positions]
                     
+                    prim_color = material_color(gltf, prim.material)
                     all_positions.extend(positions)
                     all_joints.extend(joints)
                     all_weights.extend(weights)
+                    all_colors.extend([prim_color] * num_vertices)
                     vertex_offset += num_vertices
 
     voxel_shapes = []
@@ -719,7 +740,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
 
     if style == 'voxel' and trimesh is not None:
         voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch,
-                                     local_scale=scale_factor * root_scale_mult)
+                                     local_scale=scale_factor * root_scale_mult, vertex_colors=all_colors)
     elif style == 'box':
         print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
@@ -814,7 +835,11 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
             bid = shape["boneId"]
             size = shape["size"]
             center = shape["center"]
-            f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]}\n")
+            col = shape.get("color")
+            if col is not None:
+                f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]} {col[0]} {col[1]} {col[2]}\n")
+            else:
+                f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]}\n")
 
         for anim in animations_out:
             safe_anim_name = anim['name'].replace(" ", "_")
@@ -1031,7 +1056,33 @@ def read_accessor(gltf, accessor):
         
     return results
 
-def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05, local_scale=None):
+def _linear_to_srgb(c):
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
+def material_color(gltf, material_index):
+    """sRGB (r,g,b) in 0..1 for a glTF material's baseColorFactor, or None.
+    glTF baseColorFactor is LINEAR but the engine's voxel colors are sRGB;
+    without the conversion every imported animal renders far too dark. Flat-
+    shaded packs (Quaternius) store the whole animal's palette as per-material
+    baseColorFactor with no texture, so this IS the model's real color."""
+    if material_index is None:
+        return None
+    try:
+        mat = gltf.materials[material_index]
+    except (IndexError, TypeError):
+        return None
+    pbr = getattr(mat, "pbrMetallicRoughness", None)
+    bcf = getattr(pbr, "baseColorFactor", None) if pbr else None
+    if not bcf:
+        return None
+    return [round(_linear_to_srgb(bcf[0]), 4),
+            round(_linear_to_srgb(bcf[1]), 4),
+            round(_linear_to_srgb(bcf[2]), 4)]
+
+
+def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05, local_scale=None, vertex_colors=None):
     # scale_factor: vertex/bind space -> final world (mesh scaling + center unscaling).
     # local_scale: raw bone-local space -> final world for box offsets — the
     # IBMs map into RAW bone space, which under bind-space normalization is
@@ -1115,12 +1166,17 @@ def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, sk
                 else:
                     p = list(center) # Fallback if no IBM?
                 
-                voxel_shapes.append({
+                shape = {
                     "boneId": target_bone_idx,
                     "size": [pitch, pitch, pitch],
                     "center": p # This is now the offset from the bone
-                })
-                
+                }
+                if vertex_colors is not None and vertex_idx < len(vertex_colors):
+                    col = vertex_colors[vertex_idx]
+                    if col is not None:
+                        shape["color"] = col       # source material color -> voxel
+                voxel_shapes.append(shape)
+
         return voxel_shapes
 
     except Exception as e:
