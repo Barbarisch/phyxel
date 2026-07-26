@@ -778,6 +778,8 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                     waypoints.emplace_back(wp.value("x", 0.0f), wp.value("y", 0.0f), wp.value("z", 0.0f));
                 }
             }
+        } else if (behaviorStr == "wander") {
+            behaviorType = NPCBehaviorType::Wander;   // roam near spawn (fauna)
         } else if (behaviorStr == "behavior_tree") {
             behaviorType = NPCBehaviorType::BehaviorTree;
         } else if (behaviorStr == "scheduled") {

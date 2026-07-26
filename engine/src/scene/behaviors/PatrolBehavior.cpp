@@ -52,7 +52,17 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
         if (m_waitTimer >= m_waitTime) {
             m_waiting = false;
             m_waitTimer = 0.0f;
-            m_currentWaypoint = (m_currentWaypoint + 1) % m_waypoints.size();
+            if (m_wander) {
+                // Roam to a fresh random point near the anchor; randomize the
+                // next pause so the herd doesn't move in lockstep.
+                static thread_local std::mt19937 rng(std::random_device{}());
+                std::uniform_real_distribution<float> wDist(m_wanderMinWait, m_wanderMaxWait);
+                m_waypoints = { pickWanderTarget() };
+                m_currentWaypoint = 0;
+                m_waitTime = wDist(rng);
+            } else {
+                m_currentWaypoint = (m_currentWaypoint + 1) % m_waypoints.size();
+            }
             m_pathComputed = false; // Need new path for next waypoint
         }
         return;
@@ -244,6 +254,36 @@ arrived:
             prev = node;
         }
     }
+}
+
+void PatrolBehavior::setWanderMode(const glm::vec3& anchor, float radius,
+                                   float minWait, float maxWait) {
+    m_wander = true;
+    m_wanderAnchor = anchor;
+    m_wanderRadius = std::max(radius, 2.0f);
+    m_wanderMinWait = minWait;
+    m_wanderMaxWait = std::max(maxWait, minWait);
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> wDist(m_wanderMinWait, m_wanderMaxWait);
+    m_waitTime = wDist(rng);
+    m_waypoints = { pickWanderTarget() };
+    m_currentWaypoint = 0;
+    m_waiting = false;
+    m_waitTimer = 0.0f;
+    invalidatePath();
+}
+
+glm::vec3 PatrolBehavior::pickWanderTarget() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> angDist(0.0f, glm::two_pi<float>());
+    std::uniform_real_distribution<float> rDist(0.0f, 1.0f);
+    float ang = angDist(rng);
+    // uniform-in-disk radius, floored at 2 units so the animal actually travels
+    float rmin = std::min(2.0f, m_wanderRadius);
+    float r = rmin + (m_wanderRadius - rmin) * std::sqrt(rDist(rng));
+    return glm::vec3(m_wanderAnchor.x + r * std::cos(ang),
+                     m_wanderAnchor.y,
+                     m_wanderAnchor.z + r * std::sin(ang));
 }
 
 void PatrolBehavior::onInteract(Entity* interactor) {

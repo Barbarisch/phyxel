@@ -34,6 +34,7 @@ namespace Core {
 enum class NPCBehaviorType {
     Idle,
     Patrol,
+    Wander,          ///< Roam random points near the spawn anchor (fauna/wildlife)
     BehaviorTree,    ///< AI-driven via BehaviorTree / UtilityAI
     Scheduled,       ///< Schedule-driven: time-aware behavior tree
     Combat           ///< Real-time melee enemy (CombatBehavior): approach/strafe/attack/back-off

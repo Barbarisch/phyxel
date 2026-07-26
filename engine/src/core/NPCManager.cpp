@@ -34,6 +34,15 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::Wander: {
+            // Roam near the spawn anchor. Default radius here; FaunaSpawner
+            // overrides per-species via spawnNPCWithBehavior.
+            auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, walkSpeed, waitTime);
+            patrol->setWanderMode(position, 12.0f);
+            behavior = std::move(patrol);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -420,6 +429,15 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::Wander: {
+            // Roam near the spawn anchor. Default radius here; FaunaSpawner
+            // overrides per-species via spawnNPCWithBehavior.
+            auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, walkSpeed, waitTime);
+            patrol->setWanderMode(position, 12.0f);
+            behavior = std::move(patrol);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -482,6 +500,15 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::Wander: {
+            // Roam near the spawn anchor. Default radius here; FaunaSpawner
+            // overrides per-species via spawnNPCWithBehavior.
+            auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, walkSpeed, waitTime);
+            patrol->setWanderMode(position, 12.0f);
+            behavior = std::move(patrol);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -555,6 +582,15 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         case NPCBehaviorType::Patrol:
             behavior = std::make_unique<Scene::PatrolBehavior>(waypoints, walkSpeed, waitTime);
             break;
+        case NPCBehaviorType::Wander: {
+            // Roam near the spawn anchor. Default radius here; FaunaSpawner
+            // overrides per-species via spawnNPCWithBehavior.
+            auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, walkSpeed, waitTime);
+            patrol->setWanderMode(position, 12.0f);
+            behavior = std::move(patrol);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;

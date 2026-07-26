@@ -2261,7 +2261,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (!npcManager) return false;
         Core::NPCBehaviorType bt = Core::NPCBehaviorType::Idle;
         if (behavior == "patrol") bt = Core::NPCBehaviorType::Patrol;
-        else if (behavior == "wander") bt = Core::NPCBehaviorType::BehaviorTree;
+        else if (behavior == "wander") bt = Core::NPCBehaviorType::Wander;
         auto* npc = npcManager->spawnNPC(name, "resources/animated_characters/humanoid.anim",
                                           pos, bt, {}, 2.0f, 2.0f, {});
         return npc != nullptr;
@@ -15035,6 +15035,8 @@ void Application::processAPICommands() {
                                         wp.value("z", 0.0f));
                                 }
                             }
+                        } else if (behaviorStr == "wander") {
+                            behaviorType = Core::NPCBehaviorType::Wander;
                         } else if (behaviorStr == "behavior_tree") {
                             behaviorType = Core::NPCBehaviorType::BehaviorTree;
                         } else if (behaviorStr == "scheduled") {
@@ -15169,6 +15171,13 @@ void Application::processAPICommands() {
                                 float waitTime = cmd.params.value("waitTime", 2.0f);
                                 behavior = std::make_unique<Scene::PatrolBehavior>(
                                     waypoints, walkSpeed, waitTime);
+                            } else if (behaviorStr == "wander") {
+                                float walkSpeed = cmd.params.value("walkSpeed", 2.0f);
+                                float radius = cmd.params.value("radius", 12.0f);
+                                auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                                    std::vector<glm::vec3>{}, walkSpeed, 2.0f);
+                                patrol->setWanderMode(npc->getPosition(), radius);
+                                behavior = std::move(patrol);
                             } else if (behaviorStr == "behavior_tree") {
                                 behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
                             } else if (behaviorStr == "scheduled") {

@@ -1651,7 +1651,7 @@ async def list_tools() -> list[Tool]:
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
-                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol"], "default": "idle"},
+                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol", "wander"], "default": "idle"},
                     "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}, ...] (required for patrol)", "items": {
                         "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
                     }},
@@ -1684,7 +1684,7 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "NPC name"},
-                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol"]},
+                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol", "wander"]},
                     "waypoints": {"type": "array", "description": "Patrol waypoints (for patrol behavior)", "items": {
                         "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
                     }},
@@ -2134,7 +2134,7 @@ async def list_tools() -> list[Tool]:
                     "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON (proportion scales + colors). May include 'preset' naming an appearance preset. Overrides race defaults field-by-field."},
                     "position": {"type": "object", "description": "{x, y, z} world coordinates",
                                  "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
-                    "behavior": {"type": "string", "enum": ["idle", "patrol"], "description": "NPC behavior type"},
+                    "behavior": {"type": "string", "enum": ["idle", "patrol", "wander"], "description": "NPC behavior type"},
                     "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}]", "items": {"type": "object"}},
                     "walkSpeed": {"type": "number"},
                     "waitTime": {"type": "number"},
@@ -2181,7 +2181,7 @@ async def list_tools() -> list[Tool]:
                     "race": {"type": "string", "description": "Race id from resources/races/ — applies the race's body proportions, skin tone, and model"},
                     "appearance": {"type": "object", "description": "Explicit CharacterAppearance JSON; may include 'preset'. Overrides race defaults field-by-field."},
                     "animFile": {"type": "string"},
-                    "behavior": {"type": "string", "enum": ["idle", "patrol"]},
+                    "behavior": {"type": "string", "enum": ["idle", "patrol", "wander"]},
                     "waypoints": {"type": "array", "items": {"type": "object"}}
                 },
                 "required": ["name"]
