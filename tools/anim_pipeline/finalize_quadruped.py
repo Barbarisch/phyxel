@@ -37,7 +37,7 @@ LOCO_CLIPS = ("Walk", "Trot", "Gallop", "Run", "Idle", "walk", "run")
 # deep Gallop/jump swing frame reaches lower than the walk stance and, used as
 # the ground reference, lifts the standing animal off the floor (the wolf-float
 # bug -- worse on small animals where the gap is a big % of height).
-GROUND_CLIPS = ("Walk", "Idle", "walk")
+GROUND_CLIPS = ("Walk", "Idle", "walk", "Flying_Idle", "Idle_2")
 # The engine draws the model at visualOrigin.y - footOffset + K_MODEL_VISUAL_LIFT.
 # That fixed lift keeps a BONE-grounded model's foot voxels off the floor, but a
 # ground_ref grounds on the real deepest VOXEL, so the lift becomes pure float.
