@@ -57,17 +57,51 @@ nlohmann::json FloorPatch::toJson() const {
             {"thickness", thickness}, {"material", material}, {"role", role}};
 }
 
+TrimBox TrimBox::fromJson(const nlohmann::json& j) {
+    TrimBox t;
+    t.x = ji(j, "x"); t.y = ji(j, "y"); t.z = ji(j, "z");
+    t.w = ji(j, "w"); t.h = ji(j, "h"); t.d = ji(j, "d");
+    t.role = js(j, "role");
+    t.material = js(j, "material");
+    return t;
+}
+nlohmann::json TrimBox::toJson() const {
+    return {{"x", x}, {"y", y}, {"z", z}, {"w", w}, {"h", h}, {"d", d},
+            {"role", role}, {"material", material}};
+}
+
 OpeningCut OpeningCut::fromJson(const nlohmann::json& j) {
     OpeningCut o;
     o.x = ji(j, "x"); o.y = ji(j, "y"); o.z = ji(j, "z");
     o.w = ji(j, "w"); o.h = ji(j, "h"); o.d = ji(j, "d");
     o.kind = js(j, "kind", "door");
     o.infill = js(j, "infill", "open");
+    if (j.contains("reveal"))
+        for (const auto& e : j["reveal"]) o.reveal.push_back(TrimBox::fromJson(e));
     return o;
 }
 nlohmann::json OpeningCut::toJson() const {
+    nlohmann::json rv = nlohmann::json::array();
+    for (const auto& t : reveal) rv.push_back(t.toJson());
     return {{"x", x}, {"y", y}, {"z", z}, {"w", w}, {"h", h}, {"d", d},
-            {"kind", kind}, {"infill", infill}};
+            {"kind", kind}, {"infill", infill}, {"reveal", rv}};
+}
+
+CornerZone CornerZone::fromJson(const nlohmann::json& j) {
+    CornerZone c;
+    c.x = ji(j, "x"); c.z = ji(j, "z");
+    c.dx = ji(j, "dx", 1); c.dz = ji(j, "dz", 1);
+    c.baseY = ji(j, "base_y"); c.topY = ji(j, "top_y");
+    c.legLongMicro = ji(j, "leg_long_micro", 4);
+    c.legShortMicro = ji(j, "leg_short_micro", 3);
+    c.material = js(j, "material");
+    return c;
+}
+nlohmann::json CornerZone::toJson() const {
+    return {{"x", x}, {"z", z}, {"dx", dx}, {"dz", dz},
+            {"base_y", baseY}, {"top_y", topY},
+            {"leg_long_micro", legLongMicro}, {"leg_short_micro", legShortMicro},
+            {"material", material}};
 }
 
 RoofPanel RoofPanel::fromJson(const nlohmann::json& j) {
@@ -82,6 +116,26 @@ RoofPanel RoofPanel::fromJson(const nlohmann::json& j) {
 nlohmann::json RoofPanel::toJson() const {
     return {{"x0", x0}, {"z0", z0}, {"x1", x1}, {"z1", z1}, {"eave_y", eaveY},
             {"pitch", pitch}, {"style", style}, {"material", material}};
+}
+
+StairRecord StairRecord::fromJson(const nlohmann::json& j) {
+    StairRecord s;
+    s.x = ji(j, "x"); s.z = ji(j, "z"); s.w = ji(j, "w"); s.d = ji(j, "d");
+    s.fromStory = ji(j, "from_story"); s.toStory = ji(j, "to_story", 1);
+    s.baseY = ji(j, "base_y"); s.topY = ji(j, "top_y");
+    s.botWalkMicro = ji(j, "bot_walk_micro"); s.topWalkMicro = ji(j, "top_walk_micro");
+    s.form = js(j, "form", "switchback");
+    s.holeX = ji(j, "hole_x"); s.holeZ = ji(j, "hole_z");
+    s.holeW = ji(j, "hole_w"); s.holeD = ji(j, "hole_d");
+    return s;
+}
+nlohmann::json StairRecord::toJson() const {
+    return {{"x", x}, {"z", z}, {"w", w}, {"d", d},
+            {"from_story", fromStory}, {"to_story", toStory},
+            {"base_y", baseY}, {"top_y", topY},
+            {"bot_walk_micro", botWalkMicro}, {"top_walk_micro", topWalkMicro},
+            {"form", form},
+            {"hole_x", holeX}, {"hole_z", holeZ}, {"hole_w", holeW}, {"hole_d", holeD}};
 }
 
 FixturePlacement FixturePlacement::fromJson(const nlohmann::json& j) {
@@ -110,7 +164,23 @@ nlohmann::json LightPlacement::toJson() const {
 }
 
 std::string AssemblyPlan::featureAt(const glm::ivec3& p) const {
-    // Walls first — the load-bearing answer consumers usually want ("does a chest
+    // Openings first: a carved doorway/window cube is not "wall" even though the
+    // wall band covers it. Classification uses ONLY the recorded "clear" reveal
+    // boxes (the carved passage, structure-local micro); trim boxes (jamb/lintel/
+    // sill/leaf) stay part of the wall/facade reading.
+    for (const auto& o : openings)
+        for (const auto& t : o.reveal) {
+            if (t.role != "clear") continue;
+            if (p.x * 9 + 9 <= t.x || p.x * 9 >= t.x + t.w) continue;
+            if (p.y * 9 + 9 <= t.y || p.y * 9 >= t.y + t.h) continue;
+            if (p.z * 9 + 9 <= t.z || p.z * 9 >= t.z + t.d) continue;
+            return "opening";
+        }
+    // Quoined corners next — more specific than the wall band they dress.
+    for (const auto& q : corners)
+        if (p.x == q.x && p.z == q.z && p.y >= q.baseY && p.y < q.topY)
+            return "quoin";
+    // Walls next — the load-bearing answer consumers usually want ("does a chest
     // back onto this cell?"). Exterior segments are per-edge-cell: the wall band
     // lives in cube (x0,z0); (x1,z1) is the outside neighbor. Interior segments are
     // a partition PLANE on the cube boundary at coord, straddling both adjacent cubes.
@@ -129,6 +199,21 @@ std::string AssemblyPlan::featureAt(const glm::ivec3& p) const {
         } else if (p.x == w.x0 && p.z == w.z0) {
             return "wall";
         }
+    }
+    // Stairs before floors: the flight volume inside the well is "stair", and — at
+    // the emergence (upper-slab) level — so is the well HOLE, which the floor patch
+    // rect still covers even though the realizer cut it (the standing
+    // misclassification of stairwell holes as slab). Outside the hole at that level
+    // the slab is intact and falls through to the floor records.
+    for (const auto& s : stairs) {
+        if (p.y < s.baseY || p.y >= s.topY) continue;
+        if (p.x < s.x || p.x >= s.x + s.w || p.z < s.z || p.z >= s.z + s.d) continue;
+        if (p.y == s.topY - 1 && s.holeW > 0 && s.holeD > 0) {
+            const int hx0 = s.holeX / 9, hx1 = (s.holeX + s.holeW - 1) / 9;
+            const int hz0 = s.holeZ / 9, hz1 = (s.holeZ + s.holeD - 1) / 9;
+            if (p.x < hx0 || p.x > hx1 || p.z < hz0 || p.z > hz1) continue;
+        }
+        return "stair";
     }
     for (const auto& f : floors) {
         if (p.y == f.y && p.x >= f.x && p.x < f.x + f.w && p.z >= f.z && p.z < f.z + f.d)
@@ -157,6 +242,8 @@ AssemblyPlan AssemblyPlan::fromJson(const nlohmann::json& j) {
     load("walls",      p.walls,      WallSegment::fromJson);
     load("floors",     p.floors,     FloorPatch::fromJson);
     load("openings",   p.openings,   OpeningCut::fromJson);
+    load("stairs",     p.stairs,     StairRecord::fromJson);
+    load("corners",    p.corners,    CornerZone::fromJson);
     load("roof",       p.roof,       RoofPanel::fromJson);
     load("fixtures",   p.fixtures,   FixturePlacement::fromJson);
     load("lights",     p.lights,     LightPlacement::fromJson);
@@ -169,8 +256,8 @@ nlohmann::json AssemblyPlan::toJson() const {
         return a;
     };
     return {{"foundation", dump(foundation)}, {"walls", dump(walls)}, {"floors", dump(floors)},
-            {"openings", dump(openings)}, {"roof", dump(roof)}, {"fixtures", dump(fixtures)},
-            {"lights", dump(lights)}};
+            {"openings", dump(openings)}, {"stairs", dump(stairs)}, {"corners", dump(corners)},
+            {"roof", dump(roof)}, {"fixtures", dump(fixtures)}, {"lights", dump(lights)}};
 }
 
 } // namespace Core

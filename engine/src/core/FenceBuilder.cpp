@@ -65,11 +65,34 @@ FenceProfile planFenceProfile(int runLenMicro, int heightMicro, int postSpacingM
     if (type == FenceType::Privacy) {
         for (int u = 0; u < runLenMicro; ++u) column(u);
     } else if (type == FenceType::Picket) {
-        for (int u = 0; u < runLenMicro; u += 2) column(u);       // slat / gap / slat ...
+        for (int u = 0; u < runLenMicro; u += 2) {                // slat / gap / slat ...
+            // KI-5f corner ownership: a run that doesn't own the corner posts must
+            // not drop slats on the corner columns either (the counting guard caught
+            // picket end-slats double-writing the perpendicular run's corner post).
+            if (!endPosts && (u == 0 || u == runLenMicro - 1)) continue;
+            column(u);
+        }
     }
 
     p.ok = true;
     return p;
+}
+
+std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD) {
+    // The four fence planes, at micro row 0 of their boundary cubes (matching the
+    // legacy stamper's w=0 mapping): W/S on the parcel's outer faces, E/N one cube
+    // in, 8 micro inside the outer corner. Every run spans EXACTLY plane-to-plane
+    // (inclusive), so all four ends land on the corner intersections; N/S own the
+    // corner posts, W/E omit theirs (endPosts=false) — one post per corner, and the
+    // perpendicular rails/pickets reach it.
+    const int xW = prX * 9, xE = (prX + prW - 1) * 9;
+    const int zS = prZ * 9, zN = (prZ + prD - 1) * 9;
+    std::vector<FenceRun> runs;
+    runs.push_back({true,  zS, xW, xE + 1, true,  'S'});
+    runs.push_back({true,  zN, xW, xE + 1, true,  'N'});
+    runs.push_back({false, xW, zS, zN + 1, false, 'W'});
+    runs.push_back({false, xE, zS, zN + 1, false, 'E'});
+    return runs;
 }
 
 }  // namespace Core

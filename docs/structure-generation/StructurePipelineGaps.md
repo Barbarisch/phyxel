@@ -10,17 +10,21 @@ Format: **[area] short title** — what's missing · why it matters · rough fix
 
 ## Open
 
-### [engine] NavGrid not rebuilt after runtime world edits / structure spawns
-The Tier-C runtime playtest asks `/api/navgrid/path` to confirm a character can navigate to
-each room. But the NavGrid is built once (at world load, over terrain) and is NOT refreshed
-after `world/clear`, `world/fill`, or a structure spawn. After building a house at runtime,
-`navgrid/cell` reports a stale `surfaceY` (e.g. 28 over a y=15 pad) and `navgrid/path` returns
-`found:false` even for a clearly walkable building. Doors work fine; only navigation is affected.
-- *Why it matters:* Tier C can't verify navigation of freshly-built structures; runtime nav for
-  any procedurally placed building/edit is unreliable.
-- *Fix:* a `rebuild_navgrid` API (like `rebuild_physics`) — or auto-rebuild the affected NavGrid
-  region after world edits / `placed_object` spawns. Until then Tier B (offline walkable grid) is
-  the authoritative navigability check and Tier C navigation is advisory-only.
+### [engine] NavGrid refresh after runtime edits — MOSTLY RESOLVED (re-audited 2026-07-21)
+The original claim ("NavGrid built once at world load, never refreshed") is stale. At current
+HEAD every voxel-mutation and structure path refreshes nav: `fill_region`/`clear_region` do a
+full `buildNavGrid()` (Application.cpp), `build_structure`/`spawn_template`/batch placements
+call `NPCManager::onRegionChanged`, single voxel edits call `onVoxelChanged`
+(StructureBuildService.cpp:200, NPCManager.cpp:296/326).
+Residual found + fixed 2026-07-21: `build_settlement` street paving / terraces / fence spurs
+mutated terrain with NO nav refresh, and on a fresh world the pre-settlement grid could be
+near-empty (region refreshes only touch cells already in the grid) — measured live: after a
+seed-3 village build, `navgrid/cell` on the street = "Cell not in grid", `navgrid/path`
+`found:false, 0 nodes`. Fix: a final "nav rebuild" work unit in the settlement job calls
+`buildNavGrid()` after all site prep + buildings.
+Still open (narrow): `onRegionChanged`-based paths can't add cells outside the initial grid
+bounds (NavGrid.cpp rebuildRegion guards `it != m_cells.end()`) — a lone `build_structure` far
+outside the original bounds still gets no nav cells until something triggers a full rebuild.
 
 
 ### [realize] No pitched / hipped roof over non-rectangular (L / U / T) outlines

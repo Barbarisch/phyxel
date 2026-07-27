@@ -273,3 +273,6 @@ tools/interaction_pipeline/reports/
 # EXCEPT template seat/interaction metrics sidecars — the seat-fit gate
 # (deny-on-missing) makes them required runtime data, not artifacts.
 !resources/templates/*.metrics.json
+
+window_census_actual.txt
+canvas_digest_actual.txt

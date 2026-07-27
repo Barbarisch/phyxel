@@ -64,6 +64,81 @@ int StructureRealizer::thicknessMicro(double cubes) {
     return std::max(1, std::min(t, 9));
 }
 
+namespace {
+LocationType locationTypeForTypology(const std::string& t) {
+    if (t == "tavern") return LocationType::Tavern;
+    if (t == "blacksmith" || t == "bakery" || t == "general_store" ||
+        t == "apothecary" || t == "butcher")
+        return LocationType::Work;
+    if (t == "croft" || t == "longhouse" || t == "hall_house" || t == "manor_hall")
+        return LocationType::Home;
+    return LocationType::Custom;
+}
+} // namespace
+
+std::vector<LocationMarker> StructureRealizer::deriveLocations(const BuildingProgram& program,
+                                                               const std::string& typology,
+                                                               const AssemblyPlan& plan,
+                                                               const glm::ivec3& worldOrigin,
+                                                               int floorTopMicro) {
+    const int W = std::max(program.footprintW, 1);
+    const int D = std::max(program.footprintD, 1);
+
+    // Ground-story exterior door: openings record the portal's WALL coordinate, so a
+    // perimeter door sits on the footprint boundary line (px in {0,W} or pz in {0,D});
+    // interior doors have interior coords. Lowest y = ground story. Doors on an L-plan's
+    // inner walls miss the boundary test — those buildings fall back to the centre anchor.
+    // Dwellings carry OPPOSED cross-passage door pairs, so "any perimeter door" can pick
+    // the back door and anchor the marker facing AWAY from the street (measured live:
+    // 6/14 village anchors unreachable) — prefer the door on program.front, the wall the
+    // settlement planner faced at the street.
+    auto onFrontWall = [&](const OpeningCut& o) {
+        if (program.front == "x0") return o.x == 0;
+        if (program.front == "x1") return o.x == W;
+        if (program.front == "z0") return o.z == 0;
+        if (program.front == "z1") return o.z == D;
+        return false;
+    };
+    const OpeningCut* door = nullptr;
+    bool doorOnFront = false;
+    for (const auto& o : plan.openings) {
+        if (o.kind != "door") continue;
+        if (o.x != 0 && o.x != W && o.z != 0 && o.z != D) continue;
+        const bool f = onFrontWall(o);
+        if (!door || (f && !doorOnFront) || (f == doorOnFront && o.y < door->y)) {
+            door = &o;
+            doorOnFront = f;
+        }
+    }
+
+    LocationMarker m;
+    m.type = locationTypeForTypology(typology);
+    glm::ivec3 local;
+    if (door) {
+        // A door on an X-facing wall (px in {0,W}) runs along Z, and vice versa. Anchor
+        // two cells beyond the wall cube so the marker is open ground clear of trim —
+        // reachable street-side, never inside the wall band.
+        const bool onXWall = (door->x == 0 || door->x == W);
+        const int cz = onXWall ? door->z + door->w / 2 : door->z;
+        const int cx = onXWall ? door->x : door->x + door->w / 2;
+        if (door->x == 0)      local = {-2, 0, cz};
+        else if (door->x == W) local = {W + 1, 0, cz};
+        else if (door->z == 0) local = {cx, 0, -2};
+        else                   local = {cx, 0, D + 1};
+        local.y = 0;   // outdoor grade: worldOrigin.y is the standing level beside the pad
+    } else {
+        local = {W / 2, floorTopMicro / 9, D / 2};
+    }
+    const glm::ivec3 wpos = worldOrigin + local;
+    const std::string base = typology.empty()
+        ? (program.function.empty() ? std::string("building") : program.function)
+        : typology;
+    m.id = base + "_" + std::to_string(wpos.x) + "_" + std::to_string(wpos.z);
+    m.name = base;
+    m.position = glm::vec3(wpos);
+    return {m};
+}
+
 StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingProgram& program,
                                                                const StyleProfile& style) {
     ShellResult res;
@@ -207,11 +282,27 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             int oyBase = wBase + sill * 9;
             int oyTop  = std::min(wTop, oyBase + p.height * 9);
             bool alongZ = (p.px == 0 || p.px == W);        // wall faces +/-x -> opening runs in Z
+            // Claims Ledger increment 2: RECORD the reveal as it is painted. Every box
+            // routed through rec() lands in the canvas exactly as before AND in the
+            // OpeningCut record (role + material) — recording only, zero paint change
+            // (CanvasDigestTest before/after artifacts prove it).
+            OpeningCut cut;
+            cut.x = p.px; cut.y = yCubes + sill; cut.z = p.pz;
+            cut.w = p.width; cut.h = p.height; cut.d = 1;
+            cut.kind = p.kind;
+            cut.infill = (p.kind == "window") ? p.infill : std::string("open");
+            auto rec = [&](int bx, int by, int bz, int bw, int bh, int bd,
+                           const std::string& mat, const char* role) {
+                c.fillMicroBox(bx, by, bz, bw, bh, bd, mat);
+                TrimBox t; t.x = bx; t.y = by; t.z = bz; t.w = bw; t.h = bh; t.d = bd;
+                t.role = role; t.material = mat;
+                cut.reveal.push_back(t);
+            };
             if (ext) {
                 for (int k = 0; k < std::max(1, p.width); ++k) {
                     int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
                     int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
-                    c.fillMicroBox(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "");   // carve to air
+                    rec(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "", "clear");   // carve to air
                 }
 
                 // ---- finish_forge P1: FRAME the opening (cut_openings leaves no raw holes).
@@ -251,44 +342,44 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                         int cx  = p.px - (p.px == W ? 1 : 0);
                         int fx0 = (p.px == 0) ? cx * 9 : cx * 9 + 9 - extT;   // wall band depth
                         int z0 = p.pz * 9, z1 = (p.pz + w) * 9;
-                        c.fillMicroBox(fx0, oyBase, z0,          extT, jambTop - oyBase, kJamb, matTrim);
-                        c.fillMicroBox(fx0, oyBase, z1 - kJamb,  extT, jambTop - oyBase, kJamb, matTrim);
-                        c.fillMicroBox(fx0, jambTop, z0,         extT, kLintel, z1 - z0, matTrim);
+                        rec(fx0, oyBase, z0,          extT, jambTop - oyBase, kJamb, matTrim, "jamb");
+                        rec(fx0, oyBase, z1 - kJamb,  extT, jambTop - oyBase, kJamb, matTrim, "jamb");
+                        rec(fx0, jambTop, z0,         extT, kLintel, z1 - z0, matTrim, "lintel");
                         if (isWin) {
                             int proudX = (p.px == 0) ? cx * 9 - 1 : cx * 9 + 9;
-                            c.fillMicroBox(proudX, oyBase - 1, z0, 1, 2, z1 - z0, matTrim);      // proud ledge
-                            c.fillMicroBox(fx0,    oyBase - 1, z0, extT, 1, z1 - z0, matTrim);   // sill board
+                            rec(proudX, oyBase - 1, z0, 1, 2, z1 - z0, matTrim, "ledge");    // proud ledge
+                            rec(fx0,    oyBase - 1, z0, extT, 1, z1 - z0, matTrim, "sill");  // sill board
                             const int leafX = fx0 + extT / 2;                 // mid-reveal plane
                             const int leafH = jambTop - oyBase;
                             if (leafClosed) {
-                                c.fillMicroBox(leafX, oyBase, z0 + kJamb, 1, leafH,
-                                               (z1 - z0) - 2 * kJamb, glazed ? "Glass" : matLeaf);
+                                rec(leafX, oyBase, z0 + kJamb, 1, leafH,
+                                    (z1 - z0) - 2 * kJamb, glazed ? "Glass" : matLeaf, "leaf");
                             } else if (shuttered) {                           // folded back on the facade
                                 const int panelW = std::max(2, (z1 - z0) / 2);
-                                c.fillMicroBox(proudX, oyBase, z0 - panelW, 1, leafH, panelW, matLeaf);
-                                c.fillMicroBox(proudX, oyBase, z1,          1, leafH, panelW, matLeaf);
+                                rec(proudX, oyBase, z0 - panelW, 1, leafH, panelW, matLeaf, "leaf");
+                                rec(proudX, oyBase, z1,          1, leafH, panelW, matLeaf, "leaf");
                             }
                         }
                     } else {
                         int cz  = p.pz - (p.pz == D ? 1 : 0);
                         int fz0 = (p.pz == 0) ? cz * 9 : cz * 9 + 9 - extT;
                         int x0 = p.px * 9, x1 = (p.px + w) * 9;
-                        c.fillMicroBox(x0,         oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
-                        c.fillMicroBox(x1 - kJamb, oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim);
-                        c.fillMicroBox(x0,         jambTop, fz0, x1 - x0, kLintel, extT, matTrim);
+                        rec(x0,         oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim, "jamb");
+                        rec(x1 - kJamb, oyBase, fz0, kJamb, jambTop - oyBase, extT, matTrim, "jamb");
+                        rec(x0,         jambTop, fz0, x1 - x0, kLintel, extT, matTrim, "lintel");
                         if (isWin) {
                             int proudZ = (p.pz == 0) ? cz * 9 - 1 : cz * 9 + 9;
-                            c.fillMicroBox(x0, oyBase - 1, proudZ, x1 - x0, 2, 1, matTrim);
-                            c.fillMicroBox(x0, oyBase - 1, fz0,    x1 - x0, 1, extT, matTrim);
+                            rec(x0, oyBase - 1, proudZ, x1 - x0, 2, 1, matTrim, "ledge");
+                            rec(x0, oyBase - 1, fz0,    x1 - x0, 1, extT, matTrim, "sill");
                             const int leafZ = fz0 + extT / 2;
                             const int leafH = jambTop - oyBase;
                             if (leafClosed) {
-                                c.fillMicroBox(x0 + kJamb, oyBase, leafZ, (x1 - x0) - 2 * kJamb,
-                                               leafH, 1, glazed ? "Glass" : matLeaf);
+                                rec(x0 + kJamb, oyBase, leafZ, (x1 - x0) - 2 * kJamb,
+                                    leafH, 1, glazed ? "Glass" : matLeaf, "leaf");
                             } else if (shuttered) {
                                 const int panelW = std::max(2, (x1 - x0) / 2);
-                                c.fillMicroBox(x0 - panelW, oyBase, proudZ, panelW, leafH, 1, matLeaf);
-                                c.fillMicroBox(x1,          oyBase, proudZ, panelW, leafH, 1, matLeaf);
+                                rec(x0 - panelW, oyBase, proudZ, panelW, leafH, 1, matLeaf, "leaf");
+                                rec(x1,          oyBase, proudZ, panelW, leafH, 1, matLeaf, "leaf");
                             }
                         }
                     }
@@ -302,16 +393,15 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 if (sw.ok) {
                     for (int k = 0; k < std::max(1, p.width); ++k) {
                         if (sw.axis == 'x')   // wall runs along Z at x=coord; doorway runs along Z
-                            c.fillMicroBox((sw.coord - 1) * 9, oyBase, (p.pz + k) * 9,
-                                           18, oyTop - oyBase, 9, "");
+                            rec((sw.coord - 1) * 9, oyBase, (p.pz + k) * 9,
+                                18, oyTop - oyBase, 9, "", "clear");
                         else                  // wall runs along X at z=coord; doorway runs along X
-                            c.fillMicroBox((p.px + k) * 9, oyBase, (sw.coord - 1) * 9,
-                                           9, oyTop - oyBase, 18, "");
+                            rec((p.px + k) * 9, oyBase, (sw.coord - 1) * 9,
+                                9, oyTop - oyBase, 18, "", "clear");
                     }
                 }
             }
-            plan.openings.push_back({p.px, yCubes + sill, p.pz, p.width, p.height, 1, p.kind,
-                                     p.kind == "window" ? p.infill : std::string("open")});
+            plan.openings.push_back(cut);
         }
 
         base = wTop;                               // next story's floor sits on this wall top
@@ -350,17 +440,31 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 // BuildingProgramValidator, so what we build is exactly what the gate checks.
                 // maxStepMicro = the character's step-up (m_maxStepHeight 4/9 m) on the grid.
                 const int maxStepMicro = 4;
-                StairPlan plan = planStair(rc.w, rc.d, riseMicro,
-                                           stairFormFromString(sr.form), maxStepMicro);
+                StairPlan sp = planStair(rc.w, rc.d, riseMicro,
+                                         stairFormFromString(sr.form), maxStepMicro);
 
                 // (1) cut the stairwell hole through the upper story's floor slab
-                c.fillMicroBox(rc.x * 9 + plan.holeX, holeBase, rc.z * 9 + plan.holeZ,
-                               plan.holeW, topMicro - holeBase, plan.holeD, "");
+                c.fillMicroBox(rc.x * 9 + sp.holeX, holeBase, rc.z * 9 + sp.holeZ,
+                               sp.holeW, topMicro - holeBase, sp.holeD, "");
 
                 // (2) build the planned treads + landings (local micro → offset into the well)
-                for (const auto& s : plan.solids)
+                for (const auto& s : sp.solids)
                     c.fillMicroBox(rc.x * 9 + s.x, botMicro + s.y, rc.z * 9 + s.z,
                                    s.w, s.h, s.d, matFloor);
+
+                // (3) RECORD the flight in the plan at the moment it is built (Claims
+                // Ledger increment 1): furniture reservation, featureAt, and validators
+                // query this record instead of re-planning from ProgStair.
+                StairRecord rec;
+                rec.x = rc.x; rec.z = rc.z; rec.w = rc.w; rec.d = rc.d;
+                rec.fromStory = a; rec.toStory = b;
+                rec.baseY = botMicro / 9;
+                rec.topY = (topMicro + 8) / 9;
+                rec.botWalkMicro = botMicro; rec.topWalkMicro = topMicro;
+                rec.form = sr.form;
+                rec.holeX = rc.x * 9 + sp.holeX; rec.holeZ = rc.z * 9 + sp.holeZ;
+                rec.holeW = sp.holeW; rec.holeD = sp.holeD;
+                plan.stairs.push_back(rec);
             }
     }
 
@@ -387,14 +491,18 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         const std::string matTrim = style.materialOf("trim", matExt);
         const int qLong = 4, qShort = 3;
         const int qBase = floorTopByStory.empty() ? floorTopMicro : floorTopByStory[0];
-        struct QCorner { int cx, cz, dx, dz; };   // outermost wall cell + inward direction
+        struct QCorner { int cx, cz, dx, dz; int ccx, ccz; };   // outermost wall micro + inward dir + corner CUBE
         const QCorner corners[4] = {
-            {bx0 * 9,     bz0 * 9,     +1, +1},
-            {bx1 * 9 - 1, bz0 * 9,     -1, +1},
-            {bx0 * 9,     bz1 * 9 - 1, +1, -1},
-            {bx1 * 9 - 1, bz1 * 9 - 1, -1, -1},
+            {bx0 * 9,     bz0 * 9,     +1, +1, bx0,     bz0},
+            {bx1 * 9 - 1, bz0 * 9,     -1, +1, bx1 - 1, bz0},
+            {bx0 * 9,     bz1 * 9 - 1, +1, -1, bx0,     bz1 - 1},
+            {bx1 * 9 - 1, bz1 * 9 - 1, -1, -1, bx1 - 1, bz1 - 1},
         };
         for (const auto& q : corners) {
+            // Claims Ledger increment 2: record the corner zone the courses dress.
+            plan.corners.push_back({q.ccx, q.ccz, q.dx, q.dz,
+                                    qBase / 9, (wallTopMicro + 8) / 9,
+                                    qLong, qShort, matTrim});
             for (int y = qBase; y < wallTopMicro; ++y) {
                 const int course = y - qBase;
                 const int runX = (course % 2 == 0) ? qLong : qShort;  // leg along the z-facade

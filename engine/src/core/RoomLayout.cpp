@@ -6,7 +6,9 @@
 #include <queue>
 #include <string>
 
+#include "core/CornerPolicy.h"
 #include "core/RoomProgram.h"
+#include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
@@ -290,25 +292,49 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
         if (r.x == 0     && wants('x', 0, !longWallsAreZ)) edges.push_back({'x', 0, r.z, r.z1()});
         if (r.x1() == W  && wants('x', W, !longWallsAreZ)) edges.push_back({'x', W, r.z, r.z1()});
         for (const auto& ed : edges) {
-            const int len = ed.hi - ed.lo;
+            // KI-5a corner margin: a window must never intrude into the footprint-corner
+            // cube (the quoin/corner-post zone). The rule is QUERIED from CornerPolicy —
+            // the one definition shared with the realize-time CornerZone claims (Claims
+            // Ledger increment 4) — not re-derived here; only edge ends that ARE
+            // footprint corners get the margin (mid-wall room boundaries keep full span).
+            const int axisMax = (ed.axis == 'z') ? W : D;
+            int sLo = 0, sHi = 0;
+            CornerPolicy::windowSafeBand(ed.lo, ed.hi, axisMax, sLo, sHi);
+            const int len = sHi - sLo;               // placeable band (corner-safe)
             if (len < spec.width) continue;
-            const int nWin = (int)std::lround((len / bayLength) * spec.perBay);
+            // Window COUNT comes from the wall's full architectural length (the
+            // grounded windows-per-bay rule); only PLACEMENT is confined to the
+            // corner-safe band. Deriving the count from the shrunk band rounded
+            // corner rooms down to zero windows (auditor-caught silent loss).
+            const int fullLen = ed.hi - ed.lo;
+            const int nWin = (int)std::lround((fullLen / bayLength) * spec.perBay);
             for (int k = 0; k < nWin; ++k) {
-                const int ideal = ed.lo + (int)std::lround((k + 1) * (double)len / (nWin + 1));
-                // A blocked slot (the door +-1) shifts along the wall instead of dropping the
-                // window (the croft's mid-wall door sits exactly on the single window's slot).
-                for (int off : {0, 2, -2, 3, -3, 4, -4}) {
-                    const int at = std::min(std::max(ideal + off, ed.lo), ed.hi - spec.width);
+                const int ideal = sLo + (int)std::lround((k + 1) * (double)len / (nWin + 1));
+                // A blocked slot (the door +-1) shifts along the wall instead of dropping
+                // the window; on narrow corner-shrunk spans the fixed offsets can ALL
+                // collapse onto blocked cells (auditor-caught: 18 footprints silently
+                // lost their only window), so fall back to an exhaustive scan of every
+                // valid slot. A window is dropped ONLY when the wall genuinely has no
+                // unblocked slot (short wall + centred door + corner margins).
+                auto tryAt = [&](int at) -> bool {
                     const int px = (ed.axis == 'z') ? at : ed.coord;
                     const int pz = (ed.axis == 'z') ? ed.coord : at;
-                    if (blocked(px, pz)) continue;
+                    if (blocked(px, pz)) return false;
                     ProgPortal w; w.a = "exterior"; w.b = room.id;
                     w.kind = "window"; w.width = spec.width; w.height = spec.height;
                     w.infill = spec.infill;   // grounded reveal fill (shuttered default / glass)
                     w.px = px; w.pz = pz;
                     rl.portals.push_back(w);
-                    break;
+                    return true;
+                };
+                bool placedWin = false;
+                for (int off : {0, 2, -2, 3, -3, 4, -4}) {
+                    const int at = std::min(std::max(ideal + off, sLo), sHi - spec.width);
+                    if (tryAt(at)) { placedWin = true; break; }
                 }
+                if (!placedWin)
+                    for (int at = sLo; at <= sHi - spec.width && !placedWin; ++at)
+                        placedWin = tryAt(at);
             }
         }
     }
@@ -371,14 +397,38 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
         ProgStory& st = program.stories[i];
         if (!st.rooms.empty()) continue;                     // respect authored room layouts
         RoomLayout rl;
-        // ground floor: a winged (non-rect) plan if requested, else the typology's linear plan.
-        if (i == 0 && !program.footprintShape.empty() && program.footprintShape != "rect") {
-            rl = generateWingedLayout(W, D, program.footprintShape, seed);
-            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through
-        }
-        if (rl.rooms.empty() && typology && i == 0) {        // ground floor = the typology's plan
+        // Ground floor: the TYPOLOGY's grounded plan comes FIRST. The winged (L) layout
+        // used to take precedence and REPLACED the typology with generic hall/service/
+        // solar — an L-shaped TAVERN had no taproom (found live 2026-07-23, L-plan hunt).
+        // Until winged variants of the typology programs exist, a requested non-rect
+        // shape applies only when no typology plan fits; the skip is surfaced.
+        if (typology && i == 0) {                            // ground floor = the typology's plan
             rl = generateRoomLayoutFromProgram(W, D, *typology, 2, program.front);
-            if (!rl.rooms.empty()) typologyApplied = true;   // fit; else fall through to generic
+            if (!rl.rooms.empty()) {
+                typologyApplied = true;                      // fit; else fall through
+                if (!program.footprintShape.empty() && program.footprintShape != "rect")
+                    LOG_INFO_FMT("RoomLayout", "footprintShape '" << program.footprintShape
+                                 << "' requested but the typology has no winged variant"
+                                 " — building RECT (surfaced, not silent)");
+            }
+        }
+        if (rl.rooms.empty() && i == 0 && !program.footprintShape.empty() &&
+            program.footprintShape != "rect") {
+            rl = generateWingedLayout(W, D, program.footprintShape, seed);
+            if (!rl.rooms.empty()) {
+                typologyApplied = true;                      // fit; else fall through
+                // A winged GROUND floor caps the building at ONE story: upper layouts
+                // (chambers or generic BSP) span the full RECT, so their rooms — and
+                // their furniture — would hover over the empty L-notch (found live:
+                // an L-tavern's upstairs wardrobe floated in mid-air at the notch,
+                // KI-5g). Truncate + surface until winged upper stories exist.
+                if (program.stories.size() > 1) {
+                    LOG_WARN_FMT("RoomLayout", "winged ground floor: truncating "
+                                 << program.stories.size() << " stories to 1 (upper "
+                                 "layouts would overhang the notch — surfaced, not silent)");
+                    program.stories.resize(1);
+                }
+            }
         }
         // upper floor of a multi-story typology: grounded guest chambers (linear, landing = room 0).
         if (rl.rooms.empty() && i != 0 && typology && typology->stories > 1) {

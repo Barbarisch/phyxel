@@ -4607,6 +4607,27 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/navgraph/path?x1=&z1=&x2=&z2=[&y1=&y2=] — 3D NavGraph route
+    // (what schedule-driven NPC movers actually use; navgrid = 2.5D proxy)
+    // ====================================================================
+    srv.Get("/api/navgraph/path", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("x1") || !req.has_param("z1") ||
+            !req.has_param("x2") || !req.has_param("z2")) {
+            res.status = 400;
+            res.set_content(json{{"error", "x1, z1, x2, z2 parameters required"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"x1", std::stof(req.get_param_value("x1"))},
+                       {"z1", std::stof(req.get_param_value("z1"))},
+                       {"x2", std::stof(req.get_param_value("x2"))},
+                       {"z2", std::stof(req.get_param_value("z2"))}};
+        if (req.has_param("y1")) params["y1"] = std::stof(req.get_param_value("y1"));
+        if (req.has_param("y2")) params["y2"] = std::stof(req.get_param_value("y2"));
+        json result = queueAndWait("navgraph_path", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/navgrid/path?x1=&z1=&x2=&z2= — Compute A* path
     // ====================================================================
     srv.Get("/api/navgrid/path", [this](const httplib::Request& req, httplib::Response& res) {

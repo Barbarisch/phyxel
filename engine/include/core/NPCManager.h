@@ -11,7 +11,9 @@
 #include "core/AStarPathfinder.h"
 #include <string>
 #include <vector>
+#include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <glm/glm.hpp>
 
@@ -61,6 +63,14 @@ public:
     void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
     /// Set the chunk manager for NPC line-of-sight raycasting.
     void setChunkManager(ChunkManager* mgr) { m_chunkManager = mgr; }
+    /// Provider of static obstacle boxes (inclusive world-cube min/max) that are NOT
+    /// chunk voxels — placed templates (wells, woodpiles, furniture). Without this the
+    /// NavGraph routes straight through them and characters treadmill against their
+    /// collision (measured: village residents orbiting the street well for minutes).
+    /// Snapshotted into a blocked-cell set at each buildNavGrid().
+    using ObstacleBoxProvider =
+        std::function<std::vector<std::pair<glm::ivec3, glm::ivec3>>()>;
+    void setNavObstacleProvider(ObstacleBoxProvider p) { m_obstacleProvider = std::move(p); }
     /// Set the combat system so real-time combat NPCs can deal damage.
     void setCombatSystem(CombatSystem* combatSystem) { m_combatSystem = combatSystem; }
     /// Set the raycast visualizer for NPC FOV debug cone rendering.
@@ -169,6 +179,8 @@ private:
     Graphics::DayNightCycle* m_dayNightCycle = nullptr;
     LocationRegistry* m_locationRegistry = nullptr;
     ChunkManager* m_chunkManager = nullptr;
+    ObstacleBoxProvider m_obstacleProvider;                 ///< static nav obstacles (see setter)
+    std::unordered_set<int64_t> m_navObstacles;             ///< rasterized cells (rebuilt per buildNavGrid)
     RaycastVisualizer* m_raycastVisualizer = nullptr;
     CombatSystem* m_combatSystem = nullptr;
 

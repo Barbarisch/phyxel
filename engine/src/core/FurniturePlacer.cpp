@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "core/StructureRealizer.h"   // thicknessMicro — the clamped converter the realizer built with
 #include "utils/Logger.h"
 
 namespace Phyxel {
@@ -118,6 +119,41 @@ std::vector<std::string> FurniturePlacer::requiredFurniture(const std::string& p
     // vocabulary any tier could emit.
     for (const auto& pc : recipeFor(purpose, "")) types.push_back(pc.type);
     return types;
+}
+
+// ---- Claims Ledger increment 3: plan-derived furnishing --------------------
+
+int FurniturePlacer::planExteriorThicknessMicro(const AssemblyPlan& plan) {
+    for (const auto& w : plan.walls)
+        if (w.type == "exterior") return StructureRealizer::thicknessMicro(w.thickness);
+    return StructureRealizer::thicknessMicro(0.333);
+}
+
+int FurniturePlacer::planInteriorThicknessMicro(const AssemblyPlan& plan) {
+    for (const auto& w : plan.walls)
+        if (w.type == "interior") return StructureRealizer::thicknessMicro(w.thickness);
+    return StructureRealizer::thicknessMicro(0.222);
+}
+
+std::vector<Rect> FurniturePlacer::planStairRects(const AssemblyPlan& plan, int storyIndex) {
+    std::vector<Rect> rects;
+    for (const auto& sr : plan.stairs)
+        if (sr.fromStory == storyIndex || sr.toStory == storyIndex)
+            rects.push_back(Rect{sr.x, sr.z, sr.w, sr.d});
+    return rects;
+}
+
+std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
+        const ProgStory& story, int storyIndex,
+        const glm::ivec3& origin, int floorY,
+        const AssemblyPlan& plan,
+        const std::map<std::string, Footprint>& footprints,
+        std::vector<UnplacedFixture>* unplaced,
+        const std::string& wealthTier) {
+    return furnish(story, origin, floorY, footprints, unplaced,
+                   planExteriorThicknessMicro(plan), wealthTier,
+                   planStairRects(plan, storyIndex),
+                   planInteriorThicknessMicro(plan));
 }
 
 std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
@@ -243,9 +279,14 @@ glm::ivec3 FurniturePlacer::microWorldPos(const FurniturePlacement& p, int extTM
     // cube — flush against the wall's interior face, never inside it. (backDir 0 -> no inset.)
     // Y: the absolute walkable-surface micro-Y, NOT the integer-truncated cube worldPos.y (which sank
     // furniture by the floor thickness). Whole-micro shifts are exact (extTMicro is a micro count).
-    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * extTMicro,
+    // KI-5b: the placement carries PER-AXIS wall-band insets (a corner piece backs an
+    // exterior wall on one axis and an interior partition on the other — one shared
+    // inset can't be flush to both); -1 falls back to the caller's exterior thickness.
+    const int tx = p.insetMicroX >= 0 ? p.insetMicroX : extTMicro;
+    const int tz = p.insetMicroZ >= 0 ? p.insetMicroZ : extTMicro;
+    return glm::ivec3(p.worldPos.x * 9 - p.backDir.x * tx,
                       surfaceMicroY,
-                      p.worldPos.z * 9 - p.backDir.z * extTMicro);
+                      p.worldPos.z * 9 - p.backDir.z * tz);
 }
 
 // ---- MOUNTING (quality B): sconces/racks on the wall, the chandelier from the ceiling. ----
@@ -309,8 +350,19 @@ void FurniturePlacer::clearRecipes() { dataRecipes().clear(); }
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,
     const std::map<std::string, Footprint>& footprints,
-    std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier) {
+    std::vector<UnplacedFixture>* unplaced, int extTMicro, const std::string& wealthTier,
+    const std::vector<Rect>& reservedRects, int intTMicro) {
     std::vector<FurniturePlacement> out;
+    // KI-5b: footprint bounds (union of room rects) distinguish EXTERIOR walls
+    // (footprint edge, full extTMicro band inside the edge cube) from INTERIOR
+    // partitions (band straddles the boundary — only its half sits in this room's
+    // edge cube). Approximation: winged notch edges read as interior (bbox test);
+    // over-inset there is the old behavior, disclosed.
+    int fpMinX = INT_MAX, fpMinZ = INT_MAX, fpMaxX1 = INT_MIN, fpMaxZ1 = INT_MIN;
+    for (const auto& r2 : story.rooms) {
+        fpMinX = std::min(fpMinX, r2.rect.x);   fpMinZ = std::min(fpMinZ, r2.rect.z);
+        fpMaxX1 = std::max(fpMaxX1, r2.rect.x1()); fpMaxZ1 = std::max(fpMaxZ1, r2.rect.z1());
+    }
     for (const auto& room : story.rooms) {
         const int rx = room.rect.x, rz = room.rect.z, rw = room.rect.w, rd = room.rect.d;
         if (rw < 2 || rd < 2) continue;   // too small to furnish
@@ -331,6 +383,13 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     if (cx >= rx && cx < rx + rw && cz >= rz && cz < rz + rd) blocked.insert({cx, cz});
                 }
         }
+        // KI-5d: reserved rects (stair bases + arriving stair wells) + a 1-cell landing
+        // margin — furniture used to be placed straight onto stair cells.
+        for (const auto& rr : reservedRects)
+            for (int x = rr.x - 1; x < rr.x + rr.w + 1; ++x)
+                for (int z = rr.z - 1; z < rr.z + rr.d + 1; ++z)
+                    if (x >= rx && x < rx + rw && z >= rz && z < rz + rd)
+                        blocked.insert({x, z});
 
         std::set<std::pair<int, int>> occupied;
         auto footprintOf = [&](const std::string& type) -> Footprint {
@@ -410,6 +469,27 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             f.type = type; f.room = room.id; f.rotation = rot;
             f.backDir = backDirOf(mnx, mnz, mxx, mxz);
             f.worldPos = glm::ivec3(origin.x + mnx, floorY, origin.z + mnz);   // anchor = footprint corner
+            // KI-5b: PER-AXIS wall insets. Exterior wall -> the full band; interior
+            // partition -> the half of the straddling band inside this room's edge
+            // cube (a sconce inset 9 micro off a 2-micro partition floated ~0.8 m off
+            // the wall). Corners get each axis's own inset — flush to both walls.
+            // ONLY when the caller supplied the thickness (extTMicro > 0): the legacy
+            // two-step convention (furnish with extTMicro=0, real thickness applied
+            // later via microWorldPos's parameter) must keep the -1 sentinel — baking
+            // 0 here poisoned the fallback and embedded furniture INSIDE walls
+            // (auditor-caught: MicroPlacementOverlapTest went 0 -> 234 overlaps).
+            if (extTMicro > 0) {
+                if (f.backDir.x != 0) {
+                    const bool extX = (f.backDir.x < 0 && rx == fpMinX) ||
+                                      (f.backDir.x > 0 && rx + rw == fpMaxX1);
+                    f.insetMicroX = extX ? extTMicro : (intTMicro + 1) / 2;
+                }
+                if (f.backDir.z != 0) {
+                    const bool extZ = (f.backDir.z < 0 && rz == fpMinZ) ||
+                                      (f.backDir.z > 0 && rz + rd == fpMaxZ1);
+                    f.insetMicroZ = extZ ? extTMicro : (intTMicro + 1) / 2;
+                }
+            }
             out.push_back(f);
         };
 

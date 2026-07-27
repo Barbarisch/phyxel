@@ -12,6 +12,7 @@
 #include "scene/behaviors/CombatBehavior.h"
 #include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
+#include "physics/PhysicsWorld.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
 #include "graphics/AnimationSystem.h"
@@ -139,6 +140,36 @@ std::vector<std::string> NPCManager::getAllNPCNames() const {
 }
 
 void NPCManager::update(float deltaTime) {
+    // Separation pushes: NPCs have no local avoidance, so simultaneous schedule
+    // transitions pile bodies into pinch points (measured: an 11-NPC jam at the
+    // tavern-corner fence). Cheap O(n²) XZ repulsion, published to each behavior's
+    // blackboard ("sepPush"); movers blend it into their steering. n is small
+    // (village ≈ 14); revisit with a spatial grid before city-scale populations.
+    {
+        constexpr float kSepRadius = 1.4f;
+        std::vector<std::pair<Scene::NPCEntity*, glm::vec3>> pushes;
+        pushes.reserve(m_npcs.size());
+        for (auto& [name, npc] : m_npcs) pushes.push_back({npc.get(), glm::vec3(0.0f)});
+        for (size_t i = 0; i < pushes.size(); ++i) {
+            for (size_t j = i + 1; j < pushes.size(); ++j) {
+                const glm::vec3 a = pushes[i].first->getPosition();
+                const glm::vec3 b = pushes[j].first->getPosition();
+                glm::vec2 d(a.x - b.x, a.z - b.z);
+                float dist = glm::length(d);
+                if (dist >= kSepRadius) continue;
+                const glm::vec2 dir = dist > 0.01f
+                    ? d / dist
+                    : glm::vec2(((i * 2654435761u) % 7) / 3.5f - 1.0f, 1.0f);  // coincident: split deterministically
+                const float push = (kSepRadius - dist) / kSepRadius;           // 0..1
+                pushes[i].second += glm::vec3(dir.x, 0.0f, dir.y) * push;
+                pushes[j].second -= glm::vec3(dir.x, 0.0f, dir.y) * push;
+            }
+        }
+        for (auto& [npc, push] : pushes)
+            if (auto* bt = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior()))
+                bt->getBlackboard().set("sepPush", push);
+    }
+
     for (auto& [name, npc] : m_npcs) {
         npc->update(deltaTime);
     }
@@ -234,7 +265,69 @@ void NPCManager::buildNavGrid() {
     // Stop any prior path service before replacing the graph it reads, then bring up a
     // fresh one pointing at the new graph.
     if (m_pathService) m_pathService->stop();
-    m_navGraph = std::make_unique<NavGraph>(m_chunkManager);
+
+    // Rasterize static NON-VOXEL obstacles (placed templates: wells, woodpiles,
+    // furniture) into a blocked-cell set the graph treats as solid. Rebuilt here —
+    // AFTER the old path service stopped, BEFORE the new graph builds — so no worker
+    // reads the set while it changes. Oversized boxes are skipped, not truncated.
+    m_navObstacles.clear();
+    if (m_obstacleProvider) {
+        constexpr int64_t kMaxBoxCells = 32768;   // a 32^3 box; bigger = likely a structure, skip
+        auto packCell = [](const glm::ivec3& p) -> int64_t {
+            return (static_cast<int64_t>(static_cast<uint16_t>(p.y)) << 48) |
+                   (static_cast<int64_t>(static_cast<uint32_t>(p.x) & 0xFFFFFF) << 24) |
+                   static_cast<int64_t>(static_cast<uint32_t>(p.z) & 0xFFFFFF);
+        };
+        int skipped = 0;
+        for (const auto& [lo, hi] : m_obstacleProvider()) {
+            const int64_t vol = static_cast<int64_t>(hi.x - lo.x + 1) *
+                                (hi.y - lo.y + 1) * (hi.z - lo.z + 1);
+            if (vol <= 0 || vol > kMaxBoxCells) { ++skipped; continue; }
+            for (int x = lo.x; x <= hi.x; ++x)
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z)
+                        m_navObstacles.insert(packCell(glm::ivec3(x, y, z)));
+        }
+        if (!m_navObstacles.empty() || skipped > 0)
+            LOG_INFO_FMT("NPCManager", "nav obstacles: " << m_navObstacles.size()
+                         << " blocked cells (" << skipped << " oversized boxes skipped)");
+    }
+
+    // Composite nav solidity = what characters actually collide with:
+    //   1. cube voxels (hasVoxelAt),
+    //   2. the static-occupancy grids' UPPER-CELL content — micro-thin geometry
+    //      (parcel fences) fills a cell's height and must block, while thin FLOOR
+    //      sheets (street paving micros in the bottom of a cell) must stay
+    //      walkable, so only content above ~step height (y+0.34) blocks;
+    //   3. the placed-object obstacle overlay (wells, furniture — not voxels at all).
+    // Without 2 and 3 the graph routed straight through fences/props and NPCs
+    // treadmilled against their collision (measured live, 6/14 never converged).
+    {
+        Physics::VoxelDynamicsWorld* vw =
+            m_physicsWorld ? m_physicsWorld->getVoxelWorld() : nullptr;
+        auto packCell = [](const glm::ivec3& p) -> int64_t {
+            return (static_cast<int64_t>(static_cast<uint16_t>(p.y)) << 48) |
+                   (static_cast<int64_t>(static_cast<uint32_t>(p.x) & 0xFFFFFF) << 24) |
+                   static_cast<int64_t>(static_cast<uint32_t>(p.z) & 0xFFFFFF);
+        };
+        if (vw || !m_navObstacles.empty()) {
+            m_navGraph = std::make_unique<NavGraph>(
+                VoxelQueryFunc([this, vw, packCell](const glm::ivec3& p) {
+                    if (m_chunkManager && m_chunkManager->hasVoxelAt(p)) return true;
+                    if (!m_navObstacles.empty() && m_navObstacles.count(packCell(p)) > 0)
+                        return true;
+                    if (vw) {
+                        const glm::vec3 lo(static_cast<float>(p.x), p.y + 0.34f,
+                                           static_cast<float>(p.z));
+                        const glm::vec3 hi(p.x + 1.0f, p.y + 1.0f, p.z + 1.0f);
+                        if (vw->anyStaticSolidInAABB(lo, hi)) return true;
+                    }
+                    return false;
+                }));
+        } else {
+            m_navGraph = std::make_unique<NavGraph>(m_chunkManager);
+        }
+    }
     m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
     m_pathService = std::make_unique<PathService>(m_navGraph.get());
     m_pathService->start();
@@ -364,6 +457,17 @@ void NPCManager::onRegionChanged(const glm::ivec3& minPos, const glm::ivec3& max
                 if (wx >= minPos.x - 1 && wx <= maxPos.x + 1 &&
                     wz >= minPos.z - 1 && wz <= maxPos.z + 1) {
                     story->invalidatePath();
+                    break;
+                }
+            }
+        } else if (auto* sched = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior())) {
+            // Same contract for the scheduled built-in mover.
+            for (const glm::vec3& wp : sched->getPathWaypoints()) {
+                int wx = static_cast<int>(std::floor(wp.x));
+                int wz = static_cast<int>(std::floor(wp.z));
+                if (wx >= minPos.x - 1 && wx <= maxPos.x + 1 &&
+                    wz >= minPos.z - 1 && wz <= maxPos.z + 1) {
+                    sched->invalidatePath();
                     break;
                 }
             }

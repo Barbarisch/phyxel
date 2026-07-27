@@ -47,6 +47,18 @@ public:
     /// StructureGenerator::place / VoxelModificationSystem.
     static StructureResult toStructureResult(const ShellResult& shell, const glm::ivec3& worldOrigin);
 
+    /// Derive the building's schedule-target location marker (playable-town): one
+    /// LocationMarker per building, typed from `typology` (tavern->Tavern, shop/smith->
+    /// Work, dwelling->Home, else Custom), anchored just OUTSIDE the ground-story
+    /// exterior door — an outdoor cell the 2.5D NavGrid can reach (interior columns
+    /// read as roof there). Falls back to the footprint centre at floor level when the
+    /// plan has no perimeter door. Pure (no engine deps) — unit-testable.
+    static std::vector<LocationMarker> deriveLocations(const BuildingProgram& program,
+                                                       const std::string& typology,
+                                                       const AssemblyPlan& plan,
+                                                       const glm::ivec3& worldOrigin,
+                                                       int floorTopMicro);
+
     /// Micro thickness (cells) for a thickness given in cubes, CLAMPED to [1,9] (min 1 cell, max one
     /// full cube). The furniture pass uses this same converter for its wall-inset so the inset matches
     /// the realized wall band exactly (a raw >9-micro value would over-inset furniture off a clamped

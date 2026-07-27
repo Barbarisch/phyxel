@@ -22,6 +22,7 @@
 
 #include <glm/glm.hpp>
 
+#include "core/AssemblyPlan.h"      // AssemblyPlan (Claims Ledger: furnish from the plan)
 #include "core/BuildingProgram.h"   // ProgStory, ProgRoom, ProgPortal, Rect
 
 namespace Phyxel {
@@ -35,6 +36,11 @@ struct FurniturePlacement {
     glm::ivec3  backDir{0};  ///< OUTWARD normal of the wall this piece backs onto (0 = centre/interior);
                              ///< the consumer insets the piece by the wall thickness along -backDir so
                              ///< it sits flush against the wall's interior face, not inside the wall.
+    int         insetMicroX = -1; ///< KI-5b: PER-AXIS wall-band insets — exterior thickness on
+    int         insetMicroZ = -1; ///< footprint-edge walls, the straddling band's half on interior
+                             ///< partitions (a sconce inset 9 micro off a 2-micro partition floated
+                             ///< ~0.8 m off the wall; a CORNER piece needs different insets per
+                             ///< axis to be flush to both walls). -1 = legacy (extTMicro param).
 };
 
 /// A fixture's real footprint in CUBES (from the asset library's .metrics.json bounding box).
@@ -93,12 +99,41 @@ public:
     /// the legacy footprint reservation.
     /// `wealthTier` ("humble" | "middling" | "high", from the typology's room_program
     /// wealth_tier) filters tiered recipe pieces; "" = no filtering (every piece).
+    /// `reservedRects` (KI-5d): footprint-local rects no furniture may cover — the
+    /// STAIR rects touching this story (departing base AND the arriving well cut) plus
+    /// a 1-cell landing margin. Furniture used to be placed straight onto stair cells.
     static std::vector<FurniturePlacement> furnish(const ProgStory& story,
                                                    const glm::ivec3& origin, int floorY,
                                                    const std::map<std::string, Footprint>& footprints = {},
                                                    std::vector<UnplacedFixture>* unplaced = nullptr,
                                                    int extTMicro = 0,
-                                                   const std::string& wealthTier = "");
+                                                   const std::string& wealthTier = "",
+                                                   const std::vector<Rect>& reservedRects = {},
+                                                   int intTMicro = 2);
+
+    /// Claims Ledger increment 3: furnish FROM THE PLAN. Derives every geometric
+    /// side-channel from the realized AssemblyPlan — exterior/interior wall thickness
+    /// (micro) from the recorded WallSegments, this story's reserved stair rects from
+    /// plan.stairs — then runs the same core placer. Consumers hand over the anatomy;
+    /// they no longer re-derive numbers the realizer already knows. Placements are
+    /// IDENTICAL to the legacy side-channel call for the same shell
+    /// (FurnishPlanEquivalenceTest pins it field-by-field).
+    static std::vector<FurniturePlacement> furnishFromPlan(
+        const ProgStory& story, int storyIndex,
+        const glm::ivec3& origin, int floorY,
+        const AssemblyPlan& plan,
+        const std::map<std::string, Footprint>& footprints = {},
+        std::vector<UnplacedFixture>* unplaced = nullptr,
+        const std::string& wealthTier = "");
+
+    /// Plan-derivation helpers (exposed for equivalence tests + other consumers).
+    /// Thickness comes from the FIRST wall segment of the given type — the realizer
+    /// paints every segment of a type at one style thickness — through the same
+    /// clamped converter the realizer built with (StructureRealizer::thicknessMicro).
+    static int planExteriorThicknessMicro(const AssemblyPlan& plan);
+    static int planInteriorThicknessMicro(const AssemblyPlan& plan);
+    /// Stair well rects touching `storyIndex` (departing base OR arriving well).
+    static std::vector<Rect> planStairRects(const AssemblyPlan& plan, int storyIndex);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on

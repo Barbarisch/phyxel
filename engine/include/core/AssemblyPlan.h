@@ -59,14 +59,41 @@ struct FloorPatch {
     nlohmann::json toJson() const;
 };
 
+/// One realized box of an opening's reveal, in structure-local MICRO coords —
+/// recorded by the realizer at the moment it paints (Claims Ledger increment 2).
+struct TrimBox {
+    int x = 0, y = 0, z = 0;
+    int w = 0, h = 0, d = 0;
+    std::string role;               ///< clear (carved air) | jamb | lintel | sill | ledge | leaf
+    std::string material;           ///< "" for carved air (role "clear")
+
+    static TrimBox fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
 /// A cut opening (door | window | arch) to be carved + framed.
 struct OpeningCut {
     int x = 0, y = 0, z = 0;
     int w = 0, h = 0, d = 0;
     std::string kind = "door";      ///< door | window | arch
     std::string infill = "open";    ///< open | glass | shutter | boarded
+    std::vector<TrimBox> reveal;    ///< realized carve + trim boxes (micro; increment 2)
 
     static OpeningCut fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A quoined corner zone at a footprint corner — the vertical band of alternating
+/// dressed corner blocks (realizer pass 4.5). Corner cell in footprint-local
+/// cubes; leg lengths in micro (grounded block dims, TrimGrounding.md).
+struct CornerZone {
+    int x = 0, z = 0;               ///< corner cube (footprint-local)
+    int dx = 1, dz = 1;             ///< inward direction along each facade
+    int baseY = 0, topY = 0;        ///< cube y range [baseY, topY)
+    int legLongMicro = 4, legShortMicro = 3;
+    std::string material;
+
+    static CornerZone fromJson(const nlohmann::json& j);
     nlohmann::json toJson() const;
 };
 
@@ -79,6 +106,25 @@ struct RoofPanel {
     std::string material;
 
     static RoofPanel fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
+/// A realized stair flight connecting two ADJACENT stories — recorded by the
+/// realizer's stair pass at the moment it builds the treads (Claims Ledger
+/// increment 1; docs/structure-generation/ClaimsLedger.md). The well rect is
+/// footprint-local cubes; the well-hole cut through the upper floor slab is in
+/// structure-local MICRO coords (the hole is genuinely sub-cube).
+struct StairRecord {
+    int x = 0, z = 0, w = 0, d = 0;          ///< stair well rect (cubes)
+    int fromStory = 0, toStory = 1;          ///< normalized: fromStory < toStory
+    int baseY = 0;                           ///< first-tread cube Y (lower walkable)
+    int topY = 0;                            ///< one PAST the emergence-slab cube (exclusive)
+    int botWalkMicro = 0, topWalkMicro = 0;  ///< exact walkable surfaces (micro Y)
+    std::string form = "switchback";         ///< StairPlanner form actually built
+    int holeX = 0, holeZ = 0;                ///< upper-slab hole min corner (micro)
+    int holeW = 0, holeD = 0;                ///< upper-slab hole size (micro)
+
+    static StairRecord fromJson(const nlohmann::json& j);
     nlohmann::json toJson() const;
 };
 
@@ -108,15 +154,20 @@ struct AssemblyPlan {
     std::vector<WallSegment>      walls;
     std::vector<FloorPatch>       floors;
     std::vector<OpeningCut>       openings;
+    std::vector<StairRecord>      stairs;
+    std::vector<CornerZone>       corners;
     std::vector<RoofPanel>        roof;
     std::vector<FixturePlacement> fixtures;
     std::vector<LightPlacement>   lights;
 
     /// Structural-feature classifier: what part of the building occupies a LOCAL cube
     /// cell (plan coords are footprint-local cubes; callers subtract the placed world
-    /// origin first). Returns "wall" | "floor" | "ceiling" | "foundation" | "roof" | ""
-    /// (open interior/exterior space). Consumers should ask the anatomy — never sniff
-    /// voxel materials — so "is this a wall?" keeps working whatever the style palette.
+    /// origin first). Returns "opening" | "quoin" | "wall" | "stair" | "floor" |
+    /// "ceiling" | "foundation" | "roof" | "" (open interior/exterior space). A carved
+    /// doorway/window cube answers "opening" (from the recorded clear reveal), a
+    /// quoined corner cube "quoin" — both are more specific than the wall band they
+    /// sit in. Consumers should ask the anatomy — never sniff voxel materials — so
+    /// "is this a wall?" keeps working whatever the style palette.
     std::string featureAt(const glm::ivec3& cubePos) const;
 
     static AssemblyPlan fromJson(const nlohmann::json& j);

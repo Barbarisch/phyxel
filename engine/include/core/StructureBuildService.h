@@ -64,6 +64,21 @@ public:
     /// stories/...}) onto v2 build params (typology + style + footprint + stories).
     /// Returns nullptr json if the type has no v2 alias (e.g. "tower").
     static nlohmann::json aliasLegacyParams(const nlohmann::json& params);
+
+    /// Snap a location anchor to the nearest STANDABLE cell (solid floor below,
+    /// 2 cells of air) within `radius`, searching XZ rings outward and Y within
+    /// +/-3 of the anchor. Derived anchors can land in dead columns (under an eave
+    /// overhang, on a fence line) where pathfinding cannot resolve a goal —
+    /// measured live: an unsnapped tavern anchor left 12 residents `no_route`.
+    /// Returns the standing cell (feet position), or `cell` unchanged if nothing
+    /// standable is found in range. Pure over `solidAt` — unit-testable.
+    /// `avoid` (optional) rejects candidate cells — e.g. the structure's own XZ
+    /// footprint, so an anchor never snaps INSIDE the building (interiors are
+    /// standable floor, but the NavGraph cannot yet route exterior->interior, so
+    /// an indoor anchor is a dead schedule target).
+    static glm::ivec3 snapToStandable(const std::function<bool(const glm::ivec3&)>& solidAt,
+                                      const glm::ivec3& cell, int radius = 5,
+                                      const std::function<bool(const glm::ivec3&)>& avoid = {});
 };
 
 } // namespace Core
