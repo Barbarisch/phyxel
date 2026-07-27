@@ -80,8 +80,14 @@ def deepest_hoof(af):
     for bx in af.boxes:
         boxes_by_bone.setdefault(bx.bone_id, []).append(bx)
     mn = 1e9
-    clips = [c.name for c in af.clips if c.name in GROUND_CLIPS] or \
-            [c.name for c in af.clips if c.name in LOCO_CLIPS] or [af.clips[0].name]
+    # Ground on the single RESTING clip the creature actually stands in (Idle preferred). Taking
+    # the MIN across walk+idle caught a transient low Walk frame -- a swinging foot/limb plants
+    # ~0.2 below the idle stance -- which floated an idle-standing creature by that whole gap
+    # (bipedal monsters: bluedemon +0.24). Idle grounding sits the rest pose exactly on the floor.
+    names = [c.name for c in af.clips]
+    rest = next((n for n in ("Idle", "idle", "Flying_Idle", "Idle_2") if n in names), None)
+    clips = [rest] if rest else \
+            ([c.name for c in af.clips if c.name in GROUND_CLIPS] or [af.clips[0].name])
     for cn in clips:
         fk, dur = _fk_fn(af, cn)
         if dur <= 0:

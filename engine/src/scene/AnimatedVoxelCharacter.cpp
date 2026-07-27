@@ -814,10 +814,34 @@ namespace Scene {
             else { minY = std::min(minY, y); maxY = std::max(maxY, y); }
         }
 
+        // Voxel-accurate grounding for imported creature rigs. The default grounds on the lowest
+        // BONE, but voxels hang below/around bones, so a bone-grounded model floats or sinks by
+        // the bone->foot-voxel gap (and per-clip ground_ref proxies mismatched idle vs walk).
+        // When the rig is a finalize-processed import (marked by a "ground_ref" bone), ground on
+        // the actual lowest VOXEL: project each BoneShape box through its bone transform (bind
+        // pose) and take its lowest point. One authoritative geometric measure, no clip guessing.
+        bool importedRig = false;
+        for (const auto& b : skeleton.bones)
+            if (b.name == "ground_ref") { importedRig = true; break; }
+        if (importedRig && !voxelModel.shapes.empty()) {
+            float vMinY = 1e9f, vMaxY = -1e9f;
+            for (const auto& s : voxelModel.shapes) {
+                if (s.boneId < 0 || s.boneId >= static_cast<int>(skeleton.bones.size())) continue;
+                glm::vec3 c = glm::vec3(globalTransforms[s.boneId] * glm::vec4(s.offset, 1.0f));
+                vMinY = std::min(vMinY, c.y - s.size.y * 0.5f);
+                vMaxY = std::max(vMaxY, c.y + s.size.y * 0.5f);
+            }
+            if (vMinY <= vMaxY) { minY = vMinY; maxY = vMaxY; }
+        }
+
         float characterHeight = (maxY - minY) + 0.3f;
         if (characterHeight < 0.5f) characterHeight = 1.0f;
 
-        skeletonFootOffset_ = minY;
+        // For imported rigs, bake the draw's fixed visual lift into the offset so the lowest
+        // voxel sits exactly on the ground (the draw adds +k_modelVisualLift; cancel it here).
+        // Legacy humanoid path grounds on the bone minY unchanged (golden-pinned).
+        static constexpr float k_modelVisualLift = 0.05f;
+        skeletonFootOffset_ = importedRig ? (minY + k_modelVisualLift) : minY;
         m_originalHalfHeight = characterHeight * 0.5f;
 
         if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {
