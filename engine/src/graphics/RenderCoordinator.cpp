@@ -131,8 +131,13 @@ RenderCoordinator::RenderCoordinator(
     dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
     dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
-    // Create character instance buffer (max 10000 instances)
-    vulkanDevice->createCharacterInstanceBuffer(10000);
+    // Character instance buffer, shared by every character in the scene (main pass +
+    // shadow pass). Sized in PARTS, not characters: the hand-authored humanoid rigs are
+    // a few hundred parts, but imported creature rigs are microcube-dense — 3.0-4.7k
+    // parts each — so the old 10k cap fit barely three monsters and silently dropped
+    // the rest (a 27-creature scene rendered ~2). 262144 x 40 B = 10.5 MB, which holds
+    // ~70 dense creatures or several hundred humanoids.
+    vulkanDevice->createCharacterInstanceBuffer(kCharacterInstanceCapacity);
 
     // Recreate Swapchain Framebuffers using PostProcess Render Pass
     // The swapchain framebuffers now need to be compatible with the post-process render pass
@@ -1196,8 +1201,16 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             struct CharShadowBatch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
             std::vector<CharShadowBatch> batches;
 
+            // Same shared buffer as the main pass — same all-or-nothing clamp, or an
+            // over-cap character casts a shadow sampled from stale instance memory.
+            const uint32_t shadowInstanceCapacity = vulkanDevice->getMaxCharacterInstances();
+
             auto batchParts = [&](Scene::RagdollCharacter* ch) {
                 const auto& charParts = ch->getParts();
+                uint32_t activeParts = 0;
+                for (const auto& p : charParts) if (p.active) ++activeParts;
+                if (static_cast<uint64_t>(instanceData.size()) + activeParts > shadowInstanceCapacity)
+                    return;
                 for (const auto& grp : ch->getPartGroups()) {
                     if (grp.partIndices.empty()) continue;
                     const auto& first = charParts[grp.partIndices[0]];
@@ -2138,8 +2151,27 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; glm::vec4 bakedLight; };
     std::vector<Batch> batches;
 
+    // Shared-buffer capacity. A batch whose firstInstance lands past this draws from
+    // stale memory, so the whole character vanishes with no error anywhere. Imported
+    // creature rigs are microcube-dense (3-4.7k parts each), so a handful of them can
+    // exhaust the buffer — drop whole characters deliberately and say so, rather than
+    // emitting draws that read past the upload.
+    const uint32_t instanceCapacity = vulkanDevice->getMaxCharacterInstances();
+    uint32_t droppedCharacters = 0;
+
     auto batchParts = [&](Scene::RagdollCharacter* ch) {
         const auto& charParts = ch->getParts();
+
+        // Reserve this character's slice up front, all-or-nothing. Splitting a
+        // character across the cap would render half a creature, which reads as a
+        // worse bug than a missing one.
+        uint32_t activeParts = 0;
+        for (const auto& p : charParts) if (p.active) ++activeParts;
+        if (static_cast<uint64_t>(instanceData.size()) + activeParts > instanceCapacity) {
+            ++droppedCharacters;
+            return;
+        }
+
         // Sample the baked light field ONCE per character (uniform across limbs — avoids
         // per-bone popping and sampling floor solids). Use a torso-height point ~1 cube
         // above the first active part. Phase 4: dynamic objects react to baked lighting.
@@ -2181,6 +2213,17 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
         }
     };
     for (auto* charPtr : instancedCharacters) batchParts(charPtr);
+
+    if (droppedCharacters > 0) {
+        static uint32_t s_lastDropped = 0;
+        if (droppedCharacters != s_lastDropped) {
+            s_lastDropped = droppedCharacters;
+            LOG_WARN_FMT("RenderCoordinator",
+                "Character instance buffer full — " << droppedCharacters << " of "
+                << instancedCharacters.size() << " characters not rendered (capacity "
+                << instanceCapacity << " parts). Raise createCharacterInstanceBuffer().");
+        }
+    }
     if (instanceData.empty()) return;
 
     // Upload the shared (single, host-visible) character instance buffer. If both the

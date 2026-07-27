@@ -208,6 +208,10 @@ public:
     void updateCharacterInstanceBuffer(const std::vector<CharacterInstanceData>& instances);
     void bindCharacterInstanceBuffer(VkCommandBuffer commandBuffer);
     void cleanupCharacterInstanceBuffer();
+    /// Capacity of the shared character instance buffer. Callers MUST clamp their
+    /// batches to this — a vkCmdDraw with firstInstance past it reads stale memory
+    /// and the character silently vanishes (see RenderCoordinator::batchParts).
+    uint32_t getMaxCharacterInstances() const { return maxCharacterInstances; }
     
     // Buffer creation helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);

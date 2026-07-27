@@ -1784,7 +1784,24 @@ void VulkanDevice::updateCharacterInstanceBuffer(const std::vector<CharacterInst
         return;
     }
 
-    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(static_cast<uint32_t>(instances.size()), maxCharacterInstances);
+    // Truncation here is NOT benign: callers assign each character a firstInstance
+    // offset into this buffer, so anything past the cap draws from stale memory and
+    // that character silently disappears. This used to fail without a peep — 27
+    // microcube-dense imported creature rigs (3-4.7k parts each) blew a 10k buffer
+    // and most of them vanished. Callers clamp, but warn loudly if one slips through.
+    const uint32_t requested = static_cast<uint32_t>(instances.size());
+    if (requested > maxCharacterInstances) {
+        static uint32_t s_lastReported = 0;
+        if (requested != s_lastReported) {
+            s_lastReported = requested;
+            LOG_WARN_FMT("VulkanDevice",
+                "Character instance buffer overflow — " << requested << " instances requested but "
+                << "capacity is " << maxCharacterInstances
+                << "; characters past the cap will not render");
+        }
+    }
+
+    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(requested, maxCharacterInstances);
     memcpy(characterInstanceMapped, instances.data(), (size_t) bufferSize);
 }
 

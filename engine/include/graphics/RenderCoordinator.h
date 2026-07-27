@@ -80,6 +80,17 @@ class DebrisRenderPipeline;
  */
 class RenderCoordinator {
 public:
+    /// Capacity of the shared character instance buffer, in PARTS (not characters) —
+    /// every character in the scene batches into this one buffer. Imported creature
+    /// rigs are microcube-dense (3.0-4.7k parts each), so this must stay far above
+    /// (densest rig x expected simultaneous creatures). Pinned by
+    /// CharacterInstanceBudgetTest against the actual shipped .anim library: at 10000
+    /// this silently stopped drawing creatures past ~3 on screen.
+    static constexpr uint32_t kCharacterInstanceCapacity = 262144;
+
+    /// Minimum number of copies of the DENSEST shipped rig the budget must hold.
+    static constexpr uint32_t kMinSimultaneousDenseCreatures = 20;
+
     RenderCoordinator(
         Vulkan::VulkanDevice* vulkanDevice,
         Vulkan::RenderPipeline* renderPipeline,
