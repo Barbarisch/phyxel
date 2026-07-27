@@ -2177,7 +2177,20 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     const uint32_t instanceCapacity =
         std::min(m_charInstanceCapacity, vulkanDevice->getMaxCharacterInstances());
 
+    // Candidates are sorted nearest-first, so once the budget is exhausted the remaining
+    // (farther) characters will almost all fail too. Optimistic batching means every
+    // failure does a full batch-then-rollback, so blindly continuing is expensive:
+    // measured at 1024 characters with a 256-character budget, the 768 doomed characters
+    // tripled build_ms. Allow a few retries — a single oversized creature must not
+    // starve smaller ones behind it — then stop.
+    constexpr uint32_t kMaxConsecutiveDrops = 4;
+    uint32_t consecutiveDrops = 0;
+
     for (size_t ci = 0; ci < candidates.size(); ++ci) {
+        if (consecutiveDrops >= kMaxConsecutiveDrops) {
+            m_charStats.dropped += static_cast<uint32_t>(candidates.size() - ci);
+            break;
+        }
         Scene::RagdollCharacter* ch = candidates[ci].ch;
         const auto& charParts = ch->getParts();
 
@@ -2246,8 +2259,10 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             m_charBatches.resize(batchMark);
             m_charBoneTransforms.resize(boneMark);
             ++m_charStats.dropped;
+            ++consecutiveDrops;
             continue;
         }
+        consecutiveDrops = 0;
 
         // All of this character's parts are contiguous, and each carries its own bone
         // index — so the main pass draws the whole character in one call.
