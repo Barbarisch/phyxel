@@ -118,6 +118,13 @@ public:
     void  setCharacterCullDistance(float d) { m_charCullDistance = d; }
     float getCharacterCullDistance() const { return m_charCullDistance; }
 
+    /// Distances at which characters drop to a decimated part set. 0 disables LOD.
+    void setCharacterLodDistances(float lod1, float lod2) {
+        m_charLod1Distance = lod1; m_charLod2Distance = lod2;
+    }
+    float getCharacterLod1Distance() const { return m_charLod1Distance; }
+    float getCharacterLod2Distance() const { return m_charLod2Distance; }
+
     /// Draw characters into the shadow map. Off = characters cast no shadows; exists to
     /// split the character render cost between the main and shadow passes, which the
     /// turn-the-camera-away test cannot do (that changes what terrain is in frame too).
@@ -362,6 +369,14 @@ private:
     uint32_t m_charInstanceCapacity = kCharacterInstanceCapacity;
     float    m_charCullDistance     = 400.0f;
     bool     m_shadowCharactersEnabled = true;
+    float    m_charLod1Distance = 35.0f;
+    float    m_charLod2Distance = 80.0f;
+    /// LOD level for a squared camera distance. 0 = full part set.
+    int lodForDistanceSq(float distSq) const {
+        if (m_charLod2Distance > 0.0f && distSq > m_charLod2Distance * m_charLod2Distance) return 2;
+        if (m_charLod1Distance > 0.0f && distSq > m_charLod1Distance * m_charLod1Distance) return 1;
+        return 0;
+    }
     // Conservative model-space bound used for the per-character cull sphere. Cheap and
     // O(1): a real per-frame AABB would mean walking every part, which is the work the
     // cull exists to avoid. Oversized on purpose — it can only cull too little.

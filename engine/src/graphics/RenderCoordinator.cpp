@@ -2219,6 +2219,15 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
 
         const size_t boneMark = m_charBoneTransforms.size();
 
+        // Pick a part-count LOD by distance. The bone transforms are always taken from
+        // the full-resolution groups (the animation path only updates those); a LOD level
+        // supplies decimated offset/scale/color for the same bone groups.
+        const int lod = lodForDistanceSq(candidates[ci].distSq);
+        const Scene::RagdollCharacter::LodLevel* lodLevel =
+            lod > 0 ? &ch->getLodLevel(lod) : nullptr;
+        std::unordered_map<int, uint32_t> groupBone;
+        if (lodLevel) groupBone.reserve(ch->getPartGroups().size() * 2);
+
         for (const auto& grp : ch->getPartGroups()) {
             if (grp.partIndices.empty()) continue;
             const auto& first = charParts[grp.partIndices[0]];
@@ -2238,6 +2247,12 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             const uint32_t boneIndex = static_cast<uint32_t>(m_charBoneTransforms.size());
             m_charBoneTransforms.push_back(batch.model);
 
+            if (lodLevel) {
+                // Matrices still come from the real groups; instances come from the LOD.
+                groupBone[grp.boneGroupId] = boneIndex;
+                continue;
+            }
+
             for (int pi : grp.partIndices) {
                 const auto& part = charParts[pi];
                 if (!part.active) continue;
@@ -2251,6 +2266,31 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             }
             if (batch.instanceCount > 0) m_charBatches.push_back(batch);
             else m_charBoneTransforms.pop_back();   // empty group claimed no matrix
+        }
+
+        if (lodLevel) {
+            // LOD parts are stored grouped, so each group is still one contiguous span
+            // and the shadow pass's per-group batches keep working unchanged.
+            for (const auto& range : lodLevel->groups) {
+                auto bit = groupBone.find(range.boneGroupId);
+                if (bit == groupBone.end()) continue;
+                CharacterBatch batch;
+                batch.model         = m_charBoneTransforms[bit->second];
+                batch.bakedLight    = charLight;
+                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
+                batch.instanceCount = range.count;
+                batch.charIndex     = static_cast<int>(ci);
+                for (uint32_t k = 0; k < range.count; ++k) {
+                    const auto& lp = lodLevel->parts[range.start + k];
+                    CharacterInstanceData data;
+                    data.offset    = lp.offset;
+                    data.scale     = lp.scale;
+                    data.color     = lp.color;
+                    data.boneIndex = bit->second;
+                    instanceData.push_back(data);
+                }
+                if (range.count > 0) m_charBatches.push_back(batch);
+            }
         }
 
         if (instanceData.size() > instanceCapacity ||

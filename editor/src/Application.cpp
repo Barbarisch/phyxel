@@ -7761,12 +7761,18 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             if (cmd.params.contains("updateBudget"))
                 Scene::AnimatedVoxelCharacter::setUpdateTickBudget(
                     cmd.params.value("updateBudget", 256u));
+            if (cmd.params.contains("lod1") || cmd.params.contains("lod2"))
+                renderCoordinator->setCharacterLodDistances(
+                    cmd.params.value("lod1", renderCoordinator->getCharacterLod1Distance()),
+                    cmd.params.value("lod2", renderCoordinator->getCharacterLod2Distance()));
             response = {
                 {"success", true},
                 {"capacity", renderCoordinator->getCharacterInstanceCapacity()},
                 {"cull_distance", renderCoordinator->getCharacterCullDistance()},
                 {"shadows", renderCoordinator->getShadowCharactersEnabled()},
                 {"update_budget", Scene::AnimatedVoxelCharacter::getUpdateTickBudget()},
+                {"lod1", renderCoordinator->getCharacterLod1Distance()},
+                {"lod2", renderCoordinator->getCharacterLod2Distance()},
             };
         }
         return true;

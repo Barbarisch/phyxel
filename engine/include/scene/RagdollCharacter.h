@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <cmath>
 
 namespace Phyxel {
 namespace Scene {
@@ -65,6 +66,38 @@ public:
         return m_partGroups;
     }
 
+    // ---- Part-count LOD (docs/CharacterPipelineScaling.md P2.3) -------------------
+    // A distant character does not need its full part count: a 1116-part humanoid a
+    // hundred units away covers a few dozen pixels. Each level merges parts onto a
+    // lattice 2^level coarser, WITHIN a bone group so the result still rigs correctly.
+    //
+    // Only offset/scale/color are stored: the per-frame bone transforms come from the
+    // full-resolution part groups, which the animation path already updates. So a LOD
+    // level is static per character and is built once, on demand.
+    struct LodPart {
+        glm::vec3 offset;
+        glm::vec3 scale;
+        glm::vec4 color;
+    };
+    struct LodGroupRange {
+        int      boneGroupId = -1;
+        uint32_t start = 0;      ///< index into LodLevel::parts
+        uint32_t count = 0;
+    };
+    struct LodLevel {
+        std::vector<LodPart>      parts;   ///< sorted by boneGroupId, so groups are contiguous
+        std::vector<LodGroupRange> groups;
+    };
+    /// level >= 1. Built on first request and cached; invalidated with the part groups.
+    const LodLevel& getLodLevel(int level) const {
+        auto it = m_lodCache.find(level);
+        if (it != m_lodCache.end()) return it->second;
+        LodLevel lvl;
+        buildLodLevel(level, lvl);
+        return m_lodCache.emplace(level, std::move(lvl)).first->second;
+    }
+    static constexpr int kMaxLodLevel = 2;
+
     void setFaction(Faction f) { faction = f; }
     Faction getFaction() const { return faction; }
 
@@ -88,7 +121,76 @@ protected:
     // Subclasses must call this after mutating `parts` in a way that does not
     // change its size (e.g. an in-place rebuild). Size changes are detected
     // automatically by getPartGroups().
-    void markPartGroupsDirty() { m_partGroupsDirty = true; }
+    void markPartGroupsDirty() { m_partGroupsDirty = true; m_lodCache.clear(); }
+
+    /// Merge a bone group's parts onto a lattice `2^level` times coarser. Uses the
+    /// group's modal part size as the base cell so per-limb scaling is respected, and
+    /// averages merged colors. Decimating per group (never across groups) is what keeps
+    /// the result riggable — parts in different groups move independently.
+    void buildLodLevel(int level, LodLevel& out) const {
+        const float factor = static_cast<float>(1 << level);
+        out.parts.clear();
+        out.groups.clear();
+
+        for (const auto& grp : getPartGroups()) {
+            if (grp.partIndices.empty()) continue;
+
+            // Modal size in this group defines the lattice.
+            std::unordered_map<uint64_t, int> sizeVotes;
+            auto sizeKey = [](const glm::vec3& s) {
+                return (static_cast<uint64_t>(static_cast<uint32_t>(s.x * 100000.0f)) << 40)
+                     ^ (static_cast<uint64_t>(static_cast<uint32_t>(s.y * 100000.0f)) << 20)
+                     ^  static_cast<uint64_t>(static_cast<uint32_t>(s.z * 100000.0f));
+            };
+            glm::vec3 modal(0.0f); int best = -1;
+            for (int pi : grp.partIndices) {
+                if (!parts[pi].active) continue;
+                int v = ++sizeVotes[sizeKey(parts[pi].scale)];
+                if (v > best) { best = v; modal = parts[pi].scale; }
+            }
+            if (best < 0) continue;
+
+            const glm::vec3 cell = modal * factor;
+            if (cell.x <= 0.0f || cell.y <= 0.0f || cell.z <= 0.0f) continue;
+
+            struct Accum { glm::vec4 color{0.0f}; int n = 0; };
+            std::unordered_map<uint64_t, Accum> cells;
+            std::vector<uint64_t> order;   // keep emission deterministic
+            for (int pi : grp.partIndices) {
+                const auto& p = parts[pi];
+                if (!p.active) continue;
+                const int cx = static_cast<int>(std::floor(p.offset.x / cell.x));
+                const int cy = static_cast<int>(std::floor(p.offset.y / cell.y));
+                const int cz = static_cast<int>(std::floor(p.offset.z / cell.z));
+                const uint64_t k = (static_cast<uint64_t>(static_cast<uint32_t>(cx)) << 42)
+                                 ^ (static_cast<uint64_t>(static_cast<uint32_t>(cy)) << 21)
+                                 ^  static_cast<uint64_t>(static_cast<uint32_t>(cz));
+                auto it = cells.find(k);
+                if (it == cells.end()) { cells.emplace(k, Accum{}); order.push_back(k); it = cells.find(k); }
+                it->second.color += p.color;
+                it->second.n++;
+                // stash the cell origin on first touch via a parallel map entry
+                if (it->second.n == 1) {
+                    LodPart lp;
+                    lp.offset = glm::vec3((cx + 0.5f) * cell.x, (cy + 0.5f) * cell.y, (cz + 0.5f) * cell.z);
+                    lp.scale  = cell;
+                    lp.color  = glm::vec4(0.0f);   // filled below
+                    out.parts.push_back(lp);
+                }
+            }
+
+            LodGroupRange range;
+            range.boneGroupId = grp.boneGroupId;
+            range.count = static_cast<uint32_t>(order.size());
+            range.start = static_cast<uint32_t>(out.parts.size() - range.count);
+            for (size_t i = 0; i < order.size(); ++i) {
+                const Accum& a = cells[order[i]];
+                out.parts[range.start + i].color = a.n > 0 ? a.color / static_cast<float>(a.n)
+                                                           : glm::vec4(1.0f);
+            }
+            if (range.count > 0) out.groups.push_back(range);
+        }
+    }
 
     void rebuildPartGroups() const {
         m_partGroups.clear();
@@ -109,6 +211,7 @@ protected:
         }
         m_partGroupsDirty = false;
         m_partGroupsBuiltSize = parts.size();
+        m_lodCache.clear();
     }
 
     Physics::PhysicsWorld* physicsWorld;
@@ -123,6 +226,7 @@ protected:
     mutable std::vector<PartGroup> m_partGroups;
     mutable bool   m_partGroupsDirty = true;
     mutable size_t m_partGroupsBuiltSize = 0;
+    mutable std::unordered_map<int, LodLevel> m_lodCache;   ///< level -> decimated parts
 };
 
 } // namespace Scene
