@@ -91,6 +91,30 @@ public:
     /// Minimum number of copies of the DENSEST shipped rig the budget must hold.
     static constexpr uint32_t kMinSimultaneousDenseCreatures = 20;
 
+    /// Which pass a character batch is being drawn for (selects the visibility set).
+    enum class CharacterPassVisibility { Main, Shadow, All };
+
+    /// Per-frame character culling/batching counters (surfaced via /api/render/stats).
+    struct CharacterRenderStats {
+        uint32_t considered   = 0;  ///< characters known to the scene
+        uint32_t drawnMain    = 0;  ///< passed the camera frustum + distance test
+        uint32_t drawnShadow  = 0;  ///< passed the light frustum + distance test
+        uint32_t culled       = 0;  ///< skipped entirely (neither pass wanted them)
+        uint32_t dropped      = 0;  ///< wanted, but did not fit the instance budget
+        uint32_t partsBatched = 0;  ///< instances actually uploaded this frame
+    };
+    const CharacterRenderStats& getCharacterRenderStats() const { return m_charStats; }
+
+    /// Character instance budget, in parts. Defaults to kCharacterInstanceCapacity;
+    /// a project may raise it for crowd-heavy scenes. Applied at buffer creation.
+    void setCharacterInstanceCapacity(uint32_t parts) { m_charInstanceCapacity = parts; }
+    uint32_t getCharacterInstanceCapacity() const { return m_charInstanceCapacity; }
+
+    /// Characters beyond this distance from the camera are not drawn at all. Generous
+    /// by default — this is a safety net for huge worlds, not an aesthetic LOD knob.
+    void  setCharacterCullDistance(float d) { m_charCullDistance = d; }
+    float getCharacterCullDistance() const { return m_charCullDistance; }
+
     RenderCoordinator(
         Vulkan::VulkanDevice* vulkanDevice,
         Vulkan::RenderPipeline* renderPipeline,
@@ -279,14 +303,41 @@ private:
     void renderEntities(VkCommandBuffer commandBuffer);
     // Draw all instanced characters (player + animated NPCs) with the given view-projection
     // and pipeline. Used both for the main pass and the mirror reflection pass (which passes
-    // the reflected view-projection + the FRONT_BIT reflection pipeline). The shared character
-    // instance buffer is rebuilt+uploaded on every call; when both passes run in one frame
-    // they upload byte-identical data, so the redundant upload is harmless.
+    // the reflected view-projection + the FRONT_BIT reflection pipeline). Consumes the
+    // per-frame batch list built ONCE by buildCharacterFrameData() — see that method.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
-                                   VkPipeline pipeline);
+                                   VkPipeline pipeline, CharacterPassVisibility visibility);
     void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                           const glm::vec3& cullCenter, float cullRadius);
-    
+
+    // ---- Character batching (docs/CharacterPipelineScaling.md Tier 1) --------------
+    // Cull, sort and batch every character ONCE per frame, before the shadow pass.
+    // Previously each pass re-walked every character in the world with no visibility
+    // test and re-uploaded a byte-identical instance buffer. Now: characters outside
+    // both frusta (or past the distance limit) are skipped entirely, the survivors are
+    // batched nearest-first so a budget overrun drops the FAR ones, and the buffer is
+    // uploaded once. Each pass then draws only the subset flagged visible for it.
+    void buildCharacterFrameData(const glm::mat4& cameraViewProj,
+                                 const glm::mat4& lightSpaceMatrix);
+
+    struct CharacterBatch {
+        glm::mat4 model;
+        uint32_t  firstInstance = 0;
+        uint32_t  instanceCount = 0;
+        glm::vec4 bakedLight{1.0f};
+        int       charIndex = -1;   ///< index into m_charVisibleMain / m_charVisibleShadow
+    };
+    std::vector<CharacterBatch> m_charBatches;
+    std::vector<uint8_t> m_charVisibleMain;    ///< per character: in the camera frustum
+    std::vector<uint8_t> m_charVisibleShadow;  ///< per character: in the light frustum
+    CharacterRenderStats m_charStats;
+    uint32_t m_charInstanceCapacity = kCharacterInstanceCapacity;
+    float    m_charCullDistance     = 400.0f;
+    // Conservative model-space bound used for the per-character cull sphere. Cheap and
+    // O(1): a real per-frame AABB would mean walking every part, which is the work the
+    // cull exists to avoid. Oversized on purpose — it can only cull too little.
+    static constexpr float kCharacterCullRadius = 6.0f;
+
     // Dependencies (non-owning pointers)
     Vulkan::VulkanDevice* vulkanDevice;
     Vulkan::RenderPipeline* renderPipeline;

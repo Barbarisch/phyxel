@@ -934,6 +934,25 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/characters — tune the character render budget at runtime.
+    // Body: { "capacity": int (parts, soft cap <= physical buffer),
+    //         "cullDistance": float } — omitted fields unchanged.
+    // Lowering capacity reproduces the pre-fix silent-drop behaviour on demand
+    // (docs/CharacterPipelineScaling.md P0.2).
+    // ====================================================================
+    srv.Post("/api/debug/characters", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_character_budget", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/debug/foliage — toggle / tune the leaf-card foliage layer (FPS A/B + tuning)
     // Body: { "enabled": bool (opt), "cardSize": float, "windStrength": float,
     //         "cardsPerVoxel": int, "radius": float } — omitted/negative fields unchanged.

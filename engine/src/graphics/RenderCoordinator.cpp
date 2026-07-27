@@ -839,11 +839,12 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
 
     // Draw instanced characters (player + animated NPCs) into the reflection target so they
     // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
-    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). This pass
-    // runs first each frame, so it is responsible for uploading the shared character buffer.
+    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). The
+    // shared character buffer is uploaded once per frame by buildCharacterFrameData().
     glm::mat4 reflViewProj = clippedProj * reflectedView;
     renderInstancedCharacters(vulkanDevice->getCommandBuffer(frameIndex), reflViewProj,
-                              renderPipeline->getReflectionInstancedCharacterPipeline());
+                              renderPipeline->getReflectionInstancedCharacterPipeline(),
+                              CharacterPassVisibility::All);
 
     // Draw kinematic objects (doors, furniture, fragments) into the reflection. They read
     // view/proj from the descriptor set, so we pass the reflected-camera descriptor set; the
@@ -1177,80 +1178,23 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
     // -------------------------------------------------------------------------
-    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE) {
-        // Collect same character list as renderEntities
-        std::vector<Scene::RagdollCharacter*> instancedCharacters;
-        if (entities) {
-            for (const auto& entity : *entities) {
-                if (auto* ac = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
-                    instancedCharacters.push_back(ac);
-            }
-        }
-        if (m_npcManager) {
-            for (const auto& name : m_npcManager->getAllNPCNames()) {
-                auto* npc = m_npcManager->getNPC(name);
-                if (npc) {
-                    if (auto* renderable = npc->getRenderableCharacter())
-                        instancedCharacters.push_back(renderable);
-                }
-            }
-        }
+    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()) {
+        // Batches + the instance upload come from buildCharacterFrameData(), which ran
+        // once before this pass. This used to re-walk every character in the world and
+        // re-upload a byte-identical buffer. Draw only the light-frustum subset — note
+        // that is NOT the camera subset: an off-screen character can cast into view.
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          shadowMap->getCharacterShadowPipeline());
+        vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
 
-        if (!instancedCharacters.empty()) {
-            std::vector<CharacterInstanceData> instanceData;
-            struct CharShadowBatch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
-            std::vector<CharShadowBatch> batches;
-
-            // Same shared buffer as the main pass — same all-or-nothing clamp, or an
-            // over-cap character casts a shadow sampled from stale instance memory.
-            const uint32_t shadowInstanceCapacity = vulkanDevice->getMaxCharacterInstances();
-
-            auto batchParts = [&](Scene::RagdollCharacter* ch) {
-                const auto& charParts = ch->getParts();
-                uint32_t activeParts = 0;
-                for (const auto& p : charParts) if (p.active) ++activeParts;
-                if (static_cast<uint64_t>(instanceData.size()) + activeParts > shadowInstanceCapacity)
-                    return;
-                for (const auto& grp : ch->getPartGroups()) {
-                    if (grp.partIndices.empty()) continue;
-                    const auto& first = charParts[grp.partIndices[0]];
-                    CharShadowBatch batch;
-                    // camera-relative (matches the main-pass batch + the relative lightSpaceMatrix)
-                    batch.model = glm::translate(glm::mat4(1.0f),
-                                                 camera->relativeTo(glm::dvec3(first.worldPos)))
-                                * glm::mat4_cast(first.worldRot);
-                    batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                    batch.instanceCount = 0;
-                    for (int pi : grp.partIndices) {
-                        const auto& part = charParts[pi];
-                        if (!part.active) continue;
-                        CharacterInstanceData data;
-                        data.offset = part.offset;
-                        data.scale  = part.scale;
-                        data.color  = part.color;
-                        instanceData.push_back(data);
-                        batch.instanceCount++;
-                    }
-                    if (batch.instanceCount > 0) batches.push_back(batch);
-                }
-            };
-
-            for (auto* charPtr : instancedCharacters) batchParts(charPtr);
-
-            if (!instanceData.empty()) {
-                vulkanDevice->updateCharacterInstanceBuffer(instanceData);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getCharacterShadowPipeline());
-                vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
-
-                struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
-                charPC.lightSpaceMatrix = lightSpaceMatrix;
-                for (const auto& batch : batches) {
-                    charPC.model = batch.model;
-                    vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
-                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
-                    vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
-                }
-            }
+        struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
+        charPC.lightSpaceMatrix = lightSpaceMatrix;
+        for (const auto& batch : m_charBatches) {
+            if (batch.charIndex < 0 || !m_charVisibleShadow[batch.charIndex]) continue;
+            charPC.model = batch.model;
+            vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
+            vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
         }
     }
 
@@ -1708,6 +1652,11 @@ void RenderCoordinator::drawFrame() {
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     gpuProfiler->startFrame(currentFrame, cmd);
     
+    // Cull, sort and batch every character ONCE for the whole frame — the shadow pass,
+    // the main pass and the mirror pass all consume this (docs/CharacterPipelineScaling.md).
+    // Must run before the shadow pass, which is the first consumer.
+    buildCharacterFrameData(cachedProjectionMatrix * cachedViewMatrix, lightSpaceMatrix);
+
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         // Render Shadow Pass
@@ -2119,10 +2068,15 @@ VkSampler RenderCoordinator::getViewportSampler() const {
     return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
 }
 
-void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
-        const glm::mat4& viewProj, VkPipeline pipeline) {
-    bool hasEntities = entities && !entities->empty();
-    bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
+void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
+                                                const glm::mat4& lightSpaceMatrix) {
+    m_charBatches.clear();
+    m_charVisibleMain.clear();
+    m_charVisibleShadow.clear();
+    m_charStats = CharacterRenderStats{};
+
+    const bool hasEntities = entities && !entities->empty();
+    const bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
     if (!hasEntities && !hasNPCs) return;
 
     // Collect instanced characters: the animated player + animated/physics NPCs.
@@ -2147,29 +2101,72 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     }
     if (instancedCharacters.empty()) return;
 
+    m_charStats.considered = static_cast<uint32_t>(instancedCharacters.size());
+
+    // --- Visibility ------------------------------------------------------------
+    // Cull against BOTH frusta separately: a character behind the camera can still
+    // cast a shadow into view, so the shadow set is not a subset of the main set.
+    Utils::Frustum cameraFrustum, lightFrustum;
+    cameraFrustum.extractFromMatrix(cameraViewProj);
+    lightFrustum.extractFromMatrix(lightSpaceMatrix);
+
+    const float cullDistSq = m_charCullDistance * m_charCullDistance;
+
+    struct Candidate {
+        Scene::RagdollCharacter* ch;
+        float distSq;
+        bool  mainVisible;
+        bool  shadowVisible;
+    };
+    std::vector<Candidate> candidates;
+    candidates.reserve(instancedCharacters.size());
+
+    for (auto* ch : instancedCharacters) {
+        // Camera-relative throughout: the frusta come from camera-relative matrices, and
+        // relativeTo() does the subtraction in doubles so this stays exact at continental
+        // coordinates (docs/CameraRelativeRendering.md).
+        const glm::vec3 rel = camera->relativeTo(glm::dvec3(ch->getPosition()));
+        const float distSq = glm::dot(rel, rel);
+        if (distSq > cullDistSq) { ++m_charStats.culled; continue; }
+
+        const bool inMain   = cameraFrustum.intersects(rel, kCharacterCullRadius);
+        const bool inShadow = lightFrustum.intersects(rel, kCharacterCullRadius);
+        if (!inMain && !inShadow) { ++m_charStats.culled; continue; }
+
+        candidates.push_back({ch, distSq, inMain, inShadow});
+    }
+    if (candidates.empty()) return;
+
+    // Nearest-first, so if the budget IS exhausted the characters that disappear are
+    // the far ones. Before this, drop order was NPC-map iteration order — the creature
+    // in front of you could vanish while one behind you rendered.
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& a, const Candidate& b) { return a.distSq < b.distSq; });
+
+    m_charVisibleMain.assign(candidates.size(), 0);
+    m_charVisibleShadow.assign(candidates.size(), 0);
+
     std::vector<CharacterInstanceData> instanceData;
-    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; glm::vec4 bakedLight; };
-    std::vector<Batch> batches;
+    instanceData.reserve(4096);
 
-    // Shared-buffer capacity. A batch whose firstInstance lands past this draws from
-    // stale memory, so the whole character vanishes with no error anywhere. Imported
-    // creature rigs are microcube-dense (3-4.7k parts each), so a handful of them can
-    // exhaust the buffer — drop whole characters deliberately and say so, rather than
-    // emitting draws that read past the upload.
-    const uint32_t instanceCapacity = vulkanDevice->getMaxCharacterInstances();
-    uint32_t droppedCharacters = 0;
+    // A batch whose firstInstance lands past the buffer draws from stale memory, so the
+    // whole character vanishes with no error anywhere. Reserve each character's slice
+    // all-or-nothing: splitting one across the cap renders half a creature, which reads
+    // as a worse bug than a missing one.
+    // The effective budget is a SOFT cap that can never exceed the physical buffer, so a
+    // project (or a repro) can lower it at runtime without reallocating GPU memory.
+    const uint32_t instanceCapacity =
+        std::min(m_charInstanceCapacity, vulkanDevice->getMaxCharacterInstances());
 
-    auto batchParts = [&](Scene::RagdollCharacter* ch) {
+    for (size_t ci = 0; ci < candidates.size(); ++ci) {
+        Scene::RagdollCharacter* ch = candidates[ci].ch;
         const auto& charParts = ch->getParts();
 
-        // Reserve this character's slice up front, all-or-nothing. Splitting a
-        // character across the cap would render half a creature, which reads as a
-        // worse bug than a missing one.
         uint32_t activeParts = 0;
         for (const auto& p : charParts) if (p.active) ++activeParts;
         if (static_cast<uint64_t>(instanceData.size()) + activeParts > instanceCapacity) {
-            ++droppedCharacters;
-            return;
+            ++m_charStats.dropped;
+            continue;
         }
 
         // Sample the baked light field ONCE per character (uniform across limbs — avoids
@@ -2185,20 +2182,21 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
                 break;
             }
         }
+
         for (const auto& grp : ch->getPartGroups()) {
             if (grp.partIndices.empty()) continue;
             const auto& first = charParts[grp.partIndices[0]];
             // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
             // (world - camera) so bone transforms stay float-exact at continental
             // coordinates — this is THE fix for the per-voxel character speckle.
-            glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                             camera->relativeTo(glm::dvec3(first.worldPos)))
-                            * glm::mat4_cast(first.worldRot);
-            Batch batch;
-            batch.model = model;
-            batch.bakedLight = charLight;
+            CharacterBatch batch;
+            batch.model = glm::translate(glm::mat4(1.0f),
+                                         camera->relativeTo(glm::dvec3(first.worldPos)))
+                        * glm::mat4_cast(first.worldRot);
+            batch.bakedLight    = charLight;
             batch.firstInstance = static_cast<uint32_t>(instanceData.size());
             batch.instanceCount = 0;
+            batch.charIndex     = static_cast<int>(ci);
             for (int pi : grp.partIndices) {
                 const auto& part = charParts[pi];
                 if (!part.active) continue;
@@ -2209,34 +2207,48 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
                 instanceData.push_back(data);
                 batch.instanceCount++;
             }
-            if (batch.instanceCount > 0) batches.push_back(batch);
+            if (batch.instanceCount > 0) m_charBatches.push_back(batch);
         }
-    };
-    for (auto* charPtr : instancedCharacters) batchParts(charPtr);
 
-    if (droppedCharacters > 0) {
+        m_charVisibleMain[ci]   = candidates[ci].mainVisible   ? 1 : 0;
+        m_charVisibleShadow[ci] = candidates[ci].shadowVisible ? 1 : 0;
+        if (candidates[ci].mainVisible)   ++m_charStats.drawnMain;
+        if (candidates[ci].shadowVisible) ++m_charStats.drawnShadow;
+    }
+
+    if (m_charStats.dropped > 0) {
         static uint32_t s_lastDropped = 0;
-        if (droppedCharacters != s_lastDropped) {
-            s_lastDropped = droppedCharacters;
+        if (m_charStats.dropped != s_lastDropped) {
+            s_lastDropped = m_charStats.dropped;
             LOG_WARN_FMT("RenderCoordinator",
-                "Character instance buffer full — " << droppedCharacters << " of "
-                << instancedCharacters.size() << " characters not rendered (capacity "
-                << instanceCapacity << " parts). Raise createCharacterInstanceBuffer().");
+                "Character instance buffer full — " << m_charStats.dropped << " of "
+                << candidates.size() << " visible characters not rendered (capacity "
+                << instanceCapacity << " parts). Raise the character instance budget.");
         }
     }
     if (instanceData.empty()) return;
 
-    // Upload the shared (single, host-visible) character instance buffer. If both the
-    // reflection pass and the main pass run this frame they upload byte-identical data (same
-    // character state, same batch offsets), so the redundant memcpy is harmless — both draws
-    // read the same final buffer contents at GPU execution time.
+    m_charStats.partsBatched = static_cast<uint32_t>(instanceData.size());
+
+    // ONE upload per frame, shared by the shadow pass, the main pass and the mirror
+    // pass. Each pass previously rebuilt and re-uploaded byte-identical data.
     vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+}
+
+void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
+        const glm::mat4& viewProj, VkPipeline pipeline, CharacterPassVisibility visibility) {
+    if (m_charBatches.empty()) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
-    for (const auto& batch : batches) {
+    for (const auto& batch : m_charBatches) {
+        // The mirror pass reflects an arbitrary view, so it takes everything batched
+        // (All) rather than re-culling against a third frustum.
+        if (visibility == CharacterPassVisibility::Main &&
+            (batch.charIndex < 0 || !m_charVisibleMain[batch.charIndex])) continue;
+
         struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
         pushConsts.model = batch.model;
         pushConsts.viewProj = viewProj;
@@ -2265,8 +2277,13 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
     // Instanced characters in the main pass (main camera view-projection).
     const glm::mat4 mainViewProj = cachedProjectionMatrix * cachedViewMatrix;
-    renderInstancedCharacters(commandBuffer, mainViewProj,
-                              renderPipeline->getInstancedCharacterPipeline());
+    {
+        gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
+        renderInstancedCharacters(commandBuffer, mainViewProj,
+                                  renderPipeline->getInstancedCharacterPipeline(),
+                                  CharacterPassVisibility::Main);
+        gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
+    }
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());

@@ -7745,6 +7745,25 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_character_budget") {
+        // Runtime character render budget (docs/CharacterPipelineScaling.md). capacity is a
+        // SOFT cap in parts, clamped to the physical buffer — lowering it reproduces the
+        // pre-fix silent-drop behaviour without a rebuild.
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            if (cmd.params.contains("capacity"))
+                renderCoordinator->setCharacterInstanceCapacity(cmd.params.value("capacity", 262144u));
+            if (cmd.params.contains("cullDistance"))
+                renderCoordinator->setCharacterCullDistance(cmd.params.value("cullDistance", 400.0f));
+            response = {
+                {"success", true},
+                {"capacity", renderCoordinator->getCharacterInstanceCapacity()},
+                {"cull_distance", renderCoordinator->getCharacterCullDistance()},
+            };
+        }
+        return true;
+
     } else if (action == "set_grass") {
         // Runtime grass knobs / on-off toggle (grass blade layer). Any field may be omitted;
         // negative numeric values leave a field unchanged. Used for live FPS A/B + tuning.
@@ -7864,6 +7883,17 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
+                // Character culling/batching (docs/CharacterPipelineScaling.md Tier 1).
+                {"characters", {
+                    {"considered",    renderCoordinator->getCharacterRenderStats().considered},
+                    {"drawn_main",    renderCoordinator->getCharacterRenderStats().drawnMain},
+                    {"drawn_shadow",  renderCoordinator->getCharacterRenderStats().drawnShadow},
+                    {"culled",        renderCoordinator->getCharacterRenderStats().culled},
+                    {"dropped",       renderCoordinator->getCharacterRenderStats().dropped},
+                    {"parts_batched", renderCoordinator->getCharacterRenderStats().partsBatched},
+                    {"capacity",      renderCoordinator->getCharacterInstanceCapacity()},
+                    {"cull_distance", renderCoordinator->getCharacterCullDistance()},
+                }},
                 // Phase 4.4 gate metric: live/peak chunk GPU allocations (GpuAllocStats).
                 {"gpu_chunk_allocs_live",    Graphics::gpualloc::live().load()},
                 {"gpu_chunk_allocs_peak",    Graphics::gpualloc::peak().load()},
