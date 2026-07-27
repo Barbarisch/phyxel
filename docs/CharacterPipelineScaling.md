@@ -1,271 +1,171 @@
-# Character Pipeline Scaling — architecture review (2026-07-27)
+# Character Pipeline Scaling
 
-Goal: rich worlds with **many simultaneous characters**. This is a step-back audit of the
-whole path a character takes from `.anim` file to pixels, written after the
-`kCharacterInstanceCapacity` bug (see [[reference_character_instance_buffer]] / commit notes)
-showed the pipeline had a silent hard ceiling.
+Goal: rich worlds with **many simultaneous characters** (target: thousands). This documents
+the audit, everything shipped, and — importantly — the measurements that repeatedly
+overturned the plan.
 
-**Status: findings + proposal. Nothing here is implemented yet** beyond the capacity fix.
+**Status 2026-07-27:** Tier 0, Tier 1, P2.2, P2.3 and the CPU-batching work are shipped.
+At 1024 characters: **82.74 ms → 35.61 ms while going from 256 to 1024 characters drawn**
+(~9x better per-character throughput).
 
 ---
 
-## 1. How a character reaches the screen today
+## 1. How a character reaches the screen
 
 ```
-.anim MODEL section  ──> RagdollPart[]        (one part per authored Box, 1.1k-4.7k per rig)
+.anim MODEL section  ──> RagdollPart[]        (1.1k-4.7k per rig)
                               │
-AnimatedVoxelCharacter::update│  animation sample -> bone globalTransform
-                              │  per bone-GROUP: write worldPos/worldRot to member parts
+AnimatedVoxelCharacter::update│  update-LOD gate (distance tiers + per-frame tick budget)
+                              │  animation sample -> bone globalTransform
+                              │  per bone-GROUP: write worldPos/worldRot
                               ▼
-RenderCoordinator::batchParts │  (run TWICE per frame: shadow pass + main pass)
-                              │  for EVERY character in the world, no visibility test
+RenderCoordinator::buildCharacterFrameData   ONCE per frame, before the shadow pass
+                              │  frustum + distance cull (camera AND light frusta)
+                              │  sort nearest-first
+                              │  pick part-count LOD by distance
+                              │  bulk-copy the CACHED per-character instance blob
+                              │  append ~20 bone matrices per character
                               ▼
-   std::vector<CharacterInstanceData>  (40 B per part)
-                              │  memcpy -> single shared host-visible buffer
-                              ▼
-   one vkCmdDraw(36 verts, instanceCount, firstInstance) PER BONE GROUP PER CHARACTER
+   one shared instance buffer + bone-transform SSBO, uploaded once
+                              │
+   main pass:   ONE vkCmdDraw per character (instance carries a local bone index,
+                                             draw supplies boneBase)
+   shadow pass: one draw per bone group (not yet collapsed — see P2.2b)
 ```
 
-Key structural facts:
-- **One shared instance buffer** for every character in the scene, sized in *parts*.
-- **One draw call per bone group per character** (~37-42 groups for the imported rigs).
-- **Each part is a full 36-vertex cube** — 12 triangles, all 6 faces, always.
+Key invariant that makes the caching work: **a part's offset/scale/color never change.**
+Animation writes only `worldPos`/`worldRot`. So the instance payload is static per character
+and is cached against `RagdollCharacter::partsVersion()`.
 
-## 2. Measured cost (the 27-creature demo scene)
+## 2. Measurement log
 
-Counts are derived from the shipped `.anim` library and the draw code, not estimated:
+Every conclusion here was reached by A/B measurement, and three of them reversed an earlier
+one. Read this section before optimizing anything in this pipeline.
 
-| Metric | 27-creature scene | 100 dense creatures |
+### 2a. n=100, Debug vs Release — **Debug lies**
+
+100 humanoid NPCs, identical camera, `cull_distance` used to toggle rendering only:
+
+| Scene | **Release** | Debug |
 |---|---|---|
-| Parts (instances) | 62,378 | ~350,000 |
-| Triangles (12/part) | ~749,000 | ~4.2 M |
-| Draw calls / pass | 976 | ~4,200 |
-| Draw calls / frame (2 passes) | 1,952 | ~8,400 |
-| Instance upload / pass | 2.50 MB | 14.0 MB |
-| Instance upload / frame | 5.0 MB (uploaded twice, identical) | 28 MB |
+| 100 rendered | 139 FPS | 8 FPS |
+| 100 render-culled (still simulating) | 403 FPS | 8 FPS |
+| 0 NPCs | 393 FPS | 20 FPS |
 
-Observed: ~10 FPS with 27 creatures on screen in a **Debug** build (17 monsters alone: 41-51).
+Release: rendering is ~4.7 ms, ~65% of frame; simulation is free. **Debug says the exact
+opposite** — culling all 100 changes nothing while deleting them doubles the frame rate —
+because MSVC Debug inflates the per-part CPU loops until they swamp a dominant GPU cost.
 
-Per-rig part counts for scale: `monster_mushroomking` 4,667 · `monster_alien` 3,602 ·
-`monster_orc` 3,500 · **`humanoid.anim` 1,116** · `ogre.anim` 1,119.
+> **Never prioritize performance work from Debug numbers.**
 
-## 2b. Tier 0 measurement — render dominates, and Debug lies
+### 2b. n=100 — draw calls are not the cost
 
-Run after Tier 1 landed, CharacterTestbed, 100 humanoid NPCs (102,400 parts), identical camera
-in every row. `cull_distance` switches character *rendering* on and off while leaving the
-simulation running, which isolates render cost from update cost:
+Per-pass GPU scopes proved unreliable here (the "Characters" scope varied 1.29–2.57 ms
+across consecutive samples; overlapping GPU work is attributed erratically). Frame-time A/B
+is the ground truth.
 
-| Scene | drawn (main/shadow) | parts uploaded | **Release** | Debug |
-|---|---|---|---|---|
-| 100 NPCs, all rendered | 100 / 100 | 102,400 | **139 FPS** (7.19 ms) | 8 FPS |
-| 100 NPCs, render-culled (still simulating) | 0 / 0 | 0 | **403 FPS** (2.48 ms) | 8 FPS |
-| 0 NPCs (entities cleared) | 0 / 0 | 0 | **393 FPS** (2.54 ms) | 20 FPS |
+P2.2 collapsed main-pass draws **2,000 → 100** and changed frame time by **nothing**
+(7.09 → 7.15 ms, 30-sample medians). The earlier "~1.05 µs/draw" estimate was
+*pass-cost ÷ draw-count*, which silently charges all geometry work to submission.
 
-**In Release:** rendering 100 characters costs **~4.7 ms — about 65% of the frame**. Their
-simulation costs nothing measurable (403 vs 393 FPS is noise, and the "empty" row is
-fractionally *lower*, which is pure jitter). So the render pass is the bottleneck and **F2/F3
-are the right targets** — Tier 2 is confirmed, not speculative.
+> **Don't compute µs-per-draw as pass-cost ÷ draw-count.**
 
-**In Debug the same experiment says the exact opposite**: culling all 100 characters changed
-nothing (8 → 8 FPS) while deleting them doubled the frame rate (8 → 20). MSVC Debug inflates
-the tight per-part CPU loops so severely that they swamp a GPU cost that is actually dominant.
+### 2c. n=1024 — the picture inverts again
 
-> **Standing lesson: never prioritize performance work from Debug numbers.** This review was
-> nearly re-ordered around a conclusion that was purely a Debug artifact — Tier 3 was promoted
-> over Tier 2 on the strength of the Debug column before the Release run corrected it.
+| Scene | frame |
+|---|---|
+| 1024 NPCs, 256 rendered | 82.74 ms |
+| 1024 NPCs, all render-culled | 44.36 ms |
+| empty baseline | ~2.5 ms |
 
-## 2c. Second measurement pass — where the 4.5 ms actually is
+At n=1024 the frame is **CPU-bound on character simulation**, and GPU render work hides
+underneath: drawing 256 characters vs drawing none moved the frame by roughly nothing. At
+n=100 rendering was 65% of the frame; at n=1024 it is effectively free.
 
-Added a shadow-character toggle (`{"shadows":false}`) and a CPU timer around
-`buildCharacterFrameData` (`build_ms` in `/api/render/stats`). Release, 100 NPCs, same camera.
+> **Re-measure at your target scale.** Bottleneck order at n=100 and n=1024 are opposite.
 
-**CPU batching was 4.3 ms and was NOT the bottleneck.** `build_ms` measured **4.327 ms** — as
-large as the entire character cost, which looked damning. Two fixes took it to **1.697 ms**
-(−61%):
-- the per-part instance vector `reserve(4096)` while pushing **102,400** entries — ~5
-  reallocations and multi-MB copies every frame. Now reused across frames and reserved to a
-  running high-water mark.
-- a pre-count pass over the parts array to size each character's slice. `RagdollPart` is fat
-  (~112 B — it carries a `std::string`), so that sweep alone touched ~11 MB/frame at 100
-  characters. Replaced with optimistic batching + rollback on overrun.
+### 2d. Instrumented breakdown at n=1024
 
-**But frame time did not move: 139 → 141 FPS.** Removing 2.6 ms of CPU changed nothing, which
-proves the build was never on the critical path — it overlaps with GPU work. The optimization
-is still worth keeping (it is real CPU headroom for when the frame *is* CPU-bound), but it is
-not a frame-rate win, and saying otherwise would be false.
+`npc_update` in `/api/render/stats` splits it. Before the fixes:
 
-**The cost is GPU draw work, split roughly evenly between the two passes:**
+| | |
+|---|---|
+| separation (was O(n²)) | ~8 ms |
+| NPC update | 29.7 ms |
+| **full character ticks** | **613 of 1024** |
+| batching (`build_ms`) | 14.1 ms |
 
-| Config | FPS | frame | delta |
-|---|---|---|---|
-| 100 rendered, shadows on | 141 | 7.09 ms | — |
-| 100 rendered, character shadows off | 200 | 5.00 ms | shadows = **2.09 ms** |
-| 100 render-culled | 392 | 2.55 ms | total characters = **4.54 ms** |
+613/1024 full ticks despite the update-LOD existing. Cause: **LOD periods are wall-clock**,
+so with a 46 ms frame the 15 Hz far tier (66 ms) only skipped every other frame. The LOD
+stops deferring exactly when it is needed — a feedback trap. Distance tiers alone cannot
+bound cost; only a per-frame budget can.
 
-So main-pass characters ≈ 2.4 ms, shadow-pass characters ≈ 2.1 ms, `build_ms` ≈ 0 effect.
+### 2e. Noise floor
 
-> An earlier run of the shadow toggle showed *no* gain (139 → 135 FPS). That was on the
-> pre-optimization build, where the 4.3 ms CPU batch masked the GPU saving. Fixing the CPU cost
-> is what made the GPU cost measurable — worth remembering when a toggle "does nothing".
+FPS here jitters **±12%**. A single reading made the P2.2 change look like 141 → 154 FPS
+(pure noise). **Every number in this document is a ≥25-sample median** from
+`GET /api/debug/engine_timing`.
 
-**This tells us which Tier 2 item to build.** The shadow pass is depth-only — no shading — yet
-it costs nearly as much as the shaded main pass. So fragment shading is *not* the bottleneck;
-vertex/draw-call overhead is. At 2,000 draws and ~615k triangles per pass that is ~1.05 µs per
-draw, which is squarely driver draw-call overhead.
+## 3. What shipped
 
-→ **P2.2 (bone-transform SSBO, 2,000 draws/pass → 100) is the highest-leverage change**, ahead
-of P2.1 face masking. P2.2 also needs no asset-pipeline work, where face masking needs a bake
-step. Do P2.2 first, re-measure, then decide whether P2.1 is still worth it.
+| Item | Effect |
+|---|---|
+| **Instance-buffer capacity fix** | Characters past a 10k-part cap drew from stale memory and silently vanished; the one straddling it half-drew (which is what made a healthy `deer.anim` look corrupt). 10k → 262144, all-or-nothing per character, warnings on drop. The old cap held only **8 humanoids**, so settlements were already losing villagers. |
+| **Frustum + distance culling** | Camera and light frusta tested *separately* — an off-screen character still casts into view. |
+| **Nearest-first batching** | Budget overruns now drop the *far* characters, not whatever the NPC map iterated last. |
+| **One build + upload per frame** | Shared by shadow, main and mirror passes; each used to rebuild and re-upload identical bytes. |
+| **P2.2 bone-transform SSBO** | Main pass 2,000 → 100 draws. **No frame-time gain** — kept as structural headroom (draws now scale with characters, not characters × bone groups). |
+| **Spatial hash for NPC separation** | O(n²) → O(n). 44.36 → 36.54 ms sim-only at n=1024; now 0.6 ms. |
+| **Stop batching doomed characters** | Optimistic batch-then-rollback made every dropped character pay full price. `build_ms` 14.09 → 5.09 at n=1024. |
+| **Update-LOD tiers + tick budget** | >120u = 6 Hz, >220u = 2 Hz, plus a per-frame full-tick budget (default 256) with a 0.5 s staleness escape so nothing starves. NPC update 29.66 → 12.10 ms; full ticks 613 → 270. |
+| **P2.3 part-count LOD** | Removed the hard 256-character wall. Drawn 256 → 1028, dropped 768 → 0, **0.120 → 0.036 ms per drawn character**. |
+| **Cached instance blob** | The static payload is no longer re-gathered from the 112-byte-stride part array each frame. `build_ms` 9.49 → 7.36. |
 
-## 3. Findings
+### Runtime knobs
+`POST /api/debug/characters` — `capacity`, `cullDistance`, `shadows`, `updateBudget`,
+`lod1`, `lod2`. Counters in `/api/render/stats` under `characters` and `npc_update`.
 
-### F1 — No visibility culling for characters at all *(highest value / lowest effort)*
-`batchParts` iterates every character the NPCManager knows about, with no frustum test and no
-max-distance test, in both the shadow and main passes. A character behind the camera or 500
-units away costs exactly as much as one filling the screen.
-A `Utils::Frustum` with `intersects(center, radius)` **already exists** and is used for chunks.
+## 4. What's left
 
-### F2 — Character parts are never face-culled *(largest GPU cost)*
-Every part issues `vkCmdDraw(36, ...)` — a full cube. World voxels *are* hidden-face culled
-(that work took a furnished tavern 412k→55k faces); characters never got the equivalent. For a
-surface-shell rig most parts expose 1-2 faces, not 6, so a large majority of those ~749k
-triangles are interior geometry that can never be seen. This is the most likely reason the
-scene is GPU-bound.
+1. **Persistent per-character GPU allocations.** The remaining 7.36 ms of `build_ms` is
+   mostly unavoidable traffic in the current design: ~8 MB instance copy + ~8 MB upload +
+   ~20k bone-matrix builds + ~20k batch records per frame. Since a character's payload is
+   static, an unchanged character should not be re-uploaded at all. This is the change that
+   would collapse `build_ms` rather than trim it.
+2. **P2.1 per-part face masking.** Measured potential across four rigs: average **2.4–3.2
+   of 6 faces exposed**, i.e. **1.9–2.5x** vertex reduction (not the 3x originally
+   assumed — thin features like fingers, tails and ears expose most of their faces, and a
+   quarter of parts expose 4+). Mask must use **same-bone-group neighbours only**;
+   cross-group adjacency is animation-dependent. Two refinements evaluated:
+   dropping faces into sealed interior cavities gains ~0-1% (the per-group shells are open
+   at their seams, so flood fill leaks in — no sealed cavities exist); cross-group masking
+   would add 12–41% but is unsafe.
+   Only worth doing once the frame is not CPU-bound.
+3. **P2.2b — collapse the shadow pass.** Still one draw per bone group. Needs its own
+   bone-only descriptor set: its pipeline has no descriptor sets, and handing it the shared
+   one would bind the shadow map as a sampler while rendering into it. Low priority, since
+   draws are known not to be the bottleneck.
+4. **Per-tick cost of a full character update.** 270 full ticks now cost ~12 ms. The budget
+   bounds it; making each tick cheaper is the next lever.
+5. **LOD warm-up.** The first frame a crowd appears pays a one-time LOD build per character
+   (cached after). Not measured as a hitch, but worth a warmup pass before a crowd streams in.
+6. **Import-side part budget.** 4,667 parts for one creature is what sets the whole problem;
+   nothing caps or decimates at import.
 
-### F3 — Draw call per bone group per character
-976 draws/pass at 27 creatures, ~4,200 at 100. The bone transform is passed via push constants,
-which is *why* the draw has to be split per bone group.
+## 5. Method notes (earned the hard way)
 
-### F4 — The instance buffer is fully re-uploaded twice per frame with identical bytes
-The shadow pass and main pass each rebuild and memcpy the same 2.5 MB. The code comment already
-admits the second upload is redundant ("byte-identical data ... the redundant memcpy is harmless").
+- Never prioritize from **Debug** numbers — they inverted the answer.
+- Never conclude from a **single FPS reading** — ±12% noise.
+- **Re-measure at target scale** — n=100 and n=1024 have opposite bottlenecks.
+- **GPU timestamp scopes here are unreliable** (overlap). Trust frame-time A/B.
+- A perf toggle that appears to **do nothing may be masked** by another cost — the shadow
+  toggle showed zero gain until the CPU batching fix exposed the GPU saving.
+- **"Cache it" is not a win until measured.** The first version of the blob cache measured
+  9.48 ms — no improvement — because it reintroduced an O(parts) scan, used
+  `resize()`+`memcpy` (value-initializing 186k elements before overwriting them), and built
+  an `unordered_map` per character. Only after removing all three did the number move.
 
-### F5 — The budget is a compile-time constant, and overflow degrades arbitrarily
-`kCharacterInstanceCapacity` is fixed at build time; a project cannot tune it. When it *is*
-exceeded, which characters get dropped depends on NPC iteration order, not camera distance —
-so the creature in front of you can vanish while one behind you renders.
-
-### F6 — The old ceiling was ~8 humanoids, so this was never creature-specific ⚠️
-`humanoid.anim` is 1,116 parts, so the old 10,000-part cap held **8 characters**; the 9th would
-be truncated mid-character (partially drawn — a "melted" villager) and the 10th onward invisible.
-
-That threshold is well inside normal settlement populations: `ResidentPlanner` plans **one
-resident per Home/Work/Tavern location**, so a town's NPC count tracks its building count, and
-`NPCManager`'s own comment cites a measured "village ≈ 14". A 14-resident village would have
-rendered roughly 8 residents, 1 mangled, and ~5 not at all — regardless of camera, since
-nothing culls. Sample game definitions ship only 1-4 NPCs, which is likely why this went
-unnoticed for so long.
-
-*Arithmetic and code path are certain; no pre-fix in-engine repro was run to watch it happen.
-Cheap to confirm — see P0.2.*
-
-### F7 — No render LOD
-A 4,667-part creature 300 units away still draws all 4,667 microcubes, each far below a pixel.
-There is no decimated representation and no impostor.
-
-### F8 — Simulation side is in better shape, with two gaps
-An update-LOD already exists and is good: beyond 30u characters tick at 30 Hz, beyond 60u at
-15 Hz, with per-instance jitter so they stagger. Gaps: (a) `NPCManager::update` runs an
-**O(n²)** XZ separation pass over all NPCs every frame — the comment flags this ("revisit with
-a spatial grid before city-scale populations"); (b) there is no far-distance sleep and no
-per-frame budget on full updates.
-
-### F9 — No part budget at import
-Nothing in the import pipeline caps or decimates part count. 4,667 parts for one creature is
-what sets the whole scaling problem; the renderer is just paying for it downstream.
-
-### F10 — Characters are not GPU-profiled
-`GpuProfiler` has only `STATS_SLOT_STATIC` and `STATS_SLOT_SHADOW`. There is no character slot,
-so GPU time currently cannot be attributed to this pass.
-
----
-
-## 4. Proposal
-
-### Tier 0 — measure first (do before Tier 2)
-- **P0.1** Add `STATS_SLOT_CHARACTER` to `GpuProfiler` (F10). Without it, Tier 2 is guesswork.
-- **P0.2** Verify F6 by spawning 14 humanoid NPCs on the *pre-fix* binary and counting rendered
-  bodies. Confirms whether this silently degraded shipped villages.
-
-### Tier 1 — cheap, immediate, low risk
-- **P1.1** *(F1)* Frustum + max-distance cull before batching, both passes (shadow culls against
-  the light frustum, not the camera). Reuses `Utils::Frustum`. Expect most scenes to drop a large
-  fraction of batched characters outright.
-- **P1.2** *(F5)* Sort candidates by camera distance and batch nearest-first, so budget
-  exhaustion degrades gracefully instead of arbitrarily.
-- **P1.3** *(F5)* Move the capacity to `EngineConfig`/`game.json` with the constant as default.
-- **P1.4** *(F4)* Build the instance data once per frame and reuse it for both passes.
-
-Together these are mostly mechanical and should land in one change set.
-
-### Tier 2 — the real scaling work
-- **P2.1** *(F2)* **Per-part face masking.** Bake a 6-bit exposed-face mask per part at import and
-  draw only exposed faces. This is the single biggest GPU win and mirrors what world voxels
-  already do. Requires an instance-format change plus a shader change — the kinematic pipeline's
-  per-face instance layout (`KinematicFaceData`) is the existing precedent to copy.
-- **P2.2** *(F3)* Move bone transforms into an SSBO indexed per instance, collapsing the per-bone-group
-  draws into **one draw per character** (or one for all characters). 976 draws → ~27.
-- **P2.3** *(F7)* Baked LOD chain per rig (microcube → subcube → cube merge), selected by
-  screen-space size, with an impostor beyond the last level.
-
-### Tier 3 — simulation at population scale
-- **P3.1** *(F8a)* Replace the O(n²) separation with a spatial hash.
-- **P3.2** *(F8b)* Far-distance sleep + a per-frame budget of full updates, round-robin.
-- **P3.3** *(F9)* Part-count budget/decimation at import, with a warning when a rig exceeds it.
-
-## 2d. P2.2 shipped — 20x fewer draws, and **no frame-time gain**
-
-Bone transforms moved into an SSBO (descriptor set 0, binding 8); each instance carries a
-`boneIndex`, so the main pass draws a whole character in one call instead of one per bone
-group. Verified: **main-pass draws 2,000 → 100** at 100 characters, renders identically, zero
-Vulkan validation errors (`PHYXEL_VALIDATION=1`).
-
-Frame time, 30 samples per config, median (FPS jitters ±12%, so single readings are worthless
-here — an early single-sample read of "141 → 154 FPS" looked like a win and was pure noise):
-
-| | frame | character cost |
-|---|---|---|
-| 100 rendered, before P2.2 | 7.09 ms | 4.54 ms |
-| 100 rendered, after P2.2 | 7.15 ms | **4.74 ms** |
-| 100 culled | 2.41 ms | — |
-
-**Unchanged.** Removing 1,900 draw calls per frame bought nothing measurable.
-
-So the §2c inference was wrong: ~1.05 µs/draw was computed as *pass cost ÷ draw count*, which
-silently attributes all the geometry work to draw submission. The main pass is **geometry /
-raster bound, not draw-call bound** — 102,400 parts × 36 vertices = ~3.7M vertices per pass.
-
-**P2.2 is kept anyway, but honestly labelled:** it is structural headroom, not a speedup. Draws
-previously scaled with characters × bone groups (1,000 characters would have meant ~20,000
-draws/pass); now they scale with characters alone. No regression, correctness verified.
-
-**→ P2.1 face masking is back to being the right next step**, which is where F2 originally
-pointed. Cutting each part from 6 faces to its ~1-2 exposed ones is a direct ~3x cut in the
-vertex/triangle load that this measurement just identified as the actual cost.
-
-### Sequencing (after §2b, §2c and §2d)
-Tier 0, Tier 1, the CPU-batching fixes and P2.2 are **done**. Remaining, in measured order:
-
-1. **P2.1 — per-part face masking.** Confirmed by §2d as the actual cost: the pass is
-   geometry-bound at ~3.7M vertices. Bake a 6-bit exposed-face mask per part (same-bone-group
-   neighbours only — cross-group occlusion is animation-dependent and must stay conservative)
-   and draw only exposed faces. Expect ~3x vertex reduction.
-2. **P2.3 LOD / impostors** for large crowds — the other lever on vertex count.
-3. **P2.2b — collapse the shadow pass too.** Still 2,000 draws/pass. Needs its own bone-only
-   descriptor set: its pipeline has no descriptor sets, and handing it the shared set would
-   bind the shadow map as a sampler while rendering into it. Low priority now that draws are
-   known not to be the bottleneck.
-4. **Tier 3 when populations grow.** Character simulation is free in Release at n=100, so the
-   spatial hash and update budget are not urgent — but `NPCManager`'s separation is O(n²) and
-   will not stay free; re-measure at n≈500.
-
-### Method note
-Three of this document's conclusions were overturned by measurement (Debug→Release,
-CPU→GPU, draw-calls→geometry). Two rules earned the hard way: **never prioritize from Debug
-numbers**, and **never conclude from a single FPS reading** — frame rate here jitters ±12%, so
-every claim above uses 30-sample medians.
-
-## 5. Relationship to existing work
-- The sub/micro **greedy-meshing** item (`docs/RenderOptimization.md` #40) is the world-voxel
-  sibling of P2.1 — same class of problem, different pipeline. Worth designing together.
-- `docs/LargeWorldScalePlan.md` covers world streaming scale; this doc is the character-count axis.
+## 6. Relationship to existing work
+- Sub/micro **greedy meshing** (`docs/RenderOptimization.md` #40) is the world-voxel sibling
+  of P2.1 — same class of problem, different pipeline.
+- `docs/LargeWorldScalePlan.md` covers world streaming scale; this is the character-count axis.
