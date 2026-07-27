@@ -336,7 +336,22 @@ private:
         glm::vec4 bakedLight{1.0f};
         int       charIndex = -1;   ///< index into m_charVisibleMain / m_charVisibleShadow
     };
-    std::vector<CharacterBatch> m_charBatches;
+    std::vector<CharacterBatch> m_charBatches;   ///< per BONE GROUP — shadow pass
+
+    /// Per CHARACTER — main pass. All of a character's parts are contiguous in the
+    /// instance buffer and each carries its own bone index, so the whole character is
+    /// one draw. The shadow pass still needs the per-group list above: its pipeline has
+    /// no descriptor sets, and giving it the shared set would bind the shadow map as a
+    /// sampler while rendering into it. Collapsing the shadow pass needs its own
+    /// bone-only descriptor set — a follow-up (CharacterPipelineScaling P2.2b).
+    struct CharacterDraw {
+        uint32_t  firstInstance = 0;
+        uint32_t  instanceCount = 0;
+        glm::vec4 bakedLight{1.0f};
+        int       charIndex = -1;
+    };
+    std::vector<CharacterDraw> m_charDrawsMain;
+    std::vector<glm::mat4>     m_charBoneTransforms;
     std::vector<uint8_t> m_charVisibleMain;    ///< per character: in the camera frustum
     std::vector<uint8_t> m_charVisibleShadow;  ///< per character: in the light frustum
     CharacterRenderStats m_charStats;

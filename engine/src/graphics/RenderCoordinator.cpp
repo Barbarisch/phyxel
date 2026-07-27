@@ -2083,6 +2083,8 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     } buildTimer{buildStart, m_charStats.buildMs};
 
     m_charBatches.clear();
+    m_charDrawsMain.clear();
+    m_charBoneTransforms.clear();
     m_charVisibleMain.clear();
     m_charVisibleShadow.clear();
     m_charStats = CharacterRenderStats{};
@@ -2202,6 +2204,8 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             }
         }
 
+        const size_t boneMark = m_charBoneTransforms.size();
+
         for (const auto& grp : ch->getPartGroups()) {
             if (grp.partIndices.empty()) continue;
             const auto& first = charParts[grp.partIndices[0]];
@@ -2216,30 +2220,53 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             batch.firstInstance = static_cast<uint32_t>(instanceData.size());
             batch.instanceCount = 0;
             batch.charIndex     = static_cast<int>(ci);
+
+            // Every instance in this group indexes the same matrix in the bone SSBO.
+            const uint32_t boneIndex = static_cast<uint32_t>(m_charBoneTransforms.size());
+            m_charBoneTransforms.push_back(batch.model);
+
             for (int pi : grp.partIndices) {
                 const auto& part = charParts[pi];
                 if (!part.active) continue;
                 CharacterInstanceData data;
-                data.offset = part.offset;
-                data.scale  = part.scale;
-                data.color  = part.color;
+                data.offset    = part.offset;
+                data.scale     = part.scale;
+                data.color     = part.color;
+                data.boneIndex = boneIndex;
                 instanceData.push_back(data);
                 batch.instanceCount++;
             }
             if (batch.instanceCount > 0) m_charBatches.push_back(batch);
+            else m_charBoneTransforms.pop_back();   // empty group claimed no matrix
         }
 
-        if (instanceData.size() > instanceCapacity) {
+        if (instanceData.size() > instanceCapacity ||
+            m_charBoneTransforms.size() > vulkanDevice->getMaxCharacterBones()) {
             instanceData.resize(instanceMark);      // capacity retained, no realloc
             m_charBatches.resize(batchMark);
+            m_charBoneTransforms.resize(boneMark);
             ++m_charStats.dropped;
             continue;
+        }
+
+        // All of this character's parts are contiguous, and each carries its own bone
+        // index — so the main pass draws the whole character in one call.
+        const uint32_t charInstances =
+            static_cast<uint32_t>(instanceData.size() - instanceMark);
+        if (charInstances > 0) {
+            CharacterDraw draw;
+            draw.firstInstance = static_cast<uint32_t>(instanceMark);
+            draw.instanceCount = charInstances;
+            draw.bakedLight    = charLight;
+            draw.charIndex     = static_cast<int>(ci);
+            m_charDrawsMain.push_back(draw);
         }
 
         const uint32_t groupsAdded = static_cast<uint32_t>(m_charBatches.size() - batchMark);
         m_charVisibleMain[ci]   = candidates[ci].mainVisible   ? 1 : 0;
         m_charVisibleShadow[ci] = candidates[ci].shadowVisible ? 1 : 0;
-        if (candidates[ci].mainVisible)   { ++m_charStats.drawnMain;   m_charStats.drawCallsMain   += groupsAdded; }
+        // Main pass = 1 draw per character; shadow pass is still 1 per bone group.
+        if (candidates[ci].mainVisible)   { ++m_charStats.drawnMain;   m_charStats.drawCallsMain   += 1; }
         if (candidates[ci].shadowVisible) { ++m_charStats.drawnShadow; m_charStats.drawCallsShadow += groupsAdded; }
     }
 
@@ -2261,29 +2288,35 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     // ONE upload per frame, shared by the shadow pass, the main pass and the mirror
     // pass. Each pass previously rebuilt and re-uploaded byte-identical data.
     vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+    vulkanDevice->updateCharacterBoneBuffer(m_charBoneTransforms);
 }
 
 void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
         const glm::mat4& viewProj, VkPipeline pipeline, CharacterPassVisibility visibility) {
-    if (m_charBatches.empty()) return;
+    if (m_charDrawsMain.empty()) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
-    for (const auto& batch : m_charBatches) {
+    // One draw per CHARACTER — each instance looks its own bone matrix up in the SSBO,
+    // so the ~20 per-bone-group draws this used to emit collapse into one. PushConsts
+    // still carries `model` purely to keep the pipeline layout (shared with the shadow
+    // pipeline's push range) unchanged; the shader ignores it.
+    struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
+    pushConsts.model = glm::mat4(1.0f);
+    pushConsts.viewProj = viewProj;
+
+    for (const auto& draw : m_charDrawsMain) {
         // The mirror pass reflects an arbitrary view, so it takes everything batched
         // (All) rather than re-culling against a third frustum.
         if (visibility == CharacterPassVisibility::Main &&
-            (batch.charIndex < 0 || !m_charVisibleMain[batch.charIndex])) continue;
+            (draw.charIndex < 0 || !m_charVisibleMain[draw.charIndex])) continue;
 
-        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
-        pushConsts.model = batch.model;
-        pushConsts.viewProj = viewProj;
-        pushConsts.bakedLight = batch.bakedLight;
+        pushConsts.bakedLight = draw.bakedLight;
         vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
-        vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+        vkCmdDraw(commandBuffer, 36, draw.instanceCount, 0, draw.firstInstance);
     }
 }
 

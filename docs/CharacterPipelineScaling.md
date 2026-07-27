@@ -213,19 +213,57 @@ Together these are mostly mechanical and should land in one change set.
 - **P3.2** *(F8b)* Far-distance sleep + a per-frame budget of full updates, round-robin.
 - **P3.3** *(F9)* Part-count budget/decimation at import, with a warning when a rig exceeds it.
 
-### Sequencing (after §2b and §2c)
-Tier 0, Tier 1 and the CPU-batching fixes are **done**. Remaining, in measured order:
+## 2d. P2.2 shipped — 20x fewer draws, and **no frame-time gain**
 
-1. **P2.2 — bone-transform SSBO**, collapsing the per-bone-group draws into one draw per
-   character (2,000 → 100 per pass, both passes). §2c isolates draw-call overhead as the cost;
-   this is the highest-leverage change and needs no asset-pipeline work.
-2. **Re-measure.** Then decide if **P2.1 face masking** still earns its bake step — the shadow
-   pass being nearly as expensive as the shaded main pass says fragment cost is not the issue,
-   so P2.1's value is only in vertex reduction and may be small after P2.2.
-3. **P2.3 LOD / impostors** for large crowds.
+Bone transforms moved into an SSBO (descriptor set 0, binding 8); each instance carries a
+`boneIndex`, so the main pass draws a whole character in one call instead of one per bone
+group. Verified: **main-pass draws 2,000 → 100** at 100 characters, renders identically, zero
+Vulkan validation errors (`PHYXEL_VALIDATION=1`).
+
+Frame time, 30 samples per config, median (FPS jitters ±12%, so single readings are worthless
+here — an early single-sample read of "141 → 154 FPS" looked like a win and was pure noise):
+
+| | frame | character cost |
+|---|---|---|
+| 100 rendered, before P2.2 | 7.09 ms | 4.54 ms |
+| 100 rendered, after P2.2 | 7.15 ms | **4.74 ms** |
+| 100 culled | 2.41 ms | — |
+
+**Unchanged.** Removing 1,900 draw calls per frame bought nothing measurable.
+
+So the §2c inference was wrong: ~1.05 µs/draw was computed as *pass cost ÷ draw count*, which
+silently attributes all the geometry work to draw submission. The main pass is **geometry /
+raster bound, not draw-call bound** — 102,400 parts × 36 vertices = ~3.7M vertices per pass.
+
+**P2.2 is kept anyway, but honestly labelled:** it is structural headroom, not a speedup. Draws
+previously scaled with characters × bone groups (1,000 characters would have meant ~20,000
+draws/pass); now they scale with characters alone. No regression, correctness verified.
+
+**→ P2.1 face masking is back to being the right next step**, which is where F2 originally
+pointed. Cutting each part from 6 faces to its ~1-2 exposed ones is a direct ~3x cut in the
+vertex/triangle load that this measurement just identified as the actual cost.
+
+### Sequencing (after §2b, §2c and §2d)
+Tier 0, Tier 1, the CPU-batching fixes and P2.2 are **done**. Remaining, in measured order:
+
+1. **P2.1 — per-part face masking.** Confirmed by §2d as the actual cost: the pass is
+   geometry-bound at ~3.7M vertices. Bake a 6-bit exposed-face mask per part (same-bone-group
+   neighbours only — cross-group occlusion is animation-dependent and must stay conservative)
+   and draw only exposed faces. Expect ~3x vertex reduction.
+2. **P2.3 LOD / impostors** for large crowds — the other lever on vertex count.
+3. **P2.2b — collapse the shadow pass too.** Still 2,000 draws/pass. Needs its own bone-only
+   descriptor set: its pipeline has no descriptor sets, and handing it the shared set would
+   bind the shadow map as a sampler while rendering into it. Low priority now that draws are
+   known not to be the bottleneck.
 4. **Tier 3 when populations grow.** Character simulation is free in Release at n=100, so the
    spatial hash and update budget are not urgent — but `NPCManager`'s separation is O(n²) and
    will not stay free; re-measure at n≈500.
+
+### Method note
+Three of this document's conclusions were overturned by measurement (Debug→Release,
+CPU→GPU, draw-calls→geometry). Two rules earned the hard way: **never prioritize from Debug
+numbers**, and **never conclude from a single FPS reading** — frame rate here jitters ±12%, so
+every claim above uses 30-sample medians.
 
 ## 5. Relationship to existing work
 - The sub/micro **greedy-meshing** item (`docs/RenderOptimization.md` #40) is the world-voxel

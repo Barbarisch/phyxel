@@ -212,6 +212,14 @@ public:
     /// batches to this — a vkCmdDraw with firstInstance past it reads stale memory
     /// and the character silently vanishes (see RenderCoordinator::batchParts).
     uint32_t getMaxCharacterInstances() const { return maxCharacterInstances; }
+
+    // Character bone-transform SSBO (descriptor set 0, binding 8). Holds one model
+    // matrix per bone group so instances can index their own transform, which is what
+    // lets a whole character render in a single draw.
+    bool createCharacterBoneBuffer(uint32_t maxBones);
+    void updateCharacterBoneBuffer(const std::vector<glm::mat4>& bones);
+    void cleanupCharacterBoneBuffer();
+    uint32_t getMaxCharacterBones() const { return maxCharacterBones; }
     
     // Buffer creation helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -421,6 +429,12 @@ private:
     VkDeviceMemory characterInstanceBufferMemory = VK_NULL_HANDLE;
     void* characterInstanceMapped = nullptr;  // persistent map (HOST_COHERENT)
     uint32_t maxCharacterInstances = 0;
+
+    // Character bone-transform SSBO (binding 8)
+    VkBuffer characterBoneBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory characterBoneBufferMemory = VK_NULL_HANDLE;
+    void* characterBoneMapped = nullptr;      // persistent map (HOST_COHERENT)
+    uint32_t maxCharacterBones = 0;
     
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
