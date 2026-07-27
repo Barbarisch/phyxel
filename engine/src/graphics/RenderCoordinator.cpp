@@ -1178,11 +1178,13 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
     // -------------------------------------------------------------------------
-    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()) {
+    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()
+        && m_shadowCharactersEnabled) {
         // Batches + the instance upload come from buildCharacterFrameData(), which ran
         // once before this pass. This used to re-walk every character in the world and
         // re-upload a byte-identical buffer. Draw only the light-frustum subset — note
         // that is NOT the camera subset: an off-screen character can cast into view.
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "Character Shadows");
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           shadowMap->getCharacterShadowPipeline());
         vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
@@ -2070,6 +2072,16 @@ VkSampler RenderCoordinator::getViewportSampler() const {
 
 void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
                                                 const glm::mat4& lightSpaceMatrix) {
+    const auto buildStart = std::chrono::high_resolution_clock::now();
+    struct BuildTimer {
+        std::chrono::high_resolution_clock::time_point t0;
+        double& out;
+        ~BuildTimer() {
+            out = std::chrono::duration<double, std::milli>(
+                      std::chrono::high_resolution_clock::now() - t0).count();
+        }
+    } buildTimer{buildStart, m_charStats.buildMs};
+
     m_charBatches.clear();
     m_charVisibleMain.clear();
     m_charVisibleShadow.clear();
@@ -2146,8 +2158,13 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     m_charVisibleMain.assign(candidates.size(), 0);
     m_charVisibleShadow.assign(candidates.size(), 0);
 
-    std::vector<CharacterInstanceData> instanceData;
-    instanceData.reserve(4096);
+    // Reused across frames and reserved to the running high-water mark. This vector holds
+    // one entry PER PART (100 characters = 102,400), so the old reserve(4096) meant ~5
+    // reallocations and multi-MB copies every single frame.
+    std::vector<CharacterInstanceData>& instanceData = m_charInstanceScratch;
+    instanceData.clear();
+    if (instanceData.capacity() < m_charInstanceHighWater)
+        instanceData.reserve(m_charInstanceHighWater);
 
     // A batch whose firstInstance lands past the buffer draws from stale memory, so the
     // whole character vanishes with no error anywhere. Reserve each character's slice
@@ -2162,12 +2179,14 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
         Scene::RagdollCharacter* ch = candidates[ci].ch;
         const auto& charParts = ch->getParts();
 
-        uint32_t activeParts = 0;
-        for (const auto& p : charParts) if (p.active) ++activeParts;
-        if (static_cast<uint64_t>(instanceData.size()) + activeParts > instanceCapacity) {
-            ++m_charStats.dropped;
-            continue;
-        }
+        // Batch optimistically, then roll back if this character overran the budget.
+        // The obvious alternative — pre-counting active parts — costs a second full
+        // sweep of the parts array, and RagdollPart is fat (~112 B, it carries a
+        // std::string), so that sweep alone touched ~11 MB per frame at 100 characters.
+        // Overruns are rare, so paying for one wasted character beats paying for a
+        // second pass over every character every frame.
+        const size_t instanceMark = instanceData.size();
+        const size_t batchMark    = m_charBatches.size();
 
         // Sample the baked light field ONCE per character (uniform across limbs — avoids
         // per-bone popping and sampling floor solids). Use a torso-height point ~1 cube
@@ -2210,10 +2229,18 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             if (batch.instanceCount > 0) m_charBatches.push_back(batch);
         }
 
+        if (instanceData.size() > instanceCapacity) {
+            instanceData.resize(instanceMark);      // capacity retained, no realloc
+            m_charBatches.resize(batchMark);
+            ++m_charStats.dropped;
+            continue;
+        }
+
+        const uint32_t groupsAdded = static_cast<uint32_t>(m_charBatches.size() - batchMark);
         m_charVisibleMain[ci]   = candidates[ci].mainVisible   ? 1 : 0;
         m_charVisibleShadow[ci] = candidates[ci].shadowVisible ? 1 : 0;
-        if (candidates[ci].mainVisible)   ++m_charStats.drawnMain;
-        if (candidates[ci].shadowVisible) ++m_charStats.drawnShadow;
+        if (candidates[ci].mainVisible)   { ++m_charStats.drawnMain;   m_charStats.drawCallsMain   += groupsAdded; }
+        if (candidates[ci].shadowVisible) { ++m_charStats.drawnShadow; m_charStats.drawCallsShadow += groupsAdded; }
     }
 
     if (m_charStats.dropped > 0) {
@@ -2229,6 +2256,7 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     if (instanceData.empty()) return;
 
     m_charStats.partsBatched = static_cast<uint32_t>(instanceData.size());
+    m_charInstanceHighWater  = std::max(m_charInstanceHighWater, instanceData.size());
 
     // ONE upload per frame, shared by the shadow pass, the main pass and the mirror
     // pass. Each pass previously rebuilt and re-uploaded byte-identical data.
@@ -2278,6 +2306,7 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
     // Instanced characters in the main pass (main camera view-projection).
     const glm::mat4 mainViewProj = cachedProjectionMatrix * cachedViewMatrix;
     {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "Characters");
         gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
         renderInstancedCharacters(commandBuffer, mainViewProj,
                                   renderPipeline->getInstancedCharacterPipeline(),

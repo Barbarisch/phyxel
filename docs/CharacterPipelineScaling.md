@@ -74,11 +74,48 @@ the tight per-part CPU loops so severely that they swamp a GPU cost that is actu
 > nearly re-ordered around a conclusion that was purely a Debug artifact — Tier 3 was promoted
 > over Tier 2 on the strength of the Debug column before the Release run corrected it.
 
-*Not yet measured:* how the 4.7 ms splits between the main pass and the shadow pass. The
-obvious test (turn the camera away, so `drawn_main` → 0 while `drawn_shadow` stays 100) is
-confounded — facing away puts far more terrain and foliage in frame, so the comparison measures
-scene content rather than character cost. A dedicated shadow-character toggle is needed to
-split it, and that split decides whether shadow-pass character LOD is worth building.
+## 2c. Second measurement pass — where the 4.5 ms actually is
+
+Added a shadow-character toggle (`{"shadows":false}`) and a CPU timer around
+`buildCharacterFrameData` (`build_ms` in `/api/render/stats`). Release, 100 NPCs, same camera.
+
+**CPU batching was 4.3 ms and was NOT the bottleneck.** `build_ms` measured **4.327 ms** — as
+large as the entire character cost, which looked damning. Two fixes took it to **1.697 ms**
+(−61%):
+- the per-part instance vector `reserve(4096)` while pushing **102,400** entries — ~5
+  reallocations and multi-MB copies every frame. Now reused across frames and reserved to a
+  running high-water mark.
+- a pre-count pass over the parts array to size each character's slice. `RagdollPart` is fat
+  (~112 B — it carries a `std::string`), so that sweep alone touched ~11 MB/frame at 100
+  characters. Replaced with optimistic batching + rollback on overrun.
+
+**But frame time did not move: 139 → 141 FPS.** Removing 2.6 ms of CPU changed nothing, which
+proves the build was never on the critical path — it overlaps with GPU work. The optimization
+is still worth keeping (it is real CPU headroom for when the frame *is* CPU-bound), but it is
+not a frame-rate win, and saying otherwise would be false.
+
+**The cost is GPU draw work, split roughly evenly between the two passes:**
+
+| Config | FPS | frame | delta |
+|---|---|---|---|
+| 100 rendered, shadows on | 141 | 7.09 ms | — |
+| 100 rendered, character shadows off | 200 | 5.00 ms | shadows = **2.09 ms** |
+| 100 render-culled | 392 | 2.55 ms | total characters = **4.54 ms** |
+
+So main-pass characters ≈ 2.4 ms, shadow-pass characters ≈ 2.1 ms, `build_ms` ≈ 0 effect.
+
+> An earlier run of the shadow toggle showed *no* gain (139 → 135 FPS). That was on the
+> pre-optimization build, where the 4.3 ms CPU batch masked the GPU saving. Fixing the CPU cost
+> is what made the GPU cost measurable — worth remembering when a toggle "does nothing".
+
+**This tells us which Tier 2 item to build.** The shadow pass is depth-only — no shading — yet
+it costs nearly as much as the shaded main pass. So fragment shading is *not* the bottleneck;
+vertex/draw-call overhead is. At 2,000 draws and ~615k triangles per pass that is ~1.05 µs per
+draw, which is squarely driver draw-call overhead.
+
+→ **P2.2 (bone-transform SSBO, 2,000 draws/pass → 100) is the highest-leverage change**, ahead
+of P2.1 face masking. P2.2 also needs no asset-pipeline work, where face masking needs a bake
+step. Do P2.2 first, re-measure, then decide whether P2.1 is still worth it.
 
 ## 3. Findings
 
@@ -176,16 +213,19 @@ Together these are mostly mechanical and should land in one change set.
 - **P3.2** *(F8b)* Far-distance sleep + a per-frame budget of full updates, round-robin.
 - **P3.3** *(F9)* Part-count budget/decimation at import, with a warning when a rig exceeds it.
 
-### Sequencing (after the §2b Release measurement)
-Tier 0 and Tier 1 are **done**. The Release numbers confirm the original ranking:
+### Sequencing (after §2b and §2c)
+Tier 0, Tier 1 and the CPU-batching fixes are **done**. Remaining, in measured order:
 
-1. **Split the 4.7 ms between main and shadow pass** (add a shadow-character toggle). Cheap,
-   and it decides whether shadow-pass character LOD is worth building.
-2. **Tier 2, in order: P2.1 face masking → P2.2 bone SSBO → P2.3 LOD.** Confirmed by
-   measurement: character rendering is ~65% of the frame at 100 characters.
-3. **Tier 3 when populations grow.** Character simulation is currently free in Release at
-   n=100, so the spatial hash and update budget are not urgent — but `NPCManager`'s separation
-   is O(n²) and will not stay free; re-measure at n≈500.
+1. **P2.2 — bone-transform SSBO**, collapsing the per-bone-group draws into one draw per
+   character (2,000 → 100 per pass, both passes). §2c isolates draw-call overhead as the cost;
+   this is the highest-leverage change and needs no asset-pipeline work.
+2. **Re-measure.** Then decide if **P2.1 face masking** still earns its bake step — the shadow
+   pass being nearly as expensive as the shaded main pass says fragment cost is not the issue,
+   so P2.1's value is only in vertex reduction and may be small after P2.2.
+3. **P2.3 LOD / impostors** for large crowds.
+4. **Tier 3 when populations grow.** Character simulation is free in Release at n=100, so the
+   spatial hash and update budget are not urgent — but `NPCManager`'s separation is O(n²) and
+   will not stay free; re-measure at n≈500.
 
 ## 5. Relationship to existing work
 - The sub/micro **greedy-meshing** item (`docs/RenderOptimization.md` #40) is the world-voxel

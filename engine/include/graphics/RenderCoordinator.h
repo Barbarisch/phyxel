@@ -102,6 +102,9 @@ public:
         uint32_t culled       = 0;  ///< skipped entirely (neither pass wanted them)
         uint32_t dropped      = 0;  ///< wanted, but did not fit the instance budget
         uint32_t partsBatched = 0;  ///< instances actually uploaded this frame
+        uint32_t drawCallsMain   = 0;  ///< one per bone group per visible character
+        uint32_t drawCallsShadow = 0;
+        double   buildMs = 0.0;     ///< CPU: cull + batch + upload, once per frame
     };
     const CharacterRenderStats& getCharacterRenderStats() const { return m_charStats; }
 
@@ -114,6 +117,12 @@ public:
     /// by default — this is a safety net for huge worlds, not an aesthetic LOD knob.
     void  setCharacterCullDistance(float d) { m_charCullDistance = d; }
     float getCharacterCullDistance() const { return m_charCullDistance; }
+
+    /// Draw characters into the shadow map. Off = characters cast no shadows; exists to
+    /// split the character render cost between the main and shadow passes, which the
+    /// turn-the-camera-away test cannot do (that changes what terrain is in frame too).
+    void setShadowCharactersEnabled(bool e) { m_shadowCharactersEnabled = e; }
+    bool getShadowCharactersEnabled() const { return m_shadowCharactersEnabled; }
 
     RenderCoordinator(
         Vulkan::VulkanDevice* vulkanDevice,
@@ -331,8 +340,13 @@ private:
     std::vector<uint8_t> m_charVisibleMain;    ///< per character: in the camera frustum
     std::vector<uint8_t> m_charVisibleShadow;  ///< per character: in the light frustum
     CharacterRenderStats m_charStats;
+    // Reused across frames so the per-part instance vector is not reallocated every
+    // frame (100 characters = 102,400 entries = ~4 MB).
+    std::vector<CharacterInstanceData> m_charInstanceScratch;
+    size_t   m_charInstanceHighWater = 0;
     uint32_t m_charInstanceCapacity = kCharacterInstanceCapacity;
     float    m_charCullDistance     = 400.0f;
+    bool     m_shadowCharactersEnabled = true;
     // Conservative model-space bound used for the per-character cull sphere. Cheap and
     // O(1): a real per-frame AABB would mean walking every part, which is the work the
     // cull exists to avoid. Oversized on purpose — it can only cull too little.

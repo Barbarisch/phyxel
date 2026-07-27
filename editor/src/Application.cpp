@@ -7756,10 +7756,13 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 renderCoordinator->setCharacterInstanceCapacity(cmd.params.value("capacity", 262144u));
             if (cmd.params.contains("cullDistance"))
                 renderCoordinator->setCharacterCullDistance(cmd.params.value("cullDistance", 400.0f));
+            if (cmd.params.contains("shadows"))
+                renderCoordinator->setShadowCharactersEnabled(cmd.params.value("shadows", true));
             response = {
                 {"success", true},
                 {"capacity", renderCoordinator->getCharacterInstanceCapacity()},
                 {"cull_distance", renderCoordinator->getCharacterCullDistance()},
+                {"shadows", renderCoordinator->getShadowCharactersEnabled()},
             };
         }
         return true;
@@ -7891,6 +7894,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"culled",        renderCoordinator->getCharacterRenderStats().culled},
                     {"dropped",       renderCoordinator->getCharacterRenderStats().dropped},
                     {"parts_batched", renderCoordinator->getCharacterRenderStats().partsBatched},
+                    {"draw_calls_main",   renderCoordinator->getCharacterRenderStats().drawCallsMain},
+                    {"draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
+                    {"build_ms",      renderCoordinator->getCharacterRenderStats().buildMs},
                     {"capacity",      renderCoordinator->getCharacterInstanceCapacity()},
                     {"cull_distance", renderCoordinator->getCharacterCullDistance()},
                 }},
@@ -13267,11 +13273,15 @@ void Application::registerProfilingCommands() {
             };
             pstats = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_STATIC));
             nlohmann::json shadowps = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_SHADOW));
+            nlohmann::json charps = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_CHARACTER));
             // shadow chunk/instance counts (culling-hypothesis test)
             const auto& fs = renderCoordinator->getLastFrameStats();
             r = {{"scopes", arr},
                  {"static_geometry_pipeline_stats", pstats},
                  {"shadow_pipeline_stats", shadowps},
+                 {"character_pipeline_stats", charps},
+                 {"character_draw_calls_main", renderCoordinator->getCharacterRenderStats().drawCallsMain},
+                 {"character_draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
                  {"shadow_chunks_drawn", fs.shadowChunksDrawn},
                  {"shadow_instances_drawn", fs.shadowInstancesDrawn},
                  {"visible_chunks", fs.visibleChunkCount}};
