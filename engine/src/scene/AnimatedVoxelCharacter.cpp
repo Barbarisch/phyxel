@@ -25,6 +25,9 @@ namespace Scene {
     glm::vec3 AnimatedVoxelCharacter::s_viewerPos  = glm::vec3(0.0f);
     bool      AnimatedVoxelCharacter::s_viewerValid = false;
     bool      AnimatedVoxelCharacter::s_lodEnabled  = true;
+    uint32_t  AnimatedVoxelCharacter::s_fullUpdates = 0;
+    uint32_t  AnimatedVoxelCharacter::s_tickBudget = 0;
+    uint32_t  AnimatedVoxelCharacter::s_configuredBudget = 256;
 
     AnimatedVoxelCharacter::AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position)
         : RagdollCharacter(physicsWorld, position), worldPosition(position) {
@@ -3069,19 +3072,29 @@ namespace Scene {
             const glm::vec3 d = worldPosition - s_viewerPos;
             const float distSq = glm::dot(d, d);
             float period = 0.0f;
-            if      (distSq > k_lodFarDistSq) period = k_lodFarPeriod;
-            else if (distSq > k_lodMidDistSq) period = k_lodMidPeriod;
+            if      (distSq > k_lodDistantDistSq) period = k_lodDistantPeriod;
+            else if (distSq > k_lodVeryFarDistSq) period = k_lodVeryFarPeriod;
+            else if (distSq > k_lodFarDistSq)     period = k_lodFarPeriod;
+            else if (distSq > k_lodMidDistSq)     period = k_lodMidPeriod;
             if (period > 0.0f) {
                 // Perturb the period ±20% per instance so co-located characters
                 // tick on different frames (staggered, not synchronized spikes).
                 period *= (0.8f + 0.4f * m_lodJitter);
                 m_lodAccum += deltaTime;
                 if (m_lodAccum < period) return;  // defer this frame
+
+                // Due — but respect the frame's full-tick budget. Staleness is the
+                // escape hatch so an exhausted budget delays a character rather than
+                // starving it indefinitely.
+                if (s_tickBudget == 0 && m_lodAccum < k_lodMaxStaleness) return;
+                if (s_tickBudget > 0) --s_tickBudget;
+
                 deltaTime  = m_lodAccum;          // fold banked time into this tick
                 m_lodAccum = 0.0f;
             }
         }
 
+        ++s_fullUpdates;   // passed the LOD gate — this is a full tick
         m_totalTime += deltaTime;
 
         // --- Derez drain: spawn voxels whose detach time has arrived ---

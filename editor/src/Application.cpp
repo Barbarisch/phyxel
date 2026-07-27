@@ -7758,11 +7758,15 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 renderCoordinator->setCharacterCullDistance(cmd.params.value("cullDistance", 400.0f));
             if (cmd.params.contains("shadows"))
                 renderCoordinator->setShadowCharactersEnabled(cmd.params.value("shadows", true));
+            if (cmd.params.contains("updateBudget"))
+                Scene::AnimatedVoxelCharacter::setUpdateTickBudget(
+                    cmd.params.value("updateBudget", 256u));
             response = {
                 {"success", true},
                 {"capacity", renderCoordinator->getCharacterInstanceCapacity()},
                 {"cull_distance", renderCoordinator->getCharacterCullDistance()},
                 {"shadows", renderCoordinator->getShadowCharactersEnabled()},
+                {"update_budget", Scene::AnimatedVoxelCharacter::getUpdateTickBudget()},
             };
         }
         return true;
@@ -7897,6 +7901,12 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"draw_calls_main",   renderCoordinator->getCharacterRenderStats().drawCallsMain},
                     {"draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
                     {"build_ms",      renderCoordinator->getCharacterRenderStats().buildMs},
+                }},
+                {"npc_update", {
+                    {"npc_count",           npcManager ? npcManager->getUpdateStats().npcCount : 0},
+                    {"separation_ms",       npcManager ? npcManager->getUpdateStats().separationMs : 0.0},
+                    {"update_ms",           npcManager ? npcManager->getUpdateStats().characterMs : 0.0},
+                    {"full_character_ticks", npcManager ? npcManager->getUpdateStats().fullCharacterTicks : 0},
                     {"capacity",      renderCoordinator->getCharacterInstanceCapacity()},
                     {"cull_distance", renderCoordinator->getCharacterCullDistance()},
                 }},

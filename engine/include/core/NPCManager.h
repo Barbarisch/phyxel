@@ -139,6 +139,18 @@ public:
     /// Update all NPCs (called from main update loop).
     void update(float deltaTime);
 
+    /// Per-frame CPU breakdown of the NPC update. At n=1024 the frame is CPU-bound on
+    /// this path, so it needs to be attributable rather than guessed at
+    /// (docs/CharacterPipelineScaling.md Tier 3).
+    struct UpdateStats {
+        double   separationMs = 0.0;   ///< spatial-hash separation pass
+        double   behaviorMs   = 0.0;   ///< NPCBehavior::update — NOT update-LOD gated
+        double   characterMs  = 0.0;   ///< AnimatedVoxelCharacter::update (LOD gated)
+        uint32_t npcCount     = 0;
+        uint32_t fullCharacterTicks = 0;  ///< characters that passed the update-LOD gate
+    };
+    const UpdateStats& getUpdateStats() const { return m_updateStats; }
+
     // --- Social Simulation Subsystems (shared across all NPCs) ---
 
     /// Pairwise NPC-NPC relationship manager.
@@ -209,6 +221,7 @@ private:
     // Social simulation (shared)
     AI::RelationshipManager m_relationships;
     AI::SocialInteractionSystem m_socialSystem;
+    UpdateStats m_updateStats;
     float m_socialTickTimer = 0.0f;
     static constexpr float SOCIAL_TICK_INTERVAL = 1.0f; // Check social interactions every 1s
 };

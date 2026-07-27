@@ -4,6 +4,7 @@
 #include "core/ChunkManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include <chrono>
 #include "scene/behaviors/IdleBehavior.h"
 #include "scene/behaviors/PatrolBehavior.h"
 #include "scene/behaviors/BehaviorTreeBehavior.h"
@@ -140,6 +141,14 @@ std::vector<std::string> NPCManager::getAllNPCNames() const {
 }
 
 void NPCManager::update(float deltaTime) {
+    using Clock = std::chrono::high_resolution_clock;
+    const auto tSepStart = Clock::now();
+    m_updateStats = UpdateStats{};
+    m_updateStats.npcCount = static_cast<uint32_t>(m_npcs.size());
+    Scene::AnimatedVoxelCharacter::consumeFullUpdateCount();   // reset for this frame
+    Scene::AnimatedVoxelCharacter::beginFrame(
+        Scene::AnimatedVoxelCharacter::getUpdateTickBudget());
+
     // Separation pushes: NPCs have no local avoidance, so simultaneous schedule
     // transitions pile bodies into pinch points (measured: an 11-NPC jam at the
     // tavern-corner fence). XZ repulsion published to each behavior's blackboard
@@ -205,9 +214,19 @@ void NPCManager::update(float deltaTime) {
                 bt->getBlackboard().set("sepPush", push[i]);
     }
 
+    m_updateStats.separationMs =
+        std::chrono::duration<double, std::milli>(Clock::now() - tSepStart).count();
+
+    // Split behaviour from character update: the behaviour tick is NOT update-LOD
+    // gated, so a distant crowd can still cost full price there even when every
+    // character defers its pose evaluation.
+    const auto tUpdStart = Clock::now();
     for (auto& [name, npc] : m_npcs) {
         npc->update(deltaTime);
     }
+    m_updateStats.characterMs =
+        std::chrono::duration<double, std::milli>(Clock::now() - tUpdStart).count();
+    m_updateStats.fullCharacterTicks = Scene::AnimatedVoxelCharacter::consumeFullUpdateCount();
 
     // Social simulation tick (runs at reduced frequency)
     m_socialTickTimer -= deltaTime;
