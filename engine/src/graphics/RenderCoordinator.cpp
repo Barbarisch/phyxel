@@ -36,6 +36,7 @@
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <queue>
 #include <unordered_map>
@@ -2070,6 +2071,56 @@ VkSampler RenderCoordinator::getViewportSampler() const {
     return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
 }
 
+const RenderCoordinator::CharacterBlob&
+RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) {
+    CharacterBlob& blob = m_charBlobs[ch];
+    if (blob.version == ch->partsVersion() && blob.lod == lod) return blob;
+
+    blob.version = ch->partsVersion();
+    blob.lod     = lod;
+    blob.instances.clear();
+    blob.groupOrder.clear();
+    blob.groupSpans.clear();
+
+    const auto& charParts = ch->getParts();
+    if (lod > 0) {
+        const auto& level = ch->getLodLevel(lod);
+        for (const auto& range : level.groups) {
+            const uint32_t local = static_cast<uint32_t>(blob.groupOrder.size());
+            const uint32_t start = static_cast<uint32_t>(blob.instances.size());
+            for (uint32_t k = 0; k < range.count; ++k) {
+                const auto& lp = level.parts[range.start + k];
+                CharacterInstanceData d;
+                d.offset = lp.offset; d.scale = lp.scale; d.color = lp.color;
+                d.boneIndex = local;
+                blob.instances.push_back(d);
+            }
+            blob.groupOrder.push_back(range.boneGroupId);
+            blob.groupSpans.push_back({start, range.count});
+        }
+    } else {
+        for (const auto& grp : ch->getPartGroups()) {
+            if (grp.partIndices.empty()) continue;
+            const uint32_t local = static_cast<uint32_t>(blob.groupOrder.size());
+            const uint32_t start = static_cast<uint32_t>(blob.instances.size());
+            for (int pi : grp.partIndices) {
+                const auto& p = charParts[pi];
+                if (!p.active) continue;
+                CharacterInstanceData d;
+                d.offset = p.offset; d.scale = p.scale; d.color = p.color;
+                d.boneIndex = local;
+                blob.instances.push_back(d);
+            }
+            const uint32_t count = static_cast<uint32_t>(blob.instances.size()) - start;
+            if (count > 0) {
+                blob.groupOrder.push_back(grp.boneGroupId);
+                blob.groupSpans.push_back({start, count});
+            }
+        }
+    }
+    return blob;
+}
+
 void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
                                                 const glm::mat4& lightSpaceMatrix) {
     const auto buildStart = std::chrono::high_resolution_clock::now();
@@ -2219,78 +2270,66 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
 
         const size_t boneMark = m_charBoneTransforms.size();
 
-        // Pick a part-count LOD by distance. The bone transforms are always taken from
-        // the full-resolution groups (the animation path only updates those); a LOD level
+        // Part-count LOD by distance. Bone transforms always come from the
+        // full-resolution groups (the animation path only updates those); the LOD level
         // supplies decimated offset/scale/color for the same bone groups.
         const int lod = lodForDistanceSq(candidates[ci].distSq);
-        const Scene::RagdollCharacter::LodLevel* lodLevel =
-            lod > 0 ? &ch->getLodLevel(lod) : nullptr;
-        std::unordered_map<int, uint32_t> groupBone;
-        if (lodLevel) groupBone.reserve(ch->getPartGroups().size() * 2);
+        const CharacterBlob& blob = getCharacterBlob(ch, lod);
 
-        for (const auto& grp : ch->getPartGroups()) {
-            if (grp.partIndices.empty()) continue;
-            const auto& first = charParts[grp.partIndices[0]];
-            // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
-            // (world - camera) so bone transforms stay float-exact at continental
-            // coordinates — this is THE fix for the per-voxel character speckle.
-            CharacterBatch batch;
-            batch.model = glm::translate(glm::mat4(1.0f),
-                                         camera->relativeTo(glm::dvec3(first.worldPos)))
-                        * glm::mat4_cast(first.worldRot);
-            batch.bakedLight    = charLight;
-            batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-            batch.instanceCount = 0;
-            batch.charIndex     = static_cast<int>(ci);
+        // Per-frame work is now only the bone matrices — one per group, ~20 per
+        // character — appended in the blob's group order so a local index + boneBase
+        // resolves correctly.
+        const uint32_t boneBase = static_cast<uint32_t>(m_charBoneTransforms.size());
 
-            // Every instance in this group indexes the same matrix in the bone SSBO.
-            const uint32_t boneIndex = static_cast<uint32_t>(m_charBoneTransforms.size());
-            m_charBoneTransforms.push_back(batch.model);
-
-            if (lodLevel) {
-                // Matrices still come from the real groups; instances come from the LOD.
-                groupBone[grp.boneGroupId] = boneIndex;
-                continue;
+        // blob.groupOrder is always a SUBSEQUENCE of getPartGroups() order (both LOD and
+        // full-res blobs are built by walking that list), so the two can be matched in
+        // lockstep. An id->group map here cost 1024 unordered_map allocations per frame.
+        bool boneOk = true;
+        {
+            const auto& groups = ch->getPartGroups();
+            size_t gi = 0;
+            for (int gid : blob.groupOrder) {
+                while (gi < groups.size() && groups[gi].boneGroupId != gid) ++gi;
+                if (gi >= groups.size() || groups[gi].partIndices.empty()) { boneOk = false; break; }
+                const auto& first = charParts[groups[gi].partIndices[0]];
+                // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
+                // (world - camera) so bone transforms stay float-exact at continental
+                // coordinates — this is THE fix for the per-voxel character speckle.
+                m_charBoneTransforms.push_back(
+                    glm::translate(glm::mat4(1.0f), camera->relativeTo(glm::dvec3(first.worldPos)))
+                    * glm::mat4_cast(first.worldRot));
+                ++gi;
             }
-
-            for (int pi : grp.partIndices) {
-                const auto& part = charParts[pi];
-                if (!part.active) continue;
-                CharacterInstanceData data;
-                data.offset    = part.offset;
-                data.scale     = part.scale;
-                data.color     = part.color;
-                data.boneIndex = boneIndex;
-                instanceData.push_back(data);
-                batch.instanceCount++;
-            }
-            if (batch.instanceCount > 0) m_charBatches.push_back(batch);
-            else m_charBoneTransforms.pop_back();   // empty group claimed no matrix
         }
 
-        if (lodLevel) {
-            // LOD parts are stored grouped, so each group is still one contiguous span
-            // and the shadow pass's per-group batches keep working unchanged.
-            for (const auto& range : lodLevel->groups) {
-                auto bit = groupBone.find(range.boneGroupId);
-                if (bit == groupBone.end()) continue;
-                CharacterBatch batch;
-                batch.model         = m_charBoneTransforms[bit->second];
-                batch.bakedLight    = charLight;
-                batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                batch.instanceCount = range.count;
-                batch.charIndex     = static_cast<int>(ci);
-                for (uint32_t k = 0; k < range.count; ++k) {
-                    const auto& lp = lodLevel->parts[range.start + k];
-                    CharacterInstanceData data;
-                    data.offset    = lp.offset;
-                    data.scale     = lp.scale;
-                    data.color     = lp.color;
-                    data.boneIndex = bit->second;
-                    instanceData.push_back(data);
-                }
-                if (range.count > 0) m_charBatches.push_back(batch);
+        if (boneOk && !blob.instances.empty()) {
+            // The instance payload is static, so this is a bulk copy rather than a
+            // per-part gather out of the fat RagdollPart array. insert() copies into
+            // uninitialized storage; resize()+memcpy would value-initialize all 186k
+            // elements first and then immediately overwrite them.
+            const size_t base = instanceData.size();
+            instanceData.insert(instanceData.end(),
+                                blob.instances.begin(), blob.instances.end());
+
+            // Per-group spans for the shadow pass (which still draws per bone group).
+            // Precomputed in the blob — deriving them here would rescan every instance.
+            for (size_t g = 0; g < blob.groupSpans.size(); ++g) {
+                const auto& span = blob.groupSpans[g];
+                CharacterBatch b;
+                b.model         = m_charBoneTransforms[boneBase + g];
+                b.bakedLight    = charLight;
+                b.firstInstance = static_cast<uint32_t>(base + span.first);
+                b.instanceCount = span.second;
+                b.charIndex     = static_cast<int>(ci);
+                m_charBatches.push_back(b);
             }
+        }
+
+        if (!boneOk) {
+            instanceData.resize(instanceMark);
+            m_charBatches.resize(batchMark);
+            m_charBoneTransforms.resize(boneMark);
+            continue;
         }
 
         if (instanceData.size() > instanceCapacity ||
@@ -2314,6 +2353,7 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             draw.instanceCount = charInstances;
             draw.bakedLight    = charLight;
             draw.charIndex     = static_cast<int>(ci);
+            draw.boneBase      = boneBase;
             m_charDrawsMain.push_back(draw);
         }
 
@@ -2355,11 +2395,11 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
     // One draw per CHARACTER — each instance looks its own bone matrix up in the SSBO,
-    // so the ~20 per-bone-group draws this used to emit collapse into one. PushConsts
-    // still carries `model` purely to keep the pipeline layout (shared with the shadow
-    // pipeline's push range) unchanged; the shader ignores it.
-    struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
-    pushConsts.model = glm::mat4(1.0f);
+    // so the ~20 per-bone-group draws this used to emit collapse into one. The instance
+    // carries a LOCAL bone index and the draw supplies boneBase, which is what lets the
+    // per-character instance blob be cached across frames even though the frame's bone
+    // layout changes.
+    struct PushConsts { glm::mat4 viewProj; glm::vec4 bakedLight; uint32_t boneBase; } pushConsts;
     pushConsts.viewProj = viewProj;
 
     for (const auto& draw : m_charDrawsMain) {
@@ -2369,6 +2409,7 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
             (draw.charIndex < 0 || !m_charVisibleMain[draw.charIndex])) continue;
 
         pushConsts.bakedLight = draw.bakedLight;
+        pushConsts.boneBase   = draw.boneBase;
         vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
         vkCmdDraw(commandBuffer, 36, draw.instanceCount, 0, draw.firstInstance);

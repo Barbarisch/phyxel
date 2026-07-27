@@ -356,9 +356,30 @@ private:
         uint32_t  instanceCount = 0;
         glm::vec4 bakedLight{1.0f};
         int       charIndex = -1;
+        uint32_t  boneBase = 0;   ///< added to each instance's local bone index
     };
     std::vector<CharacterDraw> m_charDrawsMain;
     std::vector<glm::mat4>     m_charBoneTransforms;
+
+    // Per-character instance blob cache. A part's offset/scale/color never change —
+    // animation only writes worldPos/worldRot — so the whole instance payload is static
+    // and was being rebuilt every frame by gathering from the 112-byte-stride
+    // RagdollPart array (measured 9.5 ms at 1030 characters). Cached here and memcpy'd
+    // instead. boneIndex in the blob is a LOCAL group ordinal; the shader adds a
+    // per-draw boneBase, which keeps the blob valid even as the frame's bone-SSBO
+    // layout changes.
+    struct CharacterBlob {
+        uint32_t version = 0;      ///< RagdollCharacter::partsVersion() it was built from
+        int      lod = -1;
+        std::vector<CharacterInstanceData> instances;
+        std::vector<int> groupOrder;   ///< boneGroupId per local bone index
+        /// {start,count} into `instances` per local bone index. Precomputed because
+        /// re-deriving it per frame means scanning every instance, which is exactly the
+        /// O(parts) work the blob exists to avoid.
+        std::vector<std::pair<uint32_t, uint32_t>> groupSpans;
+    };
+    std::unordered_map<const Scene::RagdollCharacter*, CharacterBlob> m_charBlobs;
+    const CharacterBlob& getCharacterBlob(const Scene::RagdollCharacter* ch, int lod);
     std::vector<uint8_t> m_charVisibleMain;    ///< per character: in the camera frustum
     std::vector<uint8_t> m_charVisibleShadow;  ///< per character: in the light frustum
     CharacterRenderStats m_charStats;

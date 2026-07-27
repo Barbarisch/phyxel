@@ -98,6 +98,13 @@ public:
     }
     static constexpr int kMaxLodLevel = 2;
 
+    /// Bumped whenever the STRUCTURE of parts changes (added/removed, or a part's
+    /// active flag flipped). offset/scale/color are otherwise immutable — animation
+    /// only writes worldPos/worldRot — so renderers can cache a per-character instance
+    /// blob and rebuild it only when this changes. See RenderCoordinator's blob cache.
+    uint32_t partsVersion() const { return m_partsVersion; }
+    void bumpPartsVersion() { ++m_partsVersion; m_lodCache.clear(); }
+
     void setFaction(Faction f) { faction = f; }
     Faction getFaction() const { return faction; }
 
@@ -121,7 +128,7 @@ protected:
     // Subclasses must call this after mutating `parts` in a way that does not
     // change its size (e.g. an in-place rebuild). Size changes are detected
     // automatically by getPartGroups().
-    void markPartGroupsDirty() { m_partGroupsDirty = true; m_lodCache.clear(); }
+    void markPartGroupsDirty() { m_partGroupsDirty = true; m_lodCache.clear(); ++m_partsVersion; }
 
     /// Merge a bone group's parts onto a lattice `2^level` times coarser. Uses the
     /// group's modal part size as the base cell so per-limb scaling is respected, and
@@ -212,6 +219,7 @@ protected:
         m_partGroupsDirty = false;
         m_partGroupsBuiltSize = parts.size();
         m_lodCache.clear();
+        ++m_partsVersion;
     }
 
     Physics::PhysicsWorld* physicsWorld;
@@ -227,6 +235,7 @@ protected:
     mutable bool   m_partGroupsDirty = true;
     mutable size_t m_partGroupsBuiltSize = 0;
     mutable std::unordered_map<int, LodLevel> m_lodCache;   ///< level -> decimated parts
+    mutable uint32_t m_partsVersion = 1;   ///< see partsVersion() (bumped from const rebuild)
 };
 
 } // namespace Scene

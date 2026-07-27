@@ -1,15 +1,14 @@
 #version 450
 
 layout(push_constant) uniform PushConstants {
-    mat4 model;      // UNUSED since P2.2 — bone transforms come from the SSBO below.
-                     // Kept so the pipeline layout (and the shadow pipeline's) is unchanged.
     mat4 viewProj;
     vec4 bakedLight; // x = skylight (0..1), yzw = block light RGB (0..1) — sampled per character
+    uint boneBase;   // start of this character's matrices in boneModels[]
 } pushConsts;
 
-// One model matrix per bone group, for every batched character. Indexing this per
-// instance is what collapses a character's ~20 bone-group draws into ONE draw
-// (docs/CharacterPipelineScaling.md P2.2).
+// One model matrix per bone group, for every batched character. inBoneIndex is LOCAL
+// to the character; boneBase is added per draw. That indirection is what lets the CPU
+// cache each character's instance payload across frames (P2.2 + blob cache).
 layout(std430, set = 0, binding = 8) readonly buffer CharacterBones {
     mat4 boneModels[];
 };
@@ -78,7 +77,7 @@ void main() {
     vec3 localPos = pos * inScale + inOffset;
     
     // Apply bone transform (Model Matrix) once, reuse for clip position + world position
-    mat4 model = boneModels[inBoneIndex];
+    mat4 model = boneModels[pushConsts.boneBase + inBoneIndex];
     vec4 worldPos = model * vec4(localPos, 1.0);
     gl_Position = pushConsts.viewProj * worldPos;
 

@@ -3123,6 +3123,7 @@ namespace Scene {
                 // Mask the voxel from rendering
                 if (entry.partIndex < parts.size()) {
                     parts[entry.partIndex].active = false;
+                    bumpPartsVersion();   // renderers cache the instance blob per version
                 }
 
                 ++m_derezState->nextIdx;

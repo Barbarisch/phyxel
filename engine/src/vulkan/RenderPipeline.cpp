@@ -1378,7 +1378,9 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(glm::mat4) * 2 + sizeof(glm::vec4); // model + viewProj + bakedLight
+    // viewProj + bakedLight + boneBase (the per-bone-group model matrix moved to the
+    // bone SSBO — see docs/CharacterPipelineScaling.md P2.2).
+    pushConstantRange.size = sizeof(glm::mat4) + sizeof(glm::vec4) + sizeof(uint32_t);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
