@@ -12,6 +12,7 @@
 layout(location = 0) in vec3  fragWorldPos;
 layout(location = 1) in vec3  fragWaveNormal;  // Phase 2: analytic Gerstner normal
 layout(location = 2) in float fragWaveFoam;    // Phase 2: crest sharpness 0..1
+layout(location = 3) in float fragWavePhase;   // -1 trough .. +1 crest, drives the shore surf
 layout(location = 0) out vec4 outColor;
 
 // Shared scene UBO — declared as a std140 PREFIX (only the fields we use, in order).
@@ -61,6 +62,10 @@ void main() {
     // WHITECAPS: foam on the steep faces of the swell, where a real wind sea breaks.
     inp.foam         = fragWaveFoam;
     inp.baseNormal   = normalize(fragWaveNormal);
+    // SHORE SURF: waves break at ~2.56x the Gerstner amplitude of depth (H/d = 0.78 with
+    // H = 2*amplitude). A flattened sea (amplitude 0) gets no surf, only the waterline rim.
+    inp.wavePhase    = fragWavePhase;
+    inp.breakDepth   = pc.params.z * 2.56;
 
     vec4 water = shadeWaterSurface(inp);
 

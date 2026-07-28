@@ -25,7 +25,11 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragWaveNormal;
-layout(location = 2) out float fragWaveFoam;   // crest sharpness 0..1, drives whitecaps
+layout(location = 2) out float fragWaveFoam;    // crest sharpness 0..1, drives whitecaps
+// Where this point sits in the wave cycle: -1 deep in a trough, +1 on a crest. The shore surf
+// needs it — a wave breaks on its CREST as it runs into shallow water, so foam has to be gated on
+// the wave phase or the whole surf zone turns uniformly white.
+layout(location = 3) out float fragWavePhase;
 
 // One Gerstner wave. Returns the xyz displacement and accumulates the analytic tangent/bitangent
 // partial derivatives so the caller can build an exact normal.
@@ -71,6 +75,7 @@ void main() {
 
     vec3 ddx = vec3(1.0, 0.0, 0.0);   // d(position)/dx starts as the flat tangent
     vec3 ddz = vec3(0.0, 0.0, 1.0);
+    fragWavePhase = 0.0;
 
     if (amp > 0.0001) {
         // Three waves at spreading angles and decreasing scale. ⚑GROUND: a real wind sea is a
@@ -96,6 +101,9 @@ void main() {
         ddz = mix(vec3(0.0, 0.0, 1.0), ddz, rim);
 
         world += disp;
+        // Normalised height in the wave cycle. The summed amplitude is amp*(1 + 0.52 + 0.28), so
+        // divide by that to land in roughly -1..1 regardless of the amplitude setting.
+        fragWavePhase = clamp(disp.y / (amp * 1.8), -1.0, 1.0);
     }
 
     // Analytic normal from the two partial derivatives. cross(ddz, ddx) yields +Y for a flat sheet.

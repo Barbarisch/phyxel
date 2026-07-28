@@ -167,6 +167,9 @@ struct WaterSurfaceInput {
     // Ripple detail is layered ON TOP of this rather than replacing it, so the big shape drives
     // reflection/Fresnel while the small waves supply glitter.
     vec3  baseNormal;
+    // ── SHORE SURF (Phase 2 leftover) ─────────────────────────────────────────────────────────
+    float wavePhase;   // -1 trough .. +1 crest; 0 for water with no swell
+    float breakDepth;  // water depth at which waves break (world units); 0 disables surf
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -191,6 +194,19 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // A vertical face (a waterfall curtain) has no meaningful "scene behind minus surface"
     // reading at grazing angles; the sim's own column depth is the better floor there.
     thickness = max(thickness, inp.minThickness);
+
+    // VERTICAL water depth, which is a different quantity from `thickness` above and the right one
+    // for anything shore-shaped. thickness is the path length ALONG THE VIEW RAY, so at a grazing
+    // angle a few centimetres of water reads as metres — a surf band driven by it would balloon
+    // across the whole bay as the camera lowered. Reconstructing where the ray actually hits the
+    // seabed gives the true depth under this point, which is what decides where a wave breaks.
+    float seabedY = inp.camPos.y + rayDir.y * sceneT;
+    float verticalDepth = max(inp.worldPos.y - seabedY, 0.0);
+    // Is there actually a seabed behind this pixel? At the horizon the ray hits nothing, the depth
+    // buffer reads its cleared far value, and the reconstruction above collapses to ~0 depth — which
+    // would paint the entire horizon as shoreline foam. Anything at the far plane has no bottom, so
+    // it is open water by definition.
+    bool hasSeabed = sceneD < 0.9999;
 
     // --- Refraction: the scene behind the surface, displaced by the ripple normal ------------
     // The offset shrinks with distance so far water doesn't wobble absurdly.
@@ -221,6 +237,32 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
 
     // Side faces are looking THROUGH the body edge-on: drop the sky mirror, keep the volume.
     color = mix(color, body * 0.85, inp.sideFace);
+
+    // ── SHORE SURF ────────────────────────────────────────────────────────────────────────────
+    // Before this, a shoreline was ONLY an alpha fade: water silently dissolved into the beach with
+    // no waterline and no surf, which is the most obvious "this is not a real coast" tell.
+    //
+    // ⚑GROUND: waves break when the wave height reaches ~0.78 of the water depth (McCowan's
+    // solitary-wave breaking criterion), so with a trough-to-crest height H = 2*amplitude they
+    // break once the depth falls below H/0.78 = 2.56*amplitude. `breakDepth` carries that, so the
+    // surf zone's width follows the sea state instead of being dialled in by eye.
+    float surfFoam = 0.0;
+    if (inp.breakDepth > 0.0001 && hasSeabed) {
+        // Shoaling: 0 offshore, 1 at the waterline. Cubed, not squared — on a gently sloping bed a
+        // 1-voxel depth band covers a LOT of ground, and a gentler falloff turned the whole shelf
+        // into a milky wash instead of a break line (first live attempt did exactly that).
+        float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, verticalDepth);
+        shoal = shoal * shoal * shoal;
+        // A wave breaks on its CREST, and ONLY on its crest — no floor term here. That is what
+        // makes the foam a moving band running shoreward with each wave rather than a static ring.
+        float crest = smoothstep(0.05, 0.75, inp.wavePhase);
+        surfFoam = shoal * crest;
+    }
+    // The waterline itself always carries a little foam, wave or not — the line that makes a coast
+    // read as a coast even on flat calm water (and what lakes and rivers get). Kept narrow and
+    // weak: it should suggest a wet edge, not paint a white stripe around every puddle.
+    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.18, verticalDepth)) : 0.0;
+    inp.foam = max(inp.foam, max(surfFoam, rim * 0.45));
 
     // WHITEWATER (Phase 3): where the water is moving AND shallow it breaks white over its bed.
     // Streaked along the flow so it reads as motion rather than a static frosting, and lit by the

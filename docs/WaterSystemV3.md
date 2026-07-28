@@ -329,8 +329,37 @@ The structural unlock. Everything downstream depends on water being able to samp
 against glass/transparent voxels (the OIT pass draws after water — confirm ordering is right),
 and a fully-submerged camera at depth.
 
-### Phase 2 — The surface gets a shape ✅ SHIPPED (see the progress block above; normal-map detail
-### LOD and shoreline foam remain — the swell, whitecaps and per-cell ripple landed)
+### Phase 2 — The surface gets a shape ✅ SHIPPED (swell, whitecaps, per-cell ripple, and — added
+### 2026-07-28 — shoreline surf / breaking waves. Normal-map detail LOD is the one item still open.)
+>
+> **SHORE SURF / WAVE BREAKS, SHIPPED 2026-07-28.** Before this a shoreline was *only* an alpha
+> fade: water silently dissolved into the beach with no waterline and no surf, which is the most
+> obvious "this is not a real coast" tell.
+>
+> - **Vertical depth, not path length.** The shading already had `thickness`, but that is the path
+>   length ALONG THE VIEW RAY — at a grazing angle a few centimetres of water reads as metres, and a
+>   surf band driven by it balloons across the whole bay as the camera lowers. The seabed hit point
+>   is now reconstructed from the depth buffer (`camPos + rayDir*sceneT`) to get the true vertical
+>   depth under each point, which is what decides where a wave breaks.
+> - ⚑GROUND: **waves break where wave height ≈ 0.78 × water depth** (McCowan's solitary-wave
+>   criterion). With trough-to-crest H = 2×amplitude that is a break depth of 2.56×amplitude, so the
+>   surf zone's width follows the sea state rather than being dialled in by eye.
+> - **Phase-gated crest foam** is what makes it *break* rather than glow: foam forms only on the
+>   wave's crest, so the band runs shoreward with each wave. Plus a narrow, weak always-on waterline
+>   rim (which is also what lakes and rivers get — they pass `breakDepth = 0`, so rim only).
+> - **HORIZON GUARD:** where the ray hits no geometry the depth buffer reads its cleared far value
+>   and the reconstruction collapses to ~0 depth — which would paint the entire horizon as
+>   shoreline. Anything at the far plane is open water by definition and is excluded.
+>
+> **Tuning was iterated against the live image, not guessed.** The first version washed the entire
+> shallow shelf milky white: on a gently sloping bed a 1-voxel depth band covers a lot of ground, so
+> the falloff is now cubed, the crest gate has no floor term, and the rim is narrower (0.18) and
+> weaker (0.45).
+>
+> **L4 measured — the surf is genuinely dynamic, not painted on:** between two frames at a fixed
+> camera the surf zone changed by **14.50** mean |Δ| luminance against **0.44** on a dry-land
+> control (33×), and the foam band's vertical centroid advanced **46.5 → 62.5 px**, i.e. running
+> shoreward. Shader-only change; no C++ and no test coverage is affected.
 - **Gerstner-displaced sea.** Replace the single quad with a camera-centered, radially-graded grid
   (⚑GROUND the tessellation from a measured fill/vertex budget) summing 3–5 Gerstner waves with
   **analytic** normals in the vertex shader. No CPU work, no sim coupling.

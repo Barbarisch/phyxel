@@ -57,6 +57,10 @@ void main() {
     // Per-cell water has no Gerstner swell — its macro shape is the sloped quad the vertex shader
     // already built from the sim's per-corner heights, so the shading normal starts flat.
     inp.baseNormal   = vec3(0.0, 1.0, 0.0);
+    // No swell here, so no breaking surf — but a lake or river still gets the waterline rim, which
+    // is what stops its edge from simply dissolving into the bank.
+    inp.wavePhase    = 0.0;
+    inp.breakDepth   = 0.0;
 
     outColor = shadeWaterSurface(inp);
 }
