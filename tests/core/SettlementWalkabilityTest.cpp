@@ -212,10 +212,10 @@ void stampFences(BakedOccupancy& occ, const MainStreetLayout& msl, int baseMicro
 
             int gLo = -1, gHi = -1;
             if (withGate && run.side == gate) {
-                const int cubeSpan = (runLenMicro + 8) / 9;
-                const int gs = ((cubeSpan - gateW) / 2) * 9;
-                gLo = gs;
-                gHi = gs + gateW * 9;
+                // Shared with the real stamper (Core::fenceGateWindow) rather than
+                // reimplemented -- a validator holding its own copy of the rule it
+                // validates stops checking anything the moment either copy drifts.
+                fenceGateWindow(runLenMicro, gateW, gLo, gHi);
             }
             for (const auto& c : prof.cells) {
                 if (c.u >= gLo && c.u < gHi) continue;  // the gate opening

@@ -832,9 +832,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         // recovers it) and center in cubes — the naive micro formula
                         // drifted up to 4 micro off the old center on odd spans
                         // (auditor-caught).
-                        const int cubeSpan = (runLenMicro + 8) / 9;
-                        const int gs = ((cubeSpan - gateW) / 2) * 9;
-                        gLo = gs; gHi = gs + gateW * 9;
+                        Core::fenceGateWindow(runLenMicro, gateW, gLo, gHi);
                     }
                     for (const auto& c : prof.cells) {
                         if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
