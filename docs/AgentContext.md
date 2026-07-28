@@ -153,6 +153,24 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
      as a HILL → the street was graded OVER the tree); late "street sweep" re-clears + re-stamps.
   6. **Parcel clearing (auditor PASS)** — every plot + 4-cell canopy margin cleared at all
      resolutions before site prep; trees no longer overlap structures.
+  7. **Walkability validator (2026-07-28, `core/SettlementWalkability.{h,cpp}` +
+     `SettlementWalkabilityTest`, 5 tests, no auditor pass yet)** — the settlement L3 gate on the
+     SHIPPED planners rather than a toy grid: composes `planMainStreetLayout(medieval/village,
+     seed 3)` + real typologies via `realizeShell` + the REAL parcel fences
+     (`planParcelFenceRuns`/`planFenceProfile` incl. the handler's cube-aligned gate window) into
+     a dense micro bitset, then walks it. Proves every plot enterable from its frontage AND the
+     full resident round trip. Teeth: a gateless fence seals all 8 plots; sealing one door blocks
+     exactly that building. New instrument `TraversalProbe::flood` (the reachable SET) so a blocked
+     route is **located** — flood from both ends, report the closest approach + `freeWidthMicro`
+     there — instead of a bare false. `kMinCorridorWidthCubes = 2`, grounded in
+     `AgentBox::halfWidthMicro` (0.25 m = `AnimatedVoxelCharacter::m_originalHalfWidth`), matching
+     the stamper's existing `gateW = 2`.
+     **It FALSIFIED the standing hypothesis:** the suspicion that the observed resident jam came
+     from the village preset's `side_gap = 1` is NOT supported — seed-3 passes every route on flat
+     ground, so that data change was NOT made. Scope it does NOT cover: flat ground with ground-top
+     aligned to floor-top (excludes terrain grading/terracing + the threshold step), ground floor
+     only, no furniture in the occupancy. A runtime jam is therefore narrowed to terrain mode,
+     furniture, or the mover.
   ⚠ Known open: silent-crash class fired 2× during settlement builds (std::set_terminate
   logger now installed in editor main.cpp, unfired so far); Debug pad/grass phases ~30 s per
   building (profile before trusting build times); `GET /api/navgraph/path` debug endpoint =

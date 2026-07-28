@@ -165,7 +165,30 @@ Validate when each lands; required layer noted so the plan is set up front.
   `link_subterranean` 49. **Inter-building walkability — ✅ L3**
   (`SettlementTraversalTest`: a TraversalProbe walks the street into EVERY building's interior on a
   composed occupancy; sealed-building teeth; auditor PASS) — a generated settlement is *navigable*, not
-  just non-overlapping. Dressing → **`place_signage` 47 — ✅ L2+L4** (a `hanging_sign` projecting trade
+  just non-overlapping.
+  **✅ WALKABLE-BY-CONSTRUCTION GATE (2026-07-28, `SettlementWalkability` + `SettlementWalkabilityTest`,
+  5 tests) — the settlement L3 gate on the SHIPPED planners, not a toy grid.** `SettlementTraversalTest`
+  proves street→interior on a hand-built 2-plot subdivision with NO fences; this raises it to the real
+  thing: the real `planMainStreetLayout` at the real `medieval/village` tier preset, real per-plot
+  typologies realized at natural size with the street-facing `front` the build handler assigns, and the
+  REAL parcel fences (`planParcelFenceRuns` + `planFenceProfile` + the same cube-aligned gate window the
+  `build_settlement` stamper cuts). Proven: every plot enterable from its own frontage, AND the full
+  resident round trip (plot-0 interior → street → tavern interior → back). **Teeth (both fire):** a
+  GATELESS fence seals all 8 plots (0 reachable — so the positive result is not the probe phasing through
+  pickets; the picket's horizontal RAILS are what seal it, since slats alone sit on every even micro and
+  would alias against the probe's ±2 footprint sampling), and stripping ONE building's exterior portals
+  blocks exactly that building. New instrument: `TraversalProbe::flood` (the reachable SET) so a blocked
+  route is LOCATED — flood from both ends, report the two sets' closest approach + `freeWidthMicro` there
+  — instead of returning a bare false. `kMinCorridorWidthCubes = 2`, grounded in `AgentBox::halfWidthMicro`
+  (0.25 m, = `AnimatedVoxelCharacter::m_originalHalfWidth`) and matching the stamper's existing `gateW = 2`.
+  **RESULT — a HYPOTHESIS WAS FALSIFIED, not confirmed:** the prior suspicion that the observed resident
+  jam came from the village preset's `side_gap = 1` pinching the plot corridor is **NOT supported** — the
+  seed-3 village passes every route on flat ground. The `side_gap` data change was therefore NOT made.
+  **HONEST SCOPE — what this does NOT establish:** flat ground only, with the ground top aligned to the
+  building floor top (the same composition `SettlementTraversalTest` uses), so terrain grading, terracing
+  and the threshold step are all excluded by construction; ground floor only; no furniture in the composed
+  occupancy; and this has NOT been solution-auditor reviewed. A runtime jam is now narrowed to terrain
+  mode, furniture, or the mover — not flat-ground layout geometry. Dressing → **`place_signage` 47 — ✅ L2+L4** (a `hanging_sign` projecting trade
   sign — Wood/Log board + Metal wrought-iron bracket, deterministic `tools/regen_furniture.py`, grounded
   `object_dimensions 'hanging_sign'`; hung over a BUSINESS typology's ground-floor entry door on the
   correct wall/outward-normal rotation, GATED by V6 `checkSignClearance` (clearance/projection/door-head),

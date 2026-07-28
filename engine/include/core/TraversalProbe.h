@@ -17,6 +17,7 @@
 // ============================================================================
 
 #include <functional>
+#include <vector>
 
 #include <glm/glm.hpp>
 
@@ -49,7 +50,23 @@ public:
     bool reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 goalHi,
                    glm::ivec3 boundLo, glm::ivec3 boundHi) const;
 
+    /// Every feet-position the agent can walk to from `start` within [boundLo,boundHi] —
+    /// the same stepping rule as reachable(), run to exhaustion. Returned in deterministic
+    /// BFS order; empty if `start` doesn't settle.
+    ///
+    /// This exists so a FAILED reachability check can be LOCATED instead of merely
+    /// reported: flood from both ends and the two sets' closest approach is the pinch.
+    /// A bool answer tells you a town is broken; this tells you where.
+    std::vector<glm::ivec3> flood(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundHi) const;
+
 private:
+    /// Shared BFS core for reachable()/flood(). Walks the same step/step-up/settle rule.
+    /// If `goalLo` is non-null the search STOPS on entering [goalLo,goalHi] and sets
+    /// `*hitGoal`. If `out` is non-null every visited feet-position is appended.
+    void bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundHi,
+             const glm::ivec3* goalLo, const glm::ivec3* goalHi,
+             bool* hitGoal, std::vector<glm::ivec3>* out) const;
+
     std::function<bool(int, int, int)> m_occ;
     AgentBox m_box;
 };
