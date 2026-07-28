@@ -157,7 +157,13 @@ TEST(SettlementTerrainPlanTest, PartlyBuildableTerrainSurfacesTheDroppedPlotCoun
     }
     EXPECT_TRUE(plan.program.contains("dropped_plots"))
         << "a terrain build that skipped plots must report the count, not quietly shrink";
-    EXPECT_GE(plan.program.value("dropped_plots", 0), 0);
+    // GT, not GE(0). This fixture is a ramp climbing 3 cubes per cell over half the site,
+    // so plots MUST be dropped -- and `>= 0` is trivially true for zero, which the
+    // solution-auditor demonstrated by breaking the TooSteep classification and watching
+    // this test stay green with dropped_plots=0. A test named for a count has to check it.
+    EXPECT_GT(plan.program.value("dropped_plots", 0), 0)
+        << "the steep ramp dropped NO plots - either the buildability filter or the drop "
+           "accounting is broken, and this test would have passed anyway under >= 0";
     EXPECT_GT(plan.settlement.value("buildings", 0), 0)
         << "the flat half should still host buildings";
 }

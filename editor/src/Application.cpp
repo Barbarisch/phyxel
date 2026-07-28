@@ -4972,28 +4972,33 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
                 spawnPos = sr.position;
             } else if (!sr.ok()) {
                 // ESCALATE before refusing. resolveSpawn searches a bounded 4 m; a
-                // character requested deep inside a solid world has no clear cell in
-                // that radius but does have open air straight up. Climbing the column
-                // (unbounded) and re-checking keeps the invariant -- never spawn inside
-                // geometry -- without hard-failing the asset/anim editors, which create
-                // a reference character at a fixed position that may be buried.
-                // searchUp must clear the TALLEST terrain this engine generates, not the
-                // helper's 128 default: terrain-v2 peaks reach ~384 voxels above sea level
-                // (CLAUDE.md), so a spawn low in a mountain column would cap out mid-rock and
-                // then refuse. 512 covers the documented maximum with margin.
-                const int liftedY = Core::groundSpawnYIfInsideSolid(
-                    [this](int cx, int cy, int cz) {
-                        return chunkManager && chunkManager->hasVoxelAt(glm::ivec3(cx, cy, cz));
-                    },
-                    (int)std::floor(pos.x), (int)std::floor(pos.y), (int)std::floor(pos.z),
-                    /*searchUp=*/512);
-                const glm::vec3 lifted(pos.x, (float)liftedY, pos.z);
-                const Core::SpawnResult sr2 = Core::resolveSpawn(
-                    [vw](const glm::vec3& lo, const glm::vec3& hi) {
-                        return vw->anyStaticSolidInAABB(lo, hi);
-                    },
-                    lifted);
-                if (sr2.ok()) {
+                // character requested deep inside solid rock has no clear cell in that
+                // radius but does have open air straight up. Climbing and re-checking
+                // keeps the invariant -- never spawn inside geometry -- without hard-
+                // failing the asset/anim editors, which create a reference character at a
+                // fixed position that may be buried.
+                //
+                // The climb is BODY-aware, deliberately not groundSpawnYIfInsideSolid:
+                // that helper early-returns when the FEET CUBE is empty, which is exactly
+                // the case that needs rescuing (feet in an air pocket, body in rock). An
+                // L4 probe against a 1-cube pocket encased in stone proved the old
+                // feet-cube escalation inert there -- it returned the position unchanged
+                // and the spawn was refused. Step by SUBCUBE so we stop at the first clear
+                // height rather than overshooting. 512 covers this engine's tallest terrain
+                // (terrain-v2 peaks ~384 above sea level, CLAUDE.md).
+                bool escalated = false;
+                Core::SpawnResult sr2 = sr;
+                const float kStep = 1.0f / 3.0f;
+                for (int i = 1; i <= 512 * 3 && !escalated; ++i) {
+                    const glm::vec3 up(pos.x, pos.y + i * kStep, pos.z);
+                    sr2 = Core::resolveSpawn(
+                        [vw](const glm::vec3& lo, const glm::vec3& hi) {
+                            return vw->anyStaticSolidInAABB(lo, hi);
+                        },
+                        up);
+                    if (sr2.ok()) { escalated = true; }
+                }
+                if (escalated) {
                     LOG_WARN("Application", "character spawn was encased; lifted out of the "
                              "solid column to y={} ({})", sr2.position.y, sr2.reason);
                     spawnPos = sr2.position;
