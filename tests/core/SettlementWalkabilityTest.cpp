@@ -229,6 +229,59 @@ void stampFences(BakedOccupancy& occ, const MainStreetLayout& msl, int baseMicro
     if (cellsOut) *cellsOut = cells;
 }
 
+// Stamp the outdoor PLACED PROPS -- per-plot yard props (planYardProps) and the tier
+// well on the main street's verge -- as the build handler sites them. These are real
+// solid geometry in the world and they sit in the YARD and ON THE STREET, i.e. exactly
+// where residents walk, so a walkability gate that omits them is measuring a village
+// that was never built.
+//
+// Footprint source: the placer's OWN declared cube footprint (YardProp::w/d, which
+// already accounts for its rotation). Height: the shipped asset's measured
+// `.metrics.json` overall_max Y -- grounded in what actually gets stamped, not invented.
+//   woodpile    1.78 x 1.00 x 0.56 m -> 9 micro tall, BLOCKS
+//   garden_bed  2.00 x 0.33 x 1.00 m -> 3 micro tall, STEPPABLE (below the 4-micro step-up)
+//   well        1.22 x 0.89 x 1.22 m -> 8 micro tall, BLOCKS
+// Modelled as SOLID BOXES: a deliberate over-approximation. If a route survives props
+// modelled as solid, it survives the real (hollower) props -- so a PASS is safe. A
+// FAILURE here would need the real template voxels before being called a defect.
+int propHeightMicro(const std::string& type) {
+    if (type == "garden_bed") return 3;   // 0.333 m
+    if (type == "woodpile") return 9;     // 1.0 m
+    if (type == "well") return 8;         // 0.889 m
+    return 9;                             // unknown prop: assume a blocker (conservative)
+}
+
+void stampYardProps(BakedOccupancy& occ, const MainStreetLayout& msl, int baseMicro, unsigned seed,
+                    bool tierWell, long* propsOut = nullptr) {
+    long n = 0;
+    auto box = [&](int cx, int cz, int wCubes, int dCubes, int hMicro) {
+        for (int x = cx * 9; x < (cx + wCubes) * 9; ++x)
+            for (int z = cz * 9; z < (cz + dCubes) * 9; ++z)
+                for (int y = baseMicro; y < baseMicro + hMicro; ++y) occ.set(x, y, z);
+        ++n;
+    };
+
+    for (const auto& ap : msl.assigned)
+        for (const auto& yp : planYardProps(ap, seed))
+            box(yp.cx, yp.cz, yp.w, yp.d, propHeightMicro(yp.type));
+
+    if (tierWell) {
+        // Village: the main street's verge at mid-length (Application.cpp "yard props + well").
+        int wcx, wcz;
+        if (msl.hasSquare) {
+            wcx = msl.marketSquare.x + msl.marketSquare.w / 2;
+            wcz = msl.marketSquare.z + msl.marketSquare.d / 2;
+        } else {
+            const Rect& ms = msl.mainStreet;
+            const bool msAlongX = ms.w >= ms.d;
+            wcx = msAlongX ? ms.x + ms.w / 2 : ms.x + 1;
+            wcz = msAlongX ? ms.z + 1 : ms.z + ms.d / 2;
+        }
+        box(wcx, wcz, 2, 2, propHeightMicro("well"));   // 1.22 m spans 2 cubes unaligned
+    }
+    if (propsOut) *propsOut = n;
+}
+
 // A whole composed settlement, ready to probe.
 struct Village {
     bool ok = false;
@@ -239,12 +292,13 @@ struct Village {
     int W = 0, D = 0;      // cubes
     std::unique_ptr<BakedOccupancy> occ;
     long fenceCells = 0;
+    long props = 0;
 };
 
 // Compose the real village: plan -> realize every building -> bake ground + buildings +
 // fences into one occupancy. `sealDoorIndex` >= 0 strips that building's exterior door.
 std::unique_ptr<Village> composeVillage(int W, int D, unsigned seed, bool withGate,
-                                        int sealDoorIndex = -1) {
+                                        int sealDoorIndex = -1, bool withProps = false) {
     auto v = std::make_unique<Village>();
     v->W = W;
     v->D = D;
@@ -299,6 +353,8 @@ std::unique_ptr<Village> composeVillage(int W, int D, unsigned seed, bool withGa
             v->occ->set(ox + c.x, c.y, oz + c.z);
     }
     stampFences(*v->occ, v->msl, v->floorY, withGate, &v->fenceCells);
+    if (withProps)
+        stampYardProps(*v->occ, v->msl, v->floorY, seed, village->pub.well, &v->props);
 
     v->ok = true;
     return v;
@@ -501,4 +557,46 @@ TEST(SettlementWalkabilityTest, AResidentCanWalkFromHomeAcrossTheVillageAndBackI
     const auto rep = checkRoutes(v->occ->sampler(), box, {out, back}, lo, hi);
     EXPECT_TRUE(rep.ok()) << "a resident cannot complete their daily route across the village.\n"
                           << rep.summary();
+}
+
+// ---------------------------------------------------------------------------
+// The village AS BUILT — with the outdoor placed props in it.
+//
+// The previous tests compose buildings + fences only, but build_settlement also
+// drops a woodpile and a garden bed in every rear toft and a WELL on the main
+// street's verge. Those are solid geometry standing exactly where residents walk,
+// and the well in particular has a history: it was recorded as nav-INVISIBLE and
+// "walls straight paths". A walkability gate that omits them is measuring a
+// village that was never built.
+//
+// Props are modelled as SOLID BOXES from the placer's own declared footprint and
+// the shipped assets' measured heights -- a deliberate over-approximation, so a
+// PASS here is strictly stronger than the real geometry requires.
+// ---------------------------------------------------------------------------
+TEST(SettlementWalkabilityTest, TheVillageIsStillWalkableWithYardPropsAndTheWell) {
+    auto v = composeVillage(60, 36, /*seed=*/3, /*withGate=*/true, /*sealDoorIndex=*/-1,
+                            /*withProps=*/true);
+    ASSERT_TRUE(v->ok) << v->why;
+    ASSERT_GT(v->props, 0) << "no props were stamped -- this test adds nothing over the base case";
+
+    const auto rep = probeAllPlots(*v);
+    EXPECT_TRUE(rep.ok()) << "yard props / the street well block a resident's route home.\n"
+                          << rep.summary();
+
+    // And the long route, which is the one that passes the well on the street verge.
+    size_t dest = v->buildings.size() - 1;
+    for (size_t i = 0; i < v->buildings.size(); ++i)
+        if (v->buildings[i].typology == "tavern") { dest = i; break; }
+
+    WalkRoute r;
+    r.label = "resident with props present: plot 0 -> plot " + std::to_string(dest);
+    r.from = interiorOf(*v, 0);
+    r.to = interiorOf(*v, dest);
+
+    const AgentBox box;
+    const auto cross = checkRoutes(v->occ->sampler(), box, {r},
+                                   glm::ivec3(0, v->floorY - 2, 0),
+                                   glm::ivec3(v->W * 9, v->floorY + 30, v->D * 9));
+    EXPECT_TRUE(cross.ok()) << "the cross-village route is blocked once props are placed.\n"
+                            << cross.summary();
 }
