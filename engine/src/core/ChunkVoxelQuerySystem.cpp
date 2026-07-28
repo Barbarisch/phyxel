@@ -114,6 +114,13 @@ bool ChunkVoxelQuerySystem::hasVoxelAt(const glm::ivec3& worldPos) const {
     return chunk->hasVoxelAt(localPos);
 }
 
+float ChunkVoxelQuerySystem::subVoxelFloor(const glm::ivec3& worldPos) const {
+    glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
+    const Chunk* chunk = getChunkAtCoord(chunkCoord);
+    if (!chunk) return 0.0f;
+    return chunk->subVoxelFloor(worldToLocalCoord(worldPos));
+}
+
 VoxelLocation::Type ChunkVoxelQuerySystem::getVoxelTypeAt(const glm::ivec3& worldPos) const {
     glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
     const Chunk* chunk = getChunkAtCoord(chunkCoord);

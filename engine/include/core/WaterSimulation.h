@@ -37,6 +37,18 @@ public:
     void  setSolid(int x, int y, int z, bool solid);
     bool  isSolid(int x, int y, int z) const;
 
+    // ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────
+    // Fraction of a cell filled from the bottom by sub-voxel terrain (a low subcube/microcube
+    // platform). Water in such a cell rests ON that floor rather than at the cell's base, so its
+    // rendered surface sits `floor + fill*(1-floor)` up the cell instead of `fill`.
+    //
+    // RENDER-ONLY, deliberately: the CA's capacity is still a full unit per cell, so a floored cell
+    // holds slightly more water than it physically should. Making capacity `1 - floor` is the
+    // volumetrically correct version and is a recorded future goal (docs/WaterSystemV3.md Phase 4A)
+    // — it rewrites the gravity/compression split, which is the most load-bearing code here.
+    void  setFloor(int x, int y, int z, float fraction);
+    float floorAt(int x, int y, int z) const;
+
     // Channel cells (authored riverbeds) are exempt from evaporation, so water carried
     // along them doesn't fade — an authored river flows its full length. (A binary
     // special case of a per-material flow-resistance scalar; see docs/WaterSystem.md.)
@@ -216,6 +228,7 @@ private:
     std::vector<uint8_t> m_colDirty;   // per-column (x,z): mass changed since the last sweep
     std::vector<uint8_t> m_colProcess; // scratch: sweep set P = dirty ∪ N4(dirty)
     std::vector<uint8_t> m_colWrite;   // scratch: snapshot/write-back set W = P ∪ N4(P)
+    std::vector<float>   m_floor;       // per-cell sub-voxel floor fraction 0..1 (Phase 4B)
     std::vector<glm::vec2> m_flow;      // per-cell EMA-smoothed horizontal flow proxy (see flowAt)
     std::vector<glm::vec2> m_flowAccum; // scratch: this sweep's raw net transfer per cell
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)

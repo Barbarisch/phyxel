@@ -576,6 +576,92 @@ TEST(WaterManagerTest, StressLongWalkOceanBoundaryKeepsSeaAtEveryRecenter) {
     EXPECT_EQ(recenters, 100) << "the walk should recenter on every stride";
 }
 
+// ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────────
+// A voxel holding a low subcube/microcube platform is passable, and water rests ON that platform.
+// These use setFloor directly (the ChunkManager query that derives it in the live engine is
+// exercised by ChunkVoxelManager's own coverage; here the concern is what the RENDERER draws).
+
+// Water over a 1/3-height platform must render 1/3 of a voxel higher than the same water over a
+// bare cell — that difference IS the feature.
+TEST(WaterManagerTest, SubVoxelFloorRaisesTheRenderedSurface) {
+    auto surfaceOverFloor = [](float floorFraction) {
+        WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+        // A walled 2x2 basin resting on the out-of-bounds floor below y=0.
+        for (int y = 0; y <= 3; ++y) {
+            for (int i = 4; i <= 7; ++i) {
+                wm.setSolidWorld(4, y, i, true); wm.setSolidWorld(7, y, i, true);
+                wm.setSolidWorld(i, y, 4, true); wm.setSolidWorld(i, y, 7, true);
+            }
+        }
+        wm.setFloorWorld(5, 0, 5, floorFraction);
+        wm.setFloorWorld(6, 0, 5, floorFraction);
+        wm.setFloorWorld(5, 0, 6, floorFraction);
+        wm.setFloorWorld(6, 0, 6, floorFraction);
+        for (int x = 5; x <= 6; ++x)
+            for (int z = 5; z <= 6; ++z) wm.placeWater(glm::vec3(x + 0.5f, 0.5f, z + 0.5f), 0.5f);
+        for (int i = 0; i < 30; ++i) wm.update(0.1f);
+
+        float top = -1e9f;
+        for (const auto& c : wm.surfaceCells()) top = std::max(top, c.centerDepth.y);
+        return top;
+    };
+
+    const float bare = surfaceOverFloor(0.0f);
+    const float third = surfaceOverFloor(1.0f / 3.0f);
+    ASSERT_GT(bare, -1e8f) << "no surface emitted over the bare cell";
+    ASSERT_GT(third, -1e8f) << "no surface emitted over the platform";
+    EXPECT_GT(third, bare) << "the platform did not raise the water surface at all";
+
+    // Closed form: the surface sits at floor + fill*(1-floor), so the lift over a bare cell is
+    // floor*(1-fill). The water's fill fraction is scaled into the space ABOVE the platform, which
+    // is what keeps a full cell rendering at the cell top and an empty one at the platform top.
+    // (fill here is 0.5 => a 1/3 platform lifts by 1/6, not 1/3.)
+    const float fill = 0.5f, floorFrac = 1.0f / 3.0f;
+    EXPECT_NEAR(third - bare, floorFrac * (1.0f - fill), 0.02f)
+        << "lift should be floor*(1-fill) (bare " << bare << ", floored " << third << ")";
+}
+
+// The case the feature exists for: a SHALLOW puddle on a low step must sit on the step, not most of
+// a voxel above it. As the water thins the lift approaches the platform's full height.
+TEST(WaterManagerTest, SubVoxelFloorLiftsAShallowPuddleOntoTheStep) {
+    auto surfaceForThinFilm = [](float floorFraction) {
+        WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+        for (int y = 0; y <= 3; ++y)
+            for (int i = 4; i <= 7; ++i) {
+                wm.setSolidWorld(4, y, i, true); wm.setSolidWorld(7, y, i, true);
+                wm.setSolidWorld(i, y, 4, true); wm.setSolidWorld(i, y, 7, true);
+            }
+        for (int x = 5; x <= 6; ++x)
+            for (int z = 5; z <= 6; ++z) wm.setFloorWorld(x, 0, z, floorFraction);
+        for (int x = 5; x <= 6; ++x)
+            for (int z = 5; z <= 6; ++z) wm.placeWater(glm::vec3(x + 0.5f, 0.5f, z + 0.5f), 0.10f);
+        for (int i = 0; i < 30; ++i) wm.update(0.1f);
+        float top = -1e9f;
+        for (const auto& c : wm.surfaceCells()) top = std::max(top, c.centerDepth.y);
+        return top;
+    };
+
+    const float onStep = surfaceForThinFilm(2.0f / 3.0f);
+    ASSERT_GT(onStep, -1e8f) << "no surface emitted for the thin film";
+    // A 2/3 step under a ~0.1-deep film: the surface must be up on the step (>= 2/3), not near the
+    // voxel's base where it would render as though the step were not there.
+    EXPECT_GT(onStep, 2.0f / 3.0f)
+        << "a thin puddle did not sit on top of the 2/3 step (surface " << onStep << ")";
+    EXPECT_LT(onStep, 1.0f) << "the puddle floated above the voxel entirely (surface " << onStep << ")";
+}
+
+// The floor is terrain-derived, so like solidity it must travel with the window when the region
+// recenters — otherwise walking past a platform would drop its water through the floor.
+TEST(WaterManagerTest, SubVoxelFloorSurvivesRecenter) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setFloorWorld(8, 2, 8, 2.0f / 3.0f);
+    ASSERT_NEAR(wm.floorAtWorld(glm::vec3(8.5f, 2.5f, 8.5f)), 2.0f / 3.0f, 1e-4f);
+
+    wm.recenter(glm::ivec3(4, 0, 4));   // window moves; the world content must stay put
+    EXPECT_NEAR(wm.floorAtWorld(glm::vec3(8.5f, 2.5f, 8.5f)), 2.0f / 3.0f, 1e-4f)
+        << "the sub-voxel floor did not travel with the region";
+}
+
 // ── KINEMATIC RIVER FLOW (WaterSystemV3 Phase 3) ──────────────────────────────────────────────
 //
 // A baked river is PINNED FULL along its whole carve, so it performs no transfers and the CA's flow

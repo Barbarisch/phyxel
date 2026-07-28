@@ -67,7 +67,16 @@ void WaterManager::syncSolidsFromChunks() {
     for (int y = 0; y < m_dims.y; ++y)
     for (int x = 0; x < m_dims.x; ++x) {
         glm::ivec3 world(m_origin.x + x, m_origin.y + y, m_origin.z + z);
-        m_sim.setSolid(x, y, z, m_cm->hasVoxelAt(world));
+        // SUB-VOXEL FLOOR (Phase 4B): a voxel holding nothing but flat sub-voxel layers stacked from
+        // its base — a low platform — is PASSABLE, and water rests on top of those layers instead of
+        // on the voxel's base. Everything else keeps the old all-or-nothing behaviour: a negative
+        // reading means "treat as fully solid", which is what walls, table legs, thin vertical
+        // sheets and mixed subcube/microcube content all return. That conservatism is deliberate —
+        // see ChunkVoxelManager::subVoxelFloor.
+        const float floor = m_cm->subVoxelFloor(world);
+        const bool solid = (floor < 0.0f) || (floor >= 0.999f);
+        m_sim.setSolid(x, y, z, solid);
+        m_sim.setFloor(x, y, z, solid ? 0.0f : floor);
     }
 }
 
@@ -192,13 +201,18 @@ void WaterManager::rebuildSurface() {
         // Surface cell: the one above is empty (or solid / out of bounds).
         if (m_sim.massAt(x, y + 1, z) > RENDER_MIN && !m_sim.isSolid(x, y + 1, z)) continue;
         float fill = std::min(m, 1.0f);
-        float surfaceY = static_cast<float>(m_origin.y + y) + fill;
-        // Column depth: contiguous water cells stacked below this surface cell.
-        float depth = fill;
+        // SUB-VOXEL FLOOR (Phase 4B): water in a cell with a low platform under it rests ON that
+        // platform, so its surface sits floor + fill*(1-floor) up the cell rather than fill. Without
+        // this a puddle on a 1/3-height subcube step renders as though the step were a full voxel.
+        const float cellFloor = m_sim.floorAt(x, y, z);
+        float surfaceY = static_cast<float>(m_origin.y + y) + cellFloor + fill * (1.0f - cellFloor);
+        // Column depth: contiguous water cells stacked below this surface cell. A floored cell
+        // contributes only the part above its floor, so depth-based shading matches what is drawn.
+        float depth = fill * (1.0f - cellFloor);
         for (int dy = y - 1; dy >= 0; --dy) {
             float md = m_sim.massAt(x, dy, z);
             if (md <= RENDER_MIN || m_sim.isSolid(x, dy, z)) break;
-            depth += std::min(md, 1.0f);
+            depth += std::min(md, 1.0f) * (1.0f - m_sim.floorAt(x, dy, z));
         }
         float& top = colTop[colIdx(x, z)];
         if (surfaceY > top) top = surfaceY;
@@ -357,6 +371,20 @@ void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
         m_sim.addWater(lx, ly, lz, amount);
         rebuildSurface();
     }
+}
+
+void WaterManager::setFloorWorld(int worldX, int worldY, int worldZ, float fraction) {
+    const int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
+    if (m_sim.inBounds(lx, ly, lz)) {
+        m_sim.setFloor(lx, ly, lz, fraction);
+        rebuildSurface();   // render-only input: restamp the surface, no need to re-step
+    }
+}
+
+float WaterManager::floorAtWorld(const glm::vec3& worldPos) const {
+    int lx, ly, lz;
+    if (!worldToLocal(worldPos, lx, ly, lz)) return 0.0f;
+    return m_sim.floorAt(lx, ly, lz);
 }
 
 void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid) {

@@ -16,12 +16,23 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_colDirty(static_cast<size_t>(sizeX) * sizeZ, 1),   // all dirty: first sweep is full
       m_colProcess(static_cast<size_t>(sizeX) * sizeZ, 0),
       m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0),
+      m_floor(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
       m_flow(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
       m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)) {}
 
 glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
     if (!inBounds(x, y, z)) return glm::vec2(0.0f);
     return m_flow[idx(x, y, z)];
+}
+
+void WaterSimulation::setFloor(int x, int y, int z, float fraction) {
+    if (!inBounds(x, y, z)) return;
+    m_floor[idx(x, y, z)] = std::min(std::max(fraction, 0.0f), 1.0f);
+}
+
+float WaterSimulation::floorAt(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return 0.0f;
+    return m_floor[idx(x, y, z)];
 }
 
 void WaterSimulation::setMomentum(float strength) {
@@ -323,7 +334,13 @@ void WaterSimulation::step(float flowSide) {
 
         // 1) Gravity (compression-aware): the cell below holds up to its stable share
         //    of the combined column; the excess stays here to be pushed up later.
-        if (y - 1 >= 0 && !m_solid[idx(x, y - 1, z)]) {
+        //
+        // SUB-VOXEL FLOOR (Phase 4B): a cell with a floor has solid sub-voxel ground beneath its
+        // water, so it cannot drain downward — even though the cell itself is passable. Without
+        // this, making floored cells passable would let water fall straight THROUGH a subcube
+        // platform into the air below (found live: a puddle poured onto a 1/3 platform vanished).
+        // This only ever removes a transfer, so mass conservation and settling are unaffected.
+        if (y - 1 >= 0 && !m_solid[idx(x, y - 1, z)] && m_floor[c] <= 0.0f) {
             const size_t b = idx(x, y - 1, z);
             if (!(cPinned && pinned(b))) {
                 float flow = stableBottom(remaining + m_mass[b]) - m_mass[b];
@@ -467,6 +484,7 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
     std::vector<uint8_t> ns(m_solid.size(), 0);
     std::vector<float>   nsrc(m_source.size(), -1.0f);   // -1 = not a source
     std::vector<uint8_t> nch(m_channel.size(), 0);
+    std::vector<float>     nflr(m_floor.size(), 0.0f);
     std::vector<glm::vec2> nfl(m_flow.size(), glm::vec2(0.0f));
     for (int z = 0; z < m_sz; ++z)
     for (int y = 0; y < m_sy; ++y)
@@ -475,9 +493,11 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
         if (!inBounds(sx, sy, sz)) continue;   // exposed frontier keeps the defaults above
         const size_t d = idx(x, y, z), s = idx(sx, sy, sz);
         nm[d] = m_mass[s]; ns[d] = m_solid[s]; nsrc[d] = m_source[s]; nch[d] = m_channel[s];
+        nflr[d] = m_floor[s]; // sub-voxel floors travel with the window, like solidity
         nfl[d] = m_flow[s];   // the flow proxy travels with its water across a recenter
     }
     m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
+    m_floor.swap(nflr);
     m_flow.swap(nfl);
     m_hasSources = false;
     for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }

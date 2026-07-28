@@ -326,6 +326,10 @@ public:
     VoxelLocation resolveGlobalPosition(const glm::ivec3& worldPos) const override;
     VoxelLocation resolveGlobalPositionWithSubcube(const glm::ivec3& worldPos, const glm::ivec3& subcubePos) const;
     bool hasVoxelAt(const glm::ivec3& worldPos) const;
+    /// Sub-voxel floor height at a world voxel, as a fraction of the voxel (0, 1/3, 2/3, ninths),
+    /// or NEGATIVE if the voxel must be treated as fully solid. An unloaded chunk reads 0.
+    /// See ChunkVoxelManager::subVoxelFloor (WaterSystemV3 Phase 4B).
+    float subVoxelFloor(const glm::ivec3& worldPos) const;
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;
     
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)

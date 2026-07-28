@@ -74,6 +74,9 @@ public:
     
     // Check if voxel exists at position
     bool hasVoxelAt(const glm::ivec3& worldPos) const;
+    /// Sub-voxel floor fraction, or negative if the voxel is to be treated as fully solid
+    /// (WaterSystemV3 Phase 4B). Unloaded chunk reads 0.
+    float subVoxelFloor(const glm::ivec3& worldPos) const;
     
     // Get voxel type (EMPTY, CUBE, SUBDIVIDED)
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;

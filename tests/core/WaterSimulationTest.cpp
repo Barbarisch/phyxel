@@ -670,6 +670,35 @@ TEST(WaterSimulation, FlowProxyDecaysAfterFlowStops) {
                                     << " after=" << after << ")";
 }
 
+// ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────────
+
+// A cell with a sub-voxel floor has solid ground beneath its water, so water must REST on it — even
+// though the cell is passable and the cell below is open air. Found live: without this, making
+// floored cells passable let a puddle fall straight through a subcube platform and vanish.
+TEST(WaterSimulation, WaterRestsOnASubVoxelFloorInsteadOfFallingThrough) {
+    WaterSimulation sim(6, 8, 6);
+    addFloor(sim);
+    // A 1/3-height platform spanning the WHOLE extent at y=4, with nothing under it (y=1..3 are
+    // open air). Full extent on purpose: a platform with open edges would let the water run off the
+    // side and fall there, which is correct behaviour and would not test the floor itself.
+    for (int x = 0; x < 6; ++x)
+        for (int z = 0; z < 6; ++z) sim.setFloor(x, 4, z, 1.0f / 3.0f);
+    for (int x = 1; x < 5; ++x)
+        for (int z = 1; z < 5; ++z) sim.addWater(x, 4, z, 0.4f);
+    const float total = sim.totalMass();
+
+    for (int i = 0; i < 200; ++i) sim.step();
+
+    float onPlatform = 0.0f, below = 0.0f;
+    for (int x = 0; x < 6; ++x)
+        for (int z = 0; z < 6; ++z) {
+            onPlatform += sim.massAt(x, 4, z);
+            for (int y = 1; y <= 3; ++y) below += sim.massAt(x, y, z);
+        }
+    EXPECT_NEAR(onPlatform, total, 1e-3f) << "water did not stay on the platform";
+    EXPECT_LT(below, 1e-3f) << "water fell THROUGH the sub-voxel floor into the air below";
+}
+
 // ── MOMENTUM (WaterSystemV3 Phase 4) ──────────────────────────────────────────────────────────
 // Without momentum the CA is pure diffusion and a spill fans out equally in all directions. These
 // pin the behaviour change AND the two invariants it could plausibly destroy: exact mass

@@ -364,7 +364,33 @@ and a fully-submerged camera at depth.
   settle (no oscillation / "popcorn water") — both are existing test patterns in
   `WaterSimulationTest.cpp`. Red-verify by mutation.
 - **Sub-voxel floor height:** one float per cell derived from sub-occupancy (no cell-count change),
-  so water sits correctly on subcube/microcube structure geometry.
+  so water sits correctly on subcube/microcube structure geometry. **Split into two options; B
+  shipped 2026-07-28, A is a recorded FUTURE GOAL:**
+
+  **A — capacity-aware floors (FUTURE, not built).** Per-cell capacity becomes `1 - floor`, so a
+  cell with a ⅓ floor genuinely holds ⅔ of a unit and pressure/compression account for it. This is
+  the volumetrically correct version. It is deferred because it changes `stableBottom`, the gravity
+  split and the compression rule — the most load-bearing code in the sim, with exact mass
+  conservation and settling tests riding on it. Do it as its own focused increment: write the
+  capacity-model red tests FIRST (conservation with mixed capacities; a floored basin settling to a
+  flat *surface* rather than flat *mass*; no overshoot into a reduced-capacity cell), then change
+  the rules. Deferred on 2026-07-28 as an explicit scope call, not an oversight.
+
+  **B — render-only floor (SHIPPED).** The floor raises where the surface is drawn
+  (`surfaceY = cellY + floor + fill*(1-floor)`) without touching the CA's capacity model. Water
+  sits ON a low subcube platform instead of hovering a full voxel above it. Volume is slightly
+  overstated (a ⅓-floored cell still holds a full unit); that error is invisible at the surface and
+  is exactly what A fixes.
+
+  **THE TRAP (found while scoping, and why B is not simply "make subdivided cells passable"):**
+  today ANY sub-voxel content makes a cell fully solid, so water cannot enter it at all. Naively
+  relaxing that to "subdivided ⇒ passable, with a floor" would let water pour straight through thin
+  VERTICAL sheets — a 1-subcube-thick wall or the 3-micro eave sheet has no full horizontal layer,
+  so its floor is 0 — and flood building interiors that are watertight today. The shipped rule is
+  therefore conservative: a subdivided cell becomes passable **only if its content is exactly N full
+  horizontal layers from the bottom and nothing above** (a pure platform). Walls, chair legs, thin
+  sheets and mixed subcube+microcube content keep today's fully-solid behaviour. The change can only
+  ever ADD water access to genuine floors; it can never remove watertightness.
 
 ### Phase 5 — Polish
 - **Screen-space reflections** marched against the depth buffer with a sky fallback — cheaper and

@@ -678,6 +678,10 @@ bool ChunkManager::hasVoxelAt(const glm::ivec3& worldPos) const {
     return m_voxelQuerySystem.hasVoxelAt(worldPos);
 }
 
+float ChunkManager::subVoxelFloor(const glm::ivec3& worldPos) const {
+    return m_voxelQuerySystem.subVoxelFloor(worldPos);
+}
+
 VoxelLocation::Type ChunkManager::getVoxelTypeAt(const glm::ivec3& worldPos) const {
     return m_voxelQuerySystem.getVoxelTypeAt(worldPos);
 }

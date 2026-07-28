@@ -287,6 +287,61 @@ bool ChunkVoxelManager::hasVoxelAt(const glm::ivec3& localPos) const {
     return getVoxelType(localPos) != VoxelLocation::EMPTY;
 }
 
+float ChunkVoxelManager::subVoxelFloor(const glm::ivec3& localPos) const {
+    // A real cube is fully solid.
+    if (inBounds(localPos) && voxelStore.solid(kIdx(localPos))) return kSolidFloor;
+
+    auto subIt = subcubeMap.find(localPos);
+    auto micIt = microcubeMap.find(localPos);
+    const bool hasSub = (subIt != subcubeMap.end() && !subIt->second.empty());
+    const bool hasMic = (micIt != microcubeMap.end() && !micIt->second.empty());
+
+    if (!hasSub && !hasMic) return 0.0f;          // genuinely empty: no floor, freely passable
+    if (hasSub && hasMic)   return kSolidFloor;   // mixed resolutions: don't guess, stay solid
+
+    // Count consecutive FULL horizontal layers from the bottom, and require that ALL content lives
+    // in those layers — that is what makes it a platform rather than a wall or a table leg.
+    if (hasSub) {
+        const auto& cells = subIt->second;
+        int fullLayers = 0;
+        for (int sy = 0; sy < 3; ++sy) {
+            int inLayer = 0;
+            for (int sx = 0; sx < 3; ++sx)
+                for (int sz = 0; sz < 3; ++sz)
+                    if (cells.count(glm::ivec3(sx, sy, sz))) ++inLayer;
+            if (inLayer == 9) ++fullLayers; else break;
+        }
+        if (fullLayers == 0) return kSolidFloor;                                  // no floor at all
+        if (cells.size() != static_cast<size_t>(fullLayers) * 9) return kSolidFloor; // stuff above
+        if (fullLayers == 3) return kSolidFloor;                                  // fully packed
+        return static_cast<float>(fullLayers) / 3.0f;
+    }
+
+    // Microcubes are nested one level deeper: microcubeMap[local][subcubePos][microcubePos].
+    // Flatten to a 9x9x9 grid so a thin micro platform reads as ninths.
+    const auto& subSlots = micIt->second;
+    size_t total = 0;
+    for (const auto& [spos, micros] : subSlots) total += micros.size();
+    auto microAt = [&](int gx, int gy, int gz) {
+        const glm::ivec3 spos(gx / 3, gy / 3, gz / 3);
+        auto it = subSlots.find(spos);
+        if (it == subSlots.end()) return false;
+        return it->second.count(glm::ivec3(gx % 3, gy % 3, gz % 3)) > 0;
+    };
+    int fullLayers = 0;
+    for (int gy = 0; gy < 9; ++gy) {
+        int inLayer = 0;
+        for (int gx = 0; gx < 9; ++gx)
+            for (int gz = 0; gz < 9; ++gz)
+                if (microAt(gx, gy, gz)) ++inLayer;
+        if (inLayer == 81) ++fullLayers; else break;
+    }
+    if (fullLayers == 0) return kSolidFloor;
+    if (total != static_cast<size_t>(fullLayers) * 81) return kSolidFloor;
+    if (fullLayers == 9) return kSolidFloor;
+    return static_cast<float>(fullLayers) / 9.0f;
+}
+
 bool ChunkVoxelManager::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const {
     auto it = subcubeMap.find(localPos);
     if (it != subcubeMap.end()) {

@@ -134,6 +134,23 @@ public:
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
     bool hasVoxelAt(const glm::ivec3& localPos) const;
     bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
+
+    // ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────
+    // How far up this voxel is filled by a PURE HORIZONTAL sub-voxel floor, as a fraction of the
+    // voxel (0, 1/3, 2/3 for subcubes; ninths for microcubes). Lets water sit ON a low platform
+    // instead of hovering a whole voxel above it.
+    //
+    // Returns a NEGATIVE value when the voxel must be treated as fully solid: a real cube, or
+    // subdivided content that is NOT just flat layers stacked from the bottom. That conservative
+    // rule is load-bearing — a 1-subcube-thick wall or a thin microcube eave sheet has no full
+    // horizontal layer, so calling it "floor 0, therefore passable" would let water pour through
+    // walls and flood interiors that are watertight today. Only a genuine platform opens up.
+    //
+    // O(1) in the voxel count: one hash lookup for the voxel, then at most a few dozen lookups
+    // inside its own sparse sub-map. (Do NOT implement this over Chunk::getSubcubesAt — that
+    // linear-scans every subcube in the chunk.)
+    static constexpr float kSolidFloor = -1.0f;
+    float subVoxelFloor(const glm::ivec3& localPos) const;
     VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
 
     // Check if callbacks have been configured

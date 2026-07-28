@@ -67,6 +67,11 @@ public:
     // outside the region.
     void  setSolidWorld(int worldX, int worldY, int worldZ, bool solid);
 
+    // Sub-voxel floor fraction at a world cell (WaterSystemV3 Phase 4B). Normally derived from the
+    // chunk terrain by syncSolidsFromChunks; settable directly for tests and authoring.
+    void  setFloorWorld(int worldX, int worldY, int worldZ, float fraction);
+    float floorAtWorld(const glm::vec3& worldPos) const;
+
     // --- Ocean seam (infinite reservoir at sea level) ---
     // Open cells at/below `seaLevel` that are connected to an ocean seed become an
     // infinite reservoir: they hold sea level, refill when dug, and flood through
