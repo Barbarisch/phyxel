@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/SpawnGate.h"
+
 #include "scene/NPCEntity.h"
 #include "scene/CharacterAppearance.h"
 #include "ai/RelationshipManager.h"
@@ -70,6 +72,20 @@ public:
     using ObstacleBoxProvider =
         std::function<std::vector<std::pair<glm::ivec3, glm::ivec3>>()>;
     void setNavObstacleProvider(ObstacleBoxProvider p) { m_obstacleProvider = std::move(p); }
+
+    /// SPAWN GATE (user directive 2026-07-28: "it should be impossible (by default) to
+    /// generate a character inside a wall/object/static voxel"). Every NPC spawn resolves
+    /// its position against the RESOLUTION-COMPLETE static solidity the character actually
+    /// collides with; an embedded request is relocated to the nearest clear standing spot,
+    /// and REFUSED (nullptr, logged) if nothing clear is nearby. Set true only for callers
+    /// that genuinely want the old unchecked behaviour (the escape hatch, off by default).
+    void setAllowEmbeddedSpawns(bool allow) { m_allowEmbeddedSpawns = allow; }
+    bool allowEmbeddedSpawns() const { return m_allowEmbeddedSpawns; }
+
+    /// The static solidity predicate the spawn gate uses: chunk voxels at every
+    /// resolution via VoxelDynamicsWorld, plus the placed-object obstacle overlay.
+    /// Empty (inactive gate) when no physics world is wired.
+    SolidAABBFn staticSolidQuery() const;
     /// Set the combat system so real-time combat NPCs can deal damage.
     void setCombatSystem(CombatSystem* combatSystem) { m_combatSystem = combatSystem; }
     /// Set the raycast visualizer for NPC FOV debug cone rendering.
@@ -178,6 +194,7 @@ private:
     Graphics::DayNightCycle* m_dayNightCycle = nullptr;
     LocationRegistry* m_locationRegistry = nullptr;
     ChunkManager* m_chunkManager = nullptr;
+    bool m_allowEmbeddedSpawns = false;                     ///< spawn-gate escape hatch (see setter)
     ObstacleBoxProvider m_obstacleProvider;                 ///< static nav obstacles (see setter)
     std::unordered_set<int64_t> m_navObstacles;             ///< rasterized cells (rebuilt per buildNavGrid)
     RaycastVisualizer* m_raycastVisualizer = nullptr;

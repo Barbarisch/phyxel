@@ -24,6 +24,33 @@ namespace Core {
 
 NPCManager::~NPCManager() = default;
 
+namespace {
+/// Shared by both spawn paths. Returns false when the caller must NOT spawn.
+/// Mutates `position` to the resolved one when the request was embedded.
+bool applySpawnGate(const SolidAABBFn& solid, bool allowEmbedded, const std::string& name,
+                    glm::vec3& position) {
+    if (allowEmbedded || !solid) return true;   // escape hatch, or no world to check against
+    const SpawnResult sr = resolveSpawn(solid, position);
+    if (!sr.ok()) {
+        LOG_ERROR("NPCManager", "Refusing to spawn NPC '{}': {}", name, sr.reason);
+        return false;
+    }
+    if (sr.outcome == SpawnOutcome::Relocated) {
+        LOG_WARN("NPCManager", "NPC '{}' spawn adjusted: {}", name, sr.reason);
+        position = sr.position;
+    }
+    return true;
+}
+}  // namespace
+
+SolidAABBFn NPCManager::staticSolidQuery() const {
+    Physics::VoxelDynamicsWorld* vw = m_physicsWorld ? m_physicsWorld->getVoxelWorld() : nullptr;
+    if (!vw) return {};   // no world to check against -> the gate stands down (see SpawnGate.h)
+    return [vw](const glm::vec3& lo, const glm::vec3& hi) {
+        return vw->anyStaticSolidInAABB(lo, hi);
+    };
+}
+
 Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::string& animFile,
                                         const glm::vec3& position, NPCBehaviorType behaviorType,
                                         const std::vector<glm::vec3>& waypoints,
@@ -67,7 +94,12 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
         return nullptr;
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance);
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, animFile, appearance);
     npc->setBehavior(std::move(behavior));
 
     // Wire pathfinder to PatrolBehavior if available
@@ -92,7 +124,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
 
-    LOG_INFO("NPCManager", "Spawned NPC '{}' at ({}, {}, {})", name, position.x, position.y, position.z);
+    LOG_INFO("NPCManager", "Spawned NPC '{}' at ({}, {}, {})", name, spawnPos.x, spawnPos.y, spawnPos.z);
     return rawPtr;
 }
 
@@ -515,7 +547,12 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     }
 
     // Create NPC entity with procedural skeleton (no file re-read)
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips);
 
     // Set behavior
@@ -579,7 +616,12 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         return nullptr;
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance, true);
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, animFile, appearance, true);
 
     std::unique_ptr<Scene::NPCBehavior> behavior;
     switch (behaviorType) {
@@ -651,7 +693,12 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips, true);
 
     std::unique_ptr<Scene::NPCBehavior> behavior;

@@ -171,6 +171,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
      aligned to floor-top (excludes terrain grading/terracing + the threshold step), ground floor
      only, no furniture in the occupancy. A runtime jam is therefore narrowed to terrain mode,
      furniture, or the mover.
+  8. **Spawn gate (2026-07-28, `core/SpawnGate.{h,cpp}` + `SpawnGateTest`, 8 tests)** — USER
+     DIRECTIVE: "it should be impossible (by default) to generate a character inside a
+     wall/object/static voxel." The character-side analog of the settlement grounding gate.
+     `resolveSpawn()` checks the character's BODY VOLUME against the resolution-complete
+     static solidity it actually collides with (`VoxelDynamicsWorld::anyStaticSolidInAABB`,
+     injected as a `SolidAABBFn` so the module stays pure), relocates an embedded request to
+     the nearest clear standing spot on the SUBCUBE grid (1/3 m steps — a cube step would
+     teleport a character through the very wall it is stuck in), and REFUSES when nothing
+     clear is in range. Wired into all 5 `NPCManager` spawn construction sites; escape hatch
+     `setAllowEmbeddedSpawns(true)`, default OFF.
+     Why a new module and not `StructureBuildService::snapToStandable`: that helper is
+     CUBE-granular, so it is blind to the 2-micro interior partitions characters actually get
+     stuck in, and it returns the requested cell unchanged when it finds nothing — the silent
+     embed. `SpawnGateTest` PINS that blindness as a teeth test.
+     **NOT yet gated (honest gap):** the player / `spawn_entity` `AnimatedVoxelCharacter` path
+     does not go through `NPCManager`, so it is still ungated.
   ⚠ Known open: silent-crash class fired 2× during settlement builds (std::set_terminate
   logger now installed in editor main.cpp, unfired so far); Debug pad/grass phases ~30 s per
   building (profile before trusting build times); `GET /api/navgraph/path` debug endpoint =
