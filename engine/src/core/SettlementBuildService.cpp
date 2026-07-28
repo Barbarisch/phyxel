@@ -1015,6 +1015,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
              {"buildings", buildings.size()}, {"origin", {{"x", ox}, {"y", oy}, {"z", oz}}}};
 
     res.settlement   = settlementJson;
+    if (!chunkManager) {
+        // Planning without a world is legitimate (a caller may only want the layout), but
+        // EVERY site-prep unit is world-gated, so the returned plan builds BUILDINGS ONLY --
+        // no parcel clearing, terracing, street paving, fences or yard props. Surface that
+        // instead of handing back a quietly partial plan.
+        res.settlement["site_prep_skipped"] = true;
+        res.settlement["site_prep_skipped_reason"] =
+            "no ChunkManager: clearing / terracing / paving / fencing / yard-prop units were "
+            "not planned; this plan places buildings only";
+    }
     res.program      = programJson;
     res.queuedBuilds = queued;
     res.jobLabel     = programMode

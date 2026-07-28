@@ -73,7 +73,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
-#include "core/SettlementBuildService.h"  // build_settlement: the settlement pipeline (engine-side)
+#include "core/SettlementBuildService.h"
+#include "core/SpawnGate.h"                 // player spawn gate: never create a character inside geometry  // build_settlement: the settlement pipeline (engine-side)
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
@@ -4949,7 +4950,59 @@ void Application::toggleCharacterControl() {
 }
 
 Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile) {
-    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld, pos);
+    // SPAWN GATE (user directive: never generate a character inside static geometry).
+    // Gated HERE, in the factory, rather than at the spawn_entity handler, so every
+    // caller is covered -- the same lesson NPCManager taught, where spawnProceduralNPC
+    // did not funnel through spawnNPCWithBehavior and would have stayed ungated.
+    //
+    // This LAYERS on the pre-existing groundSpawnYIfInsideSolid at the spawn_entity
+    // site rather than replacing it: that helper is cube-granular and climbs only in
+    // +Y, so it lifts a spawn out of DEEP terrain burial (unbounded column) but is
+    // blind to the ~2-micro interior partitions this gate exists for. Coarse-then-fine.
+    glm::vec3 spawnPos = pos;
+    if (physicsWorld) {
+        if (auto* vw = physicsWorld->getVoxelWorld()) {
+            const Core::SpawnResult sr = Core::resolveSpawn(
+                [vw](const glm::vec3& lo, const glm::vec3& hi) {
+                    return vw->anyStaticSolidInAABB(lo, hi);
+                },
+                pos);
+            if (sr.outcome == Core::SpawnOutcome::Relocated) {
+                LOG_WARN("Application", "character spawn adjusted: {}", sr.reason);
+                spawnPos = sr.position;
+            } else if (!sr.ok()) {
+                // ESCALATE before refusing. resolveSpawn searches a bounded 4 m; a
+                // character requested deep inside a solid world has no clear cell in
+                // that radius but does have open air straight up. Climbing the column
+                // (unbounded) and re-checking keeps the invariant -- never spawn inside
+                // geometry -- without hard-failing the asset/anim editors, which create
+                // a reference character at a fixed position that may be buried.
+                const int liftedY = Core::groundSpawnYIfInsideSolid(
+                    [this](int cx, int cy, int cz) {
+                        return chunkManager && chunkManager->hasVoxelAt(glm::ivec3(cx, cy, cz));
+                    },
+                    (int)std::floor(pos.x), (int)std::floor(pos.y), (int)std::floor(pos.z));
+                const glm::vec3 lifted(pos.x, (float)liftedY, pos.z);
+                const Core::SpawnResult sr2 = Core::resolveSpawn(
+                    [vw](const glm::vec3& lo, const glm::vec3& hi) {
+                        return vw->anyStaticSolidInAABB(lo, hi);
+                    },
+                    lifted);
+                if (sr2.ok()) {
+                    LOG_WARN("Application", "character spawn was encased; lifted out of the "
+                             "solid column to y={} ({})", sr2.position.y, sr2.reason);
+                    spawnPos = sr2.position;
+                } else {
+                    // Still inside geometry after climbing the whole column: refuse
+                    // rather than bury. Callers null-check.
+                    LOG_ERROR("Application", "Refusing to create character: {}", sr2.reason);
+                    return nullptr;
+                }
+            }
+        }
+    }
+
+    auto animatedCharPtr = std::make_unique<Scene::AnimatedVoxelCharacter>(physicsWorld, spawnPos);
     animatedCharacter = animatedCharPtr.get();
     // Single source of truth for player health: the player character shares the
     // HUD/respawn HealthComponent (Application::playerHealth) rather than carrying
@@ -12633,6 +12686,16 @@ void Application::processAPICommands() {
                 if (type == "physics" || type == "spider" || type == "animated") {
                     spawned = createAnimatedCharacter(glm::vec3(x, y, z), animFile);
                     entityType = "animated";
+                    if (!spawned) {
+                        // The spawn gate refused (position inside static geometry with no
+                        // clear cell). Say so — a silent no-op is the failure mode we are
+                        // removing, not a acceptable outcome.
+                        response = {{"error", "spawn refused: the requested position is inside "
+                                              "static geometry and no clear position was found"},
+                                    {"requested", {{"x", x}, {"y", requestedY}, {"z", z}}}};
+                        if (cmd.onComplete) cmd.onComplete(response);
+                        continue;
+                    }
                 } else {
                     response = {{"error", "Unknown entity type: " + type}};
                     if (cmd.onComplete) cmd.onComplete(response);
