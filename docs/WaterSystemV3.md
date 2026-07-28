@@ -137,15 +137,25 @@
 > overall sd 20.3 → 31.5. Shoreline checked at a shallow vantage: seabed reads through the swell with
 > no gap, no z-fighting and no torn waterline (the Phase-2 L2 "watertight at the handoff" item).
 >
-> **Phase 2 perf — PARTIALLY measured, and the gap is stated.** Toggling amplitude 0 ↔ 0.45 at a
-> fixed vantage moved the median frame time 2.696 → 2.348 ms, i.e. the *displacement math* is below
-> this scene's noise floor (the ON case measured FASTER, which added work cannot do — same noise
-> problem as Phase 1). **BUT that toggle does NOT measure the mesh:** amplitude 0 still draws all
-> 24,320 triangles, only skipping the math. The fixed cost of going from 2 triangles to 24,320 was
-> NOT isolated against a pre-Phase-2 build. For scale, this scene's entire voxel world is ~16k faces,
-> so the water sheet is now comparable to the whole scene in triangle count. **Measure this in
-> Release against the parent build before shipping**; if it bites, the ring/sector counts are the
-> first knob (they are two constants in `WaterRenderPipeline.cpp`).
+> **Phase 2 perf — MEASURED (gap closed 2026-07-27, commit `dbae8e63`).** First the displacement
+> *math*: toggling amplitude 0 ↔ 0.45 moved median frame time 2.696 → 2.348 ms, i.e. below the noise
+> floor (the ON case measured FASTER, which added work cannot do). **But that toggle does not
+> measure the mesh** — amplitude 0 still draws every triangle. Isolating the tessellation needs a
+> COVERAGE-MATCHED control: 1 ring at the same sector count, so the silhouette (and therefore the
+> fill) is identical and only the vertex count differs. A first attempt used 4 sectors and was
+> discarded — fewer sectors shrink the disc's area, confounding vertex cost with fill. Release,
+> sea-filling vantage, 60 samples each:
+>
+> | mesh | triangles | median frame | vs control |
+> |---|---|---|---|
+> | 1 ring × 128 (control) | 128 | 1.469 ms | — |
+> | **48 × 96 (shipped)** | **4,608** | **1.679 ms** | **+0.21 ms** |
+> | 96 × 128 (first cut) | 24,320 | 1.912 ms | +0.44 ms (**+30%** of frame time) |
+>
+> The dense mesh was NOT free. **48 × 96 keeps 95% of the wave structure** (row-to-row luminance
+> change 2.010 vs 2.112 on an identical capture) **for less than half the cost**, so it ships as the
+> default. The measured table lives in the comment above the constants so the next tuning pass
+> starts from data rather than vibes.
 >
 > ### Phase 3 — FLOW VELOCITY, SHIPPED 2026-07-27
 >
