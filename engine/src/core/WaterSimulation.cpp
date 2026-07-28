@@ -24,6 +24,13 @@ glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
     return m_flow[idx(x, y, z)];
 }
 
+void WaterSimulation::setMomentum(float strength) {
+    strength = std::max(0.0f, strength);
+    if (m_momentum == strength) return;
+    m_momentum = strength;
+    markAllCols();   // the flow rule changed; a settled field may now redistribute differently
+}
+
 void WaterSimulation::markAllCols() {
     std::fill(m_colDirty.begin(), m_colDirty.end(), 1);
     m_settled = false;
@@ -330,12 +337,30 @@ void WaterSimulation::step(float flowSide) {
 
         // 2) Horizontal: move toward the average with each same-level neighbor,
         //    leveling the surface. Only the higher cell of a pair flows.
+        //
+        // MOMENTUM (Phase 4): the share sent to each neighbour is biased by how well that direction
+        // aligns with the flow this cell already carries, so moving water continues rather than
+        // fanning out isotropically. The factor stays < 0.5 (see setMomentum) so this only changes
+        // WHERE the outflow goes, never how far past the average it can push.
+        float mvx = 0.0f, mvz = 0.0f, mspeed = 0.0f;
+        if (m_momentum > 0.0f) {
+            const glm::vec2 fv = m_flow[c];
+            mspeed = std::sqrt(fv.x * fv.x + fv.y * fv.y);
+            if (mspeed > 1e-5f) { mvx = fv.x / mspeed; mvz = fv.y / mspeed; }
+        }
+        const float mramp = std::min(mspeed / FLOW_FULL, 1.0f) * m_momentum;
+
         for (int k = 0; k < 4 && remaining > 0.0f; ++k) {
             int nx = x + HX[k], nz = z + HZ[k];
             if (!inBounds(nx, y, nz) || m_solid[idx(nx, y, nz)]) continue;
             const size_t n = idx(nx, y, nz);
             if (cPinned && pinned(n)) continue;
-            float flow = (remaining - m_mass[n]) * 0.25f * flowSide;
+            float rate = 0.25f;
+            if (mramp > 0.0f) {
+                const float align = mvx * static_cast<float>(HX[k]) + mvz * static_cast<float>(HZ[k]);
+                rate = std::min(0.45f, std::max(0.05f, 0.25f * (1.0f + MOMENTUM_GAIN * align * mramp)));
+            }
+            float flow = (remaining - m_mass[n]) * rate * flowSide;
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[n] += flow; remaining -= flow; changed = true;
@@ -385,12 +410,28 @@ void WaterSimulation::step(float flowSide) {
             continue;
 #endif
             if (m <= 0.0f) continue;
+            const glm::vec2 a = m_flowAccum[i];
             glm::vec2 f = m_flow[i];
-            f += (m_flowAccum[i] - f) * FLOW_EMA;
+            if (a.x == 0.0f && a.y == 0.0f) {
+                // Nothing moved here this step. Decay HARDER than the EMA would: with momentum
+                // reading this field (Phase 4), a column must reach exactly zero quickly or it
+                // stays awake (see the markCol below) and delays settling for dozens of steps.
+                f *= 0.5f;
+            } else {
+                f += (a - f) * FLOW_EMA;
+            }
             // Snap the geometric tail to exactly zero so a cell that stopped flowing settles at a
             // clean zero instead of decaying through denormals forever.
-            if (std::fabs(f.x) < 1e-5f && std::fabs(f.y) < 1e-5f) f = glm::vec2(0.0f);
+            if (std::fabs(f.x) < 1e-3f && std::fabs(f.y) < 1e-3f) f = glm::vec2(0.0f);
             m_flow[i] = f;
+            // ACTIVE-SET EQUIVALENCE (load-bearing). Momentum makes the mass evolution depend on
+            // this flow field, so the field itself must evolve IDENTICALLY whether or not the
+            // active set skipped a column — otherwise a column that goes quiet keeps a frozen flow
+            // under the active set while a full sweep decays it to zero, and the two runs diverge
+            // the moment that column wakes. Keeping any column with residual flow dirty makes both
+            // paths take the same decay. (Bounded: the 0.5 decay + 1e-3 snap above reaches zero in
+            // ~8 steps, so this cannot hold the field awake indefinitely.)
+            if (f.x != 0.0f || f.y != 0.0f) markCol(cx, cz);
         }
     }
 

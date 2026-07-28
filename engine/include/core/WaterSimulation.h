@@ -98,6 +98,29 @@ public:
     // reads as immediate, slow enough that the CA's per-tick lumpiness doesn't strobe the shading.
     static constexpr float FLOW_EMA = 0.25f;
 
+    // ── MOMENTUM (WaterSystemV3 Phase 4) ──────────────────────────────────────────────────────
+    // Without this the CA is pure diffusion: a spill spreads outward like paint, equally in every
+    // direction, because the horizontal rule only ever moves mass toward the local average. Real
+    // water carries inertia — it keeps going the way it was already going, and rounds corners
+    // instead of fanning out. Momentum biases WHICH neighbour receives a cell's outflow by how well
+    // that direction aligns with the flow the cell already has (the Phase 3 proxy, reused — this
+    // costs no new storage).
+    //
+    // IT REMAINS STRICTLY DISSIPATIVE. The per-neighbour factor is clamped below 0.5, and moving
+    // (a-b)*c with c < 0.5 leaves the difference (a-b)*(1-2c) with the SAME SIGN and smaller
+    // magnitude. So water can never overshoot the local average, never pump uphill, and the field
+    // still converges monotonically — mass conservation and settling are untouched by construction,
+    // not just by tuning.
+    void  setMomentum(float strength);   // 0 disables; 1 = shipped default
+    float momentum() const { return m_momentum; }
+    // ⚑GROUND: at full strength an aligned neighbour's leveling factor goes 0.25 -> 0.45 and an
+    // opposed one 0.25 -> 0.05, i.e. moving water is ~9x more likely to continue than to reverse.
+    // Chosen as the largest bias that stays clear of the 0.5 overshoot bound.
+    static constexpr float MOMENTUM_GAIN = 0.8f;
+    // Flow magnitude (mass/step) treated as "fully moving" for the bias ramp. Matches the renderer's
+    // FLOW_FULL so the shading and the physics agree about what counts as a vigorous current.
+    static constexpr float FLOW_FULL = 0.15f;
+
 // Compile-time A/B switch for the flow proxy's own cost — set to 0 to compile the flow work out
 // entirely (the field then reads zero everywhere and the FlowProxy* tests fail by design).
 // MEASURED with this switch (Release, `--gtest_filter=Water*`, 64x32x64 worst-case active sweep,
@@ -198,6 +221,7 @@ private:
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
+    float                m_momentum   = 1.0f;  // Phase 4 inertia strength (0 = pure diffusion)
     bool                 m_settled    = false; // last step moved no mass → skip until disturbed
     unsigned long long   m_sweepsRun  = 0;     // steps that ran the full sweep (observability)
 };
