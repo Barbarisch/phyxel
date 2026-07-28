@@ -1,0 +1,40 @@
+# PLAYER spawn-gate L4 + settlement L4 RUN #2 (independent artifact to diff vs run #1)
+# commit(code): 968ef4e218f950c6d6737f5a185b0250caf89ce7 + uncommitted D2 fixes
+# exe:  Jul 28 12:15
+# exe contains player-gate string 'Refusing to create character': 1
+# exe contains lift string 'site_prep_skipped' (unique to SettlementBuildService.cpp): 2
+# utc:  2026-07-28T16:16:50Z
+
+=== PART A: settlement L4 RUN #2 (same params as run #1) ===
+{"async":true,"job_id":1000000,"program":{"dropped_plots":0,"era":"medieval","main_street":{"d":5,"w":60,"x":10,"z":25},"morphology":"main_street","seed":3,"tier":"village"},"queued_builds":[{"footprint":[8,6],"plot":0,"position":{"x":14,"y":16,"z":31},"shape":"rect","style":"stone_keep","typology":"croft"},{"footprint":[16,8],"plot":1,"position":{"x":15,"y":16,"z":15},"shape":"rect","style":"stone_manor","typology":"hall_house"},{"footprint":[16,8],"plot":2,"position":{"x":26,"y":16,"z":32},"shape":"rect","style":"timber_cottage","typology":"hall_house"},{"footprint":[16,6],"plot":3,"position":{"x":36,"y":16,"z":17},"shape":"rect","style":"stone_manor","typology":"longhouse"},{"footprint":[8,6],"plot":4,"position":{"x":47,"y":16,"z":32},"shape":"rect","style":"timber_cottage","typology":"croft"},{"footprint":[8,6],"plot":5,"position":{"x":57,"y":16,"z":17},"shape":"L","style":"stone_keep","typology":"croft"}],"settlement":{"buildings":6,"origin":{"x":10,"y":16,"z":10},"plots":6,"streets":1},"success":true}
+{"count":1,"jobs":[{"elapsed_seconds":163.195,"id":1000000,"label":"settlement medieval/village seed 3","main_thread":true,"message":"complete","progress":1.0,"result":{"paths":{"cut_cells_unpaved":0,"cut_cols_honored":0,"cut_cubes_removed":0,"fence_micros":15030,"fence_type":"picket","fill_cols":0,"grass_converted":311,"level_cols":24675,"material":"Gravel","parcels":6,"paved_columns":24675,"paved_microcubes":24675,"spurs":6,"spurs_too_steep":0,"stamp_ms":21087},"residents":{"planned":6,"spawned":6},"yard_props":{"placed":12,"skipped":0}},"state":"complete","type":"build_settlement","units_done":14,"units_total":14}]}
+
+=== PART B: PLAYER spawn gate (spawn_entity type=animated -> createAnimatedCharacter) ===
+
+--- player_buried at (25.0,8.0,25.0)  [BURIED deep in solid terrain (flat world solid below y=16)] ---
+{"grounded_from":{"x":25.0,"y":8.0,"z":25.0},"id":"player_buried","position":{"x":25.0,"y":18.0,"z":25.0},"success":true,"type":"animated","uuid":"c247bbe3-d716-4218-abcf-9dc95ce4a3a5","warning":"spawn point (25,8,25) was inside solid voxels; grounded to y=18"}
+
+--- player_open at (45.0,17.0,8.0)  [OPEN ground control - must NOT move] ---
+{"id":"player_open","position":{"x":45.0,"y":17.0,"z":8.0},"success":true,"type":"animated","uuid":"5c834136-9a84-41d5-8e00-1b86ba86bece"}
+--- [Application] gate lines in the engine log ---
+
+--- NOTE on the two probes above ---
+Neither exercised the FINE gate. The buried probe was corrected by the PRE-EXISTING
+coarse groundSpawnYIfInsideSolid at the spawn_entity handler (y=8 -> y=18, see its
+`warning` field) BEFORE createAnimatedCharacter ran, so the fine gate correctly saw a
+clear position and logged nothing. That is coarse-then-fine behaving as designed, but
+it means the thin-wall case still needs its own probe: FEET in an EMPTY cube with the
+BODY overlapping a 3-micro wall -- invisible to any cube-granular check.
+Target: plot 2 timber_cottage at (26,16,32); exterior_wall 0.333 m -> west wall spans
+x 26.0..26.33. Feet at x=25.9 -> body 25.65..26.15 overlaps the wall; feet cube is 25,
+which is empty.
+
+--- player_in_wall at (25.9,17.0,35.0)  [FEET in an empty cube, BODY overlapping the croft's 3-micro west wall] ---
+{"id":"player_in_wall","position":{"x":25.899999618530273,"y":17.0,"z":35.0},"success":true,"type":"animated","uuid":"b6823d3b-d467-4b64-9060-84de89617fb8"}
+
+--- [Application] gate lines ---
+[12:21:11.080] [WARN] [Application] character spawn adjusted: spawn was embedded in static geometry; relocated 0.471404 m to clear standing ground
+
+--- ACTUAL entity position vs the position the spawn response reported ---
+player_in_wall -> {"debugColor":{"a":1.0,"b":1.0,"g":1.0,"r":1.0},"health":{"alive":true,"health":100.0,"healthPercent":1.0,"invulnerable":false,"maxHealth":100.0},"id":"player_in_wall","position":{"x":25.566665649414063,"y":17.0,"z":34.66666793823242},"rotation":{"w":1.0,"x":0.0,"y":0.0,"z":0.0},"scale":{"x":1.0,"y":1.0,"z":1.0},"type":"animated","uuid":"b6823d3b-d467-4b64-9060-84de89617fb8"}
+player_open -> {"debugColor":{"a":1.0,"b":1.0,"g":1.0,"r":1.0},"health":{"alive":true,"health":100.0,"healthPercent":1.0,"invulnerable":false,"maxHealth":100.0},"id":"player_open","position":{"x":45.0,"y":17.0,"z":8.0},"rotation":{"w":1.0,"x":0.0,"y":0.0,"z":0.0},"scale":{"x":1.0,"y":1.0,"z":1.0},"type":"animated","uuid":"5c834136-9a84-41d5-8e00-1b86ba86bece"}

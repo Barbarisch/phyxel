@@ -4977,11 +4977,16 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
                 // (unbounded) and re-checking keeps the invariant -- never spawn inside
                 // geometry -- without hard-failing the asset/anim editors, which create
                 // a reference character at a fixed position that may be buried.
+                // searchUp must clear the TALLEST terrain this engine generates, not the
+                // helper's 128 default: terrain-v2 peaks reach ~384 voxels above sea level
+                // (CLAUDE.md), so a spawn low in a mountain column would cap out mid-rock and
+                // then refuse. 512 covers the documented maximum with margin.
                 const int liftedY = Core::groundSpawnYIfInsideSolid(
                     [this](int cx, int cy, int cz) {
                         return chunkManager && chunkManager->hasVoxelAt(glm::ivec3(cx, cy, cz));
                     },
-                    (int)std::floor(pos.x), (int)std::floor(pos.y), (int)std::floor(pos.z));
+                    (int)std::floor(pos.x), (int)std::floor(pos.y), (int)std::floor(pos.z),
+                    /*searchUp=*/512);
                 const glm::vec3 lifted(pos.x, (float)liftedY, pos.z);
                 const Core::SpawnResult sr2 = Core::resolveSpawn(
                     [vw](const glm::vec3& lo, const glm::vec3& hi) {
@@ -5311,9 +5316,18 @@ void Application::spawnTestAINPC() {
     }
 
     auto* npcChar = createAnimatedCharacter(spawnPos, "resources/animated_characters/humanoid.anim");
+    if (!npcChar) {
+        // The spawn gate refused (camera aimed into geometry). Bail rather than
+        // continue: passing null on registered a phantom AI controller bound to
+        // nothing, which the AI component null-guards internally and therefore
+        // failed SILENTLY. (solution-auditor find, 2026-07-28.)
+        LOG_WARN("Application", "spawnTestAINPC: spawn refused at ({}, {}, {}) - aim somewhere clear",
+                 spawnPos.x, spawnPos.y, spawnPos.z);
+        return;
+    }
     // createAnimatedCharacter is the player factory and binds the shared player
     // health; this debug NPC must keep its OWN health store, so revert it.
-    if (npcChar) npcChar->setHealthComponent(nullptr);
+    npcChar->setHealthComponent(nullptr);
 
     // Generate a unique ID for this NPC
     static int npcCounter = 0;
@@ -12710,21 +12724,34 @@ void Application::processAPICommands() {
                         entityRegistry->registerEntity(spawned, id, entityType);
                     }
                     const std::string spawnedUuid = entityRegistry->getUuid(id);
-                    // Record the spawn recipe so this runtime entity persists across
-                    // save/reload with the same uuid (Phase 2b). Positions refreshed at save.
+                    // Report where the character ACTUALLY IS, not where it was asked for.
+                    // The spawn gate may have relocated it out of geometry, and the response
+                    // used to echo the requested x/y/z -- so the API told callers the character
+                    // stood exactly where the engine had just refused to put it (measured live:
+                    // requested (25.90,17,35), actual (25.567,17,34.667)). Found by the L4 probe.
+                    const glm::vec3 actual = spawned->getPosition();
                     m_runtimeEntities[spawnedUuid] =
-                        Core::RuntimeEntity{spawnedUuid, id, entityType, animFile, glm::vec3(x, y, z)};
+                        Core::RuntimeEntity{spawnedUuid, id, entityType, animFile, actual};
                     response = {{"success", true}, {"id", id}, {"uuid", spawnedUuid},
                                 {"type", entityType},
-                                {"position", {{"x", x}, {"y", y}, {"z", z}}}};
+                                {"position", {{"x", actual.x}, {"y", actual.y}, {"z", actual.z}}}};
                     if (!spawnWarning.empty()) {
                         response["warning"] = spawnWarning;
                         response["grounded_from"] = {{"x", x}, {"y", requestedY}, {"z", z}};
                     }
+                    // Surface a gate relocation the same way, so a caller can tell the
+                    // difference between "you got what you asked for" and "we moved you".
+                    if (std::fabs(actual.x - x) > 1e-3f || std::fabs(actual.y - y) > 1e-3f ||
+                        std::fabs(actual.z - z) > 1e-3f) {
+                        response["relocated_from"] = {{"x", x}, {"y", y}, {"z", z}};
+                        if (!response.contains("warning"))
+                            response["warning"] = "spawn position was inside static geometry; "
+                                                  "relocated to the nearest clear standing spot";
+                    }
                     if (gameEventLog) {
                         gameEventLog->emit("entity_spawned", {
                             {"id", id}, {"type", entityType},
-                            {"position", {{"x", x}, {"y", y}, {"z", z}}}
+                            {"position", {{"x", actual.x}, {"y", actual.y}, {"z", actual.z}}}
                         });
                     }
                 } else {
