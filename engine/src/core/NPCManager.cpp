@@ -42,6 +42,38 @@ bool applySpawnGate(const SolidAABBFn& solid, bool allowEmbedded, const std::str
     }
     return true;
 }
+
+/// SECOND PASS, with the body that actually exists. applySpawnGate necessarily runs
+/// BEFORE construction, so it can only assume the humanoid default -- but a species'
+/// real capsule is resolved by resizeController() during construction, from the loaded
+/// skeleton. For fauna (BodyPlan clamps half-width to [0.12, 0.60]) that default is
+/// wrong by up to 2.4x, so a gap a humanoid fits can leave a wolf or dragon embedded in
+/// the walls either side. Re-check here and reposition; refuse only if the real body
+/// cannot be placed at all. No-op for anything close to humanoid.
+bool verifySpawnForRealBody(const SolidAABBFn& solid, bool allowEmbedded,
+                            const std::string& name, Scene::NPCEntity* npc) {
+    if (allowEmbedded || !solid || !npc) return true;
+    auto* ch = npc->getAnimatedCharacter();
+    if (!ch) return true;
+    CharacterBounds body;
+    body.halfWidth = ch->getControllerHalfWidth();
+    body.height = ch->getControllerHalfHeight() * 2.0f;
+    const glm::vec3 at = npc->getPosition();
+    if (!spawnIsEmbedded(solid, at, body)) return true;   // the common case: nothing to do
+
+    const SpawnResult sr = resolveSpawnWithClimb(solid, at, body);
+    if (!sr.ok()) {
+        LOG_ERROR("NPCManager", "Refusing to spawn '{}': its REAL body ({}m half-width, {}m "
+                  "tall) is inside static geometry and no clear position was found",
+                  name, body.halfWidth, body.height);
+        return false;
+    }
+    LOG_WARN("NPCManager", "'{}' re-placed for its real body ({}m half-width): {}",
+             name, body.halfWidth, sr.reason);
+    npc->setPosition(sr.position);
+    return true;
+}
+
 }  // namespace
 
 SolidAABBFn NPCManager::staticSolidQuery() const {
@@ -133,6 +165,13 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
+
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        m_npcs.erase(name);
+        return nullptr;
+    }
 
     LOG_INFO("NPCManager", "Spawned NPC '{}' at ({}, {}, {})", name, spawnPos.x, spawnPos.y, spawnPos.z);
     return rawPtr;
@@ -669,6 +708,13 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
 
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        m_npcs.erase(name);
+        return nullptr;
+    }
+
     LOG_INFO("NPCManager", "Spawned procedural NPC '{}' (role='{}') at ({}, {}, {})",
              name, role, position.x, position.y, position.z);
     return rawPtr;
@@ -743,6 +789,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
+
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        m_npcs.erase(name);
+        return nullptr;
+    }
 
     LOG_INFO("NPCManager", "Spawned physics NPC '{}' at ({}, {}, {})", name, position.x, position.y, position.z);
     return rawPtr;
@@ -830,6 +883,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
+
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        m_npcs.erase(name);
+        return nullptr;
+    }
 
     LOG_INFO("NPCManager", "Spawned physics procedural NPC '{}' (role='{}') at ({}, {}, {})",
              name, role, position.x, position.y, position.z);

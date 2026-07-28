@@ -306,3 +306,69 @@ TEST(SpawnGateTest, AClearSpawnDoesNotClimb) {
     EXPECT_EQ(r.outcome, SpawnOutcome::Clear);
     EXPECT_EQ(r.position, open);
 }
+
+// ===========================================================================
+// SPECIES SIZE — the gate must check the body that will actually exist.
+//
+// solution-auditor round 6: applySpawnGate calls resolveSpawn WITHOUT a
+// CharacterBounds, so it silently uses the default 0.25 m / 1.75 m HUMANOID box
+// for every species. Fauna is not humanoid: BodyPlan clamps capsule half-width to
+// [0.12, 0.60] m (BodyPlan.h:52-53), and the real value is only resolved AFTER
+// NPCEntity construction, when resizeController measures the loaded skeleton --
+// i.e. strictly after the gate has already run.
+//
+// The merged FaunaSpawner spawns wolves, horses, stags and dragons through that
+// funnel. Routing through a gate that measures the wrong volume is not protection,
+// and the "a character is never created inside static geometry" claim is only true
+// for humanoids until this is threaded through.
+// ===========================================================================
+
+// The gap, stated as an executable fact: a corridor that comfortably fits the
+// humanoid box does NOT fit a wide quadruped, and the default-bounds check cannot
+// tell the difference.
+TEST(SpawnGateTest, TheDefaultHumanoidBoxDeclaresAGapClearThatAWideBodyCannotFit) {
+    // Two walls 0.9 m apart on flat ground: wider than a humanoid (0.5 m), narrower
+    // than a large quadruped (up to 1.2 m at BodyPlan's maxHalfWidth).
+    BoxWorld w;
+    w.ground(16.0f);
+    // Inner faces at x=9.55 and x=10.45 -> a 0.90 m gap centred on x=10.0.
+    w.add({8.00f, 16.0f, 0.0f}, {9.55f, 20.0f, 20.0f});
+    w.add({10.45f, 16.0f, 0.0f}, {12.00f, 20.0f, 20.0f});
+    const glm::vec3 inGap(10.0f, 16.0f, 10.0f);
+
+    const CharacterBounds humanoid{};                       // 0.25 m half-width
+    const CharacterBounds quadruped{0.55f, 1.30f};          // a large imported animal
+
+    // What the gate checks today:
+    EXPECT_FALSE(spawnIsEmbedded(w.fn(), inGap, humanoid))
+        << "fixture is wrong: the humanoid box should FIT this 0.9 m gap";
+    EXPECT_EQ(resolveSpawn(w.fn(), inGap, humanoid).outcome, SpawnOutcome::Clear);
+
+    // What actually gets created there:
+    EXPECT_TRUE(spawnIsEmbedded(w.fn(), inGap, quadruped))
+        << "a 1.1 m-wide body should NOT fit a 0.9 m gap - if this passes, the fixture "
+           "no longer models the species-size gap and the test below proves nothing";
+
+    // Therefore: the gate, given the real body, does the right thing. The defect is
+    // purely that nothing PASSES the real body -- which is what the API change fixes.
+    const SpawnResult r = resolveSpawn(w.fn(), inGap, quadruped);
+    EXPECT_NE(r.outcome, SpawnOutcome::Clear)
+        << "given the REAL body the gate must not report Clear in a gap too narrow for it";
+    if (r.ok()) EXPECT_FALSE(spawnIsEmbedded(w.fn(), r.position, quadruped));
+}
+
+// The climb must honour species size too, or a large creature gets 'rescued' onto a
+// ledge that only a humanoid fits.
+TEST(SpawnGateTest, TheClimbHonoursTheSuppliedBodySize) {
+    BoxWorld w;
+    w.ground(16.0f);
+    // A solid slab with a shallow shelf above it: 1.0 m of headroom, fine for nothing tall.
+    w.add({0.0f, 16.0f, 0.0f}, {20.0f, 24.0f, 20.0f});
+    w.add({0.0f, 25.0f, 0.0f}, {20.0f, 30.0f, 20.0f});   // ceiling 1.0 m above the slab top
+
+    const CharacterBounds tall{0.25f, 2.60f};   // a big creature
+    const SpawnResult r = resolveSpawnWithClimb(w.fn(), glm::vec3(10.0f, 18.0f, 10.0f), tall);
+    if (r.ok())
+        EXPECT_FALSE(spawnIsEmbedded(w.fn(), r.position, tall))
+            << "the climb placed a 2.6 m body somewhere it does not fit";
+}
