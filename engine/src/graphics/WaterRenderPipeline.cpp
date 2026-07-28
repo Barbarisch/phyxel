@@ -20,11 +20,19 @@ namespace Graphics {
 // near the viewer (where the shape actually reads). Rings at radius (r/R)^2 put density where the
 // camera is, which is the cheap approximation of a projected grid.
 //
-// ⚑GROUND: 96 rings x 128 sectors = 12,289 vertices / 24,320 triangles, built ONCE into a static
-// buffer. That is negligible next to a voxel chunk's face count, and it puts the innermost ring
-// well under a metre from the viewer while still reaching the far plane.
-static constexpr int SEA_RINGS = 96;
-static constexpr int SEA_SECTORS = 128;
+// ⚑GROUND — these two numbers are MEASURED, not guessed. Release, WaterLab, a vantage where the
+// sea fills the frame (the worst case), 60 samples of total frame time per configuration:
+//
+//     128 tris (1 ring, coverage-matched control) .... 1.469 ms
+//   4,608 tris (48 x 96)  .......................... 1.679 ms   (+0.21 ms)
+//  24,320 tris (96 x 128) .......................... 1.912 ms   (+0.44 ms)
+//
+// 48 x 96 keeps 95% of the wave structure of the 5x denser mesh (row-to-row luminance change 2.010
+// vs 2.112 on an identical capture) for less than half the cost, so that is the default. The denser
+// mesh is NOT free: it was +30% of frame time in a sea-filling view. If a scene ever needs the cost
+// back, these are the knob — and re-measure rather than assuming.
+static constexpr int SEA_RINGS = 48;
+static constexpr int SEA_SECTORS = 96;
 
 // Unit-radius disc: xz in [-1,1], y unused. The shader scales by the sheet's half-size.
 static void buildSeaMesh(std::vector<glm::vec3>& verts, std::vector<uint32_t>& indices) {
