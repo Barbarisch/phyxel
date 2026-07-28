@@ -203,10 +203,14 @@
 > per-COLUMN flow (32× less memory; the renderer only reads the surface cell anyway).
 >
 > **NOT done — do not assume these:**
-> - **Phase 3's river path was NOT verified live.** The kinematic river direction needs a streamed
->   world with a baked hydrology order≥3 channel; WaterLab is a small authored world with no bake,
->   so only the CA-derived path (the flume) was exercised at L4. The river path is covered by
->   construction + the FlowField unit tests, NOT by a runtime observation.
+> - **Phase 3's river path is L2-covered but still NOT verified live.** Three
+>   `WaterManagerTest.RiverFlowQuery*` / `ClearingRiverFlowQuery*` tests now pin the stamping
+>   (direction applied on a pinned channel · still pools untouched · unbind clears it),
+>   red-verified by mutation — and that mutation independently confirms the premise: with the stamp
+>   disabled a pinned river's CA flow reads **exactly 0**. What is still missing is **L4**: the
+>   kinematic river needs a streamed world with a baked hydrology order≥3 channel, and WaterLab is a
+>   small authored world with no bake, so only the CA-derived path (the flume) was exercised at
+>   runtime.
 > - **The red was NOT run as a build.** The day/night failure is proven by SOURCE (pre-change
 >   `water.frag` hardcoded `sunDir`/sky constants and bound no scene UBO, so it could not respond
 >   to time of day) — not by measuring the old binary at midnight. The A/B baseline build existed
