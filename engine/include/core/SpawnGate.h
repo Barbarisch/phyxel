@@ -79,5 +79,21 @@ bool spawnIsSupported(const SolidAABBFn& solid, const glm::vec3& feet,
 SpawnResult resolveSpawn(const SolidAABBFn& solid, const glm::vec3& requested,
                          const CharacterBounds& body = {}, float searchRadius = 4.0f);
 
+/// resolveSpawn, then -- if that bounded lateral search finds nothing -- CLIMB the column
+/// for the first height at which the body is clear, preferring one that is also supported.
+/// Refused only if neither succeeds within `maxClimb`.
+///
+/// Two hard-won properties, both regression-tested:
+///   * The climb must be BODY-aware. An earlier version delegated to a FEET-CUBE helper
+///     (groundSpawnYIfInsideSolid), which early-returns when the feet cell is empty -- the
+///     exact case needing rescue (feet in an air pocket, body in rock). It was inert there.
+///   * The climb must NOT re-run the full resolveSpawn per step. Its lateral ring search is
+///     meaningless while ascending a column, and doing it anyway cost ~1536 x ~5,000-11,000
+///     solidity queries -- MEASURED stalling the engine's main loop 27 SECONDS on a spawn
+///     deep inside a tall column. Each step is now a couple of AABB tests.
+SpawnResult resolveSpawnWithClimb(const SolidAABBFn& solid, const glm::vec3& requested,
+                                  const CharacterBounds& body = {}, float searchRadius = 4.0f,
+                                  float maxClimb = 512.0f);
+
 }  // namespace Core
 }  // namespace Phyxel

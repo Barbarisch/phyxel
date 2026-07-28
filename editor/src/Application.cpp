@@ -4959,81 +4959,35 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     // site rather than replacing it: that helper is cube-granular and climbs only in
     // +Y, so it lifts a spawn out of DEEP terrain burial (unbounded column) but is
     // blind to the ~2-micro interior partitions this gate exists for. Coarse-then-fine.
+    // SPAWN GATE (user directive: never generate a character inside static geometry).
+    // Gated HERE, in the factory, so every caller is covered -- the lesson NPCManager
+    // taught, where spawnProceduralNPC did not funnel through spawnNPCWithBehavior.
+    //
+    // The resolution logic itself lives in Core::resolveSpawnWithClimb, NOT inline here:
+    // Application.cpp is editor-only and linked by no unit-test target, so while this
+    // code sat inline it had ZERO automated coverage at any layer -- and it shipped an
+    // inert branch AND a 27-second main-loop stall, both caught only by live probing.
+    // In core it is unit-testable, including its cost (SpawnGateTest budgets the solidity
+    // queries so the stall cannot return).
+    //
+    // This still LAYERS on the coarse groundSpawnYIfInsideSolid at the spawn_entity call
+    // site: that helper is cube-granular and +Y only, lifting a spawn out of DEEP terrain
+    // burial, but is blind to the ~2-micro partitions this gate exists for. Coarse-then-fine.
     glm::vec3 spawnPos = pos;
     if (physicsWorld) {
         if (auto* vw = physicsWorld->getVoxelWorld()) {
-            const Core::SpawnResult sr = Core::resolveSpawn(
+            const Core::SpawnResult sr = Core::resolveSpawnWithClimb(
                 [vw](const glm::vec3& lo, const glm::vec3& hi) {
                     return vw->anyStaticSolidInAABB(lo, hi);
                 },
                 pos);
+            if (!sr.ok()) {
+                LOG_ERROR("Application", "Refusing to create character: {}", sr.reason);
+                return nullptr;
+            }
             if (sr.outcome == Core::SpawnOutcome::Relocated) {
                 LOG_WARN("Application", "character spawn adjusted: {}", sr.reason);
                 spawnPos = sr.position;
-            } else if (!sr.ok()) {
-                // ESCALATE before refusing. resolveSpawn searches a bounded 4 m; a
-                // character requested deep inside solid rock has no clear cell in that
-                // radius but does have open air straight up. Climbing and re-checking
-                // keeps the invariant -- never spawn inside geometry -- without hard-
-                // failing the asset/anim editors, which create a reference character at a
-                // fixed position that may be buried.
-                //
-                // The climb is BODY-aware, deliberately not groundSpawnYIfInsideSolid:
-                // that helper early-returns when the FEET CUBE is empty, which is exactly
-                // the case that needs rescuing (feet in an air pocket, body in rock). An
-                // L4 probe against a 1-cube pocket encased in stone proved the old
-                // feet-cube escalation inert there -- it returned the position unchanged
-                // and the spawn was refused. Step by SUBCUBE so we stop at the first clear
-                // height rather than overshooting. 512 covers this engine's tallest terrain
-                // (terrain-v2 peaks ~384 above sea level, CLAUDE.md).
-                // The climb only needs the FIRST height at which the body is clear, so it
-                // does a cheap per-step BODY test -- NOT a full resolveSpawn, whose lateral
-                // ring search is meaningless while ascending a column. The naive version
-                // (resolveSpawn per step) cost ~1536 x a 9-height x 12-ring search and was
-                // MEASURED by the solution-auditor stalling the main loop 27 SECONDS on a
-                // genuinely unresolvable spawn (deep inside an 11x11x700 column) -- the exact
-                // case this branch exists for. Now it is ~2 AABB tests per step, bounded.
-                auto solidFn = [vw](const glm::vec3& lo, const glm::vec3& hi) {
-                    return vw->anyStaticSolidInAABB(lo, hi);
-                };
-                bool escalated = false;
-                Core::SpawnResult sr2 = sr;
-                const float kStep = 1.0f / 3.0f;
-                const int kMaxSteps = 512 * 3;      // 512 m: covers terrain-v2's ~384-voxel peaks
-                glm::vec3 firstClear(0.0f);
-                bool haveClear = false;
-                for (int i = 1; i <= kMaxSteps; ++i) {
-                    const glm::vec3 up(pos.x, pos.y + i * kStep, pos.z);
-                    if (Core::spawnIsEmbedded(solidFn, up)) continue;
-                    if (!haveClear) { haveClear = true; firstClear = up; }
-                    // Prefer the first clear height that is also STANDING on something;
-                    // otherwise fall back to the first clear height (the agent falls).
-                    if (Core::spawnIsSupported(solidFn, up)) {
-                        sr2.outcome = Core::SpawnOutcome::Relocated;
-                        sr2.position = up;
-                        sr2.movedDistance = glm::length(up - pos);
-                        sr2.reason = "lifted out of the solid column onto clear standing ground";
-                        escalated = true;
-                        break;
-                    }
-                }
-                if (!escalated && haveClear) {
-                    sr2.outcome = Core::SpawnOutcome::Relocated;
-                    sr2.position = firstClear;
-                    sr2.movedDistance = glm::length(firstClear - pos);
-                    sr2.reason = "lifted out of the solid column into clear but unsupported air";
-                    escalated = true;
-                }
-                if (escalated) {
-                    LOG_WARN("Application", "character spawn was encased; lifted out of the "
-                             "solid column to y={} ({})", sr2.position.y, sr2.reason);
-                    spawnPos = sr2.position;
-                } else {
-                    // Still inside geometry after climbing the whole column: refuse
-                    // rather than bury. Callers null-check.
-                    LOG_ERROR("Application", "Refusing to create character: {}", sr2.reason);
-                    return nullptr;
-                }
             }
         }
     }

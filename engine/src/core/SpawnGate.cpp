@@ -120,5 +120,42 @@ SpawnResult resolveSpawn(const SolidAABBFn& solid, const glm::vec3& requested,
     return res;
 }
 
+SpawnResult resolveSpawnWithClimb(const SolidAABBFn& solid, const glm::vec3& requested,
+                                  const CharacterBounds& body, float searchRadius,
+                                  float maxClimb) {
+    SpawnResult res = resolveSpawn(solid, requested, body, searchRadius);
+    if (res.ok() || !solid) return res;
+
+    // The lateral search failed. Climb: find the first height where the body is clear,
+    // preferring one that is also supported. Cheap per step by design (see header).
+    const int steps = std::max(1, static_cast<int>(maxClimb / kStep));
+    bool haveClear = false;
+    glm::vec3 firstClear(0.0f);
+    for (int i = 1; i <= steps; ++i) {
+        const glm::vec3 up(requested.x, requested.y + i * kStep, requested.z);
+        if (spawnIsEmbedded(solid, up, body)) continue;
+        if (!haveClear) { haveClear = true; firstClear = up; }
+        if (spawnIsSupported(solid, up, body)) {
+            res.outcome = SpawnOutcome::Relocated;
+            res.position = up;
+            res.supported = true;
+            res.movedDistance = glm::length(up - requested);
+            res.reason = "lifted out of the solid column onto clear standing ground";
+            return res;
+        }
+    }
+    if (haveClear) {
+        res.outcome = SpawnOutcome::Relocated;
+        res.position = firstClear;
+        res.supported = false;
+        res.movedDistance = glm::length(firstClear - requested);
+        res.reason = "lifted out of the solid column into clear but UNSUPPORTED air "
+                     "(the character will fall)";
+        return res;
+    }
+    // res is still the Refused from resolveSpawn -- position unchanged, reason intact.
+    return res;
+}
+
 }  // namespace Core
 }  // namespace Phyxel

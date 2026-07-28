@@ -194,3 +194,115 @@ TEST(SpawnGateTest, WithoutASolidityQueryTheGateStandsDownInsteadOfRefusing) {
     EXPECT_TRUE(r.ok());
     EXPECT_EQ(r.position, glm::vec3(1.0f, 2.0f, 3.0f));
 }
+
+// ===========================================================================
+// resolveSpawnWithClimb — the escalation, now in core so it HAS tests.
+//
+// While this logic sat inline in editor/src/Application.cpp it had zero automated
+// coverage at any layer (that file is linked by no unit-test target), and in that
+// state it shipped two defects that only live probing found: an inert branch, and a
+// 27-SECOND main-loop stall. Both are pinned below.
+// ===========================================================================
+
+namespace {
+// Wraps a solidity query and COUNTS the calls. The cost regression is only catchable
+// if the cost is measurable, so it is measured rather than eyeballed.
+struct CountingSolid {
+    SolidAABBFn inner;
+    mutable long calls = 0;
+    SolidAABBFn fn() const {
+        auto* self = const_cast<CountingSolid*>(this);
+        return [self](const glm::vec3& lo, const glm::vec3& hi) {
+            ++self->calls;
+            return self->inner(lo, hi);
+        };
+    }
+};
+
+// A tall solid column with a 1-cube air pocket at `pocketY`: feet clear, body in rock,
+// nothing clear laterally. The shape that defeated the old feet-cube escalation.
+BoxWorld encasedPocketWorld(float pocketY, float columnTop) {
+    BoxWorld w;
+    w.ground(16.0f);
+    w.add({20.0f, 16.0f, 20.0f}, {31.0f, columnTop, 31.0f});   // the column
+    // carve the pocket (a hole in the middle of the column) by rebuilding around it
+    BoxWorld out;
+    out.ground(16.0f);
+    out.add({20.0f, 16.0f, 20.0f}, {31.0f, pocketY, 31.0f});           // below pocket
+    out.add({20.0f, pocketY + 1.0f, 20.0f}, {31.0f, columnTop, 31.0f}); // above pocket
+    out.add({20.0f, pocketY, 20.0f}, {25.0f, pocketY + 1.0f, 31.0f});   // pocket ring -x
+    out.add({26.0f, pocketY, 20.0f}, {31.0f, pocketY + 1.0f, 31.0f});   // pocket ring +x
+    out.add({25.0f, pocketY, 20.0f}, {26.0f, pocketY + 1.0f, 25.0f});   // pocket ring -z
+    out.add({25.0f, pocketY, 26.0f}, {26.0f, pocketY + 1.0f, 31.0f});   // pocket ring +z
+    return out;   // the 1-cube void is (25..26, pocketY..pocketY+1, 25..26)
+}
+}  // namespace
+
+// The defect that made the escalation inert: feet cube EMPTY, body embedded. A
+// feets-only check reports "nothing to do" and the spawn is refused.
+TEST(SpawnGateTest, ClimbEscapesAPocketWhereTheFeetAreClearButTheBodyIsNot) {
+    const auto w = encasedPocketWorld(/*pocketY=*/30.0f, /*columnTop=*/50.0f);
+    const glm::vec3 pocket(25.5f, 30.0f, 25.5f);
+
+    ASSERT_TRUE(spawnIsEmbedded(w.fn(), pocket))
+        << "fixture is wrong: the body should be embedded in the pocket";
+    ASSERT_FALSE(spawnIsSupported(w.fn(), pocket) && !spawnIsEmbedded(w.fn(), pocket));
+
+    // Plain resolveSpawn cannot escape -- everything within its lateral radius is rock.
+    EXPECT_EQ(resolveSpawn(w.fn(), pocket).outcome, SpawnOutcome::Refused)
+        << "the lateral search escaped a fully encased pocket - fixture is not encased";
+
+    const SpawnResult r = resolveSpawnWithClimb(w.fn(), pocket);
+    ASSERT_TRUE(r.ok()) << r.reason;
+    EXPECT_EQ(r.outcome, SpawnOutcome::Relocated);
+    EXPECT_FALSE(spawnIsEmbedded(w.fn(), r.position)) << "climbed to a position still in rock";
+    EXPECT_GE(r.position.y, 50.0f) << "did not climb clear of the column top (y=50)";
+    EXPECT_TRUE(r.supported) << "should land ON the column, not in the air above it";
+}
+
+// THE COST REGRESSION. The old climb re-ran the full resolveSpawn per step (~1536 x a
+// 9-height x 12-ring search) and stalled the engine 27 seconds. Budget the solidity
+// queries so that can never silently return.
+TEST(SpawnGateTest, ClimbingAnUnresolvableColumnStaysWithinAQueryBudget) {
+    // A column taller than the climb range, wide enough to block the lateral search at
+    // every height: the genuinely unresolvable case, i.e. the worst path through the loop.
+    BoxWorld w;
+    w.ground(16.0f);
+    w.add({0.0f, 16.0f, 0.0f}, {40.0f, 4000.0f, 40.0f});
+    CountingSolid cs{w.fn()};
+
+    const SpawnResult r = resolveSpawnWithClimb(cs.fn(), glm::vec3(20.0f, 20.0f, 20.0f), {},
+                                                /*searchRadius=*/4.0f, /*maxClimb=*/512.0f);
+    EXPECT_EQ(r.outcome, SpawnOutcome::Refused) << "a 4000-tall column was escapable?";
+
+    // Per climb step the contract is a couple of AABB tests, not a nested ring search.
+    // 512 m / (1/3 m) = 1536 steps; allow the lateral resolveSpawn attempt plus generous
+    // slack, but far below the millions the per-step-resolveSpawn version cost.
+    const long kBudget = 200000;
+    EXPECT_LT(cs.calls, kBudget)
+        << "the climb issued " << cs.calls << " solidity queries (budget " << kBudget
+        << "). The per-step full-resolveSpawn version cost millions and stalled the main "
+           "loop 27 seconds on exactly this input.";
+}
+
+// Teeth for the budget test: prove the counter and fixture register a LARGE cost when
+// the work really is large, so the budget assertion is not passing on a no-op.
+TEST(SpawnGateTest, TheQueryCounterActuallyRegistersWork) {
+    BoxWorld w;
+    w.ground(16.0f);
+    w.add({0.0f, 16.0f, 0.0f}, {40.0f, 4000.0f, 40.0f});
+    CountingSolid cs{w.fn()};
+    resolveSpawnWithClimb(cs.fn(), glm::vec3(20.0f, 20.0f, 20.0f), {}, 4.0f, 512.0f);
+    EXPECT_GT(cs.calls, 1000)
+        << "only " << cs.calls << " queries - the fixture is not exercising the climb, so "
+           "the budget test above would pass trivially";
+}
+
+// A clear spawn must not trigger any climb at all.
+TEST(SpawnGateTest, AClearSpawnDoesNotClimb) {
+    const auto w = thinWallWorld();
+    const glm::vec3 open(8.0f, 16.0f, 5.0f);
+    const SpawnResult r = resolveSpawnWithClimb(w.fn(), open);
+    EXPECT_EQ(r.outcome, SpawnOutcome::Clear);
+    EXPECT_EQ(r.position, open);
+}
