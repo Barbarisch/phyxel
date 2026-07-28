@@ -1,0 +1,756 @@
+[
+  {
+    "id": "blink-dog",
+    "name": "Blink Dog",
+    "type": "fey",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "4d8+4",
+    "averageHP": 22,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Blink Dog"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d6+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 4 (1d6 + 1) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The dog has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "fey"
+    ]
+  },
+  {
+    "id": "sprite",
+    "name": "Sprite",
+    "type": "fey",
+    "subtype": "",
+    "size": "Tiny",
+    "alignment": "neutral good",
+    "armorClass": 15,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "1d4",
+    "averageHP": 2,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Common",
+      "Elvish",
+      "Sylvan"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Longsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 1 slashing damage."
+      },
+      {
+        "name": "Shortbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 40,
+        "rangeLong": 160,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +6 to hit, range 40/160 ft., one target. Hit: 1 piercing damage, and the target must succeed on a DC 10 Constitution saving throw or become poisoned for 1 minute. If its saving throw result is 5 or lower, the poisoned target falls unconscious for the same duration, or until it takes damage or another creature takes an action to shake it awake."
+      },
+      {
+        "name": "Heart Sight",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CHA",
+        "saveDC": 10,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The sprite touches a creature and magically knows the creature's current emotional state. If the target fails a DC 10 Charisma saving throw, the sprite also knows the creature's alignment. Celestials, fiends, and undead automatically fail the saving throw."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "fey"
+    ]
+  },
+  {
+    "id": "satyr",
+    "name": "Satyr",
+    "type": "fey",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic neutral",
+    "armorClass": 14,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "7d8",
+    "averageHP": 31,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Performance": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common",
+      "Elvish",
+      "Sylvan"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Ram",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "2d4+1",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 6 (2d4 + 1) bludgeoning damage."
+      },
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      },
+      {
+        "name": "Shortbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 80,
+        "rangeLong": 320,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +5 to hit, range 80/320 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The satyr has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "fey"
+    ]
+  },
+  {
+    "id": "dryad",
+    "name": "Dryad",
+    "type": "fey",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Elvish",
+      "Sylvan"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit (+6 to hit with shillelagh), reach 5 ft., one target. Hit: 2 (1d4) bludgeoning damage, or 8 (1d8 + 4) bludgeoning damage with shillelagh."
+      },
+      {
+        "name": "Fey Charm",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dryad targets one humanoid or beast that she can see within 30 feet of her. If the target can see the dryad, it must succeed on a DC 14 Wisdom saving throw or be magically charmed. The charmed creature regards the dryad as a trusted friend to be heeded and protected. Although the target isn't under the dryad's control, it takes the dryad's requests or actions in the most favorable way it can.\nEach time the dryad or its allies do anything harmful to the target, it can repeat the saving throw, ending the effect on itself on a success. Otherwise, the effect lasts 24 hours or until the dryad dies, is on a different plane of existence from the target, or ends the effect as a bonus action. If a target's saving throw is successful, the target is immune to the dryad's Fey Charm for the next 24 hours.\nThe dryad can have no more than one humanoid and up to three beasts charmed at a time."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The dryad's innate spellcasting ability is Charisma (spell save DC 14). The dryad can innately cast the following spells, requiring no material components:\n\nAt will: druidcraft\n3/day each: entangle, goodberry\n1/day each: barkskin, pass without trace, shillelagh"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The dryad has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Speak with Beasts and Plants",
+        "description": "The dryad can communicate with beasts and plants as if they shared a language."
+      },
+      {
+        "name": "Tree Stride",
+        "description": "Once on her turn, the dryad can use 10 ft. of her movement to step magically into one living tree within her reach and emerge from a second living tree within 60 ft. of the first tree, appearing in an unoccupied space within 5 ft. of the second tree. Both trees must be large or bigger."
+      }
+    ],
+    "tags": [
+      "fey"
+    ]
+  },
+  {
+    "id": "sea-hag",
+    "name": "Sea Hag",
+    "type": "fey",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "7d8+21",
+    "averageHP": 52,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Aquan",
+      "Common",
+      "Giant"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage."
+      },
+      {
+        "name": "Death Glare",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 11,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The hag targets one frightened creature she can see within 30 ft. of her. If the target can see the hag, it must succeed on a DC 11 Wisdom saving throw against this magic or drop to 0 hit points."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The hag can breathe air and water."
+      },
+      {
+        "name": "Horrific Appearance",
+        "description": "Any humanoid that starts its turn within 30 feet of the hag and can see the hag's true form must make a DC 11 Wisdom saving throw. On a failed save, the creature is frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, with disadvantage if the hag is within line of sight, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the hag's Horrific Appearance for the next 24 hours.\nUnless the target is surprised or the revelation of the hag's true form is sudden, the target can avert its eyes and avoid making the initial saving throw. Until the start of its next turn, a creature that averts its eyes has disadvantage on attack rolls against the hag."
+      }
+    ],
+    "tags": [
+      "fey"
+    ]
+  },
+  {
+    "id": "green-hag",
+    "name": "Green Hag",
+    "type": "fey",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "11d8+33",
+    "averageHP": 82,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Common",
+      "Draconic",
+      "Sylvan"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The hag can breathe air and water."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The hag's innate spellcasting ability is Charisma (spell save DC 12). She can innately cast the following spells, requiring no material components:\n\nAt will: dancing lights, minor illusion, vicious mockery"
+      },
+      {
+        "name": "Mimicry",
+        "description": "The hag can mimic animal sounds and humanoid voices. A creature that hears the sounds can tell they are imitations with a successful DC 14 Wisdom (Insight) check."
+      }
+    ],
+    "tags": [
+      "fey"
+    ]
+  }
+]

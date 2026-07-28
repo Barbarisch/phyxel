@@ -36,6 +36,7 @@
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <queue>
 #include <unordered_map>
@@ -131,8 +132,13 @@ RenderCoordinator::RenderCoordinator(
     dynamicRenderPipeline->setRenderPass(postProcessor->getSceneRenderPass());
     dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
-    // Create character instance buffer (max 10000 instances)
-    vulkanDevice->createCharacterInstanceBuffer(10000);
+    // Character instance buffer, shared by every character in the scene (main pass +
+    // shadow pass). Sized in PARTS, not characters: the hand-authored humanoid rigs are
+    // a few hundred parts, but imported creature rigs are microcube-dense — 3.0-4.7k
+    // parts each — so the old 10k cap fit barely three monsters and silently dropped
+    // the rest (a 27-creature scene rendered ~2). 262144 x 40 B = 10.5 MB, which holds
+    // ~70 dense creatures or several hundred humanoids.
+    vulkanDevice->createCharacterInstanceBuffer(kCharacterInstanceCapacity);
 
     // Recreate Swapchain Framebuffers using PostProcess Render Pass
     // The swapchain framebuffers now need to be compatible with the post-process render pass
@@ -192,13 +198,16 @@ RenderCoordinator::RenderCoordinator(
         vulkanDevice->getSwapChainExtent()
     );
 
-    // Initialize Water surface pipeline (see docs/WaterSystem.md).
+    // Initialize Water surface pipeline (see docs/WaterSystem.md, docs/WaterSystemV3.md).
+    // Built against the WATER render pass — water draws after the scene pass so it can sample
+    // scene colour + depth (Phase 1).
     waterPipeline = std::make_unique<WaterRenderPipeline>();
     waterPipeline->initialize(
         vulkanDevice->getDevice(),
         vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
+        postProcessor->getWaterRenderPass(),
+        vulkanDevice->getSwapChainExtent(),
+        vulkanDevice->getDescriptorSetLayout()
     );
     // Phase 1: water samples the shared planar-reflection texture.
     waterPipeline->setReflectionTexture(
@@ -209,9 +218,20 @@ RenderCoordinator::RenderCoordinator(
     waterCellPipeline->initialize(
         vulkanDevice->getDevice(),
         vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
+        postProcessor->getWaterRenderPass(),
+        vulkanDevice->getSwapChainExtent(),
+        vulkanDevice->getDescriptorSetLayout()
     );
+
+    // WaterSystemV3 Phase 1: point both water pipelines at the post-scene taps (half-res scene
+    // colour copy for refraction, scene depth for thickness/absorption/soft shorelines). Must be
+    // repeated after every swapchain resize — both images are recreated there.
+    waterPipeline->setSceneTextures(
+        postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+        postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+    waterCellPipeline->setSceneTextures(
+        postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+        postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
 
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
@@ -307,6 +327,69 @@ bool RenderCoordinator::initUISystem() {
     }
     LOG_INFO("RenderCoordinator", "UISystem initialized successfully");
     return true;
+}
+
+void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDirectionRadians) {
+    if (waterPipeline) waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
+}
+
+glm::vec3 RenderCoordinator::waveSettings() const {
+    if (!waterPipeline) return glm::vec3(0.0f);
+    return glm::vec3(waterPipeline->waveAmplitude(), waterPipeline->waveLength(),
+                     waterPipeline->windDirection());
+}
+
+// Is the eye under water, and how deep? (WaterSystemV3 Phase 1 item 5.)
+//
+// Two sources, in priority order:
+//   1. The SIM, whenever the camera is inside its region. It is the only thing that knows about
+//      lakes at any altitude AND is connectivity-gated — a sealed dry cavity below sea level reads
+//      DRY here, where a bare "camera.y < seaLevel" test would wrongly fog it.
+//   2. Sea level, as the fallback outside the region (the implicit ocean the flat plane draws).
+//
+// Both fade over a short band at the surface so breaking through doesn't pop.
+float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
+    depthBelow = 0.0f;
+    if (!camera) return 0.0f;
+    const glm::vec3 eye = camera->getPosition();
+
+    // ⚑GROUND: 0.35 voxel ≈ the slice a swimmer's eye passes through as it breaks the surface —
+    // long enough to read as a fade, short enough to feel immediate.
+    const float BAND = 0.35f;
+
+    if (m_waterManager) {
+        const glm::ivec3 o = m_waterManager->origin();
+        const glm::ivec3 d = m_waterManager->dims();
+        const bool inRegion = eye.x >= o.x && eye.x < o.x + d.x &&
+                              eye.y >= o.y && eye.y < o.y + d.y &&
+                              eye.z >= o.z && eye.z < o.z + d.z;
+        if (inRegion) {
+            // Fill fraction matters: a cell holding 0.4 mass has its surface 0.4 of the way up, so
+            // the eye is only submerged below that height.
+            const float here = m_waterManager->massAtWorld(eye);
+            if (here <= 0.0f) return 0.0f;
+            const float cellFloor = std::floor(eye.y);
+            depthBelow = std::max(0.0f, (cellFloor + std::min(here, 1.0f)) - eye.y);
+            // If this cell is full there may be more water stacked above; the true depth drives how
+            // dark/blue the fog gets, so walk up while the column stays wet.
+            if (here >= 0.999f) {
+                for (float y = cellFloor + 1.0f; y < static_cast<float>(o.y + d.y); y += 1.0f) {
+                    const float m = m_waterManager->massAtWorld(glm::vec3(eye.x, y + 0.5f, eye.z));
+                    if (m <= 0.0f) break;
+                    depthBelow = (y + std::min(m, 1.0f)) - eye.y;
+                    if (m < 0.999f) break;
+                }
+            }
+            return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
+        }
+    }
+
+    if (m_waterEnabled) {   // implicit ocean outside the sim region
+        depthBelow = m_seaLevel - eye.y;
+        if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
+        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
+    }
+    return 0.0f;
 }
 
 void RenderCoordinator::render() {
@@ -834,11 +917,12 @@ void RenderCoordinator::renderReflectionPass(uint32_t frameIndex) {
 
     // Draw instanced characters (player + animated NPCs) into the reflection target so they
     // appear in mirrors. Uses the reflected view-projection (clippedProj * reflectedView) and
-    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). This pass
-    // runs first each frame, so it is responsible for uploading the shared character buffer.
+    // the FRONT_BIT reflection pipeline (the reflected view's det=-1 flips winding). The
+    // shared character buffer is uploaded once per frame by buildCharacterFrameData().
     glm::mat4 reflViewProj = clippedProj * reflectedView;
     renderInstancedCharacters(vulkanDevice->getCommandBuffer(frameIndex), reflViewProj,
-                              renderPipeline->getReflectionInstancedCharacterPipeline());
+                              renderPipeline->getReflectionInstancedCharacterPipeline(),
+                              CharacterPassVisibility::All);
 
     // Draw kinematic objects (doors, furniture, fragments) into the reflection. They read
     // view/proj from the descriptor set, so we pass the reflected-camera descriptor set; the
@@ -1172,72 +1256,25 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
     // -------------------------------------------------------------------------
-    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE) {
-        // Collect same character list as renderEntities
-        std::vector<Scene::RagdollCharacter*> instancedCharacters;
-        if (entities) {
-            for (const auto& entity : *entities) {
-                if (auto* ac = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity.get()))
-                    instancedCharacters.push_back(ac);
-            }
-        }
-        if (m_npcManager) {
-            for (const auto& name : m_npcManager->getAllNPCNames()) {
-                auto* npc = m_npcManager->getNPC(name);
-                if (npc) {
-                    if (auto* renderable = npc->getRenderableCharacter())
-                        instancedCharacters.push_back(renderable);
-                }
-            }
-        }
+    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()
+        && m_shadowCharactersEnabled) {
+        // Batches + the instance upload come from buildCharacterFrameData(), which ran
+        // once before this pass. This used to re-walk every character in the world and
+        // re-upload a byte-identical buffer. Draw only the light-frustum subset — note
+        // that is NOT the camera subset: an off-screen character can cast into view.
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "Character Shadows");
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          shadowMap->getCharacterShadowPipeline());
+        vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
 
-        if (!instancedCharacters.empty()) {
-            std::vector<CharacterInstanceData> instanceData;
-            struct CharShadowBatch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; };
-            std::vector<CharShadowBatch> batches;
-
-            auto batchParts = [&](Scene::RagdollCharacter* ch) {
-                const auto& charParts = ch->getParts();
-                for (const auto& grp : ch->getPartGroups()) {
-                    if (grp.partIndices.empty()) continue;
-                    const auto& first = charParts[grp.partIndices[0]];
-                    CharShadowBatch batch;
-                    // camera-relative (matches the main-pass batch + the relative lightSpaceMatrix)
-                    batch.model = glm::translate(glm::mat4(1.0f),
-                                                 camera->relativeTo(glm::dvec3(first.worldPos)))
-                                * glm::mat4_cast(first.worldRot);
-                    batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-                    batch.instanceCount = 0;
-                    for (int pi : grp.partIndices) {
-                        const auto& part = charParts[pi];
-                        if (!part.active) continue;
-                        CharacterInstanceData data;
-                        data.offset = part.offset;
-                        data.scale  = part.scale;
-                        data.color  = part.color;
-                        instanceData.push_back(data);
-                        batch.instanceCount++;
-                    }
-                    if (batch.instanceCount > 0) batches.push_back(batch);
-                }
-            };
-
-            for (auto* charPtr : instancedCharacters) batchParts(charPtr);
-
-            if (!instanceData.empty()) {
-                vulkanDevice->updateCharacterInstanceBuffer(instanceData);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getCharacterShadowPipeline());
-                vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
-
-                struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
-                charPC.lightSpaceMatrix = lightSpaceMatrix;
-                for (const auto& batch : batches) {
-                    charPC.model = batch.model;
-                    vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
-                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
-                    vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
-                }
-            }
+        struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
+        charPC.lightSpaceMatrix = lightSpaceMatrix;
+        for (const auto& batch : m_charBatches) {
+            if (batch.charIndex < 0 || !m_charVisibleShadow[batch.charIndex]) continue;
+            charPC.model = batch.model;
+            vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
+            vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
         }
     }
 
@@ -1365,6 +1402,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         windowManager->acknowledgeResize();
@@ -1399,6 +1454,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         return; // Skip this frame and try again
@@ -1419,6 +1492,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
         return; // Skip this frame, try again next frame
     }
@@ -1695,6 +1786,11 @@ void RenderCoordinator::drawFrame() {
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     gpuProfiler->startFrame(currentFrame, cmd);
     
+    // Cull, sort and batch every character ONCE for the whole frame — the shadow pass,
+    // the main pass and the mirror pass all consume this (docs/CharacterPipelineScaling.md).
+    // Must run before the shadow pass, which is the first consumer.
+    buildCharacterFrameData(cachedProjectionMatrix * cachedViewMatrix, lightSpaceMatrix);
+
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         // Render Shadow Pass
@@ -1922,53 +2018,18 @@ void RenderCoordinator::drawFrame() {
         }
     }
 
-    // Water surface (Phase 0): a translucent sea-level plane, after all opaque
-    // geometry so it blends over the scene. Depth-tested (terrain occludes it) but
-    // no depth-write, so the mirror pass below is unaffected.
-    if (m_waterEnabled && waterPipeline) {
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
-        waterPipeline->render(
-            vulkanDevice->getCommandBuffer(currentFrame),
-            *camera,
-            cachedProjectionMatrix,
-            m_seaLevel,
-            2.0f * maxChunkRenderDistance,
-            vulkanDevice->getSwapChainExtent(),
-            m_waterReflectionActive
-        );
-    }
-
-    // Per-cell water surface (the CPU sim's actual field): translucent quads at each
-    // surface cell's fill height. Independent of the flat sea plane above.
-    if (m_waterManager && waterCellPipeline && !m_waterManager->surfaceCells().empty()) {
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
-        waterCellPipeline->render(
-            vulkanDevice->getCommandBuffer(currentFrame),
-            *camera,
-            cachedProjectionMatrix,
-            m_waterManager->surfaceCells()
-        );
-    }
+    // Water is NO LONGER drawn here — it moved to its own pass after the scene pass
+    // (renderWaterPass(), called from drawFrame) so it can sample the scene color + depth it is
+    // blending over: refraction, depth-based absorption, soft shorelines. See
+    // docs/WaterSystemV3.md Phase 1.
 
     // Mirror surface pass (inside scene render pass, after all opaque/entity geometry)
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
         renderMirrorGeometry(currentFrame);
     }
 
-    // Game HUD / custom UI (non-ImGui) — drawn LAST in the scene pass, on top of all
-    // geometry, into the offscreen image. Shows in the editor viewport AND is carried
-    // to the swapchain by post-process for standalone builds. See docs/HudSystem.md.
-    if (m_uiSystem) {
-        // Pull live game state into the HUD widgets before drawing (single source of
-        // truth — hosts register providers on hudData(); widgets just mirror values).
-        // Applied to every screen so independently-anchored HUD panels (health,
-        // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
-        for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
-            if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
-        }
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
-        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
-    }
+    // Game HUD / custom UI moved to the post-scene OVERLAY pass below, so water (which now
+    // also draws after the scene pass) cannot paint over it. See docs/WaterSystemV3.md Phase 1.
 
     // End Scene Render Pass
     } // End Scene Pass Scope
@@ -1978,6 +2039,88 @@ void RenderCoordinator::drawFrame() {
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "SSAO");
         postProcessor->renderSSAO(vulkanDevice->getCommandBuffer(currentFrame), cachedProjectionMatrix);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WATER + OVERLAY pass (WaterSystemV3 Phase 1). Runs AFTER the scene pass so water can
+    // sample the scene it blends over (refraction / depth absorption / soft shorelines) — a
+    // render pass cannot sample the attachment it writes, which is why this is a separate pass.
+    // Color LOADs the finished scene; depth is bound READ-ONLY (both water pipelines already
+    // run depthWriteEnable=FALSE), so terrain still occludes water exactly as before.
+    //
+    // The HUD rides along at the END of this pass — it used to be last in the scene pass, and
+    // water drawing afterwards would have covered it. Pipelines built against the scene pass are
+    // render-pass-COMPATIBLE with this one (identical attachment formats/counts), so nothing is
+    // rebuilt.
+    // ---------------------------------------------------------------------------------------
+    const bool drawWaterPlane = m_waterEnabled && waterPipeline;
+    const bool drawWaterCells = m_waterManager && waterCellPipeline &&
+                                !m_waterManager->surfaceCells().empty();
+    if (drawWaterPlane || drawWaterCells || m_uiSystem) {
+        // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
+        if (drawWaterPlane || drawWaterCells) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
+            postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
+        }
+        postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+
+        if (drawWaterPlane) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
+            waterPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                vulkanDevice->getDescriptorSet(currentFrame),
+                *camera,
+                cachedProjectionMatrix,
+                m_seaLevel,
+                2.0f * maxChunkRenderDistance,
+                vulkanDevice->getSwapChainExtent(),
+                m_waterReflectionActive
+            );
+        }
+        if (drawWaterCells) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
+            waterCellPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                vulkanDevice->getDescriptorSet(currentFrame),
+                *camera,
+                cachedProjectionMatrix,
+                m_waterManager->surfaceCells(),
+                vulkanDevice->getSwapChainExtent()
+            );
+        }
+
+        // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the
+        // underside of the water above the camera, but BEFORE the HUD so the HUD stays readable.
+        if (drawWaterPlane) {
+            float depthBelow = 0.0f;
+            const float submergence = cameraSubmergence(depthBelow);
+            if (submergence > 0.0f) {
+                GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterUnderwater");
+                waterPipeline->renderUnderwater(
+                    vulkanDevice->getCommandBuffer(currentFrame),
+                    vulkanDevice->getDescriptorSet(currentFrame),
+                    *camera, cachedProjectionMatrix,
+                    submergence, depthBelow,
+                    vulkanDevice->getSwapChainExtent());
+            }
+        }
+
+        // Game HUD / custom UI (non-ImGui) — on top of all geometry AND water, into the
+        // offscreen image. Shows in the editor viewport AND is carried to the swapchain by
+        // post-process for standalone builds. See docs/HudSystem.md.
+        if (m_uiSystem) {
+            // Pull live game state into the HUD widgets before drawing (single source of
+            // truth — hosts register providers on hudData(); widgets just mirror values).
+            // Applied to every screen so independently-anchored HUD panels (health,
+            // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
+            for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
+                if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
+            }
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
+            m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
+        }
+
+        postProcessor->endWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // OIT transparent pass (reads depth in read-only mode, writes accum + reveal)
@@ -2106,10 +2249,77 @@ VkSampler RenderCoordinator::getViewportSampler() const {
     return postProcessor ? postProcessor->getOffscreenSampler() : VK_NULL_HANDLE;
 }
 
-void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
-        const glm::mat4& viewProj, VkPipeline pipeline) {
-    bool hasEntities = entities && !entities->empty();
-    bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
+const RenderCoordinator::CharacterBlob&
+RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) {
+    CharacterBlob& blob = m_charBlobs[ch];
+    if (blob.version == ch->partsVersion() && blob.lod == lod) return blob;
+
+    blob.version = ch->partsVersion();
+    blob.lod     = lod;
+    blob.instances.clear();
+    blob.groupOrder.clear();
+    blob.groupSpans.clear();
+
+    const auto& charParts = ch->getParts();
+    if (lod > 0) {
+        const auto& level = ch->getLodLevel(lod);
+        for (const auto& range : level.groups) {
+            const uint32_t local = static_cast<uint32_t>(blob.groupOrder.size());
+            const uint32_t start = static_cast<uint32_t>(blob.instances.size());
+            for (uint32_t k = 0; k < range.count; ++k) {
+                const auto& lp = level.parts[range.start + k];
+                CharacterInstanceData d;
+                d.offset = lp.offset; d.scale = lp.scale; d.color = lp.color;
+                d.boneIndex = local;
+                blob.instances.push_back(d);
+            }
+            blob.groupOrder.push_back(range.boneGroupId);
+            blob.groupSpans.push_back({start, range.count});
+        }
+    } else {
+        for (const auto& grp : ch->getPartGroups()) {
+            if (grp.partIndices.empty()) continue;
+            const uint32_t local = static_cast<uint32_t>(blob.groupOrder.size());
+            const uint32_t start = static_cast<uint32_t>(blob.instances.size());
+            for (int pi : grp.partIndices) {
+                const auto& p = charParts[pi];
+                if (!p.active) continue;
+                CharacterInstanceData d;
+                d.offset = p.offset; d.scale = p.scale; d.color = p.color;
+                d.boneIndex = local;
+                blob.instances.push_back(d);
+            }
+            const uint32_t count = static_cast<uint32_t>(blob.instances.size()) - start;
+            if (count > 0) {
+                blob.groupOrder.push_back(grp.boneGroupId);
+                blob.groupSpans.push_back({start, count});
+            }
+        }
+    }
+    return blob;
+}
+
+void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
+                                                const glm::mat4& lightSpaceMatrix) {
+    const auto buildStart = std::chrono::high_resolution_clock::now();
+    struct BuildTimer {
+        std::chrono::high_resolution_clock::time_point t0;
+        double& out;
+        ~BuildTimer() {
+            out = std::chrono::duration<double, std::milli>(
+                      std::chrono::high_resolution_clock::now() - t0).count();
+        }
+    } buildTimer{buildStart, m_charStats.buildMs};
+
+    m_charBatches.clear();
+    m_charDrawsMain.clear();
+    m_charBoneTransforms.clear();
+    m_charVisibleMain.clear();
+    m_charVisibleShadow.clear();
+    m_charStats = CharacterRenderStats{};
+
+    const bool hasEntities = entities && !entities->empty();
+    const bool hasNPCs = m_npcManager && m_npcManager->getNPCCount() > 0;
     if (!hasEntities && !hasNPCs) return;
 
     // Collect instanced characters: the animated player + animated/physics NPCs.
@@ -2134,12 +2344,94 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
     }
     if (instancedCharacters.empty()) return;
 
-    std::vector<CharacterInstanceData> instanceData;
-    struct Batch { glm::mat4 model; uint32_t firstInstance; uint32_t instanceCount; glm::vec4 bakedLight; };
-    std::vector<Batch> batches;
+    m_charStats.considered = static_cast<uint32_t>(instancedCharacters.size());
 
-    auto batchParts = [&](Scene::RagdollCharacter* ch) {
+    // --- Visibility ------------------------------------------------------------
+    // Cull against BOTH frusta separately: a character behind the camera can still
+    // cast a shadow into view, so the shadow set is not a subset of the main set.
+    Utils::Frustum cameraFrustum, lightFrustum;
+    cameraFrustum.extractFromMatrix(cameraViewProj);
+    lightFrustum.extractFromMatrix(lightSpaceMatrix);
+
+    const float cullDistSq = m_charCullDistance * m_charCullDistance;
+
+    struct Candidate {
+        Scene::RagdollCharacter* ch;
+        float distSq;
+        bool  mainVisible;
+        bool  shadowVisible;
+    };
+    std::vector<Candidate> candidates;
+    candidates.reserve(instancedCharacters.size());
+
+    for (auto* ch : instancedCharacters) {
+        // Camera-relative throughout: the frusta come from camera-relative matrices, and
+        // relativeTo() does the subtraction in doubles so this stays exact at continental
+        // coordinates (docs/CameraRelativeRendering.md).
+        const glm::vec3 rel = camera->relativeTo(glm::dvec3(ch->getPosition()));
+        const float distSq = glm::dot(rel, rel);
+        if (distSq > cullDistSq) { ++m_charStats.culled; continue; }
+
+        const bool inMain   = cameraFrustum.intersects(rel, kCharacterCullRadius);
+        const bool inShadow = lightFrustum.intersects(rel, kCharacterCullRadius);
+        if (!inMain && !inShadow) { ++m_charStats.culled; continue; }
+
+        candidates.push_back({ch, distSq, inMain, inShadow});
+    }
+    if (candidates.empty()) return;
+
+    // Nearest-first, so if the budget IS exhausted the characters that disappear are
+    // the far ones. Before this, drop order was NPC-map iteration order — the creature
+    // in front of you could vanish while one behind you rendered.
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& a, const Candidate& b) { return a.distSq < b.distSq; });
+
+    m_charVisibleMain.assign(candidates.size(), 0);
+    m_charVisibleShadow.assign(candidates.size(), 0);
+
+    // Reused across frames and reserved to the running high-water mark. This vector holds
+    // one entry PER PART (100 characters = 102,400), so the old reserve(4096) meant ~5
+    // reallocations and multi-MB copies every single frame.
+    std::vector<CharacterInstanceData>& instanceData = m_charInstanceScratch;
+    instanceData.clear();
+    if (instanceData.capacity() < m_charInstanceHighWater)
+        instanceData.reserve(m_charInstanceHighWater);
+
+    // A batch whose firstInstance lands past the buffer draws from stale memory, so the
+    // whole character vanishes with no error anywhere. Reserve each character's slice
+    // all-or-nothing: splitting one across the cap renders half a creature, which reads
+    // as a worse bug than a missing one.
+    // The effective budget is a SOFT cap that can never exceed the physical buffer, so a
+    // project (or a repro) can lower it at runtime without reallocating GPU memory.
+    const uint32_t instanceCapacity =
+        std::min(m_charInstanceCapacity, vulkanDevice->getMaxCharacterInstances());
+
+    // Candidates are sorted nearest-first, so once the budget is exhausted the remaining
+    // (farther) characters will almost all fail too. Optimistic batching means every
+    // failure does a full batch-then-rollback, so blindly continuing is expensive:
+    // measured at 1024 characters with a 256-character budget, the 768 doomed characters
+    // tripled build_ms. Allow a few retries — a single oversized creature must not
+    // starve smaller ones behind it — then stop.
+    constexpr uint32_t kMaxConsecutiveDrops = 4;
+    uint32_t consecutiveDrops = 0;
+
+    for (size_t ci = 0; ci < candidates.size(); ++ci) {
+        if (consecutiveDrops >= kMaxConsecutiveDrops) {
+            m_charStats.dropped += static_cast<uint32_t>(candidates.size() - ci);
+            break;
+        }
+        Scene::RagdollCharacter* ch = candidates[ci].ch;
         const auto& charParts = ch->getParts();
+
+        // Batch optimistically, then roll back if this character overran the budget.
+        // The obvious alternative — pre-counting active parts — costs a second full
+        // sweep of the parts array, and RagdollPart is fat (~112 B, it carries a
+        // std::string), so that sweep alone touched ~11 MB per frame at 100 characters.
+        // Overruns are rare, so paying for one wasted character beats paying for a
+        // second pass over every character every frame.
+        const size_t instanceMark = instanceData.size();
+        const size_t batchMark    = m_charBatches.size();
+
         // Sample the baked light field ONCE per character (uniform across limbs — avoids
         // per-bone popping and sampling floor solids). Use a torso-height point ~1 cube
         // above the first active part. Phase 4: dynamic objects react to baked lighting.
@@ -2153,54 +2445,152 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
                 break;
             }
         }
-        for (const auto& grp : ch->getPartGroups()) {
-            if (grp.partIndices.empty()) continue;
-            const auto& first = charParts[grp.partIndices[0]];
-            // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
-            // (world - camera) so bone transforms stay float-exact at continental
-            // coordinates — this is THE fix for the per-voxel character speckle.
-            glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                             camera->relativeTo(glm::dvec3(first.worldPos)))
-                            * glm::mat4_cast(first.worldRot);
-            Batch batch;
-            batch.model = model;
-            batch.bakedLight = charLight;
-            batch.firstInstance = static_cast<uint32_t>(instanceData.size());
-            batch.instanceCount = 0;
-            for (int pi : grp.partIndices) {
-                const auto& part = charParts[pi];
-                if (!part.active) continue;
-                CharacterInstanceData data;
-                data.offset = part.offset;
-                data.scale  = part.scale;
-                data.color  = part.color;
-                instanceData.push_back(data);
-                batch.instanceCount++;
+
+        const size_t boneMark = m_charBoneTransforms.size();
+
+        // Part-count LOD by distance. Bone transforms always come from the
+        // full-resolution groups (the animation path only updates those); the LOD level
+        // supplies decimated offset/scale/color for the same bone groups.
+        const int lod = lodForDistanceSq(candidates[ci].distSq);
+        const CharacterBlob& blob = getCharacterBlob(ch, lod);
+
+        // Per-frame work is now only the bone matrices — one per group, ~20 per
+        // character — appended in the blob's group order so a local index + boneBase
+        // resolves correctly.
+        const uint32_t boneBase = static_cast<uint32_t>(m_charBoneTransforms.size());
+
+        // blob.groupOrder is always a SUBSEQUENCE of getPartGroups() order (both LOD and
+        // full-res blobs are built by walking that list), so the two can be matched in
+        // lockstep. An id->group map here cost 1024 unordered_map allocations per frame.
+        bool boneOk = true;
+        {
+            const auto& groups = ch->getPartGroups();
+            size_t gi = 0;
+            for (int gid : blob.groupOrder) {
+                while (gi < groups.size() && groups[gi].boneGroupId != gid) ++gi;
+                if (gi >= groups.size() || groups[gi].partIndices.empty()) { boneOk = false; break; }
+                const auto& first = charParts[groups[gi].partIndices[0]];
+                // Camera-relative rendering (docs/CameraRelativeRendering.md): the GPU sees
+                // (world - camera) so bone transforms stay float-exact at continental
+                // coordinates — this is THE fix for the per-voxel character speckle.
+                m_charBoneTransforms.push_back(
+                    glm::translate(glm::mat4(1.0f), camera->relativeTo(glm::dvec3(first.worldPos)))
+                    * glm::mat4_cast(first.worldRot));
+                ++gi;
             }
-            if (batch.instanceCount > 0) batches.push_back(batch);
         }
-    };
-    for (auto* charPtr : instancedCharacters) batchParts(charPtr);
+
+        if (boneOk && !blob.instances.empty()) {
+            // The instance payload is static, so this is a bulk copy rather than a
+            // per-part gather out of the fat RagdollPart array. insert() copies into
+            // uninitialized storage; resize()+memcpy would value-initialize all 186k
+            // elements first and then immediately overwrite them.
+            const size_t base = instanceData.size();
+            instanceData.insert(instanceData.end(),
+                                blob.instances.begin(), blob.instances.end());
+
+            // Per-group spans for the shadow pass (which still draws per bone group).
+            // Precomputed in the blob — deriving them here would rescan every instance.
+            for (size_t g = 0; g < blob.groupSpans.size(); ++g) {
+                const auto& span = blob.groupSpans[g];
+                CharacterBatch b;
+                b.model         = m_charBoneTransforms[boneBase + g];
+                b.bakedLight    = charLight;
+                b.firstInstance = static_cast<uint32_t>(base + span.first);
+                b.instanceCount = span.second;
+                b.charIndex     = static_cast<int>(ci);
+                m_charBatches.push_back(b);
+            }
+        }
+
+        if (!boneOk) {
+            instanceData.resize(instanceMark);
+            m_charBatches.resize(batchMark);
+            m_charBoneTransforms.resize(boneMark);
+            continue;
+        }
+
+        if (instanceData.size() > instanceCapacity ||
+            m_charBoneTransforms.size() > vulkanDevice->getMaxCharacterBones()) {
+            instanceData.resize(instanceMark);      // capacity retained, no realloc
+            m_charBatches.resize(batchMark);
+            m_charBoneTransforms.resize(boneMark);
+            ++m_charStats.dropped;
+            ++consecutiveDrops;
+            continue;
+        }
+        consecutiveDrops = 0;
+
+        // All of this character's parts are contiguous, and each carries its own bone
+        // index — so the main pass draws the whole character in one call.
+        const uint32_t charInstances =
+            static_cast<uint32_t>(instanceData.size() - instanceMark);
+        if (charInstances > 0) {
+            CharacterDraw draw;
+            draw.firstInstance = static_cast<uint32_t>(instanceMark);
+            draw.instanceCount = charInstances;
+            draw.bakedLight    = charLight;
+            draw.charIndex     = static_cast<int>(ci);
+            draw.boneBase      = boneBase;
+            m_charDrawsMain.push_back(draw);
+        }
+
+        const uint32_t groupsAdded = static_cast<uint32_t>(m_charBatches.size() - batchMark);
+        m_charVisibleMain[ci]   = candidates[ci].mainVisible   ? 1 : 0;
+        m_charVisibleShadow[ci] = candidates[ci].shadowVisible ? 1 : 0;
+        // Main pass = 1 draw per character; shadow pass is still 1 per bone group.
+        if (candidates[ci].mainVisible)   { ++m_charStats.drawnMain;   m_charStats.drawCallsMain   += 1; }
+        if (candidates[ci].shadowVisible) { ++m_charStats.drawnShadow; m_charStats.drawCallsShadow += groupsAdded; }
+    }
+
+    if (m_charStats.dropped > 0) {
+        static uint32_t s_lastDropped = 0;
+        if (m_charStats.dropped != s_lastDropped) {
+            s_lastDropped = m_charStats.dropped;
+            LOG_WARN_FMT("RenderCoordinator",
+                "Character instance buffer full — " << m_charStats.dropped << " of "
+                << candidates.size() << " visible characters not rendered (capacity "
+                << instanceCapacity << " parts). Raise the character instance budget.");
+        }
+    }
     if (instanceData.empty()) return;
 
-    // Upload the shared (single, host-visible) character instance buffer. If both the
-    // reflection pass and the main pass run this frame they upload byte-identical data (same
-    // character state, same batch offsets), so the redundant memcpy is harmless — both draws
-    // read the same final buffer contents at GPU execution time.
+    m_charStats.partsBatched = static_cast<uint32_t>(instanceData.size());
+    m_charInstanceHighWater  = std::max(m_charInstanceHighWater, instanceData.size());
+
+    // ONE upload per frame, shared by the shadow pass, the main pass and the mirror
+    // pass. Each pass previously rebuilt and re-uploaded byte-identical data.
     vulkanDevice->updateCharacterInstanceBuffer(instanceData);
+    vulkanDevice->updateCharacterBoneBuffer(m_charBoneTransforms);
+}
+
+void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
+        const glm::mat4& viewProj, VkPipeline pipeline, CharacterPassVisibility visibility) {
+    if (m_charDrawsMain.empty()) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getInstancedCharacterLayout());
 
-    for (const auto& batch : batches) {
-        struct PushConsts { glm::mat4 model; glm::mat4 viewProj; glm::vec4 bakedLight; } pushConsts;
-        pushConsts.model = batch.model;
-        pushConsts.viewProj = viewProj;
-        pushConsts.bakedLight = batch.bakedLight;
+    // One draw per CHARACTER — each instance looks its own bone matrix up in the SSBO,
+    // so the ~20 per-bone-group draws this used to emit collapse into one. The instance
+    // carries a LOCAL bone index and the draw supplies boneBase, which is what lets the
+    // per-character instance blob be cached across frames even though the frame's bone
+    // layout changes.
+    struct PushConsts { glm::mat4 viewProj; glm::vec4 bakedLight; uint32_t boneBase; } pushConsts;
+    pushConsts.viewProj = viewProj;
+
+    for (const auto& draw : m_charDrawsMain) {
+        // The mirror pass reflects an arbitrary view, so it takes everything batched
+        // (All) rather than re-culling against a third frustum.
+        if (visibility == CharacterPassVisibility::Main &&
+            (draw.charIndex < 0 || !m_charVisibleMain[draw.charIndex])) continue;
+
+        pushConsts.bakedLight = draw.bakedLight;
+        pushConsts.boneBase   = draw.boneBase;
         vkCmdPushConstants(commandBuffer, renderPipeline->getInstancedCharacterLayout(),
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConsts), &pushConsts);
-        vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
+        vkCmdDraw(commandBuffer, 36, draw.instanceCount, 0, draw.firstInstance);
     }
 }
 
@@ -2222,8 +2612,14 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 
     // Instanced characters in the main pass (main camera view-projection).
     const glm::mat4 mainViewProj = cachedProjectionMatrix * cachedViewMatrix;
-    renderInstancedCharacters(commandBuffer, mainViewProj,
-                              renderPipeline->getInstancedCharacterPipeline());
+    {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "Characters");
+        gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
+        renderInstancedCharacters(commandBuffer, mainViewProj,
+                                  renderPipeline->getInstancedCharacterPipeline(),
+                                  CharacterPassVisibility::Main);
+        gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
+    }
 
     renderPipeline->bindCharacterPipeline(commandBuffer);
     vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getCharacterLayout());

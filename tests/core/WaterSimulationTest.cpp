@@ -599,3 +599,220 @@ TEST(WaterSimulation, DoesNotLeakIntoSolids) {
             EXPECT_FLOAT_EQ(sim.massAt(x, 0, z), 0.0f); // floor stays dry
     EXPECT_NEAR(sim.totalMass(), 1.0f, 1e-3f);          // nothing lost into solids
 }
+
+// ── FLOW PROXY (WaterSystemV3 Phase 3) ────────────────────────────────────────────────────────
+// The renderer needs to know WHICH WAY water is moving and how hard, so ripples can advect with the
+// current instead of animating identically on a still pond and in a rapid. Rather than adding a
+// momentum term to the CA, the flow proxy is derived from the transfers step() ALREADY performs.
+// These tests pin the properties the shading depends on: it points the right way, it is ~zero on
+// still water, it decays once flow stops, and it survives a region recenter.
+
+// A one-way channel: water released at one end must report flow pointing DOWN the channel.
+TEST(WaterSimulation, FlowProxyPointsDownAChannel) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    // Walls along z=0 and z=2 leave a 1-wide channel at z=1, so flow can only run along +/-x.
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);  // closed at the -x end, so water can only travel +x
+    sim.setSolid(0, 2, 1, true);
+
+    // Hold the head of the channel full: a sustained source drives a sustained current.
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+
+    const glm::vec2 mid = sim.flowAt(5, 1, 1);
+    EXPECT_GT(mid.x, 0.0f) << "flow should run +x, away from the source";
+    EXPECT_NEAR(mid.y, 0.0f, 1e-4f) << "walls forbid any z component";
+    // And it should point the SAME way further downstream, not oscillate.
+    EXPECT_GT(sim.flowAt(7, 1, 1).x, 0.0f);
+}
+
+// Still water reports no flow — otherwise a calm lake would shimmer as if it were a river.
+TEST(WaterSimulation, FlowProxyIsZeroOnSettledWater) {
+    WaterSimulation sim(6, 5, 6);
+    addFloor(sim);
+    for (int z = 1; z < 5; ++z)
+        for (int x = 1; x < 5; ++x) sim.addWater(x, 1, z, 1.0f);
+    for (int i = 0; i < 200; ++i) sim.step();
+    ASSERT_TRUE(sim.settled()) << "precondition: the basin must actually come to rest";
+
+    for (int z = 1; z < 5; ++z)
+        for (int x = 1; x < 5; ++x) {
+            const glm::vec2 f = sim.flowAt(x, 1, z);
+            EXPECT_LT(std::sqrt(f.x * f.x + f.y * f.y), 1e-3f)
+                << "settled cell (" << x << ",1," << z << ") still reports flow";
+        }
+}
+
+// Once the driving source is removed and the water levels out, the reported flow must FADE rather
+// than latch — the EMA is what guarantees this.
+TEST(WaterSimulation, FlowProxyDecaysAfterFlowStops) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);
+    sim.setSolid(0, 2, 1, true);
+
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+    const glm::vec2 f0 = sim.flowAt(5, 1, 1);
+    const float moving = std::sqrt(f0.x * f0.x + f0.y * f0.y);
+    ASSERT_GT(moving, 1e-3f) << "precondition: the channel must actually be flowing";
+
+    sim.clearSource(1, 1, 1);
+    for (int i = 0; i < 400; ++i) sim.step();   // let it level out and go quiet
+
+    const glm::vec2 f1 = sim.flowAt(5, 1, 1);
+    const float after = std::sqrt(f1.x * f1.x + f1.y * f1.y);
+    EXPECT_LT(after, moving * 0.1f) << "flow latched instead of decaying (moving=" << moving
+                                    << " after=" << after << ")";
+}
+
+// ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────────
+
+// A cell with a sub-voxel floor has solid ground beneath its water, so water must REST on it — even
+// though the cell is passable and the cell below is open air. Found live: without this, making
+// floored cells passable let a puddle fall straight through a subcube platform and vanish.
+TEST(WaterSimulation, WaterRestsOnASubVoxelFloorInsteadOfFallingThrough) {
+    WaterSimulation sim(6, 8, 6);
+    addFloor(sim);
+    // A 1/3-height platform spanning the WHOLE extent at y=4, with nothing under it (y=1..3 are
+    // open air). Full extent on purpose: a platform with open edges would let the water run off the
+    // side and fall there, which is correct behaviour and would not test the floor itself.
+    for (int x = 0; x < 6; ++x)
+        for (int z = 0; z < 6; ++z) sim.setFloor(x, 4, z, 1.0f / 3.0f);
+    for (int x = 1; x < 5; ++x)
+        for (int z = 1; z < 5; ++z) sim.addWater(x, 4, z, 0.4f);
+    const float total = sim.totalMass();
+
+    for (int i = 0; i < 200; ++i) sim.step();
+
+    float onPlatform = 0.0f, below = 0.0f;
+    for (int x = 0; x < 6; ++x)
+        for (int z = 0; z < 6; ++z) {
+            onPlatform += sim.massAt(x, 4, z);
+            for (int y = 1; y <= 3; ++y) below += sim.massAt(x, y, z);
+        }
+    EXPECT_NEAR(onPlatform, total, 1e-3f) << "water did not stay on the platform";
+    EXPECT_LT(below, 1e-3f) << "water fell THROUGH the sub-voxel floor into the air below";
+}
+
+// ── MOMENTUM (WaterSystemV3 Phase 4) ──────────────────────────────────────────────────────────
+// Without momentum the CA is pure diffusion and a spill fans out equally in all directions. These
+// pin the behaviour change AND the two invariants it could plausibly destroy: exact mass
+// conservation and the field's ability to come to rest.
+
+// A FIXED PULSE of water runs down a channel and out onto an open flat shelf. With momentum the
+// water that reaches the shelf must end up FURTHER DOWNSTREAM, measured as the mass-weighted
+// centroid.
+//
+// Why a centroid and not "how far did it reach": momentum also raises throughput (an aligned
+// neighbour's leveling factor goes 0.25 -> 0.45), so more water arrives on the shelf and then
+// spreads from there. A raw downstream/lateral REACH ratio is confounded by that extra volume — the
+// first version of this test compared reaches, and momentum "lost" 4/2 vs 3/1 purely because it had
+// delivered more water. A mass-weighted centroid is volume-normalised and measures what we actually
+// claim: where the water goes, not how much of it there is.
+TEST(WaterSimulation, MomentumCarriesASpillFurtherDownstream) {
+    auto run = [](float momentum) {
+        WaterSimulation sim(40, 5, 21);
+        sim.setMomentum(momentum);
+        addFloor(sim);
+        // A 1-wide channel along z=10 from x=1..14, opening onto a completely flat shelf at x>14.
+        for (int x = 0; x <= 14; ++x)
+            for (int y = 1; y < 5; ++y) { sim.setSolid(x, y, 9, true); sim.setSolid(x, y, 11, true); }
+        for (int y = 1; y < 5; ++y) sim.setSolid(0, y, 10, true);   // closed upstream end
+        // A fixed slug, NOT a sustained source: both runs carry exactly the same water.
+        for (int x = 1; x <= 12; ++x) sim.addWater(x, 1, 10, 1.0f);
+        for (int i = 0; i < 400; ++i) sim.step();
+
+        // Mass-weighted centroid of everything that made it past the mouth (x >= 15).
+        double m = 0.0, mx = 0.0, mz = 0.0;
+        for (int x = 15; x < 40; ++x)
+            for (int z = 0; z < 21; ++z)
+                for (int y = 1; y < 5; ++y) {
+                    const double c = sim.massAt(x, y, z);
+                    if (c <= 0.0) continue;
+                    m += c; mx += c * x; mz += c * std::abs(z - 10);
+                }
+        struct R { double mass, centroidX, lateral; };
+        return R{ m, m > 0 ? mx / m : 0.0, m > 0 ? mz / m : 0.0 };
+    };
+
+    const auto mom = run(1.0f);
+    const auto dif = run(0.0f);
+    ASSERT_GT(mom.mass, 0.5) << "no water reached the shelf with momentum on";
+    ASSERT_GT(dif.mass, 0.5) << "no water reached the shelf with momentum off";
+
+    EXPECT_GT(mom.centroidX, dif.centroidX)
+        << "momentum did not carry the spill further downstream (centroid x " << mom.centroidX
+        << " vs " << dif.centroidX << ")";
+    // The spread ACROSS the flow, per unit of delivered water, should not grow: inertia focuses the
+    // stream, it does not fan it.
+    EXPECT_LE(mom.lateral, dif.lateral + 0.25)
+        << "momentum widened the spill instead of focusing it (lateral " << mom.lateral << " vs "
+        << dif.lateral << ")";
+}
+
+// Momentum only changes WHICH neighbour receives a cell's outflow. Every transfer is still a paired
+// -from/+to, so mass must be conserved to the bit.
+TEST(WaterSimulation, MomentumConservesMassExactly) {
+    WaterSimulation sim(16, 10, 16);
+    sim.setMomentum(1.0f);
+    addFloor(sim);
+    sim.addWater(3, 8, 3, 1.0f);
+    sim.addWater(8, 9, 9, 2.0f);   // overfull, drains under pressure
+    sim.addWater(12, 7, 5, 0.5f);
+    const float total = sim.totalMass();
+    for (int i = 0; i < 400; ++i) {
+        sim.step();
+        ASSERT_NEAR(sim.totalMass(), total, 1e-3f) << "momentum leaked mass at step " << i;
+        ASSERT_GE(sim.minMass(), -1e-6f) << "momentum drove a cell negative at step " << i;
+    }
+}
+
+// The bias is clamped below the 0.5 overshoot bound, so the surface must still converge and the
+// field must still reach rest — otherwise water would oscillate forever ("popcorn water") and the
+// settle-skip optimisation would never engage.
+TEST(WaterSimulation, MomentumFieldStillSettlesFlat) {
+    WaterSimulation sim(12, 8, 12);
+    sim.setMomentum(1.0f);
+    addFloor(sim);
+    for (int z = 2; z < 10; ++z)
+        for (int x = 2; x < 10; ++x) sim.addWater(x, 5, z, 1.0f);   // a slab dropped from height
+
+    int steps = 0;
+    while (!sim.settled() && steps < 3000) { sim.step(); ++steps; }
+    ASSERT_TRUE(sim.settled()) << "momentum kept the field awake for " << steps << " steps";
+
+    // ...and it settled FLAT, not into a lopsided heap the inertia bias pushed to one side.
+    float lo = 1e9f, hi = -1e9f;
+    for (int z = 2; z < 10; ++z)
+        for (int x = 2; x < 10; ++x) {
+            float col = 0.0f;
+            for (int y = 1; y < 8; ++y) col += sim.massAt(x, y, z);
+            lo = std::min(lo, col); hi = std::max(hi, col);
+        }
+    EXPECT_LT(hi - lo, 0.05f) << "settled surface is not flat (column mass " << lo << ".." << hi << ")";
+}
+
+// The proxy must ride along with its water when the region recenters, or a river's shading would
+// scramble every time the player walks far enough to move the sim window.
+TEST(WaterSimulation, FlowProxySurvivesShift) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);
+    sim.setSolid(0, 2, 1, true);
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+
+    const glm::vec2 before = sim.flowAt(5, 1, 1);
+    ASSERT_GT(before.x, 0.0f);
+    sim.shift(glm::ivec3(2, 0, 0));            // window moves +2x → content lands at local x-2
+    const glm::vec2 after = sim.flowAt(3, 1, 1);
+    EXPECT_FLOAT_EQ(after.x, before.x);
+    EXPECT_FLOAT_EQ(after.y, before.y);
+}

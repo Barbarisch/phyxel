@@ -42,9 +42,14 @@ public:
     // D0/D1: wrap a pass to count fragment invocations + primitives. Slot 0 = Static Geometry,
     // slot 1 = Shadow pass. No-op if the pipelineStatisticsQuery feature is unavailable. Begin/end
     // must be inside a render pass.
-    static const uint32_t STATS_SLOT_STATIC = 0;
-    static const uint32_t STATS_SLOT_SHADOW = 1;
-    static const uint32_t NUM_STATS_SLOTS   = 2;
+    static const uint32_t STATS_SLOT_STATIC    = 0;
+    static const uint32_t STATS_SLOT_SHADOW    = 1;
+    // Slot 2 = instanced characters (player + NPCs). Added because character GPU cost was
+    // previously unattributable: every part draws a full 36-vertex cube with no face culling,
+    // so this pass is suspected to dominate in crowded scenes and needed its own counter
+    // before optimizing it (docs/CharacterPipelineScaling.md F10/P0.1).
+    static const uint32_t STATS_SLOT_CHARACTER = 2;
+    static const uint32_t NUM_STATS_SLOTS      = 3;
     void beginPipelineStats(VkCommandBuffer cmd, uint32_t slot);
     void endPipelineStats(VkCommandBuffer cmd, uint32_t slot);
     const GpuPipelineStats& getPipelineStats(uint32_t slot) const { return lastPipelineStats[slot < NUM_STATS_SLOTS ? slot : 0]; }

@@ -121,6 +121,12 @@ public:
         // local-maxima pass. Lets one biome carry e.g. sparse giants (spacing 24-32) over a dense
         // understory (spacing 4-6) — the enchanted-forest requirement. Empty = single-layer (legacy).
         std::vector<FloraLayer> extraFloraLayers;
+        // Fauna: wandering creatures (animal .anim rigs) that the runtime FaunaSpawner scatters
+        // as roaming NPCs — much sparser than flora (spacing measured in tens of columns).
+        // faunaDensity = probability per candidate site; fauna = weighted (animFile, weight) pool.
+        float faunaDensity = 0.0f;
+        int faunaSpacing = 48;            // min world-column distance between herd anchors
+        std::vector<std::pair<std::string, int>> fauna;
     };
 
     // Per-column terrain sample, computed once per (x,z) by the column-first pipeline.
@@ -192,6 +198,23 @@ public:
     // skipped at the rectangle border so footprints don't spill past a fixed region's edge.
     std::vector<FloraPlacement> planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ,
                                           int edgeInset = 8);
+
+    // A planned herd anchor: which animal rig, and the surface column it stands on. The
+    // runtime FaunaSpawner turns these into wandering NPCs. Kept NPC-subsystem-agnostic so
+    // WorldGenerator stays decoupled (same split as FloraPlacement/ObjectTemplateManager).
+    struct FaunaPlacement {
+        std::string animFile;       // animal rig to spawn (resources/animated_characters/*.anim)
+        int worldX = 0;
+        int surfaceY = 16;
+        int worldZ = 0;
+    };
+
+    // Deterministically scatter biome-appropriate fauna anchors across a world-column rectangle
+    // (same local-maximum Poisson planner as planFlora, but sparser and single-layer). Pure
+    // function of (cell, seed) so a streamed chunk and a whole-region pass agree — the runtime
+    // spawner can re-plan per chunk with no double-spawns.
+    std::vector<FaunaPlacement> planFauna(int colMinX, int colMinZ, int colMaxX, int colMaxZ,
+                                          int edgeInset = 0);
 
 private:
     GenerationType generationType;
@@ -270,6 +293,10 @@ private:
     // Plan one plant for a candidate cell in a given flora layer (0 = the biome's flat flora
     // fields; 1+ index into Biome::extraFloraLayers). Each layer places independently.
     bool floraCellLayer(int cellX, int cellZ, int layerIdx, FloraPlacement& out);
+
+    // Plan one fauna herd anchor for a candidate cell (fauna-salted local-maxima test on the
+    // shared kFloraGrid, using the biome's faunaSpacing/faunaDensity/fauna pool).
+    bool faunaCell(int cellX, int cellZ, FaunaPlacement& out);
 
     // Material selection based on world position and terrain context (City/Random fallback)
     std::string getMaterialForPosition(const glm::ivec3& worldPos, float surfaceHeight) const;

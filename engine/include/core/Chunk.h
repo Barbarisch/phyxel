@@ -195,6 +195,9 @@ public:
     VoxelLocation resolveLocalPosition(const glm::ivec3& localPos) const;
     bool hasVoxelAt(const glm::ivec3& localPos) const;
     bool hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePos) const;
+    // Sub-voxel floor height as a fraction of the voxel, or negative if it must be treated as
+    // fully solid. See ChunkVoxelManager::subVoxelFloor (WaterSystemV3 Phase 4B).
+    float subVoxelFloor(const glm::ivec3& localPos) const;
     VoxelLocation::Type getVoxelType(const glm::ivec3& localPos) const;
     
     // NEW: O(1) optimized lookups (replace linear searches)

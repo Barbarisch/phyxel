@@ -580,6 +580,11 @@ bool Chunk::hasSubcubeAt(const glm::ivec3& localPos, const glm::ivec3& subcubePo
     return voxelManager.hasSubcubeAt(localPos, subcubePos);
 }
 
+float Chunk::subVoxelFloor(const glm::ivec3& localPos) const {
+    if (!isValidLocalPosition(localPos)) return 0.0f;
+    return voxelManager.subVoxelFloor(localPos);
+}
+
 VoxelLocation::Type Chunk::getVoxelType(const glm::ivec3& localPos) const {
     return voxelManager.getVoxelType(localPos);
 }

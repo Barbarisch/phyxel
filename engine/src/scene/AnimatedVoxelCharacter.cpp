@@ -25,6 +25,9 @@ namespace Scene {
     glm::vec3 AnimatedVoxelCharacter::s_viewerPos  = glm::vec3(0.0f);
     bool      AnimatedVoxelCharacter::s_viewerValid = false;
     bool      AnimatedVoxelCharacter::s_lodEnabled  = true;
+    uint32_t  AnimatedVoxelCharacter::s_fullUpdates = 0;
+    uint32_t  AnimatedVoxelCharacter::s_tickBudget = 0;
+    uint32_t  AnimatedVoxelCharacter::s_configuredBudget = 256;
 
     AnimatedVoxelCharacter::AnimatedVoxelCharacter(Physics::PhysicsWorld* physicsWorld, const glm::vec3& position)
         : RagdollCharacter(physicsWorld, position), worldPosition(position) {
@@ -814,23 +817,52 @@ namespace Scene {
             else { minY = std::min(minY, y); maxY = std::max(maxY, y); }
         }
 
+        // Voxel-accurate grounding for imported creature rigs. The default grounds on the lowest
+        // BONE, but voxels hang below/around bones, so a bone-grounded model floats or sinks by
+        // the bone->foot-voxel gap (and per-clip ground_ref proxies mismatched idle vs walk).
+        // When the rig is a finalize-processed import (marked by a "ground_ref" bone), ground on
+        // the actual lowest VOXEL: project each BoneShape box through its bone transform (bind
+        // pose) and take its lowest point. One authoritative geometric measure, no clip guessing.
+        bool importedRig = false;
+        for (const auto& b : skeleton.bones)
+            if (b.name == "ground_ref") { importedRig = true; break; }
+        if (importedRig && !voxelModel.shapes.empty()) {
+            float vMinY = 1e9f, vMaxY = -1e9f;
+            for (const auto& s : voxelModel.shapes) {
+                if (s.boneId < 0 || s.boneId >= static_cast<int>(skeleton.bones.size())) continue;
+                glm::vec3 c = glm::vec3(globalTransforms[s.boneId] * glm::vec4(s.offset, 1.0f));
+                vMinY = std::min(vMinY, c.y - s.size.y * 0.5f);
+                vMaxY = std::max(vMaxY, c.y + s.size.y * 0.5f);
+            }
+            if (vMinY <= vMaxY) { minY = vMinY; maxY = vMaxY; }
+        }
+
         float characterHeight = (maxY - minY) + 0.3f;
         if (characterHeight < 0.5f) characterHeight = 1.0f;
 
-        skeletonFootOffset_ = minY;
+        // For imported rigs, bake the draw's fixed visual lift into the offset so the lowest
+        // voxel sits exactly on the ground (the draw adds +k_modelVisualLift; cancel it here).
+        // Legacy humanoid path grounds on the bone minY unchanged (golden-pinned).
+        static constexpr float k_modelVisualLift = 0.05f;
+        skeletonFootOffset_ = importedRig ? (minY + k_modelVisualLift) : minY;
         m_originalHalfHeight = characterHeight * 0.5f;
 
         if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {
             // Long-bodied plans (quadruped/arachnid/dragon): the biped
             // torso-span ratio under-sizes a body that is long, not tall.
-            // Half-width = the larger bind-pose |x|/|z| bone extent, clamped
-            // to the plan's bounds.
-            float maxAbsXZ = 0.0f;
+            // The capsule RADIUS is the body's LATERAL half-width (across the
+            // spine), NOT its fore-aft length. Taking the larger horizontal
+            // extent grabbed nose->tail length and produced a barrel-wide
+            // capsule (wolf 0.89) that snagged the navgrid, triggering the
+            // 1.5s stuck-timer and freezing patrol motion. Bind pose is
+            // axis-aligned, so the width axis is whichever horizontal axis has
+            // the SMALLER extent; use it (robust to facing along X or Z).
+            float maxAbsX = 0.0f, maxAbsZ = 0.0f;
             for (size_t i = 0; i < skeleton.bones.size(); ++i) {
-                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][0]));
-                maxAbsXZ = std::max(maxAbsXZ, std::abs(globalTransforms[i][3][2]));
+                maxAbsX = std::max(maxAbsX, std::abs(globalTransforms[i][3][0]));
+                maxAbsZ = std::max(maxAbsZ, std::abs(globalTransforms[i][3][2]));
             }
-            m_originalHalfWidth = glm::clamp(maxAbsXZ,
+            m_originalHalfWidth = glm::clamp(std::min(maxAbsX, maxAbsZ),
                                              m_bodyPlan.capsule.minHalfWidth,
                                              m_bodyPlan.capsule.maxHalfWidth);
         } else {
@@ -3040,19 +3072,29 @@ namespace Scene {
             const glm::vec3 d = worldPosition - s_viewerPos;
             const float distSq = glm::dot(d, d);
             float period = 0.0f;
-            if      (distSq > k_lodFarDistSq) period = k_lodFarPeriod;
-            else if (distSq > k_lodMidDistSq) period = k_lodMidPeriod;
+            if      (distSq > k_lodDistantDistSq) period = k_lodDistantPeriod;
+            else if (distSq > k_lodVeryFarDistSq) period = k_lodVeryFarPeriod;
+            else if (distSq > k_lodFarDistSq)     period = k_lodFarPeriod;
+            else if (distSq > k_lodMidDistSq)     period = k_lodMidPeriod;
             if (period > 0.0f) {
                 // Perturb the period ±20% per instance so co-located characters
                 // tick on different frames (staggered, not synchronized spikes).
                 period *= (0.8f + 0.4f * m_lodJitter);
                 m_lodAccum += deltaTime;
                 if (m_lodAccum < period) return;  // defer this frame
+
+                // Due — but respect the frame's full-tick budget. Staleness is the
+                // escape hatch so an exhausted budget delays a character rather than
+                // starving it indefinitely.
+                if (s_tickBudget == 0 && m_lodAccum < k_lodMaxStaleness) return;
+                if (s_tickBudget > 0) --s_tickBudget;
+
                 deltaTime  = m_lodAccum;          // fold banked time into this tick
                 m_lodAccum = 0.0f;
             }
         }
 
+        ++s_fullUpdates;   // passed the LOD gate — this is a full tick
         m_totalTime += deltaTime;
 
         // --- Derez drain: spawn voxels whose detach time has arrived ---
@@ -3081,6 +3123,7 @@ namespace Scene {
                 // Mask the voxel from rendering
                 if (entry.partIndex < parts.size()) {
                     parts[entry.partIndex].active = false;
+                    bumpPartsVersion();   // renderers cache the instance blob per version
                 }
 
                 ++m_derezState->nextIdx;

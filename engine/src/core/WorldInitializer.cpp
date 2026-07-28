@@ -417,6 +417,13 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
+    // Must precede createDescriptorSets() — the sets write binding 8 to this buffer.
+    // 65536 matrices = 4 MB; ~20 bone groups per character, so ~3000 characters.
+    if (!vulkanDevice->createCharacterBoneBuffer(65536)) {
+        LOG_ERROR("WorldInitializer", "Failed to create character bone SSBO!");
+        return false;
+    }
+
     if (!vulkanDevice->createDescriptorPool()) {
         LOG_ERROR("WorldInitializer", "Failed to create descriptor pool!");
         return false;

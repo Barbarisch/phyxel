@@ -113,6 +113,21 @@ namespace Scene {
         static void setViewerPosition(const glm::vec3& p) { s_viewerPos = p; s_viewerValid = true; }
         static void setLODEnabled(bool e) { s_lodEnabled = e; }
 
+        /// How many characters passed the update-LOD gate (ran a FULL update) since the
+        /// last reset. Lets the host tell "LOD is working but full ticks are expensive"
+        /// apart from "LOD is not deferring anything".
+        static uint32_t consumeFullUpdateCount() { uint32_t v = s_fullUpdates; s_fullUpdates = 0; return v; }
+
+        /// Bound the number of FULL character updates allowed this frame. Distance tiers
+        /// alone cannot bound cost: their periods are wall-clock, so when a crowd makes
+        /// the frame slow, fewer frames get skipped and the LOD stops helping exactly when
+        /// it is needed (measured n=1024: 613/1024 full ticks at a 46 ms frame). A budget
+        /// makes the cost a ceiling instead. Characters already due but over budget defer
+        /// again UNLESS they exceed k_lodMaxStaleness, so nothing starves.
+        static void beginFrame(uint32_t fullTickBudget) { s_tickBudget = fullTickBudget; }
+        static void setUpdateTickBudget(uint32_t b) { s_configuredBudget = b; }
+        static uint32_t getUpdateTickBudget() { return s_configuredBudget; }
+
         void playAnimation(const std::string& animName);
         std::vector<std::string> getAnimationNames() const;
         void cycleAnimation(bool next);
@@ -904,11 +919,28 @@ namespace Scene {
         static glm::vec3 s_viewerPos;
         static bool      s_viewerValid;
         static bool      s_lodEnabled;
+        static uint32_t  s_fullUpdates;   ///< see consumeFullUpdateCount()
+        static uint32_t  s_tickBudget;    ///< remaining full ticks this frame
+        static uint32_t  s_configuredBudget;
+        /// A deferred character never goes longer than this without a full tick, even
+        /// when the budget is exhausted — bounds pose staleness for distant crowds.
+        static constexpr float k_lodMaxStaleness = 0.5f;
         // Distance² thresholds and tick periods. Within k_lodMidDistSq: full rate.
-        static constexpr float k_lodMidDistSq = 30.0f * 30.0f;   // beyond 30u -> 30 Hz
-        static constexpr float k_lodFarDistSq = 60.0f * 60.0f;   // beyond 60u -> 15 Hz
-        static constexpr float k_lodMidPeriod = 1.0f / 30.0f;
-        static constexpr float k_lodFarPeriod = 1.0f / 15.0f;
+        //
+        // The far tiers exist because 15 Hz is NOT enough deferral once a crowd makes the
+        // frame slow — a feedback trap. Measured at n=1024: frame ~46 ms vs a 66 ms far
+        // period meant characters still ticked every second frame, so 613 of 1024 ran a
+        // FULL update per frame and the LOD saved almost nothing exactly when it was
+        // needed most. The extra tiers keep deferring as distance grows so the tick count
+        // stays bounded instead of tracking frame time.
+        static constexpr float k_lodMidDistSq     =  30.0f *  30.0f;  // >30u  -> 30 Hz
+        static constexpr float k_lodFarDistSq     =  60.0f *  60.0f;  // >60u  -> 15 Hz
+        static constexpr float k_lodVeryFarDistSq = 120.0f * 120.0f;  // >120u ->  6 Hz
+        static constexpr float k_lodDistantDistSq = 220.0f * 220.0f;  // >220u ->  2 Hz
+        static constexpr float k_lodMidPeriod     = 1.0f / 30.0f;
+        static constexpr float k_lodFarPeriod     = 1.0f / 15.0f;
+        static constexpr float k_lodVeryFarPeriod = 1.0f /  6.0f;
+        static constexpr float k_lodDistantPeriod = 1.0f /  2.0f;
 
     public:
         const std::vector<StepDebugEntry>& getStepDebugLog() const { return m_stepDebugLog; }

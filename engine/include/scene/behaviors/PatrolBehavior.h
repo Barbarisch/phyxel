@@ -24,7 +24,14 @@ public:
     void update(float dt, NPCContext& ctx) override;
     void onInteract(Entity* interactor) override;
     void onEvent(const std::string& eventType, const nlohmann::json& data) override;
-    std::string getBehaviorName() const override { return "Patrol"; }
+    std::string getBehaviorName() const override { return m_wander ? "Wander" : "Patrol"; }
+
+    /// Enable WANDER mode (fauna roaming): instead of cycling a fixed waypoint
+    /// list, roam to random points within `radius` of `anchor`, pausing a
+    /// random [minWait,maxWait]s at each. Reuses the full patrol nav stack
+    /// (A*, stuck recovery, separation, decel). Seeds an initial target now.
+    void setWanderMode(const glm::vec3& anchor, float radius,
+                       float minWait = 1.5f, float maxWait = 5.0f);
 
     // Runtime modification
     void setWaypoints(const std::vector<glm::vec3>& waypoints);
@@ -59,6 +66,16 @@ public:
 private:
     void updatePerception(float dt, NPCContext& ctx, const glm::vec3& forward);
     void computePath(const glm::vec3& from, const glm::vec3& to);
+
+    /// Pick a random roam target within m_wanderRadius of m_wanderAnchor.
+    glm::vec3 pickWanderTarget();
+
+    // Wander mode (fauna roaming)
+    bool m_wander = false;
+    glm::vec3 m_wanderAnchor{0.0f};
+    float m_wanderRadius = 8.0f;
+    float m_wanderMinWait = 1.5f;
+    float m_wanderMaxWait = 5.0f;
 
     /// Check the next PROBE_LOOKAHEAD path nodes against the live NavGrid.
     /// Calls invalidatePath() if any node's cell is no longer valid.

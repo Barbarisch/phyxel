@@ -1,0 +1,5373 @@
+[
+  {
+    "id": "commoner",
+    "name": "Commoner",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 10,
+    "armorSource": "dex",
+    "hitPointDice": "1d8",
+    "averageHP": 4,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 0.0,
+    "xpValue": 10,
+    "attacks": [
+      {
+        "name": "Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 2 (1d4) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "cultist",
+    "name": "Cultist",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any non-good alignment",
+    "armorClass": 12,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "2d8",
+    "averageHP": 9,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "attacks": [
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d6+1",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one creature. Hit: 4 (1d6 + 1) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Dark Devotion",
+        "description": "The cultist has advantage on saving throws against being charmed or frightened."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "kobold",
+    "name": "Kobold",
+    "type": "humanoid",
+    "subtype": "kobold",
+    "size": "Small",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "2d6-2",
+    "averageHP": 5,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "attacks": [
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 2) piercing damage."
+      },
+      {
+        "name": "Sling",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 4 (1d4 + 2) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the kobold has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      },
+      {
+        "name": "Pack Tactics",
+        "description": "The kobold has advantage on an attack roll against a creature if at least one of the kobold's allies is within 5 ft. of the creature and the ally isn't incapacitated."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "kobold"
+    ]
+  },
+  {
+    "id": "merfolk",
+    "name": "Merfolk",
+    "type": "humanoid",
+    "subtype": "merfolk",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 10,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Aquan",
+      "Common"
+    ],
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "attacks": [],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The merfolk can breathe air and water."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "merfolk"
+    ]
+  },
+  {
+    "id": "noble",
+    "name": "Noble",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 15,
+    "armorSource": "Breastplate",
+    "hitPointDice": "2d8",
+    "averageHP": 9,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Persuasion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "any two languages"
+    ],
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "attacks": [
+      {
+        "name": "Rapier",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d8+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 5 (1d8 + 1) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "tribal-warrior",
+    "name": "Tribal Warrior",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 12,
+    "armorSource": "Hide Armor",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language"
+    ],
+    "challengeRating": 0.125,
+    "xpValue": 25,
+    "attacks": [],
+    "traits": [
+      {
+        "name": "Pack Tactics",
+        "description": "The warrior has advantage on an attack roll against a creature if at least one of the warrior's allies is within 5 ft. of the creature and the ally isn't incapacitated."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ],
+    "rig": "monster_tribal"
+  },
+  {
+    "id": "acolyte",
+    "name": "Acolyte",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 10,
+    "armorSource": "dex",
+    "hitPointDice": "2d8",
+    "averageHP": 9,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Medicine": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 2 (1d4) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Spellcasting",
+        "description": "The acolyte is a 1st-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 12, +4 to hit with spell attacks). The acolyte has following cleric spells prepared:\n\n- Cantrips (at will): light, sacred flame, thaumaturgy\n- 1st level (3 slots): bless, cure wounds, sanctuary"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "drow",
+    "name": "Drow",
+    "type": "humanoid",
+    "subtype": "elf",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 15,
+    "armorSource": "Chain Shirt",
+    "hitPointDice": "3d8",
+    "averageHP": 13,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Elvish",
+      "Undercommon"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Hand Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage, and the target must succeed on a DC 13 Constitution saving throw or be poisoned for 1 hour. If the saving throw fails by 5 or more, the target is also unconscious while poisoned in this way. The target wakes up if it takes damage or if another creature takes an action to shake it awake."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Fey Ancestry",
+        "description": "The drow has advantage on saving throws against being charmed, and magic can't put the drow to sleep."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The drow's spellcasting ability is Charisma (spell save DC 11). It can innately cast the following spells, requiring no material components:\nAt will: dancing lights\n1/day each: darkness, faerie fire"
+      },
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the drow has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "elf"
+    ]
+  },
+  {
+    "id": "grimlock",
+    "name": "Grimlock",
+    "type": "humanoid",
+    "subtype": "grimlock",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "2d8+2",
+    "averageHP": 11,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Blinded"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Undercommon"
+    ],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Spiked Bone Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 5 (1d4 + 3) bludgeoning damage plus 2 (1d4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Blind Senses",
+        "description": "The grimlock can't use its blindsight while deafened and unable to smell."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The grimlock has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      },
+      {
+        "name": "Stone Camouflage",
+        "description": "The grimlock has advantage on Dexterity (Stealth) checks made to hide in rocky terrain."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "grimlock"
+    ]
+  },
+  {
+    "id": "deep-gnome-svirfneblin",
+    "name": "Deep Gnome (Svirfneblin)",
+    "type": "humanoid",
+    "subtype": "gnome",
+    "size": "Small",
+    "alignment": "neutral good",
+    "armorClass": 15,
+    "armorSource": "Chain Shirt",
+    "hitPointDice": "3d6+6",
+    "averageHP": 16,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Investigation": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Gnomish",
+      "Terran",
+      "Undercommon"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "War Pick",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      },
+      {
+        "name": "Poisoned Dart",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one creature. Hit: 4 (1d4 + 2) piercing damage, and the target must succeed on a DC 12 Constitution saving throw or be poisoned for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success"
+      }
+    ],
+    "traits": [
+      {
+        "name": "Stone Camouflage",
+        "description": "The gnome has advantage on Dexterity (Stealth) checks made to hide in rocky terrain."
+      },
+      {
+        "name": "Gnome Cunning",
+        "description": "The gnome has advantage on Intelligence, Wisdom, and Charisma saving throws against magic."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The gnome's innate spellcasting ability is Intelligence (spell save DC 11). It can innately cast the following spells, requiring no material components:\nAt will: nondetection (self only)\n1/day each: blindness/deafness, blur, disguise self"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "gnome"
+    ]
+  },
+  {
+    "id": "gnoll",
+    "name": "Gnoll",
+    "type": "humanoid",
+    "subtype": "gnoll",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 15,
+    "armorSource": "Hide Armor, Shield",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Gnoll"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 4 (1d4 + 2) piercing damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d8+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +3 to hit, range 150/600 ft., one target. Hit: 5 (1d8 + 1) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Rampage",
+        "description": "When the gnoll reduces a creature to 0 hit points with a melee attack on its turn, the gnoll can take a bonus action to move up to half its speed and make a bite attack."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "gnoll"
+    ]
+  },
+  {
+    "id": "lizardfolk",
+    "name": "Lizardfolk",
+    "type": "humanoid",
+    "subtype": "lizardfolk",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "4d8+4",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1,
+      "Survival": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Heavy Club",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) bludgeoning damage."
+      },
+      {
+        "name": "Javelin",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +4 to hit, reach 5 ft. or range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Spiked Shield",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Hold Breath",
+        "description": "The lizardfolk can hold its breath for 15 minutes."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "lizardfolk"
+    ],
+    "rig": "monster_dino"
+  },
+  {
+    "id": "sahuagin",
+    "name": "Sahuagin",
+    "type": "humanoid",
+    "subtype": "sahuagin",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "4d8+4",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Sahuagin"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d4+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 3 (1d4 + 1) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d4+1",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 3 (1d4 + 1) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Blood Frenzy",
+        "description": "The sahuagin has advantage on melee attack rolls against any creature that doesn't have all its hit points."
+      },
+      {
+        "name": "Limited Amphibiousness",
+        "description": "The sahuagin can breathe air and water, but it needs to be submerged at least once every 4 hours to avoid suffocating."
+      },
+      {
+        "name": "Shark Telepathy",
+        "description": "The sahuagin can magically command any shark within 120 feet of it, using a limited telepathy."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "sahuagin"
+    ]
+  },
+  {
+    "id": "scout",
+    "name": "Scout",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 13,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "3d8+3",
+    "averageHP": 16,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Nature": 1,
+      "Perception": 1,
+      "Stealth": 1,
+      "Survival": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Hearing and Sight",
+        "description": "The scout has advantage on Wisdom (Perception) checks that rely on hearing or sight."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "thug",
+    "name": "Thug",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any non-good alignment",
+    "armorClass": 11,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "5d8+10",
+    "averageHP": 32,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Intimidation": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Mace",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 5 (1d6 + 2) bludgeoning damage."
+      },
+      {
+        "name": "Heavy Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d10",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 400,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +2 to hit, range 100/400 ft., one target. Hit: 5 (1d10) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Pack Tactics",
+        "description": "The thug has advantage on an attack roll against a creature if at least one of the thug's allies is within 5 ft. of the creature and the ally isn't incapacitated."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "bugbear",
+    "name": "Bugbear",
+    "type": "humanoid",
+    "subtype": "goblinoid",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 16,
+    "armorSource": "Shield, Hide Armor",
+    "hitPointDice": "5d8+5",
+    "averageHP": 27,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1,
+      "Survival": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Common",
+      "Goblin"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Morningstar",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 11 (2d8 + 2) piercing damage."
+      },
+      {
+        "name": "Javelin",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +4 to hit, reach 5 ft. or range 30/120 ft., one target. Hit: 9 (2d6 + 2) piercing damage in melee or 5 (1d6 + 2) piercing damage at range."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Brute",
+        "description": "A melee weapon deals one extra die of its damage when the bugbear hits with it (included in the attack)."
+      },
+      {
+        "name": "Surprise Attack",
+        "description": "If the bugbear surprises a creature and hits it with an attack during the first round of combat, the target takes an extra 7 (2d6) damage from the attack."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "goblinoid"
+    ],
+    "rig": "monster_orc"
+  },
+  {
+    "id": "duergar",
+    "name": "Duergar",
+    "type": "humanoid",
+    "subtype": "dwarf",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "Scale Mail, Shield",
+    "hitPointDice": "4d8+8",
+    "averageHP": 26,
+    "speed": 25,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "poison"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Dwarvish",
+      "Undercommon"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "War Pick",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage, or 11 (2d8 + 2) piercing damage while enlarged."
+      },
+      {
+        "name": "Javelin",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +4 to hit, reach 5 ft. or range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage, or 9 (2d6 + 2) piercing damage while enlarged."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Duergar Resilience",
+        "description": "The duergar has advantage on saving throws against poison, spells, and illusions, as well as to resist being charmed or paralyzed."
+      },
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the duergar has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "dwarf"
+    ]
+  },
+  {
+    "id": "spy",
+    "name": "Spy",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "6d8",
+    "averageHP": 27,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Investigation": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "any two languages"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Hand Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Cunning Action",
+        "description": "On each of its turns, the spy can use a bonus action to take the Dash, Disengage, or Hide action."
+      },
+      {
+        "name": "Sneak Attack (1/Turn)",
+        "description": "The spy deals an extra 7 (2d6) damage when it hits a target with a weapon attack and has advantage on the attack roll, or when the target is within 5 ft. of an ally of the spy that isn't incapacitated and the spy doesn't have disadvantage on the attack roll."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "bandit-captain",
+    "name": "Bandit Captain",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any non-lawful alignment",
+    "armorClass": 15,
+    "armorSource": "Studded Leather Armor",
+    "hitPointDice": "10d8+20",
+    "averageHP": 65,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "DEX",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Deception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any two languages"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage."
+      },
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 20,
+        "rangeLong": 60,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +5 to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 5 (1d4 + 3) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "berserker",
+    "name": "Berserker",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any chaotic alignment",
+    "armorClass": 13,
+    "armorSource": "Hide Armor",
+    "hitPointDice": "9d8+27",
+    "averageHP": 67,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d12+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 9 (1d12 + 3) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Reckless",
+        "description": "At the start of its turn, the berserker can gain advantage on all melee weapon attack rolls during that turn, but attack rolls against it have advantage until the start of its next turn."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "cult-fanatic",
+    "name": "Cult Fanatic",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any non-good alignment",
+    "armorClass": 13,
+    "armorSource": "Leather Armor",
+    "hitPointDice": "6d8-5",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Persuasion": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 20,
+        "rangeLong": 60,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +4 to hit, reach 5 ft. or range 20/60 ft., one creature. Hit: 4 (1d4 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Dark Devotion",
+        "description": "The fanatic has advantage on saving throws against being charmed or frightened."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The fanatic is a 4th-level spellcaster. Its spell casting ability is Wisdom (spell save DC 11, +3 to hit with spell attacks). The fanatic has the following cleric spells prepared:\n\nCantrips (at will): light, sacred flame, thaumaturgy\n- 1st level (4 slots): command, inflict wounds, shield of faith\n- 2nd level (3 slots): hold person, spiritual weapon"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "druid",
+    "name": "Druid",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "5d8+5",
+    "averageHP": 27,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Medicine": 1,
+      "Nature": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Druidic plus any two languages"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [],
+    "traits": [
+      {
+        "name": "Spellcasting",
+        "description": "The druid is a 4th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 12, +4 to hit with spell attacks). It has the following druid spells prepared:\n\n- Cantrips (at will): druidcraft, produce flame, shillelagh\n- 1st level (4 slots): entangle, longstrider, speak with animals, thunderwave\n- 2nd level (3 slots): animal messenger, barkskin"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "priest",
+    "name": "Priest",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 13,
+    "armorSource": "Chain Shirt",
+    "hitPointDice": "5d8+5",
+    "averageHP": 27,
+    "speed": 25,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Medicine": 1,
+      "Persuasion": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "any two languages"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Mace",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d6",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 3 (1d6) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Divine Eminence",
+        "description": "As a bonus action, the priest can expend a spell slot to cause its melee weapon attacks to magically deal an extra 10 (3d6) radiant damage to a target on a hit. This benefit lasts until the end of the turn. If the priest expends a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each level above 1st."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The priest is a 5th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 13, +5 to hit with spell attacks). The priest has the following cleric spells prepared:\n\n- Cantrips (at will): light, sacred flame, thaumaturgy\n- 1st level (4 slots): cure wounds, guiding bolt, sanctuary\n- 2nd level (3 slots): lesser restoration, spiritual weapon\n- 3rd level (2 slots): dispel magic, spirit guardians"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "wererat-human",
+    "name": "Wererat, Human Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "6d8+6",
+    "averageHP": 33,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Hand Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wererat can use its action to polymorph into a rat-humanoid hybrid or into a giant rat, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The wererat has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "wererat-hybrid",
+    "name": "Wererat, Hybrid Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "6d8+6",
+    "averageHP": 33,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 2) piercing damage. If the target is a humanoid, it must succeed on a DC 11 Constitution saving throw or be cursed with wererat lycanthropy."
+      },
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      },
+      {
+        "name": "Hand Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 30,
+        "rangeLong": 120,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 30/120 ft., one target. Hit: 5 (1d6 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wererat can use its action to polymorph into a rat-humanoid hybrid or into a giant rat, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The wererat has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "wererat-rat",
+    "name": "Wererat, Rat Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "6d8+6",
+    "averageHP": 33,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 2) piercing damage. If the target is a humanoid, it must succeed on a DC 11 Constitution saving throw or be cursed with wererat lycanthropy."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wererat can use its action to polymorph into a rat-humanoid hybrid or into a giant rat, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The wererat has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "knight",
+    "name": "Knight",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 18,
+    "armorSource": "Plate Armor",
+    "hitPointDice": "8d8+16",
+    "averageHP": 52,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Greatsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage."
+      },
+      {
+        "name": "Heavy Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 2,
+        "damageDice": "1d10",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 400,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +2 to hit, range 100/400 ft., one target. Hit: 5 (1d10) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Brave",
+        "description": "The knight has advantage on saving throws against being frightened."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "veteran",
+    "name": "Veteran",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 17,
+    "armorSource": "Splint Armor",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      },
+      {
+        "name": "Heavy Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d10+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 400,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +3 to hit, range 100/400 ft., one target. Hit: 6 (1d10 + 1) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "werewolf-human",
+    "name": "Werewolf, Human Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werewolf can use its action to polymorph into a wolf-humanoid hybrid or into a wolf, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The werewolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "quad_wolf"
+  },
+  {
+    "id": "werewolf-hybrid",
+    "name": "Werewolf, Hybrid Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage. If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with werewolf lycanthropy."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d4+2",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 7 (2d4 + 2) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werewolf can use its action to polymorph into a wolf-humanoid hybrid or into a wolf, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The werewolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "quad_wolf"
+  },
+  {
+    "id": "werewolf-wolf",
+    "name": "Werewolf, Wolf Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) piercing damage. If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with werewolf lycanthropy."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werewolf can use its action to polymorph into a wolf-humanoid hybrid or into a wolf, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The werewolf has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "quad_wolf"
+  },
+  {
+    "id": "wereboar-boar",
+    "name": "Wereboar, Boar Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "12d8+24",
+    "averageHP": 78,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Tusks",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage. If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with wereboar lycanthropy."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wereboar can use its action to polymorph into a boar-humanoid hybrid or into a boar, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Charge (Boar or Hybrid Form Only)",
+        "description": "If the wereboar moves at least 15 feet straight toward a target and then hits it with its tusks on the same turn, the target takes an extra 7 (2d6) slashing damage. If the target is a creature, it must succeed on a DC 13 Strength saving throw or be knocked prone."
+      },
+      {
+        "name": "Relentless",
+        "description": "If the wereboar takes 14 damage or less that would reduce it to 0 hit points, it is reduced to 1 hit point instead."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "boar_meshy"
+  },
+  {
+    "id": "wereboar-human",
+    "name": "Wereboar, Human Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 10,
+    "armorSource": "dex",
+    "hitPointDice": "12d8+24",
+    "averageHP": 78,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common (can't speak in boar form)"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Maul",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wereboar can use its action to polymorph into a boar-humanoid hybrid or into a boar, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Relentless",
+        "description": "If the wereboar takes 14 damage or less that would reduce it to 0 hit points, it is reduced to 1 hit point instead."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "boar_meshy"
+  },
+  {
+    "id": "wereboar-hybrid",
+    "name": "Wereboar, Hybrid Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "12d8+24",
+    "averageHP": 78,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Maul",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) bludgeoning damage."
+      },
+      {
+        "name": "Tusks",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage. If the target is a humanoid, it must succeed on a DC 12 Constitution saving throw or be cursed with wereboar lycanthropy."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The wereboar can use its action to polymorph into a boar-humanoid hybrid or into a boar, or back into its true form, which is humanoid. Its statistics, other than its AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Charge (Boar or Hybrid Form Only)",
+        "description": "If the wereboar moves at least 15 feet straight toward a target and then hits it with its tusks on the same turn, the target takes an extra 7 (2d6) slashing damage. If the target is a creature, it must succeed on a DC 13 Strength saving throw or be knocked prone."
+      },
+      {
+        "name": "Relentless",
+        "description": "If the wereboar takes 14 damage or less that would reduce it to 0 hit points, it is reduced to 1 hit point instead."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "boar_meshy"
+  },
+  {
+    "id": "weretiger-human",
+    "name": "Weretiger, Human Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "16d8+48",
+    "averageHP": 120,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The weretiger can use its action to polymorph into a tiger-humanoid hybrid or into a tiger, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The weretiger has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "weretiger-hybrid",
+    "name": "Weretiger, Hybrid Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "16d8+48",
+    "averageHP": 120,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 3) piercing damage. If the target is a humanoid, it must succeed on a DC 13 Constitution saving throw or be cursed with weretiger lycanthropy."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage."
+      },
+      {
+        "name": "Scimitar",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The weretiger can use its action to polymorph into a tiger-humanoid hybrid or into a tiger, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The weretiger has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      },
+      {
+        "name": "Pounce",
+        "description": "If the weretiger moves at least 15 feet straight toward a creature and then hits it with a claw attack on the same turn, that target must succeed on a DC 14 Strength saving throw or be knocked prone. If the target is prone, the weretiger can make one bite attack against it as a bonus action."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "weretiger-tiger",
+    "name": "Weretiger, Tiger Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "16d8+48",
+    "averageHP": 120,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 15,
+    "languages": [],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 3) piercing damage. If the target is a humanoid, it must succeed on a DC 13 Constitution saving throw or be cursed with weretiger lycanthropy."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d8+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The weretiger can use its action to polymorph into a tiger-humanoid hybrid or into a tiger, or back into its true form, which is humanoid. Its statistics, other than its size, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Hearing and Smell",
+        "description": "The weretiger has advantage on Wisdom (Perception) checks that rely on hearing or smell."
+      },
+      {
+        "name": "Pounce",
+        "description": "If the weretiger moves at least 15 feet straight toward a creature and then hits it with a claw attack on the same turn, that target must succeed on a DC 14 Strength saving throw or be knocked prone. If the target is prone, the weretiger can make one bite attack against it as a bonus action."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ]
+  },
+  {
+    "id": "gladiator",
+    "name": "Gladiator",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 16,
+    "armorSource": "Studded Leather Armor, Shield",
+    "hitPointDice": "15d8+45",
+    "averageHP": 112,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "DEX",
+      "CON"
+    ],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Intimidation": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "any one language (usually Common)"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Shield Bash",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d4+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one creature. Hit: 9 (2d4 + 4) bludgeoning damage. If the target is a Medium or smaller creature, it must succeed on a DC 15 Strength saving throw or be knocked prone."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Brave",
+        "description": "The gladiator has advantage on saving throws against being frightened."
+      },
+      {
+        "name": "Brute",
+        "description": "A melee weapon deals one extra die of its damage when the gladiator hits with it (included in the attack)."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "half-red-dragon-veteran",
+    "name": "Half-Red Dragon Veteran",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 18,
+    "armorSource": "Plate Armor",
+    "hitPointDice": "10d8+20",
+    "averageHP": 65,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "fire"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+      },
+      {
+        "name": "Heavy Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "1d10+1",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 100,
+        "rangeLong": 400,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +3 to hit, range 100/400 ft., one target. Hit: 6 (1d10 + 1) piercing damage."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "7d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The veteran exhales fire in a 15-foot cone. Each creature in that area must make a DC 15 Dexterity saving throw, taking 24 (7d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "werebear-bear",
+    "name": "Werebear, Bear Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral good",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "18d8+54",
+    "averageHP": 135,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 15 (2d10 + 4) piercing damage. If the target is a humanoid, it must succeed on a DC 14 Constitution saving throw or be cursed with werebear lycanthropy."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werebear can use its action to polymorph into a Large bear-humanoid hybrid or into a Large bear, or back into its true form, which is humanoid. Its statistics, other than its size and AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The werebear has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "bear_meshy"
+  },
+  {
+    "id": "werebear-human",
+    "name": "Werebear, Human Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral good",
+    "armorClass": 10,
+    "armorSource": "dex",
+    "hitPointDice": "18d8+54",
+    "averageHP": 135,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d12+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 10 (1d12 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werebear can use its action to polymorph into a Large bear-humanoid hybrid or into a Large bear, or back into its true form, which is humanoid. Its statistics, other than its size and AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The werebear has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "bear_meshy"
+  },
+  {
+    "id": "werebear-hybrid",
+    "name": "Werebear, Hybrid Form",
+    "type": "humanoid",
+    "subtype": "human",
+    "size": "Medium",
+    "alignment": "neutral good",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "18d8+54",
+    "averageHP": 135,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 15 (2d10 + 4) piercing damage. If the target is a humanoid, it must succeed on a DC 14 Constitution saving throw or be cursed with werebear lycanthropy."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      },
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d12+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 10 (1d12 + 4) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "The werebear can use its action to polymorph into a Large bear-humanoid hybrid or into a Large bear, or back into its true form, which is humanoid. Its statistics, other than its size and AC, are the same in each form. Any equipment it is wearing or carrying isn't transformed. It reverts to its true form if it dies."
+      },
+      {
+        "name": "Keen Smell",
+        "description": "The werebear has advantage on Wisdom (Perception) checks that rely on smell."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "human"
+    ],
+    "rig": "bear_meshy"
+  },
+  {
+    "id": "mage",
+    "name": "Mage",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "9d8",
+    "averageHP": 40,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "INT",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "any four languages"
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 20,
+        "rangeLong": 60,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +5 to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 4 (1d4 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Spellcasting",
+        "description": "The mage is a 9th-level spellcaster. Its spellcasting ability is Intelligence (spell save DC 14, +6 to hit with spell attacks). The mage has the following wizard spells prepared:\n\n- Cantrips (at will): fire bolt, light, mage hand, prestidigitation\n- 1st level (4 slots): detect magic, mage armor, magic missile, shield\n- 2nd level (3 slots): misty step, suggestion\n- 3rd level (3 slots): counterspell, fireball, fly\n- 4th level (3 slots): greater invisibility, ice storm\n- 5th level (1 slot): cone of cold"
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "assassin",
+    "name": "Assassin",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any non-good alignment",
+    "armorClass": 15,
+    "armorSource": "Studded Leather Armor",
+    "hitPointDice": "12d8+24",
+    "averageHP": 78,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "INT"
+    ],
+    "skillProficiencies": {
+      "Acrobatics": 1,
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "poison"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Thieves' cant plus any two languages"
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Shortsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage, and the target must make a DC 15 Constitution saving throw, taking 24 (7d6) poison damage on a failed save, or half as much damage on a successful one."
+      },
+      {
+        "name": "Light Crossbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 80,
+        "rangeLong": 320,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +6 to hit, range 80/320 ft., one target. Hit: 7 (1d8 + 3) piercing damage, and the target must make a DC 15 Constitution saving throw, taking 24 (7d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Assassinate",
+        "description": "During its first turn, the assassin has advantage on attack rolls against any creature that hasn't taken a turn. Any hit the assassin scores against a surprised creature is a critical hit."
+      },
+      {
+        "name": "Evasion",
+        "description": "If the assassin is subjected to an effect that allows it to make a Dexterity saving throw to take only half damage, the assassin instead takes no damage if it succeeds on the saving throw, and only half damage if it fails."
+      },
+      {
+        "name": "Sneak Attack (1/Turn)",
+        "description": "The assassin deals an extra 13 (4d6) damage when it hits a target with a weapon attack and has advantage on the attack roll, or when the target is within 5 ft. of an ally of the assassin that isn't incapacitated and the assassin doesn't have disadvantage on the attack roll."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  },
+  {
+    "id": "archmage",
+    "name": "Archmage",
+    "type": "humanoid",
+    "subtype": "any race",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "18d8+18",
+    "averageHP": 99,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "INT",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1
+    },
+    "damageResistances": [
+      "damage from spells",
+      "bludgeoning, piercing, and slashing from nonmagical attacks (from stoneskin)"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "any six languages"
+    ],
+    "challengeRating": 12.0,
+    "xpValue": 8400,
+    "attacks": [
+      {
+        "name": "Dagger",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 20,
+        "rangeLong": 60,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee or Ranged Weapon Attack: +6 to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 4 (1d4 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The archmage has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The archmage is an 18th-level spellcaster. Its spellcasting ability is Intelligence (spell save DC 17, +9 to hit with spell attacks). The archmage can cast disguise self and invisibility at will and has the following wizard spells prepared:\n\n- Cantrips (at will): fire bolt, light, mage hand, prestidigitation, shocking grasp\n- 1st level (4 slots): detect magic, identify, mage armor*, magic missile\n- 2nd level (3 slots): detect thoughts, mirror image, misty step\n- 3rd level (3 slots): counterspell, fly, lightning bolt\n- 4th level (3 slots): banishment, fire shield, stoneskin*\n- 5th level (3 slots): cone of cold, scrying, wall of force\n- 6th level (1 slot): globe of invulnerability\n- 7th level (1 slot): teleport\n- 8th level (1 slot): mind blank*\n- 9th level (1 slot): time stop\n* The archmage casts these spells on itself before combat."
+      }
+    ],
+    "tags": [
+      "humanoid",
+      "any race"
+    ]
+  }
+]

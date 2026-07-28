@@ -67,7 +67,16 @@ void WaterManager::syncSolidsFromChunks() {
     for (int y = 0; y < m_dims.y; ++y)
     for (int x = 0; x < m_dims.x; ++x) {
         glm::ivec3 world(m_origin.x + x, m_origin.y + y, m_origin.z + z);
-        m_sim.setSolid(x, y, z, m_cm->hasVoxelAt(world));
+        // SUB-VOXEL FLOOR (Phase 4B): a voxel holding nothing but flat sub-voxel layers stacked from
+        // its base — a low platform — is PASSABLE, and water rests on top of those layers instead of
+        // on the voxel's base. Everything else keeps the old all-or-nothing behaviour: a negative
+        // reading means "treat as fully solid", which is what walls, table legs, thin vertical
+        // sheets and mixed subcube/microcube content all return. That conservatism is deliberate —
+        // see ChunkVoxelManager::subVoxelFloor.
+        const float floor = m_cm->subVoxelFloor(world);
+        const bool solid = (floor < 0.0f) || (floor >= 0.999f);
+        m_sim.setSolid(x, y, z, solid);
+        m_sim.setFloor(x, y, z, solid ? 0.0f : floor);
     }
 }
 
@@ -192,13 +201,18 @@ void WaterManager::rebuildSurface() {
         // Surface cell: the one above is empty (or solid / out of bounds).
         if (m_sim.massAt(x, y + 1, z) > RENDER_MIN && !m_sim.isSolid(x, y + 1, z)) continue;
         float fill = std::min(m, 1.0f);
-        float surfaceY = static_cast<float>(m_origin.y + y) + fill;
-        // Column depth: contiguous water cells stacked below this surface cell.
-        float depth = fill;
+        // SUB-VOXEL FLOOR (Phase 4B): water in a cell with a low platform under it rests ON that
+        // platform, so its surface sits floor + fill*(1-floor) up the cell rather than fill. Without
+        // this a puddle on a 1/3-height subcube step renders as though the step were a full voxel.
+        const float cellFloor = m_sim.floorAt(x, y, z);
+        float surfaceY = static_cast<float>(m_origin.y + y) + cellFloor + fill * (1.0f - cellFloor);
+        // Column depth: contiguous water cells stacked below this surface cell. A floored cell
+        // contributes only the part above its floor, so depth-based shading matches what is drawn.
+        float depth = fill * (1.0f - cellFloor);
         for (int dy = y - 1; dy >= 0; --dy) {
             float md = m_sim.massAt(x, dy, z);
             if (md <= RENDER_MIN || m_sim.isSolid(x, dy, z)) break;
-            depth += std::min(md, 1.0f);
+            depth += std::min(md, 1.0f) * (1.0f - m_sim.floorAt(x, dy, z));
         }
         float& top = colTop[colIdx(x, z)];
         if (surfaceY > top) top = surfaceY;
@@ -209,6 +223,29 @@ void WaterManager::rebuildSurface() {
                     static_cast<size_t>(sy) * static_cast<size_t>(z))] >= 0.0f;
         if (isPinnedSea) continue;   // the flat sea plane draws this water
         cells.push_back({x, y, z, surfaceY, depth});
+    }
+
+    // SHARED, SMOOTHED FLOW GRID (WaterSystemV3 Phase 3), one entry per surface column.
+    //
+    // Why this exists: flow is a PER-INSTANCE attribute, so it is constant across each cell's quad.
+    // The shader advects the wave field along it, which means two neighbouring cells with different
+    // flow warp the same world position differently — the wave field TEARS at every cell boundary
+    // and the surface reads as a checkerboard of tiles. (Observed live the first time this shipped;
+    // it is exactly the blocky look this whole plan is trying to remove.) Averaging each column with
+    // its N4 neighbours makes the field vary slowly enough that the residual step per boundary is
+    // imperceptible — the same trick the corner-height grid below uses for the surface itself.
+    std::vector<glm::vec2> colFlow(static_cast<size_t>(sx) * sz, glm::vec2(0.0f));
+    for (const Cell& c : cells) colFlow[colIdx(c.x, c.z)] = m_sim.flowAt(c.x, c.y, c.z);
+    std::vector<glm::vec2> colFlowSmooth = colFlow;
+    for (int z = 0; z < sz; ++z)
+    for (int x = 0; x < sx; ++x) {
+        glm::vec2 sum = colFlow[colIdx(x, z)];
+        float n = 1.0f;
+        if (x > 0)      { sum += colFlow[colIdx(x - 1, z)]; n += 1.0f; }
+        if (x + 1 < sx) { sum += colFlow[colIdx(x + 1, z)]; n += 1.0f; }
+        if (z > 0)      { sum += colFlow[colIdx(x, z - 1)]; n += 1.0f; }
+        if (z + 1 < sz) { sum += colFlow[colIdx(x, z + 1)]; n += 1.0f; }
+        colFlowSmooth[colIdx(x, z)] = sum / n;
     }
 
     // Shared corner-height grid, (sx+1) x (sz+1). Each grid corner is touched by up to
@@ -285,6 +322,34 @@ void WaterManager::rebuildSurface() {
         WaterSurfaceCell out;
         out.centerDepth = glm::vec4(wX + 0.5f, ref, wZ + 0.5f, c.depth);
         out.corners = glm::vec4(cNN, cPN, cPP, cNP);
+        // FLOW (Phase 3): direction + strength from the sim's flow proxy, plus a foam term.
+        // FLOW_FULL ⚑GROUND: 0.15 mass/step is a vigorously flowing channel in this CA (a
+        // source-fed 1-wide channel measures ~0.1-0.3), so it maps "clearly moving" to strength 1
+        // without saturating on the gentle drift a settling pond shows.
+        constexpr float FLOW_FULL = 0.15f;
+        const glm::vec2 fv = colFlowSmooth[colIdx(c.x, c.z)];
+        const float fmag = std::sqrt(fv.x * fv.x + fv.y * fv.y);
+        glm::vec2 fdir = (fmag > 1e-5f) ? fv / fmag : glm::vec2(0.0f);
+        float strength = std::min(fmag / FLOW_FULL, 1.0f);
+        // KINEMATIC RIVER FLOW: a baked river is pinned full along its carve, so it performs no
+        // transfers and the CA proxy above reads ZERO — it would shade as a long thin lake. Where
+        // the bake says this column is a channel, take the direction from the drainage network
+        // instead. Visual only: the field is still hydrostatic (see setRiverFlowQuery).
+        if (m_riverDirFn && strength < 0.35f) {
+            const glm::vec2 rd = m_riverDirFn(wX + 0.5f, wZ + 0.5f);
+            const float rmag = std::sqrt(rd.x * rd.x + rd.y * rd.y);
+            if (rmag > 1e-5f) {
+                fdir = rd / rmag;
+                // ⚑GROUND: 0.55 — a visible current, deliberately below the 1.0 of a genuinely
+                // churning CA flow so a broad river reads as purposeful drift, not rapids.
+                strength = 0.55f;
+            }
+        }
+        // Foam where the water is both moving and SHALLOW — that is where a real stream breaks
+        // white over its bed. Deep fast water (a river's middle) stays smooth.
+        const float shallow = 1.0f - std::min(c.depth / 2.0f, 1.0f);
+        const float foam = std::min(strength * (0.35f + 0.65f * shallow), 1.0f);
+        out.flow = glm::vec4(fdir.x, fdir.y, strength, foam);
         out.skirt = glm::vec4(edge(c.x + 1, c.z, std::min(cPN, cPP), wX + 1.0f, wZ + 0.5f),  // +x
                               edge(c.x - 1, c.z, std::min(cNN, cNP), wX + 0.0f, wZ + 0.5f),  // -x
                               edge(c.x, c.z + 1, std::min(cNP, cPP), wX + 0.5f, wZ + 1.0f),  // +z
@@ -306,6 +371,20 @@ void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
         m_sim.addWater(lx, ly, lz, amount);
         rebuildSurface();
     }
+}
+
+void WaterManager::setFloorWorld(int worldX, int worldY, int worldZ, float fraction) {
+    const int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
+    if (m_sim.inBounds(lx, ly, lz)) {
+        m_sim.setFloor(lx, ly, lz, fraction);
+        rebuildSurface();   // render-only input: restamp the surface, no need to re-step
+    }
+}
+
+float WaterManager::floorAtWorld(const glm::vec3& worldPos) const {
+    int lx, ly, lz;
+    if (!worldToLocal(worldPos, lx, ly, lz)) return 0.0f;
+    return m_sim.floorAt(lx, ly, lz);
 }
 
 void WaterManager::setSolidWorld(int worldX, int worldY, int worldZ, bool solid) {
@@ -351,6 +430,11 @@ void WaterManager::setWaterTable(std::function<float(float, float)> levelAt) {
 void WaterManager::setRiverQuery(std::function<float(float, float)> depthAt) {
     m_riverFn = std::move(depthAt);
     m_oceanDirty = true;   // re-derive channel tags + bed pins on the next update
+}
+
+void WaterManager::setRiverFlowQuery(std::function<glm::vec2(float, float)> dirAt) {
+    m_riverDirFn = std::move(dirAt);
+    rebuildSurface();      // shading-only input: just restamp the surface cells
 }
 
 WaterManager::TableValidation WaterManager::validateTable(const glm::ivec2& minXZ,

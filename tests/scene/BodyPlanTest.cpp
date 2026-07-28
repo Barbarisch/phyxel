@@ -7,6 +7,7 @@
 
 using namespace Phyxel;
 using Phyxel::Scene::AnimatedVoxelCharacter;
+using Phyxel::Scene::AnimatedCharacterState;
 using Phyxel::Scene::BodyPlan;
 using Phyxel::Scene::BodyPlanRegistry;
 using Phyxel::Scene::MorphologyType;
@@ -282,9 +283,15 @@ TEST(BodyPlan, WolfGetsRealSegmentBoxesAndCapsule) {
         EXPECT_GT(s.halfExtents.z, 0.0f) << s.boneName;
     }
 
-    // XZExtent capsule: wider than the legacy biped 0.25, inside plan clamps.
-    EXPECT_GT(ch->getControllerHalfWidth(), 0.25f);
+    // XZExtent capsule uses the body's LATERAL width (across the spine), NOT
+    // its fore-aft length. character_wolf is narrow, so the width clamps to the
+    // plan's minHalfWidth (0.2). The critical regression guard: it must NOT
+    // balloon toward the ~0.64 body half-LENGTH -- that was the old max(|x|,|z|)
+    // bug that produced a navgrid-snagging barrel (halfWidth 0.89) and 1.5s
+    // stuck-timer patrol freezes.
+    EXPECT_GE(ch->getControllerHalfWidth(), 0.20f);   // real, within plan clamps
     EXPECT_LE(ch->getControllerHalfWidth(), 0.90f);
+    EXPECT_LT(ch->getControllerHalfWidth(), 0.40f);   // lateral width, not length
 
     // Foot-IK stays OFF for quadrupeds (plan legs footIK=false) — the
     // two-bone solver is biped-only until P3.
@@ -292,6 +299,34 @@ TEST(BodyPlan, WolfGetsRealSegmentBoxesAndCapsule) {
     EXPECT_FALSE(ik.cacheReady);
     // But the hip/root resolves (pelvis) — sitting no longer 0.8-fallbacks.
     EXPECT_GE(ik.hipBoneId, 0);
+}
+
+TEST(BodyPlan, AllMeshyCreaturesLoadAndResolve) {
+    // The creature mill's contract: every Meshy quadruped import detects
+    // Quadruped, adopts the shared meshy_quadruped plan (segments + hip
+    // resolve), and the FSM finds its standard-named walk clip with zero
+    // per-creature engine code.
+    for (const char* name : {"bear_meshy", "boar_meshy", "elk_meshy",
+                             "horse_meshy"}) {
+        std::string rig = std::string("resources/animated_characters/") + name + ".anim";
+        auto ch = std::make_unique<AnimatedVoxelCharacter>(nullptr, glm::vec3(0.0f));
+        ASSERT_TRUE(ch->loadModel(rig)) << name;
+        EXPECT_EQ(ch->getAppearance().morphology, MorphologyType::Quadruped) << name;
+
+        auto segs = ch->getSegmentBoxInfo();
+        EXPECT_GE(segs.size(), 6u) << name;
+
+        auto ik = ch->resolveFootIKForTest();
+        EXPECT_GE(ik.hipBoneId, 0) << name;
+        EXPECT_FALSE(ik.cacheReady) << name;
+
+        // Walk resolves through the legacy vocabulary to the renamed clip.
+        EXPECT_EQ(ch->clipForState(AnimatedCharacterState::Walk, false), "walk") << name;
+        bool clipExists = false;
+        for (const auto& c : ch->getAnimationClips())
+            if (c.name == "walk") { clipExists = true; break; }
+        EXPECT_TRUE(clipExists) << name;
+    }
 }
 
 // ---------------------------------------------------------------------------

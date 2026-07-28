@@ -1,0 +1,66 @@
+{
+  "name": "WaterTest",
+  "description": "Deterministic water look/flow test bed (docs/WaterSystemV3.md). A Perlin coastline straddling sea level 16 — shallow shore, deep basin and dry land in one frame — plus a raised stone tub for above-sea-level water (the per-cell renderer; the flat sea plane is suppressed at sea level). Fixed camera so before/after captures and pixel probes are comparable across builds.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 4242,
+    "from": { "x": -2, "y": 0, "z": -2 },
+    "to": { "x": 2, "y": 1, "z": 2 },
+    "params": {
+      "heightScale": 7.0,
+      "frequency": 0.035,
+      "octaves": 3,
+      "persistence": 0.45
+    }
+  },
+  "water": {
+    "enabled": true,
+    "seaLevel": 54,
+    "oceanBoundary": true,
+    "_comment": "seaLevel 54 is MEASURED, not assumed: terrain-v2 puts this world's surface at y≈49-70 (get_terrain_height over a 6-point grid), so the engine default kSeaLevelY=16 would sit ~35 voxels UNDERGROUND and show no water at all (see CLAUDE.md's 'the surface is HIGH' gotcha). 54 cuts through the middle of that range, giving dry land, a shoreline and up to ~5 voxels of shallows in one frame. No streaming here, so there is no hydrology bake: the sea comes from the region-frontier boundary condition (WaterSystemV2 A2b)."
+  },
+  "camera": {
+    "position": { "x": 34, "y": 62, "z": 34 },
+    "yaw": -135,
+    "pitch": -22,
+    "_comment": "Fixed vantage looking down-left across the coastline. DO NOT change casually: the L2 pixel probes in docs/WaterSystemV3.md compare crops from this exact camera."
+  },
+  "structures": [
+    {
+      "type": "fill",
+      "from": { "x": 56, "y": 71, "z": 56 },
+      "to": { "x": 64, "y": 71, "z": 64 },
+      "material": "Stone",
+      "_comment": "Raised tub floor, sunk into the hilltop at (60,60) whose MEASURED surface is y=70 — 17 above sea level 54. Fill it with place_water to exercise the PER-CELL surface renderer: the flat sea plane only draws at sea level, and rebuildSurface() suppresses per-cell water there, so a body at a different height is the only way to see the cell renderer."
+    },
+    {
+      "type": "fill",
+      "from": { "x": 56, "y": 72, "z": 56 },
+      "to": { "x": 56, "y": 74, "z": 64 },
+      "material": "Stone",
+      "_comment": "Tub wall -x"
+    },
+    {
+      "type": "fill",
+      "from": { "x": 64, "y": 72, "z": 56 },
+      "to": { "x": 64, "y": 74, "z": 64 },
+      "material": "Stone",
+      "_comment": "Tub wall +x"
+    },
+    {
+      "type": "fill",
+      "from": { "x": 56, "y": 72, "z": 56 },
+      "to": { "x": 64, "y": 74, "z": 56 },
+      "material": "Stone",
+      "_comment": "Tub wall -z"
+    },
+    {
+      "type": "fill",
+      "from": { "x": 56, "y": 72, "z": 64 },
+      "to": { "x": 63, "y": 74, "z": 64 },
+      "material": "Stone",
+      "_comment": "Tub wall +z, leaving the corner at x=64 open as a spill lip for waterfall tests"
+    }
+  ]
+}

@@ -311,7 +311,25 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
              
              roots = list(joint_set - children_set)
              if roots:
-                 root_node_idx = roots[0]
+                 # A rig can expose several skeleton roots: the real deform
+                 # armature PLUS an IK-target helper root per limb (Quaternius
+                 # animals have "Body" + 4x "IK*Leg" 2-joint roots). Since
+                 # list(set - set) order is non-deterministic, roots[0] could be
+                 # a 2-joint IK root -- which silently dropped the ENTIRE body
+                 # (Stag: 38 joints -> 2 bones -> a 0.2^3 blob). Pick the root
+                 # whose subtree covers the MOST joints = the deform armature.
+                 def _subtree_size(r):
+                     seen, stack = set(), [r]
+                     while stack:
+                         n = stack.pop()
+                         if n in seen:
+                             continue
+                         seen.add(n)
+                         for c in (gltf.nodes[n].children or []):
+                             if c in joint_set:
+                                 stack.append(c)
+                     return len(seen)
+                 root_node_idx = max(roots, key=_subtree_size)
              else:
                  root_node_idx = skin.joints[0] # Fallback
 
@@ -604,6 +622,7 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
     all_joints = []
     all_weights = []
     all_faces = []
+    all_colors = []          # per-vertex sRGB material color (parallel to all_positions)
     vertex_offset = 0
     
     # Iterate meshes to collect data
@@ -675,18 +694,62 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                             s = node.scale
                             positions = [[p[0]*s[0], p[1]*s[1], p[2]*s[2]] for p in positions]
                     
+                    # Per-vertex color: sample the atlas at each vertex UV if the material is
+                    # texture-mapped, else fall back to the flat material baseColorFactor.
+                    tex_img = load_material_texture(gltf, prim.material)
+                    uvs = None
+                    if tex_img is not None and prim.attributes.TEXCOORD_0 is not None:
+                        uvs = read_accessor(gltf, gltf.accessors[prim.attributes.TEXCOORD_0])
+                    if uvs is not None and len(uvs) == num_vertices:
+                        prim_colors = [sample_texture(tex_img, uv[0], uv[1]) for uv in uvs]
+                    else:
+                        prim_colors = [material_color(gltf, prim.material)] * num_vertices
                     all_positions.extend(positions)
                     all_joints.extend(joints)
                     all_weights.extend(weights)
+                    all_colors.extend(prim_colors)
                     vertex_offset += num_vertices
 
     voxel_shapes = []
-    
+
     # Update effective scale factor for voxelization
     effective_scale_factor = scale_factor * root_scale_mult
-    
+
+    # Bind-space normalization: glTF unit stacks are wildly inconsistent
+    # (Meshy exports stack two 0.01 node scales — a bear arrives 0.014 units
+    # tall and voxelizes to a single blob). When target_height is given,
+    # derive the scale from the LARGEST extent of the bind-space vertices the
+    # pipeline actually consumes, so skeleton, boxes, and clips all come out
+    # coherently sized. (Largest extent, not Y: bind space's up-axis varies.)
+    if target_height is not None and all_positions:
+        mins = [min(p[a] for p in all_positions) for a in range(3)]
+        maxs = [max(p[a] for p in all_positions) for a in range(3)]
+        largest = max(maxs[a] - mins[a] for a in range(3))
+        if largest > 1e-9:
+            old_scale_factor = scale_factor
+            effective_scale_factor = target_height / largest
+            # The bind-space vertices ALREADY fold the baked root scale (their
+            # IBMs include it), and root offsets / clip root keys live in that
+            # same small space — so every path wants the plain effective
+            # factor. scale_factor is what lines 267-271 / the clip writer
+            # multiply by (children get x root_scale_mult on top, which is
+            # exactly the fold that maps their big raw locals into vertex
+            # space first).
+            scale_factor = effective_scale_factor
+            ratio = scale_factor / old_scale_factor if old_scale_factor else 1.0
+            for b in bones:
+                b["pos"] = [p * ratio for p in b["pos"]]
+            normalized_root_scale = effective_scale_factor
+            print(f"Bind-space normalize: largest extent {largest:.5f} -> "
+                  f"{target_height} (effective x{effective_scale_factor:.2f})")
+        else:
+            normalized_root_scale = None
+    else:
+        normalized_root_scale = None
+
     if style == 'voxel' and trimesh is not None:
-        voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch)
+        voxel_shapes = voxelize_mesh(all_positions, all_faces, all_joints, all_weights, node_index_to_bone_index, skin, ibms, effective_scale_factor, pitch,
+                                     local_scale=scale_factor * root_scale_mult, vertex_colors=all_colors)
     elif style == 'box':
         print("Style is 'box'. Skipping voxelization and generating bounding boxes.")
 
@@ -781,7 +844,11 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
             bid = shape["boneId"]
             size = shape["size"]
             center = shape["center"]
-            f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]}\n")
+            col = shape.get("color")
+            if col is not None:
+                f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]} {col[0]} {col[1]} {col[2]}\n")
+            else:
+                f.write(f"Box {bid} {size[0]} {size[1]} {size[2]} {center[0]} {center[1]} {center[2]}\n")
 
         for anim in animations_out:
             safe_anim_name = anim['name'].replace(" ", "_")
@@ -823,16 +890,31 @@ def extract_animation_data(gltf_path, output_path, scale_factor=1.0, style='voxe
                     # We can check if bones[bid]['parent'] == -1
                     
                     is_root = (bones[bid]['parent'] == -1)
-                    current_scale = scale_factor
-                    if not is_root:
-                        current_scale *= root_scale_mult
-                    
+                    if is_root and normalized_root_scale is not None:
+                        # Root translation keys are world-space like the root
+                        # bind — use the effective factor under normalization.
+                        current_scale = normalized_root_scale
+                    else:
+                        current_scale = scale_factor
+                        if not is_root:
+                            current_scale *= root_scale_mult
+
                     for k in channels_by_bone[bid]['pos']:
                         k['v'] = [x * current_scale for x in k['v']]
                 elif ch['type'] == 'rotation':
                     channels_by_bone[bid]['rot'] = ch['keys']
                 elif ch['type'] == 'scale':
                     channels_by_bone[bid]['scl'] = ch['keys']
+                    # The bind bake resets the root node's scale to 1 (its
+                    # 0.01 was folded into positions), but the ANIMATION still
+                    # keys the raw node scale — the engine then scales the
+                    # whole skeleton to 1% mid-clip and the model implodes
+                    # (live-caught: every walking Meshy creature collapsed to
+                    # a point while its bind pose was perfect). Re-express
+                    # root scale keys relative to the baked scale.
+                    if bones[bid]['parent'] == -1 and root_scale_mult not in (0, 1.0):
+                        for k in channels_by_bone[bid]['scl']:
+                            k['v'] = [x / root_scale_mult for x in k['v']]
             
             f.write(f"BoneChannelCount {len(channels_by_bone)}\n")
             for bid, keys in channels_by_bone.items():
@@ -983,7 +1065,99 @@ def read_accessor(gltf, accessor):
         
     return results
 
-def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05):
+def _linear_to_srgb(c):
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
+def material_color(gltf, material_index):
+    """sRGB (r,g,b) in 0..1 for a glTF material's baseColorFactor, or None.
+    glTF baseColorFactor is LINEAR but the engine's voxel colors are sRGB;
+    without the conversion every imported animal renders far too dark. Flat-
+    shaded packs (Quaternius) store the whole animal's palette as per-material
+    baseColorFactor with no texture, so this IS the model's real color."""
+    if material_index is None:
+        return None
+    try:
+        mat = gltf.materials[material_index]
+    except (IndexError, TypeError):
+        return None
+    pbr = getattr(mat, "pbrMetallicRoughness", None)
+    bcf = getattr(pbr, "baseColorFactor", None) if pbr else None
+    if not bcf:
+        return None
+    return [round(_linear_to_srgb(bcf[0]), 4),
+            round(_linear_to_srgb(bcf[1]), 4),
+            round(_linear_to_srgb(bcf[2]), 4)]
+
+
+def _buffer_blob(gltf, buffer_index):
+    """Raw bytes of a glTF buffer (embedded data-URI or the .glb binary blob)."""
+    buf = gltf.buffers[buffer_index]
+    if buf.uri is None:
+        return gltf.binary_blob()
+    if buf.uri.startswith("data:"):
+        import base64
+        return base64.b64decode(buf.uri.split(",", 1)[1])
+    return None   # external .bin (unused by these packs)
+
+
+_texture_cache = {}
+
+
+def load_material_texture(gltf, material_index):
+    """PIL RGB Image for a material's baseColorTexture (atlas), or None. Many packs
+    (Quaternius Ultimate Monsters, KayKit, ...) store the whole model's colors in ONE
+    UV-mapped atlas with a white baseColorFactor -- material_color would return white, so
+    those must be sampled from the texture per vertex instead."""
+    if material_index is None:
+        return None
+    if material_index in _texture_cache:
+        return _texture_cache[material_index]
+    img_obj = None
+    try:
+        mat = gltf.materials[material_index]
+        pbr = getattr(mat, "pbrMetallicRoughness", None)
+        bct = getattr(pbr, "baseColorTexture", None) if pbr else None
+        if bct is not None:
+            from PIL import Image
+            import io
+            image = gltf.images[gltf.textures[bct.index].source]
+            data = None
+            if image.bufferView is not None:
+                bv = gltf.bufferViews[image.bufferView]
+                blob = _buffer_blob(gltf, bv.buffer)
+                if blob is not None:
+                    off = bv.byteOffset or 0
+                    data = blob[off: off + bv.byteLength]
+            elif image.uri and image.uri.startswith("data:"):
+                import base64
+                data = base64.b64decode(image.uri.split(",", 1)[1])
+            if data:
+                img_obj = Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception as e:
+        print(f"  texture load failed (material {material_index}): {e}")
+        img_obj = None
+    _texture_cache[material_index] = img_obj
+    return img_obj
+
+
+def sample_texture(img, u, v):
+    """Nearest-texel sRGB (r,g,b) 0..1 at glTF UV (origin top-left, V down)."""
+    W, H = img.size
+    x = int(min(max(u, 0.0), 1.0) * (W - 1))
+    y = int(min(max(v, 0.0), 1.0) * (H - 1))
+    px = img.getpixel((x, y))
+    return [round(px[0] / 255.0, 4), round(px[1] / 255.0, 4), round(px[2] / 255.0, 4)]
+
+
+def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, skin, ibms, scale_factor=1.0, pitch=0.05, local_scale=None, vertex_colors=None):
+    # scale_factor: vertex/bind space -> final world (mesh scaling + center unscaling).
+    # local_scale: raw bone-local space -> final world for box offsets — the
+    # IBMs map into RAW bone space, which under bind-space normalization is
+    # NOT the same factor (live-caught: bear boxes 69 units from their bones).
+    if local_scale is None:
+        local_scale = scale_factor
     if trimesh is None:
         return []
 
@@ -1056,17 +1230,22 @@ def voxelize_mesh(vertices, faces, joints, weights, node_index_to_bone_index, sk
                 p_unscaled = list(unscaled_centers[i])
                 if joint_idx < len(ibms):
                     p_local_unscaled = transform_point(p_unscaled, ibms[joint_idx])
-                    # Scale the local offset
-                    p = [x * scale_factor for x in p_local_unscaled]
+                    # Scale the local offset (raw bone space -> final world)
+                    p = [x * local_scale for x in p_local_unscaled]
                 else:
                     p = list(center) # Fallback if no IBM?
                 
-                voxel_shapes.append({
+                shape = {
                     "boneId": target_bone_idx,
                     "size": [pitch, pitch, pitch],
                     "center": p # This is now the offset from the bone
-                })
-                
+                }
+                if vertex_colors is not None and vertex_idx < len(vertex_colors):
+                    col = vertex_colors[vertex_idx]
+                    if col is not None:
+                        shape["color"] = col       # source material color -> voxel
+                voxel_shapes.append(shape)
+
         return voxel_shapes
 
     except Exception as e:

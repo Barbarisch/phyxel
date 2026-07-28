@@ -1,0 +1,6484 @@
+[
+  {
+    "id": "pseudodragon",
+    "name": "Pseudodragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Tiny",
+    "alignment": "neutral good",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "2d4+2",
+    "averageHP": 7,
+    "speed": 15,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [],
+    "challengeRating": 0.25,
+    "xpValue": 50,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 4 (1d4 + 2) piercing damage."
+      },
+      {
+        "name": "Sting",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d4+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 4 (1d4 + 2) piercing damage, and the target must succeed on a DC 11 Constitution saving throw or become poisoned for 1 hour. If the saving throw fails by 5 or more, the target falls unconscious for the same duration, or until it takes damage or another creature uses an action to shake it awake."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Senses",
+        "description": "The pseudodragon has advantage on Wisdom (Perception) checks that rely on sight, hearing, or smell."
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The pseudodragon has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Limited Telepathy",
+        "description": "The pseudodragon can magically communicate simple ideas, emotions, and images telepathically with any creature within 100 ft. of it that can understand a language."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "brass-dragon-wyrmling",
+    "name": "Brass Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic good",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "3d8+3",
+    "averageHP": 16,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "copper-dragon-wyrmling",
+    "name": "Copper Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic good",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "4d8+4",
+    "averageHP": 22,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "black-dragon-wyrmling",
+    "name": "Black Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "6d8+6",
+    "averageHP": 33,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) piercing damage plus 2 (1d4) acid damage."
+      },
+      {
+        "name": "Acid Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "5d8",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 11,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales acid in a 15-foot line that is 5 feet wide. Each creature in that line must make a DC 11 Dexterity saving throw, taking 22 (5d8) acid damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "bronze-dragon-wyrmling",
+    "name": "Bronze Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "5d8+10",
+    "averageHP": 32,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 3) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "green-dragon-wyrmling",
+    "name": "Green Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "7d8+7",
+    "averageHP": 38,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) piercing damage plus 3 (1d6) poison damage."
+      },
+      {
+        "name": "Poison Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "6d6",
+        "damageType": "poison",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 11,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales poisonous gas in a 15-foot cone. Each creature in that area must make a DC 11 Constitution saving throw, taking 21 (6d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "silver-dragon-wyrmling",
+    "name": "Silver Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "6d8+18",
+    "averageHP": 45,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 9 (1d10 + 4) piercing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "white-dragon-wyrmling",
+    "name": "White Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "5d8+10",
+    "averageHP": 32,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d10+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7 (1d10 + 2) piercing damage plus 2 (1d4) cold damage."
+      },
+      {
+        "name": "Cold Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "5d8",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 12,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales an icy blast of hail in a 15-foot cone. Each creature in that area must make a DC 12 Constitution saving throw, taking 22 (5d8) cold damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "blue-dragon-wyrmling",
+    "name": "Blue Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "8d8+16",
+    "averageHP": 52,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "1d10+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 8 (1d10 + 3) piercing damage plus 3 (1d6) lightning damage."
+      },
+      {
+        "name": "Lightning Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "4d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 12,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales lightning in a 30-foot line that is 5 feet wide. Each creature in that line must make a DC 12 Dexterity saving throw, taking 22 (4d10) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "gold-dragon-wyrmling",
+    "name": "Gold Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "8d8+24",
+    "averageHP": 60,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 9 (1d10 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "red-dragon-wyrmling",
+    "name": "Red Dragon Wyrmling",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "10d8+30",
+    "averageHP": 75,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 10,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Draconic"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d10+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 9 (1d10 + 4) piercing damage plus 3 (1d6) fire damage."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "7d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 13,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales fire in a 15-foot cone. Each creature in that area must make a DC 13 Dexterity saving throw, taking 24 (7d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "wyvern",
+    "name": "Wyvern",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "unaligned",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "13d10+39",
+    "averageHP": 110,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one creature. Hit: 11 (2d6 + 4) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage."
+      },
+      {
+        "name": "Stinger",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one creature. Hit: 11 (2d6 + 4) piercing damage. The target must make a DC 15 Constitution saving throw, taking 24 (7d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-brass-dragon",
+    "name": "Young Brass Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "13d10+39",
+    "averageHP": 110,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-white-dragon",
+    "name": "Young White Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "14d10+56",
+    "averageHP": 133,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 6.0,
+    "xpValue": 2300,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) piercing damage plus 4 (1d8) cold damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Cold Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "10d8",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales an icy blast in a 30-foot cone. Each creature in that area must make a DC 15 Constitution saving throw, taking 45 (10d8) cold damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Ice Walk",
+        "description": "The dragon can move across and climb icy surfaces without needing to make an ability check. Additionally, difficult terrain composed of ice or snow doesn't cost it extra movement."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-black-dragon",
+    "name": "Young Black Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "15d10+45",
+    "averageHP": 127,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 7.0,
+    "xpValue": 2900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) piercing damage plus 4 (1d8) acid damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Acid Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "11d8",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales acid in a 30-foot line that is 5 feet wide. Each creature in that line must make a DC 14 Dexterity saving throw, taking 49 (11d8) acid damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-copper-dragon",
+    "name": "Young Copper Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "14d10+42",
+    "averageHP": 119,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 7.0,
+    "xpValue": 2900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-bronze-dragon",
+    "name": "Young Bronze Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "15d10+60",
+    "averageHP": 142,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d10+5",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 16 (2d10 + 5) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "2d6+5",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 12 (2d6 + 5) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-green-dragon",
+    "name": "Young Green Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+48",
+    "averageHP": 136,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) piercing damage plus 7 (2d6) poison damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) slashing damage."
+      },
+      {
+        "name": "Poison Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d6",
+        "damageType": "poison",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales poisonous gas in a 30-foot cone. Each creature in that area must make a DC 14 Constitution saving throw, taking 42 (12d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-blue-dragon",
+    "name": "Young Blue Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+64",
+    "averageHP": 152,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 19,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d10+5",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 16 (2d10 + 5) piercing damage plus 5 (1d10) lightning damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "2d6+5",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 12 (2d6 + 5) slashing damage."
+      },
+      {
+        "name": "Lightning Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "10d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales lightning in a 60-foot line that is 5 feet wide. Each creature in that line must make a DC 16 Dexterity saving throw, taking 55 (10d10) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-silver-dragon",
+    "name": "Young Silver Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+80",
+    "averageHP": 168,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 18,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-gold-dragon",
+    "name": "Young Gold Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "17d10+85",
+    "averageHP": 178,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 19,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 10.0,
+    "xpValue": 5900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "young-red-dragon",
+    "name": "Young Red Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "17d10+85",
+    "averageHP": 178,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 30,
+    "truesightRange": 0,
+    "passivePerception": 18,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 10.0,
+    "xpValue": 5900,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage plus 3 (1d6) fire damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 10,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "16d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales fire in a 30-foot cone. Each creature in that area must make a DC 17 Dexterity saving throw, taking 56 (16d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-brass-dragon",
+    "name": "Adult Brass Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "15d12+75",
+    "averageHP": 172,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "History": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 21,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 15 ft., one target. Hit: 15 (2d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 16 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours ."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-white-dragon",
+    "name": "Adult White Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic evil",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d12+96",
+    "averageHP": 200,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 21,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage plus 4 (1d8) cold damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 15 ft., one target. Hit: 15 (2d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 14,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 ft. of the dragon and aware of it must succeed on a DC 14 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Cold Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d8",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales an icy blast in a 60-foot cone. Each creature in that area must make a DC 19 Constitution saving throw, taking 54 (12d8) cold damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Ice Walk",
+        "description": "The dragon can move across and climb icy surfaces without needing to make an ability check. Additionally, difficult terrain composed of ice or snow doesn't cost it extra movement."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-black-dragon",
+    "name": "Adult Black Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "17d12+85",
+    "averageHP": 195,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 21,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 14.0,
+    "xpValue": 11500,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage plus 4 (1d8) acid damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 15 ft., one target. Hit: 15 (2d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 16 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Acid Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d8",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 18,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales acid in a 60-foot line that is 5 feet wide. Each creature in that line must make a DC 18 Dexterity saving throw, taking 54 (12d8) acid damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-copper-dragon",
+    "name": "Adult Copper Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic good",
+    "armorClass": 18,
+    "armorSource": "natural",
+    "hitPointDice": "16d12+80",
+    "averageHP": 184,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 22,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 14.0,
+    "xpValue": 11500,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 15 ft., one target. Hit: 15 (2d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 16 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-bronze-dragon",
+    "name": "Adult Bronze Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful good",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "17d12+102",
+    "averageHP": 212,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 22,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 15.0,
+    "xpValue": 13000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d10+7",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 10 ft., one target. Hit: 18 (2d10 + 7) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d6+7",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 5 ft., one target. Hit: 14 (2d6 + 7) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d8+7",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 15 ft., one target. Hit: 16 (2d8 + 7) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 17 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-green-dragon",
+    "name": "Adult Green Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "18d12+90",
+    "averageHP": 207,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 22,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 15.0,
+    "xpValue": 13000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d10+6",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage plus 7 (2d6) poison damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d6+6",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "2d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 15 ft., one target. Hit: 15 (2d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 16 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours ."
+      },
+      {
+        "name": "Poison Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "16d6",
+        "damageType": "poison",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 18,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales poisonous gas in a 60-foot cone. Each creature in that area must make a DC 18 Constitution saving throw, taking 56 (16d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-blue-dragon",
+    "name": "Adult Blue Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "18d12+108",
+    "averageHP": 225,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 22,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 16.0,
+    "xpValue": 15000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d10+7",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 10 ft., one target. Hit: 18 (2d10 + 7) piercing damage plus 5 (1d10) lightning damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d6+7",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 5 ft., one target. Hit: 14 (2d6 + 7) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "2d8+7",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 15 ft., one target. Hit: 16 (2d8 + 7) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 ft. of the dragon and aware of it must succeed on a DC 17 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Lightning Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales lightning in a 90-foot line that is 5 ft. wide. Each creature in that line must make a DC 19 Dexterity saving throw, taking 66 (12d10) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-silver-dragon",
+    "name": "Adult Silver Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful good",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "18d12+126",
+    "averageHP": 243,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 21,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 16.0,
+    "xpValue": 15000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 19 (2d10 + 8) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 5 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 15 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 18,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 18 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-gold-dragon",
+    "name": "Adult Gold Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful good",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "19d12+133",
+    "averageHP": 256,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 24,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 17.0,
+    "xpValue": 18000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 19 (2d10 + 8) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 5 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 15 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 21,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 21 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "adult-red-dragon",
+    "name": "Adult Red Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic evil",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "19d12+133",
+    "averageHP": 256,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 23,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 17.0,
+    "xpValue": 18000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 19 (2d10 + 8) piercing damage plus 7 (2d6) fire damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 5 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 15 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 ft. of the dragon and aware of it must succeed on a DC 19 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "18d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 21,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales fire in a 60-foot cone. Each creature in that area must make a DC 21 Dexterity saving throw, taking 63 (18d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "dragon-turtle",
+    "name": "Dragon Turtle",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "neutral",
+    "armorClass": 20,
+    "armorSource": "natural",
+    "hitPointDice": "22d20+110",
+    "averageHP": 341,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "fire"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "Aquan",
+      "Draconic"
+    ],
+    "challengeRating": 17.0,
+    "xpValue": 18000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "3d12+7",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 15 ft., one target. Hit: 26 (3d12 + 7) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "2d8+7",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 10 ft., one target. Hit: 16 (2d8 + 7) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "3d12+7",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +13 to hit, reach 15 ft., one target. Hit: 26 (3d12 + 7) bludgeoning damage. If the target is a creature, it must succeed on a DC 20 Strength saving throw or be pushed up to 10 feet away from the dragon turtle and knocked prone."
+      },
+      {
+        "name": "Steam Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "15d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 18,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon turtle exhales scalding steam in a 60-foot cone. Each creature in that area must make a DC 18 Constitution saving throw, taking 52 (15d6) fire damage on a failed save, or half as much damage on a successful one. Being underwater doesn't grant resistance against this damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon turtle can breathe air and water."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-brass-dragon",
+    "name": "Ancient Brass Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "chaotic good",
+    "armorClass": 20,
+    "armorSource": "natural",
+    "hitPointDice": "17d20+119",
+    "averageHP": 297,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "History": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 24,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 20.0,
+    "xpValue": 25000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 15 ft., one target. Hit: 19 (2d10 + 8) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 20 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 18,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 18 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-white-dragon",
+    "name": "Ancient White Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "chaotic evil",
+    "armorClass": 20,
+    "armorSource": "natural",
+    "hitPointDice": "18d20+144",
+    "averageHP": 333,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 23,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 20.0,
+    "xpValue": 25000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 15 ft., one target. Hit: 19 (2d10 + 8) piercing damage plus 9 (2d8) cold damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 20 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 16 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours ."
+      },
+      {
+        "name": "Cold Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "16d8",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 22,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales an icy blast in a 90-foot cone. Each creature in that area must make a DC 22 Constitution saving throw, taking 72 (16d8) cold damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Ice Walk",
+        "description": "The dragon can move across and climb icy surfaces without needing to make an ability check. Additionally, difficult terrain composed of ice or snow doesn't cost it extra movement."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-black-dragon",
+    "name": "Ancient Black Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "chaotic evil",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "21d20+147",
+    "averageHP": 367,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 26,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 21.0,
+    "xpValue": 33000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 15 ft., one target. Hit: 19 (2d10 + 8) piercing damage plus 9 (2d8) acid damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 10 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 20 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 19 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Acid Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "15d8",
+        "damageType": "acid",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 22,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales acid in a 90-foot line that is 10 feet wide. Each creature in that line must make a DC 22 Dexterity saving throw, taking 67 (15d8) acid damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-copper-dragon",
+    "name": "Ancient Copper Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "chaotic good",
+    "armorClass": 21,
+    "armorSource": "natural",
+    "hitPointDice": "20d20+140",
+    "averageHP": 350,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "acid"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 27,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 21.0,
+    "xpValue": 33000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 15 ft., one target. Hit: 19 (2d10 + 8) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d6+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 10 ft., one target. Hit: 15 (2d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 20 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 19 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-bronze-dragon",
+    "name": "Ancient Bronze Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "lawful good",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "24d20+192",
+    "averageHP": 444,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 27,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 22.0,
+    "xpValue": 41000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d10+9",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 15 ft., one target. Hit: 20 (2d10 + 9) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d6+9",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 10 ft., one target. Hit: 16 (2d6 + 9) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d8+9",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 20 ft., one target. Hit: 18 (2d8 + 9) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 20,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 20 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-green-dragon",
+    "name": "Ancient Green Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "lawful evil",
+    "armorClass": 21,
+    "armorSource": "natural",
+    "hitPointDice": "22d20+154",
+    "averageHP": 385,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Deception": 1,
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 27,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 22.0,
+    "xpValue": 41000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d10+8",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 15 ft., one target. Hit: 19 (2d10 + 8) piercing damage plus 10 (3d6) poison damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "4d6+8",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 10 ft., one target. Hit: 22 (4d6 + 8) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "2d8+8",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 20 ft., one target. Hit: 17 (2d8 + 8) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 19,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 19 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Poison Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "22d6",
+        "damageType": "poison",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CON",
+        "saveDC": 22,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales poisonous gas in a 90-foot cone. Each creature in that area must make a DC 22 Constitution saving throw, taking 77 (22d6) poison damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-blue-dragon",
+    "name": "Ancient Blue Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "lawful evil",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "26d20+208",
+    "averageHP": 481,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "lightning"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 27,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 23.0,
+    "xpValue": 50000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d10+9",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 15 ft., one target. Hit: 20 (2d10 + 9) piercing damage plus 11 (2d10) lightning damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d6+9",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 10 ft., one target. Hit: 16 (2d6 + 9) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 16,
+        "damageDice": "2d8+9",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +16 to hit, reach 20 ft., one target. Hit: 18 (2d8 + 9) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 20,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 20 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Lightning Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "16d10",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 23,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales lightning in a 120-foot line that is 10 feet wide. Each creature in that line must make a DC 23 Dexterity saving throw, taking 88 (16d10) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-silver-dragon",
+    "name": "Ancient Silver Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "lawful good",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "25d20+225",
+    "averageHP": 487,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1,
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 26,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 23.0,
+    "xpValue": 50000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d10+10",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 15 ft., one target. Hit: 21 (2d10 + 10) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d6+10",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 10 ft., one target. Hit: 17 (2d6 + 10) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d8+10",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 20 ft., one target. Hit: 19 (2d8 + 10) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 21,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 21 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-gold-dragon",
+    "name": "Ancient Gold Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "lawful good",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "28d20+252",
+    "averageHP": 546,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 28,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1,
+      "Persuasion": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 27,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 24.0,
+    "xpValue": 62000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d10+10",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 15 ft., one target. Hit: 21 (2d10 + 10) piercing damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d6+10",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 10 ft., one target. Hit: 17 (2d6 + 10) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d8+10",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 20 ft., one target. Hit: 19 (2d8 + 10) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 24,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 24 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The dragon can breathe air and water."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  },
+  {
+    "id": "ancient-red-dragon",
+    "name": "Ancient Red Dragon",
+    "type": "dragon",
+    "subtype": "",
+    "size": "Gargantuan",
+    "alignment": "chaotic evil",
+    "armorClass": 22,
+    "armorSource": "natural",
+    "hitPointDice": "28d20+252",
+    "averageHP": 546,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 60,
+    "truesightRange": 0,
+    "passivePerception": 26,
+    "languages": [
+      "Common",
+      "Draconic"
+    ],
+    "challengeRating": 24.0,
+    "xpValue": 62000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d10+10",
+        "damageType": "piercing",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 15 ft., one target. Hit: 21 (2d10 + 10) piercing damage plus 14 (4d6) fire damage."
+      },
+      {
+        "name": "Claw",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d6+10",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 10 ft., one target. Hit: 17 (2d6 + 10) slashing damage."
+      },
+      {
+        "name": "Tail",
+        "isWeaponAttack": true,
+        "toHitBonus": 17,
+        "damageDice": "2d8+10",
+        "damageType": "bludgeoning",
+        "reach": 20,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +17 to hit, reach 20 ft., one target. Hit: 19 (2d8 + 10) bludgeoning damage."
+      },
+      {
+        "name": "Frightful Presence",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 21,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each creature of the dragon's choice that is within 120 feet of the dragon and aware of it must succeed on a DC 21 Wisdom saving throw or become frightened for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success. If a creature's saving throw is successful or the effect ends for it, the creature is immune to the dragon's Frightful Presence for the next 24 hours."
+      },
+      {
+        "name": "Fire Breath",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "26d6",
+        "damageType": "fire",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 24,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The dragon exhales fire in a 90-foot cone. Each creature in that area must make a DC 24 Dexterity saving throw, taking 91 (26d6) fire damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the dragon fails a saving throw, it can choose to succeed instead."
+      }
+    ],
+    "tags": [
+      "dragon"
+    ],
+    "rig": "monster_dragon"
+  }
+]

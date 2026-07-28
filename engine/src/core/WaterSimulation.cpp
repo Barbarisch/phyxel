@@ -1,6 +1,7 @@
 #include "core/WaterSimulation.h"
 #include <algorithm>
 #include <climits>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -14,7 +15,32 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_channel(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0),
       m_colDirty(static_cast<size_t>(sizeX) * sizeZ, 1),   // all dirty: first sweep is full
       m_colProcess(static_cast<size_t>(sizeX) * sizeZ, 0),
-      m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0) {}
+      m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0),
+      m_floor(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
+      m_flow(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
+      m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)) {}
+
+glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return glm::vec2(0.0f);
+    return m_flow[idx(x, y, z)];
+}
+
+void WaterSimulation::setFloor(int x, int y, int z, float fraction) {
+    if (!inBounds(x, y, z)) return;
+    m_floor[idx(x, y, z)] = std::min(std::max(fraction, 0.0f), 1.0f);
+}
+
+float WaterSimulation::floorAt(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return 0.0f;
+    return m_floor[idx(x, y, z)];
+}
+
+void WaterSimulation::setMomentum(float strength) {
+    strength = std::max(0.0f, strength);
+    if (m_momentum == strength) return;
+    m_momentum = strength;
+    markAllCols();   // the flow rule changed; a settled field may now redistribute differently
+}
 
 void WaterSimulation::markAllCols() {
     std::fill(m_colDirty.begin(), m_colDirty.end(), 1);
@@ -262,10 +288,27 @@ void WaterSimulation::step(float flowSide) {
     // Snapshot the write set: all flow reads m_mass (this frame's snapshot) and accumulates into
     // m_next, so transfers are order-independent and mass-conserving. Only W columns can be written,
     // so only they need the snapshot (and the write-back below) — not the whole box.
+    // The flow accumulator is cleared over the same set (it is filled by the same transfers).
     for (int cz = 0; cz < m_sz; ++cz)
     for (int cx = 0; cx < m_sx; ++cx) {
         if (!m_colWrite[colIdx(cx, cz)]) continue;
-        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_next[i] = m_mass[i]; }
+        for (int y = 0; y < m_sy; ++y) {
+            const size_t i = idx(cx, y, cz);
+            const float m = m_mass[i];
+            m_next[i] = m;
+            // PERF: only WET cells touch the flow arrays. The write set spans each column's FULL
+            // height, and the box is overwhelmingly air, so unconditionally streaming two extra
+            // 8-byte-per-cell arrays through cache dominated the cost (Release: 160 -> 269 us/step
+            // before this gate). The `accum != 0` term still clears a cell that received flow last
+            // step but has since drained, so no stale accumulation can survive into a later sweep.
+#if PHYXEL_WATER_FLOW_ENABLED
+            if (m > 0.0f) {
+                m_flowAccum[i] = glm::vec2(0.0f);
+            } else if (m_flowAccum[i].x != 0.0f || m_flowAccum[i].y != 0.0f) {
+                m_flowAccum[i] = glm::vec2(0.0f);
+            }
+#endif
+        }
     }
 
     static const int HX[4] = {1, -1, 0, 0};
@@ -291,7 +334,13 @@ void WaterSimulation::step(float flowSide) {
 
         // 1) Gravity (compression-aware): the cell below holds up to its stable share
         //    of the combined column; the excess stays here to be pushed up later.
-        if (y - 1 >= 0 && !m_solid[idx(x, y - 1, z)]) {
+        //
+        // SUB-VOXEL FLOOR (Phase 4B): a cell with a floor has solid sub-voxel ground beneath its
+        // water, so it cannot drain downward — even though the cell itself is passable. Without
+        // this, making floored cells passable would let water fall straight THROUGH a subcube
+        // platform into the air below (found live: a puddle poured onto a 1/3 platform vanished).
+        // This only ever removes a transfer, so mass conservation and settling are unaffected.
+        if (y - 1 >= 0 && !m_solid[idx(x, y - 1, z)] && m_floor[c] <= 0.0f) {
             const size_t b = idx(x, y - 1, z);
             if (!(cPinned && pinned(b))) {
                 float flow = stableBottom(remaining + m_mass[b]) - m_mass[b];
@@ -305,16 +354,42 @@ void WaterSimulation::step(float flowSide) {
 
         // 2) Horizontal: move toward the average with each same-level neighbor,
         //    leveling the surface. Only the higher cell of a pair flows.
+        //
+        // MOMENTUM (Phase 4): the share sent to each neighbour is biased by how well that direction
+        // aligns with the flow this cell already carries, so moving water continues rather than
+        // fanning out isotropically. The factor stays < 0.5 (see setMomentum) so this only changes
+        // WHERE the outflow goes, never how far past the average it can push.
+        float mvx = 0.0f, mvz = 0.0f, mspeed = 0.0f;
+        if (m_momentum > 0.0f) {
+            const glm::vec2 fv = m_flow[c];
+            mspeed = std::sqrt(fv.x * fv.x + fv.y * fv.y);
+            if (mspeed > 1e-5f) { mvx = fv.x / mspeed; mvz = fv.y / mspeed; }
+        }
+        const float mramp = std::min(mspeed / FLOW_FULL, 1.0f) * m_momentum;
+
         for (int k = 0; k < 4 && remaining > 0.0f; ++k) {
             int nx = x + HX[k], nz = z + HZ[k];
             if (!inBounds(nx, y, nz) || m_solid[idx(nx, y, nz)]) continue;
             const size_t n = idx(nx, y, nz);
             if (cPinned && pinned(n)) continue;
-            float flow = (remaining - m_mass[n]) * 0.25f * flowSide;
+            float rate = 0.25f;
+            if (mramp > 0.0f) {
+                const float align = mvx * static_cast<float>(HX[k]) + mvz * static_cast<float>(HZ[k]);
+                rate = std::min(0.45f, std::max(0.05f, 0.25f * (1.0f + MOMENTUM_GAIN * align * mramp)));
+            }
+            float flow = (remaining - m_mass[n]) * rate * flowSide;
             flow = std::min(flow, remaining);
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[n] += flow; remaining -= flow; changed = true;
                 markCol(x, z); markCol(nx, nz);
+                // FLOW PROXY (Phase 3): this transfer moved `flow` mass in direction k. Credit BOTH
+                // endpoints — the donor is losing water that way and the receiver is gaining it from
+                // that way, so both read as "water is heading in direction k" for shading purposes.
+#if PHYXEL_WATER_FLOW_ENABLED
+                const glm::vec2 d(static_cast<float>(HX[k]), static_cast<float>(HZ[k]));
+                m_flowAccum[c] += d * flow;
+                m_flowAccum[n] += d * flow;
+#endif
             }
         }
 
@@ -335,11 +410,46 @@ void WaterSimulation::step(float flowSide) {
     }
 
     // Write back the W columns (the only ones m_next was synced for — a full buffer swap would
-    // publish stale data everywhere else).
+    // publish stale data everywhere else). The flow proxy is EMA-folded over the same set, so a
+    // cell that stopped moving decays toward zero instead of latching its last direction.
     for (int cz = 0; cz < m_sz; ++cz)
     for (int cx = 0; cx < m_sx; ++cx) {
         if (!m_colWrite[colIdx(cx, cz)]) continue;
-        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_mass[i] = m_next[i]; }
+        for (int y = 0; y < m_sy; ++y) {
+            const size_t i = idx(cx, y, cz);
+            const float m = m_next[i];
+            m_mass[i] = m;
+            // PERF: same gate as the clear — dry cells never touch the flow arrays. A cell that
+            // drained to nothing keeps whatever flow it last had, which is invisible: rendering
+            // only reads cells above RENDER_MIN, and if water returns the EMA re-converges in a
+            // few steps.
+#if !PHYXEL_WATER_FLOW_ENABLED
+            continue;
+#endif
+            if (m <= 0.0f) continue;
+            const glm::vec2 a = m_flowAccum[i];
+            glm::vec2 f = m_flow[i];
+            if (a.x == 0.0f && a.y == 0.0f) {
+                // Nothing moved here this step. Decay HARDER than the EMA would: with momentum
+                // reading this field (Phase 4), a column must reach exactly zero quickly or it
+                // stays awake (see the markCol below) and delays settling for dozens of steps.
+                f *= 0.5f;
+            } else {
+                f += (a - f) * FLOW_EMA;
+            }
+            // Snap the geometric tail to exactly zero so a cell that stopped flowing settles at a
+            // clean zero instead of decaying through denormals forever.
+            if (std::fabs(f.x) < 1e-3f && std::fabs(f.y) < 1e-3f) f = glm::vec2(0.0f);
+            m_flow[i] = f;
+            // ACTIVE-SET EQUIVALENCE (load-bearing). Momentum makes the mass evolution depend on
+            // this flow field, so the field itself must evolve IDENTICALLY whether or not the
+            // active set skipped a column — otherwise a column that goes quiet keeps a frozen flow
+            // under the active set while a full sweep decays it to zero, and the two runs diverge
+            // the moment that column wakes. Keeping any column with residual flow dirty makes both
+            // paths take the same decay. (Bounded: the 0.5 decay + 1e-3 snap above reaches zero in
+            // ~8 steps, so this cannot hold the field awake indefinitely.)
+            if (f.x != 0.0f || f.y != 0.0f) markCol(cx, cz);
+        }
     }
 
     // Evaporation sink: thin cells (the frontier of a spreading flow, films) lose a
@@ -374,6 +484,8 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
     std::vector<uint8_t> ns(m_solid.size(), 0);
     std::vector<float>   nsrc(m_source.size(), -1.0f);   // -1 = not a source
     std::vector<uint8_t> nch(m_channel.size(), 0);
+    std::vector<float>     nflr(m_floor.size(), 0.0f);
+    std::vector<glm::vec2> nfl(m_flow.size(), glm::vec2(0.0f));
     for (int z = 0; z < m_sz; ++z)
     for (int y = 0; y < m_sy; ++y)
     for (int x = 0; x < m_sx; ++x) {
@@ -381,8 +493,12 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
         if (!inBounds(sx, sy, sz)) continue;   // exposed frontier keeps the defaults above
         const size_t d = idx(x, y, z), s = idx(sx, sy, sz);
         nm[d] = m_mass[s]; ns[d] = m_solid[s]; nsrc[d] = m_source[s]; nch[d] = m_channel[s];
+        nflr[d] = m_floor[s]; // sub-voxel floors travel with the window, like solidity
+        nfl[d] = m_flow[s];   // the flow proxy travels with its water across a recenter
     }
     m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
+    m_floor.swap(nflr);
+    m_flow.swap(nfl);
     m_hasSources = false;
     for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }
     markAllCols();   // the field was relocated → re-settle from the new configuration

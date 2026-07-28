@@ -71,9 +71,12 @@ except Exception:
     CLIP_NAME_MAP = {}
 
 
-def run_extract(src: Path, out_anim: Path, style: str, scale: float) -> None:
+def run_extract(src: Path, out_anim: Path, style: str, scale: float,
+                target_height: float | None = None) -> None:
     cmd = [sys.executable, str(EXTRACT), str(src), str(out_anim),
            "--style", style, "--scale", str(scale)]
+    if target_height is not None:
+        cmd += ["--target_height", str(target_height)]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         sys.exit(f"extract_animation failed for {src}:\n{r.stderr or r.stdout}")
@@ -81,6 +84,62 @@ def run_extract(src: Path, out_anim: Path, style: str, scale: float) -> None:
 
 def channel_has_data(ch) -> bool:
     return bool(ch.pos_keys or ch.rot_keys or ch.scale_keys)
+
+
+def _quat_rotate(q, v):
+    x, y, z, w = q
+    vx, vy, vz = v
+    # v + 2*cross(q.xyz, cross(q.xyz, v) + w*v)
+    cx = y * vz - z * vy + w * vx
+    cy = z * vx - x * vz + w * vy
+    cz = x * vy - y * vx + w * vz
+    return (vx + 2 * (y * cz - z * cy),
+            vy + 2 * (z * cx - x * cz),
+            vz + 2 * (x * cy - y * cx))
+
+
+def bind_height(af) -> float:
+    """Y-extent of the assembled bind pose (bone FK + box extents)."""
+    global_pos = {}
+    global_rot = {}
+    ys = []
+    for b in af.bones:  # parents precede children in our exports
+        if b.parent_id < 0:
+            gp, gr = b.pos, b.rot
+        else:
+            pp, pr = global_pos[b.parent_id], global_rot[b.parent_id]
+            off = _quat_rotate(pr, b.pos)
+            gp = (pp[0] + off[0], pp[1] + off[1], pp[2] + off[2])
+            # quat multiply pr * b.rot
+            x1, y1, z1, w1 = pr
+            x2, y2, z2, w2 = b.rot
+            gr = (w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                  w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                  w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+                  w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2)
+        global_pos[b.id], global_rot[b.id] = gp, gr
+        ys.append(gp[1])
+    for box in af.boxes:
+        if box.bone_id in global_pos:
+            cy = global_pos[box.bone_id][1] + box.center[1]
+            ys.append(cy + box.size[1] / 2)
+            ys.append(cy - box.size[1] / 2)
+    return (max(ys) - min(ys)) if ys else 0.0
+
+
+def scale_anim_uniform(af, factor: float) -> None:
+    """Uniformly scale every positional quantity: bone binds (incl. root),
+    box sizes/centers, and clip position keys. Rotations untouched."""
+    s = factor
+    for b in af.bones:
+        b.pos = (b.pos[0] * s, b.pos[1] * s, b.pos[2] * s)
+    for box in af.boxes:
+        box.size = (box.size[0] * s, box.size[1] * s, box.size[2] * s)
+        box.center = (box.center[0] * s, box.center[1] * s, box.center[2] * s)
+    for clip in af.clips:
+        for ch in clip.channels:
+            ch.pos_keys = [(t, (p[0] * s, p[1] * s, p[2] * s))
+                           for (t, p) in ch.pos_keys]
 
 
 def map_bones(source_af, target_af, source: str, allow_unmapped: bool):
@@ -140,6 +199,11 @@ def main() -> None:
     ap.add_argument("--clip-name", default=None,
                     help="FSM name for the imported clip (default: CLIP_NAME_MAP "
                          "lookup on the file stem, else the sanitized stem)")
+    ap.add_argument("--target-height", type=float, default=None,
+                    help="new-rig mode: normalize the model so its full mesh "
+                         "height equals this many world units (Meshy GLBs often "
+                         "arrive at arbitrary/miniature scale — a bear imported "
+                         "at 7 mm renders as a single voxel blob)")
     ap.add_argument("--new-rig", metavar="NAME", default=None,
                     help="create a standalone rig instead of merging clips")
     ap.add_argument("--style", default="box", choices=["box", "voxel"],
@@ -161,8 +225,28 @@ def main() -> None:
         if args.dry_run:
             print(f"[dry-run] would extract {src} -> {out} (style={args.style})")
             return
-        run_extract(src, out, args.style, args.scale)
+        run_extract(src, out, args.style, args.scale, args.target_height)
         af = parse(str(out))
+        # Report the assembled bind height so degenerate imports (glTF unit
+        # stacks can bake models to ~1/200 scale — a 7 mm bear renders as one
+        # voxel blob) fail loudly instead of shipping.
+        h = bind_height(af)
+        print(f"  bind height: {h:.3f} world units")
+        if args.target_height is not None and not (0.2 <= h <= args.target_height * 2.0):
+            sys.exit(f"  ERROR: bind height {h:.4f} implausible for target "
+                     f"{args.target_height} — normalization failed; inspect the GLB")
+        # Meshy exports name every clip "Armature|Unreal_Take|baselayer".
+        # Rename a single clip to --clip-name (default "walk") so the engine's
+        # standard clip vocabulary (and the meshy_quadruped body plan's empty
+        # clipDefaults) resolve it without per-rig mappings.
+        if len(af.clips) == 1:
+            std_name = args.clip_name or "walk"
+            if af.clips[0].name != std_name:
+                old = af.clips[0].name
+                af.clips[0].name = std_name
+                write(af, str(out))
+                af = parse(str(out))
+                print(f"  clip renamed: '{old}' -> '{std_name}'")
         mixamo_like = sum(1 for b in af.bones if b.name.startswith("mixamorig"))
         print(f"new rig: {out}")
         print(f"  bones={len(af.bones)} ({mixamo_like} mixamorig-named), "

@@ -80,6 +80,57 @@ class DebrisRenderPipeline;
  */
 class RenderCoordinator {
 public:
+    /// Capacity of the shared character instance buffer, in PARTS (not characters) —
+    /// every character in the scene batches into this one buffer. Imported creature
+    /// rigs are microcube-dense (3.0-4.7k parts each), so this must stay far above
+    /// (densest rig x expected simultaneous creatures). Pinned by
+    /// CharacterInstanceBudgetTest against the actual shipped .anim library: at 10000
+    /// this silently stopped drawing creatures past ~3 on screen.
+    static constexpr uint32_t kCharacterInstanceCapacity = 262144;
+
+    /// Minimum number of copies of the DENSEST shipped rig the budget must hold.
+    static constexpr uint32_t kMinSimultaneousDenseCreatures = 20;
+
+    /// Which pass a character batch is being drawn for (selects the visibility set).
+    enum class CharacterPassVisibility { Main, Shadow, All };
+
+    /// Per-frame character culling/batching counters (surfaced via /api/render/stats).
+    struct CharacterRenderStats {
+        uint32_t considered   = 0;  ///< characters known to the scene
+        uint32_t drawnMain    = 0;  ///< passed the camera frustum + distance test
+        uint32_t drawnShadow  = 0;  ///< passed the light frustum + distance test
+        uint32_t culled       = 0;  ///< skipped entirely (neither pass wanted them)
+        uint32_t dropped      = 0;  ///< wanted, but did not fit the instance budget
+        uint32_t partsBatched = 0;  ///< instances actually uploaded this frame
+        uint32_t drawCallsMain   = 0;  ///< one per bone group per visible character
+        uint32_t drawCallsShadow = 0;
+        double   buildMs = 0.0;     ///< CPU: cull + batch + upload, once per frame
+    };
+    const CharacterRenderStats& getCharacterRenderStats() const { return m_charStats; }
+
+    /// Character instance budget, in parts. Defaults to kCharacterInstanceCapacity;
+    /// a project may raise it for crowd-heavy scenes. Applied at buffer creation.
+    void setCharacterInstanceCapacity(uint32_t parts) { m_charInstanceCapacity = parts; }
+    uint32_t getCharacterInstanceCapacity() const { return m_charInstanceCapacity; }
+
+    /// Characters beyond this distance from the camera are not drawn at all. Generous
+    /// by default — this is a safety net for huge worlds, not an aesthetic LOD knob.
+    void  setCharacterCullDistance(float d) { m_charCullDistance = d; }
+    float getCharacterCullDistance() const { return m_charCullDistance; }
+
+    /// Distances at which characters drop to a decimated part set. 0 disables LOD.
+    void setCharacterLodDistances(float lod1, float lod2) {
+        m_charLod1Distance = lod1; m_charLod2Distance = lod2;
+    }
+    float getCharacterLod1Distance() const { return m_charLod1Distance; }
+    float getCharacterLod2Distance() const { return m_charLod2Distance; }
+
+    /// Draw characters into the shadow map. Off = characters cast no shadows; exists to
+    /// split the character render cost between the main and shadow passes, which the
+    /// turn-the-camera-away test cannot do (that changes what terrain is in frame too).
+    void setShadowCharactersEnabled(bool e) { m_shadowCharactersEnabled = e; }
+    bool getShadowCharactersEnabled() const { return m_shadowCharactersEnabled; }
+
     RenderCoordinator(
         Vulkan::VulkanDevice* vulkanDevice,
         Vulkan::RenderPipeline* renderPipeline,
@@ -201,6 +252,18 @@ public:
     void  setSeaLevel(float y) { m_seaLevel = y; }
     float getSeaLevel() const { return m_seaLevel; }
 
+    // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
+    // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
+    void setWaves(float amplitude, float wavelength, float windDirectionRadians);
+    // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
+    glm::vec3 waveSettings() const;
+
+    // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
+    // fades across a short band so breaking the surface doesn't pop. `depthBelow` receives how far
+    // under the surface the eye is (world units, 0 when above). Drives the underwater fog overlay.
+    // (WaterSystemV3 Phase 1 item 5.)
+    float cameraSubmergence(float& depthBelow) const;
+
     // Lightweight VFX particle system (spell bursts, etc.).
     VfxSystem* getVfxSystem() { return vfxSystem.get(); }
     VfxDirector* getVfxDirector() { return vfxDirector.get(); }
@@ -268,14 +331,90 @@ private:
     void renderEntities(VkCommandBuffer commandBuffer);
     // Draw all instanced characters (player + animated NPCs) with the given view-projection
     // and pipeline. Used both for the main pass and the mirror reflection pass (which passes
-    // the reflected view-projection + the FRONT_BIT reflection pipeline). The shared character
-    // instance buffer is rebuilt+uploaded on every call; when both passes run in one frame
-    // they upload byte-identical data, so the redundant upload is harmless.
+    // the reflected view-projection + the FRONT_BIT reflection pipeline). Consumes the
+    // per-frame batch list built ONCE by buildCharacterFrameData() — see that method.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
-                                   VkPipeline pipeline);
+                                   VkPipeline pipeline, CharacterPassVisibility visibility);
     void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                           const glm::vec3& cullCenter, float cullRadius);
-    
+
+    // ---- Character batching (docs/CharacterPipelineScaling.md Tier 1) --------------
+    // Cull, sort and batch every character ONCE per frame, before the shadow pass.
+    // Previously each pass re-walked every character in the world with no visibility
+    // test and re-uploaded a byte-identical instance buffer. Now: characters outside
+    // both frusta (or past the distance limit) are skipped entirely, the survivors are
+    // batched nearest-first so a budget overrun drops the FAR ones, and the buffer is
+    // uploaded once. Each pass then draws only the subset flagged visible for it.
+    void buildCharacterFrameData(const glm::mat4& cameraViewProj,
+                                 const glm::mat4& lightSpaceMatrix);
+
+    struct CharacterBatch {
+        glm::mat4 model;
+        uint32_t  firstInstance = 0;
+        uint32_t  instanceCount = 0;
+        glm::vec4 bakedLight{1.0f};
+        int       charIndex = -1;   ///< index into m_charVisibleMain / m_charVisibleShadow
+    };
+    std::vector<CharacterBatch> m_charBatches;   ///< per BONE GROUP — shadow pass
+
+    /// Per CHARACTER — main pass. All of a character's parts are contiguous in the
+    /// instance buffer and each carries its own bone index, so the whole character is
+    /// one draw. The shadow pass still needs the per-group list above: its pipeline has
+    /// no descriptor sets, and giving it the shared set would bind the shadow map as a
+    /// sampler while rendering into it. Collapsing the shadow pass needs its own
+    /// bone-only descriptor set — a follow-up (CharacterPipelineScaling P2.2b).
+    struct CharacterDraw {
+        uint32_t  firstInstance = 0;
+        uint32_t  instanceCount = 0;
+        glm::vec4 bakedLight{1.0f};
+        int       charIndex = -1;
+        uint32_t  boneBase = 0;   ///< added to each instance's local bone index
+    };
+    std::vector<CharacterDraw> m_charDrawsMain;
+    std::vector<glm::mat4>     m_charBoneTransforms;
+
+    // Per-character instance blob cache. A part's offset/scale/color never change —
+    // animation only writes worldPos/worldRot — so the whole instance payload is static
+    // and was being rebuilt every frame by gathering from the 112-byte-stride
+    // RagdollPart array (measured 9.5 ms at 1030 characters). Cached here and memcpy'd
+    // instead. boneIndex in the blob is a LOCAL group ordinal; the shader adds a
+    // per-draw boneBase, which keeps the blob valid even as the frame's bone-SSBO
+    // layout changes.
+    struct CharacterBlob {
+        uint32_t version = 0;      ///< RagdollCharacter::partsVersion() it was built from
+        int      lod = -1;
+        std::vector<CharacterInstanceData> instances;
+        std::vector<int> groupOrder;   ///< boneGroupId per local bone index
+        /// {start,count} into `instances` per local bone index. Precomputed because
+        /// re-deriving it per frame means scanning every instance, which is exactly the
+        /// O(parts) work the blob exists to avoid.
+        std::vector<std::pair<uint32_t, uint32_t>> groupSpans;
+    };
+    std::unordered_map<const Scene::RagdollCharacter*, CharacterBlob> m_charBlobs;
+    const CharacterBlob& getCharacterBlob(const Scene::RagdollCharacter* ch, int lod);
+    std::vector<uint8_t> m_charVisibleMain;    ///< per character: in the camera frustum
+    std::vector<uint8_t> m_charVisibleShadow;  ///< per character: in the light frustum
+    CharacterRenderStats m_charStats;
+    // Reused across frames so the per-part instance vector is not reallocated every
+    // frame (100 characters = 102,400 entries = ~4 MB).
+    std::vector<CharacterInstanceData> m_charInstanceScratch;
+    size_t   m_charInstanceHighWater = 0;
+    uint32_t m_charInstanceCapacity = kCharacterInstanceCapacity;
+    float    m_charCullDistance     = 400.0f;
+    bool     m_shadowCharactersEnabled = true;
+    float    m_charLod1Distance = 35.0f;
+    float    m_charLod2Distance = 80.0f;
+    /// LOD level for a squared camera distance. 0 = full part set.
+    int lodForDistanceSq(float distSq) const {
+        if (m_charLod2Distance > 0.0f && distSq > m_charLod2Distance * m_charLod2Distance) return 2;
+        if (m_charLod1Distance > 0.0f && distSq > m_charLod1Distance * m_charLod1Distance) return 1;
+        return 0;
+    }
+    // Conservative model-space bound used for the per-character cull sphere. Cheap and
+    // O(1): a real per-frame AABB would mean walking every part, which is the work the
+    // cull exists to avoid. Oversized on purpose — it can only cull too little.
+    static constexpr float kCharacterCullRadius = 6.0f;
+
     // Dependencies (non-owning pointers)
     Vulkan::VulkanDevice* vulkanDevice;
     Vulkan::RenderPipeline* renderPipeline;

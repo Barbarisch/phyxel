@@ -1,0 +1,779 @@
+[
+  {
+    "id": "pegasus",
+    "name": "Pegasus",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic good",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "7d10+21",
+    "averageHP": 59,
+    "speed": 60,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Common",
+      "Elvish",
+      "and Sylvan but can't speak"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "celestial"
+    ]
+  },
+  {
+    "id": "couatl",
+    "name": "Couatl",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "13d8+39",
+    "averageHP": 97,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "radiant"
+    ],
+    "damageImmunities": [
+      "psychic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 15,
+    "languages": [
+      "all",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "1d6+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one creature. Hit: 8 (1d6 + 5) piercing damage, and the target must succeed on a DC 13 Constitution saving throw or be poisoned for 24 hours. Until this poison ends, the target is unconscious. Another creature can use an action to shake the target awake."
+      },
+      {
+        "name": "Constrict",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+3",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 10 ft., one Medium or smaller creature. Hit: 10 (2d6 + 3) bludgeoning damage, and the target is grappled (escape DC 15). Until this grapple ends, the target is restrained, and the couatl can't constrict another target."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The couatl's spellcasting ability is Charisma (spell save DC 14). It can innately cast the following spells, requiring only verbal components:\n\nAt will: detect evil and good, detect magic, detect thoughts\n3/day each: bless, create food and water, cure wounds, lesser restoration, protection from poison, sanctuary, shield\n1/day each: dream, greater restoration, scrying"
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The couatl's weapon attacks are magical."
+      },
+      {
+        "name": "Shielded Mind",
+        "description": "The couatl is immune to scrying and to any effect that would sense its emotions, read its thoughts, or detect its location."
+      }
+    ],
+    "tags": [
+      "celestial"
+    ]
+  },
+  {
+    "id": "unicorn",
+    "name": "Unicorn",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "9d10+18",
+    "averageHP": 67,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Paralyzed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Celestial",
+      "Elvish",
+      "Sylvan",
+      "telepathy 60 ft."
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) bludgeoning damage."
+      },
+      {
+        "name": "Horn",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Charge",
+        "description": "If the unicorn moves at least 20 ft. straight toward a target and then hits it with a horn attack on the same turn, the target takes an extra 9 (2d8) piercing damage. If the target is a creature, it must succeed on a DC 15 Strength saving throw or be knocked prone."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The unicorn's innate spellcasting ability is Charisma (spell save DC 14). The unicorn can innately cast the following spells, requiring no components:\n\nAt will: detect evil and good, druidcraft, pass without trace\n1/day each: calm emotions, dispel evil and good, entangle"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The unicorn has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The unicorn's weapon attacks are magical."
+      }
+    ],
+    "tags": [
+      "celestial"
+    ]
+  },
+  {
+    "id": "deva",
+    "name": "Deva",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful good",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "16d8+64",
+    "averageHP": 136,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1
+    },
+    "damageResistances": [
+      "radiant",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 19,
+    "languages": [
+      "all",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 10.0,
+    "xpValue": 5900,
+    "attacks": [
+      {
+        "name": "Mace",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "1d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 5 ft., one target. Hit: 7 (1d6 + 4) bludgeoning damage plus 18 (4d8) radiant damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Angelic Weapons",
+        "description": "The deva's weapon attacks are magical. When the deva hits with any weapon, the weapon deals an extra 4d8 radiant damage (included in the attack)."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The deva's spellcasting ability is Charisma (spell save DC 17). The deva can innately cast the following spells, requiring only verbal components:\nAt will: detect evil and good\n1/day each: commune, raise dead"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The deva has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "celestial"
+    ]
+  },
+  {
+    "id": "planetar",
+    "name": "Planetar",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 19,
+    "armorSource": "natural",
+    "hitPointDice": "16d10+112",
+    "averageHP": 200,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 24,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [
+      "radiant",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 21,
+    "languages": [
+      "all",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 16.0,
+    "xpValue": 15000,
+    "attacks": [
+      {
+        "name": "Greatsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "4d6+7",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 5 ft., one target. Hit: 21 (4d6 + 7) slashing damage plus 22 (5d8) radiant damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Angelic Weapons",
+        "description": "The planetar's weapon attacks are magical. When the planetar hits with any weapon, the weapon deals an extra 5d8 radiant damage (included in the attack)."
+      },
+      {
+        "name": "Divine Awareness",
+        "description": "The planetar knows if it hears a lie."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The planetar's spellcasting ability is Charisma (spell save DC 20). The planetar can innately cast the following spells, requiring no material components:\nAt will: detect evil and good, invisibility (self only)\n3/day each: blade barrier, dispel evil and good, flame strike, raise dead\n1/day each: commune, control weather, insect plague"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The planetar has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "celestial"
+    ]
+  },
+  {
+    "id": "solar",
+    "name": "Solar",
+    "type": "celestial",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful good",
+    "armorClass": 21,
+    "armorSource": "natural",
+    "hitPointDice": "18d10+144",
+    "averageHP": 243,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 26,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 30,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [
+      "radiant",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 24,
+    "languages": [
+      "all",
+      "telepathy 120 ft."
+    ],
+    "challengeRating": 21.0,
+    "xpValue": 33000,
+    "attacks": [
+      {
+        "name": "Greatsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 15,
+        "damageDice": "4d6+8",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +15 to hit, reach 5 ft., one target. Hit: 22 (4d6 + 8) slashing damage plus 27 (6d8) radiant damage."
+      },
+      {
+        "name": "Slaying Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 13,
+        "damageDice": "2d8+6",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +13 to hit, range 150/600 ft., one target. Hit: 15 (2d8 + 6) piercing damage plus 27 (6d8) radiant damage. If the target is a creature that has 190 hit points or fewer, it must succeed on a DC 15 Constitution saving throw or die."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Angelic Weapons",
+        "description": "The solar's weapon attacks are magical. When the solar hits with any weapon, the weapon deals an extra 6d8 radiant damage (included in the attack)."
+      },
+      {
+        "name": "Divine Awareness",
+        "description": "The solar knows if it hears a lie."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The solar's spell casting ability is Charisma (spell save DC 25). It can innately cast the following spells, requiring no material components:\nAt will: detect evil and good, invisibility (self only)\n3/day each: blade barrier, dispel evil and good, resurrection\n1/day each: commune, control weather"
+      },
+      {
+        "name": "Magic Resistance",
+        "description": "The solar has advantage on saving throws against spells and other magical effects."
+      }
+    ],
+    "tags": [
+      "celestial"
+    ]
+  }
+]

@@ -3,6 +3,14 @@
   "biomes": [
     {
       "name": "Snow",
+      "fauna": {
+        "density": 0.6,
+        "spacing": 56,
+        "items": [
+          { "animFile": "resources/animated_characters/quad_husky.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 1 }
+        ]
+      },
       "surface": "SnowGrass",
       "subsurface": "Stone",
       "deep": "Stone",
@@ -57,6 +65,13 @@
     },
     {
       "name": "Desert",
+      "fauna": {
+        "density": 0.5,
+        "spacing": 64,
+        "items": [
+          { "animFile": "resources/animated_characters/donkey.anim", "weight": 1 }
+        ]
+      },
       "surface": "Sand",
       "subsurface": "Sandstone",
       "deep": "Stone",
@@ -91,6 +106,16 @@
     },
     {
       "name": "Savanna",
+      "fauna": {
+        "density": 0.7,
+        "spacing": 40,
+        "items": [
+          { "animFile": "resources/animated_characters/quad_horse.anim", "weight": 3 },
+          { "animFile": "resources/animated_characters/donkey.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/alpaca.anim", "weight": 1 },
+          { "animFile": "resources/animated_characters/bull.anim", "weight": 1 }
+        ]
+      },
       "surface": "GrassSavanna",
       "subsurface": "Dirt",
       "deep": "Stone",
@@ -127,6 +152,16 @@
     },
     {
       "name": "Forest",
+      "fauna": {
+        "density": 0.75,
+        "spacing": 32,
+        "items": [
+          { "animFile": "resources/animated_characters/deer.anim", "weight": 4 },
+          { "animFile": "resources/animated_characters/fox.anim", "weight": 3 },
+          { "animFile": "resources/animated_characters/stag.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 1 }
+        ]
+      },
       "surface": "GrassForest",
       "subsurface": "Dirt",
       "deep": "Stone",
@@ -187,6 +222,17 @@
     },
     {
       "name": "Plains",
+      "fauna": {
+        "density": 0.75,
+        "spacing": 36,
+        "items": [
+          { "animFile": "resources/animated_characters/quad_horse.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/cow.anim", "weight": 3 },
+          { "animFile": "resources/animated_characters/bull.anim", "weight": 1 },
+          { "animFile": "resources/animated_characters/donkey.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/deer.anim", "weight": 1 }
+        ]
+      },
       "surface": "Grass",
       "subsurface": "Dirt",
       "deep": "Stone",
@@ -233,6 +279,15 @@
     },
     {
       "name": "EnchantedForest",
+      "fauna": {
+        "density": 0.7,
+        "spacing": 36,
+        "items": [
+          { "animFile": "resources/animated_characters/deer.anim", "weight": 3 },
+          { "animFile": "resources/animated_characters/stag.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/fox.anim", "weight": 1 }
+        ]
+      },
       "surface": "GrassForest",
       "subsurface": "Dirt",
       "deep": "Stone",
@@ -298,6 +353,13 @@
     {
       "_note": "Tropical/subtropical humid forest (Koppen Af/Am/Cfa). Bands computed from the shipped values: temp01 0.75-1.0 = MAT 21-30C via MAT=temp01*35-5; moist01 0.65-1.0 = ~1500-4000 mm/yr via precip=250*2^(4*moist01) (Whittaker temp axis + Holdridge log2 precip). Surface reuses GrassForest (no GrassJungle material yet).",
       "name": "Jungle",
+      "fauna": {
+        "density": 0.4,
+        "spacing": 56,
+        "items": [
+          { "animFile": "resources/animated_characters/fox.anim", "weight": 1 }
+        ]
+      },
       "surface": "GrassForest",
       "subsurface": "Dirt",
       "deep": "Stone",
@@ -322,6 +384,15 @@
     {
       "_note": "Tundra/polar treeless (Koppen ET). Bands computed from the shipped values: temp01 0.0-0.16 = MAT -5 to +0.6C via MAT=temp01*35-5 (the temperature field floors at -5C, so true colder tundra saturates here); moist01 0.0-0.18 = ~250-410 mm/yr polar-desert via precip=250*2^(4*moist01). Distinct from Snow (boreal conifers) by being treeless + Gravel; the lapse-rate rule snow-caps it where cold, which is physically correct.",
       "name": "Tundra",
+      "fauna": {
+        "density": 0.6,
+        "spacing": 44,
+        "items": [
+          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/fox.anim", "weight": 2 },
+          { "animFile": "resources/animated_characters/quad_husky.anim", "weight": 1 }
+        ]
+      },
       "surface": "Gravel",
       "subsurface": "Dirt",
       "deep": "Stone",

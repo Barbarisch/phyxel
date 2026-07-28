@@ -37,6 +37,18 @@ public:
     void  setSolid(int x, int y, int z, bool solid);
     bool  isSolid(int x, int y, int z) const;
 
+    // ── SUB-VOXEL FLOOR (WaterSystemV3 Phase 4B) ──────────────────────────────────────────────
+    // Fraction of a cell filled from the bottom by sub-voxel terrain (a low subcube/microcube
+    // platform). Water in such a cell rests ON that floor rather than at the cell's base, so its
+    // rendered surface sits `floor + fill*(1-floor)` up the cell instead of `fill`.
+    //
+    // RENDER-ONLY, deliberately: the CA's capacity is still a full unit per cell, so a floored cell
+    // holds slightly more water than it physically should. Making capacity `1 - floor` is the
+    // volumetrically correct version and is a recorded future goal (docs/WaterSystemV3.md Phase 4A)
+    // — it rewrites the gravity/compression split, which is the most load-bearing code here.
+    void  setFloor(int x, int y, int z, float fraction);
+    float floorAt(int x, int y, int z) const;
+
     // Channel cells (authored riverbeds) are exempt from evaporation, so water carried
     // along them doesn't fade — an authored river flows its full length. (A binary
     // special case of a per-material flow-resistance scalar; see docs/WaterSystem.md.)
@@ -78,6 +90,56 @@ public:
     float massAt(int x, int y, int z) const;
     float totalMass() const;
     float minMass() const; // for invariant checks (should never go negative)
+
+    // ── FLOW PROXY (WaterSystemV3 Phase 3) ────────────────────────────────────────────────────
+    // Per-cell horizontal flow, derived for FREE from the transfers step() already computes: every
+    // horizontal transfer of `f` mass in direction d contributes f*d to BOTH endpoints, and the
+    // result is EMA-smoothed across steps so the renderer gets a stable direction instead of
+    // per-tick jitter.
+    //
+    // HONEST NAMING: this is NOT a velocity in m/s. The CA has no momentum — it is a diffusion
+    // rule — so this is "net mass moved per step, and which way", a FLOW PROXY. It is the right
+    // input for shading (which way is the water going, and how hard) and the wrong input for
+    // physics. Units: mass-fraction per step; a vigorous channel runs ~0.1-0.3.
+    //
+    // Vertical flow is deliberately NOT tracked: falling water is already identified by
+    // WaterManager's waterfall-lip detection, and skipping it keeps this to 8 bytes/cell.
+    glm::vec2 flowAt(int x, int y, int z) const;
+    // Smoothing factor per step: how fast the reported flow follows the instantaneous transfers.
+    // ⚑GROUND: 0.25 gives a ~4-step (0.2 s at 20 Hz) response — fast enough that opening a dam
+    // reads as immediate, slow enough that the CA's per-tick lumpiness doesn't strobe the shading.
+    static constexpr float FLOW_EMA = 0.25f;
+
+    // ── MOMENTUM (WaterSystemV3 Phase 4) ──────────────────────────────────────────────────────
+    // Without this the CA is pure diffusion: a spill spreads outward like paint, equally in every
+    // direction, because the horizontal rule only ever moves mass toward the local average. Real
+    // water carries inertia — it keeps going the way it was already going, and rounds corners
+    // instead of fanning out. Momentum biases WHICH neighbour receives a cell's outflow by how well
+    // that direction aligns with the flow the cell already has (the Phase 3 proxy, reused — this
+    // costs no new storage).
+    //
+    // IT REMAINS STRICTLY DISSIPATIVE. The per-neighbour factor is clamped below 0.5, and moving
+    // (a-b)*c with c < 0.5 leaves the difference (a-b)*(1-2c) with the SAME SIGN and smaller
+    // magnitude. So water can never overshoot the local average, never pump uphill, and the field
+    // still converges monotonically — mass conservation and settling are untouched by construction,
+    // not just by tuning.
+    void  setMomentum(float strength);   // 0 disables; 1 = shipped default
+    float momentum() const { return m_momentum; }
+    // ⚑GROUND: at full strength an aligned neighbour's leveling factor goes 0.25 -> 0.45 and an
+    // opposed one 0.25 -> 0.05, i.e. moving water is ~9x more likely to continue than to reverse.
+    // Chosen as the largest bias that stays clear of the 0.5 overshoot bound.
+    static constexpr float MOMENTUM_GAIN = 0.8f;
+    // Flow magnitude (mass/step) treated as "fully moving" for the bias ramp. Matches the renderer's
+    // FLOW_FULL so the shading and the physics agree about what counts as a vigorous current.
+    static constexpr float FLOW_FULL = 0.15f;
+
+// Compile-time A/B switch for the flow proxy's own cost — set to 0 to compile the flow work out
+// entirely (the field then reads zero everywhere and the FlowProxy* tests fail by design).
+// MEASURED with this switch (Release, `--gtest_filter=Water*`, 64x32x64 worst-case active sweep,
+// 3 runs each): OFF ~175 us/step, ON ~222 us/step => the proxy costs about +27% of the ACTIVE
+// step. It costs nothing when the field is settled (0.002 us/step either way), which is the
+// common case in a live world. Kept as a switch so the next perf pass can re-measure cheaply.
+#define PHYXEL_WATER_FLOW_ENABLED 1
 
     // Raw data access for the GPU backend (upload masks / read back mass). The mass
     // vector is mutable so the GPU stepper can write the readback into it.
@@ -166,9 +228,13 @@ private:
     std::vector<uint8_t> m_colDirty;   // per-column (x,z): mass changed since the last sweep
     std::vector<uint8_t> m_colProcess; // scratch: sweep set P = dirty ∪ N4(dirty)
     std::vector<uint8_t> m_colWrite;   // scratch: snapshot/write-back set W = P ∪ N4(P)
+    std::vector<float>   m_floor;       // per-cell sub-voxel floor fraction 0..1 (Phase 4B)
+    std::vector<glm::vec2> m_flow;      // per-cell EMA-smoothed horizontal flow proxy (see flowAt)
+    std::vector<glm::vec2> m_flowAccum; // scratch: this sweep's raw net transfer per cell
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
+    float                m_momentum   = 1.0f;  // Phase 4 inertia strength (0 = pure diffusion)
     bool                 m_settled    = false; // last step moved no mass → skip until disturbed
     unsigned long long   m_sweepsRun  = 0;     // steps that ran the full sweep (observability)
 };

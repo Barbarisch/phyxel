@@ -700,6 +700,14 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling underwater overlay fragment shader...
+%GLSLANG% -V -I. shaders\water_underwater.frag -o shaders\water_underwater.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile water_underwater.frag
+    pause
+    exit /b 1
+)
+
 echo Compiling water flow compute shader...
 %GLSLANG% -V -Ishaders shaders\water_flow.comp -o shaders\water_flow.comp.spv
 if %errorlevel% neq 0 (

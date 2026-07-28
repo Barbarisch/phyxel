@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <vector>
+#include <glm/glm.hpp>
 
 namespace Phyxel {
 
@@ -60,6 +61,14 @@ public:
         float depth = 0.0f;   // parabolic carve depth at this column (voxels)
     };
     ChannelHit channelAt(float worldX, float worldZ) const;
+
+    // DOWNHILL FLOW DIRECTION at a world column (WaterSystemV3 Phase 3): the normalized world-XZ
+    // direction from this cell's centre toward the cell it drains into. Returns (0,0) at a sink,
+    // outside the region, or where the drainage target is the cell itself. This is the water's
+    // travel direction along the drainage network — the CA cannot derive it for a river, because a
+    // baked river is pinned full end-to-end and therefore performs no transfers (see
+    // WaterManager::setRiverQuery), so the direction has to come from the bake.
+    glm::vec2 flowDirAt(float worldX, float worldZ) const;
 
     // Nearest order≥3 channel to a world column, for VALLEY shaping (wider than the channel itself):
     // the distance (world units) to the closest channel centreline segment and that channel's order,

@@ -1,0 +1,2223 @@
+[
+  {
+    "id": "shadow",
+    "name": "Shadow",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "3d8+3",
+    "averageHP": 16,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Strength Drain",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d6+2",
+        "damageType": "necrotic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 9 (2d6 + 2) necrotic damage, and the target's Strength score is reduced by 1d4. The target dies if this reduces its Strength to 0. Otherwise, the reduction lasts until the target finishes a short or long rest.\nIf a non-evil humanoid dies from this attack, a new shadow rises from the corpse 1d4 hours later."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amorphous",
+        "description": "The shadow can move through a space as narrow as 1 inch wide without squeezing."
+      },
+      {
+        "name": "Shadow Stealth",
+        "description": "While in dim light or darkness, the shadow can take the Hide action as a bonus action. Its stealth bonus is also improved to +6."
+      },
+      {
+        "name": "Sunlight Weakness",
+        "description": "While in sunlight, the shadow has disadvantage on attack rolls, ability checks, and saving throws."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "warhorse-skeleton",
+    "name": "Warhorse Skeleton",
+    "type": "undead",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 13,
+    "armorSource": "armor",
+    "hitPointDice": "3d10+6",
+    "averageHP": 22,
+    "speed": 60,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 2,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Exhaustion",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 9,
+    "languages": [],
+    "challengeRating": 0.5,
+    "xpValue": 100,
+    "attacks": [
+      {
+        "name": "Hooves",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 11 (2d6 + 4) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "undead"
+    ],
+    "rig": "monster_orc_skull"
+  },
+  {
+    "id": "specter",
+    "name": "Specter",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 12,
+    "armorSource": "dex",
+    "hitPointDice": "5d8",
+    "averageHP": 22,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [],
+    "challengeRating": 1.0,
+    "xpValue": 200,
+    "attacks": [
+      {
+        "name": "Life Drain",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "3d6",
+        "damageType": "necrotic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Spell Attack: +4 to hit, reach 5 ft., one creature. Hit: 10 (3d6) necrotic damage. The target must succeed on a DC 10 Constitution saving throw or its hit point maximum is reduced by an amount equal to the damage taken. This reduction lasts until the creature finishes a long rest. The target dies if this effect reduces its hit point maximum to 0."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Incorporeal Movement",
+        "description": "The specter can move through other creatures and objects as if they were difficult terrain. It takes 5 (1d10) force damage if it ends its turn inside an object."
+      },
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the specter has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "ghast",
+    "name": "Ghast",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "8d8",
+    "averageHP": 36,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "necrotic"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned",
+      "Charmed",
+      "Exhaustion"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "Common"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 3,
+        "damageDice": "2d8+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one creature. Hit: 12 (2d8 + 3) piercing damage."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) slashing damage. If the target is a creature other than an undead, it must succeed on a DC 10 Constitution saving throw or be paralyzed for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Stench",
+        "description": "Any creature that starts its turn within 5 ft. of the ghast must succeed on a DC 10 Constitution saving throw or be poisoned until the start of its next turn. On a successful saving throw, the creature is immune to the ghast's Stench for 24 hours."
+      },
+      {
+        "name": "Turn Defiance",
+        "description": "The ghast and any ghouls within 30 ft. of it have advantage on saving throws against effects that turn undead."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "minotaur-skeleton",
+    "name": "Minotaur Skeleton",
+    "type": "undead",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "9d10+18",
+    "averageHP": 67,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Exhaustion",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 9,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d12+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 17 (2d12 + 4) slashing damage."
+      },
+      {
+        "name": "Gore",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Charge",
+        "description": "If the skeleton moves at least 10 feet straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 9 (2d8) piercing damage. If the target is a creature, it must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet away and knocked prone."
+      }
+    ],
+    "tags": [
+      "undead"
+    ],
+    "rig": "monster_orc_skull"
+  },
+  {
+    "id": "ogre-zombie",
+    "name": "Ogre Zombie",
+    "type": "undead",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "neutral evil",
+    "armorClass": 8,
+    "armorSource": "dex",
+    "hitPointDice": "9d10+36",
+    "averageHP": 85,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 3,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 8,
+    "languages": [],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Morningstar",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d8+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Undead Fortitude",
+        "description": "If damage reduces the zombie to 0 hit points, it must make a Constitution saving throw with a DC of 5+the damage taken, unless the damage is radiant or from a critical hit. On a success, the zombie drops to 1 hit point instead."
+      }
+    ],
+    "tags": [
+      "undead"
+    ],
+    "rig": "monster_orc"
+  },
+  {
+    "id": "will-o-wisp",
+    "name": "Will-o'-Wisp",
+    "type": "undead",
+    "subtype": "",
+    "size": "Tiny",
+    "alignment": "chaotic evil",
+    "armorClass": 19,
+    "armorSource": "dex",
+    "hitPointDice": "9d4",
+    "averageHP": 22,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 1,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 28,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "acid",
+      "cold",
+      "fire",
+      "necrotic",
+      "thunder",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "lightning",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Poisoned",
+      "Prone",
+      "Restrained",
+      "Unconscious"
+    ],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 2.0,
+    "xpValue": 450,
+    "attacks": [
+      {
+        "name": "Shock",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "2d8",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Spell Attack: +4 to hit, reach 5 ft., one creature. Hit: 9 (2d8) lightning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Consume Life",
+        "description": "As a bonus action, the will-o'-wisp can target one creature it can see within 5 ft. of it that has 0 hit points and is still alive. The target must succeed on a DC 10 Constitution saving throw against this magic or die. If the target dies, the will-o'-wisp regains 10 (3d6) hit points."
+      },
+      {
+        "name": "Ephemeral",
+        "description": "The will-o'-wisp can't wear or carry anything."
+      },
+      {
+        "name": "Incorporeal Movement",
+        "description": "The will-o'-wisp can move through other creatures and objects as if they were difficult terrain. It takes 5 (1d10) force damage if it ends its turn inside an object."
+      },
+      {
+        "name": "Variable Illumination",
+        "description": "The will-o'-wisp sheds bright light in a 5- to 20-foot radius and dim light for an additional number of ft. equal to the chosen radius. The will-o'-wisp can alter the radius as a bonus action."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "mummy",
+    "name": "Mummy",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 11,
+    "armorSource": "natural",
+    "hitPointDice": "9d8+18",
+    "averageHP": 58,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "WIS"
+    ],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 10,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Rotting Fist",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "2d6+3",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 10 (2d6 + 3) bludgeoning damage plus 10 (3d6) necrotic damage. If the target is a creature, it must succeed on a DC 12 Constitution saving throw or be cursed with mummy rot. The cursed target can't regain hit points, and its hit point maximum decreases by 10 (3d6) for every 24 hours that elapse. If the curse reduces the target's hit point maximum to 0, the target dies, and its body turns to dust. The curse lasts until removed by the remove curse spell or other magic."
+      },
+      {
+        "name": "Dreadful Glare",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 11,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The mummy targets one creature it can see within 60 ft. of it. If the target can see the mummy, it must succeed on a DC 11 Wisdom saving throw against this magic or become frightened until the end of the mummy's next turn. If the target fails the saving throw by 5 or more, it is also paralyzed for the same duration. A target that succeeds on the saving throw is immune to the Dreadful Glare of all mummies (but not mummy lords) for the next 24 hours."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "wight",
+    "name": "Wight",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 14,
+    "armorSource": "Studded Leather Armor",
+    "hitPointDice": "6d8+18",
+    "averageHP": 45,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "necrotic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Exhaustion",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 3.0,
+    "xpValue": 700,
+    "attacks": [
+      {
+        "name": "Life Drain",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d6+2",
+        "damageType": "necrotic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +4 to hit, reach 5 ft., one creature. Hit: 5 (1d6 + 2) necrotic damage. The target must succeed on a DC 13 Constitution saving throw or its hit point maximum is reduced by an amount equal to the damage taken. This reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0.\nA humanoid slain by this attack rises 24 hours later as a zombie under the wight's control, unless the humanoid is restored to life or its body is destroyed. The wight can have no more than twelve zombies under its control at one time."
+      },
+      {
+        "name": "Longbow",
+        "isWeaponAttack": true,
+        "toHitBonus": 4,
+        "damageDice": "1d8+2",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 150,
+        "rangeLong": 600,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +4 to hit, range 150/600 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the wight has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "ghost",
+    "name": "Ghost",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "any alignment",
+    "armorClass": 11,
+    "armorSource": "dex",
+    "hitPointDice": "10d8",
+    "averageHP": 45,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 7,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "acid",
+      "fire",
+      "lightning",
+      "thunder",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [
+      "cold",
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 11,
+    "languages": [
+      "any languages it knew in life"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Withering Touch",
+        "isWeaponAttack": true,
+        "toHitBonus": 5,
+        "damageDice": "4d6+3",
+        "damageType": "necrotic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 17 (4d6 + 3) necrotic damage."
+      },
+      {
+        "name": "Horrifying Visage",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 13,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Each non-undead creature within 60 ft. of the ghost that can see it must succeed on a DC 13 Wisdom saving throw or be frightened for 1 minute. If the save fails by 5 or more, the target also ages 1d4 × 10 years. A frightened target can repeat the saving throw at the end of each of its turns, ending the frightened condition on itself on a success. If a target's saving throw is successful or the effect ends for it, the target is immune to this ghost's Horrifying Visage for the next 24 hours. The aging effect can be reversed with a greater restoration spell, but only within 24 hours of it occurring."
+      },
+      {
+        "name": "Possession",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "CHA",
+        "saveDC": 13,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "One humanoid that the ghost can see within 5 ft. of it must succeed on a DC 13 Charisma saving throw or be possessed by the ghost; the ghost then disappears, and the target is incapacitated and loses control of its body. The ghost now controls the body but doesn't deprive the target of awareness. The ghost can't be targeted by any attack, spell, or other effect, except ones that turn undead, and it retains its alignment, Intelligence, Wisdom, Charisma, and immunity to being charmed and frightened. It otherwise uses the possessed target's statistics, but doesn't gain access to the target's knowledge, class features, or proficiencies.\nThe possession lasts until the body drops to 0 hit points, the ghost ends it as a bonus action, or the ghost is turned or forced out by an effect like the dispel evil and good spell. When the possession ends, the ghost reappears in an unoccupied space within 5 ft. of the body. The target is immune to this ghost's Possession for 24 hours after succeeding on the saving throw or after the possession ends."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Ethereal Sight",
+        "description": "The ghost can see 60 ft. into the Ethereal Plane when it is on the Material Plane, and vice versa."
+      },
+      {
+        "name": "Incorporeal Movement",
+        "description": "The ghost can move through other creatures and objects as if they were difficult terrain. It takes 5 (1d10) force damage if it ends its turn inside an object."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "vampire-spawn",
+    "name": "Vampire Spawn",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 15,
+    "armorSource": "natural",
+    "hitPointDice": "11d8+33",
+    "averageHP": 82,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "necrotic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "1d6+3",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one willing creature, or a creature that is grappled by the vampire, incapacitated, or restrained. Hit: 6 (1d6 + 3) piercing damage plus 7 (2d6) necrotic damage. The target's hit point maximum is reduced by an amount equal to the necrotic damage taken, and the vampire regains hit points equal to that amount. The reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0."
+      },
+      {
+        "name": "Claws",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "2d4+3",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one creature. Hit: 8 (2d4 + 3) slashing damage. Instead of dealing damage, the vampire can grapple the target (escape DC 13)."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Regeneration",
+        "description": "The vampire regains 10 hit points at the start of its turn if it has at least 1 hit point and isn't in sunlight or running water. If the vampire takes radiant damage or damage from holy water, this trait doesn't function at the start of the vampire's next turn."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The vampire can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Vampire Weaknesses",
+        "description": "The vampire has the following flaws:\nForbiddance. The vampire can't enter a residence without an invitation from one of the occupants.\nHarmed by Running Water. The vampire takes 20 acid damage when it ends its turn in running water.\nStake to the Heart. The vampire is destroyed if a piercing weapon made of wood is driven into its heart while it is incapacitated in its resting place.\nSunlight Hypersensitivity. The vampire takes 20 radiant damage when it starts its turn in sunlight. While in sunlight, it has disadvantage on attack rolls and ability checks."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "wraith",
+    "name": "Wraith",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "neutral evil",
+    "armorClass": 13,
+    "armorSource": "dex",
+    "hitPointDice": "9d8+27",
+    "averageHP": 67,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {},
+    "damageResistances": [
+      "acid",
+      "cold",
+      "fire",
+      "lightning",
+      "thunder",
+      "bludgeoning, piercing, and slashing from nonmagical weapons that aren't silvered"
+    ],
+    "damageImmunities": [
+      "necrotic",
+      "poison"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Grappled",
+      "Paralyzed",
+      "Petrified",
+      "Poisoned",
+      "Prone",
+      "Restrained"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Life Drain",
+        "isWeaponAttack": true,
+        "toHitBonus": 6,
+        "damageDice": "4d8+3",
+        "damageType": "necrotic",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +6 to hit, reach 5 ft., one creature. Hit: 21 (4d8 + 3) necrotic damage. The target must succeed on a DC 14 Constitution saving throw or its hit point maximum is reduced by an amount equal to the damage taken. This reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Incorporeal Movement",
+        "description": "The wraith can move through other creatures and objects as if they were difficult terrain. It takes 5 (1d10) force damage if it ends its turn inside an object."
+      },
+      {
+        "name": "Sunlight Sensitivity",
+        "description": "While in sunlight, the wraith has disadvantage on attack rolls, as well as on Wisdom (Perception) checks that rely on sight."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "vampire-bat",
+    "name": "Vampire, Bat Form",
+    "type": "undead",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "17d8+68",
+    "averageHP": 144,
+    "speed": 5,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "necrotic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "1d6+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one willing creature, or a creature that is grappled by the vampire, incapacitated, or restrained. Hit: 7 (1d6 + 4) piercing damage plus 10 (3d6) necrotic damage. The target's hit point maximum is reduced by an amount equal to the necrotic damage taken, and the vampire regains hit points equal to that amount. The reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0. A humanoid slain in this way and then buried in the ground rises the following night as a vampire spawn under the vampire's control."
+      },
+      {
+        "name": "Charm",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The vampire targets one humanoid it can see within 30 ft. of it. If the target can see the vampire, the target must succeed on a DC 17 Wisdom saving throw against this magic or be charmed by the vampire. The charmed target regards the vampire as a trusted friend to be heeded and protected. Although the target isn't under the vampire's control, it takes the vampire's requests or actions in the most favorable way it can, and it is a willing target for the vampire's bit attack.\nEach time the vampire or the vampire's companions do anything harmful to the target, it can repeat the saving throw, ending the effect on itself on a success. Otherwise, the effect lasts 24 hours or until the vampire is destroyed, is on a different plane of existence than the target, or takes a bonus action to end the effect."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "If the vampire isn't in sun light or running water, it can use its action to polymorph into a Tiny bat or a Medium cloud of mist, or back into its true form.\nWhile in bat form, the vampire can't speak, its walking speed is 5 feet, and it has a flying speed of 30 feet. Its statistics, other than its size and speed, are unchanged. Anything it is wearing transforms with it, but nothing it is carrying does. It reverts to its true form if it dies.\nWhile in mist form, the vampire can't take any actions, speak, or manipulate objects. It is weightless, has a flying speed of 20 feet, can hover, and can enter a hostile creature's space and stop there. In addition, if air can pass through a space, the mist can do so without squeezing, and it can't pass through water. It has advantage on Strength, Dexterity, and Constitution saving throws, and it is immune to all nonmagical damage, except the damage it takes from sunlight."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the vampire fails a saving throw, it can choose to succeed instead."
+      },
+      {
+        "name": "Misty Escape",
+        "description": "When it drops to 0 hit points outside its resting place, the vampire transforms into a cloud of mist (as in the Shapechanger trait) instead of falling unconscious, provided that it isn't in sunlight or running water. If it can't transform, it is destroyed.\nWhile it has 0 hit points in mist form, it can't revert to its vampire form, and it must reach its resting place within 2 hours or be destroyed. Once in its resting place, it reverts to its vampire form. It is then paralyzed until it regains at least 1 hit point. After spending 1 hour in its resting place with 0 hit points, it regains 1 hit point."
+      },
+      {
+        "name": "Regeneration",
+        "description": "The vampire regains 20 hit points at the start of its turn if it has at least 1 hit point and isn't in sunlight or running water. If the vampire takes radiant damage or damage from holy water, this trait doesn't function at the start of the vampire's next turn."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The vampire can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Vampire Weaknesses",
+        "description": "The vampire has the following flaws:\nForbiddance. The vampire can't enter a residence without an invitation from one of the occupants.\nHarmed by Running Water. The vampire takes 20 acid damage if it ends its turn in running water.\nStake to the Heart. If a piercing weapon made of wood is driven into the vampire's heart while the vampire is incapacitated in its resting place, the vampire is paralyzed until the stake is removed.\nSunlight Hypersensitivity. The vampire takes 20 radiant damage when it starts its turn in sunlight. While in sunlight, it has disadvantage on attack rolls and ability checks."
+      }
+    ],
+    "tags": [
+      "undead",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "vampire-mist",
+    "name": "Vampire, Mist Form",
+    "type": "undead",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "17d8+68",
+    "averageHP": 144,
+    "speed": 0,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "necrotic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "If the vampire isn't in sun light or running water, it can use its action to polymorph into a Tiny bat or a Medium cloud of mist, or back into its true form.\nWhile in bat form, the vampire can't speak, its walking speed is 5 feet, and it has a flying speed of 30 feet. Its statistics, other than its size and speed, are unchanged. Anything it is wearing transforms with it, but nothing it is carrying does. It reverts to its true form if it dies.\nWhile in mist form, the vampire can't take any actions, speak, or manipulate objects. It is weightless, has a flying speed of 20 feet, can hover, and can enter a hostile creature's space and stop there. In addition, if air can pass through a space, the mist can do so without squeezing, and it can't pass through water. It has advantage on Strength, Dexterity, and Constitution saving throws, and it is immune to all nonmagical damage, except the damage it takes from sunlight."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the vampire fails a saving throw, it can choose to succeed instead."
+      },
+      {
+        "name": "Misty Escape",
+        "description": "When it drops to 0 hit points outside its resting place, the vampire transforms into a cloud of mist (as in the Shapechanger trait) instead of falling unconscious, provided that it isn't in sunlight or running water. If it can't transform, it is destroyed.\nWhile it has 0 hit points in mist form, it can't revert to its vampire form, and it must reach its resting place within 2 hours or be destroyed. Once in its resting place, it reverts to its vampire form. It is then paralyzed until it regains at least 1 hit point. After spending 1 hour in its resting place with 0 hit points, it regains 1 hit point."
+      },
+      {
+        "name": "Regeneration",
+        "description": "The vampire regains 20 hit points at the start of its turn if it has at least 1 hit point and isn't in sunlight or running water. If the vampire takes radiant damage or damage from holy water, this trait doesn't function at the start of the vampire's next turn."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The vampire can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Vampire Weaknesses",
+        "description": "The vampire has the following flaws:\nForbiddance. The vampire can't enter a residence without an invitation from one of the occupants.\nHarmed by Running Water. The vampire takes 20 acid damage if it ends its turn in running water.\nStake to the Heart. If a piercing weapon made of wood is driven into the vampire's heart while the vampire is incapacitated in its resting place, the vampire is paralyzed until the stake is removed.\nSunlight Hypersensitivity. The vampire takes 20 radiant damage when it starts its turn in sunlight. While in sunlight, it has disadvantage on attack rolls and ability checks."
+      }
+    ],
+    "tags": [
+      "undead",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "vampire-vampire",
+    "name": "Vampire, Vampire Form",
+    "type": "undead",
+    "subtype": "shapechanger",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "natural",
+    "hitPointDice": "17d8+68",
+    "averageHP": 144,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Perception": 1,
+      "Stealth": 1
+    },
+    "damageResistances": [
+      "necrotic",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 120,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Unarmed Strike",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "1d8+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one creature. Hit: 8 (1d8 + 4) bludgeoning damage. Instead of dealing damage, the vampire can grapple the target (escape DC 18)."
+      },
+      {
+        "name": "Bite",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "1d6+4",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one willing creature, or a creature that is grappled by the vampire, incapacitated, or restrained. Hit: 7 (1d6 + 4) piercing damage plus 10 (3d6) necrotic damage. The target's hit point maximum is reduced by an amount equal to the necrotic damage taken, and the vampire regains hit points equal to that amount. The reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0. A humanoid slain in this way and then buried in the ground rises the following night as a vampire spawn under the vampire's control."
+      },
+      {
+        "name": "Charm",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The vampire targets one humanoid it can see within 30 ft. of it. If the target can see the vampire, the target must succeed on a DC 17 Wisdom saving throw against this magic or be charmed by the vampire. The charmed target regards the vampire as a trusted friend to be heeded and protected. Although the target isn't under the vampire's control, it takes the vampire's requests or actions in the most favorable way it can, and it is a willing target for the vampire's bit attack.\nEach time the vampire or the vampire's companions do anything harmful to the target, it can repeat the saving throw, ending the effect on itself on a success. Otherwise, the effect lasts 24 hours or until the vampire is destroyed, is on a different plane of existence than the target, or takes a bonus action to end the effect."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Shapechanger",
+        "description": "If the vampire isn't in sun light or running water, it can use its action to polymorph into a Tiny bat or a Medium cloud of mist, or back into its true form.\nWhile in bat form, the vampire can't speak, its walking speed is 5 feet, and it has a flying speed of 30 feet. Its statistics, other than its size and speed, are unchanged. Anything it is wearing transforms with it, but nothing it is carrying does. It reverts to its true form if it dies.\nWhile in mist form, the vampire can't take any actions, speak, or manipulate objects. It is weightless, has a flying speed of 20 feet, can hover, and can enter a hostile creature's space and stop there. In addition, if air can pass through a space, the mist can do so without squeezing, and it can't pass through water. It has advantage on Strength, Dexterity, and Constitution saving throws, and it is immune to all nonmagical damage, except the damage it takes from sunlight."
+      },
+      {
+        "name": "Legendary Resistance",
+        "description": "If the vampire fails a saving throw, it can choose to succeed instead."
+      },
+      {
+        "name": "Misty Escape",
+        "description": "When it drops to 0 hit points outside its resting place, the vampire transforms into a cloud of mist (as in the Shapechanger trait) instead of falling unconscious, provided that it isn't in sunlight or running water. If it can't transform, it is destroyed.\nWhile it has 0 hit points in mist form, it can't revert to its vampire form, and it must reach its resting place within 2 hours or be destroyed. Once in its resting place, it reverts to its vampire form. It is then paralyzed until it regains at least 1 hit point. After spending 1 hour in its resting place with 0 hit points, it regains 1 hit point."
+      },
+      {
+        "name": "Regeneration",
+        "description": "The vampire regains 20 hit points at the start of its turn if it has at least 1 hit point and isn't in sunlight or running water. If the vampire takes radiant damage or damage from holy water, this trait doesn't function at the start of the vampire's next turn."
+      },
+      {
+        "name": "Spider Climb",
+        "description": "The vampire can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "name": "Vampire Weaknesses",
+        "description": "The vampire has the following flaws:\nForbiddance. The vampire can't enter a residence without an invitation from one of the occupants.\nHarmed by Running Water. The vampire takes 20 acid damage if it ends its turn in running water.\nStake to the Heart. If a piercing weapon made of wood is driven into the vampire's heart while the vampire is incapacitated in its resting place, the vampire is paralyzed until the stake is removed.\nSunlight Hypersensitivity. The vampire takes 20 radiant damage when it starts its turn in sunlight. While in sunlight, it has disadvantage on attack rolls and ability checks."
+      }
+    ],
+    "tags": [
+      "undead",
+      "shapechanger"
+    ]
+  },
+  {
+    "id": "mummy-lord",
+    "name": "Mummy Lord",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "lawful evil",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "13d8+39",
+    "averageHP": 97,
+    "speed": 20,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "INT",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "History": 1,
+      "Religion": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "necrotic",
+      "poison",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "the languages it knew in life"
+    ],
+    "challengeRating": 15.0,
+    "xpValue": 13000,
+    "attacks": [
+      {
+        "name": "Rotting Fist",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "3d6+4",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 5 ft., one target. Hit: 14 (3d6 + 4) bludgeoning damage plus 21 (6d6) necrotic damage. If the target is a creature, it must succeed on a DC 16 Constitution saving throw or be cursed with mummy rot. The cursed target can't regain hit points, and its hit point maximum decreases by 10 (3d6) for every 24 hours that elapse. If the curse reduces the target's hit point maximum to 0, the target dies, and its body turns to dust. The curse lasts until removed by the remove curse spell or other magic."
+      },
+      {
+        "name": "Dreadful Glare",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "",
+        "damageType": "",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "WIS",
+        "saveDC": 16,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The mummy lord targets one creature it can see within 60 feet of it. If the target can see the mummy lord, it must succeed on a DC 16 Wisdom saving throw against this magic or become frightened until the end of the mummy's next turn. If the target fails the saving throw by 5 or more, it is also paralyzed for the same duration. A target that succeeds on the saving throw is immune to the Dreadful Glare of all mummies and mummy lords for the next 24 hours."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Magic Resistance",
+        "description": "The mummy lord has advantage on saving throws against spells and other magical effects."
+      },
+      {
+        "name": "Rejuvenation",
+        "description": "A destroyed mummy lord gains a new body in 24 hours if its heart is intact, regaining all its hit points and becoming active again. The new body appears within 5 feet of the mummy lord's heart."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The mummy lord is a 10th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 17, +9 to hit with spell attacks). The mummy lord has the following cleric spells prepared:\n\n- Cantrips (at will): sacred flame, thaumaturgy\n- 1st level (4 slots): command, guiding bolt, shield of faith\n- 2nd level (3 slots): hold person, silence, spiritual weapon\n- 3rd level (3 slots): animate dead, dispel magic\n- 4th level (3 slots): divination, guardian of faith\n- 5th level (2 slots): contagion, insect plague\n- 6th level (1 slot): harm"
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  },
+  {
+    "id": "lich",
+    "name": "Lich",
+    "type": "undead",
+    "subtype": "",
+    "size": "Medium",
+    "alignment": "any evil alignment",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "18d8+54",
+    "averageHP": 135,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "INT",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "History": 1,
+      "Insight": 1,
+      "Perception": 1
+    },
+    "damageResistances": [
+      "cold",
+      "lightning",
+      "necrotic"
+    ],
+    "damageImmunities": [
+      "poison",
+      "bludgeoning, piercing, and slashing from nonmagical weapons"
+    ],
+    "conditionImmunities": [
+      "Charmed",
+      "Exhaustion",
+      "Frightened",
+      "Paralyzed",
+      "Poisoned"
+    ],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 120,
+    "passivePerception": 19,
+    "languages": [
+      "Common plus up to five other languages"
+    ],
+    "challengeRating": 21.0,
+    "xpValue": 33000,
+    "attacks": [
+      {
+        "name": "Paralyzing Touch",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "3d6",
+        "damageType": "cold",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Spell Attack: +12 to hit, reach 5 ft., one creature. Hit: 10 (3d6) cold damage. The target must succeed on a DC 18 Constitution saving throw or be paralyzed for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Legendary Resistance",
+        "description": "If the lich fails a saving throw, it can choose to succeed instead."
+      },
+      {
+        "name": "Rejuvenation",
+        "description": "If it has a phylactery, a destroyed lich gains a new body in 1d10 days, regaining all its hit points and becoming active again. The new body appears within 5 feet of the phylactery."
+      },
+      {
+        "name": "Spellcasting",
+        "description": "The lich is an 18th-level spellcaster. Its spellcasting ability is Intelligence (spell save DC 20, +12 to hit with spell attacks). The lich has the following wizard spells prepared:\n\n- Cantrips (at will): mage hand, prestidigitation, ray of frost\n- 1st level (4 slots): detect magic, magic missile, shield, thunderwave\n- 2nd level (3 slots): acid arrow, detect thoughts, invisibility, mirror image\n- 3rd level (3 slots): animate dead, counterspell, dispel magic, fireball\n- 4th level (3 slots): blight, dimension door\n- 5th level (3 slots): cloudkill, scrying\n- 6th level (1 slot): disintegrate, globe of invulnerability\n- 7th level (1 slot): finger of death, plane shift\n- 8th level (1 slot): dominate monster, power word stun\n- 9th level (1 slot): power word kill"
+      },
+      {
+        "name": "Turn Resistance",
+        "description": "The lich has advantage on saving throws against any effect that turns undead."
+      }
+    ],
+    "tags": [
+      "undead"
+    ]
+  }
+]

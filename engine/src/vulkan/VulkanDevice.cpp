@@ -95,6 +95,9 @@ void VulkanDevice::cleanup() {
     // Cleanup atlas UV SSBO buffers
     cleanupAtlasUVBuffers();
 
+    // Cleanup character bone-transform SSBO
+    cleanupCharacterBoneBuffer();
+
     // Cleanup reflection UBO buffers
     cleanupReflectionBuffers();
     
@@ -1230,6 +1233,49 @@ bool VulkanDevice::createAtlasUVBuffers() {
     return true;
 }
 
+bool VulkanDevice::createCharacterBoneBuffer(uint32_t maxBones) {
+    // Per-bone-group model matrices for the instanced character pass. Previously each
+    // bone group needed its own draw because its matrix rode in push constants; with the
+    // matrices in a storage buffer, an instance can look its own up and a whole character
+    // becomes ONE draw (docs/CharacterPipelineScaling.md P2.2).
+    maxCharacterBones = maxBones;
+    VkDeviceSize bufferSize = sizeof(glm::mat4) * maxCharacterBones;
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 characterBoneBuffer, characterBoneBufferMemory);
+
+    if (characterBoneBufferMemory != VK_NULL_HANDLE) {
+        vkMapMemory(device, characterBoneBufferMemory, 0, bufferSize, 0, &characterBoneMapped);
+        if (characterBoneMapped) memset(characterBoneMapped, 0, bufferSize);
+    }
+
+    LOG_INFO("Vulkan", "Created character bone SSBO ({} matrices, {} bytes)",
+             maxCharacterBones, static_cast<uint64_t>(bufferSize));
+    return true;
+}
+
+void VulkanDevice::updateCharacterBoneBuffer(const std::vector<glm::mat4>& bones) {
+    if (bones.empty() || characterBoneMapped == nullptr) return;
+    const uint32_t count = std::min(static_cast<uint32_t>(bones.size()), maxCharacterBones);
+    memcpy(characterBoneMapped, bones.data(), sizeof(glm::mat4) * count);
+}
+
+void VulkanDevice::cleanupCharacterBoneBuffer() {
+    if (characterBoneBufferMemory != VK_NULL_HANDLE && characterBoneMapped != nullptr) {
+        vkUnmapMemory(device, characterBoneBufferMemory);
+        characterBoneMapped = nullptr;
+    }
+    if (characterBoneBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, characterBoneBuffer, nullptr);
+        characterBoneBuffer = VK_NULL_HANDLE;
+    }
+    if (characterBoneBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, characterBoneBufferMemory, nullptr);
+        characterBoneBufferMemory = VK_NULL_HANDLE;
+    }
+}
+
 void VulkanDevice::updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex,
                                        uint32_t count512, uint32_t count1024) {
     // SSBO header carries per-class layer counts + fallback for the mixed-res split:
@@ -1342,7 +1388,17 @@ bool VulkanDevice::createDescriptorSetLayout() {
     normal1024Binding.pImmutableSamplers = nullptr;
     normal1024Binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 8> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding};
+    // Character bone-transform SSBO (binding 8) — VERTEX stage. Only the character
+    // shaders declare it; pipelines that ignore an unused binding are valid, so this
+    // rides on the shared layout rather than needing a second descriptor set.
+    VkDescriptorSetLayoutBinding charBoneBinding{};
+    charBoneBinding.binding = 8;
+    charBoneBinding.descriptorCount = 1;
+    charBoneBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    charBoneBinding.pImmutableSamplers = nullptr;
+    charBoneBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 9> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1363,7 +1419,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 5; // albedo 512/1024 + normal 512/1024 + Shadow
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // Light SSBO + Atlas UV SSBO
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // Light + Atlas UV + character bones
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1410,6 +1466,27 @@ bool VulkanDevice::createDescriptorSets() {
         descriptorWrite.pBufferInfo = &bufferInfo;
 
         vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+
+        // Character bone SSBO (binding 8). Single buffer shared by all frames in flight:
+        // it is rewritten once per frame before any pass reads it, exactly like the
+        // character instance buffer it accompanies.
+        if (characterBoneBuffer != VK_NULL_HANDLE) {
+            VkDescriptorBufferInfo boneInfo{};
+            boneInfo.buffer = characterBoneBuffer;
+            boneInfo.offset = 0;
+            boneInfo.range  = sizeof(glm::mat4) * maxCharacterBones;
+
+            VkWriteDescriptorSet boneWrite{};
+            boneWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            boneWrite.dstSet = descriptorSets[i];
+            boneWrite.dstBinding = 8;
+            boneWrite.dstArrayElement = 0;
+            boneWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            boneWrite.descriptorCount = 1;
+            boneWrite.pBufferInfo = &boneInfo;
+
+            vkUpdateDescriptorSets(device, 1, &boneWrite, 0, nullptr);
+        }
     }
 
     return true;
@@ -1784,7 +1861,24 @@ void VulkanDevice::updateCharacterInstanceBuffer(const std::vector<CharacterInst
         return;
     }
 
-    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(static_cast<uint32_t>(instances.size()), maxCharacterInstances);
+    // Truncation here is NOT benign: callers assign each character a firstInstance
+    // offset into this buffer, so anything past the cap draws from stale memory and
+    // that character silently disappears. This used to fail without a peep — 27
+    // microcube-dense imported creature rigs (3-4.7k parts each) blew a 10k buffer
+    // and most of them vanished. Callers clamp, but warn loudly if one slips through.
+    const uint32_t requested = static_cast<uint32_t>(instances.size());
+    if (requested > maxCharacterInstances) {
+        static uint32_t s_lastReported = 0;
+        if (requested != s_lastReported) {
+            s_lastReported = requested;
+            LOG_WARN_FMT("VulkanDevice",
+                "Character instance buffer overflow — " << requested << " instances requested but "
+                << "capacity is " << maxCharacterInstances
+                << "; characters past the cap will not render");
+        }
+    }
+
+    VkDeviceSize bufferSize = sizeof(CharacterInstanceData) * std::min(requested, maxCharacterInstances);
     memcpy(characterInstanceMapped, instances.data(), (size_t) bufferSize);
 }
 

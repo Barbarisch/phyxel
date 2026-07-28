@@ -156,6 +156,10 @@ struct CharacterInstanceData {
     glm::vec3 offset;
     glm::vec3 scale;
     glm::vec4 color;
+    /// Index into the character bone SSBO (descriptor set 0, binding 8) for this part's
+    /// model matrix. Carrying it per instance is what lets one draw cover a whole
+    /// character instead of one draw per bone group (CharacterPipelineScaling P2.2).
+    uint32_t  boneIndex = 0;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -166,7 +170,7 @@ struct CharacterInstanceData {
     }
 
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(4);
 
         // Offset
         attributeDescriptions[0].binding = 0;
@@ -185,6 +189,12 @@ struct CharacterInstanceData {
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[2].offset = offsetof(CharacterInstanceData, color);
+
+        // Bone index (into the bone-transform SSBO)
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32_UINT;
+        attributeDescriptions[3].offset = offsetof(CharacterInstanceData, boneIndex);
 
         return attributeDescriptions;
     }

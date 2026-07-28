@@ -2277,7 +2277,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (!npcManager) return false;
         Core::NPCBehaviorType bt = Core::NPCBehaviorType::Idle;
         if (behavior == "patrol") bt = Core::NPCBehaviorType::Patrol;
-        else if (behavior == "wander") bt = Core::NPCBehaviorType::BehaviorTree;
+        else if (behavior == "wander") bt = Core::NPCBehaviorType::Wander;
         auto* npc = npcManager->spawnNPC(name, "resources/animated_characters/humanoid.anim",
                                           pos, bt, {}, 2.0f, 2.0f, {});
         return npc != nullptr;
@@ -3350,6 +3350,20 @@ void Application::update(float deltaTime) {
     if (npcManager) {
         PROFILE_SCOPE(*performanceProfiler, "NPCs");
         npcManager->update(deltaTime);
+    }
+
+    // Biome-driven wildlife population: scatter/despawn wandering animals around the camera
+    // as it moves through a streaming world. Only active when a streaming generator exists
+    // (fixed-region worlds don't stream biomes); configured lazily once it's available.
+    if (npcManager && chunkManager && camera) {
+        if (auto* sg = chunkManager->getStreamingGenerator()) {
+            if (!m_faunaConfigured) {
+                m_faunaSpawner.configure(sg, npcManager.get(), chunkManager);
+                m_faunaSpawner.setEnabled(true);
+                m_faunaConfigured = true;
+            }
+            m_faunaSpawner.update(camera->getPosition(), deltaTime);
+        }
     }
 
     // Update combat system (invulnerability timers)
@@ -5812,8 +5826,22 @@ void Application::autoLoadGameDefinition() {
                             return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
+                        // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
+                        // flow for them. Feed the shader the bake's downhill direction so a river
+                        // reads as MOVING. Visual only — the field stays hydrostatic.
+                        waterManager->setRiverFlowQuery([this](float wx, float wz) -> glm::vec2 {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            const FlowField* f = g ? g->riverNetwork() : nullptr;
+                            if (!f) return glm::vec2(0.0f);
+                            // Only claim a direction where there IS a channel; elsewhere leave the
+                            // CA's own proxy alone (a spill on open ground must not read as a river).
+                            return f->channelAt(wx, wz).hit ? f->flowDirAt(wx, wz) : glm::vec2(0.0f);
+                        });
+                        LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
                         waterManager->setRiverQuery(nullptr);
+                        waterManager->setRiverFlowQuery(nullptr);
                     }
                     // Evaporation default (river flow tuning): generation-fed worlds want bounded
                     // spill — river inflow otherwise pools and RISES forever (observed live at the
@@ -7784,6 +7812,38 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         return true;
 
+    } else if (action == "set_character_budget") {
+        // Runtime character render budget (docs/CharacterPipelineScaling.md). capacity is a
+        // SOFT cap in parts, clamped to the physical buffer — lowering it reproduces the
+        // pre-fix silent-drop behaviour without a rebuild.
+        if (!renderCoordinator) {
+            response = {{"error", "RenderCoordinator not available"}};
+        } else {
+            if (cmd.params.contains("capacity"))
+                renderCoordinator->setCharacterInstanceCapacity(cmd.params.value("capacity", 262144u));
+            if (cmd.params.contains("cullDistance"))
+                renderCoordinator->setCharacterCullDistance(cmd.params.value("cullDistance", 400.0f));
+            if (cmd.params.contains("shadows"))
+                renderCoordinator->setShadowCharactersEnabled(cmd.params.value("shadows", true));
+            if (cmd.params.contains("updateBudget"))
+                Scene::AnimatedVoxelCharacter::setUpdateTickBudget(
+                    cmd.params.value("updateBudget", 256u));
+            if (cmd.params.contains("lod1") || cmd.params.contains("lod2"))
+                renderCoordinator->setCharacterLodDistances(
+                    cmd.params.value("lod1", renderCoordinator->getCharacterLod1Distance()),
+                    cmd.params.value("lod2", renderCoordinator->getCharacterLod2Distance()));
+            response = {
+                {"success", true},
+                {"capacity", renderCoordinator->getCharacterInstanceCapacity()},
+                {"cull_distance", renderCoordinator->getCharacterCullDistance()},
+                {"shadows", renderCoordinator->getShadowCharactersEnabled()},
+                {"update_budget", Scene::AnimatedVoxelCharacter::getUpdateTickBudget()},
+                {"lod1", renderCoordinator->getCharacterLod1Distance()},
+                {"lod2", renderCoordinator->getCharacterLod2Distance()},
+            };
+        }
+        return true;
+
     } else if (action == "set_grass") {
         // Runtime grass knobs / on-off toggle (grass blade layer). Any field may be omitted;
         // negative numeric values leave a field unchanged. Used for live FPS A/B + tuning.
@@ -7903,6 +7963,26 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
+                // Character culling/batching (docs/CharacterPipelineScaling.md Tier 1).
+                {"characters", {
+                    {"considered",    renderCoordinator->getCharacterRenderStats().considered},
+                    {"drawn_main",    renderCoordinator->getCharacterRenderStats().drawnMain},
+                    {"drawn_shadow",  renderCoordinator->getCharacterRenderStats().drawnShadow},
+                    {"culled",        renderCoordinator->getCharacterRenderStats().culled},
+                    {"dropped",       renderCoordinator->getCharacterRenderStats().dropped},
+                    {"parts_batched", renderCoordinator->getCharacterRenderStats().partsBatched},
+                    {"draw_calls_main",   renderCoordinator->getCharacterRenderStats().drawCallsMain},
+                    {"draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
+                    {"build_ms",      renderCoordinator->getCharacterRenderStats().buildMs},
+                }},
+                {"npc_update", {
+                    {"npc_count",           npcManager ? npcManager->getUpdateStats().npcCount : 0},
+                    {"separation_ms",       npcManager ? npcManager->getUpdateStats().separationMs : 0.0},
+                    {"update_ms",           npcManager ? npcManager->getUpdateStats().characterMs : 0.0},
+                    {"full_character_ticks", npcManager ? npcManager->getUpdateStats().fullCharacterTicks : 0},
+                    {"capacity",      renderCoordinator->getCharacterInstanceCapacity()},
+                    {"cull_distance", renderCoordinator->getCharacterCullDistance()},
+                }},
                 // Phase 4.4 gate metric: live/peak chunk GPU allocations (GpuAllocStats).
                 {"gpu_chunk_allocs_live",    Graphics::gpualloc::live().load()},
                 {"gpu_chunk_allocs_peak",    Graphics::gpualloc::peak().load()},
@@ -11255,6 +11335,18 @@ void Application::registerWaterCommands() {
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
         r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
     });
+    // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Setting amplitude 0 flattens the
+    // sheet back to the pre-Phase-2 plane — the A/B control for before/after captures.
+    reg.on("water_waves", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        const glm::vec3 cur = renderCoordinator->waveSettings();
+        renderCoordinator->setWaves(cmd.params.value("amplitude", cur.x),
+                                    cmd.params.value("wavelength", cur.y),
+                                    cmd.params.value("wind", cur.z));
+        const glm::vec3 now = renderCoordinator->waveSettings();
+        r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z}};
+    });
+
     reg.on("water_table_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         const float wx = cmd.params.value("x", 0.0f), wz = cmd.params.value("z", 0.0f);
@@ -11362,6 +11454,16 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("x")) {
             glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
             r["mass_at"] = waterManager->massAtWorld(p);
+        }
+        // Render-side water state (WaterSystemV3 Phase 1) — the sea PLANE is a separate switch from
+        // the sim, and the underwater overlay is gated on both, so an L4 check needs to see both.
+        if (renderCoordinator) {
+            float depthBelow = 0.0f;
+            r["plane_enabled"]       = renderCoordinator->isWaterEnabled();
+            r["render_sea_level"]    = renderCoordinator->getSeaLevel();
+            r["camera_submergence"]  = renderCoordinator->cameraSubmergence(depthBelow);
+            r["camera_depth_below"]  = depthBelow;
+            r["surface_cells"]       = static_cast<int>(waterManager->surfaceCells().size());
         }
     });
 }
@@ -12316,11 +12418,15 @@ void Application::registerProfilingCommands() {
             };
             pstats = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_STATIC));
             nlohmann::json shadowps = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_SHADOW));
+            nlohmann::json charps = psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_CHARACTER));
             // shadow chunk/instance counts (culling-hypothesis test)
             const auto& fs = renderCoordinator->getLastFrameStats();
             r = {{"scopes", arr},
                  {"static_geometry_pipeline_stats", pstats},
                  {"shadow_pipeline_stats", shadowps},
+                 {"character_pipeline_stats", charps},
+                 {"character_draw_calls_main", renderCoordinator->getCharacterRenderStats().drawCallsMain},
+                 {"character_draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
                  {"shadow_chunks_drawn", fs.shadowChunksDrawn},
                  {"shadow_instances_drawn", fs.shadowInstancesDrawn},
                  {"visible_chunks", fs.visibleChunkCount}};
@@ -14433,6 +14539,8 @@ void Application::processAPICommands() {
                                         wp.value("z", 0.0f));
                                 }
                             }
+                        } else if (behaviorStr == "wander") {
+                            behaviorType = Core::NPCBehaviorType::Wander;
                         } else if (behaviorStr == "behavior_tree") {
                             behaviorType = Core::NPCBehaviorType::BehaviorTree;
                         } else if (behaviorStr == "scheduled") {
@@ -14567,6 +14675,13 @@ void Application::processAPICommands() {
                                 float waitTime = cmd.params.value("waitTime", 2.0f);
                                 behavior = std::make_unique<Scene::PatrolBehavior>(
                                     waypoints, walkSpeed, waitTime);
+                            } else if (behaviorStr == "wander") {
+                                float walkSpeed = cmd.params.value("walkSpeed", 2.0f);
+                                float radius = cmd.params.value("radius", 12.0f);
+                                auto patrol = std::make_unique<Scene::PatrolBehavior>(
+                                    std::vector<glm::vec3>{}, walkSpeed, 2.0f);
+                                patrol->setWanderMode(npc->getPosition(), radius);
+                                behavior = std::move(patrol);
                             } else if (behaviorStr == "behavior_tree") {
                                 behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
                             } else if (behaviorStr == "scheduled") {

@@ -1,0 +1,1032 @@
+[
+  {
+    "id": "ettin",
+    "name": "Ettin",
+    "type": "giant",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "chaotic evil",
+    "armorClass": 12,
+    "armorSource": "natural",
+    "hitPointDice": "10d10+30",
+    "averageHP": 85,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 17,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Giant",
+      "Orc"
+    ],
+    "challengeRating": 4.0,
+    "xpValue": 1100,
+    "attacks": [
+      {
+        "name": "Battleaxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+5",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 14 (2d8 + 5) slashing damage."
+      },
+      {
+        "name": "Morningstar",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d8+5",
+        "damageType": "piercing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 14 (2d8 + 5) piercing damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Two Heads",
+        "description": "The ettin has advantage on Wisdom (Perception) checks and on saving throws against being blinded, charmed, deafened, frightened, stunned, and knocked unconscious."
+      },
+      {
+        "name": "Wakeful",
+        "description": "When one of the ettin's heads is asleep, its other head is awake."
+      }
+    ],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "hill-giant",
+    "name": "Hill Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic evil",
+    "armorClass": 13,
+    "armorSource": "natural",
+    "hitPointDice": "10d12+40",
+    "averageHP": 105,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 8,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 5,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 6,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [],
+    "skillProficiencies": {
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 12,
+    "languages": [
+      "Giant"
+    ],
+    "challengeRating": 5.0,
+    "xpValue": 1800,
+    "attacks": [
+      {
+        "name": "Greatclub",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "3d8+5",
+        "damageType": "bludgeoning",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +8 to hit, reach 10 ft., one target. Hit: 18 (3d8 + 5) bludgeoning damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 8,
+        "damageDice": "3d10+5",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +8 to hit, range 60/240 ft., one target. Hit: 21 (3d10 + 5) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "oni",
+    "name": "Oni",
+    "type": "giant",
+    "subtype": "",
+    "size": "Large",
+    "alignment": "lawful evil",
+    "armorClass": 16,
+    "armorSource": "Chain Mail",
+    "hitPointDice": "13d10+39",
+    "averageHP": 110,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 19,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 11,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "Deception": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Common",
+      "Giant"
+    ],
+    "challengeRating": 7.0,
+    "xpValue": 2900,
+    "attacks": [
+      {
+        "name": "Claw (Oni Form Only)",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "1d8+4",
+        "damageType": "slashing",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 8 (1d8 + 4) slashing damage."
+      },
+      {
+        "name": "Glaive",
+        "isWeaponAttack": true,
+        "toHitBonus": 7,
+        "damageDice": "2d10+4",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +7 to hit, reach 10 ft., one target. Hit: 15 (2d10 + 4) slashing damage, or 9 (1d10 + 4) slashing damage in Small or Medium form."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Innate Spellcasting",
+        "description": "The oni's innate spellcasting ability is Charisma (spell save DC 13). The oni can innately cast the following spells, requiring no material components:\n\nAt will: darkness, invisibility\n1/day each: charm person, cone of cold, gaseous form, sleep"
+      },
+      {
+        "name": "Magic Weapons",
+        "description": "The oni's weapon attacks are magical."
+      },
+      {
+        "name": "Regeneration",
+        "description": "The oni regains 10 hit points at the start of its turn if it has at least 1 hit point."
+      }
+    ],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "stone-giant",
+    "name": "Stone Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "neutral",
+    "armorClass": 17,
+    "armorSource": "natural",
+    "hitPointDice": "11d12+55",
+    "averageHP": 126,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 15,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "WIS"
+    ],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 60,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 14,
+    "languages": [
+      "Giant"
+    ],
+    "challengeRating": 7.0,
+    "xpValue": 2900,
+    "attacks": [
+      {
+        "name": "Greatclub",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "3d8+6",
+        "damageType": "bludgeoning",
+        "reach": 15,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 15 ft., one target. Hit: 19 (3d8 + 6) bludgeoning damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "4d10+6",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +9 to hit, range 60/240 ft., one target. Hit: 28 (4d10 + 6) bludgeoning damage. If the target is a creature, it must succeed on a DC 17 Strength saving throw or be knocked prone."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Stone Camouflage",
+        "description": "The giant has advantage on Dexterity (Stealth) checks made to hide in rocky terrain."
+      }
+    ],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "frost-giant",
+    "name": "Frost Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "neutral evil",
+    "armorClass": 15,
+    "armorSource": "armor",
+    "hitPointDice": "12d12+60",
+    "averageHP": 138,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 21,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "cold"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 13,
+    "languages": [
+      "Giant"
+    ],
+    "challengeRating": 8.0,
+    "xpValue": 3900,
+    "attacks": [
+      {
+        "name": "Greataxe",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "3d12+6",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +9 to hit, reach 10 ft., one target. Hit: 25 (3d12 + 6) slashing damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 9,
+        "damageDice": "4d10+6",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +9 to hit, range 60/240 ft., one target. Hit: 28 (4d10 + 6) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "cloud-giant",
+    "name": "Cloud Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "neutral good (50%) or neutral evil (50%)",
+    "armorClass": 14,
+    "armorSource": "natural",
+    "hitPointDice": "16d12+96",
+    "averageHP": 200,
+    "speed": 40,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 27,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 22,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 12,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Insight": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 17,
+    "languages": [
+      "Common",
+      "Giant"
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Morningstar",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "3d8+8",
+        "damageType": "piercing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +12 to hit, reach 10 ft., one target. Hit: 21 (3d8 + 8) piercing damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 12,
+        "damageDice": "4d10+8",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +12 to hit, range 60/240 ft., one target. Hit: 30 (4d10 + 8) bludgeoning damage."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Keen Smell",
+        "description": "The giant has advantage on Wisdom (Perception) checks that rely on smell."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The giant's innate spellcasting ability is Charisma. It can innately cast the following spells, requiring no material components:\n\nAt will: detect magic, fog cloud, light\n3/day each: feather fall, fly, misty step, telekinesis\n1/day each: control weather, gaseous form"
+      }
+    ],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "fire-giant",
+    "name": "Fire Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "lawful evil",
+    "armorClass": 18,
+    "armorSource": "Plate Armor",
+    "hitPointDice": "13d12+78",
+    "averageHP": 162,
+    "speed": 30,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 25,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 9,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 23,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 10,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 13,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "DEX",
+      "CON",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Athletics": 1,
+      "Perception": 1
+    },
+    "damageResistances": [],
+    "damageImmunities": [
+      "fire"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 16,
+    "languages": [
+      "Giant"
+    ],
+    "challengeRating": 9.0,
+    "xpValue": 5000,
+    "attacks": [
+      {
+        "name": "Greatsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "6d6+7",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +11 to hit, reach 10 ft., one target. Hit: 28 (6d6 + 7) slashing damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 11,
+        "damageDice": "4d10+7",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +11 to hit, range 60/240 ft., one target. Hit: 29 (4d10 + 7) bludgeoning damage."
+      }
+    ],
+    "traits": [],
+    "tags": [
+      "giant"
+    ]
+  },
+  {
+    "id": "storm-giant",
+    "name": "Storm Giant",
+    "type": "giant",
+    "subtype": "",
+    "size": "Huge",
+    "alignment": "chaotic good",
+    "armorClass": 16,
+    "armorSource": "Scale Mail",
+    "hitPointDice": "20d12+100",
+    "averageHP": 230,
+    "speed": 50,
+    "attributes": {
+      "scores": [
+        {
+          "type": "Strength",
+          "base": 29,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Dexterity",
+          "base": 14,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Constitution",
+          "base": 20,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Intelligence",
+          "base": 16,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Wisdom",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        },
+        {
+          "type": "Charisma",
+          "base": 18,
+          "racial": 0,
+          "equipment": 0,
+          "temporary": 0
+        }
+      ]
+    },
+    "savingThrowProficiencies": [
+      "STR",
+      "CON",
+      "WIS",
+      "CHA"
+    ],
+    "skillProficiencies": {
+      "Arcana": 1,
+      "Athletics": 1,
+      "History": 1,
+      "Perception": 1
+    },
+    "damageResistances": [
+      "cold"
+    ],
+    "damageImmunities": [
+      "lightning",
+      "thunder"
+    ],
+    "conditionImmunities": [],
+    "darkvisionRange": 0,
+    "blindsightRange": 0,
+    "truesightRange": 0,
+    "passivePerception": 19,
+    "languages": [
+      "Common",
+      "Giant"
+    ],
+    "challengeRating": 13.0,
+    "xpValue": 10000,
+    "attacks": [
+      {
+        "name": "Greatsword",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "6d6+9",
+        "damageType": "slashing",
+        "reach": 10,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Melee Weapon Attack: +14 to hit, reach 10 ft., one target. Hit: 30 (6d6 + 9) slashing damage."
+      },
+      {
+        "name": "Rock",
+        "isWeaponAttack": true,
+        "toHitBonus": 14,
+        "damageDice": "4d12+9",
+        "damageType": "bludgeoning",
+        "reach": 5,
+        "isRanged": true,
+        "rangeNormal": 60,
+        "rangeLong": 240,
+        "requiresSave": false,
+        "saveAbility": "",
+        "saveDC": 0,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "Ranged Weapon Attack: +14 to hit, range 60/240 ft., one target. Hit: 35 (4d12 + 9) bludgeoning damage."
+      },
+      {
+        "name": "Lightning Strike",
+        "isWeaponAttack": false,
+        "toHitBonus": 0,
+        "damageDice": "12d8",
+        "damageType": "lightning",
+        "reach": 5,
+        "isRanged": false,
+        "rangeNormal": 0,
+        "rangeLong": 0,
+        "requiresSave": true,
+        "saveAbility": "DEX",
+        "saveDC": 17,
+        "effectOnFail": "",
+        "effectDuration": -1.0,
+        "description": "The giant hurls a magical lightning bolt at a point it can see within 500 feet of it. Each creature within 10 feet of that point must make a DC 17 Dexterity saving throw, taking 54 (12d8) lightning damage on a failed save, or half as much damage on a successful one."
+      }
+    ],
+    "traits": [
+      {
+        "name": "Amphibious",
+        "description": "The giant can breathe air and water."
+      },
+      {
+        "name": "Innate Spellcasting",
+        "description": "The giant's innate spellcasting ability is Charisma (spell save DC 17). It can innately cast the following spells, requiring no material components:\n\nAt will: detect magic, feather fall, levitate, light\n3/day each: control weather, water breathing"
+      }
+    ],
+    "tags": [
+      "giant"
+    ]
+  }
+]

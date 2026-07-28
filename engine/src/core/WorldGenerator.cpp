@@ -811,6 +811,86 @@ WorldGenerator::planFlora(int colMinX, int colMinZ, int colMaxX, int colMaxZ, in
     return out;
 }
 
+bool WorldGenerator::faunaCell(int cx, int cz, FaunaPlacement& out) {
+    if (m_biomes.empty()) return false;
+    auto hashu = [](int a, int b, uint32_t salt) -> uint32_t {
+        uint32_t h = static_cast<uint32_t>(a) * 374761393u + static_cast<uint32_t>(b) * 668265263u
+                   + salt * 2246822519u;
+        h = (h ^ (h >> 13)) * 1274126177u; h ^= h >> 16; return h;
+    };
+    auto h01 = [&](int a, int b, uint32_t s) { return (hashu(a, b, s) & 0xFFFFFFu) / static_cast<float>(0x1000000); };
+
+    // Fauna-specific salt so herd anchors are statistically INDEPENDENT of flora placement
+    // (an animal isn't forced onto or away from a tree cell).
+    const uint32_t fsalt = 0x5EED1234u;
+
+    // Jittered site within the cell (shared kFloraGrid) so herds aren't on a visible lattice.
+    const int jx = cx * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ (0xA1u ^ fsalt)) % kFloraGrid);
+    const int jz = cz * kFloraGrid + static_cast<int>(hashu(cx, cz, seed ^ (0xB2u ^ fsalt)) % kFloraGrid);
+
+    ColumnSample col = sampleColumn(jx, jz);
+    const Biome& biome = m_biomes[col.biomeIndex];
+    if (biome.fauna.empty() || biome.faunaDensity <= 0.0f) return false;
+
+    // Same physical surface gates as flora: no seabed, cliff, alpine snow, riverbed, or land
+    // under a lake/sea surface (animals shouldn't spawn on water or bare rock).
+    if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;
+    if (col.surfaceMat == "Stone" || col.surfaceMat == "Snow") return false;
+    if (col.riverOrder > 0) return false;
+    if (m_hydro) {
+        const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
+        if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;
+    }
+
+    // Local-maximum (Poisson-disk) test over the biome's faunaSpacing radius — order-independent.
+    const int spacing = std::max(2, biome.faunaSpacing);
+    const int R = (spacing + kFloraGrid - 1) / kFloraGrid;
+    const uint32_t psalt = (seed ^ 0x9E3779B9u) ^ fsalt;
+    const uint32_t p = hashu(cx, cz, psalt);
+    for (int nz = cz - R; nz <= cz + R; ++nz)
+        for (int nx = cx - R; nx <= cx + R; ++nx) {
+            if (nx == cx && nz == cz) continue;
+            const uint32_t q = hashu(nx, nz, psalt);
+            if (q > p || (q == p && (nz < cz || (nz == cz && nx < cx)))) return false;  // neighbor wins
+        }
+
+    // Density thinning of the spacing-separated winners.
+    if (h01(jx, jz, seed ^ (0xC3u ^ fsalt)) >= biome.faunaDensity) return false;
+
+    // Weighted animal pick.
+    int total = 0;
+    for (const auto& f : biome.fauna) total += f.second;
+    int pick = static_cast<int>(h01(jx, jz, seed ^ (0xD4u ^ fsalt)) * total);
+    const std::string* chosen = &biome.fauna.front().first;
+    for (const auto& f : biome.fauna) { pick -= f.second; if (pick < 0) { chosen = &f.first; break; } }
+
+    out = FaunaPlacement{*chosen, jx, col.surfaceY, jz};
+    return true;
+}
+
+std::vector<WorldGenerator::FaunaPlacement>
+WorldGenerator::planFauna(int colMinX, int colMinZ, int colMaxX, int colMaxZ, int edgeInset) {
+    std::vector<FaunaPlacement> out;
+    if (m_biomes.empty() || !isHeightBased()) return out;
+
+    const int x0 = colMinX + edgeInset, x1 = colMaxX - edgeInset;
+    const int z0 = colMinZ + edgeInset, z1 = colMaxZ - edgeInset;
+    if (x1 < x0 || z1 < z0) return out;
+
+    auto floordiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
+    for (int cz = floordiv(z0, kFloraGrid); cz <= floordiv(z1, kFloraGrid); ++cz) {
+        for (int cx = floordiv(x0, kFloraGrid); cx <= floordiv(x1, kFloraGrid); ++cx) {
+            FaunaPlacement p;
+            if (faunaCell(cx, cz, p) && p.worldX >= x0 && p.worldX <= x1 &&
+                p.worldZ >= z0 && p.worldZ <= z1)
+                out.push_back(std::move(p));
+        }
+    }
+    LOG_DEBUG_FMT("WorldGenerator", "planFauna: " << out.size() << " herds over ["
+                  << x0 << ".." << x1 << "]x[" << z0 << ".." << z1 << "]");
+    return out;
+}
+
 void WorldGenerator::initDefaultBiomes() {
     // Positional aggregate init — field order MUST match the Biome struct:
     // name, surface, subsurface, deep, tempMin, tempMax, moistMin, moistMax, contMin, contMax,
@@ -958,6 +1038,20 @@ bool WorldGenerator::loadBiomes(const std::string& path) {
                         if (!tmpl.empty() && weight > 0) L.items.emplace_back(std::move(tmpl), weight);
                     }
                 if (!L.items.empty()) biome.extraFloraLayers.push_back(std::move(L));
+            }
+        }
+        // Optional fauna pool: wandering animals scattered by the runtime FaunaSpawner. Mirrors
+        // the flora block but sparser; "items" carry an animFile instead of a template.
+        if (b.contains("fauna") && b["fauna"].is_object()) {
+            const auto& fa = b["fauna"];
+            biome.faunaDensity = fa.value("density", 0.0f);
+            biome.faunaSpacing = fa.value("spacing", 48);
+            if (fa.contains("items") && fa["items"].is_array()) {
+                for (const auto& it : fa["items"]) {
+                    std::string anim = it.value("animFile", "");
+                    int weight = it.value("weight", 1);
+                    if (!anim.empty() && weight > 0) biome.fauna.emplace_back(std::move(anim), weight);
+                }
             }
         }
         loaded.push_back(std::move(biome));
