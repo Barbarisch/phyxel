@@ -4986,17 +4986,43 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
                 // and the spawn was refused. Step by SUBCUBE so we stop at the first clear
                 // height rather than overshooting. 512 covers this engine's tallest terrain
                 // (terrain-v2 peaks ~384 above sea level, CLAUDE.md).
+                // The climb only needs the FIRST height at which the body is clear, so it
+                // does a cheap per-step BODY test -- NOT a full resolveSpawn, whose lateral
+                // ring search is meaningless while ascending a column. The naive version
+                // (resolveSpawn per step) cost ~1536 x a 9-height x 12-ring search and was
+                // MEASURED by the solution-auditor stalling the main loop 27 SECONDS on a
+                // genuinely unresolvable spawn (deep inside an 11x11x700 column) -- the exact
+                // case this branch exists for. Now it is ~2 AABB tests per step, bounded.
+                auto solidFn = [vw](const glm::vec3& lo, const glm::vec3& hi) {
+                    return vw->anyStaticSolidInAABB(lo, hi);
+                };
                 bool escalated = false;
                 Core::SpawnResult sr2 = sr;
                 const float kStep = 1.0f / 3.0f;
-                for (int i = 1; i <= 512 * 3 && !escalated; ++i) {
+                const int kMaxSteps = 512 * 3;      // 512 m: covers terrain-v2's ~384-voxel peaks
+                glm::vec3 firstClear(0.0f);
+                bool haveClear = false;
+                for (int i = 1; i <= kMaxSteps; ++i) {
                     const glm::vec3 up(pos.x, pos.y + i * kStep, pos.z);
-                    sr2 = Core::resolveSpawn(
-                        [vw](const glm::vec3& lo, const glm::vec3& hi) {
-                            return vw->anyStaticSolidInAABB(lo, hi);
-                        },
-                        up);
-                    if (sr2.ok()) { escalated = true; }
+                    if (Core::spawnIsEmbedded(solidFn, up)) continue;
+                    if (!haveClear) { haveClear = true; firstClear = up; }
+                    // Prefer the first clear height that is also STANDING on something;
+                    // otherwise fall back to the first clear height (the agent falls).
+                    if (Core::spawnIsSupported(solidFn, up)) {
+                        sr2.outcome = Core::SpawnOutcome::Relocated;
+                        sr2.position = up;
+                        sr2.movedDistance = glm::length(up - pos);
+                        sr2.reason = "lifted out of the solid column onto clear standing ground";
+                        escalated = true;
+                        break;
+                    }
+                }
+                if (!escalated && haveClear) {
+                    sr2.outcome = Core::SpawnOutcome::Relocated;
+                    sr2.position = firstClear;
+                    sr2.movedDistance = glm::length(firstClear - pos);
+                    sr2.reason = "lifted out of the solid column into clear but unsupported air";
+                    escalated = true;
                 }
                 if (escalated) {
                     LOG_WARN("Application", "character spawn was encased; lifted out of the "
