@@ -1,6 +1,7 @@
 #include "core/WaterSimulation.h"
 #include <algorithm>
 #include <climits>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -14,7 +15,14 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_channel(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0),
       m_colDirty(static_cast<size_t>(sizeX) * sizeZ, 1),   // all dirty: first sweep is full
       m_colProcess(static_cast<size_t>(sizeX) * sizeZ, 0),
-      m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0) {}
+      m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0),
+      m_flow(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
+      m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)) {}
+
+glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return glm::vec2(0.0f);
+    return m_flow[idx(x, y, z)];
+}
 
 void WaterSimulation::markAllCols() {
     std::fill(m_colDirty.begin(), m_colDirty.end(), 1);
@@ -262,10 +270,27 @@ void WaterSimulation::step(float flowSide) {
     // Snapshot the write set: all flow reads m_mass (this frame's snapshot) and accumulates into
     // m_next, so transfers are order-independent and mass-conserving. Only W columns can be written,
     // so only they need the snapshot (and the write-back below) — not the whole box.
+    // The flow accumulator is cleared over the same set (it is filled by the same transfers).
     for (int cz = 0; cz < m_sz; ++cz)
     for (int cx = 0; cx < m_sx; ++cx) {
         if (!m_colWrite[colIdx(cx, cz)]) continue;
-        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_next[i] = m_mass[i]; }
+        for (int y = 0; y < m_sy; ++y) {
+            const size_t i = idx(cx, y, cz);
+            const float m = m_mass[i];
+            m_next[i] = m;
+            // PERF: only WET cells touch the flow arrays. The write set spans each column's FULL
+            // height, and the box is overwhelmingly air, so unconditionally streaming two extra
+            // 8-byte-per-cell arrays through cache dominated the cost (Release: 160 -> 269 us/step
+            // before this gate). The `accum != 0` term still clears a cell that received flow last
+            // step but has since drained, so no stale accumulation can survive into a later sweep.
+#if PHYXEL_WATER_FLOW_ENABLED
+            if (m > 0.0f) {
+                m_flowAccum[i] = glm::vec2(0.0f);
+            } else if (m_flowAccum[i].x != 0.0f || m_flowAccum[i].y != 0.0f) {
+                m_flowAccum[i] = glm::vec2(0.0f);
+            }
+#endif
+        }
     }
 
     static const int HX[4] = {1, -1, 0, 0};
@@ -315,6 +340,14 @@ void WaterSimulation::step(float flowSide) {
             if (flow > MIN_FLOW) {
                 m_next[c] -= flow; m_next[n] += flow; remaining -= flow; changed = true;
                 markCol(x, z); markCol(nx, nz);
+                // FLOW PROXY (Phase 3): this transfer moved `flow` mass in direction k. Credit BOTH
+                // endpoints — the donor is losing water that way and the receiver is gaining it from
+                // that way, so both read as "water is heading in direction k" for shading purposes.
+#if PHYXEL_WATER_FLOW_ENABLED
+                const glm::vec2 d(static_cast<float>(HX[k]), static_cast<float>(HZ[k]));
+                m_flowAccum[c] += d * flow;
+                m_flowAccum[n] += d * flow;
+#endif
             }
         }
 
@@ -335,11 +368,30 @@ void WaterSimulation::step(float flowSide) {
     }
 
     // Write back the W columns (the only ones m_next was synced for — a full buffer swap would
-    // publish stale data everywhere else).
+    // publish stale data everywhere else). The flow proxy is EMA-folded over the same set, so a
+    // cell that stopped moving decays toward zero instead of latching its last direction.
     for (int cz = 0; cz < m_sz; ++cz)
     for (int cx = 0; cx < m_sx; ++cx) {
         if (!m_colWrite[colIdx(cx, cz)]) continue;
-        for (int y = 0; y < m_sy; ++y) { const size_t i = idx(cx, y, cz); m_mass[i] = m_next[i]; }
+        for (int y = 0; y < m_sy; ++y) {
+            const size_t i = idx(cx, y, cz);
+            const float m = m_next[i];
+            m_mass[i] = m;
+            // PERF: same gate as the clear — dry cells never touch the flow arrays. A cell that
+            // drained to nothing keeps whatever flow it last had, which is invisible: rendering
+            // only reads cells above RENDER_MIN, and if water returns the EMA re-converges in a
+            // few steps.
+#if !PHYXEL_WATER_FLOW_ENABLED
+            continue;
+#endif
+            if (m <= 0.0f) continue;
+            glm::vec2 f = m_flow[i];
+            f += (m_flowAccum[i] - f) * FLOW_EMA;
+            // Snap the geometric tail to exactly zero so a cell that stopped flowing settles at a
+            // clean zero instead of decaying through denormals forever.
+            if (std::fabs(f.x) < 1e-5f && std::fabs(f.y) < 1e-5f) f = glm::vec2(0.0f);
+            m_flow[i] = f;
+        }
     }
 
     // Evaporation sink: thin cells (the frontier of a spreading flow, films) lose a
@@ -374,6 +426,7 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
     std::vector<uint8_t> ns(m_solid.size(), 0);
     std::vector<float>   nsrc(m_source.size(), -1.0f);   // -1 = not a source
     std::vector<uint8_t> nch(m_channel.size(), 0);
+    std::vector<glm::vec2> nfl(m_flow.size(), glm::vec2(0.0f));
     for (int z = 0; z < m_sz; ++z)
     for (int y = 0; y < m_sy; ++y)
     for (int x = 0; x < m_sx; ++x) {
@@ -381,8 +434,10 @@ void WaterSimulation::shift(const glm::ivec3& delta) {
         if (!inBounds(sx, sy, sz)) continue;   // exposed frontier keeps the defaults above
         const size_t d = idx(x, y, z), s = idx(sx, sy, sz);
         nm[d] = m_mass[s]; ns[d] = m_solid[s]; nsrc[d] = m_source[s]; nch[d] = m_channel[s];
+        nfl[d] = m_flow[s];   // the flow proxy travels with its water across a recenter
     }
     m_mass.swap(nm); m_solid.swap(ns); m_source.swap(nsrc); m_channel.swap(nch);
+    m_flow.swap(nfl);
     m_hasSources = false;
     for (float v : m_source) if (v >= 0.0f) { m_hasSources = true; break; }
     markAllCols();   // the field was relocated → re-settle from the new configuration

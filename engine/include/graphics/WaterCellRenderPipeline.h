@@ -25,17 +25,30 @@ public:
     WaterCellRenderPipeline();
     ~WaterCellRenderPipeline();
 
+    // `uboLayout` is the shared scene descriptor-set layout (VulkanDevice::getDescriptorSetLayout),
+    // bound at SET 0 — water reads sun direction/colour, ambient and the view/projection matrices
+    // from it, so it tracks the day/night cycle and can linearize the depth buffer
+    // (WaterSystemV3 Phase 1). SET 1 is this pipeline's own scene taps (refraction + depth).
     void initialize(VkDevice device, VkPhysicalDevice physicalDevice,
-                    VkRenderPass renderPass, VkExtent2D swapChainExtent);
+                    VkRenderPass renderPass, VkExtent2D swapChainExtent,
+                    VkDescriptorSetLayout uboLayout);
     void cleanup();
 
-    void render(VkCommandBuffer commandBuffer, const Camera& camera,
-                const glm::mat4& projectionMatrix, const std::vector<Core::WaterSurfaceCell>& cells);
+    // Point set 1 at the post-scene taps: the half-res scene-colour copy (refraction) and the
+    // scene depth buffer (water thickness → absorption + soft shorelines). Call after initialize()
+    // and again after every swapchain resize (both images are recreated). Not mid-frame.
+    void setSceneTextures(VkImageView refractionView, VkSampler refractionSampler,
+                          VkImageView sceneDepthView, VkSampler sceneDepthSampler);
+
+    void render(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera,
+                const glm::mat4& projectionMatrix, const std::vector<Core::WaterSurfaceCell>& cells,
+                VkExtent2D screenExtent);
 
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
-    void createDescriptorSetLayout();
+    void createDescriptorSetLayout(VkDescriptorSetLayout uboLayout);
+    void createDescriptorPool();
     void createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
     void createBuffers();
 
@@ -44,7 +57,10 @@ private:
 
     VkPipelineLayout      m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline            m_pipeline = VK_NULL_HANDLE;
-    VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE; // set 1 (scene taps)
+    VkDescriptorPool      m_descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet       m_descriptorSet = VK_NULL_HANDLE;
+    bool                  m_texturesBound = false; // no draw until set 1 has real images
 
     VkBuffer       m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;

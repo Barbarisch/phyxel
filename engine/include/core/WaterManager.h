@@ -21,6 +21,10 @@ struct WaterSurfaceCell {
     glm::vec4 centerDepth; // xyz = cell-center surface point (y = cellY+fill), w = column depth (cells)
     glm::vec4 corners;     // per-quad-corner world Y: (-x,-z), (+x,-z), (+x,+z), (-x,+z)
     glm::vec4 skirt;       // per-edge side-face bottom world Y: (+x), (-x), (+z), (-z)
+    // WaterSystemV3 Phase 3 — flow shading. xy = horizontal flow direction (normalized, 0 if
+    // still), z = flow strength 0..1 (how hard it's moving), w = foam 0..1. The shader advects the
+    // ripple normals along xy at rate z, so a river reads as moving and a lake stays calm.
+    glm::vec4 flow;
 };
 
 // Runs the CPU water cellular automaton (WaterSimulation) over a fixed axis-aligned
@@ -110,6 +114,17 @@ public:
     // solidity sync re-triggers the rebuild once the bed exists.
     void setRiverQuery(std::function<float(float worldX, float worldZ)> depthAt);
     bool hasRiverQuery() const { return static_cast<bool>(m_riverFn); }
+
+    // KINEMATIC river flow direction (WaterSystemV3 Phase 3). A baked river is pinned full along
+    // its whole carve, so it performs NO transfers and the CA's flow proxy reads zero — a river
+    // would shade like a long thin lake. Bind the bake's downhill direction
+    // (FlowField::flowDirAt) and rebuildSurface stamps it onto river surface cells instead.
+    //
+    // STATE THIS PLAINLY: that is a VISUAL flow over a hydrostatically static field. The water is
+    // not advecting; it is being shaded as though it were. Real advection needs CA momentum
+    // (docs/WaterSystemV3.md Phase 4). Bind nullptr to disable.
+    void setRiverFlowQuery(std::function<glm::vec2(float worldX, float worldZ)> dirAt);
+    bool hasRiverFlowQuery() const { return static_cast<bool>(m_riverDirFn); }
 
     // --- L3 bake-vs-terrain validation (docs/WaterSystemV2.md Phase C) ---
     // The bake decides WHERE water sits (per-column levels); the carved terrain decides whether it
@@ -211,6 +226,7 @@ private:
                                                      // match the sea-plane renderer or they drift
     std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
     std::function<float(float, float)> m_riverFn;    // river carve depth (Phase C2); null = none
+    std::function<glm::vec2(float, float)> m_riverDirFn; // baked downhill dir (V3 P3); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds

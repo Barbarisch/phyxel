@@ -79,6 +79,33 @@ public:
     float totalMass() const;
     float minMass() const; // for invariant checks (should never go negative)
 
+    // ── FLOW PROXY (WaterSystemV3 Phase 3) ────────────────────────────────────────────────────
+    // Per-cell horizontal flow, derived for FREE from the transfers step() already computes: every
+    // horizontal transfer of `f` mass in direction d contributes f*d to BOTH endpoints, and the
+    // result is EMA-smoothed across steps so the renderer gets a stable direction instead of
+    // per-tick jitter.
+    //
+    // HONEST NAMING: this is NOT a velocity in m/s. The CA has no momentum — it is a diffusion
+    // rule — so this is "net mass moved per step, and which way", a FLOW PROXY. It is the right
+    // input for shading (which way is the water going, and how hard) and the wrong input for
+    // physics. Units: mass-fraction per step; a vigorous channel runs ~0.1-0.3.
+    //
+    // Vertical flow is deliberately NOT tracked: falling water is already identified by
+    // WaterManager's waterfall-lip detection, and skipping it keeps this to 8 bytes/cell.
+    glm::vec2 flowAt(int x, int y, int z) const;
+    // Smoothing factor per step: how fast the reported flow follows the instantaneous transfers.
+    // ⚑GROUND: 0.25 gives a ~4-step (0.2 s at 20 Hz) response — fast enough that opening a dam
+    // reads as immediate, slow enough that the CA's per-tick lumpiness doesn't strobe the shading.
+    static constexpr float FLOW_EMA = 0.25f;
+
+// Compile-time A/B switch for the flow proxy's own cost — set to 0 to compile the flow work out
+// entirely (the field then reads zero everywhere and the FlowProxy* tests fail by design).
+// MEASURED with this switch (Release, `--gtest_filter=Water*`, 64x32x64 worst-case active sweep,
+// 3 runs each): OFF ~175 us/step, ON ~222 us/step => the proxy costs about +27% of the ACTIVE
+// step. It costs nothing when the field is settled (0.002 us/step either way), which is the
+// common case in a live world. Kept as a switch so the next perf pass can re-measure cheaply.
+#define PHYXEL_WATER_FLOW_ENABLED 1
+
     // Raw data access for the GPU backend (upload masks / read back mass). The mass
     // vector is mutable so the GPU stepper can write the readback into it.
     std::vector<float>&         mass()              { return m_mass; }
@@ -166,6 +193,8 @@ private:
     std::vector<uint8_t> m_colDirty;   // per-column (x,z): mass changed since the last sweep
     std::vector<uint8_t> m_colProcess; // scratch: sweep set P = dirty ∪ N4(dirty)
     std::vector<uint8_t> m_colWrite;   // scratch: snapshot/write-back set W = P ∪ N4(P)
+    std::vector<glm::vec2> m_flow;      // per-cell EMA-smoothed horizontal flow proxy (see flowAt)
+    std::vector<glm::vec2> m_flowAccum; // scratch: this sweep's raw net transfer per cell
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;

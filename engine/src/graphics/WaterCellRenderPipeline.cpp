@@ -35,9 +35,13 @@ static const std::array<glm::vec4, 30> BOX_VERTICES = {
     glm::vec4( 0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 2, 3),
 };
 
+// 96 bytes — under the 128-byte guaranteed minimum. Must match the block declared in BOTH
+// water_cell.vert and water_cell.frag. Sun/ambient are NOT here: they come from the shared scene
+// UBO at set 0 (WaterSystemV3 Phase 1), which also keeps this under the push-constant limit.
 struct WaterCellPush {
     glm::mat4 viewProj;   // 64
     glm::vec4 camPosTime; // 16
+    glm::vec4 screen;     // 16  (screen width, height, 0, 0) — screen-space refraction/depth taps
 };
 
 static std::vector<char> readFile(const std::string& filename) {
@@ -71,17 +75,41 @@ void WaterCellRenderPipeline::cleanup() {
         vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
         vkDestroyPipeline(m_device, m_pipeline, nullptr);
         vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     }
 }
 
 void WaterCellRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,
-                                         VkRenderPass renderPass, VkExtent2D swapChainExtent) {
+                                         VkRenderPass renderPass, VkExtent2D swapChainExtent,
+                                         VkDescriptorSetLayout uboLayout) {
     m_device = device;
     m_physicalDevice = physicalDevice;
     createBuffers();
-    createDescriptorSetLayout();
+    createDescriptorSetLayout(uboLayout);
+    createDescriptorPool();
     createPipeline(renderPass, swapChainExtent);
+}
+
+void WaterCellRenderPipeline::setSceneTextures(VkImageView refractionView, VkSampler refractionSampler,
+                                               VkImageView sceneDepthView, VkSampler sceneDepthSampler) {
+    if (m_descriptorSet == VK_NULL_HANDLE) return;
+    if (refractionView == VK_NULL_HANDLE || sceneDepthView == VK_NULL_HANDLE) return;
+
+    VkDescriptorImageInfo refr{ refractionSampler, refractionView,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    // The depth image is bound as a READ-ONLY depth attachment in the water pass, so this is the
+    // layout it is in while we sample it.
+    VkDescriptorImageInfo dep{ sceneDepthSampler, sceneDepthView,
+                               VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+
+    std::array<VkWriteDescriptorSet, 2> w{};
+    w[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    w[0].dstSet = m_descriptorSet; w[0].dstBinding = 0; w[0].descriptorCount = 1;
+    w[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; w[0].pImageInfo = &refr;
+    w[1] = w[0]; w[1].dstBinding = 1; w[1].pImageInfo = &dep;
+    vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(w.size()), w.data(), 0, nullptr);
+    m_texturesBound = true;
 }
 
 void WaterCellRenderPipeline::createBuffers() {
@@ -124,26 +152,57 @@ void WaterCellRenderPipeline::createBuffers() {
     vkBindBufferMemory(m_device, m_instanceBuffer, m_instanceBufferMemory, 0);
 }
 
-void WaterCellRenderPipeline::createDescriptorSetLayout() {
+void WaterCellRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLayout) {
     VkPushConstantRange pc{};
     pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pc.offset = 0;
     pc.size = sizeof(WaterCellPush);
 
+    // Set 1: the post-scene taps. 0 = half-res scene colour (refraction), 1 = scene depth
+    // (thickness → absorption + soft shoreline). See docs/WaterSystemV3.md Phase 1.
+    std::array<VkDescriptorSetLayoutBinding, 2> binds{};
+    binds[0].binding = 0;
+    binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    binds[0].descriptorCount = 1;
+    binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    binds[1] = binds[0]; binds[1].binding = 1;
+
     VkDescriptorSetLayoutCreateInfo li{};
     li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    li.bindingCount = 0;
+    li.bindingCount = static_cast<uint32_t>(binds.size());
+    li.pBindings = binds.data();
     if (vkCreateDescriptorSetLayout(m_device, &li, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create water-cell descriptor set layout!");
 
+    // Set 0 = the shared scene UBO (sun/ambient/view/proj), set 1 = ours.
+    std::array<VkDescriptorSetLayout, 2> sets = { uboLayout, m_descriptorSetLayout };
     VkPipelineLayoutCreateInfo pli{};
     pli.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pli.setLayoutCount = 1;
-    pli.pSetLayouts = &m_descriptorSetLayout;
+    pli.setLayoutCount = static_cast<uint32_t>(sets.size());
+    pli.pSetLayouts = sets.data();
     pli.pushConstantRangeCount = 1;
     pli.pPushConstantRanges = &pc;
     if (vkCreatePipelineLayout(m_device, &pli, nullptr, &m_pipelineLayout) != VK_SUCCESS)
         throw std::runtime_error("failed to create water-cell pipeline layout!");
+}
+
+void WaterCellRenderPipeline::createDescriptorPool() {
+    VkDescriptorPoolSize size{};
+    size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    size.descriptorCount = 2;
+
+    VkDescriptorPoolCreateInfo pi{};
+    pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pi.poolSizeCount = 1; pi.pPoolSizes = &size; pi.maxSets = 1;
+    if (vkCreateDescriptorPool(m_device, &pi, nullptr, &m_descriptorPool) != VK_SUCCESS)
+        throw std::runtime_error("failed to create water-cell descriptor pool!");
+
+    VkDescriptorSetAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    ai.descriptorPool = m_descriptorPool;
+    ai.descriptorSetCount = 1; ai.pSetLayouts = &m_descriptorSetLayout;
+    if (vkAllocateDescriptorSets(m_device, &ai, &m_descriptorSet) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate water-cell descriptor set!");
 }
 
 void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent) {
@@ -171,17 +230,18 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
     binds[0].binding = 0; binds[0].stride = sizeof(glm::vec4); binds[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     binds[1].binding = 1; binds[1].stride = sizeof(Core::WaterSurfaceCell); binds[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-    VkVertexInputAttributeDescription attrs[4];
+    VkVertexInputAttributeDescription attrs[5];
     attrs[0] = {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0};                                          // mesh vert (offX,offZ,vtype,edge)
     attrs[1] = {1, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, centerDepth)};
     attrs[2] = {2, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, corners)};
     attrs[3] = {3, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, skirt)};
+    attrs[4] = {4, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Core::WaterSurfaceCell, flow)};     // Phase 3
 
     VkPipelineVertexInputStateCreateInfo vi{};
     vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vi.vertexBindingDescriptionCount = 2;
     vi.pVertexBindingDescriptions = binds;
-    vi.vertexAttributeDescriptionCount = 4;
+    vi.vertexAttributeDescriptionCount = 5;
     vi.pVertexAttributeDescriptions = attrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia{};
@@ -237,9 +297,14 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
     vkDestroyShaderModule(m_device, fs, nullptr);
 }
 
-void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera& camera,
-                                     const glm::mat4& projectionMatrix, const std::vector<Core::WaterSurfaceCell>& cells) {
+void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
+                                     const Camera& camera, const glm::mat4& projectionMatrix,
+                                     const std::vector<Core::WaterSurfaceCell>& cells,
+                                     VkExtent2D screenExtent) {
     if (cells.empty()) return;
+    // The fragment shader unconditionally samples set 1; drawing before setSceneTextures() has
+    // pointed it at real images would read undefined descriptors.
+    if (!m_texturesBound || uboSet == VK_NULL_HANDLE) return;
     uint32_t count = static_cast<uint32_t>(std::min(cells.size(), MAX_INSTANCES));
 
     const VkDeviceSize bytes = sizeof(Core::WaterSurfaceCell) * count;
@@ -249,14 +314,23 @@ void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, const Camera
     vkUnmapMemory(m_device, m_instanceBufferMemory);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    VkDescriptorSet sets[] = { uboSet, m_descriptorSet };
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
+                            0, 2, sets, 0, nullptr);
     VkBuffer buffers[] = {m_vertexBuffer, m_instanceBuffer};
     VkDeviceSize offsets[] = {0, 0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 2, buffers, offsets);
 
     WaterCellPush pc{};
+    // NOTE: water is authored in ABSOLUTE world space (the instance data carries world cell
+    // positions), so it builds its own viewProj from the camera rather than using ubo.viewProj,
+    // which is the camera-RELATIVE one (see docs/CameraRelativeRendering.md). Only the UBO's
+    // sun/ambient and its view/proj (rotation + projection, both convention-independent) are used.
     pc.viewProj = projectionMatrix * camera.getViewMatrix();
     float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
+    pc.screen = glm::vec4(static_cast<float>(screenExtent.width),
+                          static_cast<float>(screenExtent.height), 0.0f, 0.0f);
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(WaterCellPush), &pc);

@@ -1,70 +1,62 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 //
-// water_cell.frag — per-cell water surface shading.
+// water_cell.frag — per-cell water surface shading (the CPU sim's actual field).
 //
-// Stylized procedural look (matches water.frag): blue body, sky-gradient + reflected-sun
-// Fresnel, animated ripple normals. Adds DEPTH cues from the column depth: deep water is
-// darker/more opaque, thin shorelines fade to translucent — so the field reads as a solid
-// body with volume rather than flat tiles. No reflection texture / refraction yet.
+// WaterSystemV3 Phase 1: all the shading lives in water_common.glsl, shared with the flat sea
+// plane, so the two renderers cannot drift apart. This shader's only job is to supply the
+// per-cell inputs — notably the sim's own column depth, which is a better thickness floor than
+// the depth buffer for a thin film or a vertical waterfall curtain seen edge-on.
 //
 layout(location = 0) in vec3  fragWorldPos;
-layout(location = 1) in float fragDepth; // water column depth in cells
-layout(location = 2) in float fragSide;  // 0 = top face, 1 = vertical side face
+layout(location = 1) in float fragColumnDepth; // water column depth in cells (from the sim)
+layout(location = 2) in float fragSide;        // 0 = top face, 1 = vertical side face
+layout(location = 3) in vec4  fragFlow;        // xy = flow dir, z = strength, w = foam (Phase 3)
 layout(location = 0) out vec4 outColor;
+
+// Shared scene UBO — declared as a std140 PREFIX (only the fields we use, in order).
+layout(set = 0, binding = 0) uniform UniformBufferObject {
+    mat4 view;
+    mat4 proj;
+    mat4 lightSpaceMatrix;
+    vec3 sunDirection;
+    vec3 sunColor;
+    uint numInstances;
+    float ambientLight;
+    float emissiveMultiplier;
+    vec3 cameraPosition;
+} ubo;
+
+layout(set = 1, binding = 0) uniform sampler2D refractionTex;
+layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
+    vec4 screen;     // xy = screen size (px), zw unused
 } pc;
 
-vec3 waterNormal(vec2 p, float t) {
-    vec2 d1 = normalize(vec2( 1.0, 0.4));
-    vec2 d2 = normalize(vec2(-0.6, 1.0));
-    float a1 = 0.06, a2 = 0.04, f1 = 0.35, f2 = 0.6, s1 = 0.9, s2 = 1.3;
-    float phase1 = dot(p, d1) * f1 + t * s1;
-    float phase2 = dot(p, d2) * f2 + t * s2;
-    float dx = a1 * f1 * d1.x * cos(phase1) + a2 * f2 * d2.x * cos(phase2);
-    float dz = a1 * f1 * d1.y * cos(phase1) + a2 * f2 * d2.y * cos(phase2);
-    return normalize(vec3(-dx, 1.0, -dz));
-}
+#include "water_common.glsl"
 
 void main() {
-    vec3  camPos = pc.camPosTime.xyz;
-    float t      = pc.camPosTime.w;
+    WaterSurfaceInput inp;
+    inp.worldPos     = fragWorldPos;
+    inp.camPos       = pc.camPosTime.xyz;
+    inp.time         = pc.camPosTime.w;
+    inp.screenSize   = pc.screen.xy;
+    inp.fragDepthNdc = gl_FragCoord.z;
+    inp.fragCoord    = gl_FragCoord.xy;
+    inp.sideFace     = fragSide;
+    // The sim knows exactly how deep this column is; the depth buffer only knows what is behind
+    // the surface along the view ray. Take whichever reads as more water.
+    inp.minThickness = fragColumnDepth;
+    // Flow shading (Phase 3): the sim's flow proxy, carried per instance.
+    inp.flowDir      = fragFlow.xy;
+    inp.flowStrength = fragFlow.z;
+    inp.foam         = fragFlow.w;
+    // Per-cell water has no Gerstner swell — its macro shape is the sloped quad the vertex shader
+    // already built from the sim's per-corner heights, so the shading normal starts flat.
+    inp.baseNormal   = vec3(0.0, 1.0, 0.0);
 
-    vec3 N = waterNormal(fragWorldPos.xz, t);
-    vec3 V = normalize(camPos - fragWorldPos);
-
-    float ndv  = clamp(dot(V, N), 0.0, 1.0);
-    float fres = clamp(0.04 + 0.96 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
-
-    // Depth term: 0 at a one-cell film, ~1 by a few cells deep.
-    float depthT = clamp(fragDepth / 5.0, 0.0, 1.0);
-
-    vec3 deepColor    = vec3(0.02, 0.10, 0.18);
-    vec3 shallowColor = vec3(0.12, 0.40, 0.50);
-    // Shade by depth first (volume), then let grazing-angle Fresnel deepen it further.
-    vec3 baseColor    = mix(shallowColor, deepColor, max(depthT, ndv * 0.6));
-
-    vec3 sunDir = normalize(vec3(0.4, 0.85, 0.35));
-    vec3 R = reflect(-V, N);
-    vec3 horizonCol = vec3(0.72, 0.82, 0.95);
-    vec3 zenithCol  = vec3(0.24, 0.46, 0.80);
-    vec3 sky = mix(horizonCol, zenithCol, pow(clamp(R.y, 0.0, 1.0), 0.6));
-    float sunDisc = pow(max(dot(R, sunDir), 0.0), 900.0);
-    float sunGlow = pow(max(dot(R, sunDir), 0.0), 40.0);
-    vec3  sunCol  = vec3(1.0, 0.96, 0.86);
-    vec3 reflColor = sky + sunCol * (sunDisc * 2.0 + sunGlow * 0.12);
-
-    vec3 color = mix(baseColor, reflColor, fres);
-    color += sunCol * sunDisc * 0.5;
-
-    // Vertical side walls: drop the reflection/sheen and darken a touch so the body's
-    // sides read as submerged water rather than another mirror-bright top.
-    color = mix(color, baseColor * 0.8, fragSide);
-
-    // Thin shorelines read as translucent; deep water is near-opaque. Fresnel adds a
-    // touch of edge sheen on top. Side walls stay a bit more opaque to seal the volume.
-    float alpha = clamp(0.30 + 0.55 * depthT + 0.20 * fres + 0.25 * fragSide, 0.0, 0.97);
-    outColor = vec4(color, alpha);
+    outColor = shadeWaterSurface(inp);
 }

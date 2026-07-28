@@ -217,4 +217,22 @@ int FlowField::accumAt(float worldX, float worldZ) const {
     return m_accum[static_cast<size_t>(j) * m_cellsX + i];
 }
 
+glm::vec2 FlowField::flowDirAt(float worldX, float worldZ) const {
+    if (m_cellsX <= 0 || m_cellsZ <= 0) return glm::vec2(0.0f);
+    int i = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
+    int j = static_cast<int>(std::floor((worldZ - m_originZ) / m_cellSize));
+    if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) return glm::vec2(0.0f);
+    const size_t c = static_cast<size_t>(j) * m_cellsX + i;
+    if (c >= m_downstream.size()) return glm::vec2(0.0f);
+    const int d = m_downstream[c];
+    if (d < 0 || d == static_cast<int>(c)) return glm::vec2(0.0f);   // sink: water stops here
+    // Cell index -> cell coords -> the offset toward the drainage target. Neighbours are adjacent
+    // (steepest descent over the 8-neighbourhood), so this is a unit or diagonal step.
+    const int di = (d % m_cellsX) - i;
+    const int dj = (d / m_cellsX) - j;
+    if (di == 0 && dj == 0) return glm::vec2(0.0f);
+    const glm::vec2 v(static_cast<float>(di), static_cast<float>(dj));
+    return v / std::sqrt(v.x * v.x + v.y * v.y);
+}
+
 }  // namespace Phyxel

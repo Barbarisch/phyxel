@@ -599,3 +599,93 @@ TEST(WaterSimulation, DoesNotLeakIntoSolids) {
             EXPECT_FLOAT_EQ(sim.massAt(x, 0, z), 0.0f); // floor stays dry
     EXPECT_NEAR(sim.totalMass(), 1.0f, 1e-3f);          // nothing lost into solids
 }
+
+// ── FLOW PROXY (WaterSystemV3 Phase 3) ────────────────────────────────────────────────────────
+// The renderer needs to know WHICH WAY water is moving and how hard, so ripples can advect with the
+// current instead of animating identically on a still pond and in a rapid. Rather than adding a
+// momentum term to the CA, the flow proxy is derived from the transfers step() ALREADY performs.
+// These tests pin the properties the shading depends on: it points the right way, it is ~zero on
+// still water, it decays once flow stops, and it survives a region recenter.
+
+// A one-way channel: water released at one end must report flow pointing DOWN the channel.
+TEST(WaterSimulation, FlowProxyPointsDownAChannel) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    // Walls along z=0 and z=2 leave a 1-wide channel at z=1, so flow can only run along +/-x.
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);  // closed at the -x end, so water can only travel +x
+    sim.setSolid(0, 2, 1, true);
+
+    // Hold the head of the channel full: a sustained source drives a sustained current.
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+
+    const glm::vec2 mid = sim.flowAt(5, 1, 1);
+    EXPECT_GT(mid.x, 0.0f) << "flow should run +x, away from the source";
+    EXPECT_NEAR(mid.y, 0.0f, 1e-4f) << "walls forbid any z component";
+    // And it should point the SAME way further downstream, not oscillate.
+    EXPECT_GT(sim.flowAt(7, 1, 1).x, 0.0f);
+}
+
+// Still water reports no flow — otherwise a calm lake would shimmer as if it were a river.
+TEST(WaterSimulation, FlowProxyIsZeroOnSettledWater) {
+    WaterSimulation sim(6, 5, 6);
+    addFloor(sim);
+    for (int z = 1; z < 5; ++z)
+        for (int x = 1; x < 5; ++x) sim.addWater(x, 1, z, 1.0f);
+    for (int i = 0; i < 200; ++i) sim.step();
+    ASSERT_TRUE(sim.settled()) << "precondition: the basin must actually come to rest";
+
+    for (int z = 1; z < 5; ++z)
+        for (int x = 1; x < 5; ++x) {
+            const glm::vec2 f = sim.flowAt(x, 1, z);
+            EXPECT_LT(std::sqrt(f.x * f.x + f.y * f.y), 1e-3f)
+                << "settled cell (" << x << ",1," << z << ") still reports flow";
+        }
+}
+
+// Once the driving source is removed and the water levels out, the reported flow must FADE rather
+// than latch — the EMA is what guarantees this.
+TEST(WaterSimulation, FlowProxyDecaysAfterFlowStops) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);
+    sim.setSolid(0, 2, 1, true);
+
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+    const glm::vec2 f0 = sim.flowAt(5, 1, 1);
+    const float moving = std::sqrt(f0.x * f0.x + f0.y * f0.y);
+    ASSERT_GT(moving, 1e-3f) << "precondition: the channel must actually be flowing";
+
+    sim.clearSource(1, 1, 1);
+    for (int i = 0; i < 400; ++i) sim.step();   // let it level out and go quiet
+
+    const glm::vec2 f1 = sim.flowAt(5, 1, 1);
+    const float after = std::sqrt(f1.x * f1.x + f1.y * f1.y);
+    EXPECT_LT(after, moving * 0.1f) << "flow latched instead of decaying (moving=" << moving
+                                    << " after=" << after << ")";
+}
+
+// The proxy must ride along with its water when the region recenters, or a river's shading would
+// scramble every time the player walks far enough to move the sim window.
+TEST(WaterSimulation, FlowProxySurvivesShift) {
+    WaterSimulation sim(12, 4, 3);
+    addFloor(sim);
+    for (int x = 0; x < 12; ++x)
+        for (int y = 1; y < 4; ++y) { sim.setSolid(x, y, 0, true); sim.setSolid(x, y, 2, true); }
+    sim.setSolid(0, 1, 1, true);
+    sim.setSolid(0, 2, 1, true);
+    sim.setSource(1, 1, 1, WaterSimulation::MAX_MASS);
+    for (int i = 0; i < 80; ++i) sim.step();
+
+    const glm::vec2 before = sim.flowAt(5, 1, 1);
+    ASSERT_GT(before.x, 0.0f);
+    sim.shift(glm::ivec3(2, 0, 0));            // window moves +2x → content lands at local x-2
+    const glm::vec2 after = sim.flowAt(3, 1, 1);
+    EXPECT_FLOAT_EQ(after.x, before.x);
+    EXPECT_FLOAT_EQ(after.y, before.y);
+}

@@ -252,6 +252,18 @@ public:
     void  setSeaLevel(float y) { m_seaLevel = y; }
     float getSeaLevel() const { return m_seaLevel; }
 
+    // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
+    // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
+    void setWaves(float amplitude, float wavelength, float windDirectionRadians);
+    // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
+    glm::vec3 waveSettings() const;
+
+    // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
+    // fades across a short band so breaking the surface doesn't pop. `depthBelow` receives how far
+    // under the surface the eye is (world units, 0 when above). Drives the underwater fog overlay.
+    // (WaterSystemV3 Phase 1 item 5.)
+    float cameraSubmergence(float& depthBelow) const;
+
     // Lightweight VFX particle system (spell bursts, etc.).
     VfxSystem* getVfxSystem() { return vfxSystem.get(); }
     VfxDirector* getVfxDirector() { return vfxDirector.get(); }

@@ -5773,8 +5773,22 @@ void Application::autoLoadGameDefinition() {
                             return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
+                        // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
+                        // flow for them. Feed the shader the bake's downhill direction so a river
+                        // reads as MOVING. Visual only — the field stays hydrostatic.
+                        waterManager->setRiverFlowQuery([this](float wx, float wz) -> glm::vec2 {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            const FlowField* f = g ? g->riverNetwork() : nullptr;
+                            if (!f) return glm::vec2(0.0f);
+                            // Only claim a direction where there IS a channel; elsewhere leave the
+                            // CA's own proxy alone (a spill on open ground must not read as a river).
+                            return f->channelAt(wx, wz).hit ? f->flowDirAt(wx, wz) : glm::vec2(0.0f);
+                        });
+                        LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
                         waterManager->setRiverQuery(nullptr);
+                        waterManager->setRiverFlowQuery(nullptr);
                     }
                     // Evaporation default (river flow tuning): generation-fed worlds want bounded
                     // spill — river inflow otherwise pools and RISES forever (observed live at the
@@ -11268,6 +11282,18 @@ void Application::registerWaterCommands() {
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
         r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
     });
+    // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Setting amplitude 0 flattens the
+    // sheet back to the pre-Phase-2 plane — the A/B control for before/after captures.
+    reg.on("water_waves", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        const glm::vec3 cur = renderCoordinator->waveSettings();
+        renderCoordinator->setWaves(cmd.params.value("amplitude", cur.x),
+                                    cmd.params.value("wavelength", cur.y),
+                                    cmd.params.value("wind", cur.z));
+        const glm::vec3 now = renderCoordinator->waveSettings();
+        r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z}};
+    });
+
     reg.on("water_table_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         const float wx = cmd.params.value("x", 0.0f), wz = cmd.params.value("z", 0.0f);
@@ -11375,6 +11401,16 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("x")) {
             glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
             r["mass_at"] = waterManager->massAtWorld(p);
+        }
+        // Render-side water state (WaterSystemV3 Phase 1) — the sea PLANE is a separate switch from
+        // the sim, and the underwater overlay is gated on both, so an L4 check needs to see both.
+        if (renderCoordinator) {
+            float depthBelow = 0.0f;
+            r["plane_enabled"]       = renderCoordinator->isWaterEnabled();
+            r["render_sea_level"]    = renderCoordinator->getSeaLevel();
+            r["camera_submergence"]  = renderCoordinator->cameraSubmergence(depthBelow);
+            r["camera_depth_below"]  = depthBelow;
+            r["surface_cells"]       = static_cast<int>(waterManager->surfaceCells().size());
         }
     });
 }

@@ -11,15 +11,19 @@ layout(location = 0) in vec4 inVert;        // (offsetX, offsetZ, vtype, edge)
 layout(location = 1) in vec4 inCenterDepth; // xyz = cell-center surface point, w = column depth (cells)
 layout(location = 2) in vec4 inCorners;     // per-corner world Y: (-x,-z),(+x,-z),(+x,+z),(-x,+z)
 layout(location = 3) in vec4 inSkirt;       // per-edge side bottom world Y: (+x),(-x),(+z),(-z)
+layout(location = 4) in vec4 inFlow;        // Phase 3: xy = flow dir, z = strength, w = foam
 
+// Must match water_cell.frag's block exactly (one push-constant range, both stages).
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
+    vec4 screen;     // xy = screen size (px) — the fragment stage needs it for screen-space taps
 } pc;
 
 layout(location = 0) out vec3  fragWorldPos;
-layout(location = 1) out float fragDepth;
-layout(location = 2) out float fragSide; // 0 = top face, 1 = side face
+layout(location = 1) out float fragColumnDepth; // sim column depth in cells
+layout(location = 2) out float fragSide;        // 0 = top face, 1 = side face
+layout(location = 3) out vec4  fragFlow;        // xy = flow dir, z = strength, w = foam
 
 void main() {
     float ox = inVert.x, oz = inVert.y;
@@ -49,8 +53,9 @@ void main() {
         world.z += n.y * 0.04;
     }
 
-    fragWorldPos = world;
-    fragDepth    = inCenterDepth.w;
-    fragSide     = (vtype == 0) ? 0.0 : 1.0;
+    fragWorldPos    = world;
+    fragColumnDepth = inCenterDepth.w;
+    fragSide        = (vtype == 0) ? 0.0 : 1.0;
+    fragFlow        = inFlow;
     gl_Position  = pc.viewProj * vec4(world, 1.0);
 }

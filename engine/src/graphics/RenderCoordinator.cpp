@@ -198,13 +198,16 @@ RenderCoordinator::RenderCoordinator(
         vulkanDevice->getSwapChainExtent()
     );
 
-    // Initialize Water surface pipeline (see docs/WaterSystem.md).
+    // Initialize Water surface pipeline (see docs/WaterSystem.md, docs/WaterSystemV3.md).
+    // Built against the WATER render pass — water draws after the scene pass so it can sample
+    // scene colour + depth (Phase 1).
     waterPipeline = std::make_unique<WaterRenderPipeline>();
     waterPipeline->initialize(
         vulkanDevice->getDevice(),
         vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
+        postProcessor->getWaterRenderPass(),
+        vulkanDevice->getSwapChainExtent(),
+        vulkanDevice->getDescriptorSetLayout()
     );
     // Phase 1: water samples the shared planar-reflection texture.
     waterPipeline->setReflectionTexture(
@@ -215,9 +218,20 @@ RenderCoordinator::RenderCoordinator(
     waterCellPipeline->initialize(
         vulkanDevice->getDevice(),
         vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
+        postProcessor->getWaterRenderPass(),
+        vulkanDevice->getSwapChainExtent(),
+        vulkanDevice->getDescriptorSetLayout()
     );
+
+    // WaterSystemV3 Phase 1: point both water pipelines at the post-scene taps (half-res scene
+    // colour copy for refraction, scene depth for thickness/absorption/soft shorelines). Must be
+    // repeated after every swapchain resize — both images are recreated there.
+    waterPipeline->setSceneTextures(
+        postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+        postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+    waterCellPipeline->setSceneTextures(
+        postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+        postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
 
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
@@ -313,6 +327,69 @@ bool RenderCoordinator::initUISystem() {
     }
     LOG_INFO("RenderCoordinator", "UISystem initialized successfully");
     return true;
+}
+
+void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDirectionRadians) {
+    if (waterPipeline) waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
+}
+
+glm::vec3 RenderCoordinator::waveSettings() const {
+    if (!waterPipeline) return glm::vec3(0.0f);
+    return glm::vec3(waterPipeline->waveAmplitude(), waterPipeline->waveLength(),
+                     waterPipeline->windDirection());
+}
+
+// Is the eye under water, and how deep? (WaterSystemV3 Phase 1 item 5.)
+//
+// Two sources, in priority order:
+//   1. The SIM, whenever the camera is inside its region. It is the only thing that knows about
+//      lakes at any altitude AND is connectivity-gated — a sealed dry cavity below sea level reads
+//      DRY here, where a bare "camera.y < seaLevel" test would wrongly fog it.
+//   2. Sea level, as the fallback outside the region (the implicit ocean the flat plane draws).
+//
+// Both fade over a short band at the surface so breaking through doesn't pop.
+float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
+    depthBelow = 0.0f;
+    if (!camera) return 0.0f;
+    const glm::vec3 eye = camera->getPosition();
+
+    // ⚑GROUND: 0.35 voxel ≈ the slice a swimmer's eye passes through as it breaks the surface —
+    // long enough to read as a fade, short enough to feel immediate.
+    const float BAND = 0.35f;
+
+    if (m_waterManager) {
+        const glm::ivec3 o = m_waterManager->origin();
+        const glm::ivec3 d = m_waterManager->dims();
+        const bool inRegion = eye.x >= o.x && eye.x < o.x + d.x &&
+                              eye.y >= o.y && eye.y < o.y + d.y &&
+                              eye.z >= o.z && eye.z < o.z + d.z;
+        if (inRegion) {
+            // Fill fraction matters: a cell holding 0.4 mass has its surface 0.4 of the way up, so
+            // the eye is only submerged below that height.
+            const float here = m_waterManager->massAtWorld(eye);
+            if (here <= 0.0f) return 0.0f;
+            const float cellFloor = std::floor(eye.y);
+            depthBelow = std::max(0.0f, (cellFloor + std::min(here, 1.0f)) - eye.y);
+            // If this cell is full there may be more water stacked above; the true depth drives how
+            // dark/blue the fog gets, so walk up while the column stays wet.
+            if (here >= 0.999f) {
+                for (float y = cellFloor + 1.0f; y < static_cast<float>(o.y + d.y); y += 1.0f) {
+                    const float m = m_waterManager->massAtWorld(glm::vec3(eye.x, y + 0.5f, eye.z));
+                    if (m <= 0.0f) break;
+                    depthBelow = (y + std::min(m, 1.0f)) - eye.y;
+                    if (m < 0.999f) break;
+                }
+            }
+            return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
+        }
+    }
+
+    if (m_waterEnabled) {   // implicit ocean outside the sim region
+        depthBelow = m_seaLevel - eye.y;
+        if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
+        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
+    }
+    return 0.0f;
 }
 
 void RenderCoordinator::render() {
@@ -1325,6 +1402,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         windowManager->acknowledgeResize();
@@ -1359,6 +1454,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         return; // Skip this frame and try again
@@ -1379,6 +1492,24 @@ void RenderCoordinator::drawFrame() {
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
         if (waterPipeline) waterPipeline->setReflectionTexture(
             postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
+        // WaterSystemV3 Phase 1: the refraction image and the scene depth image are both recreated
+        // by postProcessor->resize(), so water's set-1 descriptors must be re-pointed or it samples
+        // freed views. Also rebuild the water pipelines: their viewport/scissor are static state
+        // baked from the old extent (the water render pass itself is size-independent and survives).
+        if (waterPipeline) {
+            waterPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                            vulkanDevice->getSwapChainExtent());
+            waterPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterCellPipeline) {
+            waterCellPipeline->recreatePipeline(postProcessor->getWaterRenderPass(),
+                                                vulkanDevice->getSwapChainExtent());
+            waterCellPipeline->setSceneTextures(
+                postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
+                postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
         return; // Skip this frame, try again next frame
     }
@@ -1887,53 +2018,18 @@ void RenderCoordinator::drawFrame() {
         }
     }
 
-    // Water surface (Phase 0): a translucent sea-level plane, after all opaque
-    // geometry so it blends over the scene. Depth-tested (terrain occludes it) but
-    // no depth-write, so the mirror pass below is unaffected.
-    if (m_waterEnabled && waterPipeline) {
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
-        waterPipeline->render(
-            vulkanDevice->getCommandBuffer(currentFrame),
-            *camera,
-            cachedProjectionMatrix,
-            m_seaLevel,
-            2.0f * maxChunkRenderDistance,
-            vulkanDevice->getSwapChainExtent(),
-            m_waterReflectionActive
-        );
-    }
-
-    // Per-cell water surface (the CPU sim's actual field): translucent quads at each
-    // surface cell's fill height. Independent of the flat sea plane above.
-    if (m_waterManager && waterCellPipeline && !m_waterManager->surfaceCells().empty()) {
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
-        waterCellPipeline->render(
-            vulkanDevice->getCommandBuffer(currentFrame),
-            *camera,
-            cachedProjectionMatrix,
-            m_waterManager->surfaceCells()
-        );
-    }
+    // Water is NO LONGER drawn here — it moved to its own pass after the scene pass
+    // (renderWaterPass(), called from drawFrame) so it can sample the scene color + depth it is
+    // blending over: refraction, depth-based absorption, soft shorelines. See
+    // docs/WaterSystemV3.md Phase 1.
 
     // Mirror surface pass (inside scene render pass, after all opaque/entity geometry)
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
         renderMirrorGeometry(currentFrame);
     }
 
-    // Game HUD / custom UI (non-ImGui) — drawn LAST in the scene pass, on top of all
-    // geometry, into the offscreen image. Shows in the editor viewport AND is carried
-    // to the swapchain by post-process for standalone builds. See docs/HudSystem.md.
-    if (m_uiSystem) {
-        // Pull live game state into the HUD widgets before drawing (single source of
-        // truth — hosts register providers on hudData(); widgets just mirror values).
-        // Applied to every screen so independently-anchored HUD panels (health,
-        // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
-        for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
-            if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
-        }
-        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
-        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
-    }
+    // Game HUD / custom UI moved to the post-scene OVERLAY pass below, so water (which now
+    // also draws after the scene pass) cannot paint over it. See docs/WaterSystemV3.md Phase 1.
 
     // End Scene Render Pass
     } // End Scene Pass Scope
@@ -1943,6 +2039,88 @@ void RenderCoordinator::drawFrame() {
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "SSAO");
         postProcessor->renderSSAO(vulkanDevice->getCommandBuffer(currentFrame), cachedProjectionMatrix);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WATER + OVERLAY pass (WaterSystemV3 Phase 1). Runs AFTER the scene pass so water can
+    // sample the scene it blends over (refraction / depth absorption / soft shorelines) — a
+    // render pass cannot sample the attachment it writes, which is why this is a separate pass.
+    // Color LOADs the finished scene; depth is bound READ-ONLY (both water pipelines already
+    // run depthWriteEnable=FALSE), so terrain still occludes water exactly as before.
+    //
+    // The HUD rides along at the END of this pass — it used to be last in the scene pass, and
+    // water drawing afterwards would have covered it. Pipelines built against the scene pass are
+    // render-pass-COMPATIBLE with this one (identical attachment formats/counts), so nothing is
+    // rebuilt.
+    // ---------------------------------------------------------------------------------------
+    const bool drawWaterPlane = m_waterEnabled && waterPipeline;
+    const bool drawWaterCells = m_waterManager && waterCellPipeline &&
+                                !m_waterManager->surfaceCells().empty();
+    if (drawWaterPlane || drawWaterCells || m_uiSystem) {
+        // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
+        if (drawWaterPlane || drawWaterCells) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
+            postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
+        }
+        postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+
+        if (drawWaterPlane) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Water");
+            waterPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                vulkanDevice->getDescriptorSet(currentFrame),
+                *camera,
+                cachedProjectionMatrix,
+                m_seaLevel,
+                2.0f * maxChunkRenderDistance,
+                vulkanDevice->getSwapChainExtent(),
+                m_waterReflectionActive
+            );
+        }
+        if (drawWaterCells) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
+            waterCellPipeline->render(
+                vulkanDevice->getCommandBuffer(currentFrame),
+                vulkanDevice->getDescriptorSet(currentFrame),
+                *camera,
+                cachedProjectionMatrix,
+                m_waterManager->surfaceCells(),
+                vulkanDevice->getSwapChainExtent()
+            );
+        }
+
+        // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the
+        // underside of the water above the camera, but BEFORE the HUD so the HUD stays readable.
+        if (drawWaterPlane) {
+            float depthBelow = 0.0f;
+            const float submergence = cameraSubmergence(depthBelow);
+            if (submergence > 0.0f) {
+                GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterUnderwater");
+                waterPipeline->renderUnderwater(
+                    vulkanDevice->getCommandBuffer(currentFrame),
+                    vulkanDevice->getDescriptorSet(currentFrame),
+                    *camera, cachedProjectionMatrix,
+                    submergence, depthBelow,
+                    vulkanDevice->getSwapChainExtent());
+            }
+        }
+
+        // Game HUD / custom UI (non-ImGui) — on top of all geometry AND water, into the
+        // offscreen image. Shows in the editor viewport AND is carried to the swapchain by
+        // post-process for standalone builds. See docs/HudSystem.md.
+        if (m_uiSystem) {
+            // Pull live game state into the HUD widgets before drawing (single source of
+            // truth — hosts register providers on hudData(); widgets just mirror values).
+            // Applied to every screen so independently-anchored HUD panels (health,
+            // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
+            for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
+                if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
+            }
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
+            m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
+        }
+
+        postProcessor->endWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // OIT transparent pass (reads depth in read-only mode, writes accum + reveal)

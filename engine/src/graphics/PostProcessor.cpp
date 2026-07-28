@@ -3,6 +3,7 @@
 #include "utils/FileUtils.h"
 #include "core/AssetManager.h"
 #include "utils/Logger.h"
+#include <algorithm>
 #include <array>
 #include <stdexcept>
 
@@ -38,8 +39,10 @@ bool PostProcessor::initialize() {
     if (!createBlurRenderPass()) return false;
     if (!createSSAORenderPass()) return false;
     if (!createOITRenderPass()) return false;  // OIT render pass created before framebuffers
+    if (!createWaterRenderPass()) return false; // water pass (WaterSystemV3 P1), before its framebuffer
     if (!createSceneFramebuffer()) return false;
     if (!createOITResources()) return false;  // OIT framebuffer (uses oitRenderPass + depthImageView from scene)
+    if (!createWaterResources()) return false; // refraction image + framebuffer over scene color/depth
     if (!createBlurFramebuffers(width, height)) return false;
     if (!createPostProcessRenderPass()) return false;
     
@@ -163,6 +166,16 @@ void PostProcessor::cleanup() {
         vkFreeMemory(vkDevice, depthImageMemory, nullptr);
         depthImageMemory = VK_NULL_HANDLE;
     }
+    if (depthSampler != VK_NULL_HANDLE) {   // owned here, not by the SSAO path (water needs it)
+        vkDestroySampler(vkDevice, depthSampler, nullptr);
+        depthSampler = VK_NULL_HANDLE;
+    }
+
+    cleanupWaterSizedResources();
+    if (waterRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(vkDevice, waterRenderPass, nullptr);
+        waterRenderPass = VK_NULL_HANDLE;
+    }
 
     cleanupSSAOResources();
     cleanupOITResources();
@@ -214,6 +227,10 @@ void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
     cleanupOITResources();
     createOITRenderPass();   // cleanupOITResources destroys oitRenderPass; must recreate before createOITResources
     createOITResources();
+    // Water: the render pass is size-independent and survives; only the refraction image and the
+    // framebuffer (which points at the just-recreated scene color/depth views) are rebuilt.
+    cleanupWaterSizedResources();
+    createWaterResources();
     cleanupReflectionResources();
     createReflectionResources();
     updateDescriptorSet();
@@ -251,6 +268,23 @@ bool PostProcessor::createOffscreenResources() {
         samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
         if (vkCreateSampler(device->getDevice(), &samplerInfo, nullptr, &offscreenSampler) != VK_SUCCESS) {
+            return false;
+        }
+    }
+
+    // Depth sampler — NEAREST (a filtered depth value is meaningless: it interpolates across
+    // silhouettes). Owned here rather than by the SSAO path because the water pass samples scene
+    // depth every frame and SSAO is off by default.
+    if (depthSampler == VK_NULL_HANDLE) {
+        VkSamplerCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        si.magFilter = VK_FILTER_NEAREST; si.minFilter = VK_FILTER_NEAREST;
+        si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        si.maxAnisotropy = 1.0f; si.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        si.maxLod = 1.0f;
+        if (vkCreateSampler(device->getDevice(), &si, nullptr, &depthSampler) != VK_SUCCESS) {
             return false;
         }
     }
@@ -1158,7 +1192,10 @@ bool PostProcessor::createSSAOResources() {
     si.maxAnisotropy = 1.0f; si.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     si.maxLod = 1.0f;
     if (vkCreateSampler(vkDevice, &si, nullptr, &ssaoSampler) != VK_SUCCESS) return false;
-    if (vkCreateSampler(vkDevice, &si, nullptr, &depthSampler) != VK_SUCCESS) return false;
+    // depthSampler is owned by createOffscreenResources() (the water pass needs it whether or not
+    // SSAO runs, and SSAO is off by default). Only create it here if that somehow hasn't run.
+    if (depthSampler == VK_NULL_HANDLE &&
+        vkCreateSampler(vkDevice, &si, nullptr, &depthSampler) != VK_SUCCESS) return false;
 
     // Framebuffers
     auto makeFB = [&](VkImageView view, VkFramebuffer& fb) -> bool {
@@ -1341,7 +1378,9 @@ void PostProcessor::cleanupSSAOSizedResources() {
     if (ssaoImage != VK_NULL_HANDLE) { vkDestroyImage(vkDevice, ssaoImage, nullptr); ssaoImage = VK_NULL_HANDLE; }
     if (ssaoImageMemory != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, ssaoImageMemory, nullptr); ssaoImageMemory = VK_NULL_HANDLE; }
     destroy(ssaoSampler,               vkDestroySampler);
-    destroy(depthSampler,              vkDestroySampler);
+    // depthSampler is NOT destroyed here — it is owned by the offscreen resources (the water pass
+    // samples scene depth every frame, independent of SSAO, which is off by default). Destroying
+    // it on an SSAO resize would leave the water pass sampling a dead handle.
 }
 
 // Full SSAO teardown — shutdown path only. Releases the size-independent objects (render
@@ -1472,6 +1511,184 @@ bool PostProcessor::createOITRenderPass() {
     rpi.subpassCount = 1;    rpi.pSubpasses = &sp;
     rpi.dependencyCount = 2; rpi.pDependencies = deps.data();
     return vkCreateRenderPass(device->getDevice(), &rpi, nullptr, &oitRenderPass) == VK_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------------------------
+// WATER PASS (WaterSystemV3 Phase 1)
+//
+// Water used to draw inside the scene pass, which meant it could never sample the scene it was
+// blending over — no refraction, no depth-based absorption, no soft shoreline. This pass runs
+// after the scene pass instead:
+//   * color   = the SAME offscreen image, loadOp=LOAD → blending into the finished scene, so the
+//               result is identical to before except for what the shader now does;
+//   * depth   = the SAME depth image, loadOp=LOAD, bound READ-ONLY. Legal because both water
+//               pipelines already run depthWriteEnable=FALSE, and a read-only depth attachment may
+//               be depth-tested and sampled by the fragment shader simultaneously. That is the
+//               whole trick: scene depth arrives free, with no copy.
+// The color attachment still can't be sampled while written, so refraction reads a half-res copy
+// taken by captureRefraction() before the pass begins.
+// ---------------------------------------------------------------------------------------------
+bool PostProcessor::createWaterRenderPass() {
+    VkAttachmentDescription colorAtt{};
+    colorAtt.format = VK_FORMAT_R16G16B16A16_SFLOAT;   // matches createOffscreenResources
+    colorAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAtt.loadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;     // keep the rendered scene; water blends over
+    colorAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAtt.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // The scene pass leaves the color in SHADER_READ_ONLY_OPTIMAL, and captureRefraction() puts it
+    // back there after its blit — so that is this pass's initial layout. It must END there too:
+    // post_process.frag samples it.
+    colorAtt.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    colorAtt.finalLayout   = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription depthAtt{};
+    depthAtt.format = device->findDepthFormat();
+    depthAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAtt.loadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;     // keep scene depth (tested, never written)
+    depthAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;   // the OIT pass LOADs it after us
+    depthAtt.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAtt.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    depthAtt.finalLayout   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorRef{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference depthRef{ 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+
+    VkSubpassDescription sp{};
+    sp.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    sp.colorAttachmentCount = 1; sp.pColorAttachments = &colorRef;
+    sp.pDepthStencilAttachment = &depthRef;
+
+    std::array<VkSubpassDependency, 2> deps{};
+    // Wait for the scene pass's color writes AND captureRefraction()'s transfer read before we
+    // start writing color; wait for depth writes before we start testing depth.
+    deps[0] = { VK_SUBPASS_EXTERNAL, 0,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+            VK_ACCESS_TRANSFER_READ_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        VK_DEPENDENCY_BY_REGION_BIT };
+    // Our color writes must be visible to the later samplers (post-process / OIT resolve).
+    deps[1] = { 0, VK_SUBPASS_EXTERNAL,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT, VK_DEPENDENCY_BY_REGION_BIT };
+
+    std::array<VkAttachmentDescription, 2> atts = { colorAtt, depthAtt };
+    VkRenderPassCreateInfo rpi{};
+    rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rpi.attachmentCount = 2; rpi.pAttachments = atts.data();
+    rpi.subpassCount = 1;    rpi.pSubpasses = &sp;
+    rpi.dependencyCount = 2; rpi.pDependencies = deps.data();
+    return vkCreateRenderPass(device->getDevice(), &rpi, nullptr, &waterRenderPass) == VK_SUCCESS;
+}
+
+bool PostProcessor::createWaterResources() {
+    VkDevice vkDevice = device->getDevice();
+
+    // Half-res refraction snapshot. ⚑GROUND: refraction is a normal-perturbed, inherently blurry
+    // lookup, so half-res detail is not perceptible, and it quarters the per-frame blit
+    // (1920x1080 RGBA16F = 16.6 MB → 4.2 MB). Full-res is the fallback if shoreline artifacts show.
+    refractionWidth  = std::max(1u, width  / 2);
+    refractionHeight = std::max(1u, height / 2);
+    device->createImage(refractionWidth, refractionHeight, VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, refractionImage, refractionImageMemory);
+    refractionImageView = device->createImageView(refractionImage, VK_FORMAT_R16G16B16A16_SFLOAT,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT);
+
+    // Framebuffer over the EXISTING scene color + depth views (no images of its own).
+    std::array<VkImageView, 2> views = { offscreenImageView, depthImageView };
+    VkFramebufferCreateInfo fbi{};
+    fbi.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fbi.renderPass = waterRenderPass;
+    fbi.attachmentCount = 2; fbi.pAttachments = views.data();
+    fbi.width = width; fbi.height = height; fbi.layers = 1;
+    if (vkCreateFramebuffer(vkDevice, &fbi, nullptr, &waterFramebuffer) != VK_SUCCESS) {
+        LOG_ERROR("PostProcessor", "createWaterResources: vkCreateFramebuffer FAILED");
+        return false;
+    }
+    return true;
+}
+
+void PostProcessor::cleanupWaterSizedResources() {
+    VkDevice vkDevice = device->getDevice();
+    auto destroy = [&](auto& h, auto fn) { if (h != VK_NULL_HANDLE) { fn(vkDevice, h, nullptr); h = VK_NULL_HANDLE; } };
+    destroy(waterFramebuffer,   vkDestroyFramebuffer);
+    destroy(refractionImageView, vkDestroyImageView);
+    if (refractionImage != VK_NULL_HANDLE) { vkDestroyImage(vkDevice, refractionImage, nullptr); refractionImage = VK_NULL_HANDLE; }
+    if (refractionImageMemory != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, refractionImageMemory, nullptr); refractionImageMemory = VK_NULL_HANDLE; }
+}
+
+void PostProcessor::captureRefraction(VkCommandBuffer commandBuffer) {
+    if (refractionImage == VK_NULL_HANDLE) return;
+
+    auto barrier = [&](VkImage image, VkImageLayout oldL, VkImageLayout newL,
+                       VkAccessFlags srcA, VkAccessFlags dstA,
+                       VkPipelineStageFlags srcS, VkPipelineStageFlags dstS) {
+        VkImageMemoryBarrier b{};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.oldLayout = oldL; b.newLayout = newL;
+        b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = image;
+        b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        b.srcAccessMask = srcA; b.dstAccessMask = dstA;
+        vkCmdPipelineBarrier(commandBuffer, srcS, dstS, 0, 0, nullptr, 0, nullptr, 1, &b);
+    };
+
+    // Scene color: SHADER_READ_ONLY (scene pass finalLayout) → TRANSFER_SRC.
+    barrier(offscreenImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    // Refraction target: whatever it held is discarded (UNDEFINED) — we overwrite every texel.
+    barrier(refractionImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            0, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    VkImageBlit blit{};
+    blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    blit.srcOffsets[0] = { 0, 0, 0 };
+    blit.srcOffsets[1] = { static_cast<int32_t>(width), static_cast<int32_t>(height), 1 };
+    blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    blit.dstOffsets[0] = { 0, 0, 0 };
+    blit.dstOffsets[1] = { static_cast<int32_t>(refractionWidth), static_cast<int32_t>(refractionHeight), 1 };
+    vkCmdBlitImage(commandBuffer,
+                   offscreenImage,  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   refractionImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   1, &blit, VK_FILTER_LINEAR);
+
+    // Refraction → sampled by the water shaders.
+    barrier(refractionImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    // Scene color back to the layout the water render pass declares as its initialLayout.
+    barrier(offscreenImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+}
+
+void PostProcessor::beginWaterRenderPass(VkCommandBuffer commandBuffer) {
+    if (waterRenderPass == VK_NULL_HANDLE || waterFramebuffer == VK_NULL_HANDLE) return;
+    VkRenderPassBeginInfo rp{};
+    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rp.renderPass = waterRenderPass;
+    rp.framebuffer = waterFramebuffer;
+    rp.renderArea.offset = {0, 0};
+    rp.renderArea.extent = {width, height};
+    rp.clearValueCount = 0;   // both attachments LOAD — nothing is cleared
+    rp.pClearValues = nullptr;
+    vkCmdBeginRenderPass(commandBuffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void PostProcessor::endWaterRenderPass(VkCommandBuffer commandBuffer) {
+    if (waterRenderPass == VK_NULL_HANDLE || waterFramebuffer == VK_NULL_HANDLE) return;
+    vkCmdEndRenderPass(commandBuffer);
 }
 
 bool PostProcessor::createOITResources() {

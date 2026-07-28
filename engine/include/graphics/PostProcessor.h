@@ -43,6 +43,29 @@ public:
     void endOITRenderPass(VkCommandBuffer commandBuffer);
     VkRenderPass getOITRenderPass() const { return oitRenderPass; }
 
+    /// WATER pass (WaterSystemV3 Phase 1) — water draws AFTER the scene pass so it can sample the
+    /// scene it is blending over. The pass LOADs the scene color (blending straight into it, same
+    /// visual result as drawing inside the scene pass) and binds the scene depth READ-ONLY, which
+    /// is legal because both water pipelines run depthWriteEnable=FALSE. A read-only depth
+    /// attachment can be depth-tested AND sampled in the fragment shader at the same time, so the
+    /// shader gets scene depth (→ water thickness, soft shorelines) with no copy.
+    ///
+    /// Order: endSceneRenderPass → captureRefraction → begin/endWaterRenderPass → OIT → post.
+    void beginWaterRenderPass(VkCommandBuffer commandBuffer);
+    void endWaterRenderPass(VkCommandBuffer commandBuffer);
+    VkRenderPass getWaterRenderPass() const { return waterRenderPass; }
+
+    /// Snapshot the scene color into the half-res refraction image. Call OUTSIDE any render pass,
+    /// between endSceneRenderPass and beginWaterRenderPass. The color attachment cannot be sampled
+    /// while it is being written, so refraction reads this copy instead. HALF RES is deliberate:
+    /// refraction is a blurred, normal-perturbed lookup, so the detail is not missed, and it cuts
+    /// the per-frame copy 4x (~16.6 MB → ~4.2 MB at 1080p).
+    void captureRefraction(VkCommandBuffer commandBuffer);
+    VkImageView getRefractionImageView() const { return refractionImageView; }
+    VkSampler   getRefractionSampler()   const { return offscreenSampler; }   // linear, clamp
+    VkImageView getSceneDepthImageView() const { return depthImageView; }
+    VkSampler   getSceneDepthSampler()   const { return depthSampler; }
+
     /// Reflection image — rendered into during the reflection pass, sampled by mirror surfaces.
     void beginReflectionRenderPass(VkCommandBuffer commandBuffer);
     void endReflectionRenderPass(VkCommandBuffer commandBuffer);
@@ -137,6 +160,19 @@ private:
     bool createOITResources();
     bool createOITRenderPass();
     void cleanupOITResources();
+
+    // Water pass (WaterSystemV3 Phase 1). The pass draws into the EXISTING offscreen color +
+    // depth images (no images of its own); only the refraction snapshot is new storage.
+    VkRenderPass   waterRenderPass   = VK_NULL_HANDLE;
+    VkFramebuffer  waterFramebuffer  = VK_NULL_HANDLE;
+    VkImage        refractionImage       = VK_NULL_HANDLE;
+    VkDeviceMemory refractionImageMemory = VK_NULL_HANDLE;
+    VkImageView    refractionImageView   = VK_NULL_HANDLE;
+    uint32_t       refractionWidth = 0, refractionHeight = 0;
+
+    bool createWaterRenderPass();
+    bool createWaterResources();       // refraction image + water framebuffer (size-dependent)
+    void cleanupWaterSizedResources(); // resize path: images/views/framebuffer only
 
     // Reflection image (rendered from reflected camera, sampled by mirror surfaces)
     VkImage reflectionImage = VK_NULL_HANDLE;
