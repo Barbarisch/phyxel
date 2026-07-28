@@ -1,0 +1,1165 @@
+[11:19:33.978] [INFO] [Application] Project mode: worlds=C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds, game=C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\game.json
+[11:19:33.980] [INFO] [InputManager] InputManager created
+[11:19:34.006] [INFO] [Audio] Audio System Initialized.
+[11:19:34.007] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) — NPC voices disabled
+[11:19:34.009] [INFO] [WorldInitializer] Initializing Phyxel Application...
+[11:19:34.009] [INFO] [WorldInitializer] Logging system initialized (check logging.ini for configuration)
+[11:19:34.009] [INFO] [WorldInitializer] Initializing window
+[11:19:34.009] [INFO] [WindowManager] Initializing GLFW window system
+[11:19:34.032] [INFO] [WindowManager] Window created: 1600x900 'StructGenTest'
+[11:19:34.032] [INFO] [WorldInitializer] Window initialization complete
+[11:19:35.714] [INFO] [Vulkan] Vulkan surface created successfully
+[11:19:35.723] [INFO] [Vulkan] Compute queue family: 0 (shared with graphics)
+[11:19:35.744] [INFO] [Vulkan] Swapchain created successfully
+[11:19:35.744] [INFO] [Vulkan] Framebuffers created successfully
+[11:19:35.746] [INFO] [Rendering] Debug graphics pipeline created successfully
+[11:19:35.746] [INFO] [Rendering] Debug line pipeline created successfully
+[11:19:35.746] [INFO] [Vulkan] Command buffers created successfully
+[11:19:35.747] [INFO] [Vulkan] Compute resources initialized (2 command buffers)
+[11:19:35.748] [INFO] [Vulkan] Created light SSBO buffers (2064 bytes each)
+[11:19:35.749] [INFO] [Vulkan] Created atlas UV SSBO buffers (24592 bytes each)
+[11:19:35.749] [INFO] [Vulkan] Sync objects created successfully
+[11:19:35.749] [INFO] [WorldInitializer] Vulkan subsystem initialized successfully
+[11:19:35.749] [INFO] [WorldInitializer] Initializing texture atlas system...
+[11:19:35.764] [INFO] [MaterialRegistry] Loaded 102 materials (612 texture slots) from resources/materials.json
+[11:19:40.410] [INFO] [AtlasManager] Built texture array class 0: 432 layers @ 512x512 (albedo + normal/rough)
+[11:20:07.481] [INFO] [AtlasManager] Built texture array class 1: 180 layers @ 1024x1024 (albedo + normal/rough)
+[11:20:07.626] [INFO] [AtlasManager] Loaded BC7 cache albedo class 0 (144 MB)
+[11:20:07.862] [INFO] [Vulkan] BC7 texture array uploaded (class 0, 432 layers @ 512x512, 10 mips, 144 MB)
+[11:20:07.996] [INFO] [AtlasManager] Loaded BC7 cache nr class 0 (144 MB)
+[11:20:08.135] [INFO] [Vulkan] BC7 texture array uploaded (class 2, 432 layers @ 512x512, 10 mips, 144 MB)
+[11:20:08.370] [INFO] [AtlasManager] Loaded BC7 cache albedo class 1 (240 MB)
+[11:20:08.753] [INFO] [Vulkan] BC7 texture array uploaded (class 1, 180 layers @ 1024x1024, 11 mips, 240 MB)
+[11:20:08.996] [INFO] [AtlasManager] Loaded BC7 cache nr class 1 (240 MB)
+[11:20:09.232] [INFO] [Vulkan] BC7 texture array uploaded (class 3, 180 layers @ 1024x1024, 11 mips, 240 MB)
+[11:20:09.232] [INFO] [Vulkan] Updated atlas SSBO (count512=432, count1024=180, fallback=0)
+[11:20:09.232] [INFO] [WorldInitializer] Populated atlas SSBO with material PBR props (512 class=432, 1024 class=180)
+[11:20:09.233] [INFO] [WorldInitializer] Texture atlas system initialized successfully
+[11:20:09.233] [INFO] [Chunk] Physics world set for proper dynamic object cleanup
+[11:20:09.234] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds/default.db
+[11:20:09.244] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully
+[11:20:09.244] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds/default.db
+[11:20:09.244] [INFO] [WorldStorage] [WORLD_STORAGE] Found 0 chunks in database
+[11:20:09.244] [INFO] [ChunkStreaming] No chunks found in database
+[11:20:09.244] [INFO] [WorldInitializer] No chunks found in database - starting with EMPTY world for Python scripting
+[11:20:09.245] [INFO] [Chunk] Rebuilding faces for all loaded chunks with cross-chunk culling...
+[11:20:09.245] [INFO] [Chunk] Face rebuilding complete for 0 chunks
+[11:20:09.245] [INFO] [Chunk] Initializing voxel hash maps for all 0 chunks...
+[11:20:09.245] [INFO] [Chunk] Completed voxel map initialization for optimized O(1) hover detection
+[11:20:09.245] [INFO] [WorldInitializer] Created 0 chunks for testing
+[11:20:09.245] [INFO] [InputManager] InputManager initialized successfully
+[11:20:09.245] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)
+[11:20:09.246] [INFO] [WorldInitializer] Physics subsystem initialized successfully (static cubes excluded)
+[11:20:09.246] [INFO] [WorldInitializer] Creating chunk physics bodies...
+[11:20:09.246] [INFO] [WorldInitializer] Assets loaded successfully
+[11:20:09.249] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)
+[11:20:09.249] [INFO] [WorldInitializer] Application initialized successfully!
+[11:20:09.250] [INFO] [EngineRuntime] Engine runtime initialized successfully
+[11:20:09.250] [INFO] [VoxelInteractionSystem] VoxelInteractionSystem initialized
+[11:20:09.250] [INFO] [Application] VoxelInteractionSystem initialized successfully!
+[11:20:09.251] [INFO] [ObjectTemplateManager] Loaded template: altar with 0 cubes, 23 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.253] [INFO] [ObjectTemplateManager] Loaded template: anvil with 0 cubes, 0 subcubes, 48 microcubes, 0 interaction points, 1 parts
+[11:20:09.256] [INFO] [ObjectTemplateManager] Loaded template: armchair with 0 cubes, 0 subcubes, 175 microcubes, 0 interaction points, 1 parts
+[11:20:09.267] [INFO] [ObjectTemplateManager] Loaded template: back_bar with 0 cubes, 0 subcubes, 744 microcubes, 0 interaction points, 1 parts
+[11:20:09.267] [INFO] [ObjectTemplateManager] Loaded template: barony_apple with 0 cubes, 0 subcubes, 22 microcubes, 0 interaction points, 1 parts
+[11:20:09.269] [INFO] [ObjectTemplateManager] Loaded template: barony_arcanechair with 0 cubes, 0 subcubes, 62 microcubes, 0 interaction points, 1 parts
+[11:20:09.270] [INFO] [ObjectTemplateManager] Loaded template: barony_bomb with 0 cubes, 0 subcubes, 56 microcubes, 0 interaction points, 1 parts
+[11:20:09.271] [INFO] [ObjectTemplateManager] Loaded template: barony_bread with 0 cubes, 0 subcubes, 35 microcubes, 0 interaction points, 1 parts
+[11:20:09.287] [INFO] [ObjectTemplateManager] Loaded template: barony_bunkbed with 0 cubes, 0 subcubes, 1036 microcubes, 0 interaction points, 1 parts
+[11:20:09.289] [INFO] [ObjectTemplateManager] Loaded template: barony_campfire with 0 cubes, 0 subcubes, 90 microcubes, 0 interaction points, 1 parts
+[11:20:09.290] [INFO] [ObjectTemplateManager] Loaded template: barony_chair with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:20:09.293] [INFO] [ObjectTemplateManager] Loaded template: barony_chest with 0 cubes, 0 subcubes, 185 microcubes, 0 interaction points, 1 parts
+[11:20:09.325] [INFO] [ObjectTemplateManager] Loaded template: barony_column with 0 cubes, 0 subcubes, 2080 microcubes, 0 interaction points, 1 parts
+[11:20:09.332] [INFO] [ObjectTemplateManager] Loaded template: barony_fountain with 0 cubes, 0 subcubes, 438 microcubes, 0 interaction points, 1 parts
+[11:20:09.335] [INFO] [ObjectTemplateManager] Loaded template: barrel with 0 cubes, 0 subcubes, 168 microcubes, 0 interaction points, 1 parts
+[11:20:09.336] [INFO] [ObjectTemplateManager] Loaded template: bar_stool with 0 cubes, 0 subcubes, 48 microcubes, 1 interaction points, 1 parts
+[11:20:09.337] [INFO] [ObjectTemplateManager] Loaded template: bedroll_test with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.344] [INFO] [ObjectTemplateManager] Loaded template: bed_single with 0 cubes, 0 subcubes, 438 microcubes, 0 interaction points, 1 parts
+[11:20:09.345] [INFO] [ObjectTemplateManager] Loaded template: bellows with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:20:09.347] [INFO] [ObjectTemplateManager] Loaded template: bench_great with 0 cubes, 96 subcubes, 0 microcubes, 1 interaction points, 1 parts
+[11:20:09.348] [INFO] [ObjectTemplateManager] Loaded template: bench_wood with 0 cubes, 0 subcubes, 64 microcubes, 1 interaction points, 1 parts
+[11:20:09.356] [INFO] [ObjectTemplateManager] Loaded template: bookshelf with 0 cubes, 0 subcubes, 525 microcubes, 0 interaction points, 1 parts
+[11:20:09.358] [INFO] [ObjectTemplateManager] Loaded template: book_stack with 0 cubes, 0 subcubes, 126 microcubes, 0 interaction points, 1 parts
+[11:20:09.359] [INFO] [ObjectTemplateManager] Loaded template: bottle with 0 cubes, 0 subcubes, 3 microcubes, 0 interaction points, 1 parts
+[11:20:09.360] [INFO] [ObjectTemplateManager] Loaded template: brazier with 0 cubes, 13 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.427] [INFO] [ObjectTemplateManager] Loaded template: burgomaster with 1023 cubes, 5688 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.634] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_furnished with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 interaction points, 1 parts
+[11:20:09.835] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_grand with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 interaction points, 1 parts
+[11:20:09.910] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_v2 with 1165 cubes, 3540 subcubes, 2136 microcubes, 0 interaction points, 1 parts
+[11:20:09.911] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.915] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.921] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.930] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.937] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.943] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.943] [INFO] [ObjectTemplateManager] Loaded template: campfire with 0 cubes, 11 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.944] [INFO] [ObjectTemplateManager] Loaded template: candelabra with 0 cubes, 0 subcubes, 16 microcubes, 0 interaction points, 1 parts
+[11:20:09.944] [INFO] [ObjectTemplateManager] Loaded template: candlestick with 0 cubes, 0 subcubes, 12 microcubes, 0 interaction points, 1 parts
+[11:20:09.945] [INFO] [ObjectTemplateManager] Loaded template: candle_holder with 0 cubes, 7 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.946] [INFO] [ObjectTemplateManager] Loaded template: candle_stand with 0 cubes, 0 subcubes, 36 microcubes, 0 interaction points, 1 parts
+[11:20:09.947] [INFO] [ObjectTemplateManager] Loaded template: chair with 0 cubes, 0 subcubes, 40 microcubes, 0 interaction points, 1 parts
+[11:20:09.949] [INFO] [ObjectTemplateManager] Loaded template: chair_wood with 0 cubes, 0 subcubes, 138 microcubes, 1 interaction points, 1 parts
+[11:20:09.950] [INFO] [ObjectTemplateManager] Loaded template: chandelier with 0 cubes, 0 subcubes, 37 microcubes, 0 interaction points, 1 parts
+[11:20:09.954] [INFO] [ObjectTemplateManager] Loaded template: chest_closed with 0 cubes, 0 subcubes, 249 microcubes, 0 interaction points, 3 parts
+[11:20:09.954] [INFO] [ObjectTemplateManager] Loaded template: chest_open with 0 cubes, 21 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.955] [INFO] [ObjectTemplateManager] Loaded template: chest_test with 18 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 3 parts
+[11:20:09.956] [INFO] [ObjectTemplateManager] Loaded template: chopping_block with 0 cubes, 0 subcubes, 95 microcubes, 0 interaction points, 1 parts
+[11:20:09.960] [INFO] [ObjectTemplateManager] Loaded template: counter with 0 cubes, 0 subcubes, 210 microcubes, 0 interaction points, 1 parts
+[11:20:09.960] [INFO] [ObjectTemplateManager] Loaded template: crate_wood with 1 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:09.963] [INFO] [ObjectTemplateManager] Loaded template: desk with 0 cubes, 4 subcubes, 212 microcubes, 0 interaction points, 1 parts
+[11:20:09.981] [INFO] [ObjectTemplateManager] Loaded template: door_grand with 0 cubes, 8 subcubes, 1242 microcubes, 0 interaction points, 1 parts
+[11:20:09.986] [INFO] [ObjectTemplateManager] Loaded template: door_iron with 0 cubes, 6 subcubes, 324 microcubes, 0 interaction points, 1 parts
+[11:20:09.987] [WARN] [ObjectTemplateManager] Failed to parse interaction_point line: # interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0
+[11:20:09.987] [INFO] [ObjectTemplateManager] Loaded template: door_metal with 2 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 2 parts
+[11:20:09.992] [INFO] [ObjectTemplateManager] Loaded template: door_plank with 0 cubes, 4 subcubes, 350 microcubes, 0 interaction points, 1 parts
+[11:20:09.993] [INFO] [ObjectTemplateManager] Loaded template: door_wood with 0 cubes, 18 subcubes, 2 microcubes, 1 interaction points, 1 parts
+[11:20:09.993] [INFO] [ObjectTemplateManager] Loaded template: door_wood_wide with 0 cubes, 36 subcubes, 2 microcubes, 1 interaction points, 1 parts
+[11:20:09.994] [INFO] [ObjectTemplateManager] Loaded template: drawer_test with 6 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 2 parts
+[11:20:09.996] [INFO] [ObjectTemplateManager] Loaded template: dresser with 0 cubes, 0 subcubes, 171 microcubes, 0 interaction points, 1 parts
+[11:20:09.997] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:10.005] [INFO] [ObjectTemplateManager] Loaded template: fireplace with 0 cubes, 0 subcubes, 596 microcubes, 0 interaction points, 1 parts
+[11:20:10.175] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 interaction points, 1 parts
+[11:20:10.295] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 interaction points, 1 parts
+[11:20:10.552] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 interaction points, 1 parts
+[11:20:10.809] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 interaction points, 1 parts
+[11:20:10.980] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 interaction points, 1 parts
+[11:20:11.154] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 interaction points, 1 parts
+[11:20:11.174] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 interaction points, 1 parts
+[11:20:11.194] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 interaction points, 1 parts
+[11:20:11.227] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 interaction points, 1 parts
+[11:20:11.250] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 interaction points, 1 parts
+[11:20:11.274] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 interaction points, 1 parts
+[11:20:11.288] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 interaction points, 1 parts
+[11:20:12.508] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 interaction points, 1 parts
+[11:20:14.229] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 interaction points, 1 parts
+[11:20:14.909] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 interaction points, 1 parts
+[11:20:15.214] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 interaction points, 1 parts
+[11:20:15.320] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 interaction points, 1 parts
+[11:20:15.376] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 interaction points, 1 parts
+[11:20:15.384] [INFO] [ObjectTemplateManager] Loaded template: forge_hearth with 0 cubes, 0 subcubes, 528 microcubes, 0 interaction points, 1 parts
+[11:20:15.779] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 interaction points, 1 parts
+[11:20:16.016] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 interaction points, 1 parts
+[11:20:16.457] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 interaction points, 1 parts
+[11:20:16.705] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 interaction points, 1 parts
+[11:20:16.964] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 interaction points, 1 parts
+[11:20:17.099] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 interaction points, 1 parts
+[11:20:17.124] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 interaction points, 1 parts
+[11:20:17.140] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 interaction points, 1 parts
+[11:20:17.311] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 interaction points, 1 parts
+[11:20:17.408] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 interaction points, 1 parts
+[11:20:18.400] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 interaction points, 1 parts
+[11:20:20.637] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 interaction points, 1 parts
+[11:20:20.744] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 interaction points, 1 parts
+[11:20:20.838] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 interaction points, 1 parts
+[11:20:20.876] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 interaction points, 1 parts
+[11:20:21.258] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 interaction points, 1 parts
+[11:20:21.613] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 interaction points, 1 parts
+[11:20:21.629] [INFO] [ObjectTemplateManager] Loaded template: four_poster with 0 cubes, 0 subcubes, 1102 microcubes, 0 interaction points, 1 parts
+[11:20:21.635] [INFO] [ObjectTemplateManager] Loaded template: garden_bed with 0 cubes, 0 subcubes, 382 microcubes, 0 interaction points, 1 parts
+[11:20:21.644] [INFO] [ObjectTemplateManager] Loaded template: gate_timber with 0 cubes, 80 subcubes, 633 microcubes, 0 interaction points, 1 parts
+[11:20:21.645] [INFO] [ObjectTemplateManager] Loaded template: goblet with 0 cubes, 0 subcubes, 19 microcubes, 0 interaction points, 1 parts
+[11:20:21.646] [INFO] [ObjectTemplateManager] Loaded template: hanging_sign with 0 cubes, 0 subcubes, 40 microcubes, 0 interaction points, 1 parts
+[11:20:21.647] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.669] [INFO] [ObjectTemplateManager] Loaded template: house2 with 359 cubes, 1881 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.710] [INFO] [ObjectTemplateManager] Loaded template: houseL with 392 cubes, 1739 subcubes, 1339 microcubes, 0 interaction points, 1 parts
+[11:20:21.732] [INFO] [ObjectTemplateManager] Loaded template: house_2story with 359 cubes, 1881 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.733] [INFO] [ObjectTemplateManager] Loaded template: iron_bars with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.734] [INFO] [ObjectTemplateManager] Loaded template: ladder with 0 cubes, 14 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.734] [INFO] [ObjectTemplateManager] Loaded template: ladder_test with 0 cubes, 8 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.735] [INFO] [ObjectTemplateManager] Loaded template: lantern with 0 cubes, 10 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.736] [INFO] [ObjectTemplateManager] Loaded template: lever_test with 0 cubes, 3 subcubes, 0 microcubes, 0 interaction points, 3 parts
+[11:20:21.742] [INFO] [ObjectTemplateManager] Loaded template: long_table with 0 cubes, 0 subcubes, 455 microcubes, 0 interaction points, 1 parts
+[11:20:21.798] [INFO] [ObjectTemplateManager] Loaded template: manor_gen with 315 cubes, 3056 subcubes, 1447 microcubes, 0 interaction points, 1 parts
+[11:20:21.799] [INFO] [ObjectTemplateManager] Loaded template: meat_rail with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:20:21.800] [INFO] [ObjectTemplateManager] Loaded template: mug with 0 cubes, 0 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:21.801] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.803] [INFO] [ObjectTemplateManager] Loaded template: nightstand with 0 cubes, 0 subcubes, 98 microcubes, 0 interaction points, 1 parts
+[11:20:21.829] [INFO] [ObjectTemplateManager] Loaded template: oven_bread with 0 cubes, 0 subcubes, 1908 microcubes, 0 interaction points, 1 parts
+[11:20:21.830] [INFO] [ObjectTemplateManager] Loaded template: pillar_stone with 0 cubes, 23 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.830] [INFO] [ObjectTemplateManager] Loaded template: plate with 0 cubes, 0 subcubes, 17 microcubes, 0 interaction points, 1 parts
+[11:20:21.831] [INFO] [ObjectTemplateManager] Loaded template: pot_iron with 0 cubes, 19 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.834] [INFO] [ObjectTemplateManager] Loaded template: rug with 0 cubes, 0 subcubes, 234 microcubes, 0 interaction points, 1 parts
+[11:20:21.835] [INFO] [ObjectTemplateManager] Loaded template: rug_oriental with 0 cubes, 36 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.836] [INFO] [ObjectTemplateManager] Loaded template: rug_test with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.837] [INFO] [ObjectTemplateManager] Loaded template: sconce with 0 cubes, 0 subcubes, 7 microcubes, 0 interaction points, 1 parts
+[11:20:21.862] [INFO] [ObjectTemplateManager] Loaded template: shop_detailed with 284 cubes, 2328 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.871] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 interaction points, 1 parts
+[11:20:21.884] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 interaction points, 1 parts
+[11:20:21.891] [INFO] [ObjectTemplateManager] Loaded template: sideboard with 0 cubes, 0 subcubes, 436 microcubes, 0 interaction points, 1 parts
+[11:20:21.892] [INFO] [ObjectTemplateManager] Loaded template: sign_prancing_pony with 0 cubes, 36 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.896] [INFO] [ObjectTemplateManager] Loaded template: simple_table with 0 cubes, 0 subcubes, 263 microcubes, 0 interaction points, 1 parts
+[11:20:21.897] [INFO] [ObjectTemplateManager] Loaded template: stool with 0 cubes, 0 subcubes, 21 microcubes, 1 interaction points, 1 parts
+[11:20:21.897] [INFO] [ObjectTemplateManager] Loaded template: stool_low with 0 cubes, 4 subcubes, 0 microcubes, 1 interaction points, 1 parts
+[11:20:21.900] [INFO] [ObjectTemplateManager] Loaded template: table_wood with 0 cubes, 0 subcubes, 128 microcubes, 0 interaction points, 1 parts
+[11:20:21.907] [INFO] [ObjectTemplateManager] Loaded template: tavern_bar with 0 cubes, 0 subcubes, 529 microcubes, 0 interaction points, 1 parts
+[11:20:21.910] [INFO] [ObjectTemplateManager] Loaded template: tavern_table with 0 cubes, 0 subcubes, 143 microcubes, 0 interaction points, 1 parts
+[11:20:21.918] [INFO] [ObjectTemplateManager] Loaded template: tavern_test with 1168 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.920] [INFO] [ObjectTemplateManager] Loaded template: test_chair with 0 cubes, 0 subcubes, 99 microcubes, 1 interaction points, 1 parts
+[11:20:21.921] [INFO] [ObjectTemplateManager] Loaded template: tome_arcane with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.921] [INFO] [ObjectTemplateManager] Loaded template: tome_fire with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.921] [INFO] [ObjectTemplateManager] Loaded template: tome_necromantic with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.923] [INFO] [ObjectTemplateManager] Loaded template: tool_rack with 0 cubes, 0 subcubes, 75 microcubes, 0 interaction points, 1 parts
+[11:20:21.923] [INFO] [ObjectTemplateManager] Loaded template: torch with 0 cubes, 0 subcubes, 4 microcubes, 0 interaction points, 1 parts
+[11:20:21.924] [INFO] [ObjectTemplateManager] Loaded template: torch_wall with 0 cubes, 5 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:21.956] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 interaction points, 1 parts
+[11:20:21.971] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 interaction points, 1 parts
+[11:20:21.972] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.023] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.024] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.037] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.049] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.061] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.062] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.064] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:22.065] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 interaction points, 1 parts
+[11:20:22.319] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.636] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.669] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:22.684] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:22.721] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.790] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.792] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.899] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:22.970] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.052] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.087] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.151] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.152] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.154] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.157] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.159] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.189] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 interaction points, 1 parts
+[11:20:23.198] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 interaction points, 1 parts
+[11:20:23.204] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 interaction points, 1 parts
+[11:20:23.495] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.804] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.835] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:23.846] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:23.880] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:23.893] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:23.898] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:20:23.899] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.923] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.924] [INFO] [ObjectTemplateManager] Loaded template: wall_lantern with 0 cubes, 0 subcubes, 24 microcubes, 0 interaction points, 1 parts
+[11:20:23.928] [INFO] [ObjectTemplateManager] Loaded template: wall_shelf with 0 cubes, 0 subcubes, 276 microcubes, 0 interaction points, 1 parts
+[11:20:23.934] [INFO] [ObjectTemplateManager] Loaded template: wardrobe with 0 cubes, 0 subcubes, 437 microcubes, 0 interaction points, 1 parts
+[11:20:23.941] [INFO] [ObjectTemplateManager] Loaded template: well with 0 cubes, 0 subcubes, 453 microcubes, 0 interaction points, 1 parts
+[11:20:23.943] [INFO] [ObjectTemplateManager] Loaded template: wooden_throne with 0 cubes, 168 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.952] [INFO] [ObjectTemplateManager] Loaded template: woodpile with 0 cubes, 0 subcubes, 660 microcubes, 0 interaction points, 1 parts
+[11:20:23.952] [INFO] [ObjectTemplateManager] Loaded template: workbench with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:20:23.952] [INFO] [Application] ObjectTemplateManager initialized successfully!
+[11:20:23.953] [INFO] [RaycastVisualizer] Raycast visualizer initialized
+[11:20:23.953] [INFO] [Application] RaycastVisualizer initialized successfully!
+[11:20:23.953] [INFO] [Application] Entities initialized successfully!
+[11:20:24.047] [INFO] [Rendering] Debug graphics pipeline created successfully
+[11:20:24.047] [INFO] [Rendering] Debug line pipeline created successfully
+[11:20:24.048] [INFO] [RenderPipeline] OIT transparent pipeline created
+[11:20:24.048] [INFO] [RenderPipeline] Mirror pipeline created
+[11:20:24.048] [INFO] [RenderPipeline] Reflection scene pipeline created
+[11:20:24.048] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!
+[11:20:24.049] [INFO] [Vulkan] Framebuffers created successfully
+[11:20:24.051] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)
+[11:20:24.062] [INFO] [KinematicVoxelPipeline] Initialized (max 131072 face instances)
+[11:20:24.063] [INFO] [GrassRenderPipeline] Initialized (grass blade layer)
+[11:20:24.064] [INFO] [FoliageRenderPipeline] Initialized (leaf card layer)
+[11:20:24.065] [INFO] [FoliageRenderPipeline] Shadow caster initialized (dappled canopy shadows)
+[11:20:24.065] [INFO] [FoliageRenderPipeline] Kinematic foliage initialized (falling canopies keep cards)
+[11:20:24.066] [INFO] [FarTerrainRenderPipeline] Initialized (far-terrain LOD tiles)
+[11:20:24.067] [INFO] [UIRenderer] Initialized (1600x900)
+[11:20:24.072] [INFO] [UIRenderer] Font atlas uploaded (512x512)
+[11:20:24.072] [INFO] [BitmapFont] Loaded TTF 'resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf' baked @ 48px (norm {:.3f})
+[11:20:24.073] [INFO] [RenderCoordinator] UISystem initialized successfully
+[11:20:24.073] [INFO] [Application] RenderCoordinator initialized successfully!
+[11:20:24.089] [INFO] [GpuParticlePhysics] Solver buffers: solverBody=2031KB constraints=7500KB warmstart=8192KB solverState=512KB csrList=468KB
+[11:20:24.099] [INFO] [ComputePipeline] Created: shaders/particle_grid_clear.comp.spv (1 bindings)
+[11:20:24.100] [INFO] [ComputePipeline] Created: shaders/particle_grid_build.comp.spv (2 bindings)
+[11:20:24.100] [INFO] [ComputePipeline] Created: shaders/particle_sort_scan.comp.spv (2 bindings)
+[11:20:24.101] [INFO] [ComputePipeline] Created: shaders/particle_sort_scatter.comp.spv (4 bindings)
+[11:20:24.101] [INFO] [ComputePipeline] Created: shaders/particle_integrate.comp.spv (2 bindings)
+[11:20:24.103] [INFO] [ComputePipeline] Created: shaders/particle_collide.comp.spv (8 bindings)
+[11:20:24.104] [INFO] [ComputePipeline] Created: shaders/particle_expand.comp.spv (4 bindings)
+[11:20:24.104] [INFO] [ComputePipeline] Created: shaders/particle_scan_block.comp.spv (3 bindings)
+[11:20:24.105] [INFO] [ComputePipeline] Created: shaders/particle_scan_blocksums.comp.spv (1 bindings)
+[11:20:24.105] [INFO] [ComputePipeline] Created: shaders/particle_scan_add.comp.spv (2 bindings)
+[11:20:24.106] [INFO] [ComputePipeline] Created: shaders/solver_sync_in.comp.spv (4 bindings)
+[11:20:24.106] [INFO] [ComputePipeline] Created: shaders/solver_integrate.comp.spv (4 bindings)
+[11:20:24.112] [INFO] [ComputePipeline] Created: shaders/solver_narrowphase.comp.spv (7 bindings)
+[11:20:24.113] [INFO] [ComputePipeline] Created: shaders/solver_voxel.comp.spv (5 bindings)
+[11:20:24.114] [INFO] [ComputePipeline] Created: shaders/solver_dual.comp.spv (3 bindings)
+[11:20:24.115] [INFO] [ComputePipeline] Created: shaders/solver_primal.comp.spv (7 bindings)
+[11:20:24.115] [INFO] [ComputePipeline] Created: shaders/solver_sync_out.comp.spv (2 bindings)
+[11:20:24.116] [INFO] [ComputePipeline] Created: shaders/solver_warmstart_save.comp.spv (3 bindings)
+[11:20:24.116] [INFO] [ComputePipeline] Created: shaders/solver_hardcontact.comp.spv (2 bindings)
+[11:20:24.117] [INFO] [ComputePipeline] Created: shaders/solver_csr_clear.comp.spv (2 bindings)
+[11:20:24.117] [INFO] [ComputePipeline] Created: shaders/solver_csr_count.comp.spv (3 bindings)
+[11:20:24.118] [INFO] [ComputePipeline] Created: shaders/solver_prefix_sum.comp.spv (3 bindings)
+[11:20:24.119] [INFO] [ComputePipeline] Created: shaders/solver_csr_scatter.comp.spv (4 bindings)
+[11:20:24.120] [INFO] [ComputePipeline] Created: shaders/solver_body_color.comp.spv (6 bindings)
+[11:20:24.122] [INFO] [GpuParticlePhysics] Initialized: MAX_PARTICLES=10000 particleBuffer=937KB faceBuffer=3750KB
+[11:20:24.122] [INFO] [ChunkManager] Occupancy grid rebuilt from 0 chunks
+[11:20:24.122] [INFO] [Application] GpuParticlePhysics initialized successfully!
+[11:20:24.150] [INFO] [ComputePipeline] Created: shaders/water_flow.comp.spv (5 bindings)
+[11:20:24.150] [INFO] [WaterManager] GPU water flow ready (131072 cells)
+[11:20:24.151] [INFO] [InputController] Input bindings initialized
+[11:20:24.151] [INFO] [Application] Initializing scripting system...
+[11:20:24.180] [INFO] [ScriptingSystem] Python interpreter initialized
+[11:20:24.181] [ERROR] [ScriptingSystem] Failed to import phyxel module: ModuleNotFoundError: No module named 'phyxel'
+[11:20:24.182] [ERROR] [ScriptingSystem] Failed to setup output redirection: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  <string>(4): <module>
+
+[11:20:24.183] [ERROR] [ScriptingSystem] Python Error: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  <string>(2): <module>
+
+[11:20:24.183] [ERROR] [ScriptingSystem] Python Error: NameError: name 'phyxel' is not defined
+
+At:
+  <string>(2): <module>
+
+[11:20:24.193] [WARN] [ScriptingSystem] Startup script error: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  scripts/startup.py(1): <module>
+
+[11:20:24.193] [INFO] [Application] Scripting system initialized successfully
+[11:20:24.193] [INFO] [AI] AISystem created
+[11:20:24.193] [INFO] [AI] AISystem: initializing...
+[11:20:24.194] [INFO] [AI] GooseBridge created (bridge at http://127.0.0.1:3001)
+[11:20:24.194] [INFO] [AI] AISystem: initialized (server not started)
+[11:20:24.194] [INFO] [Application] AI system initialized (server not auto-started, provider=anthropic)
+[11:20:24.194] [WARN] [AIEnhancer] Not ready — apiKey empty=1, scriptPath empty=0
+[11:20:24.199] [INFO] [JobSystem] Worker thread started
+[11:20:24.200] [INFO] [ItemRegistry] Auto-registered 102 materials as items
+[11:20:24.202] [INFO] [ItemRegistry] Loaded 17 item definitions
+[11:20:24.203] [INFO] [InteractionProfileManager] Loaded archetype 'humanoid_normal': 1 templates, 1 points, 0 overrides
+[11:20:24.204] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bench_wood'
+[11:20:24.204] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bench_wood'
+[11:20:24.204] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'door_wood_wide'
+[11:20:24.204] [INFO] [Application] Auto-registered 1 interaction point(s) for 'door_wood_wide'
+[11:20:24.204] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bench_great'
+[11:20:24.204] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bench_great'
+[11:20:24.204] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bar_stool'
+[11:20:24.204] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bar_stool'
+[11:20:24.205] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'door_wood'
+[11:20:24.205] [INFO] [Application] Auto-registered 1 interaction point(s) for 'door_wood'
+[11:20:24.205] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'chair_wood'
+[11:20:24.205] [INFO] [Application] Auto-registered 1 interaction point(s) for 'chair_wood'
+[11:20:24.205] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'stool'
+[11:20:24.205] [INFO] [Application] Auto-registered 1 interaction point(s) for 'stool'
+[11:20:24.205] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'stool_low'
+[11:20:24.205] [INFO] [Application] Auto-registered 1 interaction point(s) for 'stool_low'
+[11:20:24.205] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'test_chair'
+[11:20:24.205] [INFO] [Application] Auto-registered 1 interaction point(s) for 'test_chair'
+[11:20:24.206] [INFO] [AI] LLMClient created (provider=anthropic, model=claude-sonnet-4-20250514)
+[11:20:24.206] [INFO] [AI] ConversationMemory initialized
+[11:20:24.206] [INFO] [AI] AIConversationService initialized (configured=0)
+[11:20:24.206] [INFO] [Application] AI Conversation Service initialized (provider=anthropic, configured=no)
+[11:20:24.206] [INFO] [PlacedObjectManager] No placed objects found in database
+[11:20:24.206] [INFO] [PlacedObjectManager] Recomputed interaction points: 0 points across 0 objects
+[11:20:24.266] [INFO] [EngineAPIServer] HTTP API server started on port 8099
+[11:20:24.267] [INFO] [Application] Engine HTTP API available at http://localhost:8099/api/status
+[11:20:24.267] [INFO] [Application] Asset editor mode: OFF, Anim editor mode: OFF, Interaction editor mode: OFF, projectDir: 'C:\Users\bpete\Documents\PhyxelProjects\StructGenTest'
+[11:20:24.267] [INFO] [Application] Auto-loading game definition: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\game.json
+[11:20:24.268] [INFO] [Application] Combat mode: real_time
+[11:20:24.270] [INFO] [HUD] Loaded engine default HUD (resources/ui/default_hud.json)
+[11:20:24.270] [INFO] [HUD] HUD panel 'hud_health' loaded
+[11:20:24.270] [INFO] [HUD] HUD panel 'hud_hotbar' loaded
+[11:20:24.271] [INFO] [HUD] HUD panel 'hud_objectives' loaded
+[11:20:24.271] [INFO] [HUD] HUD panel 'hud_dialogue' loaded
+[11:20:24.271] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded
+[11:20:24.272] [INFO] [HUD] HUD panel 'hud_combat_order' loaded
+[11:20:24.272] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded
+[11:20:24.272] [INFO] [HUD] HUD panel 'hud_combat_action' loaded
+[11:20:24.272] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded
+[11:20:24.272] [INFO] [HUD] HUD panel 'hud_countdown' loaded
+[11:20:24.273] [INFO] [GameDefinitionLoader] Loading game definition: StructGenTest
+[11:20:24.276] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[11:20:24.279] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)
+[11:20:24.279] [INFO] [GameDefinitionLoader] World: applied generation recipe from world.db
+[11:20:24.409] [INFO] [ChunkArena] initialized (block size 64 MB)
+[11:20:24.452] [INFO] [ChunkArena] block 0 created (64 MB)
+[11:20:31.204] [INFO] [ObjectTemplateManager] decorateFlora: placed 17 / 17 planned plants
+[11:20:31.204] [INFO] [GameDefinitionLoader] World: generated 15 chunks (Flat, seed=0)
+[11:20:31.206] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim
+[11:20:31.214] [INFO] [Character] === Loaded Animations (84) ===
+[11:20:31.215] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:20:31.215] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:20:31.215] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:20:31.215] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:20:31.215] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:20:31.215] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:20:31.215] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:20:31.215] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:20:31.215] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:20:31.215] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:20:31.215] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:20:31.216] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:20:31.216] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:20:31.216] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:20:31.216] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:20:31.216] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:20:31.216] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:20:31.216] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:20:31.216] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:20:31.216] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:20:31.216] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:20:31.216] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:20:31.217] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:20:31.217] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:20:31.217] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:20:31.217] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:20:31.217] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:20:31.217] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:20:31.217] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:20:31.217] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:20:31.217] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:20:31.217] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:20:31.217] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:20:31.217] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:20:31.218] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:20:31.218] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:20:31.218] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:20:31.218] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:20:31.218] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:20:31.218] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:20:31.218] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:20:31.218] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:20:31.218] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:20:31.218] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:20:31.218] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:20:31.218] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:20:31.218] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:20:31.219] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:20:31.219] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:20:31.219] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:20:31.219] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:20:31.219] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:20:31.220] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:20:31.220] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:20:31.220] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:20:31.220] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:20:31.221] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:20:31.221] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:20:31.221] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:20:31.221] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:20:31.221] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:20:31.221] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:20:31.222] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:20:31.222] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:20:31.222] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:20:31.222] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:20:31.222] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:20:31.222] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:20:31.222] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:20:31.222] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:20:31.222] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:20:31.222] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:20:31.222] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:20:31.222] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:20:31.223] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:20:31.223] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:20:31.223] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:20:31.223] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:20:31.223] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:20:31.223] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:20:31.223] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:20:31.223] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:20:31.223] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:20:31.223] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:20:31.223] [INFO] [Character] =====================================
+[11:20:31.227] [INFO] [BodyPlan] loaded 5 body plans
+[11:20:31.228] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)
+[11:20:31.231] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)
+[11:20:31.232] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)
+[11:20:31.232] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)
+[11:20:31.232] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)
+[11:20:31.232] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)
+[11:20:31.232] [INFO] [Character] Built 12/8 segment collision boxes
+[11:20:31.232] [INFO] [Application] Loaded animated character model: resources/animated_characters/humanoid.anim
+[11:20:31.232] [INFO] [Application] Set player interaction archetype to 'humanoid_normal'
+[11:20:31.233] [INFO] [GameDefinitionLoader] Player spawned: animated at (20.000000, 17.000000, 20.000000)
+[11:20:31.233] [INFO] [GameDefinitionLoader] Game definition loaded: StructGenTest (chunks=15, structures=0, locations=0, npcs=0)
+[11:20:31.233] [INFO] [Application] Game definition loaded: 15 chunks, 0 structures, 0 NPCs
+[11:20:31.462] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:20:38.208] [INFO] [PathService] Worker thread started
+[11:20:38.209] [INFO] [NPCManager] Built NavGrid: XZ [0,0] to [159,95], 15360 cells (15360 walkable)
+[11:20:38.209] [INFO] [Application] Player spawned (AnimatedCharacter) � camera stays Free, press V to follow
+[11:20:38.210] [INFO] [Application] Starting Phyxel application...
+[11:20:38.213] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:20:38.213] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[11:20:38.215] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:20:38.215] [INFO] [StructureBuild] program validation: OK [typology croft]
+[11:20:39.158] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 48, fill 48)
+[11:20:39.381] [INFO] [StructureGenerator] Placing 29136 voxels in 2 steps
+[11:20:39.589] [INFO] [StructureGenerator]   step 1: 25000/29136 (25000 placed, 0 failed)
+[11:20:39.642] [INFO] [PlacedObjectManager] Registered structure 'structure' as 'structure_1' bbox (20,17,19)-(27,24,26)
+[11:20:41.651] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:20:41.664] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_1' at micro (182,156,182) rot=270 parent=structure_1
+[11:20:41.683] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_1' at micro (207,156,207) rot=0 parent=structure_1
+[11:20:41.684] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_1' at micro (189,156,198) rot=270 parent=structure_1
+[11:20:41.812] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_1' at (24,18,23) rot=0 parent=structure_1
+[11:20:41.942] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_2' at (23,18,23) rot=0 parent=structure_1
+[11:20:41.942] [INFO] [StructureBuild] FurniturePlacer: engine placed 5 fixtures (0 skipped) into 'structure_1'
+[11:20:41.942] [INFO] [StructureBuild] [perf] phases ms: setup=4 overlap=0 realize=44 pad=898 excav=221 place+register=2270 (place=261 grass=1960 nav=47) fixtures=291 TOTAL=3728
+[11:20:41.964] [INFO] [MeleeAnimMapper] Loaded 6 families from resources/rpg_items/anim/melee_anim_families.json
+[11:20:41.968] [INFO] [Application] Held item '(none)' -> melee family 'unarmed' (rate 1.15)
+DEBUG: Selected TargetAnim=idle
+[11:20:42.110] [WARN] [Performance] Slow chunk update: dirtyRemesh=138.266ms streaming=0.001ms dynamicObjects=0.0465ms
+[11:20:42.122] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/default_top.png' (512x512) -> texture 0
+[11:20:42.144] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/dirt_top.png' (512x512) -> texture 1
+[11:20:42.169] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/grass_top.png' (512x512) -> texture 2
+[11:20:42.268] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/stone_top.png' (1024x1024) -> texture 3
+[11:20:42.353] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/cobblestone_top.png' (1024x1024) -> texture 4
+[11:20:42.425] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/stonebricks_top.png' (1024x1024) -> texture 5
+[11:20:42.439] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/sand_top.png' (512x512) -> texture 6
+[11:20:42.461] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/gravel_top.png' (512x512) -> texture 7
+[11:20:42.496] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/wood_top.png' (1024x1024) -> texture 8
+[11:20:42.504] [INFO] [HoverDetection] Hovering - isMicrocube: 1 isSubcube: 0, world pos: (20,19,22), microcube pos: (1,1,2)
+[11:20:42.505] [INFO] [HoverDetection] Setting hover on MICROCUBE
+[11:20:43.540] [WARN] [Performance] Slow chunk update: dirtyRemesh=145.359ms streaming=0.001ms dynamicObjects=0.0413ms
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+[11:20:44.778] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:20:44.778] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[11:20:44.779] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:20:44.780] [INFO] [StructureBuild] program validation: OK [typology croft]
+[11:20:44.780] [INFO] [StructureBuild] removing overlapping structure 'structure_1' before rebuild (no stacking)
+[11:20:44.930] [INFO] [PlacedObjectManager] Removed 'mug_1' clearing region (24,18,23)-(24,18,23)
+[11:20:45.186] [INFO] [PlacedObjectManager] Removed 'fireplace_1' clearing region (20,17,20)-(20,18,21)
+[11:20:45.325] [INFO] [PlacedObjectManager] Removed 'mug_2' clearing region (23,18,23)-(23,18,23)
+[11:20:45.467] [INFO] [PlacedObjectManager] Removed 'table_wood_1' clearing region (23,17,23)-(24,18,23)
+[11:20:45.606] [INFO] [PlacedObjectManager] Removed 'bench_wood_1' clearing region (21,17,22)-(21,17,23)
+[11:20:48.069] [INFO] [PlacedObjectManager] Removed 'structure_1' clearing region (20,17,19)-(27,24,26)
+[11:20:49.024] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 48, fill 48)
+[11:20:49.246] [INFO] [StructureGenerator] Placing 29136 voxels in 2 steps
+[11:20:49.451] [INFO] [StructureGenerator]   step 1: 25000/29136 (25000 placed, 0 failed)
+[11:20:49.505] [INFO] [PlacedObjectManager] Registered structure 'structure' as 'structure_2' bbox (20,17,19)-(27,24,26)
+[11:20:49.555] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:20:49.567] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_2' at micro (182,156,182) rot=270 parent=structure_2
+[11:20:49.586] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_2' at micro (207,156,207) rot=0 parent=structure_2
+[11:20:49.587] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_2' at micro (189,156,198) rot=270 parent=structure_2
+[11:20:49.714] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_3' at (24,18,23) rot=0 parent=structure_2
+[11:20:49.847] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_4' at (23,18,23) rot=0 parent=structure_2
+[11:20:49.847] [INFO] [StructureBuild] FurniturePlacer: engine placed 5 fixtures (0 skipped) into 'structure_2'
+[11:20:49.847] [INFO] [StructureBuild] [perf] phases ms: setup=5 overlap=3290 realize=38 pad=915 excav=220 place+register=309 (place=259 grass=0 nav=49) fixtures=291 TOTAL=5068
+[11:20:50.023] [WARN] [Performance] Slow chunk update: dirtyRemesh=151.073ms streaming=0.0009ms dynamicObjects=0.034ms
+[11:20:50.062] [WARN] [Performance] STUTTER DETECTED! Frame Time: 5251.04ms, Input Latency: 36.9265ms
+[11:20:50.063] [INFO] [Performance] Profile Dump: {"name": "Frame", "durationMs": 36.913, "callCount": 0, "children": [{"name": "input", "durationMs": 0.015, "callCount": 0, "children": []}, {"name": "update", "durationMs": 4.581, "callCount": 0, "children": [{"name": "Update", "durationMs": 4.579, "callCount": 0, "children": [{"name": "Water", "durationMs": 1.015, "callCount": 0, "children": []}, {"name": "Scripting", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "AI", "durationMs": 0.005, "callCount": 0, "children": []}, {"name": "NPCs", "durationMs": 0.008, "callCount": 0, "children": []}, {"name": "Entities", "durationMs": 3.044, "callCount": 0, "children": []}, {"name": "Camera Sync", "durationMs": 0.012, "callCount": 0, "children": []}, {"name": "Input Controller", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Voxel Interaction", "durationMs": 0.270, "callCount": 0, "children": []}]}]}, {"name": "render", "durationMs": 30.245, "callCount": 0, "children": []}]}
+[11:20:50.069] [WARN] [Performance] STUTTER DETECTED! Frame Time: 37.7645ms, Input Latency: 5.2811ms
+[11:20:50.069] [INFO] [Performance] Profile Dump: {"name": "Frame", "durationMs": 5.276, "callCount": 0, "children": [{"name": "input", "durationMs": 0.014, "callCount": 0, "children": []}, {"name": "update", "durationMs": 3.166, "callCount": 0, "children": [{"name": "Update", "durationMs": 3.163, "callCount": 0, "children": [{"name": "Water", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "Scripting", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "AI", "durationMs": 0.004, "callCount": 0, "children": []}, {"name": "NPCs", "durationMs": 0.004, "callCount": 0, "children": []}, {"name": "Entities", "durationMs": 2.727, "callCount": 0, "children": []}, {"name": "Camera Sync", "durationMs": 0.010, "callCount": 0, "children": []}, {"name": "Input Controller", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Voxel Interaction", "durationMs": 0.251, "callCount": 0, "children": []}]}]}, {"name": "render", "durationMs": 0.785, "callCount": 0, "children": []}]}
+[11:20:50.109] [WARN] [Performance] STUTTER DETECTED! Frame Time: 34.0457ms, Input Latency: 5.9669ms
+[11:20:50.110] [INFO] [Performance] Profile Dump: {"name": "Frame", "durationMs": 5.956, "callCount": 0, "children": [{"name": "input", "durationMs": 0.017, "callCount": 0, "children": []}, {"name": "update", "durationMs": 3.624, "callCount": 0, "children": [{"name": "Update", "durationMs": 3.622, "callCount": 0, "children": [{"name": "Water", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Scripting", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "AI", "durationMs": 0.004, "callCount": 0, "children": []}, {"name": "NPCs", "durationMs": 0.003, "callCount": 0, "children": []}, {"name": "Entities", "durationMs": 3.001, "callCount": 0, "children": []}, {"name": "Camera Sync", "durationMs": 0.024, "callCount": 0, "children": []}, {"name": "Input Controller", "durationMs": 0.004, "callCount": 0, "children": []}, {"name": "Voxel Interaction", "durationMs": 0.379, "callCount": 0, "children": []}]}]}, {"name": "render", "durationMs": 0.865, "callCount": 0, "children": []}]}
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+[11:21:52.666] [ERROR] [NPCManager] Refusing to spawn NPC 'gate_probe_buried': spawn REFUSED: the character body at (25, 10, 25) is inside static geometry and no clear position was found within 4 m
+DEBUG: Selected TargetAnim=idle
+[11:21:52.987] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim
+[11:21:52.999] [INFO] [Character] === Loaded Animations (84) ===
+[11:21:53.000] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:21:53.002] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:21:53.004] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:21:53.004] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:21:53.004] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:21:53.004] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:21:53.005] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:21:53.005] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:21:53.005] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:21:53.005] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:21:53.005] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:21:53.006] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:21:53.006] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:21:53.007] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:21:53.007] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:21:53.008] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:21:53.008] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:21:53.008] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:21:53.008] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:21:53.008] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:21:53.009] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:21:53.009] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:21:53.009] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:21:53.009] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:21:53.009] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:21:53.010] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:21:53.010] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:21:53.010] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:21:53.010] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:21:53.011] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:21:53.011] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:21:53.011] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:21:53.011] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:21:53.011] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:21:53.012] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:21:53.012] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:21:53.012] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:21:53.013] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:21:53.013] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:21:53.013] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:21:53.013] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:21:53.013] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:21:53.013] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:21:53.013] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:21:53.013] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:21:53.014] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:21:53.014] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:21:53.014] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:21:53.014] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:21:53.014] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:21:53.014] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:21:53.014] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:21:53.014] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:21:53.014] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:21:53.014] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:21:53.014] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:21:53.014] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:21:53.015] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:21:53.015] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:21:53.015] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:21:53.015] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:21:53.015] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:21:53.015] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:21:53.015] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:21:53.015] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:21:53.015] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:21:53.015] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:21:53.016] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:21:53.016] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:21:53.016] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:21:53.016] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:21:53.016] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:21:53.016] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:21:53.016] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:21:53.016] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:21:53.016] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:21:53.016] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:21:53.016] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:21:53.016] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:21:53.017] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:21:53.017] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:21:53.017] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:21:53.017] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:21:53.017] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:21:53.017] [INFO] [Character] =====================================
+[11:21:53.018] [INFO] [Character] resizeController: height=2.2665 halfWidth=0.238905 maxStep=0.498012 footOffset=-0.0775009 minY=-0.0775009 maxY=1.889
+[11:21:53.020] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.118532,0.118532,0.118532)
+[11:21:53.021] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0684586,0.1)
+[11:21:53.021] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0533382,0.1)
+[11:21:53.021] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.103941,0.1)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.132669,0.07)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.132669,0.07)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.134991,0.07)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.134991,0.07)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.278559,0.08)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.27856,0.08)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.0800897,0.279541,0.0800897)
+[11:21:53.022] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.0800896,0.279541,0.0800896)
+[11:21:53.023] [INFO] [Character] Built 12/8 segment collision boxes
+[11:21:53.023] [INFO] [NPCManager] Spawned NPC 'gate_probe_open' at (30, 17, 30)
+[11:21:53.039] [WARN] [Performance] STUTTER DETECTED! Frame Time: 45.4611ms, Input Latency: 6.5775ms
+[11:21:53.039] [INFO] [Performance] Profile Dump: {"name": "Frame", "durationMs": 6.552, "callCount": 0, "children": [{"name": "input", "durationMs": 0.014, "callCount": 0, "children": []}, {"name": "update", "durationMs": 3.716, "callCount": 0, "children": [{"name": "Update", "durationMs": 3.714, "callCount": 0, "children": [{"name": "Water", "durationMs": 0.006, "callCount": 0, "children": []}, {"name": "Scripting", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "AI", "durationMs": 0.004, "callCount": 0, "children": []}, {"name": "NPCs", "durationMs": 0.352, "callCount": 0, "children": []}, {"name": "Entities", "durationMs": 2.813, "callCount": 0, "children": []}, {"name": "Camera Sync", "durationMs": 0.012, "callCount": 0, "children": []}, {"name": "Input Controller", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Voxel Interaction", "durationMs": 0.315, "callCount": 0, "children": []}]}]}, {"name": "render", "durationMs": 1.499, "callCount": 0, "children": []}]}
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+[11:22:30.893] [WARN] [NPCManager] NPC 'gate_probe_wall' spawn adjusted: spawn was embedded in static geometry; relocated 0.942808 m to clear standing ground
+[11:22:30.894] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim
+[11:22:30.904] [INFO] [Character] === Loaded Animations (84) ===
+[11:22:30.905] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:22:30.905] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:22:30.909] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:22:30.909] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:22:30.909] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:22:30.909] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:22:30.909] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:22:30.909] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:22:30.909] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:22:30.910] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:22:30.910] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:22:30.910] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:22:30.910] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:22:30.910] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:22:30.910] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:22:30.910] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:22:30.910] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:22:30.910] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:22:30.911] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:22:30.911] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:22:30.911] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:22:30.911] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:22:30.911] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:22:30.911] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:22:30.911] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:22:30.911] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:22:30.911] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:22:30.912] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:22:30.912] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:22:30.912] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:22:30.912] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:22:30.912] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:22:30.912] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:22:30.912] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:22:30.912] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:22:30.912] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:22:30.912] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:22:30.912] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:22:30.913] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:22:30.913] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:22:30.913] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:22:30.913] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:22:30.913] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:22:30.913] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:22:30.913] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:22:30.913] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:22:30.913] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:22:30.914] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:22:30.914] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:22:30.914] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:22:30.914] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:22:30.914] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:22:30.914] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:22:30.914] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:22:30.914] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:22:30.914] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:22:30.914] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:22:30.914] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:22:30.915] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:22:30.915] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:22:30.915] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:22:30.915] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:22:30.915] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:22:30.915] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:22:30.915] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:22:30.915] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:22:30.915] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:22:30.915] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:22:30.915] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:22:30.916] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:22:30.916] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:22:30.916] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:22:30.916] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:22:30.916] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:22:30.916] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:22:30.916] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:22:30.916] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:22:30.916] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:22:30.916] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:22:30.916] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:22:30.916] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:22:30.917] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:22:30.917] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:22:30.917] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:22:30.917] [INFO] [Character] =====================================
+[11:22:30.918] [INFO] [Character] resizeController: height=2.07879 halfWidth=0.228202 maxStep=0.432442 footOffset=-0.0590626 minY=-0.0590626 maxY=1.71972
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.136638,0.136638,0.136638)
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0590857,0.1)
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0417422,0.1)
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.0911177,0.1)
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.110999,0.07)
+[11:22:30.921] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.110999,0.07)
+[11:22:30.922] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.112942,0.07)
+[11:22:30.922] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.112942,0.07)
+[11:22:30.922] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.210036,0.08)
+[11:22:30.923] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.210036,0.08)
+[11:22:30.923] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.210776,0.08)
+[11:22:30.923] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.210776,0.08)
+[11:22:30.923] [INFO] [Character] Built 12/8 segment collision boxes
+[11:22:30.923] [INFO] [NPCManager] Spawned NPC 'gate_probe_wall' at (19.4833, 17, 22.3333)
+[11:22:30.939] [WARN] [Performance] STUTTER DETECTED! Frame Time: 39.9568ms, Input Latency: 7.427ms
+[11:22:30.940] [INFO] [Performance] Profile Dump: {"name": "Frame", "durationMs": 7.411, "callCount": 0, "children": [{"name": "input", "durationMs": 0.015, "callCount": 0, "children": []}, {"name": "update", "durationMs": 4.133, "callCount": 0, "children": [{"name": "Update", "durationMs": 4.131, "callCount": 0, "children": [{"name": "Water", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Scripting", "durationMs": 0.001, "callCount": 0, "children": []}, {"name": "AI", "durationMs": 0.005, "callCount": 0, "children": []}, {"name": "NPCs", "durationMs": 0.742, "callCount": 0, "children": []}, {"name": "Entities", "durationMs": 2.867, "callCount": 0, "children": []}, {"name": "Camera Sync", "durationMs": 0.012, "callCount": 0, "children": []}, {"name": "Input Controller", "durationMs": 0.002, "callCount": 0, "children": []}, {"name": "Voxel Interaction", "durationMs": 0.280, "callCount": 0, "children": []}]}]}, {"name": "render", "durationMs": 1.629, "callCount": 0, "children": []}]}
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle

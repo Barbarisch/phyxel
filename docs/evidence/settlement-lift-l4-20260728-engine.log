@@ -1,0 +1,1392 @@
+[11:14:05.451] [INFO] [Application] Project mode: worlds=C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds, game=C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\game.json
+[11:14:05.456] [INFO] [InputManager] InputManager created
+[11:14:05.489] [INFO] [Audio] Audio System Initialized.
+[11:14:05.491] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) — NPC voices disabled
+[11:14:05.492] [INFO] [WorldInitializer] Initializing Phyxel Application...
+[11:14:05.493] [INFO] [WorldInitializer] Logging system initialized (check logging.ini for configuration)
+[11:14:05.493] [INFO] [WorldInitializer] Initializing window
+[11:14:05.493] [INFO] [WindowManager] Initializing GLFW window system
+[11:14:05.517] [INFO] [WindowManager] Window created: 1600x900 'StructGenTest'
+[11:14:05.518] [INFO] [WorldInitializer] Window initialization complete
+[11:14:07.239] [INFO] [Vulkan] Vulkan surface created successfully
+[11:14:07.258] [INFO] [Vulkan] Compute queue family: 0 (shared with graphics)
+[11:14:07.278] [INFO] [Vulkan] Swapchain created successfully
+[11:14:07.278] [INFO] [Vulkan] Framebuffers created successfully
+[11:14:07.281] [INFO] [Rendering] Debug graphics pipeline created successfully
+[11:14:07.281] [INFO] [Rendering] Debug line pipeline created successfully
+[11:14:07.282] [INFO] [Vulkan] Command buffers created successfully
+[11:14:07.282] [INFO] [Vulkan] Compute resources initialized (2 command buffers)
+[11:14:07.285] [INFO] [Vulkan] Created light SSBO buffers (2064 bytes each)
+[11:14:07.285] [INFO] [Vulkan] Created atlas UV SSBO buffers (24592 bytes each)
+[11:14:07.286] [INFO] [Vulkan] Sync objects created successfully
+[11:14:07.286] [INFO] [WorldInitializer] Vulkan subsystem initialized successfully
+[11:14:07.286] [INFO] [WorldInitializer] Initializing texture atlas system...
+[11:14:07.301] [INFO] [MaterialRegistry] Loaded 102 materials (612 texture slots) from resources/materials.json
+[11:14:11.937] [INFO] [AtlasManager] Built texture array class 0: 432 layers @ 512x512 (albedo + normal/rough)
+[11:14:37.252] [INFO] [AtlasManager] Built texture array class 1: 180 layers @ 1024x1024 (albedo + normal/rough)
+[11:14:37.403] [INFO] [AtlasManager] Loaded BC7 cache albedo class 0 (144 MB)
+[11:14:37.624] [INFO] [Vulkan] BC7 texture array uploaded (class 0, 432 layers @ 512x512, 10 mips, 144 MB)
+[11:14:37.762] [INFO] [AtlasManager] Loaded BC7 cache nr class 0 (144 MB)
+[11:14:37.905] [INFO] [Vulkan] BC7 texture array uploaded (class 2, 432 layers @ 512x512, 10 mips, 144 MB)
+[11:14:38.153] [INFO] [AtlasManager] Loaded BC7 cache albedo class 1 (240 MB)
+[11:14:38.570] [INFO] [Vulkan] BC7 texture array uploaded (class 1, 180 layers @ 1024x1024, 11 mips, 240 MB)
+[11:14:38.799] [INFO] [AtlasManager] Loaded BC7 cache nr class 1 (240 MB)
+[11:14:39.033] [INFO] [Vulkan] BC7 texture array uploaded (class 3, 180 layers @ 1024x1024, 11 mips, 240 MB)
+[11:14:39.034] [INFO] [Vulkan] Updated atlas SSBO (count512=432, count1024=180, fallback=0)
+[11:14:39.035] [INFO] [WorldInitializer] Populated atlas SSBO with material PBR props (512 class=432, 1024 class=180)
+[11:14:39.036] [INFO] [WorldInitializer] Texture atlas system initialized successfully
+[11:14:39.038] [INFO] [Chunk] Physics world set for proper dynamic object cleanup
+[11:14:39.043] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds/default.db
+[11:14:39.051] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully
+[11:14:39.051] [INFO] [ChunkStreaming] World storage initialized: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\worlds/default.db
+[11:14:39.051] [INFO] [WorldStorage] [WORLD_STORAGE] Found 0 chunks in database
+[11:14:39.051] [INFO] [ChunkStreaming] No chunks found in database
+[11:14:39.051] [INFO] [WorldInitializer] No chunks found in database - starting with EMPTY world for Python scripting
+[11:14:39.051] [INFO] [Chunk] Rebuilding faces for all loaded chunks with cross-chunk culling...
+[11:14:39.052] [INFO] [Chunk] Face rebuilding complete for 0 chunks
+[11:14:39.052] [INFO] [Chunk] Initializing voxel hash maps for all 0 chunks...
+[11:14:39.052] [INFO] [Chunk] Completed voxel map initialization for optimized O(1) hover detection
+[11:14:39.052] [INFO] [WorldInitializer] Created 0 chunks for testing
+[11:14:39.052] [INFO] [InputManager] InputManager initialized successfully
+[11:14:39.053] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)
+[11:14:39.053] [INFO] [WorldInitializer] Physics subsystem initialized successfully (static cubes excluded)
+[11:14:39.053] [INFO] [WorldInitializer] Creating chunk physics bodies...
+[11:14:39.053] [INFO] [WorldInitializer] Assets loaded successfully
+[11:14:39.061] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)
+[11:14:39.062] [INFO] [WorldInitializer] Application initialized successfully!
+[11:14:39.065] [INFO] [EngineRuntime] Engine runtime initialized successfully
+[11:14:39.066] [INFO] [VoxelInteractionSystem] VoxelInteractionSystem initialized
+[11:14:39.066] [INFO] [Application] VoxelInteractionSystem initialized successfully!
+[11:14:39.069] [INFO] [ObjectTemplateManager] Loaded template: altar with 0 cubes, 23 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.070] [INFO] [ObjectTemplateManager] Loaded template: anvil with 0 cubes, 0 subcubes, 48 microcubes, 0 interaction points, 1 parts
+[11:14:39.073] [INFO] [ObjectTemplateManager] Loaded template: armchair with 0 cubes, 0 subcubes, 175 microcubes, 0 interaction points, 1 parts
+[11:14:39.084] [INFO] [ObjectTemplateManager] Loaded template: back_bar with 0 cubes, 0 subcubes, 744 microcubes, 0 interaction points, 1 parts
+[11:14:39.085] [INFO] [ObjectTemplateManager] Loaded template: barony_apple with 0 cubes, 0 subcubes, 22 microcubes, 0 interaction points, 1 parts
+[11:14:39.086] [INFO] [ObjectTemplateManager] Loaded template: barony_arcanechair with 0 cubes, 0 subcubes, 62 microcubes, 0 interaction points, 1 parts
+[11:14:39.088] [INFO] [ObjectTemplateManager] Loaded template: barony_bomb with 0 cubes, 0 subcubes, 56 microcubes, 0 interaction points, 1 parts
+[11:14:39.089] [INFO] [ObjectTemplateManager] Loaded template: barony_bread with 0 cubes, 0 subcubes, 35 microcubes, 0 interaction points, 1 parts
+[11:14:39.105] [INFO] [ObjectTemplateManager] Loaded template: barony_bunkbed with 0 cubes, 0 subcubes, 1036 microcubes, 0 interaction points, 1 parts
+[11:14:39.108] [INFO] [ObjectTemplateManager] Loaded template: barony_campfire with 0 cubes, 0 subcubes, 90 microcubes, 0 interaction points, 1 parts
+[11:14:39.109] [INFO] [ObjectTemplateManager] Loaded template: barony_chair with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:14:39.112] [INFO] [ObjectTemplateManager] Loaded template: barony_chest with 0 cubes, 0 subcubes, 185 microcubes, 0 interaction points, 1 parts
+[11:14:39.145] [INFO] [ObjectTemplateManager] Loaded template: barony_column with 0 cubes, 0 subcubes, 2080 microcubes, 0 interaction points, 1 parts
+[11:14:39.154] [INFO] [ObjectTemplateManager] Loaded template: barony_fountain with 0 cubes, 0 subcubes, 438 microcubes, 0 interaction points, 1 parts
+[11:14:39.157] [INFO] [ObjectTemplateManager] Loaded template: barrel with 0 cubes, 0 subcubes, 168 microcubes, 0 interaction points, 1 parts
+[11:14:39.158] [INFO] [ObjectTemplateManager] Loaded template: bar_stool with 0 cubes, 0 subcubes, 48 microcubes, 1 interaction points, 1 parts
+[11:14:39.159] [INFO] [ObjectTemplateManager] Loaded template: bedroll_test with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.165] [INFO] [ObjectTemplateManager] Loaded template: bed_single with 0 cubes, 0 subcubes, 438 microcubes, 0 interaction points, 1 parts
+[11:14:39.167] [INFO] [ObjectTemplateManager] Loaded template: bellows with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:14:39.168] [INFO] [ObjectTemplateManager] Loaded template: bench_great with 0 cubes, 96 subcubes, 0 microcubes, 1 interaction points, 1 parts
+[11:14:39.170] [INFO] [ObjectTemplateManager] Loaded template: bench_wood with 0 cubes, 0 subcubes, 64 microcubes, 1 interaction points, 1 parts
+[11:14:39.177] [INFO] [ObjectTemplateManager] Loaded template: bookshelf with 0 cubes, 0 subcubes, 525 microcubes, 0 interaction points, 1 parts
+[11:14:39.179] [INFO] [ObjectTemplateManager] Loaded template: book_stack with 0 cubes, 0 subcubes, 126 microcubes, 0 interaction points, 1 parts
+[11:14:39.180] [INFO] [ObjectTemplateManager] Loaded template: bottle with 0 cubes, 0 subcubes, 3 microcubes, 0 interaction points, 1 parts
+[11:14:39.181] [INFO] [ObjectTemplateManager] Loaded template: brazier with 0 cubes, 13 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.249] [INFO] [ObjectTemplateManager] Loaded template: burgomaster with 1023 cubes, 5688 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.457] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_furnished with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 interaction points, 1 parts
+[11:14:39.660] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_grand with 2778 cubes, 15695 subcubes, 1192 microcubes, 0 interaction points, 1 parts
+[11:14:39.737] [INFO] [ObjectTemplateManager] Loaded template: burgomaster_v2 with 1165 cubes, 3540 subcubes, 2136 microcubes, 0 interaction points, 1 parts
+[11:14:39.738] [INFO] [ObjectTemplateManager] Loaded template: bush_flower with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.743] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_blue with 3 cubes, 366 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.748] [INFO] [ObjectTemplateManager] Loaded template: bush_glow_green with 1 cubes, 494 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.758] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_m with 21 cubes, 788 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.765] [INFO] [ObjectTemplateManager] Loaded template: bush_leafy_s with 9 cubes, 634 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.771] [INFO] [ObjectTemplateManager] Loaded template: bush_round with 8 cubes, 506 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.771] [INFO] [ObjectTemplateManager] Loaded template: campfire with 0 cubes, 11 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.772] [INFO] [ObjectTemplateManager] Loaded template: candelabra with 0 cubes, 0 subcubes, 16 microcubes, 0 interaction points, 1 parts
+[11:14:39.772] [INFO] [ObjectTemplateManager] Loaded template: candlestick with 0 cubes, 0 subcubes, 12 microcubes, 0 interaction points, 1 parts
+[11:14:39.773] [INFO] [ObjectTemplateManager] Loaded template: candle_holder with 0 cubes, 7 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.774] [INFO] [ObjectTemplateManager] Loaded template: candle_stand with 0 cubes, 0 subcubes, 36 microcubes, 0 interaction points, 1 parts
+[11:14:39.775] [INFO] [ObjectTemplateManager] Loaded template: chair with 0 cubes, 0 subcubes, 40 microcubes, 0 interaction points, 1 parts
+[11:14:39.777] [INFO] [ObjectTemplateManager] Loaded template: chair_wood with 0 cubes, 0 subcubes, 138 microcubes, 1 interaction points, 1 parts
+[11:14:39.778] [INFO] [ObjectTemplateManager] Loaded template: chandelier with 0 cubes, 0 subcubes, 37 microcubes, 0 interaction points, 1 parts
+[11:14:39.782] [INFO] [ObjectTemplateManager] Loaded template: chest_closed with 0 cubes, 0 subcubes, 249 microcubes, 0 interaction points, 3 parts
+[11:14:39.783] [INFO] [ObjectTemplateManager] Loaded template: chest_open with 0 cubes, 21 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.783] [INFO] [ObjectTemplateManager] Loaded template: chest_test with 18 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 3 parts
+[11:14:39.785] [INFO] [ObjectTemplateManager] Loaded template: chopping_block with 0 cubes, 0 subcubes, 95 microcubes, 0 interaction points, 1 parts
+[11:14:39.788] [INFO] [ObjectTemplateManager] Loaded template: counter with 0 cubes, 0 subcubes, 210 microcubes, 0 interaction points, 1 parts
+[11:14:39.788] [INFO] [ObjectTemplateManager] Loaded template: crate_wood with 1 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.792] [INFO] [ObjectTemplateManager] Loaded template: desk with 0 cubes, 4 subcubes, 212 microcubes, 0 interaction points, 1 parts
+[11:14:39.809] [INFO] [ObjectTemplateManager] Loaded template: door_grand with 0 cubes, 8 subcubes, 1242 microcubes, 0 interaction points, 1 parts
+[11:14:39.814] [INFO] [ObjectTemplateManager] Loaded template: door_iron with 0 cubes, 6 subcubes, 324 microcubes, 0 interaction points, 1 parts
+[11:14:39.815] [WARN] [ObjectTemplateManager] Failed to parse interaction_point line: # interaction_point: handle_0 door_handle 0.5 1.0 1.0 0.0
+[11:14:39.815] [INFO] [ObjectTemplateManager] Loaded template: door_metal with 2 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 2 parts
+[11:14:39.820] [INFO] [ObjectTemplateManager] Loaded template: door_plank with 0 cubes, 4 subcubes, 350 microcubes, 0 interaction points, 1 parts
+[11:14:39.821] [INFO] [ObjectTemplateManager] Loaded template: door_wood with 0 cubes, 18 subcubes, 2 microcubes, 1 interaction points, 1 parts
+[11:14:39.821] [INFO] [ObjectTemplateManager] Loaded template: door_wood_wide with 0 cubes, 36 subcubes, 2 microcubes, 1 interaction points, 1 parts
+[11:14:39.822] [INFO] [ObjectTemplateManager] Loaded template: drawer_test with 6 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 2 parts
+[11:14:39.824] [INFO] [ObjectTemplateManager] Loaded template: dresser with 0 cubes, 0 subcubes, 171 microcubes, 0 interaction points, 1 parts
+[11:14:39.825] [INFO] [ObjectTemplateManager] Loaded template: fern with 0 cubes, 11 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:39.833] [INFO] [ObjectTemplateManager] Loaded template: fireplace with 0 cubes, 0 subcubes, 596 microcubes, 0 interaction points, 1 parts
+[11:14:40.003] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_l with 17 cubes, 6791 subcubes, 7074 microcubes, 0 interaction points, 1 parts
+[11:14:40.124] [INFO] [ObjectTemplateManager] Loaded template: forge_acacia_m with 9 cubes, 4028 subcubes, 5562 microcubes, 0 interaction points, 1 parts
+[11:14:40.381] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_l with 23 cubes, 9275 subcubes, 10937 microcubes, 0 interaction points, 1 parts
+[11:14:40.621] [INFO] [ObjectTemplateManager] Loaded template: forge_autumn_m with 10 cubes, 5388 subcubes, 13347 microcubes, 0 interaction points, 1 parts
+[11:14:40.795] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_l with 18 cubes, 6473 subcubes, 7074 microcubes, 0 interaction points, 1 parts
+[11:14:40.964] [INFO] [ObjectTemplateManager] Loaded template: forge_birch_m with 8 cubes, 3491 subcubes, 9307 microcubes, 0 interaction points, 1 parts
+[11:14:40.984] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_blue with 0 cubes, 321 subcubes, 1138 microcubes, 0 interaction points, 1 parts
+[11:14:41.005] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_glow_green with 0 cubes, 356 subcubes, 1134 microcubes, 0 interaction points, 1 parts
+[11:14:41.036] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_m with 0 cubes, 625 subcubes, 1890 microcubes, 0 interaction points, 1 parts
+[11:14:41.059] [INFO] [ObjectTemplateManager] Loaded template: forge_bush_s with 0 cubes, 371 subcubes, 1404 microcubes, 0 interaction points, 1 parts
+[11:14:41.081] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_m with 6 cubes, 827 subcubes, 965 microcubes, 0 interaction points, 1 parts
+[11:14:41.095] [INFO] [ObjectTemplateManager] Loaded template: forge_dead_s with 6 cubes, 589 subcubes, 567 microcubes, 0 interaction points, 1 parts
+[11:14:41.919] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xl with 4491 cubes, 30928 subcubes, 33213 microcubes, 0 interaction points, 1 parts
+[11:14:43.367] [INFO] [ObjectTemplateManager] Loaded template: forge_elder_oak_xxl with 13788 cubes, 57981 subcubes, 50494 microcubes, 0 interaction points, 1 parts
+[11:14:43.918] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak with 2142 cubes, 20403 subcubes, 22610 microcubes, 0 interaction points, 1 parts
+[11:14:44.225] [INFO] [ObjectTemplateManager] Loaded template: forge_enchanted_oak_s with 585 cubes, 9306 subcubes, 14376 microcubes, 0 interaction points, 1 parts
+[11:14:44.333] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_l with 16 cubes, 2522 subcubes, 5422 microcubes, 0 interaction points, 1 parts
+[11:14:44.391] [INFO] [ObjectTemplateManager] Loaded template: forge_fir_m with 4 cubes, 1236 subcubes, 3206 microcubes, 0 interaction points, 1 parts
+[11:14:44.399] [INFO] [ObjectTemplateManager] Loaded template: forge_hearth with 0 cubes, 0 subcubes, 528 microcubes, 0 interaction points, 1 parts
+[11:14:44.788] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_l with 84 cubes, 16978 subcubes, 14405 microcubes, 0 interaction points, 1 parts
+[11:14:45.021] [INFO] [ObjectTemplateManager] Loaded template: forge_jungle_m with 31 cubes, 7400 subcubes, 10866 microcubes, 0 interaction points, 1 parts
+[11:14:45.449] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_hero with 27 cubes, 13693 subcubes, 20095 microcubes, 0 interaction points, 1 parts
+[11:14:45.709] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_l with 29 cubes, 10898 subcubes, 9600 microcubes, 0 interaction points, 1 parts
+[11:14:45.974] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_m with 10 cubes, 5289 subcubes, 14261 microcubes, 0 interaction points, 1 parts
+[11:14:46.111] [INFO] [ObjectTemplateManager] Loaded template: forge_oak_sparse with 9 cubes, 4051 subcubes, 6345 microcubes, 0 interaction points, 1 parts
+[11:14:46.136] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_l with 0 cubes, 114 subcubes, 1636 microcubes, 0 interaction points, 1 parts
+[11:14:46.154] [INFO] [ObjectTemplateManager] Loaded template: forge_palm_m with 0 cubes, 128 subcubes, 1125 microcubes, 0 interaction points, 1 parts
+[11:14:46.326] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_l with 30 cubes, 5832 subcubes, 7496 microcubes, 0 interaction points, 1 parts
+[11:14:46.428] [INFO] [ObjectTemplateManager] Loaded template: forge_pine_m with 5 cubes, 2571 subcubes, 4883 microcubes, 0 interaction points, 1 parts
+[11:14:47.423] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xl with 6730 cubes, 40818 subcubes, 34983 microcubes, 0 interaction points, 1 parts
+[11:14:49.318] [INFO] [ObjectTemplateManager] Loaded template: forge_redwood_xxl with 21549 cubes, 79410 subcubes, 59079 microcubes, 0 interaction points, 1 parts
+[11:14:49.424] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_l with 8 cubes, 3119 subcubes, 4980 microcubes, 0 interaction points, 1 parts
+[11:14:49.511] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_m with 5 cubes, 1484 subcubes, 5093 microcubes, 0 interaction points, 1 parts
+[11:14:49.549] [INFO] [ObjectTemplateManager] Loaded template: forge_spruce_s with 4 cubes, 744 subcubes, 2126 microcubes, 0 interaction points, 1 parts
+[11:14:49.926] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_l with 20 cubes, 15241 subcubes, 15417 microcubes, 0 interaction points, 1 parts
+[11:14:50.277] [INFO] [ObjectTemplateManager] Loaded template: forge_willow_m with 5 cubes, 8624 subcubes, 18414 microcubes, 0 interaction points, 1 parts
+[11:14:50.294] [INFO] [ObjectTemplateManager] Loaded template: four_poster with 0 cubes, 0 subcubes, 1102 microcubes, 0 interaction points, 1 parts
+[11:14:50.300] [INFO] [ObjectTemplateManager] Loaded template: garden_bed with 0 cubes, 0 subcubes, 382 microcubes, 0 interaction points, 1 parts
+[11:14:50.310] [INFO] [ObjectTemplateManager] Loaded template: gate_timber with 0 cubes, 80 subcubes, 633 microcubes, 0 interaction points, 1 parts
+[11:14:50.310] [INFO] [ObjectTemplateManager] Loaded template: goblet with 0 cubes, 0 subcubes, 19 microcubes, 0 interaction points, 1 parts
+[11:14:50.311] [INFO] [ObjectTemplateManager] Loaded template: hanging_sign with 0 cubes, 0 subcubes, 40 microcubes, 0 interaction points, 1 parts
+[11:14:50.312] [INFO] [ObjectTemplateManager] Loaded template: hedge_section with 1 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.334] [INFO] [ObjectTemplateManager] Loaded template: house2 with 359 cubes, 1881 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.374] [INFO] [ObjectTemplateManager] Loaded template: houseL with 392 cubes, 1739 subcubes, 1339 microcubes, 0 interaction points, 1 parts
+[11:14:50.396] [INFO] [ObjectTemplateManager] Loaded template: house_2story with 359 cubes, 1881 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.396] [INFO] [ObjectTemplateManager] Loaded template: iron_bars with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.397] [INFO] [ObjectTemplateManager] Loaded template: ladder with 0 cubes, 14 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.398] [INFO] [ObjectTemplateManager] Loaded template: ladder_test with 0 cubes, 8 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.399] [INFO] [ObjectTemplateManager] Loaded template: lantern with 0 cubes, 10 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.399] [INFO] [ObjectTemplateManager] Loaded template: lever_test with 0 cubes, 3 subcubes, 0 microcubes, 0 interaction points, 3 parts
+[11:14:50.407] [INFO] [ObjectTemplateManager] Loaded template: long_table with 0 cubes, 0 subcubes, 455 microcubes, 0 interaction points, 1 parts
+[11:14:50.460] [INFO] [ObjectTemplateManager] Loaded template: manor_gen with 315 cubes, 3056 subcubes, 1447 microcubes, 0 interaction points, 1 parts
+[11:14:50.461] [INFO] [ObjectTemplateManager] Loaded template: meat_rail with 0 cubes, 0 subcubes, 70 microcubes, 0 interaction points, 1 parts
+[11:14:50.462] [INFO] [ObjectTemplateManager] Loaded template: mug with 0 cubes, 0 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:50.462] [INFO] [ObjectTemplateManager] Loaded template: mushroom with 0 cubes, 16 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.465] [INFO] [ObjectTemplateManager] Loaded template: nightstand with 0 cubes, 0 subcubes, 98 microcubes, 0 interaction points, 1 parts
+[11:14:50.493] [INFO] [ObjectTemplateManager] Loaded template: oven_bread with 0 cubes, 0 subcubes, 1908 microcubes, 0 interaction points, 1 parts
+[11:14:50.493] [INFO] [ObjectTemplateManager] Loaded template: pillar_stone with 0 cubes, 23 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.494] [INFO] [ObjectTemplateManager] Loaded template: plate with 0 cubes, 0 subcubes, 17 microcubes, 0 interaction points, 1 parts
+[11:14:50.495] [INFO] [ObjectTemplateManager] Loaded template: pot_iron with 0 cubes, 19 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.499] [INFO] [ObjectTemplateManager] Loaded template: rug with 0 cubes, 0 subcubes, 234 microcubes, 0 interaction points, 1 parts
+[11:14:50.499] [INFO] [ObjectTemplateManager] Loaded template: rug_oriental with 0 cubes, 36 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.500] [INFO] [ObjectTemplateManager] Loaded template: rug_test with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.501] [INFO] [ObjectTemplateManager] Loaded template: sconce with 0 cubes, 0 subcubes, 7 microcubes, 0 interaction points, 1 parts
+[11:14:50.527] [INFO] [ObjectTemplateManager] Loaded template: shop_detailed with 284 cubes, 2328 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.535] [INFO] [ObjectTemplateManager] Loaded template: shrub_flat with 0 cubes, 25 subcubes, 583 microcubes, 0 interaction points, 1 parts
+[11:14:50.548] [INFO] [ObjectTemplateManager] Loaded template: shrub_round with 0 cubes, 62 subcubes, 877 microcubes, 0 interaction points, 1 parts
+[11:14:50.554] [INFO] [ObjectTemplateManager] Loaded template: sideboard with 0 cubes, 0 subcubes, 436 microcubes, 0 interaction points, 1 parts
+[11:14:50.555] [INFO] [ObjectTemplateManager] Loaded template: sign_prancing_pony with 0 cubes, 36 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.559] [INFO] [ObjectTemplateManager] Loaded template: simple_table with 0 cubes, 0 subcubes, 263 microcubes, 0 interaction points, 1 parts
+[11:14:50.559] [INFO] [ObjectTemplateManager] Loaded template: stool with 0 cubes, 0 subcubes, 21 microcubes, 1 interaction points, 1 parts
+[11:14:50.560] [INFO] [ObjectTemplateManager] Loaded template: stool_low with 0 cubes, 4 subcubes, 0 microcubes, 1 interaction points, 1 parts
+[11:14:50.562] [INFO] [ObjectTemplateManager] Loaded template: table_wood with 0 cubes, 0 subcubes, 128 microcubes, 0 interaction points, 1 parts
+[11:14:50.570] [INFO] [ObjectTemplateManager] Loaded template: tavern_bar with 0 cubes, 0 subcubes, 529 microcubes, 0 interaction points, 1 parts
+[11:14:50.572] [INFO] [ObjectTemplateManager] Loaded template: tavern_table with 0 cubes, 0 subcubes, 143 microcubes, 0 interaction points, 1 parts
+[11:14:50.580] [INFO] [ObjectTemplateManager] Loaded template: tavern_test with 1168 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.582] [INFO] [ObjectTemplateManager] Loaded template: test_chair with 0 cubes, 0 subcubes, 99 microcubes, 1 interaction points, 1 parts
+[11:14:50.583] [INFO] [ObjectTemplateManager] Loaded template: tome_arcane with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.584] [INFO] [ObjectTemplateManager] Loaded template: tome_fire with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.585] [INFO] [ObjectTemplateManager] Loaded template: tome_necromantic with 0 cubes, 6 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.586] [INFO] [ObjectTemplateManager] Loaded template: tool_rack with 0 cubes, 0 subcubes, 75 microcubes, 0 interaction points, 1 parts
+[11:14:50.587] [INFO] [ObjectTemplateManager] Loaded template: torch with 0 cubes, 0 subcubes, 4 microcubes, 0 interaction points, 1 parts
+[11:14:50.588] [INFO] [ObjectTemplateManager] Loaded template: torch_wall with 0 cubes, 5 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.620] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_l with 0 cubes, 3149 subcubes, 4 microcubes, 0 interaction points, 1 parts
+[11:14:50.636] [INFO] [ObjectTemplateManager] Loaded template: tree_acacia_m with 0 cubes, 1475 subcubes, 2 microcubes, 0 interaction points, 1 parts
+[11:14:50.637] [INFO] [ObjectTemplateManager] Loaded template: tree_apple with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.688] [INFO] [ObjectTemplateManager] Loaded template: tree_autumn_m with 11 cubes, 4675 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.689] [INFO] [ObjectTemplateManager] Loaded template: tree_birch with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.703] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_l with 4 cubes, 1213 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.715] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_m with 3 cubes, 1117 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.726] [INFO] [ObjectTemplateManager] Loaded template: tree_birch_sparse with 3 cubes, 992 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.727] [INFO] [ObjectTemplateManager] Loaded template: tree_dead with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:50.728] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_m with 3 cubes, 116 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:50.730] [INFO] [ObjectTemplateManager] Loaded template: tree_dead_s with 2 cubes, 116 subcubes, 2 microcubes, 0 interaction points, 1 parts
+[11:14:50.982] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak with 35730 cubes, 19 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.289] [INFO] [ObjectTemplateManager] Loaded template: tree_elder_oak_xl with 42041 cubes, 5 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.306] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_l with 40 cubes, 1391 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:51.315] [INFO] [ObjectTemplateManager] Loaded template: tree_fir_m with 11 cubes, 784 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:51.338] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_m with 85 cubes, 2141 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.383] [INFO] [ObjectTemplateManager] Loaded template: tree_jungle_xl with 218 cubes, 3909 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.384] [INFO] [ObjectTemplateManager] Loaded template: tree_oak with 0 cubes, 22 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.450] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_l with 19 cubes, 6503 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.496] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_lush with 10 cubes, 4176 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.548] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_m with 11 cubes, 5009 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.568] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_s with 7 cubes, 1978 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.609] [INFO] [ObjectTemplateManager] Loaded template: tree_oak_sparse with 6 cubes, 3780 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.610] [INFO] [ObjectTemplateManager] Loaded template: tree_palm with 0 cubes, 12 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.611] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_l with 0 cubes, 120 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.613] [INFO] [ObjectTemplateManager] Loaded template: tree_palm_m with 0 cubes, 96 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.614] [INFO] [ObjectTemplateManager] Loaded template: tree_pine with 0 cubes, 27 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:51.633] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_l with 8 cubes, 1696 subcubes, 28 microcubes, 0 interaction points, 1 parts
+[11:14:51.639] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_m with 5 cubes, 506 subcubes, 20 microcubes, 0 interaction points, 1 parts
+[11:14:51.642] [INFO] [ObjectTemplateManager] Loaded template: tree_pine_s with 4 cubes, 291 subcubes, 16 microcubes, 0 interaction points, 1 parts
+[11:14:51.827] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_l with 26550 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.097] [INFO] [ObjectTemplateManager] Loaded template: tree_redwood_xl with 38336 cubes, 0 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.127] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_l with 183 cubes, 2578 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:52.139] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_crisp_m with 38 cubes, 1012 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:52.171] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_l with 163 cubes, 2894 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:52.184] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_m with 32 cubes, 1130 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:52.189] [INFO] [ObjectTemplateManager] Loaded template: tree_spruce_s with 7 cubes, 464 subcubes, 1 microcubes, 0 interaction points, 1 parts
+[11:14:52.190] [INFO] [ObjectTemplateManager] Loaded template: tree_stump with 0 cubes, 14 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.214] [INFO] [ObjectTemplateManager] Loaded template: tree_willow_l with 80 cubes, 2303 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.215] [INFO] [ObjectTemplateManager] Loaded template: wall_lantern with 0 cubes, 0 subcubes, 24 microcubes, 0 interaction points, 1 parts
+[11:14:52.219] [INFO] [ObjectTemplateManager] Loaded template: wall_shelf with 0 cubes, 0 subcubes, 276 microcubes, 0 interaction points, 1 parts
+[11:14:52.225] [INFO] [ObjectTemplateManager] Loaded template: wardrobe with 0 cubes, 0 subcubes, 437 microcubes, 0 interaction points, 1 parts
+[11:14:52.232] [INFO] [ObjectTemplateManager] Loaded template: well with 0 cubes, 0 subcubes, 453 microcubes, 0 interaction points, 1 parts
+[11:14:52.234] [INFO] [ObjectTemplateManager] Loaded template: wooden_throne with 0 cubes, 168 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.243] [INFO] [ObjectTemplateManager] Loaded template: woodpile with 0 cubes, 0 subcubes, 660 microcubes, 0 interaction points, 1 parts
+[11:14:52.243] [INFO] [ObjectTemplateManager] Loaded template: workbench with 0 cubes, 18 subcubes, 0 microcubes, 0 interaction points, 1 parts
+[11:14:52.243] [INFO] [Application] ObjectTemplateManager initialized successfully!
+[11:14:52.244] [INFO] [RaycastVisualizer] Raycast visualizer initialized
+[11:14:52.244] [INFO] [Application] RaycastVisualizer initialized successfully!
+[11:14:52.244] [INFO] [Application] Entities initialized successfully!
+[11:14:52.343] [INFO] [Rendering] Debug graphics pipeline created successfully
+[11:14:52.343] [INFO] [Rendering] Debug line pipeline created successfully
+[11:14:52.344] [INFO] [RenderPipeline] OIT transparent pipeline created
+[11:14:52.345] [INFO] [RenderPipeline] Mirror pipeline created
+[11:14:52.345] [INFO] [RenderPipeline] Reflection scene pipeline created
+[11:14:52.346] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!
+[11:14:52.346] [INFO] [Vulkan] Framebuffers created successfully
+[11:14:52.349] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)
+[11:14:52.361] [INFO] [KinematicVoxelPipeline] Initialized (max 131072 face instances)
+[11:14:52.362] [INFO] [GrassRenderPipeline] Initialized (grass blade layer)
+[11:14:52.363] [INFO] [FoliageRenderPipeline] Initialized (leaf card layer)
+[11:14:52.365] [INFO] [FoliageRenderPipeline] Shadow caster initialized (dappled canopy shadows)
+[11:14:52.365] [INFO] [FoliageRenderPipeline] Kinematic foliage initialized (falling canopies keep cards)
+[11:14:52.366] [INFO] [FarTerrainRenderPipeline] Initialized (far-terrain LOD tiles)
+[11:14:52.369] [INFO] [UIRenderer] Initialized (1600x900)
+[11:14:52.373] [INFO] [UIRenderer] Font atlas uploaded (512x512)
+[11:14:52.374] [INFO] [BitmapFont] Loaded TTF 'resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf' baked @ 48px (norm {:.3f})
+[11:14:52.374] [INFO] [RenderCoordinator] UISystem initialized successfully
+[11:14:52.374] [INFO] [Application] RenderCoordinator initialized successfully!
+[11:14:52.401] [INFO] [GpuParticlePhysics] Solver buffers: solverBody=2031KB constraints=7500KB warmstart=8192KB solverState=512KB csrList=468KB
+[11:14:52.404] [INFO] [ComputePipeline] Created: shaders/particle_grid_clear.comp.spv (1 bindings)
+[11:14:52.405] [INFO] [ComputePipeline] Created: shaders/particle_grid_build.comp.spv (2 bindings)
+[11:14:52.405] [INFO] [ComputePipeline] Created: shaders/particle_sort_scan.comp.spv (2 bindings)
+[11:14:52.406] [INFO] [ComputePipeline] Created: shaders/particle_sort_scatter.comp.spv (4 bindings)
+[11:14:52.406] [INFO] [ComputePipeline] Created: shaders/particle_integrate.comp.spv (2 bindings)
+[11:14:52.408] [INFO] [ComputePipeline] Created: shaders/particle_collide.comp.spv (8 bindings)
+[11:14:52.409] [INFO] [ComputePipeline] Created: shaders/particle_expand.comp.spv (4 bindings)
+[11:14:52.409] [INFO] [ComputePipeline] Created: shaders/particle_scan_block.comp.spv (3 bindings)
+[11:14:52.410] [INFO] [ComputePipeline] Created: shaders/particle_scan_blocksums.comp.spv (1 bindings)
+[11:14:52.410] [INFO] [ComputePipeline] Created: shaders/particle_scan_add.comp.spv (2 bindings)
+[11:14:52.411] [INFO] [ComputePipeline] Created: shaders/solver_sync_in.comp.spv (4 bindings)
+[11:14:52.411] [INFO] [ComputePipeline] Created: shaders/solver_integrate.comp.spv (4 bindings)
+[11:14:52.416] [INFO] [ComputePipeline] Created: shaders/solver_narrowphase.comp.spv (7 bindings)
+[11:14:52.417] [INFO] [ComputePipeline] Created: shaders/solver_voxel.comp.spv (5 bindings)
+[11:14:52.418] [INFO] [ComputePipeline] Created: shaders/solver_dual.comp.spv (3 bindings)
+[11:14:52.418] [INFO] [ComputePipeline] Created: shaders/solver_primal.comp.spv (7 bindings)
+[11:14:52.419] [INFO] [ComputePipeline] Created: shaders/solver_sync_out.comp.spv (2 bindings)
+[11:14:52.419] [INFO] [ComputePipeline] Created: shaders/solver_warmstart_save.comp.spv (3 bindings)
+[11:14:52.420] [INFO] [ComputePipeline] Created: shaders/solver_hardcontact.comp.spv (2 bindings)
+[11:14:52.420] [INFO] [ComputePipeline] Created: shaders/solver_csr_clear.comp.spv (2 bindings)
+[11:14:52.421] [INFO] [ComputePipeline] Created: shaders/solver_csr_count.comp.spv (3 bindings)
+[11:14:52.421] [INFO] [ComputePipeline] Created: shaders/solver_prefix_sum.comp.spv (3 bindings)
+[11:14:52.422] [INFO] [ComputePipeline] Created: shaders/solver_csr_scatter.comp.spv (4 bindings)
+[11:14:52.422] [INFO] [ComputePipeline] Created: shaders/solver_body_color.comp.spv (6 bindings)
+[11:14:52.423] [INFO] [GpuParticlePhysics] Initialized: MAX_PARTICLES=10000 particleBuffer=937KB faceBuffer=3750KB
+[11:14:52.423] [INFO] [ChunkManager] Occupancy grid rebuilt from 0 chunks
+[11:14:52.423] [INFO] [Application] GpuParticlePhysics initialized successfully!
+[11:14:52.449] [INFO] [ComputePipeline] Created: shaders/water_flow.comp.spv (5 bindings)
+[11:14:52.449] [INFO] [WaterManager] GPU water flow ready (131072 cells)
+[11:14:52.450] [INFO] [InputController] Input bindings initialized
+[11:14:52.450] [INFO] [Application] Initializing scripting system...
+[11:14:52.478] [INFO] [ScriptingSystem] Python interpreter initialized
+[11:14:52.480] [ERROR] [ScriptingSystem] Failed to import phyxel module: ModuleNotFoundError: No module named 'phyxel'
+[11:14:52.482] [ERROR] [ScriptingSystem] Failed to setup output redirection: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  <string>(4): <module>
+
+[11:14:52.482] [ERROR] [ScriptingSystem] Python Error: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  <string>(2): <module>
+
+[11:14:52.483] [ERROR] [ScriptingSystem] Python Error: NameError: name 'phyxel' is not defined
+
+At:
+  <string>(2): <module>
+
+[11:14:52.495] [WARN] [ScriptingSystem] Startup script error: ModuleNotFoundError: No module named 'phyxel'
+
+At:
+  scripts/startup.py(1): <module>
+
+[11:14:52.495] [INFO] [Application] Scripting system initialized successfully
+[11:14:52.495] [INFO] [AI] AISystem created
+[11:14:52.495] [INFO] [AI] AISystem: initializing...
+[11:14:52.496] [INFO] [AI] GooseBridge created (bridge at http://127.0.0.1:3001)
+[11:14:52.497] [INFO] [AI] AISystem: initialized (server not started)
+[11:14:52.497] [INFO] [Application] AI system initialized (server not auto-started, provider=anthropic)
+[11:14:52.498] [WARN] [AIEnhancer] Not ready — apiKey empty=1, scriptPath empty=0
+[11:14:52.507] [INFO] [JobSystem] Worker thread started
+[11:14:52.512] [INFO] [ItemRegistry] Auto-registered 102 materials as items
+[11:14:52.516] [INFO] [ItemRegistry] Loaded 17 item definitions
+[11:14:52.519] [INFO] [InteractionProfileManager] Loaded archetype 'humanoid_normal': 1 templates, 1 points, 0 overrides
+[11:14:52.519] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bench_wood'
+[11:14:52.519] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bench_wood'
+[11:14:52.520] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'door_wood_wide'
+[11:14:52.520] [INFO] [Application] Auto-registered 1 interaction point(s) for 'door_wood_wide'
+[11:14:52.520] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bench_great'
+[11:14:52.520] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bench_great'
+[11:14:52.520] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'bar_stool'
+[11:14:52.520] [INFO] [Application] Auto-registered 1 interaction point(s) for 'bar_stool'
+[11:14:52.520] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'door_wood'
+[11:14:52.520] [INFO] [Application] Auto-registered 1 interaction point(s) for 'door_wood'
+[11:14:52.520] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'chair_wood'
+[11:14:52.521] [INFO] [Application] Auto-registered 1 interaction point(s) for 'chair_wood'
+[11:14:52.521] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'stool'
+[11:14:52.521] [INFO] [Application] Auto-registered 1 interaction point(s) for 'stool'
+[11:14:52.521] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'stool_low'
+[11:14:52.521] [INFO] [Application] Auto-registered 1 interaction point(s) for 'stool_low'
+[11:14:52.521] [INFO] [PlacedObjectManager] Registered 1 interaction defs for template 'test_chair'
+[11:14:52.521] [INFO] [Application] Auto-registered 1 interaction point(s) for 'test_chair'
+[11:14:52.522] [INFO] [AI] LLMClient created (provider=anthropic, model=claude-sonnet-4-20250514)
+[11:14:52.523] [INFO] [AI] ConversationMemory initialized
+[11:14:52.523] [INFO] [AI] AIConversationService initialized (configured=0)
+[11:14:52.524] [INFO] [Application] AI Conversation Service initialized (provider=anthropic, configured=no)
+[11:14:52.524] [INFO] [PlacedObjectManager] No placed objects found in database
+[11:14:52.524] [INFO] [PlacedObjectManager] Recomputed interaction points: 0 points across 0 objects
+[11:14:52.562] [INFO] [EngineAPIServer] HTTP API server started on port 8099
+[11:14:52.562] [INFO] [Application] Engine HTTP API available at http://localhost:8099/api/status
+[11:14:52.564] [INFO] [Application] Asset editor mode: OFF, Anim editor mode: OFF, Interaction editor mode: OFF, projectDir: 'C:\Users\bpete\Documents\PhyxelProjects\StructGenTest'
+[11:14:52.565] [INFO] [Application] Auto-loading game definition: C:\Users\bpete\Documents\PhyxelProjects\StructGenTest\game.json
+[11:14:52.565] [INFO] [Application] Combat mode: real_time
+[11:14:52.567] [INFO] [HUD] Loaded engine default HUD (resources/ui/default_hud.json)
+[11:14:52.568] [INFO] [HUD] HUD panel 'hud_health' loaded
+[11:14:52.568] [INFO] [HUD] HUD panel 'hud_hotbar' loaded
+[11:14:52.568] [INFO] [HUD] HUD panel 'hud_objectives' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_dialogue' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_combat_order' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_combat_action' loaded
+[11:14:52.569] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded
+[11:14:52.570] [INFO] [HUD] HUD panel 'hud_countdown' loaded
+[11:14:52.570] [INFO] [GameDefinitionLoader] Loading game definition: StructGenTest
+[11:14:52.573] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json
+[11:14:52.576] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db
+[11:14:52.711] [INFO] [ChunkArena] initialized (block size 64 MB)
+[11:14:52.756] [INFO] [ChunkArena] block 0 created (64 MB)
+[11:14:59.469] [INFO] [ObjectTemplateManager] decorateFlora: placed 17 / 17 planned plants
+[11:14:59.469] [INFO] [GameDefinitionLoader] World: generated 15 chunks (Flat, seed=0)
+[11:14:59.472] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim
+[11:14:59.482] [INFO] [Character] === Loaded Animations (84) ===
+[11:14:59.483] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:14:59.483] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:14:59.483] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:14:59.483] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:14:59.483] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:14:59.483] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:14:59.484] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:14:59.484] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:14:59.484] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:14:59.484] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:14:59.484] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:14:59.484] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:14:59.484] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:14:59.484] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:14:59.484] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:14:59.484] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:14:59.484] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:14:59.484] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:14:59.485] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:14:59.485] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:14:59.485] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:14:59.485] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:14:59.485] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:14:59.485] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:14:59.485] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:14:59.485] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:14:59.485] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:14:59.485] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:14:59.485] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:14:59.485] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:14:59.486] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:14:59.486] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:14:59.486] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:14:59.486] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:14:59.486] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:14:59.486] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:14:59.486] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:14:59.486] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:14:59.486] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:14:59.486] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:14:59.486] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:14:59.486] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:14:59.487] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:14:59.487] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:14:59.487] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:14:59.487] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:14:59.487] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:14:59.487] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:14:59.487] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:14:59.487] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:14:59.487] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:14:59.487] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:14:59.487] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:14:59.487] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:14:59.488] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:14:59.488] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:14:59.488] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:14:59.488] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:14:59.488] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:14:59.488] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:14:59.488] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:14:59.488] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:14:59.488] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:14:59.488] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:14:59.488] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:14:59.488] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:14:59.489] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:14:59.489] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:14:59.489] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:14:59.489] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:14:59.489] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:14:59.489] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:14:59.489] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:14:59.489] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:14:59.489] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:14:59.489] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:14:59.489] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:14:59.489] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:14:59.490] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:14:59.490] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:14:59.490] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:14:59.490] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:14:59.490] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:14:59.490] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:14:59.490] [INFO] [Character] =====================================
+[11:14:59.494] [INFO] [BodyPlan] loaded 5 body plans
+[11:14:59.495] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967
+[11:14:59.498] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)
+[11:14:59.499] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)
+[11:14:59.500] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)
+[11:14:59.500] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)
+[11:14:59.500] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)
+[11:14:59.500] [INFO] [Character] Built 12/8 segment collision boxes
+[11:14:59.500] [INFO] [Application] Loaded animated character model: resources/animated_characters/humanoid.anim
+[11:14:59.500] [INFO] [Application] Set player interaction archetype to 'humanoid_normal'
+[11:14:59.501] [INFO] [GameDefinitionLoader] Player spawned: animated at (20.000000, 17.000000, 20.000000)
+[11:14:59.502] [INFO] [GameDefinitionLoader] Game definition loaded: StructGenTest (chunks=15, structures=0, locations=0, npcs=0)
+[11:14:59.502] [INFO] [Application] Game definition loaded: 15 chunks, 0 structures, 0 NPCs
+[11:14:59.727] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:15:06.406] [INFO] [PathService] Worker thread started
+[11:15:06.407] [INFO] [NPCManager] Built NavGrid: XZ [0,0] to [159,95], 15360 cells (15360 walkable)
+[11:15:06.407] [INFO] [Application] Player spawned (AnimatedCharacter) � camera stays Free, press V to follow
+[11:15:06.407] [INFO] [Application] Starting Phyxel application...
+[11:15:06.444] [INFO] [SettlementProgram] Loaded 4 settlement tiers from resources/settlement_program.json
+[11:15:06.447] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:15:06.449] [INFO] [Settlement] build_settlement: 6 plots, 6 buildings queued (1 streets)
+[11:15:06.449] [INFO] [MainThreadJobs] job 1000000 started: settlement medieval/village seed 3
+[11:15:06.809] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:15:06.809] [INFO] [Settlement] parcel clearing: 28656 cells over 2388 columns (margin 4)
+[11:15:06.812] [INFO] [MeleeAnimMapper] Loaded 6 families from resources/rpg_items/anim/melee_anim_families.json
+[11:15:06.817] [INFO] [Application] Held item '(none)' -> melee family 'unarmed' (rate 1.15)
+DEBUG: Selected TargetAnim=idle
+[11:15:06.865] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/default_top.png' (512x512) -> texture 0
+[11:15:06.889] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/dirt_top.png' (512x512) -> texture 1
+[11:15:06.916] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/grass_top.png' (512x512) -> texture 2
+[11:15:07.007] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/stone_top.png' (1024x1024) -> texture 3
+[11:15:07.089] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/cobblestone_top.png' (1024x1024) -> texture 4
+[11:15:07.157] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/stonebricks_top.png' (1024x1024) -> texture 5
+[11:15:07.177] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/sand_top.png' (512x512) -> texture 6
+[11:15:07.199] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/gravel_top.png' (512x512) -> texture 7
+[11:15:07.230] [INFO] [UIRenderer] Loaded UI image 'resources/textures/source/wood_top.png' (1024x1024) -> texture 8
+[11:15:26.461] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:15:26.461] [INFO] [Settlement] streets: paved 24675 micros over 24675 columns (24675 level, 0 fill, 0 cut honored, 0 cubes removed, 2488 corridor cells band-cleared), spurs 6 ok / 0 too steep, Gravel, 18690 ms
+[11:15:26.504] [INFO] [DimensionCanon] Loaded 43 object archetypes from resources/object_dimensions.json
+[11:15:26.873] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:15:26.873] [INFO] [Settlement] fences: 6 parcels, 15030 micros (picket, 8-micro tall, posts @16)
+[11:15:26.885] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_1' at micro (144,153,333) rot=0
+[11:15:26.888] [INFO] [PlacedObjectManager] Placed template (micro) 'garden_bed' as 'garden_bed_1' at micro (162,153,351) rot=0
+[11:15:26.894] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_2' at micro (162,153,126) rot=0
+[11:15:26.897] [INFO] [PlacedObjectManager] Placed template (micro) 'garden_bed' as 'garden_bed_2' at micro (153,153,108) rot=0
+[11:15:26.901] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_3' at micro (252,153,360) rot=0
+[11:15:26.908] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_4' at micro (369,153,144) rot=0
+[11:15:26.911] [INFO] [PlacedObjectManager] Placed template (micro) 'garden_bed' as 'garden_bed_3' at micro (405,153,117) rot=0
+[11:15:26.916] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_5' at micro (432,153,342) rot=0
+[11:15:26.919] [INFO] [PlacedObjectManager] Placed template (micro) 'garden_bed' as 'garden_bed_4' at micro (477,153,360) rot=0
+[11:15:26.923] [INFO] [PlacedObjectManager] Placed template (micro) 'woodpile' as 'woodpile_6' at micro (522,153,144) rot=0
+[11:15:26.925] [INFO] [PlacedObjectManager] Placed template (micro) 'garden_bed' as 'garden_bed_5' at micro (504,153,108) rot=0
+[11:15:26.927] [INFO] [PlacedObjectManager] Placed template (micro) 'well' as 'well_1' at micro (360,153,234) rot=0
+[11:15:26.927] [INFO] [Settlement] yard props: 12 placed, 0 skipped
+[11:15:27.040] [WARN] [Performance] Slow chunk update: dirtyRemesh=111.865ms streaming=0.0009ms dynamicObjects=0.035ms
+[11:15:27.044] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:15:27.045] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[11:15:27.046] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:15:27.047] [INFO] [StructureBuild] program validation: OK [typology croft]
+[11:15:29.024] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 48, fill 48)
+[11:15:29.270] [INFO] [StructureGenerator] Placing 33205 voxels in 2 steps
+[11:15:29.404] [INFO] [StructureGenerator]   step 1: 25000/33205 (25000 placed, 0 failed)
+[11:15:29.467] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_1' bbox (13,17,30)-(22,21,37)
+[11:15:32.620] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:15:32.633] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_1' at micro (135,158,288) rot=270 parent=house_1
+[11:15:32.644] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_1' at micro (153,158,306) rot=0 parent=house_1
+[11:15:32.645] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_1' at micro (135,158,306) rot=270 parent=house_1
+[11:15:32.753] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_1' at (17,18,34) rot=0 parent=house_1
+[11:15:32.867] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_2' at (18,18,34) rot=0 parent=house_1
+[11:15:32.868] [INFO] [StructureBuild] FurniturePlacer: engine placed 5 fixtures (0 skipped) into 'house_1'
+[11:15:32.868] [INFO] [StructureBuild] [perf] phases ms: setup=5 overlap=0 realize=52 pad=1924 excav=245 place+register=3350 (place=196 grass=3098 nav=53) fixtures=248 TOTAL=5824
+[11:15:32.941] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:15:32.941] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology hall_house]
+[11:15:32.942] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:15:32.942] [INFO] [StructureBuild] program validation: OK [typology hall_house]
+[11:15:44.613] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 128, fill 128)
+[11:15:45.220] [INFO] [StructureGenerator] Placing 60481 voxels in 3 steps
+[11:15:45.571] [INFO] [StructureGenerator]   step 1: 25000/60481 (25000 placed, 0 failed)
+[11:15:46.345] [INFO] [StructureGenerator]   step 2: 50000/60481 (50000 placed, 0 failed)
+[11:15:46.803] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_2' bbox (14,17,14)-(31,24,23)
+[11:16:01.995] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:16:02.016] [INFO] [PlacedObjectManager] Placed template (micro) 'barrel' as 'barrel_1' at micro (141,156,141) rot=270 parent=house_2
+[11:16:02.021] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_1' at micro (141,156,162) rot=270 parent=house_2
+[11:16:02.033] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_2' at micro (182,156,141) rot=0 parent=house_2
+[11:16:02.079] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_2' at micro (198,156,171) rot=0 parent=house_2
+[11:16:02.082] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_2' at micro (182,156,180) rot=270 parent=house_2
+[11:16:02.085] [INFO] [PlacedObjectManager] Placed template (micro) 'chair' as 'chair_1' at micro (207,156,141) rot=0 parent=house_2
+[11:16:02.097] [INFO] [PlacedObjectManager] Placed template (micro) 'bed_single' as 'bed_single_1' at micro (255,156,141) rot=90 parent=house_2
+[11:16:02.102] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_2' at micro (264,156,162) rot=90 parent=house_2
+[11:16:02.103] [INFO] [PlacedObjectManager] Placed template (micro) 'stool' as 'stool_1' at micro (264,156,153) rot=90 parent=house_2
+[11:16:02.114] [INFO] [PlacedObjectManager] Placed template (micro) 'wardrobe' as 'wardrobe_1' at micro (264,156,180) rot=90 parent=house_2
+[11:16:02.425] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_3' at (22,18,19) rot=0 parent=house_2
+[11:16:02.735] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_4' at (23,18,19) rot=0 parent=house_2
+[11:16:02.735] [WARN] [StructureBuild] furniture did NOT fit: rug in room 'solar'
+[11:16:02.736] [INFO] [StructureBuild] FurniturePlacer: engine placed 12 fixtures (0 skipped) into 'house_2'
+[11:16:02.736] [INFO] [StructureBuild] [perf] phases ms: setup=4 overlap=0 realize=134 pad=11535 excav=604 place+register=16775 (place=1581 grass=15076 nav=114) fixtures=741 TOTAL=29793
+[11:16:02.813] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:16:02.813] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology hall_house]
+[11:16:02.814] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:16:02.815] [INFO] [StructureBuild] program validation: OK [typology hall_house]
+[11:16:11.463] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 128, fill 128)
+[11:16:12.097] [INFO] [StructureGenerator] Placing 70742 voxels in 3 steps
+[11:16:12.394] [INFO] [StructureGenerator]   step 1: 25000/70742 (25000 placed, 0 failed)
+[11:16:12.653] [INFO] [StructureGenerator]   step 2: 50000/70742 (50000 placed, 0 failed)
+[11:16:13.008] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_3' bbox (26,17,31)-(41,25,40)
+[11:16:19.395] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:16:19.418] [INFO] [PlacedObjectManager] Placed template (micro) 'barrel' as 'barrel_2' at micro (236,156,297) rot=270 parent=house_3
+[11:16:19.423] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_3' at micro (236,156,315) rot=270 parent=house_3
+[11:16:19.447] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_3' at micro (280,156,349) rot=180 parent=house_3
+[11:16:19.508] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_3' at micro (297,156,324) rot=0 parent=house_3
+[11:16:19.511] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_3' at micro (297,156,349) rot=180 parent=house_3
+[11:16:19.514] [INFO] [PlacedObjectManager] Placed template (micro) 'chair' as 'chair_2' at micro (315,156,349) rot=180 parent=house_3
+[11:16:19.525] [INFO] [PlacedObjectManager] Placed template (micro) 'bed_single' as 'bed_single_2' at micro (358,156,297) rot=90 parent=house_3
+[11:16:19.530] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_4' at micro (351,156,349) rot=180 parent=house_3
+[11:16:19.532] [INFO] [PlacedObjectManager] Placed template (micro) 'stool' as 'stool_2' at micro (367,156,306) rot=90 parent=house_3
+[11:16:19.544] [INFO] [PlacedObjectManager] Placed template (micro) 'wardrobe' as 'wardrobe_2' at micro (367,156,315) rot=90 parent=house_3
+[11:16:19.552] [INFO] [PlacedObjectManager] Placed template (micro) 'rug' as 'rug_1' at micro (358,156,324) rot=90 parent=house_3
+[11:16:19.747] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_5' at (33,18,36) rot=0 parent=house_3
+[11:16:19.944] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_6' at (34,18,36) rot=0 parent=house_3
+[11:16:19.944] [INFO] [StructureBuild] FurniturePlacer: engine placed 13 fixtures (0 skipped) into 'house_3'
+[11:16:19.945] [INFO] [StructureBuild] [perf] phases ms: setup=5 overlap=1 realize=113 pad=8532 excav=631 place+register=7300 (place=911 grass=6181 nav=204) fixtures=549 TOTAL=17131
+[11:16:20.053] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:16:20.054] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 3 rooms total [typology longhouse]
+[11:16:20.055] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:16:20.055] [INFO] [StructureBuild] program validation: OK [typology longhouse]
+[11:16:30.128] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 96, fill 96)
+[11:16:30.660] [INFO] [StructureGenerator] Placing 45455 voxels in 2 steps
+[11:16:30.983] [INFO] [StructureGenerator]   step 1: 25000/45455 (25000 placed, 0 failed)
+[11:16:31.590] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_4' bbox (35,17,16)-(52,23,23)
+[11:16:44.016] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:16:44.039] [INFO] [PlacedObjectManager] Placed template (micro) 'bed_single' as 'bed_single_3' at micro (330,156,159) rot=270 parent=house_4
+[11:16:44.044] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_5' at micro (330,156,171) rot=270 parent=house_4
+[11:16:44.045] [INFO] [PlacedObjectManager] Placed template (micro) 'stool' as 'stool_3' at micro (330,156,189) rot=270 parent=house_4
+[11:16:44.049] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_4' at micro (378,156,180) rot=0 parent=house_4
+[11:16:44.054] [INFO] [PlacedObjectManager] Placed template (micro) 'chest_closed' as 'chest_closed_6' at micro (453,156,171) rot=90 parent=house_4
+[11:16:44.313] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_7' at (43,18,20) rot=0 parent=house_4
+[11:16:44.569] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_8' at (42,18,20) rot=0 parent=house_4
+[11:16:44.569] [WARN] [StructureBuild] furniture did NOT fit: fireplace in room 'hall'
+[11:16:44.569] [WARN] [StructureBuild] furniture did NOT fit: bench in room 'hall'
+[11:16:44.569] [INFO] [StructureBuild] FurniturePlacer: engine placed 7 fixtures (0 skipped) into 'house_4'
+[11:16:44.569] [INFO] [StructureBuild] [perf] phases ms: setup=4 overlap=2 realize=106 pad=9964 excav=529 place+register=13356 (place=929 grass=12340 nav=84) fixtures=553 TOTAL=24514
+[11:16:44.959] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:16:44.960] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[11:16:44.961] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:16:44.961] [INFO] [StructureBuild] program validation: OK [typology croft]
+[11:16:54.097] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 48, fill 48)
+[11:16:54.341] [INFO] [StructureGenerator] Placing 29136 voxels in 2 steps
+[11:16:54.879] [INFO] [StructureGenerator]   step 1: 25000/29136 (25000 placed, 0 failed)
+[11:16:54.994] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_5' bbox (47,17,31)-(54,24,38)
+[11:16:59.258] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:16:59.284] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_4' at micro (425,156,290) rot=270 parent=house_5
+[11:16:59.327] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_5' at micro (450,156,315) rot=0 parent=house_5
+[11:16:59.330] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_4' at micro (432,156,306) rot=270 parent=house_5
+[11:16:59.627] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_9' at (50,18,35) rot=0 parent=house_5
+[11:16:59.914] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_10' at (51,18,35) rot=0 parent=house_5
+[11:16:59.914] [INFO] [StructureBuild] FurniturePlacer: engine placed 5 fixtures (0 skipped) into 'house_5'
+[11:16:59.915] [INFO] [StructureBuild] [perf] phases ms: setup=4 overlap=3 realize=40 pad=9092 excav=242 place+register=4917 (place=653 grass=4216 nav=46) fixtures=657 TOTAL=14955
+[11:16:59.945] [INFO] [RoomProgram] Loaded 10 room programs from resources/room_program.json
+[11:16:59.945] [INFO] [RoomLayout] footprintShape 'L' requested but the typology has no winged variant — building RECT (surfaced, not silent)
+[11:16:59.945] [INFO] [StructureBuild] generate_room_layout: auto-filled 1 story(ies) -> 1 rooms total [typology croft]
+[11:16:59.947] [INFO] [StyleProfile] Loaded 3 styles from resources/structure_styles.json
+[11:16:59.947] [INFO] [StructureBuild] program validation: OK [typology croft]
+[11:17:11.806] [INFO] [StructureBuild] prepare_pad: leveled footprint to y=16 (cut 48, fill 48)
+[11:17:12.096] [INFO] [StructureGenerator] Placing 33198 voxels in 2 steps
+[11:17:12.955] [INFO] [StructureGenerator]   step 1: 25000/33198 (25000 placed, 0 failed)
+[11:17:13.084] [INFO] [PlacedObjectManager] Registered structure 'house' as 'house_6' bbox (56,17,16)-(65,21,23)
+[11:17:21.436] [INFO] [StructureBuild] footprint-aware: loaded 30 fixture footprints (bed=1x2)
+[11:17:21.469] [INFO] [PlacedObjectManager] Placed template (micro) 'fireplace' as 'fireplace_5' at micro (522,158,162) rot=270 parent=house_6
+[11:17:21.507] [INFO] [PlacedObjectManager] Placed template (micro) 'table_wood' as 'table_wood_6' at micro (540,158,180) rot=0 parent=house_6
+[11:17:21.510] [INFO] [PlacedObjectManager] Placed template (micro) 'bench_wood' as 'bench_wood_5' at micro (522,158,180) rot=270 parent=house_6
+[11:17:21.870] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_11' at (61,18,20) rot=0 parent=house_6
+[11:17:22.229] [INFO] [PlacedObjectManager] Placed template 'mug' as 'mug_12' at (60,18,20) rot=0 parent=house_6
+[11:17:22.230] [INFO] [StructureBuild] FurniturePlacer: engine placed 5 fixtures (0 skipped) into 'house_6'
+[11:17:22.230] [INFO] [StructureBuild] [perf] phases ms: setup=4 overlap=4 realize=46 pad=11808 excav=288 place+register=9340 (place=987 grass=8299 nav=52) fixtures=794 TOTAL=22284
+[11:17:22.478] [WARN] [Performance] Slow chunk update: dirtyRemesh=218.179ms streaming=0.0008ms dynamicObjects=0.0344ms
+[11:17:23.480] [INFO] [ChunkManager] Occupancy grid rebuilt from 18 chunks
+[11:17:23.481] [INFO] [Settlement] street sweep: 933 cells cleared over 933 band cells, 24675 paving micros re-stamped
+[11:17:24.383] [INFO] [PathService] Worker thread stopped
+[11:17:24.391] [INFO] [NPCManager] nav obstacles: 175 blocked cells (0 oversized boxes skipped)
+[11:17:31.009] [INFO] [PathService] Worker thread started
+[11:17:31.010] [INFO] [NPCManager] Built NavGrid: XZ [0,0] to [159,95], 15360 cells (15360 walkable)
+[11:17:31.023] [INFO] [NPCManager] Cached anim template 'resources/animated_characters/humanoid.anim' (65 bones, 1116 shapes, 84 clips)
+[11:17:31.029] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.029] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.029] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.029] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.030] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.030] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.030] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.030] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.030] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.030] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.030] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.030] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.030] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.030] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.030] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.031] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.031] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.031] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.031] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.031] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.031] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.031] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.031] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.031] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.031] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.031] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.031] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.032] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.032] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.032] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.032] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.032] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.033] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.033] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.033] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.033] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.033] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.034] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.034] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.034] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.034] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.034] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.034] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.034] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.034] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.035] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.035] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.035] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.035] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.035] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.035] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.035] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.035] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.035] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.035] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.035] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.036] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.036] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.036] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.036] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.036] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.036] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.036] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.036] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.036] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.036] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.036] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.036] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.037] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.037] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.037] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.037] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.037] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.037] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.037] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.037] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.037] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.037] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.037] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.038] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.038] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.038] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.038] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.038] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.038] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.039] [INFO] [Character] resizeController: height=2.22574 halfWidth=0.274627 maxStep=0.476529 footOffset=0.0439948 minY=0.0439948 maxY=1.96974
+[11:17:31.041] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.112885,0.112885,0.112885)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0721312,0.1)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.05629,0.1)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.111824,0.1)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.190984,0.07)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.190984,0.07)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.194327,0.07)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.194327,0.07)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.255045,0.08)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.255045,0.08)
+[11:17:31.042] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.255944,0.08)
+[11:17:31.043] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.255944,0.08)
+[11:17:31.043] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.043] [INFO] [NPCManager] Spawned procedural NPC 'res_croft_18_29' (role='villager') at (22.5, 18, 24.5)
+[11:17:31.049] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.049] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.049] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.049] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.049] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.049] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.050] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.050] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.050] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.050] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.050] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.050] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.050] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.051] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.051] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.051] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.051] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.051] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.051] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.051] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.051] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.051] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.051] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.051] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.052] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.052] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.052] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.052] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.052] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.052] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.052] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.053] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.053] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.053] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.053] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.053] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.054] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.054] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.054] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.054] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.054] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.054] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.054] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.054] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.055] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.055] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.055] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.055] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.055] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.055] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.055] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.055] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.055] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.055] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.056] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.056] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.056] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.056] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.056] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.056] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.056] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.056] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.056] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.056] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.056] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.057] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.057] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.057] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.057] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.057] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.057] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.057] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.057] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.057] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.058] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.058] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.058] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.058] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.058] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.058] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.058] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.058] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.058] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.058] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.059] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.059] [INFO] [Character] resizeController: height=1.95429 halfWidth=0.239408 maxStep=0.390174 footOffset=0.000329779 minY=0.000329779 maxY=1.65462
+[11:17:31.062] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.13016,0.13016,0.13016)
+[11:17:31.062] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0542096,0.1)
+[11:17:31.062] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)
+[11:17:31.062] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.0878235,0.1)
+[11:17:31.062] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.127705,0.07)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.127705,0.07)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.12994,0.07)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.12994,0.07)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.170983,0.08)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.170984,0.08)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.171586,0.08)
+[11:17:31.063] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.171586,0.08)
+[11:17:31.063] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.064] [INFO] [NPCManager] Spawned procedural NPC 'res_croft_51_30' (role='villager') at (50.5, 18, 30.5)
+[11:17:31.072] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.073] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.073] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.073] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.073] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.073] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.073] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.073] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.073] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.074] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.074] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.074] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.074] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.074] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.074] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.074] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.074] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.074] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.075] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.075] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.075] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.075] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.075] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.075] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.075] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.075] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.075] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.075] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.076] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.076] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.076] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.076] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.076] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.076] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.076] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.076] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.077] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.077] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.077] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.077] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.077] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.077] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.077] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.077] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.077] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.077] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.078] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.078] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.078] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.078] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.078] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.078] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.078] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.078] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.078] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.078] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.079] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.079] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.079] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.079] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.079] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.079] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.079] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.079] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.079] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.079] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.080] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.080] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.080] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.080] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.080] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.080] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.080] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.080] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.080] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.080] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.081] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.081] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.081] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.081] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.081] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.081] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.081] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.081] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.081] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.082] [INFO] [Character] resizeController: height=1.89131 halfWidth=0.229968 maxStep=0.369991 footOffset=0.0853082 minY=0.0853082 maxY=1.67661
+[11:17:31.085] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.115144,0.115144,0.115144)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0564703,0.1)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.0921765)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.107319,0.07)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.107319,0.07)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.109198,0.07)
+[11:17:31.086] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.109198,0.07)
+[11:17:31.087] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.153752,0.08)
+[11:17:31.087] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.153752,0.08)
+[11:17:31.087] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.154294,0.08)
+[11:17:31.087] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.154294,0.08)
+[11:17:31.087] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.088] [INFO] [NPCManager] Spawned procedural NPC 'res_croft_61_24' (role='villager') at (60.5, 18, 24.5)
+[11:17:31.097] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.097] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.097] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.097] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.097] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.097] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.097] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.098] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.098] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.098] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.098] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.098] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.098] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.098] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.098] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.098] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.098] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.099] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.099] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.099] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.099] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.099] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.099] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.100] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.100] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.100] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.100] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.101] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.101] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.101] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.101] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.101] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.101] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.101] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.101] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.101] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.102] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.102] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.102] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.102] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.102] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.102] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.102] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.102] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.103] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.103] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.103] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.103] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.103] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.103] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.103] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.103] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.103] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.104] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.104] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.104] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.104] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.104] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.104] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.104] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.104] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.104] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.104] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.105] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.105] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.105] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.105] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.105] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.105] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.105] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.105] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.105] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.105] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.106] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.106] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.106] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.106] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.106] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.106] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.106] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.106] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.106] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.106] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.107] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.107] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.108] [INFO] [Character] resizeController: height=2.13588 halfWidth=0.24857 maxStep=0.464959 footOffset=-0.0424136 minY=-0.0424136 maxY=1.79346
+[11:17:31.110] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.116574,0.116574,0.116574)
+[11:17:31.110] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0604162,0.1)
+[11:17:31.110] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0428407,0.1)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.100176,0.1)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.141127,0.07)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.141127,0.07)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.143598,0.07)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.143598,0.07)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.24281,0.08)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.24281,0.08)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.243666,0.08)
+[11:17:31.111] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.243666,0.08)
+[11:17:31.111] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.112] [INFO] [NPCManager] Spawned procedural NPC 'res_hall_house_19_24' (role='villager') at (22.5, 18, 24.5)
+[11:17:31.120] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.120] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.121] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.121] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.121] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.121] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.121] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.121] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.121] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.121] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.121] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.122] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.122] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.122] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.122] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.122] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.122] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.122] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.122] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.122] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.122] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.122] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.122] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.123] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.123] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.123] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.123] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.123] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.123] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.123] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.123] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.123] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.123] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.123] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.124] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.124] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.124] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.124] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.124] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.124] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.124] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.124] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.124] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.124] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.124] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.124] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.125] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.125] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.125] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.125] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.125] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.125] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.125] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.125] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.125] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.125] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.125] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.126] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.126] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.126] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.126] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.126] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.126] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.126] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.126] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.126] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.126] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.126] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.126] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.127] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.127] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.127] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.127] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.127] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.127] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.127] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.127] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.127] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.127] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.127] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.127] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.128] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.128] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.128] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.128] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.129] [INFO] [Character] resizeController: height=2.21915 halfWidth=0.246497 maxStep=0.482684 footOffset=-0.0265651 minY=-0.0265651 maxY=1.89259
+[11:17:31.131] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.116951,0.116951,0.116951)
+[11:17:31.131] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0703397,0.1)
+[11:17:31.131] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0507985,0.1)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.105824,0.1)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.131611,0.07)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.131611,0.07)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.133914,0.07)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.133914,0.07)
+[11:17:31.132] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.261676,0.08)
+[11:17:31.133] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.261677,0.08)
+[11:17:31.133] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.262599,0.08)
+[11:17:31.133] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.262599,0.08)
+[11:17:31.134] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.134] [INFO] [NPCManager] Spawned procedural NPC 'res_hall_house_30_30' (role='villager') at (33.5, 18, 30.5)
+[11:17:31.144] [INFO] [Character] === Loaded from skeleton template (84 animations, 1116 shapes) ===
+[11:17:31.144] [INFO] [Character]   [0] base_pose (Duration: 0s)
+[11:17:31.144] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)
+[11:17:31.144] [INFO] [Character]   [2] crouched_walking (Duration: 1s)
+[11:17:31.144] [INFO] [Character]   [3] fast_run (Duration: 0.5s)
+[11:17:31.144] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)
+[11:17:31.144] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)
+[11:17:31.145] [INFO] [Character]   [6] floating (Duration: 3.58333s)
+[11:17:31.145] [INFO] [Character]   [7] idle (Duration: 16.625s)
+[11:17:31.145] [INFO] [Character]   [8] jump (Duration: 2.58333s)
+[11:17:31.145] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)
+[11:17:31.145] [INFO] [Character]   [10] jump_down (Duration: 3.5s)
+[11:17:31.145] [INFO] [Character]   [11] landing (Duration: 2.08333s)
+[11:17:31.145] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)
+[11:17:31.145] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)
+[11:17:31.146] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)
+[11:17:31.146] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)
+[11:17:31.146] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)
+[11:17:31.146] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)
+[11:17:31.146] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)
+[11:17:31.146] [INFO] [Character]   [19] run (Duration: 0.666667s)
+[11:17:31.146] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)
+[11:17:31.146] [INFO] [Character]   [21] standing (Duration: 3.83333s)
+[11:17:31.147] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)
+[11:17:31.147] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)
+[11:17:31.147] [INFO] [Character]   [24] walk (Duration: 0.958333s)
+[11:17:31.147] [INFO] [Character]   [25] crouch_idle (Duration: 3s)
+[11:17:31.147] [INFO] [Character]   [26] point (Duration: 1.5s)
+[11:17:31.147] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)
+[11:17:31.147] [INFO] [Character]   [28] body_block (Duration: 3.41667s)
+[11:17:31.148] [INFO] [Character]   [29] boxing (Duration: 1.70833s)
+[11:17:31.148] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)
+[11:17:31.148] [INFO] [Character]   [31] climbing_top (Duration: 4s)
+[11:17:31.148] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)
+[11:17:31.148] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)
+[11:17:31.148] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)
+[11:17:31.149] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)
+[11:17:31.149] [INFO] [Character]   [36] attack (Duration: 1.25s)
+[11:17:31.149] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)
+[11:17:31.149] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)
+[11:17:31.150] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)
+[11:17:31.150] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)
+[11:17:31.150] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)
+[11:17:31.150] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)
+[11:17:31.151] [INFO] [Character]   [43] talk (Duration: 5.16667s)
+[11:17:31.151] [INFO] [Character]   [44] taunt (Duration: 2.83333s)
+[11:17:31.151] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)
+[11:17:31.151] [INFO] [Character]   [46] wave (Duration: 0.5s)
+[11:17:31.151] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)
+[11:17:31.151] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)
+[11:17:31.151] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)
+[11:17:31.151] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)
+[11:17:31.152] [INFO] [Character]   [51] cast_release (Duration: 0.7s)
+[11:17:31.152] [INFO] [Character]   [52] cast_call_down (Duration: 2s)
+[11:17:31.152] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)
+[11:17:31.152] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)
+[11:17:31.152] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)
+[11:17:31.152] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)
+[11:17:31.152] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)
+[11:17:31.152] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)
+[11:17:31.153] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)
+[11:17:31.153] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)
+[11:17:31.153] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)
+[11:17:31.153] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)
+[11:17:31.153] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)
+[11:17:31.154] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)
+[11:17:31.154] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)
+[11:17:31.154] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)
+[11:17:31.154] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)
+[11:17:31.155] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)
+[11:17:31.155] [INFO] [Character]   [69] hit_rib (Duration: 1s)
+[11:17:31.155] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)
+[11:17:31.155] [INFO] [Character]   [71] death_front (Duration: 4.33333s)
+[11:17:31.155] [INFO] [Character]   [72] death_back (Duration: 4.6s)
+[11:17:31.155] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)
+[11:17:31.155] [INFO] [Character]   [74] get_up (Duration: 11.4s)
+[11:17:31.155] [INFO] [Character]   [75] kick (Duration: 1.5s)
+[11:17:31.156] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)
+[11:17:31.156] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)
+[11:17:31.156] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)
+[11:17:31.156] [INFO] [Character]   [79] ogre_idle (Duration: 4s)
+[11:17:31.156] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)
+[11:17:31.156] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)
+[11:17:31.156] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)
+[11:17:31.156] [INFO] [Character]   [83] stomp (Duration: 1.79167s)
+[11:17:31.157] [INFO] [Character] resizeController: height=2.05016 halfWidth=0.248409 maxStep=0.417792 footOffset=-0.00733542 minY=-0.00733542 maxY=1.74282
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.143075,0.143075,0.143075)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0617226,0.1)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.040951,0.1)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.0932353,0.1)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.129998,0.07)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.129998,0.07)
+[11:17:31.160] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.132274,0.07)
+[11:17:31.161] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.132274,0.07)
+[11:17:31.161] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.196046,0.08)
+[11:17:31.161] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.196046,0.08)
+[11:17:31.161] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.196737,0.08)
+[11:17:31.161] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.196737,0.08)
+[11:17:31.161] [INFO] [Character] Built 12/8 segment collision boxes
+[11:17:31.161] [INFO] [NPCManager] Spawned procedural NPC 'res_longhouse_44_24' (role='villager') at (43.5, 18, 24.5)
+[11:17:31.161] [INFO] [Settlement] residents: 6/6 spawned
+[11:17:31.473] [WARN] [Performance] Slow chunk update: dirtyRemesh=302.448ms streaming=0.0012ms dynamicObjects=0.0311ms
+[11:17:31.481] [INFO] [MainThreadJobs] job 1000000 complete: settlement medieval/village seed 3 (14 units)
+[11:17:31.900] [WARN] [Performance] Slow chunk update: dirtyRemesh=327.018ms streaming=0.001ms dynamicObjects=0.0429ms
+[11:17:32.881] [WARN] [Performance] Slow chunk update: dirtyRemesh=302.742ms streaming=0.0011ms dynamicObjects=0.0348ms
+[11:17:33.347] [WARN] [Performance] Slow chunk update: dirtyRemesh=373.774ms streaming=0.0009ms dynamicObjects=0.0373ms
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
