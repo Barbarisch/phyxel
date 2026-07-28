@@ -1,0 +1,23 @@
+# SpawnGate L4 — live confirmation that the gate fires in the real engine
+# commit: 172a76d8e8d8e48beee4fb693f8c8a520cddd73e
+# exe:    Jul 28 11:19  (contains gate strings: 1)
+# utc:    2026-07-28T15:21:52Z
+# world:  StructGenTest pristine + one v2 croft built at (20,16,20), footprint 8x6
+
+--- REQUEST gate_probe_buried at (25.0,10.0,25.0)  [BURIED in solid terrain (flat world is solid below y=16)] ---
+{"error":"Failed to spawn NPC (name may already exist)"}
+
+--- REQUEST gate_probe_open at (30.0,17.0,30.0)  [OPEN ground control - must NOT be moved] ---
+{"behavior":"idle","driveMode":"animated","name":"gate_probe_open","position":{"x":30.0,"y":17.0,"z":30.0},"procedural":false,"role":"","success":true}
+
+--- RESULTING NPC POSITIONS (/api/npcs) ---
+{"count":1,"npcs":[{"behavior":"Idle","interactionRadius":3.0,"name":"gate_probe_open","position":{"x":30.0,"y":17.0,"z":30.0}}],"success":true}
+--- ENGINE LOG (gate lines) ---
+[11:21:52.666] [ERROR] [NPCManager] Refusing to spawn NPC 'gate_probe_buried': spawn REFUSED: the character body at (25, 10, 25) is inside static geometry and no clear position was found within 4 m
+[11:21:53.023] [INFO] [NPCManager] Spawned NPC 'gate_probe_open' at (30, 17, 30)
+
+--- REQUEST gate_probe_wall at (20.15,17.0,23.0) [inside the croft's 0.333m west wall; open air both sides -> expect RELOCATE not refuse] ---
+{"behavior":"idle","driveMode":"animated","name":"gate_probe_wall","position":{"x":20.149999618530273,"y":17.0,"z":23.0},"procedural":false,"role":"","success":true}
+[11:21:52.666] [ERROR] [NPCManager] Refusing to spawn NPC 'gate_probe_buried': spawn REFUSED: the character body at (25, 10, 25) is inside static geometry and no clear position was found within 4 m
+[11:22:30.893] [WARN] [NPCManager] NPC 'gate_probe_wall' spawn adjusted: spawn was embedded in static geometry; relocated 0.942808 m to clear standing ground
+[11:22:30.923] [INFO] [NPCManager] Spawned NPC 'gate_probe_wall' at (19.4833, 17, 22.3333)

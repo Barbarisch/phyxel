@@ -1,0 +1,10 @@
+# L4 reproduction — build_settlement through Core::SettlementBuildService (post-lift)
+# commit: 172a76d8e8d8e48beee4fb693f8c8a520cddd73e
+# exe:    Jul 28 10:12
+# utc:    2026-07-28T15:14:55Z
+# world:  StructGenTest, pristine (default.db moved aside before launch)
+# port:   8099
+--- SUBMIT RESPONSE ---
+{"action":"build_settlement","error":"Request timed out waiting for game loop","timeout_ms":5000}
+--- FINAL /api/jobs (polled; submit response was lost to the 5s queue timeout) ---
+{"count":1,"jobs":[{"elapsed_seconds":165.335,"id":1000000,"label":"settlement medieval/village seed 3","main_thread":true,"message":"complete","progress":1.0,"result":{"paths":{"cut_cells_unpaved":0,"cut_cols_honored":0,"cut_cubes_removed":0,"fence_micros":15030,"fence_type":"picket","fill_cols":0,"grass_converted":311,"level_cols":24675,"material":"Gravel","parcels":6,"paved_columns":24675,"paved_microcubes":24675,"spurs":6,"spurs_too_steep":0,"stamp_ms":18690},"residents":{"planned":6,"spawned":6},"yard_props":{"placed":12,"skipped":0}},"state":"complete","type":"build_settlement","units_done":14,"units_total":14}]}
