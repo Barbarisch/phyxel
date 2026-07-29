@@ -105,18 +105,17 @@ private:
     float          m_waveRadius = 700.0f;   // world units; set from the render distance
     int            m_waveRings = 0;         // derived from the radius at build time
 
-    // ⚑GROUND: 0.30-voxel amplitude on a 9.5-voxel wavelength. With 1 voxel ~= 1 m that is a ~0.6 m
-    // trough-to-crest swell on a 9.5 m period — a light breeze (Beaufort 3), and a steepness
-    // (H/L ~= 0.063) in the same range as the 14 m version it replaces, so it is still a plausible
-    // sea state rather than an arbitrary shrink.
+    // ⚑GROUND: 0.45-voxel amplitude on a 14-voxel wavelength — a ~0.9 m swell on a 14 m period,
+    // a moderate breeze (Beaufort 4).
     //
-    // WHY SMALLER THAN THE PHYSICAL DEFAULT: this world's scale is the deciding factor, not the
-    // meteorology. A character is ~2 voxels tall, so a 14 m swell is seven people long and reads as
-    // enormous from any distance — reported as "the waves look too big from far away". Sizing the
-    // sea against the things standing in it matters more than matching a specific Beaufort number.
-    // Both are runtime-settable via the water_waves debug command.
-    float m_waveAmplitude = 0.30f;
-    float m_waveLength = 9.5f;
+    // THESE WERE SHRUNK TO 0.30/9.5 AND PUT BACK. The complaint that prompted the shrink ("waves
+    // look too big from far away") had a different cause: the ocean had no small-scale detail at
+    // ANY distance, so the swell was the only thing to look at. Shrinking it did not add detail, it
+    // just removed the majesty and left a busy chop that read worse. The actual fix was the fine
+    // octaves + per-octave screen-space LOD; with those in place the larger swell is what makes it
+    // read as an ocean rather than a pond. Runtime-settable via the water_waves debug command.
+    float m_waveAmplitude = 0.45f;
+    float m_waveLength = 14.0f;
     float m_windDirection = 0.6f;   // radians; the dominant swell heading
 
     std::chrono::high_resolution_clock::time_point m_startTime;

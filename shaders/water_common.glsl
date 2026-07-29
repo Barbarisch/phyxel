@@ -65,7 +65,13 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     vec2 d4 = normalize(vec2(-0.3, -1.0));
     // wavelengths ~4.5, ~2.4, ~1.4, ~0.8 world units (f = 2*pi/lambda)
     float f1 = 1.40, f2 = 2.60, f3 = 4.50, f4 = 7.90;
-    float a1 = 0.030, a2 = 0.016, a3 = 0.008, a4 = 0.004;
+    // AMPLITUDES ARE DELIBERATELY TINY. What matters visually is the SLOPE each octave contributes
+    // (a*f), because that is what tilts the normal. The first version summed to 0.151 — over three
+    // times the 0.045 of the detail it replaced, at far higher frequency — and the result was a
+    // corduroy of micro-ridges over every wave face that looked worse than having no detail at all.
+    // These sum to ~0.048: the same gentle sheen as before, but spread across four fine scales
+    // instead of sitting at the swell's own scale.
+    float a1 = 0.0100, a2 = 0.0055, a3 = 0.0028, a4 = 0.0014;
     float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
     // Per-octave visibility: full while the wavelength covers >~7 px, gone under ~2.5 px. Coarse
