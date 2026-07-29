@@ -40,6 +40,73 @@ vec3 waterCamForward(mat4 V) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Noise
+// ---------------------------------------------------------------------------------------------
+//
+// WHY THIS EXISTS. Foam used to be drawn by summing three sines. A sum of a few sines is not
+// "random-looking" — it is a LATTICE, and the eye reads a lattice as fabric. Measured on the live
+// frame (FFT of the water region, strongest non-DC peak over median power): the sine foam scored
+// 4.9 MILLION, with peaks at exactly the sines' own wavelengths (2.19 / 1.43 / 0.62 world units
+// against the shader's 1.90 / 1.29 / 0.66). That is the reported "patchwork quilt". Adding a
+// fourth sine cannot fix it; the pattern has to stop being periodic at all.
+//
+// Value noise, not a texture: no fetch, no atlas slot, and no tiling period to give the game away.
+//
+// ⚑PRECISION LIMIT: the hash is fed the INTEGER lattice cell, so it stays well-conditioned as long
+// as |cell| stays far below fp32's 2^24 exact-integer range — i.e. world coordinates up to ~1e5.
+// Beyond that adjacent cells collapse onto the same float and the noise degenerates into bands.
+// Do NOT "fix" that with a mod() wrap: that was tried on the voxel orientation hash and produced a
+// hard seam at the wrap boundary.
+// SIMPLEX, not value noise. Value noise interpolates a SQUARE lattice, so its cells are aligned
+// to world X/Z and a thresholded mask reads as a grid of rectangles — which is what replaced the
+// sine lattice on the first attempt. Measured axis-alignment of the thresholded mask (gradient
+// orientation concentrated near an axis; 1.00 = isotropic, band-limited Gaussian noise = 1.02):
+//
+//     value noise, 2 octaves    1.13     8 sin
+//     value noise, 4 octaves    1.06    16 sin
+//     simplex,     2 octaves    0.98    12 sin   <- chosen: isotropic AND cheaper than value-4
+//     simplex,     3 octaves    1.00    18 sin
+//
+// Simplex tiles the plane with triangles, so there is no axis-aligned cell to see in the first
+// place. 12 transcendentals per sample is the cost; see the commit for the measured frame time.
+vec2 waterGrad(vec2 cell) {
+    vec2 h = fract(sin(vec2(dot(cell, vec2(127.1, 311.7)),
+                            dot(cell, vec2(269.5, 183.3)))) * 43758.5453);
+    vec2 g = h * 2.0 - 1.0;
+    // Guard the degenerate near-zero draw: normalize(0) is NaN, and one NaN fragment propagates
+    // through the foam blend into a black pixel.
+    return g * inversesqrt(max(dot(g, g), 1e-6));
+}
+
+float waterSimplex(vec2 p) {
+    const float F2 = 0.3660254;   // (sqrt(3) - 1) / 2
+    const float G2 = 0.2113249;   // (3 - sqrt(3)) / 6
+    vec2 i  = floor(p + (p.x + p.y) * F2);
+    vec2 x0 = p - (i - (i.x + i.y) * G2);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec2 x1 = x0 - i1 + G2;
+    vec2 x2 = x0 - 1.0 + 2.0 * G2;
+    vec3 t  = max(0.5 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2)), 0.0);
+    t = t * t;
+    t = t * t;                                     // t^4 falloff
+    float n = t.x * dot(waterGrad(i),               x0)
+            + t.y * dot(waterGrad(i + i1),          x1)
+            + t.z * dot(waterGrad(i + vec2(1.0)),   x2);
+    return n * 35.0 + 0.5;                         // ~[0,1], mean 0.5
+}
+
+// Two octaves. A deliberate budget, not a shrug: this runs on every water fragment and water can
+// cover most of the screen. Two gives a patch size plus a broken edge, which is all foam needs.
+// ⚑Measured std is ~0.142, NOT the ~0.29 a uniform [0,1] field would have — interpolated noise
+// clusters hard around its mean. Anything using this as a DISPLACEMENT must scale accordingly;
+// assuming uniformity is what made the first depth dither 3x too weak to cover a 1-unit step.
+float waterFbm(vec2 p) {
+    return waterSimplex(p) * 0.65
+         + waterSimplex(p * 2.17 + vec2(19.3, 7.1)) * 0.35;
+}
+const float WATER_FBM_STD = 0.142;
+
+// ---------------------------------------------------------------------------------------------
 // Surface normal
 // ---------------------------------------------------------------------------------------------
 
@@ -190,6 +257,11 @@ const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
 // starts reading as water.
 const float SHORE_FADE = 0.4;
 
+// A/B probe. Screen-space metrics cannot separate world-aligned voxel terraces from the foam
+// noise's own cells whenever the camera is yawed, so attribute artifacts by switching foam OFF
+// and re-shooting the identical vantage instead of inferring. Ships at 1.0.
+const float WATER_FOAM_DEBUG_SCALE = 1.0;
+
 struct WaterSurfaceInput {
     vec3  worldPos;      // the water surface point being shaded
     vec3  camPos;        // camera world position
@@ -306,17 +378,24 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // one flat foam value per plateau with a hard sawtooth step between them, which reads as a
     // patchwork quilt laid over the shallows (reported 2026-07-29 — see the screenshot in the plan).
     //
-    // Perturbing the depth by a smooth world-space wobble makes the foam boundary wander across the
-    // steps instead of snapping to them. ⚑GROUND: amplitude 1.0 = exactly the quantisation step, so
-    // the dither is the same size as the artifact it hides — smaller leaves stairs visible, larger
-    // starts detaching the foam from the real shoreline. Two sines, no texture fetch: this runs on
-    // every water fragment, so it stays cheap.
+    // Perturbing the depth breaks the foam boundary across the steps instead of letting it snap to
+    // them. ⚑GROUND: peak-to-peak 1.0 = exactly the quantisation step, so the dither is the same
+    // size as the artifact it hides — smaller leaves stairs visible, larger detaches the foam from
+    // the real shoreline.
+    //
+    // ⚑THE DITHER MUST BE FINER THAN THE STEP IT HIDES. The first attempt used two sines of
+    // wavelength ~15 and ~20 world units — an order of magnitude COARSER than the 1-unit terrace it
+    // was meant to disguise. That does not dither anything; it just repaints the shoreline as broad
+    // diagonal bands, and the reported quilt got a second layer. Noise at ~1.2 units is comparable
+    // to the step, so the boundary dissolves into a stipple instead of acquiring new structure.
     //
     // The REAL fix is a smooth shore field (docs/WaterPhysicalFeelPlan.md §2) whose distance
     // transform is continuous by construction; this is the cheap stand-in until that exists.
-    float wob = sin(inp.worldPos.x * 0.37 + inp.worldPos.z * 0.21)
-              + sin(inp.worldPos.x * 0.11 - inp.worldPos.z * 0.29) * 0.6;
-    float foamDepth = max(verticalDepth + wob * 0.62, 0.0);
+    // Scaled to std 0.40 — a bit under half the 1.0 step, so the boundary dissolves without the
+    // foam wandering far enough to leave the real shoreline. Divide by the measured std rather
+    // than trusting the raw range: this field's raw spread is a quarter of what "0..1" suggests.
+    float wob = (waterFbm(inp.worldPos.xz * 0.83) - 0.5) * (0.40 / WATER_FBM_STD);
+    float foamDepth = max(verticalDepth + wob, 0.0);
 
     float surfFoam = 0.0;
     if (inp.breakDepth > 0.0001 && hasSeabed) {
@@ -326,15 +405,20 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, foamDepth);
         shoal *= shoal;
         // A wave breaks on its CREST — the phase gate is what makes this a band running shoreward
-        // with each wave rather than a static ring. A small floor keeps the surf zone permanently
-        // marked between crests, which is what a real breaker line looks like from a distance.
+        // with each wave rather than a static ring.
+        // ⚑The between-crest floor was 0.25 and that was the single biggest reason the shallows
+        // read as one white sheet: this seabed is a very gently sloping shelf, so "depth < 2.5"
+        // is a huge horizontal area, and a 0.25 floor painted ALL of it permanently. Surf is a
+        // travelling line, not a filled zone. 0.06 leaves a faint standing trace of the breaker
+        // line — enough to see from a distance — without frosting the bay between waves.
         float crest = smoothstep(-0.35, 0.55, inp.wavePhase);
-        surfFoam = shoal * mix(0.25, 1.0, crest);
+        surfFoam = shoal * mix(0.06, 1.0, crest);
     }
     // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
     // coast even on flat calm water (and what lakes and rivers get).
     float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
     inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
+    inp.foam *= WATER_FOAM_DEBUG_SCALE;   // A/B probe: 0 disables all foam
 
     // WHITEWATER (Phase 3): where the water is moving AND shallow it breaks white over its bed.
     // Streaked along the flow so it reads as motion rather than a static frosting, and lit by the
@@ -344,13 +428,20 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         // with time (an unbounded offset tiles the foam exactly the way it tiled the normals).
         float fph = fract(inp.time / 3.0);
         vec2 fp = inp.worldPos.xz - inp.flowDir * (fph * 3.0 * 3.0 * inp.flowStrength);
-        // Three incommensurate directions rather than two: two crossing sines beat into a regular
-        // plaid, which is what made each foam patch read as woven fabric. Odd frequency ratios stop
-        // the pattern repeating on any short period.
-        float bands = sin(fp.x * 2.7 + fp.y * 1.9) * 0.5 + 0.5;
-        float fine  = sin(fp.x * 6.1 - fp.y * 7.3) * 0.5 + 0.5;
-        float cross = sin(fp.x * 1.3 - fp.y * 4.7) * 0.5 + 0.5;
-        float mask = clamp(bands * 0.55 + fine * 0.30 + cross * 0.40 - 0.30, 0.0, 1.0);
+        // Simplex, NOT summed sines and NOT value noise. Both were tried and both are lattices:
+        // three sines gave a dotted plaid (FFT peaks at exactly the sines' wavelengths), value
+        // noise gave axis-aligned rectangles. See the note above waterGrad.
+        //
+        // TWO SCALES, because one scale is what makes foam read as tiles whatever noise feeds it:
+        // the coarse field decides WHERE a patch sits, the fine field tears its edge so the patch
+        // has no characteristic size.
+        float coarse = waterFbm(fp * 0.32);          // ~3-unit patches
+        // The fine octave is sub-metre and turns into crawling sparkle once it drops under a couple
+        // of pixels, exactly like the ripple octaves — so retire it on the same terms.
+        float fineK = smoothstep(2.5, 7.0, (1.0 / 1.55) / max(pixelWorld, 1e-4));
+        float fine  = waterSimplex(fp * 1.55) * fineK;
+        float n = coarse * (1.0 - 0.28 * fineK) + fine * 0.28;
+        float mask = smoothstep(0.44, 0.74, n);
         mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
         vec3 foamCol = mix(vec3(0.35), ubo.sunColor, clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0))
                      * max(ubo.ambientLight, 0.3);
