@@ -69,6 +69,13 @@ public:
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 
+    // Size the wave zone so its taper falls OUTSIDE the far plane. If the zone ends within view,
+    // its edge is a ring of flattening water centred on the camera that follows the viewer around —
+    // seen from above as a vortex, and read from any angle as "the waves come from where I stand".
+    // Rebuilds the mesh only when the radius changes materially. Safe to call on world load.
+    void setWaveRadius(float radius);
+    float waveRadius() const { return m_waveRadius; }
+
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
@@ -95,6 +102,8 @@ private:
     VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // radial sea mesh (Phase 2)
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t       m_indexCount = 0;
+    float          m_waveRadius = 700.0f;   // world units; set from the render distance
+    int            m_waveRings = 0;         // derived from the radius at build time
 
     // ⚑GROUND: 0.30-voxel amplitude on a 9.5-voxel wavelength. With 1 voxel ~= 1 m that is a ~0.6 m
     // trough-to-crest swell on a 9.5 m period — a light breeze (Beaufort 3), and a steepness

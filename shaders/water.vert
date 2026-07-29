@@ -90,12 +90,14 @@ void main() {
         disp += gerstner(base, w1, amp * 0.52, waveLen * 0.61, 0.24, t, ddx, ddz);
         disp += gerstner(base, w2, amp * 0.28, waveLen * 0.33, 0.13, t, ddx, ddz);
 
-        // FLATTEN AT THE EDGE OF THE WAVE ZONE. Beyond it the mesh is a coarse coverage skirt that
-        // cannot resolve a wave — displacing it there is exactly what produced the aliased blobs.
-        // Fading out inside the zone also guarantees the skirt joins at exactly sea level, so there
-        // is no seam between the two.
-        // ⚑GROUND: 260 = SEA_WAVE_RADIUS in WaterRenderPipeline.cpp; the fade starts at 0.8 of it.
-        float rim = 1.0 - smoothstep(208.0, 260.0, length(inPos.xz));
+        // FLATTEN AT THE EDGE OF THE WAVE ZONE, and only there. Beyond it the mesh is a coarse
+        // coverage skirt that cannot resolve a wave, so the swell has to reach zero by the join or
+        // it aliases into blobs — but the zone is now sized (setWaveRadius) to outreach the far
+        // plane, so this taper falls where nothing is drawn. That matters: an amplitude envelope
+        // INSIDE the visible range is a ring centred on the viewer that follows the camera around,
+        // which is what made the ocean look like it radiated from wherever the camera stood.
+        float waveRadius = max(pc.params.y, 1.0);
+        float rim = 1.0 - smoothstep(waveRadius * 0.88, waveRadius, length(inPos.xz));
         disp *= rim;
         ddx = mix(vec3(1.0, 0.0, 0.0), ddx, rim);
         ddz = mix(vec3(0.0, 0.0, 1.0), ddz, rim);

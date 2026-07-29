@@ -64,8 +64,14 @@ void main() {
     inp.baseNormal   = normalize(fragWaveNormal);
     // SHORE SURF: waves break at ~2.56x the Gerstner amplitude of depth (H/d = 0.78 with
     // H = 2*amplitude). A flattened sea (amplitude 0) gets no surf, only the waterline rim.
+    //
+    // FLOOR OF 2.5 VOXELS — the criterion alone is not enough here. Once the swell was scaled to
+    // this world (amplitude 0.30) the physical break depth came out at 0.77 voxels, i.e. narrower
+    // than a single block, so the surf existed but was far too thin to see and the shore looked
+    // exactly as bare as before. Terrain here is quantised to whole voxels, so a surf zone has to be
+    // several voxels deep to land on more than one step of the seabed.
     inp.wavePhase    = fragWavePhase;
-    inp.breakDepth   = pc.params.z * 2.56;
+    inp.breakDepth   = max(pc.params.z * 2.56, 2.5);
     // Ground above the UNDISTURBED sea level is dry land: a wave crest must never be drawn climbing
     // it, however high the swell happens to lift the sheet there.
     inp.restLevelY   = pc.params.x;
@@ -76,7 +82,7 @@ void main() {
     // WaterSystemV3 Phase 5 favours screen-space reflection instead).
     if (pc.params2.z > 0.5) {
         vec2 screenUV = clamp(gl_FragCoord.xy / pc.params2.xy, vec2(0.001), vec2(0.999));
-        vec3 N = waterRippleNormal(fragWorldPos.xz, pc.camPosTime.w, 1.0);
+        vec3 N = waterRippleNormal(fragWorldPos.xz, pc.camPosTime.w, 0.05);
         screenUV += N.xz * 0.03;
         screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
         vec3 V = normalize(pc.camPosTime.xyz - fragWorldPos);

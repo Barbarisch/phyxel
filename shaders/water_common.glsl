@@ -52,9 +52,13 @@ vec3 waterCamForward(mat4 V) {
 // nothing but big rolling waves at a distance: there was no small-scale texture to see. Four
 // octaves from ~4.5 down to ~0.8 units now cover the near field.
 //
-// `fade` is the distance LOD: 1 keeps all octaves, 0 drops to a mirror-smooth surface. Fine chop
-// far away is worse than useless — it is sub-pixel, so it just aliases into a shimmering sparkle.
-vec3 waterRippleNormal(vec2 p, float t, float fade) {
+// `pixelWorld` is the world size of one screen pixel at this point. Each octave fades out on its
+// OWN terms — when its wavelength approaches a few pixels it stops being texture and becomes a
+// shimmering sparkle, so it is dropped. A single blanket distance fade was wrong twice over: it
+// killed coarse and fine detail together (so distant water went dead flat instead of keeping its
+// large-scale shape), and being a fixed radius around the camera it was a visible ring that
+// travelled with the viewer.
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     vec2 d1 = normalize(vec2( 1.0,  0.4));
     vec2 d2 = normalize(vec2(-0.6,  1.0));
     vec2 d3 = normalize(vec2( 0.8, -0.7));
@@ -64,19 +68,25 @@ vec3 waterRippleNormal(vec2 p, float t, float fade) {
     float a1 = 0.030, a2 = 0.016, a3 = 0.008, a4 = 0.004;
     float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
-    // Coarser octaves survive further out; the finest die first.
-    float k2 = fade, k3 = fade * fade, k4 = fade * fade * fade;
+    // Per-octave visibility: full while the wavelength covers >~7 px, gone under ~2.5 px. Coarse
+    // octaves therefore persist far into the distance and only the finest drop out early, which is
+    // what keeps far water looking like water rather than a flat sheet.
+    float px = max(pixelWorld, 1e-4);
+    float k1 = smoothstep(2.5, 7.0, (6.2831853 / f1) / px);
+    float k2 = smoothstep(2.5, 7.0, (6.2831853 / f2) / px);
+    float k3 = smoothstep(2.5, 7.0, (6.2831853 / f3) / px);
+    float k4 = smoothstep(2.5, 7.0, (6.2831853 / f4) / px);
 
     float p1 = dot(p, d1) * f1 + t * s1;
     float p2 = dot(p, d2) * f2 + t * s2;
     float p3 = dot(p, d3) * f3 + t * s3;
     float p4 = dot(p, d4) * f4 + t * s4;
 
-    float dx = a1 * f1 * d1.x * cos(p1)
+    float dx = a1 * f1 * d1.x * cos(p1) * k1
              + a2 * f2 * d2.x * cos(p2) * k2
              + a3 * f3 * d3.x * cos(p3) * k3
              + a4 * f4 * d4.x * cos(p4) * k4;
-    float dz = a1 * f1 * d1.y * cos(p1)
+    float dz = a1 * f1 * d1.y * cos(p1) * k1
              + a2 * f2 * d2.y * cos(p2) * k2
              + a3 * f3 * d3.y * cos(p3) * k3
              + a4 * f4 * d4.y * cos(p4) * k4;
@@ -99,7 +109,7 @@ vec3 waterRippleNormal(vec2 p, float t, float fade) {
 //      even with smoothing, because the distortion grows with |p| — far from the origin, a tiny
 //      direction difference becomes a large coordinate difference.
 // Amplitude/choppiness scaling is safe: it does not move the sample point.
-vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float fade) {
+vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld) {
     // ⚑GROUND: 2.5 world-units/sec at full strength. Fast enough to read as a current at a glance,
     // slow enough that the wave pattern doesn't alias into a strobe at 60 fps.
     const float ADVECT_SPEED = 2.5;
@@ -117,8 +127,8 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float fade) 
     float ph0 = fract(t / PERIOD);
     float ph1 = fract(t / PERIOD + 0.5);
     float k = ADVECT_SPEED * strength * PERIOD;
-    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, fade);
-    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, fade);
+    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld);
+    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld);
     // Weight each sample by how far it is from its own wrap point, so the crossfade hides the reset.
     vec3 n = normalize(mix(n0, n1, abs(2.0 * ph0 - 1.0)));
     // Moving water is choppier: exaggerate the normal's tilt with speed (safe — no coord change).
@@ -205,9 +215,12 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // ⚑GROUND: full detail to 45 units, gone by 220. 45 is roughly where the ~0.8-unit finest
     // octave drops under a couple of pixels at this FOV and resolution; 220 is a long enough ramp
     // that the transition is never a visible ring on the water.
+    // World size of one screen pixel here: distance * (2*tan(fovY/2) / screenHeightPx), with the
+    // engine's fixed 45-degree vertical FOV. Driving the LOD off this rather than off a fixed radius
+    // is what lets each octave retire on its own terms AND removes the camera-centred ring.
     float viewDist = length(inp.worldPos - inp.camPos);
-    float detailFade = 1.0 - smoothstep(45.0, 220.0, viewDist);
-    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, detailFade);
+    float pixelWorld = viewDist * (0.828427 / max(inp.screenSize.y, 1.0));
+    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, pixelWorld);
     // Perturb the macro normal by the ripple detail's tilt (detail is around +Y, so its xz IS the
     // tilt). Keeping the two separate is what lets a swell read as a swell at distance while still
     // sparkling up close.
@@ -282,21 +295,21 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // surf zone's width follows the sea state instead of being dialled in by eye.
     float surfFoam = 0.0;
     if (inp.breakDepth > 0.0001 && hasSeabed) {
-        // Shoaling: 0 offshore, 1 at the waterline. Cubed, not squared — on a gently sloping bed a
-        // 1-voxel depth band covers a LOT of ground, and a gentler falloff turned the whole shelf
-        // into a milky wash instead of a break line (first live attempt did exactly that).
+        // Shoaling: 0 offshore, 1 at the waterline. Squared — cubed collapsed the band to nothing
+        // once the swell was scaled down to the voxel world (breakDepth 2.56*0.30 = 0.77 voxels,
+        // which is sub-voxel and simply invisible). The band has to be a WIDTH you can see.
         float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, verticalDepth);
-        shoal = shoal * shoal * shoal;
-        // A wave breaks on its CREST, and ONLY on its crest — no floor term here. That is what
-        // makes the foam a moving band running shoreward with each wave rather than a static ring.
-        float crest = smoothstep(0.05, 0.75, inp.wavePhase);
-        surfFoam = shoal * crest;
+        shoal *= shoal;
+        // A wave breaks on its CREST — the phase gate is what makes this a band running shoreward
+        // with each wave rather than a static ring. A small floor keeps the surf zone permanently
+        // marked between crests, which is what a real breaker line looks like from a distance.
+        float crest = smoothstep(-0.35, 0.55, inp.wavePhase);
+        surfFoam = shoal * mix(0.25, 1.0, crest);
     }
-    // The waterline itself always carries a little foam, wave or not — the line that makes a coast
-    // read as a coast even on flat calm water (and what lakes and rivers get). Kept narrow and
-    // weak: it should suggest a wet edge, not paint a white stripe around every puddle.
-    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.18, verticalDepth)) : 0.0;
-    inp.foam = max(inp.foam, max(surfFoam, rim * 0.45));
+    // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
+    // coast even on flat calm water (and what lakes and rivers get).
+    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, verticalDepth)) : 0.0;
+    inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
 
     // WHITEWATER (Phase 3): where the water is moving AND shallow it breaks white over its bed.
     // Streaked along the flow so it reads as motion rather than a static frosting, and lit by the

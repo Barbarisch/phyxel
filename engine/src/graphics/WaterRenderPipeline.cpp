@@ -42,33 +42,39 @@ namespace Graphics {
 // 128 tris 1.469 ms / 4,608 tris 1.679 ms / 24,320 tris 1.912 ms, so this sits around 1.8 ms —
 // paid deliberately to stop the aliasing, and still well under the 96x128 version that bought
 // nothing.
-static constexpr int   SEA_WAVE_RINGS  = 64;      // uniform, inside the wave zone
-static constexpr float SEA_WAVE_RADIUS = 260.0f;  // world units; where displacement stops
+// THE WAVE ZONE MUST OUTREACH THE FAR PLANE. When it did not, its edge was a ring of flattening
+// water centred on the camera that travelled with the viewer — from above, a visible vortex, and
+// from any angle the sense that "the waves emanate from wherever I am". Any camera-relative
+// amplitude envelope inside the visible range does that. So the zone is now sized from the render
+// distance (set via setWaveRadius) and its taper lands beyond where anything is drawn.
+static constexpr float SEA_RING_SPACING = 4.1f;   // uniform; see the Nyquist note below
+static constexpr int   SEA_MAX_RINGS   = 176;     // cost cap (~33k tris at 96 sectors)
 static constexpr int   SEA_SKIRT_RINGS = 8;       // geometric, flat, purely for coverage
-static constexpr float SEA_SKIRT_RADIUS = 4000.0f;// far past any render distance; the far plane clips it
+static constexpr float SEA_SKIRT_RADIUS = 6000.0f;// far past any render distance; the far plane clips it
 static constexpr int   SEA_SECTORS = 96;
 
 // Vertices carry ABSOLUTE world-space radii (xz = offset from the camera in world units, y unused),
 // so the mesh no longer rescales with the render distance — which is what let a longer view distance
 // stretch the rings past the wave's Nyquist limit. The skirt reaches far enough to cover any view
 // distance; the far plane clips whatever is not needed.
-static void buildSeaMesh(std::vector<glm::vec3>& verts, std::vector<uint32_t>& indices) {
+static void buildSeaMesh(float waveRadius, int waveRings,
+                         std::vector<glm::vec3>& verts, std::vector<uint32_t>& indices) {
     verts.clear();
     indices.clear();
     verts.emplace_back(0.0f, 0.0f, 0.0f);   // centre vertex (under the camera)
 
-    const int totalRings = SEA_WAVE_RINGS + SEA_SKIRT_RINGS;
+    const int totalRings = waveRings + SEA_SKIRT_RINGS;
     for (int r = 1; r <= totalRings; ++r) {
         float radius;
-        if (r <= SEA_WAVE_RINGS) {
+        if (r <= waveRings) {
             // UNIFORM inside the wave zone: constant segment length is what keeps the swell above
             // Nyquist all the way out, which a quadratic distribution cannot do.
-            radius = SEA_WAVE_RADIUS * static_cast<float>(r) / static_cast<float>(SEA_WAVE_RINGS);
+            radius = waveRadius * static_cast<float>(r) / static_cast<float>(waveRings);
         } else {
             // Geometric skirt: a handful of rings to reach the horizon. Flat, so their coarseness
             // costs nothing visually.
-            const float t = static_cast<float>(r - SEA_WAVE_RINGS) / static_cast<float>(SEA_SKIRT_RINGS);
-            radius = SEA_WAVE_RADIUS * std::pow(SEA_SKIRT_RADIUS / SEA_WAVE_RADIUS, t);
+            const float t = static_cast<float>(r - waveRings) / static_cast<float>(SEA_SKIRT_RINGS);
+            radius = waveRadius * std::pow(SEA_SKIRT_RADIUS / waveRadius, t);
         }
         for (int s = 0; s < SEA_SECTORS; ++s) {
             const float a = 6.28318530718f * static_cast<float>(s) / static_cast<float>(SEA_SECTORS);
@@ -153,9 +159,15 @@ void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalD
 }
 
 void WaterRenderPipeline::createBuffers() {
+    // Uniform ring spacing sized so the shortest swell component stays above Nyquist: at 4.1 units
+    // a 9.5-unit wave gets 2.3 samples per period. Ring COUNT then follows the requested radius,
+    // capped so an extreme render distance cannot explode the vertex budget (past the cap the rings
+    // simply stretch, which is acceptable — that far out a wave is only a few pixels anyway).
+    m_waveRings = std::max(8, std::min(SEA_MAX_RINGS,
+                                       static_cast<int>(m_waveRadius / SEA_RING_SPACING)));
     std::vector<glm::vec3> verts;
     std::vector<uint32_t>  indices;
-    buildSeaMesh(verts, indices);
+    buildSeaMesh(m_waveRadius, m_waveRings, verts, indices);
     m_indexCount = static_cast<uint32_t>(indices.size());
 
     auto makeBuffer = [&](const void* src, VkDeviceSize bytes, VkBufferUsageFlags usage,
@@ -264,6 +276,21 @@ void WaterRenderPipeline::setReflectionTexture(VkImageView reflectionView, VkSam
     write.pImageInfo = &imageInfo;
     vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
     m_reflectionBound = true;
+}
+
+void WaterRenderPipeline::setWaveRadius(float radius) {
+    radius = std::max(120.0f, radius);
+    if (std::fabs(radius - m_waveRadius) < 16.0f) return;   // not worth a rebuild
+    m_waveRadius = radius;
+    if (m_device == VK_NULL_HANDLE) return;                 // pre-init: the ctor value is used
+    vkDeviceWaitIdle(m_device);
+    vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
+    vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
+    if (m_indexBuffer != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
+    if (m_indexBufferMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
+    m_vertexBuffer = VK_NULL_HANDLE; m_vertexBufferMemory = VK_NULL_HANDLE;
+    m_indexBuffer = VK_NULL_HANDLE;  m_indexBufferMemory = VK_NULL_HANDLE;
+    createBuffers();
 }
 
 void WaterRenderPipeline::setSceneTextures(VkImageView refractionView, VkSampler refractionSampler,
@@ -529,7 +556,10 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
     WaterPushConstants pc{};
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camPos, t);
-    pc.params     = glm::vec4(seaLevel, size, m_waveAmplitude, m_windDirection);
+    // params.y carries the WAVE RADIUS (not the old sheet size — the mesh holds absolute world
+    // radii now), so the vertex shader can taper the swell exactly at the zone edge.
+    (void)size;
+    pc.params     = glm::vec4(seaLevel, m_waveRadius, m_waveAmplitude, m_windDirection);
     pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
                               static_cast<float>(screenExtent.height),
                               reflectionEnabled ? 1.0f : 0.0f, m_waveLength);
