@@ -76,7 +76,26 @@ is subtly wrong in ways that look like shader bugs. Build and visualise it *firs
 
 ---
 
-## 2b. PREREQUISITE — the sea mesh topology is wrong (found 2026-07-29)
+## 2b. ✅ DONE (2026-07-29) — the sea mesh topology was wrong; replaced with a clipmap
+
+**Resolved.** The polar mesh is gone, replaced by the Cartesian clipmap in `SeaMesh.h/.cpp`, with
+per-component Nyquist fading in `water.vert`. Measured outcome:
+
+- **The vortex is gone.** Top-down from 396 units, crest orientation concentration is **0.915** about
+  a single dominant direction — the crests are parallel. A radial/spoke pattern cannot score that,
+  because its orientation varies with angular position by definition.
+- **Cheaper, and reaches further:** 4 levels, 14,785 verts, **29,312 triangles reaching 1024 units**,
+  against the polar mesh's ~33,800 triangles reaching only 700. Cost now grows one *level* per
+  doubling of reach instead of one ring per 4.1 units.
+- **The far sea kept its shape** — the added long-wavelength component survives the coarse outer
+  levels, so swell lines still read to the horizon at reducing detail rather than flattening.
+- Invariants pinned by `SeaMeshTest` (5 tests): no T-junctions, no edge shared by >2 triangles,
+  constant angular density per level, coverage reaches the requested radius, bounded cost. Two of
+  them **failed first and caught real bugs** — see the commit.
+
+The analysis that led here is kept below because the *reasoning* is the reusable part.
+
+### Original diagnosis
 
 Looking straight down from altitude, the ocean shows a spiral centred on the camera. A first fix
 (pushing the amplitude taper beyond the far plane) removed one cause, but the artifact returns as

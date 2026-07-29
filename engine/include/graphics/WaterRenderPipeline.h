@@ -99,11 +99,11 @@ private:
 
     VkBuffer       m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
-    VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // radial sea mesh (Phase 2)
+    VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // sea clipmap; see SeaMesh.h
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t       m_indexCount = 0;
-    float          m_waveRadius = 700.0f;   // world units; set from the render distance
-    int            m_waveRings = 0;         // derived from the radius at build time
+    float          m_waveRadius = 700.0f;      // world units; set from the render distance
+    float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 
     // ⚑GROUND: 0.45-voxel amplitude on a 14-voxel wavelength — a ~0.9 m swell on a 14 m period,
     // a moderate breeze (Beaufort 4).

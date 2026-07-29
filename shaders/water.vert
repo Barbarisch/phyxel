@@ -5,10 +5,16 @@
 // WAS: a single quad locked to sea level. That is why the ocean could never read as an ocean — a
 // perfectly flat plane has no shape for light to catch, whatever the fragment shader does.
 //
-// NOW: a camera-centred radial grid (built in WaterRenderPipeline) displaced by a sum of GERSTNER
-// waves. Gerstner (trochoidal) waves move each vertex in a circle rather than just up and down, so
-// crests sharpen and troughs broaden — the shape real wind-driven water has, and the reason this
-// reads as water where a plain sine sheet reads as a wobbling bedsheet.
+// NOW: a camera-relative CARTESIAN CLIPMAP (built by buildSeaClipmap, see SeaMesh.h) displaced by a
+// sum of GERSTNER waves. Gerstner (trochoidal) waves move each vertex in a circle rather than just
+// up and down, so crests sharpen and troughs broaden — the shape real wind-driven water has, and the
+// reason this reads as water where a plain sine sheet reads as a wobbling bedsheet.
+//
+// The mesh used to be a camera-centred RADIAL grid, and that was the cause of the "waves emanate
+// from a point at the camera" vortex: a polar mesh's angular spacing grows with radius, so the swell
+// aliased azimuthally, and aliasing inherits the sampling pattern's symmetry — radial sampling gives
+// radial spokes. The clipmap has no radial structure and no centre, and each wave component now
+// fades where the local mesh spacing can no longer sample it (see NYQ below).
 //
 // The normal is computed ANALYTICALLY from the wave derivatives rather than from neighbouring
 // vertices: it stays correct no matter how coarse the grid gets toward the horizon, which is what
@@ -19,8 +25,9 @@ layout(location = 0) in vec3 inPos; // unit disc in the XZ plane: xz in [-1,1], 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 params;     // x = seaLevel, y = sheet size, z = wave amplitude, w = wind direction (rad)
+    vec4 params;     // x = seaLevel, y = wave zone radius, z = wave amplitude, w = wind dir (rad)
     vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w = wave length
+    vec4 params3;    // x = clipmap core spacing, y = clipmap core half-extent, zw = unused
 } pc;
 
 layout(location = 0) out vec3 fragWorldPos;
@@ -77,35 +84,60 @@ void main() {
     fragWavePhase = 0.0;
 
     if (amp > 0.0001) {
-        // Three waves at spreading angles and decreasing scale. ⚑GROUND: a real wind sea is a
-        // spectrum, not one sinusoid; three components at ~±30 degrees off the wind with
-        // halving amplitude is the cheapest sum that stops the surface looking like corduroy.
-        // Steepness sums to 0.75 (< 1), keeping the crests sharp but non-self-intersecting.
+        // PER-COMPONENT NYQUIST LOD. This is the half of the vortex fix that lives in the shader.
+        //
+        // The mesh is a clipmap (see SeaMesh.h): uniform spacing near the camera, doubling with each
+        // level outward. The core resolves the swell with margin, but the outer levels are coarser
+        // than the swell's Nyquist limit — and a wave the mesh cannot sample does not render as a
+        // smaller wave, it renders as garbage. On the old polar mesh that garbage inherited the
+        // sampling pattern's radial symmetry and became spokes converging on the viewer.
+        //
+        // So each component is faded out on ITS OWN terms, by how many mesh samples fall across its
+        // wavelength. Below ~2 samples it is unrepresentable and goes; above ~3.2 it is fully drawn.
+        // This is NOT the "amplitude envelope at a fixed radius" that caused the original vortex:
+        // that flattened ALL waves at one camera-relative distance, a visible ring travelling with
+        // the viewer. This fades each wavelength where that wavelength stops being samplable, which
+        // is exactly how the fragment shader's ripple octaves already retire.
+        float coreSpacing = max(pc.params3.x, 0.01);
+        float coreHalf    = max(pc.params3.y, 1.0);
+        // Local grid spacing, reconstructed from the radius. The clipmap doubles spacing every time
+        // it doubles extent, so spacing is proportional to radius outside the core — a smooth
+        // function, deliberately, because a PER-VERTEX spacing would step by 2x across a level
+        // boundary and crease the surface along that single row of vertices.
+        float localSpacing = coreSpacing * max(1.0, length(inPos.xz) / coreHalf);
+        #define NYQ(lambda) smoothstep(2.0, 3.2, (lambda) / localSpacing)
+
+        // ⚑GROUND: a real wind sea is a spectrum, not one sinusoid. Components at spreading angles
+        // off the wind with decreasing amplitude. Steepness sums to 0.87 (< 1), so crests stay sharp
+        // without the surface self-intersecting into a shimmering knot.
+        //
+        // The LONG component is what keeps the far ocean from going dead flat. The three original
+        // components are all <= 14 units, so they have all faded by the second clipmap level — and a
+        // flat horizon was a specific complaint. A long, low swell survives to the outer levels
+        // because a coarse mesh CAN sample it, which is also how a real sea looks at that distance:
+        // you see the swell, not the chop. The three near-field components are unchanged, so the
+        // close-up look this replaces is preserved exactly.
         vec2 w0 = vec2(cos(windRad), sin(windRad));
         vec2 w1 = vec2(cos(windRad + 0.6), sin(windRad + 0.6));
         vec2 w2 = vec2(cos(windRad - 0.9), sin(windRad - 0.9));
+        vec2 w3 = vec2(cos(windRad + 0.25), sin(windRad + 0.25));
+
+        float lam0 = waveLen, lam1 = waveLen * 0.61, lam2 = waveLen * 0.33, lam3 = waveLen * 5.0;
+        float k0 = NYQ(lam0), k1 = NYQ(lam1), k2 = NYQ(lam2), k3 = NYQ(lam3);
 
         vec3 disp = vec3(0.0);
-        disp += gerstner(base, w0, amp,        waveLen,        0.38, t, ddx, ddz);
-        disp += gerstner(base, w1, amp * 0.52, waveLen * 0.61, 0.24, t, ddx, ddz);
-        disp += gerstner(base, w2, amp * 0.28, waveLen * 0.33, 0.13, t, ddx, ddz);
-
-        // FLATTEN AT THE EDGE OF THE WAVE ZONE, and only there. Beyond it the mesh is a coarse
-        // coverage skirt that cannot resolve a wave, so the swell has to reach zero by the join or
-        // it aliases into blobs — but the zone is now sized (setWaveRadius) to outreach the far
-        // plane, so this taper falls where nothing is drawn. That matters: an amplitude envelope
-        // INSIDE the visible range is a ring centred on the viewer that follows the camera around,
-        // which is what made the ocean look like it radiated from wherever the camera stood.
-        float waveRadius = max(pc.params.y, 1.0);
-        float rim = 1.0 - smoothstep(waveRadius * 0.88, waveRadius, length(inPos.xz));
-        disp *= rim;
-        ddx = mix(vec3(1.0, 0.0, 0.0), ddx, rim);
-        ddz = mix(vec3(0.0, 0.0, 1.0), ddz, rim);
+        disp += gerstner(base, w0, amp        * k0, lam0, 0.38 * k0, t, ddx, ddz);
+        disp += gerstner(base, w1, amp * 0.52 * k1, lam1, 0.24 * k1, t, ddx, ddz);
+        disp += gerstner(base, w2, amp * 0.28 * k2, lam2, 0.13 * k2, t, ddx, ddz);
+        disp += gerstner(base, w3, amp * 0.70 * k3, lam3, 0.12 * k3, t, ddx, ddz);
 
         world += disp;
-        // Normalised height in the wave cycle. The summed amplitude is amp*(1 + 0.52 + 0.28), so
-        // divide by that to land in roughly -1..1 regardless of the amplitude setting.
-        fragWavePhase = clamp(disp.y / (amp * 1.8), -1.0, 1.0);
+        // Normalised height in the wave cycle. Divide by the summed amplitude actually in play so
+        // this lands in roughly -1..1 whatever the amplitude setting and whichever components the
+        // LOD has retired — a fixed divisor would make the shore surf's crest gate drift as
+        // components fade.
+        float ampSum = amp * (k0 + 0.52 * k1 + 0.28 * k2 + 0.70 * k3);
+        fragWavePhase = clamp(disp.y / max(ampSum, 1e-4), -1.0, 1.0);
     }
 
     // Analytic normal from the two partial derivatives. cross(ddz, ddx) yields +Y for a flat sheet.

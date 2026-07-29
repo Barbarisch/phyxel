@@ -50,17 +50,18 @@ vec3 waterCamForward(mat4 V) {
 // against the shader's 1.90 / 1.29 / 0.66). That is the reported "patchwork quilt". Adding a
 // fourth sine cannot fix it; the pattern has to stop being periodic at all.
 //
-// Value noise, not a texture: no fetch, no atlas slot, and no tiling period to give the game away.
+// Noise, not a texture: no fetch, no atlas slot, and no tiling period to give the game away.
 //
 // ⚑PRECISION LIMIT: the hash is fed the INTEGER lattice cell, so it stays well-conditioned as long
 // as |cell| stays far below fp32's 2^24 exact-integer range — i.e. world coordinates up to ~1e5.
 // Beyond that adjacent cells collapse onto the same float and the noise degenerates into bands.
 // Do NOT "fix" that with a mod() wrap: that was tried on the voxel orientation hash and produced a
 // hard seam at the wrap boundary.
-// SIMPLEX, not value noise. Value noise interpolates a SQUARE lattice, so its cells are aligned
-// to world X/Z and a thresholded mask reads as a grid of rectangles — which is what replaced the
-// sine lattice on the first attempt. Measured axis-alignment of the thresholded mask (gradient
-// orientation concentrated near an axis; 1.00 = isotropic, band-limited Gaussian noise = 1.02):
+//
+// AND SIMPLEX, not value noise. Value noise interpolates a SQUARE lattice, so its cells are aligned
+// to world X/Z and a thresholded mask reads as a grid of rectangles — which is exactly what replaced
+// the sine lattice on the first attempt at this fix. Measured axis-alignment of the thresholded mask
+// (gradient orientation concentrated near an axis; 1.00 = isotropic, Gaussian reference = 1.02):
 //
 //     value noise, 2 octaves    1.13     8 sin
 //     value noise, 4 octaves    1.06    16 sin
@@ -260,6 +261,12 @@ const float SHORE_FADE = 0.4;
 // A/B probe. Screen-space metrics cannot separate world-aligned voxel terraces from the foam
 // noise's own cells whenever the camera is yawed, so attribute artifacts by switching foam OFF
 // and re-shooting the identical vantage instead of inferring. Ships at 1.0.
+//
+// It has already settled two questions that inference got wrong or could not reach:
+//   * the shallow-water "patchwork quilt" is 100% this foam layer, NOT seabed voxel terracing;
+//   * the pale open ocean from a low vantage is NOT foam — foam moves those pixels by at most
+//     4 grey levels out of ~200, and the far band matches the sky reference to within 0.3. It is
+//     grazing-angle Fresnel doing the physically correct thing.
 const float WATER_FOAM_DEBUG_SCALE = 1.0;
 
 struct WaterSurfaceInput {

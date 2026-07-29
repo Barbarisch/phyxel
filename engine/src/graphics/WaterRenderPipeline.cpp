@@ -1,4 +1,5 @@
 #include "graphics/WaterRenderPipeline.h"
+#include "graphics/SeaMesh.h"
 #include "graphics/Camera.h"
 #include "core/AssetManager.h"
 #include "utils/Logger.h"
@@ -9,101 +10,25 @@
 namespace Phyxel {
 namespace Graphics {
 
-// ── SEA MESH (WaterSystemV3 Phase 2) ──────────────────────────────────────────────────────────
-// The sea used to be a SINGLE quad locked to sea level — which is why it could never read as an
-// ocean: a perfectly flat plane has no shape to catch light, no matter what the fragment shader
-// does. It is now a camera-centred RADIAL grid that the vertex shader displaces with Gerstner
-// waves.
-//
-// Why radial rather than a uniform grid: the sheet spans ~2x the render distance, so a uniform grid
-// would spend most of its vertices on the horizon (where a wave is sub-pixel) and starve the water
-// near the viewer (where the shape actually reads). Rings at radius (r/R)^2 put density where the
-// camera is, which is the cheap approximation of a projected grid.
-//
-// WAVE SAMPLING vs COVERAGE — these are two different jobs and must not share one distribution.
-//
-// The first cut scaled the whole disc with the render distance and grew the rings quadratically, so
-// nearly every vertex landed within ~30 units of the camera and the rest of the sheet was enormous
-// triangles. Raising the render distance to 512 then produced ring spacings of ~32 units against a
-// 9.5-unit wavelength — 3.4 WAVELENGTHS PER SEGMENT, far past the Nyquist limit of 0.5 — and the
-// ocean dissolved into smeared white blobs. (Measured across the mesh; the old 350-unit / 14-unit
-// config was already aliasing past ~50 units, just less visibly.)
-//
-// So: UNIFORM rings across a fixed wave zone, where the swell actually lives and must be sampled
-// properly, plus a cheap geometric SKIRT that only exists to reach the horizon and carries no
-// displacement at all.
-//
-// ⚑GROUND: 64 uniform rings over 260 units = 4.06 units/segment. Against the 9.5-unit default
-// wavelength that is 0.43 wavelengths per segment — inside Nyquist (0.5) with margin, so the wave
-// is resolved everywhere it is drawn. 260 units is roughly the distance past which a 0.6 m swell
-// stops being individually readable anyway.
-//
-// Vertex budget: 72 rings x 96 sectors = 13,824 triangles. The measured curve on this scene was
-// 128 tris 1.469 ms / 4,608 tris 1.679 ms / 24,320 tris 1.912 ms, so this sits around 1.8 ms —
-// paid deliberately to stop the aliasing, and still well under the 96x128 version that bought
-// nothing.
-// THE WAVE ZONE MUST OUTREACH THE FAR PLANE. When it did not, its edge was a ring of flattening
-// water centred on the camera that travelled with the viewer — from above, a visible vortex, and
-// from any angle the sense that "the waves emanate from wherever I am". Any camera-relative
-// amplitude envelope inside the visible range does that. So the zone is now sized from the render
-// distance (set via setWaveRadius) and its taper lands beyond where anything is drawn.
-static constexpr float SEA_RING_SPACING = 4.1f;   // uniform; see the Nyquist note below
-static constexpr int   SEA_MAX_RINGS   = 176;     // cost cap (~33k tris at 96 sectors)
-static constexpr int   SEA_SKIRT_RINGS = 8;       // geometric, flat, purely for coverage
-static constexpr float SEA_SKIRT_RADIUS = 6000.0f;// far past any render distance; the far plane clips it
-static constexpr int   SEA_SECTORS = 96;
+// ── SEA MESH ────────────────────────────────────
+// The geometry lives in SeaMesh.h/.cpp — a camera-relative Cartesian clipmap. Read that header
+// before changing it: it records why the previous camera-centred RADIAL mesh had to go (its
+// angular spacing grew with radius, so the swell aliased azimuthally, and aliasing inherits the
+// sampling pattern's symmetry — radial sampling gave spokes converging on the viewer), and why the
+// outer levels are allowed to be coarser than Nyquist (water.vert fades each wave component where
+// the local spacing can no longer sample it, instead of drawing garbage).
 
-// Vertices carry ABSOLUTE world-space radii (xz = offset from the camera in world units, y unused),
-// so the mesh no longer rescales with the render distance — which is what let a longer view distance
-// stretch the rings past the wave's Nyquist limit. The skirt reaches far enough to cover any view
-// distance; the far plane clips whatever is not needed.
-static void buildSeaMesh(float waveRadius, int waveRings,
-                         std::vector<glm::vec3>& verts, std::vector<uint32_t>& indices) {
-    verts.clear();
-    indices.clear();
-    verts.emplace_back(0.0f, 0.0f, 0.0f);   // centre vertex (under the camera)
-
-    const int totalRings = waveRings + SEA_SKIRT_RINGS;
-    for (int r = 1; r <= totalRings; ++r) {
-        float radius;
-        if (r <= waveRings) {
-            // UNIFORM inside the wave zone: constant segment length is what keeps the swell above
-            // Nyquist all the way out, which a quadratic distribution cannot do.
-            radius = waveRadius * static_cast<float>(r) / static_cast<float>(waveRings);
-        } else {
-            // Geometric skirt: a handful of rings to reach the horizon. Flat, so their coarseness
-            // costs nothing visually.
-            const float t = static_cast<float>(r - waveRings) / static_cast<float>(SEA_SKIRT_RINGS);
-            radius = waveRadius * std::pow(SEA_SKIRT_RADIUS / waveRadius, t);
-        }
-        for (int s = 0; s < SEA_SECTORS; ++s) {
-            const float a = 6.28318530718f * static_cast<float>(s) / static_cast<float>(SEA_SECTORS);
-            verts.emplace_back(radius * std::cos(a), 0.0f, radius * std::sin(a));
-        }
-    }
-    auto ringVert = [](int ring, int sector) -> uint32_t {
-        return 1u + static_cast<uint32_t>((ring - 1) * SEA_SECTORS + (sector % SEA_SECTORS));
-    };
-    for (int s = 0; s < SEA_SECTORS; ++s) {           // centre fan
-        indices.push_back(0);
-        indices.push_back(ringVert(1, s));
-        indices.push_back(ringVert(1, s + 1));
-    }
-    for (int r = 1; r < totalRings; ++r)              // ring quads
-        for (int s = 0; s < SEA_SECTORS; ++s) {
-            const uint32_t a = ringVert(r, s),     b = ringVert(r, s + 1);
-            const uint32_t c = ringVert(r + 1, s), d = ringVert(r + 1, s + 1);
-            indices.push_back(a); indices.push_back(c); indices.push_back(b);
-            indices.push_back(b); indices.push_back(c); indices.push_back(d);
-        }
-}
-
-// Push constants shared by both stages. 112 bytes — under the 128-byte guaranteed min.
+// Push constants shared by both stages. 128 bytes — exactly the minimum every Vulkan implementation
+// is guaranteed to offer, so this cannot grow again without moving to a uniform buffer.
 struct WaterPushConstants {
     glm::mat4 viewProj;    // 64
     glm::vec4 camPosTime;  // 16  (camera xyz, time seconds)
-    glm::vec4 params;      // 16  (seaLevel, sheet size, wave amplitude, wind direction radians)
+    glm::vec4 params;      // 16  (seaLevel, wave zone radius, wave amplitude, wind dir radians)
     glm::vec4 params2;     // 16  (screen width, screen height, reflectionEnabled, wave length)
+    // The clipmap core spacing and half-extent. water.vert reconstructs the LOCAL grid spacing from
+    // these to decide which wave components it can still sample. Passed rather than duplicated as
+    // shader literals: this project has already been bitten by hand-synced definitions drifting.
+    glm::vec4 params3;     // 16  (core spacing, core half-extent, unused, unused)
 };
 
 static std::vector<char> readFile(const std::string& filename) {
@@ -159,16 +84,19 @@ void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalD
 }
 
 void WaterRenderPipeline::createBuffers() {
-    // Uniform ring spacing sized so the shortest swell component stays above Nyquist: at 4.1 units
-    // a 9.5-unit wave gets 2.3 samples per period. Ring COUNT then follows the requested radius,
-    // capped so an extreme render distance cannot explode the vertex budget (past the cap the rings
-    // simply stretch, which is acceptable — that far out a wave is only a few pixels anyway).
-    m_waveRings = std::max(8, std::min(SEA_MAX_RINGS,
-                                       static_cast<int>(m_waveRadius / SEA_RING_SPACING)));
-    std::vector<glm::vec3> verts;
-    std::vector<uint32_t>  indices;
-    buildSeaMesh(m_waveRadius, m_waveRings, verts, indices);
+    // Cartesian clipmap (SeaMesh.h). Replaces a camera-centred polar grid whose ANGULAR spacing grew
+    // with radius, aliasing the swell into radial spokes that converged on the viewer — the "waves
+    // emanate from the camera" vortex. Cost no longer scales with the render distance: the clipmap
+    // adds one LEVEL per doubling of reach, where the polar mesh added a ring every 4.1 units.
+    const SeaMesh mesh = buildSeaClipmap(m_waveRadius);
+    const std::vector<glm::vec3>& verts   = mesh.vertices;
+    const std::vector<uint32_t>&  indices = mesh.indices;
+    m_seaOuterExtent = mesh.outerExtent;
     m_indexCount = static_cast<uint32_t>(indices.size());
+    LOG_INFO("Water", "sea clipmap: " + std::to_string(mesh.levels) + " levels, " +
+                          std::to_string(verts.size()) + " verts, " +
+                          std::to_string(mesh.triangles()) + " tris, reach " +
+                          std::to_string(static_cast<int>(mesh.outerExtent)) + "u");
 
     auto makeBuffer = [&](const void* src, VkDeviceSize bytes, VkBufferUsageFlags usage,
                           VkBuffer& buf, VkDeviceMemory& mem) {
@@ -557,12 +485,14 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camPos, t);
     // params.y carries the WAVE RADIUS (not the old sheet size — the mesh holds absolute world
-    // radii now), so the vertex shader can taper the swell exactly at the zone edge.
+    // offsets now). The vertex shader no longer tapers the swell at the zone edge; it retires each
+    // wave component individually where the clipmap's local spacing stops resolving it.
     (void)size;
     pc.params     = glm::vec4(seaLevel, m_waveRadius, m_waveAmplitude, m_windDirection);
     pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
                               static_cast<float>(screenExtent.height),
                               reflectionEnabled ? 1.0f : 0.0f, m_waveLength);
+    pc.params3    = glm::vec4(SEA_CORE_SPACING, SEA_CORE_HALF, 0.0f, 0.0f);
 
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
