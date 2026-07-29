@@ -372,3 +372,58 @@ TEST(SpawnGateTest, TheClimbHonoursTheSuppliedBodySize) {
         EXPECT_FALSE(spawnIsEmbedded(w.fn(), r.position, tall))
             << "the climb placed a 2.6 m body somewhere it does not fit";
 }
+
+// ===========================================================================
+// verifyPlacedBody — the SECOND pass, once the species' real capsule exists.
+//
+// SCOPE, stated because the previous attempt at this got it wrong: these test the
+// DECISION function the fix introduced. They do NOT test the NPCManager wiring
+// (does it read the resolved capsule? does it reposition? does it tear the entity
+// down completely on refusal?) -- spawnNPC requires a live PhysicsWorld, so that
+// path is not reachable headlessly and remains verified by inspection only.
+// A solution-auditor demonstrated the earlier pair of tests still passed with the
+// NPCManager fix fully reverted; these at least fail if the DECISION stops
+// honouring the body it is handed.
+// ===========================================================================
+
+// The core property: same position, same world, different body -> different answer.
+// A check that ignored its bounds would return Clear for both.
+TEST(SpawnGateTest, VerifyPlacedBodyAnswersDifferentlyForDifferentBodies) {
+    BoxWorld w;
+    w.ground(16.0f);
+    w.add({8.00f, 16.0f, 0.0f}, {9.55f, 20.0f, 20.0f});     // 0.90 m gap, as above
+    w.add({10.45f, 16.0f, 0.0f}, {12.00f, 20.0f, 20.0f});
+    const glm::vec3 at(10.0f, 16.0f, 10.0f);
+
+    const SpawnResult humanoid = verifyPlacedBody(w.fn(), at, CharacterBounds{});
+    EXPECT_EQ(humanoid.outcome, SpawnOutcome::Clear)
+        << "a humanoid fits this 0.90 m gap and must be left alone";
+    EXPECT_EQ(humanoid.position, at);
+
+    const SpawnResult wide = verifyPlacedBody(w.fn(), at, CharacterBounds{0.55f, 1.30f});
+    EXPECT_NE(wide.outcome, SpawnOutcome::Clear)
+        << "a 1.10 m-wide body was declared Clear in a 0.90 m gap - verifyPlacedBody is "
+           "ignoring the body it was handed, which is the whole defect it exists to fix";
+    if (wide.ok())
+        EXPECT_FALSE(spawnIsEmbedded(w.fn(), wide.position, CharacterBounds{0.55f, 1.30f}))
+            << "relocated a wide body to somewhere it still does not fit";
+}
+
+// An ordinary NPC standing somewhere fine must be untouched -- a second pass that
+// nudges every character would scatter a settlement's residents.
+TEST(SpawnGateTest, VerifyPlacedBodyLeavesAWellPlacedCharacterExactlyWhereItIs) {
+    const auto w = thinWallWorld();
+    const glm::vec3 open(8.0f, 16.0f, 5.0f);
+    const SpawnResult r = verifyPlacedBody(w.fn(), open, CharacterBounds{});
+    EXPECT_EQ(r.outcome, SpawnOutcome::Clear);
+    EXPECT_EQ(r.position, open);
+    EXPECT_FLOAT_EQ(r.movedDistance, 0.0f);
+}
+
+// Without a world query the second pass must stand down, not refuse every spawn.
+TEST(SpawnGateTest, VerifyPlacedBodyWithoutAWorldMakesNoClaim) {
+    const SpawnResult r = verifyPlacedBody(SolidAABBFn{}, glm::vec3(1.0f, 2.0f, 3.0f),
+                                           CharacterBounds{0.55f, 1.30f});
+    EXPECT_EQ(r.outcome, SpawnOutcome::Clear);
+    EXPECT_TRUE(r.ok());
+}

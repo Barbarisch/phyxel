@@ -157,5 +157,21 @@ SpawnResult resolveSpawnWithClimb(const SolidAABBFn& solid, const glm::vec3& req
     return res;
 }
 
+SpawnResult verifyPlacedBody(const SolidAABBFn& solid, const glm::vec3& at,
+                             const CharacterBounds& realBody) {
+    SpawnResult res;
+    res.requested = at;
+    res.position = at;
+    if (!solid) {
+        res.reason = "no solidity query available - spawn gate inactive";
+        return res;
+    }
+    if (!spawnIsEmbedded(solid, at, realBody)) {
+        res.supported = spawnIsSupported(solid, at, realBody);
+        return res;   // Clear: the overwhelmingly common case
+    }
+    return resolveSpawnWithClimb(solid, at, realBody);
+}
+
 }  // namespace Core
 }  // namespace Phyxel

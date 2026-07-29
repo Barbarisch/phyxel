@@ -95,5 +95,22 @@ SpawnResult resolveSpawnWithClimb(const SolidAABBFn& solid, const glm::vec3& req
                                   const CharacterBounds& body = {}, float searchRadius = 4.0f,
                                   float maxClimb = 512.0f);
 
+/// SECOND-PASS check for a body that ALREADY EXISTS, once its real size is known.
+///
+/// The pre-construction gate necessarily assumes a body size, and the only size it can
+/// assume is the humanoid default -- a species' real capsule is resolved during
+/// construction (resizeController measures the loaded skeleton). BodyPlan clamps
+/// half-width to [0.12, 0.60], so for a wolf, horse or dragon that assumption is wrong
+/// by up to 2.4x: a 0.9 m gap reads Clear for a humanoid while the creature actually
+/// created there is embedded in the walls either side.
+///
+/// Clear     -> leave it where it is (the common case; near-humanoids short-circuit).
+/// Relocated -> move it to `position`.
+/// Refused   -> the caller must REMOVE the entity completely, including any registry
+///              entry made before this ran -- erasing an owning pointer alone leaves a
+///              dangling raw pointer behind (solution-auditor, round 7).
+SpawnResult verifyPlacedBody(const SolidAABBFn& solid, const glm::vec3& at,
+                             const CharacterBounds& realBody);
+
 }  // namespace Core
 }  // namespace Phyxel

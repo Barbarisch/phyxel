@@ -59,9 +59,8 @@ bool verifySpawnForRealBody(const SolidAABBFn& solid, bool allowEmbedded,
     body.halfWidth = ch->getControllerHalfWidth();
     body.height = ch->getControllerHalfHeight() * 2.0f;
     const glm::vec3 at = npc->getPosition();
-    if (!spawnIsEmbedded(solid, at, body)) return true;   // the common case: nothing to do
-
-    const SpawnResult sr = resolveSpawnWithClimb(solid, at, body);
+    const SpawnResult sr = verifyPlacedBody(solid, at, body);
+    if (sr.outcome == SpawnOutcome::Clear) return true;   // the common case: nothing to do
     if (!sr.ok()) {
         LOG_ERROR("NPCManager", "Refusing to spawn '{}': its REAL body ({}m half-width, {}m "
                   "tall) is inside static geometry and no clear position was found",
@@ -169,7 +168,13 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     // The gate ran pre-construction against the humanoid default; the species' real
     // capsule exists only now, so check the body that actually got built.
     if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
-        m_npcs.erase(name);
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
         return nullptr;
     }
 
@@ -711,7 +716,13 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     // The gate ran pre-construction against the humanoid default; the species' real
     // capsule exists only now, so check the body that actually got built.
     if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
-        m_npcs.erase(name);
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
         return nullptr;
     }
 
@@ -793,7 +804,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     // The gate ran pre-construction against the humanoid default; the species' real
     // capsule exists only now, so check the body that actually got built.
     if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
-        m_npcs.erase(name);
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
         return nullptr;
     }
 
@@ -887,7 +904,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
     // The gate ran pre-construction against the humanoid default; the species' real
     // capsule exists only now, so check the body that actually got built.
     if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
-        m_npcs.erase(name);
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
         return nullptr;
     }
 
