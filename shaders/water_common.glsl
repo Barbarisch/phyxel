@@ -299,12 +299,31 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // solitary-wave breaking criterion), so with a trough-to-crest height H = 2*amplitude they
     // break once the depth falls below H/0.78 = 2.56*amplitude. `breakDepth` carries that, so the
     // surf zone's width follows the sea state instead of being dialled in by eye.
+    // DE-QUANTISE THE DEPTH BEFORE KEYING FOAM OFF IT.
+    //
+    // The seabed is voxels, so `verticalDepth` is piecewise CONSTANT over each voxel top and jumps a
+    // whole unit at every terrace edge. Anything keyed directly to it therefore paints the terraces:
+    // one flat foam value per plateau with a hard sawtooth step between them, which reads as a
+    // patchwork quilt laid over the shallows (reported 2026-07-29 — see the screenshot in the plan).
+    //
+    // Perturbing the depth by a smooth world-space wobble makes the foam boundary wander across the
+    // steps instead of snapping to them. ⚑GROUND: amplitude 1.0 = exactly the quantisation step, so
+    // the dither is the same size as the artifact it hides — smaller leaves stairs visible, larger
+    // starts detaching the foam from the real shoreline. Two sines, no texture fetch: this runs on
+    // every water fragment, so it stays cheap.
+    //
+    // The REAL fix is a smooth shore field (docs/WaterPhysicalFeelPlan.md §2) whose distance
+    // transform is continuous by construction; this is the cheap stand-in until that exists.
+    float wob = sin(inp.worldPos.x * 0.37 + inp.worldPos.z * 0.21)
+              + sin(inp.worldPos.x * 0.11 - inp.worldPos.z * 0.29) * 0.6;
+    float foamDepth = max(verticalDepth + wob * 0.62, 0.0);
+
     float surfFoam = 0.0;
     if (inp.breakDepth > 0.0001 && hasSeabed) {
         // Shoaling: 0 offshore, 1 at the waterline. Squared — cubed collapsed the band to nothing
         // once the swell was scaled down to the voxel world (breakDepth 2.56*0.30 = 0.77 voxels,
         // which is sub-voxel and simply invisible). The band has to be a WIDTH you can see.
-        float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, verticalDepth);
+        float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, foamDepth);
         shoal *= shoal;
         // A wave breaks on its CREST — the phase gate is what makes this a band running shoreward
         // with each wave rather than a static ring. A small floor keeps the surf zone permanently
@@ -314,7 +333,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
     // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
     // coast even on flat calm water (and what lakes and rivers get).
-    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, verticalDepth)) : 0.0;
+    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
     inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
 
     // WHITEWATER (Phase 3): where the water is moving AND shallow it breaks white over its bed.
@@ -325,9 +344,13 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         // with time (an unbounded offset tiles the foam exactly the way it tiled the normals).
         float fph = fract(inp.time / 3.0);
         vec2 fp = inp.worldPos.xz - inp.flowDir * (fph * 3.0 * 3.0 * inp.flowStrength);
+        // Three incommensurate directions rather than two: two crossing sines beat into a regular
+        // plaid, which is what made each foam patch read as woven fabric. Odd frequency ratios stop
+        // the pattern repeating on any short period.
         float bands = sin(fp.x * 2.7 + fp.y * 1.9) * 0.5 + 0.5;
         float fine  = sin(fp.x * 6.1 - fp.y * 7.3) * 0.5 + 0.5;
-        float mask = clamp(bands * 0.7 + fine * 0.5 - 0.35, 0.0, 1.0);
+        float cross = sin(fp.x * 1.3 - fp.y * 4.7) * 0.5 + 0.5;
+        float mask = clamp(bands * 0.55 + fine * 0.30 + cross * 0.40 - 0.30, 0.0, 1.0);
         mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
         vec3 foamCol = mix(vec3(0.35), ubo.sunColor, clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0))
                      * max(ubo.ambientLight, 0.3);

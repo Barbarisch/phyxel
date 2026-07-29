@@ -76,6 +76,46 @@ is subtly wrong in ways that look like shader bugs. Build and visualise it *firs
 
 ---
 
+## 2b. PREREQUISITE — the sea mesh topology is wrong (found 2026-07-29)
+
+Looking straight down from altitude, the ocean shows a spiral centred on the camera. A first fix
+(pushing the amplitude taper beyond the far plane) removed one cause, but the artifact returns as
+soon as the swell is anything but tiny. The real cause is the **polar mesh itself**, and it cannot
+be tuned away.
+
+A camera-centred ring/sector grid has uniform RADIAL spacing but its ANGULAR spacing grows linearly
+with radius (`arc = 2πr / sectors`). Measured at 96 sectors against the 14-unit swell:
+
+| radius | arc | wavelengths per segment |
+|---|---|---|
+| 60 | 3.9 | 0.28 ✓ |
+| 120 | 7.9 | 0.56 ✗ |
+| 250 | 16.4 | 1.17 ✗ |
+| 691 | 45.2 | 3.23 ✗ |
+
+Nyquist needs ≤ 0.5, so everything past ~107 units is aliased **azimuthally**, which is precisely
+what draws radial spokes. Brute force does not rescue it: Nyquist at only r=250 needs **224 sectors
+(~79k triangles)** and r=691 would need ~620. The earlier analysis checked radial spacing, found it
+uniform at 0.29 wavelengths, and wrongly concluded the sampling was sound — the angular axis was
+never examined.
+
+**The fix is a different topology, and it is a prerequisite for Phase A** (refraction only makes the
+wave shape more important, so it will expose this harder):
+
+- **Projected grid** — a grid uniform in SCREEN space, projected onto the water plane. Sampling is
+  then uniform in the space that actually matters (pixels), there is no centre singularity, and
+  vertex count is fixed regardless of view distance. The standard ocean technique. Main risk is the
+  usual projected-grid edge cases (camera near the water plane, looking at the horizon).
+- **Cartesian clipmap** — nested uniform grids, each ring 2× coarser, centred on the camera and
+  snapped to world space. No angular singularity, LOD falls out naturally, simpler to reason about
+  than a projected grid and easier to keep stable.
+
+Recommendation: **clipmap**, for the stability and because snapping to world space avoids the
+swimming that projected grids show when the camera rotates.
+
+⚑Perf note: both give a FIXED vertex count independent of render distance, which is strictly better
+than the current mesh, whose ring count scales with view distance.
+
 ## 3. Phase A — waves that attack the coast
 
 Depends on §2. This is the "a round island should have waves moving toward it" ask.
