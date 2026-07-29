@@ -66,6 +66,9 @@ void main() {
     // H = 2*amplitude). A flattened sea (amplitude 0) gets no surf, only the waterline rim.
     inp.wavePhase    = fragWavePhase;
     inp.breakDepth   = pc.params.z * 2.56;
+    // Ground above the UNDISTURBED sea level is dry land: a wave crest must never be drawn climbing
+    // it, however high the swell happens to lift the sheet there.
+    inp.restLevelY   = pc.params.x;
 
     vec4 water = shadeWaterSurface(inp);
 
@@ -73,7 +76,7 @@ void main() {
     // WaterSystemV3 Phase 5 favours screen-space reflection instead).
     if (pc.params2.z > 0.5) {
         vec2 screenUV = clamp(gl_FragCoord.xy / pc.params2.xy, vec2(0.001), vec2(0.999));
-        vec3 N = waterRippleNormal(fragWorldPos.xz, pc.camPosTime.w);
+        vec3 N = waterRippleNormal(fragWorldPos.xz, pc.camPosTime.w, 1.0);
         screenUV += N.xz * 0.03;
         screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
         vec3 V = normalize(pc.camPosTime.xyz - fragWorldPos);

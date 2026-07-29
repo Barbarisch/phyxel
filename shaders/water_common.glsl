@@ -43,20 +43,43 @@ vec3 waterCamForward(mat4 V) {
 // Surface normal
 // ---------------------------------------------------------------------------------------------
 
-// Animated ripple normal: two crossing directional waves. Phase 2 replaces this with scrolling
-// normal-map octaves + distance LOD.
-vec3 waterRippleNormal(vec2 p, float t) {
-    vec2 d1 = normalize(vec2( 1.0, 0.4));
-    vec2 d2 = normalize(vec2(-0.6, 1.0));
-    float a1 = 0.06, a2 = 0.04;     // amplitudes
-    float f1 = 0.35, f2 = 0.6;      // spatial frequencies
-    float s1 = 0.9,  s2 = 1.3;      // temporal speeds
+// Fine surface detail: crossing directional ripples layered on top of whatever macro shape the
+// surface has (the Gerstner swell at sea, a flat quad on a pond).
+//
+// THESE MUST BE MUCH FINER THAN THE SWELL. The original values were 18.0 and 10.5 world units — the
+// same scale as the swell's own components (14 / 8.5 / 4.6), so the water had exactly ONE band of
+// detail and nothing else. That is why it looked smooth and featureless up close while reading as
+// nothing but big rolling waves at a distance: there was no small-scale texture to see. Four
+// octaves from ~4.5 down to ~0.8 units now cover the near field.
+//
+// `fade` is the distance LOD: 1 keeps all octaves, 0 drops to a mirror-smooth surface. Fine chop
+// far away is worse than useless — it is sub-pixel, so it just aliases into a shimmering sparkle.
+vec3 waterRippleNormal(vec2 p, float t, float fade) {
+    vec2 d1 = normalize(vec2( 1.0,  0.4));
+    vec2 d2 = normalize(vec2(-0.6,  1.0));
+    vec2 d3 = normalize(vec2( 0.8, -0.7));
+    vec2 d4 = normalize(vec2(-0.3, -1.0));
+    // wavelengths ~4.5, ~2.4, ~1.4, ~0.8 world units (f = 2*pi/lambda)
+    float f1 = 1.40, f2 = 2.60, f3 = 4.50, f4 = 7.90;
+    float a1 = 0.030, a2 = 0.016, a3 = 0.008, a4 = 0.004;
+    float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
-    float phase1 = dot(p, d1) * f1 + t * s1;
-    float phase2 = dot(p, d2) * f2 + t * s2;
+    // Coarser octaves survive further out; the finest die first.
+    float k2 = fade, k3 = fade * fade, k4 = fade * fade * fade;
 
-    float dx = a1 * f1 * d1.x * cos(phase1) + a2 * f2 * d2.x * cos(phase2);
-    float dz = a1 * f1 * d1.y * cos(phase1) + a2 * f2 * d2.y * cos(phase2);
+    float p1 = dot(p, d1) * f1 + t * s1;
+    float p2 = dot(p, d2) * f2 + t * s2;
+    float p3 = dot(p, d3) * f3 + t * s3;
+    float p4 = dot(p, d4) * f4 + t * s4;
+
+    float dx = a1 * f1 * d1.x * cos(p1)
+             + a2 * f2 * d2.x * cos(p2) * k2
+             + a3 * f3 * d3.x * cos(p3) * k3
+             + a4 * f4 * d4.x * cos(p4) * k4;
+    float dz = a1 * f1 * d1.y * cos(p1)
+             + a2 * f2 * d2.y * cos(p2) * k2
+             + a3 * f3 * d3.y * cos(p3) * k3
+             + a4 * f4 * d4.y * cos(p4) * k4;
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
@@ -76,7 +99,7 @@ vec3 waterRippleNormal(vec2 p, float t) {
 //      even with smoothing, because the distortion grows with |p| — far from the origin, a tiny
 //      direction difference becomes a large coordinate difference.
 // Amplitude/choppiness scaling is safe: it does not move the sample point.
-vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength) {
+vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float fade) {
     // ⚑GROUND: 2.5 world-units/sec at full strength. Fast enough to read as a current at a glance,
     // slow enough that the wave pattern doesn't alias into a strobe at 60 fps.
     const float ADVECT_SPEED = 2.5;
@@ -94,8 +117,8 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength) {
     float ph0 = fract(t / PERIOD);
     float ph1 = fract(t / PERIOD + 0.5);
     float k = ADVECT_SPEED * strength * PERIOD;
-    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t);
-    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t);
+    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, fade);
+    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, fade);
     // Weight each sample by how far it is from its own wrap point, so the crossfade hides the reset.
     vec3 n = normalize(mix(n0, n1, abs(2.0 * ph0 - 1.0)));
     // Moving water is choppier: exaggerate the normal's tilt with speed (safe — no coord change).
@@ -170,10 +193,21 @@ struct WaterSurfaceInput {
     // ── SHORE SURF (Phase 2 leftover) ─────────────────────────────────────────────────────────
     float wavePhase;   // -1 trough .. +1 crest; 0 for water with no swell
     float breakDepth;  // water depth at which waves break (world units); 0 disables surf
+    // The UNDISTURBED water level. Ground above it is dry land and must never be covered, however
+    // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
+    // level is whatever the sim says it is).
+    float restLevelY;
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
-    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength);
+    // DETAIL LOD. The fine octaves are sub-metre; past a few tens of metres they are smaller than a
+    // pixel and stop being texture, becoming a shimmering sparkle that crawls as the camera moves.
+    // ⚑GROUND: full detail to 45 units, gone by 220. 45 is roughly where the ~0.8-unit finest
+    // octave drops under a couple of pixels at this FOV and resolution; 220 is a long enough ramp
+    // that the transition is never a visible ring on the water.
+    float viewDist = length(inp.worldPos - inp.camPos);
+    float detailFade = 1.0 - smoothstep(45.0, 220.0, viewDist);
+    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, detailFade);
     // Perturb the macro normal by the ripple detail's tilt (detail is around +Y, so its xz IS the
     // tilt). Keeping the two separate is what lets a swell read as a swell at distance while still
     // sparkling up close.
@@ -290,5 +324,20 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // Foam is opaque spray: it should stay visible even where the water itself is fading out at a
     // shoreline, which is exactly where a stream's whitewater lives.
     alpha = max(alpha, inp.foam * 0.6);
+
+    // ── NO WATER ON DRY LAND ──────────────────────────────────────────────────────────────────
+    // The swell displaces the whole sheet uniformly, because the vertex shader has no idea how deep
+    // the water beneath each vertex is. Near a shore that means a crest physically rises OVER the
+    // beach, and since the ray then hits ground well below the crest, the depth test reads plenty
+    // of "water" and happily draws it — a wave climbing a hillside with dry land visible behind it.
+    //
+    // Ground above the undisturbed water level is land, full stop. Gating on the REST level rather
+    // than on the displaced surface is what pins the waterline to the true sea-level contour
+    // instead of letting it breathe up and down the slope with every wave.
+    // ⚑GROUND: a 0.25-voxel run-up band, so a wave can still visibly wash a little way up a flat
+    // beach (swash) without ever climbing a slope.
+    if (inp.restLevelY > -1e8 && hasSeabed) {
+        alpha *= 1.0 - smoothstep(0.0, 0.25, seabedY - inp.restLevelY);
+    }
     return vec4(color, alpha);
 }

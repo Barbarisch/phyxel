@@ -61,6 +61,9 @@ void main() {
     // is what stops its edge from simply dissolving into the bank.
     inp.wavePhase    = 0.0;
     inp.breakDepth   = 0.0;
+    // Per-cell water has no single rest level — the sim decides where its surface is, per column —
+    // so the dry-land gate does not apply here.
+    inp.restLevelY   = -1e9;
 
     outColor = shadeWaterSurface(inp);
 }

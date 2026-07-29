@@ -20,29 +20,56 @@ namespace Graphics {
 // near the viewer (where the shape actually reads). Rings at radius (r/R)^2 put density where the
 // camera is, which is the cheap approximation of a projected grid.
 //
-// ⚑GROUND — these two numbers are MEASURED, not guessed. Release, WaterLab, a vantage where the
-// sea fills the frame (the worst case), 60 samples of total frame time per configuration:
+// WAVE SAMPLING vs COVERAGE — these are two different jobs and must not share one distribution.
 //
-//     128 tris (1 ring, coverage-matched control) .... 1.469 ms
-//   4,608 tris (48 x 96)  .......................... 1.679 ms   (+0.21 ms)
-//  24,320 tris (96 x 128) .......................... 1.912 ms   (+0.44 ms)
+// The first cut scaled the whole disc with the render distance and grew the rings quadratically, so
+// nearly every vertex landed within ~30 units of the camera and the rest of the sheet was enormous
+// triangles. Raising the render distance to 512 then produced ring spacings of ~32 units against a
+// 9.5-unit wavelength — 3.4 WAVELENGTHS PER SEGMENT, far past the Nyquist limit of 0.5 — and the
+// ocean dissolved into smeared white blobs. (Measured across the mesh; the old 350-unit / 14-unit
+// config was already aliasing past ~50 units, just less visibly.)
 //
-// 48 x 96 keeps 95% of the wave structure of the 5x denser mesh (row-to-row luminance change 2.010
-// vs 2.112 on an identical capture) for less than half the cost, so that is the default. The denser
-// mesh is NOT free: it was +30% of frame time in a sea-filling view. If a scene ever needs the cost
-// back, these are the knob — and re-measure rather than assuming.
-static constexpr int SEA_RINGS = 48;
-static constexpr int SEA_SECTORS = 96;
+// So: UNIFORM rings across a fixed wave zone, where the swell actually lives and must be sampled
+// properly, plus a cheap geometric SKIRT that only exists to reach the horizon and carries no
+// displacement at all.
+//
+// ⚑GROUND: 64 uniform rings over 260 units = 4.06 units/segment. Against the 9.5-unit default
+// wavelength that is 0.43 wavelengths per segment — inside Nyquist (0.5) with margin, so the wave
+// is resolved everywhere it is drawn. 260 units is roughly the distance past which a 0.6 m swell
+// stops being individually readable anyway.
+//
+// Vertex budget: 72 rings x 96 sectors = 13,824 triangles. The measured curve on this scene was
+// 128 tris 1.469 ms / 4,608 tris 1.679 ms / 24,320 tris 1.912 ms, so this sits around 1.8 ms —
+// paid deliberately to stop the aliasing, and still well under the 96x128 version that bought
+// nothing.
+static constexpr int   SEA_WAVE_RINGS  = 64;      // uniform, inside the wave zone
+static constexpr float SEA_WAVE_RADIUS = 260.0f;  // world units; where displacement stops
+static constexpr int   SEA_SKIRT_RINGS = 8;       // geometric, flat, purely for coverage
+static constexpr float SEA_SKIRT_RADIUS = 4000.0f;// far past any render distance; the far plane clips it
+static constexpr int   SEA_SECTORS = 96;
 
-// Unit-radius disc: xz in [-1,1], y unused. The shader scales by the sheet's half-size.
+// Vertices carry ABSOLUTE world-space radii (xz = offset from the camera in world units, y unused),
+// so the mesh no longer rescales with the render distance — which is what let a longer view distance
+// stretch the rings past the wave's Nyquist limit. The skirt reaches far enough to cover any view
+// distance; the far plane clips whatever is not needed.
 static void buildSeaMesh(std::vector<glm::vec3>& verts, std::vector<uint32_t>& indices) {
     verts.clear();
     indices.clear();
     verts.emplace_back(0.0f, 0.0f, 0.0f);   // centre vertex (under the camera)
-    for (int r = 1; r <= SEA_RINGS; ++r) {
-        // Quadratic radius growth => dense near the viewer, coarse toward the horizon.
-        const float t = static_cast<float>(r) / static_cast<float>(SEA_RINGS);
-        const float radius = t * t;
+
+    const int totalRings = SEA_WAVE_RINGS + SEA_SKIRT_RINGS;
+    for (int r = 1; r <= totalRings; ++r) {
+        float radius;
+        if (r <= SEA_WAVE_RINGS) {
+            // UNIFORM inside the wave zone: constant segment length is what keeps the swell above
+            // Nyquist all the way out, which a quadratic distribution cannot do.
+            radius = SEA_WAVE_RADIUS * static_cast<float>(r) / static_cast<float>(SEA_WAVE_RINGS);
+        } else {
+            // Geometric skirt: a handful of rings to reach the horizon. Flat, so their coarseness
+            // costs nothing visually.
+            const float t = static_cast<float>(r - SEA_WAVE_RINGS) / static_cast<float>(SEA_SKIRT_RINGS);
+            radius = SEA_WAVE_RADIUS * std::pow(SEA_SKIRT_RADIUS / SEA_WAVE_RADIUS, t);
+        }
         for (int s = 0; s < SEA_SECTORS; ++s) {
             const float a = 6.28318530718f * static_cast<float>(s) / static_cast<float>(SEA_SECTORS);
             verts.emplace_back(radius * std::cos(a), 0.0f, radius * std::sin(a));
@@ -56,7 +83,7 @@ static void buildSeaMesh(std::vector<glm::vec3>& verts, std::vector<uint32_t>& i
         indices.push_back(ringVert(1, s));
         indices.push_back(ringVert(1, s + 1));
     }
-    for (int r = 1; r < SEA_RINGS; ++r)               // ring quads
+    for (int r = 1; r < totalRings; ++r)              // ring quads
         for (int s = 0; s < SEA_SECTORS; ++s) {
             const uint32_t a = ringVert(r, s),     b = ringVert(r, s + 1);
             const uint32_t c = ringVert(r + 1, s), d = ringVert(r + 1, s + 1);

@@ -96,12 +96,18 @@ private:
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t       m_indexCount = 0;
 
-    // ⚑GROUND: a 0.45-voxel wave height and a 14-voxel wavelength. With 1 voxel ~= 1 m that is a
-    // ~0.9 m trough-to-crest swell on a 14 m period — a moderate breeze (Beaufort 4) at sea, which
-    // is the "clearly alive, not stormy" look. It also keeps the crest well under the ~1-voxel
-    // shoreline band, so a crest cannot visibly climb the beach.
-    float m_waveAmplitude = 0.45f;
-    float m_waveLength = 14.0f;
+    // ⚑GROUND: 0.30-voxel amplitude on a 9.5-voxel wavelength. With 1 voxel ~= 1 m that is a ~0.6 m
+    // trough-to-crest swell on a 9.5 m period — a light breeze (Beaufort 3), and a steepness
+    // (H/L ~= 0.063) in the same range as the 14 m version it replaces, so it is still a plausible
+    // sea state rather than an arbitrary shrink.
+    //
+    // WHY SMALLER THAN THE PHYSICAL DEFAULT: this world's scale is the deciding factor, not the
+    // meteorology. A character is ~2 voxels tall, so a 14 m swell is seven people long and reads as
+    // enormous from any distance — reported as "the waves look too big from far away". Sizing the
+    // sea against the things standing in it matters more than matching a specific Beaufort number.
+    // Both are runtime-settable via the water_waves debug command.
+    float m_waveAmplitude = 0.30f;
+    float m_waveLength = 9.5f;
     float m_windDirection = 0.6f;   // radians; the dominant swell heading
 
     std::chrono::high_resolution_clock::time_point m_startTime;

@@ -59,18 +59,17 @@ void main() {
     vec3  camPos   = pc.camPosTime.xyz;
     float t        = pc.camPosTime.w;
     float seaLevel = pc.params.x;
-    float size     = pc.params.y;
+    // params.y (sheet size) is no longer used for geometry — the mesh carries absolute world radii.
+    // Kept in the push block so the layout stays shared with the fragment stage and the overlay.
     float amp      = pc.params.z;
     float windRad  = pc.params.w;
     float waveLen  = max(pc.params2.w, 0.5);
 
-    // Centre the sheet on the camera in XZ; the disc is unit-radius, so scale it out.
-    // ⚑GROUND: 0.75 * size (= 1.5 * the chunk render distance). The sheet replaced a SQUARE quad
-    // whose diagonal corners reached ~1.41x its half-extent, so a disc at 0.5 * size would fall
-    // short of the horizon in the screen corners and show an arc of missing water. The far plane
-    // sits at 0.5 * size along the view axis, and the diagonal half-FOV is ~30 degrees, so the disc
-    // must reach at least (0.5 / cos 30) ~= 0.58 * size; 0.75 clears that with margin.
-    vec2 base = camPos.xz + inPos.xz * (size * 0.75);
+    // The mesh already carries ABSOLUTE world-space offsets (see buildSeaMesh) — it is no longer
+    // rescaled by the render distance, because doing so stretched the rings past the wave's Nyquist
+    // limit as soon as the view distance grew, and the ocean aliased into smeared blobs. The skirt
+    // reaches far enough to cover any view distance; the far plane clips the rest.
+    vec2 base = camPos.xz + inPos.xz;
     vec3 world = vec3(base.x, seaLevel, base.y);
 
     vec3 ddx = vec3(1.0, 0.0, 0.0);   // d(position)/dx starts as the flat tangent
@@ -91,11 +90,12 @@ void main() {
         disp += gerstner(base, w1, amp * 0.52, waveLen * 0.61, 0.24, t, ddx, ddz);
         disp += gerstner(base, w2, amp * 0.28, waveLen * 0.33, 0.13, t, ddx, ddz);
 
-        // FLATTEN TOWARD THE HORIZON. Past a few hundred metres a wave is far below a pixel, and
-        // leaving it in only produces shimmering aliasing on the coarse outer rings. Fading the
-        // displacement out also guarantees the sheet's rim stays exactly at sea level, so it meets
-        // the far/near boundary flush.
-        float rim = smoothstep(1.0, 0.55, length(inPos.xz));
+        // FLATTEN AT THE EDGE OF THE WAVE ZONE. Beyond it the mesh is a coarse coverage skirt that
+        // cannot resolve a wave — displacing it there is exactly what produced the aliased blobs.
+        // Fading out inside the zone also guarantees the skirt joins at exactly sea level, so there
+        // is no seam between the two.
+        // ⚑GROUND: 260 = SEA_WAVE_RADIUS in WaterRenderPipeline.cpp; the fade starts at 0.8 of it.
+        float rim = 1.0 - smoothstep(208.0, 260.0, length(inPos.xz));
         disp *= rim;
         ddx = mix(vec3(1.0, 0.0, 0.0), ddx, rim);
         ddz = mix(vec3(0.0, 0.0, 1.0), ddz, rim);
