@@ -167,11 +167,33 @@ full render distance. So:
 3. The shoreline, refraction, absorption and foam all come from the shared `water_common.glsl`, so a
    far lake looks like the near water instead of being a separate look.
 
-⚑**Known limitation to state, not hide:** one plane carries ONE level, so a hydrologically separate
-basin that happens to sit below that level and inside the bbox would be drawn wet. The bbox bounds
-the error; removing it entirely needs the per-cell table uploaded as a texture so the shader can
-reject columns whose own basin differs. Do the bbox version first and measure whether the residual
-is visible before paying for the texture.
+### ❌ ATTEMPTED AND REVERTED 2026-07-29 — a single-level plane CANNOT work
+
+The single-plane version above was implemented and reverted the same hour. It is recorded because
+the failure rules out a whole family of cheap approaches.
+
+Drawing the clipmap at the nearest basin's level (277.6) in RiverLab **filled the entire frame with
+water.** The dry-land gate worked exactly as designed; the problem is that it can only ask "is the
+terrain here below the level I was given". In this mountain range terrain runs 234-291, so more than
+half of it IS below 277.6 and correctly received water. The result was a flooded world.
+
+So the deferred bbox bound was never optional — and a bbox would not have saved it either, because
+the terrain varies by tens of voxels WITHIN any single basin's bounding box. There is no
+world-space rectangle that separates "this basin" from "lower ground that happens to be below its
+level".
+
+⚑**Therefore the per-cell table is mandatory, not an optimisation.** Each column has to be tested
+against ITS OWN basin level, which is precisely what the CPU runtime does via `tableLevelAt`. The
+shader needs the same data:
+  * upload `HydrologyMap`'s level grid as an R32F texture (256x256 = 256 KB — trivial);
+  * the far-water vertex/fragment stage samples it per column, discarding where the column is dry or
+    where its own level differs from the surface being drawn;
+  * that also removes the need to pick a single "nearest body" on the CPU at all — one draw can
+    then cover every body in view, each at its own correct level.
+
+Estimated scope: texture creation + upload on bake, one descriptor binding, a `far_water.frag`
+variant of the existing shading, and the level lookup. The clipmap mesh and all of
+`water_common.glsl` are reused unchanged.
 
 ⚑Cost: one extra clipmap draw (~29k triangles, the same mesh already resident), no new geometry and
 no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
