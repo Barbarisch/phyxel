@@ -5770,36 +5770,7 @@ void Application::autoLoadGameDefinition() {
                             const FlowField* f = g ? g->riverNetwork() : nullptr;
                             if (!f) return 0.0f;
                             const auto h = f->channelAt(wx, wz);
-                            if (h.hit) return h.depth;
-                            // CREEKS. channelAt() reports nothing below Strahler order 3, because
-                            // orders 1-2 are sub-voxel and carve no bed — so returning 0 here left
-                            // every small watercourse in every world BONE DRY. The only thing the
-                            // engine could ever show was a canyon-scale river, which is why every
-                            // river ever looked at was a gorge.
-                            //
-                            // Two questions had been welded into one call: "does this channel carve
-                            // the terrain?" (correctly no for sub-voxel orders) and "does it carry
-                            // water?" (yes, at ANY order). A creek runs OVER the ground, so it gets a
-                            // shallow fill and no carve.
-                            // ⚑MUST BE >= 0.5. WaterManager::applyRiverInflows only SEEDS water
-                            // where the returned depth reaches 0.5 (below that it marks the bed
-                            // non-evaporating and leaves filling to the CA, which is right for the
-                            // shallow parabolic edges of a big river but means nothing ever starts a
-                            // creek). Sub-0.5 values were tried first and stayed bone dry: the bed
-                            // was tagged, no source was ever placed.
-                            // So a creek returns just over the seeding threshold — one voxel of water
-                            // in a 2-3 voxel wide channel running over the ground, no carve.
-                            // Search radius must be able to REACH a centreline: channels live on the
-                            // hydrology cell grid (~32 units), so passing the 1.5-unit half-width as
-                            // the radius found nothing at all. nearestChannel widens by a cell
-                            // internally; give it a cell's worth to start from. minOrder 1 is the
-                            // whole point - it defaults to 3 and silently skipped every creek.
-                            const auto cc = f->nearestChannel(wx, wz, 32.0f, 1);
-                            if (cc.order >= 1 && cc.order <= 2 &&
-                                cc.dist <= FlowField::channelHalfWidth(cc.order)) {
-                                return cc.order == 1 ? 0.55f : 0.75f;
-                            }
-                            return 0.0f;
+                            return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
@@ -5812,15 +5783,7 @@ void Application::autoLoadGameDefinition() {
                             if (!f) return glm::vec2(0.0f);
                             // Only claim a direction where there IS a channel; elsewhere leave the
                             // CA's own proxy alone (a spill on open ground must not read as a river).
-                            if (f->channelAt(wx, wz).hit) return f->flowDirAt(wx, wz);
-                            // Creeks too — they are wetted above, so they must also read as moving
-                            // or a creek renders as a still puddle strung along a valley.
-                            const auto cc = f->nearestChannel(wx, wz, 32.0f, 1);
-                            if (cc.order >= 1 && cc.order <= 2 &&
-                                cc.dist <= FlowField::channelHalfWidth(cc.order)) {
-                                return f->flowDirAt(wx, wz);
-                            }
-                            return glm::vec2(0.0f);
+                            return f->channelAt(wx, wz).hit ? f->flowDirAt(wx, wz) : glm::vec2(0.0f);
                         });
                         LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
