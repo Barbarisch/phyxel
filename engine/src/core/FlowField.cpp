@@ -146,7 +146,8 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     return best;
 }
 
-FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius) const {
+FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius,
+                                                   int minOrder) const {
     NearestChannel best;
     if (m_cellsX <= 0 || m_cellsZ <= 0) return best;
     const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
@@ -159,7 +160,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
             const int rc = j * m_cellsX + i;
             const int ord = m_order[rc];
-            if (ord < 3) continue;   // orders 1-2 are sub-voxel → they cut no valley
+            if (ord < minOrder) continue;   // default 3: orders 1-2 cut no valley (see header)
             const float ax = m_originX + (i + 0.5f) * m_cellSize;
             const float az = m_originZ + (j + 0.5f) * m_cellSize;
             float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)

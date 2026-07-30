@@ -79,7 +79,13 @@ public:
         float dist = 1e30f;
         int   order = 0;
     };
-    NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius) const;
+    // minOrder gates which channels count. Default 3 preserves the valley-shaping caller:
+    // orders 1-2 are sub-voxel and cut no valley. Pass 1 to find CREEKS - they carry water even
+    // though they carve nothing, and this was one of FOUR places that silently excluded them
+    // (the others: channelAt's order>=3 test, WaterManager's 0.5 seeding threshold, and
+    // WorldGenerator setting riverOrder only from channelAt).
+    NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius,
+                                  int minOrder = 3) const;
 
     // Per-segment channel test (the geometry, exposed for direct testing): a point p carves iff
     // order>=3 (orders 1-2 sub-voxel → no bed) AND p is within half-width of segment a→b, with a
