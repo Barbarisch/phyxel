@@ -135,6 +135,47 @@ swimming that projected grids show when the camera rotates.
 ⚑Perf note: both give a FIXED vertex count independent of render distance, which is strictly better
 than the current mesh, whose ring count scales with view distance.
 
+## 2c. THE REAL REMAINING DEFECT — water renders only inside the sim box (found 2026-07-29)
+
+From any vantage over a lake or river, the water reads as a flat translucent **square that follows
+the camera**. Diagnosis history matters here, because two wrong answers came first:
+
+1. "A mis-baked lake." Wrong — a bake is static in world space and would not follow the viewer.
+2. "The bake pins water ~30 voxels above terrain." Wrong, and the more instructive error: that
+   number is a lake's DEPTH, not an offset. `HydrologyMap.h` states the design outright — the flood
+   runs on the layer-0 coarse height, water level is flat per basin by Priority-Flood construction,
+   and "a column is under water only where its actual surface Y is below `waterLevelAt(x,z)`". A
+   flat surface is always far above the bed at the deepest point. Comparing surface against bed and
+   reading the difference as an error is how correct behaviour got filed as a bug.
+
+**What is actually wrong is only the square.** Cell water exists solely inside the player-following
+sim region (64×32×64), so any body larger than that is clipped to the box, and the box tracks the
+camera. This is already a known unbuilt feature, not a defect — CLAUDE.md lists "far/near render LOD
+for water beyond the sim region (Phase B)".
+
+### Design — reuse the sea clipmap, do NOT build a second water renderer
+
+The sea already solves the hard half of this. `SeaMesh`'s clipmap plus water.frag's dry-land gate
+(`alpha *= 1 - smoothstep(0, 0.25, seabedY - restLevelY)`) means a horizontal plane rendered at a
+given level **derives its own shoreline from the depth buffer**: pixels whose terrain is above the
+level get no water, pixels below get water. That is exactly a lake's outline, for free, out to the
+full render distance. So:
+
+1. **CPU** — find the water body at/nearest the camera from the baked table: its flat level, plus its
+   world-space bounding box by flood-filling the table (256×256 cells, trivial).
+2. **Render** the existing clipmap a second time at that level, clipped to the bbox.
+3. The shoreline, refraction, absorption and foam all come from the shared `water_common.glsl`, so a
+   far lake looks like the near water instead of being a separate look.
+
+⚑**Known limitation to state, not hide:** one plane carries ONE level, so a hydrologically separate
+basin that happens to sit below that level and inside the bbox would be drawn wet. The bbox bounds
+the error; removing it entirely needs the per-cell table uploaded as a texture so the shader can
+reject columns whose own basin differs. Do the bbox version first and measure whether the residual
+is visible before paying for the texture.
+
+⚑Cost: one extra clipmap draw (~29k triangles, the same mesh already resident), no new geometry and
+no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
+
 ## 3. Phase A — waves that attack the coast
 
 Depends on §2. This is the "a round island should have waves moving toward it" ask.
