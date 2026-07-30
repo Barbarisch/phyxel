@@ -195,6 +195,26 @@ Estimated scope: texture creation + upload on bake, one descriptor binding, a `f
 variant of the existing shading, and the level lookup. The clipmap mesh and all of
 `water_common.glsl` are reused unchanged.
 
+### ❌ Also ruled out — reusing the per-cell renderer for far water
+
+The tempting cheap alternative is to keep the existing `WaterCellRenderPipeline` and just feed it
+coarse cells generated from the bake instead of from the sim. It does not work: `water_cell.vert`
+bakes the quad size into the mesh's vertex offsets, so **every cell is exactly 1×1 world unit**, and
+`WaterSurfaceCell` is four fully-occupied `vec4`s with nowhere to put a scale. Covering water to 384
+units at 1×1 is ~90k instances for a modest lake and several MB of instance upload per frame.
+
+So the choice is genuinely between (a) the hydrology texture on the clipmap, or (b) adding a cell-size
+field to the cell vertex format so the same renderer can emit coarse far cells. (a) is preferred: it
+leaves the near-field renderer untouched and one draw then covers every body in view.
+
+### Why the camera-relative coupling exists at all
+
+Worth stating so it is not mistaken for a bug: simulating the CA near the viewer is correct and
+necessary — you cannot run a cellular automaton over a whole world. The mistake was that RENDERING
+was implemented as "draw the cells the sim happens to have", so a static world-space fact (where
+water is) inherited a camera-relative one (where it is being simulated). The bake is the right source
+for rendering; the sim should only drive the near field where it adds motion.
+
 ⚑Cost: one extra clipmap draw (~29k triangles, the same mesh already resident), no new geometry and
 no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
 
