@@ -218,6 +218,54 @@ for rendering; the sim should only drive the near field where it adds motion.
 ⚑Cost: one extra clipmap draw (~29k triangles, the same mesh already resident), no new geometry and
 no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
 
+## 2d. THE ARCHITECTURE THIS SHOULD HAVE HAD (2026-07-29)
+
+Everything above chases symptoms of one wrong assumption: that water which is DRAWN must be water
+that is SIMULATED. It must not be. Almost all water in a world is at rest, and simulating rest is
+pure waste.
+
+**Two tiers, one surface.**
+
+**Tier 0 - STATIC WATER FIELD.** One number per column: the water-surface level. The hydrology bake
+already computes exactly this (`HydrologyMap` water levels + river channel levels). It is a 2D field,
+so its cost is AREA, not volume, and it tiles/streams with the world exactly like terrain heightmaps
+do. A column is wet iff `level > terrainTop`. No cells, no solver, no per-frame work. This is what
+makes oceans and lakes viable across a multi-thousand-km world.
+
+**Tier 1 - DYNAMIC CA.** A small region, only where water is actually CHANGING: near the player,
+around terrain edits (a breached dam, a dug channel), waterfalls, splashes. It is seeded from Tier 0
+and takes Tier 0 as its boundary condition, so its edges are not walls - water leaving the region
+simply becomes static again at the field's level.
+
+**One renderer, reading both.** The surface level always comes from Tier 0; Tier 1 only PERTURBS it
+where it exists. This is the part that kills the slab: today simulated water and non-simulated water
+are drawn by different systems (cells vs nothing at all), so the boundary between them is a hard
+visible edge. If the surface is always the field, there is no seam - the CA just adds motion near the
+viewer, the same way terrain LOD adds detail near the viewer without changing what the ground IS.
+
+### What was tried instead, and why it failed
+
+**Growing the CA region to cover the view** (256x32x256, 2.1M cells). This is simulating an ocean.
+Measured: **19 FPS**, and total mass oscillating 531k -> 889k -> 571k rather than settling, i.e. the
+solver never converges because it is being handed a vast body of standing water. Reverted to 64x32x64.
+The region should if anything get SMALLER once Tier 0 renders.
+
+**A single flat plane at one basin level.** Floods every basin below that level; a bbox does not help
+because terrain varies by tens of voxels inside one basin's box.
+
+**Reusing the per-cell renderer for far water.** Cells are hardcoded 1x1 in the vertex offsets with no
+scale field, so covering any real distance means ~90k instances and MB of upload per frame.
+
+All three are the same error in different clothes: trying to make the SIMULATION cover what only the
+RENDERER needed to cover.
+
+### Order of work
+
+1. Expose Tier 0 as a sampleable field to the renderer (level grid as a texture, or a streamed tile
+   cache alongside terrain). This alone removes the slab and makes oceans/lakes scale.
+2. Make the CA take Tier 0 as its boundary condition instead of a hard region wall.
+3. Only then revisit creeks, spray, and grass swash - each of which currently fights the slab.
+
 ## 3. Phase A — waves that attack the coast
 
 Depends on §2. This is the "a round island should have waves moving toward it" ask.

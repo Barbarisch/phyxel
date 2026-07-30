@@ -369,8 +369,31 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
+    // WATER SIM REGION SIZE. Water is only DRAWN where the sim has cells, so this box is also the
+    // water's render extent — which is why any body larger than it reads as a flat slab with hard
+    // straight edges that ignores the terrain and travels with the viewer. At 64x64 the edge sat
+    // ~32 units from the camera, i.e. permanently in view.
+    //
+    // Bounding the SIMULATION is correct and unavoidable (a cellular automaton cannot cover a
+    // world), but the bound was far tighter than it needs to be. The cost is dominated by memory and
+    // by the terrain re-read on recentre, NOT by stepping: the benchmark measures a settled step at
+    // 0.002 us against 242 us active (~150,000x cheaper) and a partially-active step sweeping only
+    // 77 of 4096 columns, so a large mostly-still region is nearly free to step.
+    // ⚑Verify frame time AND the recentre hitch after changing this — recentre re-reads solidity for
+    // every cell, so that cost scales 1:1 with the cell count.
+    // ⚑DO NOT GROW THIS TO COVER THE VISIBLE WORLD. That was tried (256x32x256, 2.1M cells) and it
+    // is the wrong axis entirely: growing it means SIMULATING an ocean. Frame rate fell to 19 FPS and
+    // total mass oscillated (531k -> 889k -> 571k) instead of settling, because a cellular automaton
+    // was being asked to solve hundreds of thousands of cells of water that are simply at rest.
+    //
+    // Static water must be a 2D HEIGHT FIELD, not cells: one water-surface level per column (the
+    // hydrology bake already computes exactly that), rendered wherever level > terrain. That costs
+    // AREA rather than VOLUME and scales to a world of any size. The CA is only for water that is
+    // actually CHANGING - near the player, around terrain edits, waterfalls, splashes - so this
+    // region wants to stay SMALL, and can shrink further once static water renders from the field.
+    static constexpr glm::ivec3 kWaterRegionDims(64, 32, 64);
     waterManager = std::make_unique<Core::WaterManager>(
-        chunkManager, glm::ivec3(0, 8, 0), glm::ivec3(64, 32, 64));
+        chunkManager, glm::ivec3(0, 8, 0), kWaterRegionDims);
     renderCoordinator->setWaterManager(waterManager.get());
     // Keep the water sim's solid mask in sync with terrain edits so water flows into
     // newly-removed voxels (break / spell / blast) without a manual water_sync.
