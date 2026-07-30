@@ -218,6 +218,39 @@ for rendering; the sim should only drive the near field where it adds motion.
 ⚑Cost: one extra clipmap draw (~29k triangles, the same mesh already resident), no new geometry and
 no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
 
+## ⚠️ 2e. READ FIRST — much of §2b–§2d was diagnosed against BROKEN TEST WORLDS (2026-07-30)
+
+Anyone picking this up should treat the diagnoses below with suspicion, because the testbeds they
+were measured in are misconfigured **by me**, and I spent a day debugging the engine against my own
+bad inputs.
+
+**The broken testbeds.** `RiverLab` (Mountains) and `CreekLab` (Perlin) both set `bakedTable: true`
+with **no `seaLevel`**, in worlds whose terrain sits at y≈100-380 (RiverLab) and y≈36-41 (CreekLab)
+while the engine's `kSeaLevelY` is **16**. Priority-Flood needs an OUTLET at sea level to drain to.
+With no terrain anywhere near y=16 the map is effectively one closed basin above the outlet, so it
+fills to spill — producing lakes perched at y=143 / 277 / 321 **on hillsides**. That is the bake doing
+exactly what it was asked with nonsense inputs, not an engine defect.
+
+⚑**Before diagnosing any water behaviour, check that the world's terrain actually reaches sea level**,
+or that `seaLevel` is set to match the terrain (as `WaterLab` correctly does: seaLevel 54 against
+terrain at y 49-70). Every "water in the wrong place" symptom recorded here was measured in a world
+where water genuinely belonged nowhere sensible.
+
+**What survived and is trustworthy** (verified in WaterLab and by unit test, independent of the above):
+the sea clipmap replacing the polar mesh (§2b — pinned by `SeaMeshTest`), the foam/quilt shading fix,
+the per-cell water surface curtain fix, and `water_find_river`. These are shading/geometry and do not
+depend on the broken worlds.
+
+**What is NOT trustworthy:** the specific numbers and causal claims in §2c/§2d about lake levels,
+flooding extent, and "water where it doesn't belong". The mechanism described (sealed sim region pools
+water against its own walls) is probably real and worth investigating, but it was only ever observed in
+worlds that had absurd water levels to begin with. **Re-derive it in a sanely configured world first.**
+
+⚑**A second method error that makes some screenshots unreliable:** `set_camera` issued too soon after
+`launch_engine` is silently overwritten by the project's own camera config once the game definition
+loads. Several before/after comparisons in this session were captured at positions that were never
+actually reached. **Always `get_camera` and confirm the position matches before trusting a frame.**
+
 ## 2d. THE ARCHITECTURE THIS SHOULD HAVE HAD (2026-07-29)
 
 Everything above chases symptoms of one wrong assumption: that water which is DRAWN must be water
