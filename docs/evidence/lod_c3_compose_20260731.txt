@@ -23,8 +23,9 @@ MEASURED, camera (330,260,330) yaw -135 pitch -30 read back from GET /api/camera
 
 The frame shows terrain running to the horizon (far terrain) with the eight structures standing
 in the mid-field (far LOD). The structure chunks are NOT resident -- they are drawn from
-chunk_lod_blobs, which the falsification test earlier in this file proved by deleting the rows
-and watching that geometry vanish while the terrain stayed.
+chunk_lod_blobs, proved by the falsification test in docs/evidence/lod_c3_3_far_draw_20260731.txt
+(NOT in this file -- an earlier draft said "earlier in this file", which was wrong): deleting the
+rows made that geometry vanish while the terrain stayed.
 
 WHAT THIS DOES AND DOES NOT SHOW
   * It shows both systems drawing simultaneously in one frame at 409 FPS, which is the composed
@@ -38,3 +39,11 @@ WHAT THIS DOES AND DOES NOT SHOW
   * Coverage still depends on kMaxFarReach = 12 chunks. All 7 pyramids happen to fall inside it
     at this pose. A farther camera silently drops chunks -- see the 5 -> 1 regression recorded
     earlier in this file. Replacing the volume scan with a storage query removes that cap.
+
+============================================================================
+NOTE ON THE GIT LOG (solution-auditor, 2026-07-31)
+============================================================================
+Commit 0bc273d8's MESSAGE still asserts "DB restored from a pre-delete copy", which is false --
+the WAL-mode copy was empty. The file was corrected in c00bee03 but a commit message cannot be
+rewritten without rewriting history, so a reader of `git log` alone would be misled. Recorded
+here so the contradiction is discoverable from the evidence rather than only from the diff.
