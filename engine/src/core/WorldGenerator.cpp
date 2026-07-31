@@ -863,6 +863,7 @@ WorldGenerator::FinePondHit WorldGenerator::finePondAt(int worldX, int worldZ) {
                 if (std::binary_search(sp.columns.begin(), sp.columns.end(), colKey)) {
                     hit.id = sp.id;
                     hit.level = sp.level;
+                    hit.areaColumns = static_cast<int>(sp.columns.size());
                     return hit;
                 }
             }

@@ -377,6 +377,7 @@ Phyxel::Core::WaterManager::BodyInfo basinPondBody(float wx, float wz) {
         b.id = 7;
         b.finite = true;
         b.baselineLevel = 6.0f;
+        b.areaColumns = 16;
     }
     return b;
 }
@@ -533,6 +534,73 @@ TEST(WaterManagerTest, SnapDoesNotExpandLakeIntoAdjacentFiniteBody) {
             << "lake snap pinned INSIDE the finite pond at y=" << y;
     EXPECT_LT(wm.sim().massAt(13, 6, 13), 0.5f)
         << "pond filled above its own baseline — the lake's level leaked in via the snap";
+}
+
+// ─── Scoop (tangible-water Phase D) ──────────────────────────────────────────────────────────────
+
+TEST(WaterManagerTest, ScoopRemovesTopDownAndReturnsActual) {
+    TerrainBasinFixture f;                       // 16-column pool, 1 deep at y=3
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    const float got = wm.scoopWater(glm::vec3(13.5f, 3.5f, 13.5f), 0.6f);
+    EXPECT_NEAR(got, 0.6f, 1e-3f) << "a full cell must yield the whole requested scoop";
+    EXPECT_NEAR(wm.totalMass(), before - 0.6f, 1e-3f);
+    // Scooping an empty column yields nothing.
+    EXPECT_FLOAT_EQ(wm.scoopWater(glm::vec3(2.5f, 3.5f, 2.5f), 1.0f), 0.0f);
+}
+
+TEST(WaterManagerTest, ScoopOnPinnedWaterRefillsNextStep) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);            // NO body query → the pond pins as a mini-lake
+    wm.update(0.1f);
+    const float full = wm.totalMass();
+    ASSERT_GT(full, 40.0f);
+    const float got = wm.scoopWater(glm::vec3(13.5f, 5.5f, 13.5f), 1.0f);
+    EXPECT_GT(got, 0.9f) << "the scoop itself must yield water";
+    wm.update(0.1f);                             // pins re-assert
+    EXPECT_NEAR(wm.totalMass(), full, 0.5f) << "pinned (infinite) water must refill after a scoop";
+}
+
+TEST(WaterManagerTest, ScoopFiniteBodyLowersRecordAndSurvivesRoundTrip) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float full = wm.totalMass();
+    ASSERT_GT(full, 40.0f);
+
+    // Scoop a bucket out: the body record drops by removed/area — the exact level change of a
+    // flat body losing that volume, which is also where the live CA re-levels to, so the
+    // record, the live mass, and a fresh hydration all agree.
+    const float got = wm.scoopWater(glm::vec3(13.5f, 5.5f, 13.5f), 1.0f);
+    EXPECT_GT(got, 0.9f);
+    EXPECT_NEAR(wm.bodyDelta(7), -got / 16.0f, 1e-3f)
+        << "scooping a finite body must lower its level record by removed/area";
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);   // settle + rebuilds
+    const float after = wm.totalMass();
+    EXPECT_NEAR(after, full - got, 0.5f)
+        << "in-window mass must stay conserved (no refill, no extra loss)";
+
+    // The loss survives a fresh manager via the serialized store.
+    TerrainBasinFixture g(glm::ivec3(0, 0, 0), /*pour=*/false);
+    g.wm->setWaterTable(basinPondTable);
+    g.wm->setBodyQuery(basinPondBody);
+    ASSERT_TRUE(g.wm->loadOverrides(wm.serializeOverrides()));
+    for (int i = 0; i < 10; ++i) g.wm->update(0.1f);
+    EXPECT_NEAR(g.wm->totalMass(), after, 2.0f)
+        << "scooped level lost across serialize/load — the pond came back fuller";
+}
+
+TEST(WaterManagerTest, ScoopRespectsSubVoxelFloor) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setSolidWorld(8, 2, 8, true);
+    wm.setFloorWorld(8, 3, 8, 2.0f / 3.0f);      // a creek-shelf cell
+    wm.placeWater(glm::vec3(8.5f, 3.5f, 8.5f), 0.25f);
+    for (int i = 0; i < 5; ++i) wm.update(0.1f);
+    const float got = wm.scoopWater(glm::vec3(8.5f, 3.5f, 8.5f), 1.0f);
+    EXPECT_NEAR(got, 0.25f, 0.02f) << "a floored cell yields only the water above its shelf";
 }
 
 // Monotone stress: walk away and back MANY times. Capture→reseed is level-based, so repeated

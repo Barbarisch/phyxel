@@ -465,6 +465,46 @@ void WaterManager::placeWater(const glm::vec3& worldPos, float amount) {
     }
 }
 
+float WaterManager::scoopWater(const glm::vec3& worldPos, float amount) {
+    if (amount <= 0.0f) return 0.0f;
+    const int lx = static_cast<int>(std::floor(worldPos.x)) - m_origin.x;
+    const int lz = static_cast<int>(std::floor(worldPos.z)) - m_origin.z;
+    if (lx < 0 || lx >= m_dims.x || lz < 0 || lz >= m_dims.z) return 0.0f;
+
+    float removed = 0.0f;
+    bool hitPin = false;
+    for (int y = m_dims.y - 1; y >= 0 && removed < amount; --y) {
+        const float m = m_sim.massAt(lx, y, lz);
+        if (m <= 0.0f) continue;
+        const float take = std::min(m, amount - removed);
+        m_sim.addWater(lx, y, lz, -take);
+        removed += take;
+        // A pinned cell refills next step (infinite reservoir): one cell's worth per scoop is
+        // the honest yield — going deeper would just double-report the same re-minted water.
+        if (m_sim.sourceAt(lx, y, lz) >= 0.0f) { hitPin = true; break; }
+    }
+    if (removed <= 0.0f) return 0.0f;
+
+    // Finite body: the loss persists — the body's level record drops by removed/area (the
+    // exact level change of a flat body losing that volume; the live CA re-levels to the same
+    // height, so record and reality stay consistent — recording the scooped COLUMN's transient
+    // surface instead diverged by the whole re-leveling, measured as a 15.6-mass round-trip
+    // loss). Sloped banks make this a slight under-estimate; the departure capture reconciles
+    // the settled truth, and both errors point DOWN (never-grow holds).
+    if (!hitPin && !m_bodyIdLocal.empty() && m_bodyFn) {
+        const size_t ci = static_cast<size_t>(lx) + static_cast<size_t>(m_dims.x) * lz;
+        const int64_t id = m_bodyIdLocal[ci];
+        if (id >= 0) {
+            const BodyInfo bi = m_bodyFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                                         static_cast<float>(m_origin.z + lz) + 0.5f);
+            if (bi.id == id && bi.areaColumns > 0)
+                m_bodyDeltas[id] = bodyDelta(id) - removed / static_cast<float>(bi.areaColumns);
+        }
+    }
+    rebuildSurface();
+    return removed;
+}
+
 void WaterManager::setFloorWorld(int worldX, int worldY, int worldZ, float fraction) {
     const int lx = worldX - m_origin.x, ly = worldY - m_origin.y, lz = worldZ - m_origin.z;
     if (m_sim.inBounds(lx, ly, lz)) {

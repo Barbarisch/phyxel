@@ -200,6 +200,7 @@ public:
     struct FinePondHit {
         int64_t id = -1;
         float   level = 0.0f;
+        int     areaColumns = 0;
     };
     // The fine pond owning this world column, or id −1. Deterministic and memoized; safe on the
     // generation worker's copy (same argument as the column cache).

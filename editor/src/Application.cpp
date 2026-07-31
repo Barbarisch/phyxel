@@ -5885,6 +5885,7 @@ void Application::autoLoadGameDefinition() {
                                     out.id = fp.id;
                                     out.finite = true;
                                     out.baselineLevel = fp.level;
+                                    out.areaColumns = fp.areaColumns;
                                 }
                                 return out;
                             });
@@ -11436,6 +11437,15 @@ void Application::registerWaterCommands() {
         glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
         waterManager->placeWater(p, cmd.params.value("amount", 1.0f));
         r = {{"success", true}, {"total_mass", waterManager->totalMass()}};
+    });
+    // Scoop (tangible-water Phase D): bucket semantics — removes up to `amount` from the column,
+    // reports what was actually taken. Finite ponds stay lowered; pinned bodies refill.
+    reg.on("water_scoop", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        const float removed = waterManager->scoopWater(p, cmd.params.value("amount", 1.0f));
+        r = {{"success", true}, {"removed", removed}, {"total_mass", waterManager->totalMass()},
+             {"body_deltas", waterManager->bodyDeltaCount()}};
     });
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);

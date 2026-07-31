@@ -65,6 +65,14 @@ public:
     void  placeWater(const glm::vec3& worldPos, float amount);
     float massAtWorld(const glm::vec3& worldPos) const;
 
+    // ── Scoop (tangible-water Phase D) ────────────────────────────────────────────────────────
+    // Remove up to `amount` mass from this column, top-down (bucket semantics). Returns what was
+    // actually taken. On PINNED water (ocean/lake/river) the next step re-pins — an infinite
+    // body refills, by design. On a FINITE body the body's level record drops to the scooped
+    // column's new surface, so the loss persists (across recenters, save/load, and out-of-window
+    // queries). Scooping is the proof of tangibility: small water is consumable.
+    float scoopWater(const glm::vec3& worldPos, float amount);
+
     // ── Entity-facing water query (small-scale plan Phase 4.1) ────────────────────────────────
     // THE gameplay/physics surface for "am I in water, how deep, which way is it moving" —
     // generalized from the camera's submergence walk so every consumer (fog, buoyancy, wading,
@@ -159,6 +167,7 @@ public:
         int64_t id = -1;
         bool    finite = false;    // true = pond-class: unpinned, scoopable, delta-tracked
         float   baselineLevel = 0.0f;
+        int     areaColumns = 0;   // surface columns (finite bodies) — scoop's level/volume ratio
     };
     void setBodyQuery(std::function<BodyInfo(float worldX, float worldZ)> bodyAt);
     bool hasBodyQuery() const { return static_cast<bool>(m_bodyFn); }
