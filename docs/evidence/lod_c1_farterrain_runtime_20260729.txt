@@ -1,0 +1,35 @@
+=== C1 far-terrain runtime check — LodBench, Release ===
+loaded, faces=250172
+
+--- lod scale + toggle ---
+{"lod_view_scale":1.0,"screen_space_lod":true,"success":true}
+
+--- enable far terrain (default OFF) and raise render distance ---
+{"enabled":true,"resident_tiles":0,"success":true}
+--- far tiles resident/drawn (proves computeRingsFor ran with the scale) ---
+  far_tiles_resident 0
+  far_tiles_drawn    0
+  far_triangles      0
+  faces              250172
+
+--- errors/validation in log? ---
+(nothing above = clean)
+
+=== STREAMING variant: load game.streaming.json via HTTP (bypasses MCP nested-JSON mangling) ===
+{"action":"load_game_definition","async_id":"1","status":"accepted"}
+--- settle ---
+t=6s faces/farRes/farDrawn: 244186 102 18
+--- final far-terrain snapshot (streaming variant, far terrain ON) ---
+  far_tiles_resident    148
+  far_tiles_drawn       19
+  far_triangles         11102
+  total_visible_faces   247367
+  visible_chunk_count   85
+{"lod_view_scale":1.0,"screen_space_lod":true,"success":true}
+
+--- errors/validation? ---
+(nothing above = clean)
+
+VERDICT: far-terrain rings built and drew tiles on the streaming variant with the
+C1 viewScale applied (params().viewScale set every frame in renderFarTerrain). Baked world
+shows 0 far tiles by design -- far terrain is generator-derived and needs streaming.

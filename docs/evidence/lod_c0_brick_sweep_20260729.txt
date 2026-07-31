@@ -1,0 +1,92 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = LodBrickSweepTest.*
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from LodBrickSweepTest
+[ RUN      ] LodBrickSweepTest.BrickSizeSweepOnRealizedTavern
+
+=== C0 BRICK-SIZE SWEEP — realized tavern (16x7, 1 story, timber_cottage) ===
+source: StructureRealizer::realizeShell on the shipped `tavern` typology
+level-0 volume: 17x9x7 cubes, 776 solid cells, 2 materials, coverage 209322 micros
+
+brick lvl coarse    solid  units/  fattening  over-    mat_      scale us
+          dims      bricks chunk              carve    mismatch  ok?
+   4^3  2   5x 3x2       20     512     1.65x    58.4%   0.0000%  NO   72
+   8^3  3   3x 2x1        4      64     2.64x    86.2%   0.0000%  NO   17
+  16^3  4   2x 1x1        1       8     5.28x    92.4%   0.0000%  NO   6
+
+fattening    = added solid volume vs the fine form (OR over-fill): a hollow building
+               inflating toward a lump.
+over-carve   = solid fine cubes the coarse level reports EMPTY, because an opening
+               anywhere in a brick blanks the WHOLE brick. This is the PRICE of
+               preserving openings, and it dominates: at 16^3 a single doorway
+               erases 4096 cubes of wall.
+mat_mismatch = skin-material drift, ignoring carved openings. INSENSITIVE on this
+               structure (only 2 materials). Recorded, not used to decide.
+units/chunk  = (32/brick)^3, the cull-unit multiplier vs one-draw-per-chunk today.
+
+Authored opening hints ARE fed here: AssemblyPlan::openings -> preserveOpening,
+using only role "clear" reveal boxes (jamb/lintel/sill are solid trim, not void).
+Two earlier metrics were discarded as vacuous and must not be reinstated: a
+bbox-relative "hollowness" (inflated purely from bbox rounding -- read 50% at
+16^3 where the whole building is ONE brick), and "openings retained"
+(tautologically 100% at every size, since OrPreserveOpenings is DEFINED to let an
+opening win). Neither discriminated. Over-carve does.
+True pop VISIBILITY needs the C4 renderer and is NOT measured here.
+
+[       OK ] LodBrickSweepTest.BrickSizeSweepOnRealizedTavern (862 ms)
+[ RUN      ] LodBrickSweepTest.BrickSizeSweepOnTiledSettlementBlock
+
+=== C0 BRICK SWEEP - 4x4 TILED BLOCK of the same realized tavern (scale control) ===
+level-0 volume: 80x9x40 cubes, 12416 solid cells
+
+brick lvl coarse    solid  units/  fattening  over-    scale
+          dims      bricks chunk              carve    ok?
+   4^3  2  20x 3x10     348     512     1.79x    49.7%  yes 
+   8^3  3  10x 2x5       45      64     1.86x    85.4%  NO  
+  16^3  4   5x 1x3        0       8     0.00x   100.0%  NO  
+
+Compare with the single-tavern table. If over-carve falls sharply now that X/Z span
+many bricks, the single-tavern figure was scale-limited. Whatever remains at 16^3 is
+the VERTICAL collapse (a 9-cube-tall building cannot span three 16-cube bricks in Y),
+and that IS real for buildings.
+
+[       OK ] LodBrickSweepTest.BrickSizeSweepOnTiledSettlementBlock (875 ms)
+[ RUN      ] LodBrickSweepTest.BrickSizeSweepOnGeneratedTerrain
+
+=== C0 BRICK SWEEP - GENERATED TERRAIN (Perlin, 2x2 chunks at the surface) ===
+level-0 volume: 64x32x64 cubes, 94991 solid cells, 3 materials
+
+brick lvl coarse    solid  units/  fattening  over-    mat_      scale us
+          dims      bricks chunk              carve    mismatch  ok?
+   4^3  2  16x 8x16    1616     512     1.09x     0.0%  12.7065%  yes  4391
+   8^3  3   8x 4x8      216      64     1.16x     0.0%  19.1250%  yes  586
+  16^3  4   4x 2x4       32       8     1.38x     0.0%  26.6962%  NO   87
+
+over-carve is 0% by construction here (no openings). Compare `fattening` against the
+structure tables: if terrain fattens far less at 8^3/16^3, then terrain and structures
+want DIFFERENT brick sizes and a single global constant is the wrong model.
+
+[       OK ] LodBrickSweepTest.BrickSizeSweepOnGeneratedTerrain (982 ms)
+[ RUN      ] LodBrickSweepTest.OpeningMaskBeatsBinaryCarveOnSettlementBlock
+
+=== C0 RULE A/B - tiled settlement block (80x9x40, 12416 solid) ===
+level-0 authored opening volume: 256608 microcubes
+
+rule           brick  solid bricks  over-carve  opening vol kept
+  binary carve   4^3        348        49.7%      100.0%
+  binary carve   8^3         45        85.4%      100.0%
+  binary carve  16^3          0       100.0%      100.0%
+  opening MASK   4^3        520         0.0%      100.0%
+  opening MASK   8^3         90         0.0%      100.0%
+  opening MASK  16^3         15         0.0%      100.0%
+
+The mask rule must show 0% over-carve and 100% opening volume kept at every brick
+size, against the carve rule's 49.7-100% loss. That is the C4 opening mechanism.
+
+[       OK ] LodBrickSweepTest.OpeningMaskBeatsBinaryCarveOnSettlementBlock (880 ms)
+[----------] 4 tests from LodBrickSweepTest (3602 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (3602 ms total)
+[  PASSED  ] 4 tests.

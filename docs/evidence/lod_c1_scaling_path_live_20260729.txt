@@ -1,0 +1,12 @@
+=== C1 LIVE SCALING-PATH PROOF (post-fix) ===
+First attempt FAILED: far-tile counts were byte-identical at 0.5/1.0/2.0 because
+FarTerrainManager only rebuilt its wanted-set when the CAMERA moved kRefreshDistance.
+A viewScale change now invalidates it (m_lastRefreshViewScale). This is the re-test.
+
+force_scale=1.0  live lod_view_scale=1.0  ->  far_resident=148    far_drawn=23    far_tris=13148
+force_scale=2.0  live lod_view_scale=2.0  ->  far_resident=592    far_drawn=25    far_tris=13152
+force_scale=0.5  live lod_view_scale=0.5  ->  far_resident=88     far_drawn=23    far_tris=16468
+force_scale=1.0  live lod_view_scale=1.0  ->  far_resident=156    far_drawn=30    far_tris=19870
+
+PASS CRITERION: counts must MOVE with scale (2.0 = farther horizon = more tiles;
+0.5 = nearer = fewer), and returning to 1.0 must return to the original counts.

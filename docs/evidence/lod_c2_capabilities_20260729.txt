@@ -1,0 +1,32 @@
+=== C2 PREREQUISITE CAPABILITY PROBE — this machine (RTX 4090), Release ===
+
+--- resolved at device creation (phyxel.log) ---
+[09:33:08.459] [INFO] [Vulkan] Instance API version requested: 1.2 (loader offers 1.4)
+[09:33:10.413] [INFO] [Vulkan] C2 capability set: multiDrawIndirect=yes drawIndirectFirstInstance=yes gl_DrawID(1.1)=yes drawIndirectCount(1.2)=yes deviceApi=1.4
+
+BEFORE this change: appInfo.apiVersion was pinned to VK_API_VERSION_1_0 and the only device
+extension was VK_KHR_swapchain, with multiDrawIndirect never requested. So gl_DrawID and
+vkCmdDrawIndexedIndirectCount were both unavailable and drawCount>1 was invalid usage --
+C2 was not merely unimplemented, it was UNEXPRESSIBLE.
+
+--- regression check: rendering after raising the API version ---
+  faces = 250172  (baseline for this baked world is 250172)
+  Shadow Pass     3.591 ms
+  Static Geometry 3.354 ms
+  visible_chunks  45
+
+--- validation errors / VUIDs after the API bump? ---
+[09:33:34.090] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!
+[09:33:36.370] [ERROR] [ScriptingSystem] Failed to import phyxel module: ModuleNotFoundError: No module named 'phyxel'
+[09:33:36.377] [ERROR] [ScriptingSystem] Failed to setup output redirection: ModuleNotFoundError: No module named 'phyxel'
+[09:33:36.377] [ERROR] [ScriptingSystem] Python Error: ModuleNotFoundError: No module named 'phyxel'
+[09:33:36.377] [ERROR] [ScriptingSystem] Python Error: NameError: name 'phyxel' is not defined
+(nothing above = clean)
+
+=== C2.0 CORRECTION re-probe: shaderDrawParameters queried as a FEATURE, not inferred ===
+[09:52:18.028] [INFO] [Vulkan] Instance API version requested: 1.2 (loader offers 1.4)
+[09:52:19.779] [INFO] [Vulkan] C2 capability set: multiDrawIndirect=yes drawIndirectFirstInstance=yes gl_DrawID(1.1)=yes drawIndirectCount(1.2)=yes deviceApi=1.4
+
+--- regression: faces = 250172 (baseline 250172) ---
+--- device-creation failures / VUIDs from the pNext feature chain? ---
+(nothing above = device created cleanly with the feature chain)

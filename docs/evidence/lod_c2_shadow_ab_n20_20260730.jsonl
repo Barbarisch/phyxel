@@ -1,0 +1,35 @@
+{"event": "run_start", "n_per_state": 16, "status": {"api_version": "1.0", "engine": "phyxel", "port": 8097, "status": "ok"}}
+{"event": "pin", "daynight": {"daynight": {"ambientStrength": 1.0, "dayLengthSeconds": 600.0, "dayNumber": 1, "enabled": false, "hour": 9, "isNight": false, "minute": 30, "paused": true, "skyColor": {"b": 0.949999988079071, "g": 0.6499999761581421, "r": 0.44999998807907104}, "sunColor": {"b": 0.8999999761581421, "g": 0.9700000286102295, "r": 1.0}, "sunDirection": {"x": -0.46374931931495667, "y": -0.8633858561515808, "z": -0.19874970614910126}, "timeOfDay": 9.5, "timeScale": 1.0}, "success": true}}
+{"event": "sample", "i": 0, "state": "off", "shadow_ms": 3.310104, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 0, "state": "on", "shadow_ms": 3.428177, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 1, "state": "off", "shadow_ms": 3.3641665, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 1, "state": "on", "shadow_ms": 3.56484375, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 2, "state": "off", "shadow_ms": 4.266823, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 2, "state": "on", "shadow_ms": 3.45552075, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 3, "state": "off", "shadow_ms": 4.8325, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 3, "state": "on", "shadow_ms": 3.47270825, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 4, "state": "off", "shadow_ms": 3.4591145, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 4, "state": "on", "shadow_ms": 3.576354, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 5, "state": "off", "shadow_ms": 5.36875, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 5, "state": "on", "shadow_ms": 3.363802, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 6, "state": "off", "shadow_ms": 3.38515625, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 6, "state": "on", "shadow_ms": 3.37359375, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 7, "state": "off", "shadow_ms": 3.42859375, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 7, "state": "on", "shadow_ms": 3.35682275, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 8, "state": "off", "shadow_ms": 3.35869775, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 8, "state": "on", "shadow_ms": 3.35140625, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 9, "state": "off", "shadow_ms": 4.14453125, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 9, "state": "on", "shadow_ms": 3.3910415, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 10, "state": "off", "shadow_ms": 3.4641145, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 10, "state": "on", "shadow_ms": 3.440677, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 11, "state": "off", "shadow_ms": 3.458854, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 11, "state": "on", "shadow_ms": 3.50963525, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 12, "state": "off", "shadow_ms": 3.3159895, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 12, "state": "on", "shadow_ms": 3.51515625, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 13, "state": "off", "shadow_ms": 3.43520825, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 13, "state": "on", "shadow_ms": 3.46708325, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 14, "state": "off", "shadow_ms": 3.3434895, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 14, "state": "on", "shadow_ms": 5.083073, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "sample", "i": 15, "state": "off", "shadow_ms": 3.38588525, "draws": 362, "instances": 247077, "multidraw_calls": 0, "toggle_reported": false}
+{"event": "sample", "i": 15, "state": "on", "shadow_ms": 3.37520825, "draws": 362, "instances": 247077, "multidraw_calls": 9, "toggle_reported": true}
+{"event": "summary", "off": {"n": 16, "median": 3.431901, "mean": 3.707623625, "min": 3.310104, "max": 5.36875, "stdev": 0.599713117543733, "spike_rate": 0.0625}, "on": {"n": 16, "median": 3.448098875, "mean": 3.5453189375, "min": 3.35140625, "max": 5.083073, "stdev": 0.4031635940172745, "spike_rate": 0.0625}, "on_multidraw_calls_seen": [9], "off_multidraw_calls_seen": [0], "on_path_active_every_sample": true, "draws_off": [362], "draws_on": [362]}

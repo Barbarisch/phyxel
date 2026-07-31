@@ -1,0 +1,53 @@
+=== C2 SHADOW MULTIDRAW — live A/B (LodBench, Release, kAlignment=768) ===
+world loaded, faces=250172 (baseline 250172)
+
+--- OFF: legacy (one draw per chunk) ---
+    on=False draws=352 multidraw_calls=0 instances=244825
+    shadow_ms=3.326  chunks=352  instances=244825
+    shadow_ms=3.329  chunks=352  instances=244825
+    shadow_ms=3.330  chunks=352  instances=244825
+    on=False draws=352 multidraw_calls=0 instances=244825
+
+--- ON: multidraw ---
+    on=True draws=352 multidraw_calls=0 instances=244825
+    shadow_ms=3.051  chunks=352  instances=244825
+    shadow_ms=3.032  chunks=352  instances=244825
+    shadow_ms=3.033  chunks=352  instances=244825
+    on=True draws=352 multidraw_calls=8 instances=244825
+Traceback (most recent call last):
+  File "<stdin>", line 27, in <module>
+  File "<stdin>", line 3, in load
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/c2_off.png'
+Traceback (most recent call last):
+  File "<stdin>", line 27, in <module>
+  File "<stdin>", line 3, in load
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/c2_off.png'
+
+--- PIXEL A/B: legacy per-chunk draws vs C2 multidraw (1600x900) ---
+differing pixels : 215081 / 1440000  (14.9362%)
+pixels off by >2 : 195012  (13.5425%)
+worst channel delta: 144/255
+VERDICT: FAIL - multidraw does NOT reproduce the legacy image
+
+--- PIXEL A/B with sun PAUSED (timeOfDay 9.5) and grass/foliage OFF ---
+CONTROL  OFF vs OFF :        differing      90/1440000 (0.0063%)  >2:     58 (0.0040%)  worst 137/255
+TEST     OFF vs ON  :        differing  214958/1440000 (14.9276%)  >2: 194925 (13.5365%)  worst 161/255
+
+NOTE: the control is non-zero, so some frame-to-frame variation exists independent
+      of the toggle; judge the test against the control, not against zero.
+VERDICT: FAIL - multidraw differs from legacy far beyond the control
+
+=== C2 PIXEL A/B AFTER the drawIndexBase fix (sun paused, grass/foliage off) ===
+CONTROL OFF vs OFF :     differing     106/1440000 (0.0074%)  >2:     82 (0.0057%)  worst 137/255
+TEST    OFF vs ON  :     differing      65/1440000 (0.0045%)  >2:     51 (0.0035%)  worst 138/255
+
+VERDICT: PASS - multidraw now matches legacy within the scene's own noise
+
+=== C2 PERFORMANCE A/B (correct path, n=6 per state, alternating) ===
+shadow_ms OFF (legacy) : 3.328 3.310 3.368 3.333 3.349 3.381
+shadow_ms ON  (multidraw): 3.445 6.916 3.472 3.381 10.245 3.444
+
+OFF  median 3.341 ms  (n=6, min 3.310 max 3.381)
+ON   median 3.458 ms  (n=6, min 3.381 max 10.245)
+shadow-pass change: 3.5% SLOWER with multidraw
+draw collapse: 362 chunk draws -> 9 vkCmdDrawIndexedIndirect calls

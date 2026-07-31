@@ -1,0 +1,82 @@
+=== C5 — DISTANCE-DRIVEN LOD: zoom out and see the whole world ===
+loaded, faces=250172
+pose {'x': 0.0, 'y': 420.0, 'z': 620.0} -90.0 -34.0
+
+--- BASELINE: distance LOD OFF (every chunk at full detail) ---
+  chunk_faces=250172 levels={'0': 380}
+    static=8.365 shadow=0.246 vis_chunks=380
+    static=4.989 shadow=0.220 vis_chunks=380
+    static=3.038 shadow=0.224 vis_chunks=380
+
+--- ENABLE distance-driven LOD (target 8 px/cell, budget 32 rebuilds/frame) ---
+converging (bounded rebuild budget, so it settles over several frames)...
+  t=1 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=2 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=3 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=4 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=5 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=6 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=7 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=8 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=9 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=10 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=11 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=12 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=13 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=14 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=15 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=16 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=17 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=18 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=19 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+  t=20 faces=122218 levels={'1': 21, '2': 359} rebuilt=0
+
+--- A/B at the ZOOMED-OUT pose (0,420,620), whole world in frame, n=8 interleaved ---
+static_geom OFF (full detail): 5.414 5.708 6.407 3.394 3.462 3.992 3.788 3.391
+static_geom ON  (distance LOD): 5.617 4.703 5.205 4.645 4.036 3.401 3.407 3.418
+
+OFF median 3.890 mean 4.444 min 3.391 max 6.407
+ON  median 4.340 mean 4.304 min 3.401 max 5.617
+static-geometry change: median -11.6%  mean +3.2%  (positive = LOD is FASTER)
+both statistics agree in sign: False
+final: faces=122218 levels={'1': 21, '2': 359}
+
+=== C5 RESULT (2026-07-30) ===
+MECHANICALLY WORKING:
+  * Distance-driven selection converged and STAYED converged at the zoomed-out pose
+    (0,420,620 yaw -90 pitch -34, render distance 2048, whole 544-unit world in frame):
+      chunks_by_level = {level 1: 21, level 2: 359}   <- the level VARIES with distance
+      total chunk faces 250,172 -> 122,218 (2.05x fewer)
+      rebuilt_last_frame = 0 for 20 consecutive polls -> hysteresis holds, no re-mesh thrash
+  * This is C1's metric driving C4's cut. The join works.
+
+NO PERFORMANCE EFFECT MEASURABLE (n=8 interleaved, static-geometry GPU scope):
+    OFF  median 3.890  mean 4.444
+    ON   median 4.340  mean 4.304
+    median -11.6%, mean +3.2% -> SIGNS DISAGREE, both inside noise. NO EFFECT CLAIMABLE.
+  Consistent with everything else measured this session: this scene is not geometry-bound.
+  Halving the face count changed nothing detectable, exactly as collapsing 362 draw calls to 9
+  changed nothing detectable.
+
+*** VISUAL DEFECT — BLOCKING ***
+  The coarse world renders with long STRIPE-SHAPED GAPS (screenshot
+  screenshots/screenshot_20260730_142242_593.png). Full detail at the same pose is solid and
+  correct (screenshot_20260730_142341_103.png). Uniform level 2 via /api/debug/lod_level
+  reproduces the striping, so it is NOT mixed-level cracking between chunks at different levels.
+  Uniform level 3 rendered SOLID earlier, so it is level-dependent.
+
+  NARROWED: a new invariant test (HeightfieldHasNoHolesFromAboveAtEveryLevel) builds a
+  terrain-like heightfield chunk and asserts every (x,z) cell column with solid content emits an
+  upward face, at levels 0-3. It PASSES. So per-chunk top-face coverage is CORRECT and the defect
+  is INTER-CHUNK, not a hole in a single chunk's coarse mesh.
+
+  NOT YET DIAGNOSED. Candidate causes still open, in the order worth testing:
+    1. Per-chunk GPU span capacity: setFacesFromLod may write more instances than the chunk's
+       arena span holds (level 1 RAISES total faces 250,845 -> 410,004), and a silent truncation
+       would drop geometry. Check span capacity vs faces.size() on swap.
+    2. Boundary faces: the coarse mesher emits a full skirt at every chunk border (atClamped
+       reads out-of-volume as empty). Coincident skirts between neighbours could z-fight or,
+       with back-face culling, leave the interior visible through them.
+    3. numInstances vs the dirRanges sentinel interplay in setFacesFromLod.
+
+  DO NOT ship distance-driven LOD until this is diagnosed. The toggle defaults OFF.

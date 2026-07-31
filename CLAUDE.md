@@ -18,9 +18,39 @@ chambers + auto-generated stair); **inn asset depth** (grounded bar/stools/back-
 bottles via `tools/regen_furniture.py`); silent-furniture-drop fix; all 16 furniture conformant;
 build-freeze perf fix (place 13.8s→0.9s).
 
-**#1 known issue:** render density — one furnished subcube/microcube tavern = **~412k faces → ~49 FPS**
-(empty world is 357). Sub/micro faces aren't greedy-merged; fix deferred (`docs/RenderOptimization.md`
-#40). Caps build density for now. Not a regression.
+**#1 known issue: render density — MECHANISM SHIPPED, the original scenario NOT re-measured
+(corrected 2026-07-29, then scoped down after a solution-auditor FAIL).** The old entry here
+("sub/micro faces aren't greedy-merged; fix deferred") was **stale by ~3 weeks**: fine greedy
+merging shipped **default ON 2026-07-07** (`ChunkRenderManager::s_fineGreedyMerge = true`), and the
+main-pass 36-index amplifier is fixed (`s_quadDraw`, main pass only).
+**But do not read that as "solved."** What is actually proven is narrower than a first correction
+of this entry claimed:
+- **Proven:** on *synthetic flat multi-tavern grids* (an explicit face-bound proxy), 12× fewer faces
+  and ~5–8× FPS recovery (`docs/RenderOptimization.md:387-388`).
+- **NOT proven:** the scenario this entry was always about — **one furnished tavern at 412,298
+  faces / 49 FPS — was never re-measured for FPS**; at that scale the doc says FPS is *noise*
+  (±20% restart variance, sign flips Debug vs Release, `RenderOptimization.md:352`). And the
+  documented worst case, the **3.4M-face Perlin-hills settlement, "remains not run"**
+  (`RenderOptimization.md:376-380`).
+- **The falsifiable test that would settle it:** regenerate the 3.4M-face settlement via the
+  engine's own generator, measure `total_visible_faces` + FPS at a fixed verified pose on a Release
+  build. Queued as M4 in [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) §7b.
+
+**Separately, the measured #1 render cost today is the SHADOW PASS: 24–26 ms of a 34.8 ms frame
+(~75%)** (`docs/RenderDensityPlan.md` §2d). Three levers are exhausted — primitives, resolution
+(~30%), light-frustum cull (no effect). The residue is **~17 ms of per-draw overhead across ~131
+draws**, so the remaining fixes are structural: batch the shadow draws, update cadence, cascades.
+Carried by [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) (C2 → C5).
+⚠️ **Shadow cull-mode: the record has been wrong TWICE — do not trust either version.**
+`RenderCoordinator.cpp:1241` claims the shadow pipeline front-culls. An earlier fix here said it is
+`VK_CULL_MODE_NONE`; that named the WRONG pipeline (`buildDepthOnlyPipelineState`, used only by
+character/kinematic/dynamic shadows). The **main chunk shadow pipeline** (`createPipeline`) sets
+**`VK_CULL_MODE_BACK_BIT`** at `ShadowMap.cpp:388` — same winding rules as the main pass. So the
+recorded reason the shadow pass needs a 36-index draw is still unexplained, and the ~1.1% pixel
+break D1 measured when applying the 6-index quad to all passes has an unknown cause. Re-derive it
+empirically (M5); do not guess a fourth time.
+Open visual defects: T-junction cracks at greedy-merge borders, character/grass sub-pixel speckle
+(`docs/RenderOptimization.md:489,513`).
 
 **Full state + next steps:** [`docs/AgentContext.md`](docs/AgentContext.md) (top workstream) →
 [`docs/structure-generation/README.md`](docs/structure-generation/README.md) (canonical entry) →

@@ -1,0 +1,159 @@
+C5 STRIPING DEFECT — ROOT CAUSE, FIX, AND RED->GREEN PROOF
+Date: 2026-07-30.  Build: Debug.  Branch: destruction-system-v2 (uncommitted).
+
+============================================================================
+ROOT CAUSE
+============================================================================
+ChunkRenderManager::setFacesFromLod() replaced faces[] but NEVER updated `numInstances`.
+`numInstances` was assigned in exactly ONE place: the end of the fine rebuild
+(ChunkRenderManager.cpp:246). The renderer draws getNumInstances() instances, so after a
+coarse swap it drew the FINE mesh's count against the COARSE buffer:
+
+  coarse faces  >  stale fine count  ->  the tail is NEVER DRAWN   => see-through stripes
+  coarse faces  <  stale fine count  ->  instances past the valid data drawn from stale memory
+
+Flat/simple terrain greedy-merges to very FEW fine faces, so it is the worst case: the unit
+test's flat slab merges to 6 fine faces while its level-1 coarse mesh needs 640 — the renderer
+would have drawn 6 of 640 instances, i.e. 99% of the geometry missing.
+
+This also explains every observation recorded on 2026-07-29 that I could not previously reconcile:
+  * uniform level 2 striped        -> per-chunk coarse > that chunk's merged fine count
+  * uniform level 3 looked solid   -> few enough faces to fit under the stale count everywhere
+  * the single-chunk mesher invariant test PASSED -> the mesher was always correct; the DRAW
+    COUNT was wrong, which no mesh-level test could see.
+
+RECONCILING THE EARLIER "INTER-CHUNK" CONCLUSION (raised by the solution-auditor):
+On 2026-07-29 I concluded from HeightfieldHasNoHolesFromAboveAtEveryLevel passing that the
+defect was "INTER-CHUNK, not a hole in a single chunk's mesh". That inference was WRONG, and
+the way it was wrong matters. What the passing test actually proved is only "the coarse MESH
+for one chunk has no holes" — it says nothing about how many of those faces get DRAWN. I
+treated "not a mesh hole in one chunk" as "not a per-chunk problem", which does not follow.
+The truncation is per-chunk but LOOKS inter-chunk: emitFaces iterates x -> y -> z, so cutting
+the instance list at N drops a CONTIGUOUS tail in that order, i.e. whole slabs at high x. Each
+affected chunk therefore loses a solid block of its geometry aligned to chunk boundaries, which
+reads as banding BETWEEN chunks. The screenshots bear this out: in the reverted-build capture
+the surviving geometry is chunk-aligned rectangular slabs, not ragged per-cell speckle.
+
+============================================================================
+FIX (2 lines, engine/include/graphics/ChunkRenderManager.h, setFacesFromLod)
+============================================================================
+    numInstances = static_cast<uint32_t>(faces.size());
+    needsUpdate  = true;
+
+Second, independent defect found and fixed while investigating
+(engine/src/core/LodChunkMesh.cpp, emitFaces):
+    `if (mat.empty()) continue;`  DROPPED A SOLID CELL whose material failed to resolve.
+    Dropping solid geometry is never a valid coarsening. Replaced with a fallback chain
+    skin -> bulk -> "Default". NOTE: this is NOT the striping cause — LodBench/LodStripe
+    terrain is all full cubes; it would bite sub/micro-built structures.
+
+============================================================================
+UNIT-LEVEL RED -> GREEN
+============================================================================
+NOTE on test validity (solution-auditor finding, 2026-07-30): the first version of
+SolidCellWithUnresolvedMaterialStillEmitsFaces was a FABRICATED CHECK — it built the cell via
+Chunk::addCube(pos, ""), but ChunkVoxelManager::addCube (ChunkVoxelManager.cpp:553) silently
+rewrites an empty material to "Default", so the unresolved-material branch was never reached
+and the test passed on the broken code. It has been REWRITTEN to drive
+LodChunkMesh::emitFaces directly with a hand-built LodVolume whose solid cell carries a
+material id outside the palette. Verified RED by mutation (see below).
+
+RED (before fix), tests/core/LodChunkMeshTest.cpp:
+  LodChunkMeshTest.SetLodFacesUpdatesDrawCount                   FAILED
+      level 1: numInstances Which is: 6    expected Which is: 640
+      level 2: numInstances Which is: 6    expected Which is: 160
+      level 3: numInstances Which is: 6    expected Which is: 48
+  LodChunkMeshTest.SolidSubCellWithUnresolvedMaterialStillEmitsFaces  FAILED (0 faces)
+  LodChunkMeshTest.SolidCellWithUnresolvedMaterialStillEmitsFaces (REWRITTEN)  FAILED at
+      levels 0,1,2 — 0 faces instead of 6, verified by mutating emitFaces back to
+      `if (mat.empty()) continue;`, deleting phyxel_tests.exe, and rebuilding.
+GREEN (after fix): 58 tests from 5 suites ran, 58 PASSED (was 55; +3 new).
+FULL SUITE after the fix: 3121 passed, 0 failures, 4 skipped.
+
+============================================================================
+RUNTIME RED -> GREEN  (L4, the proof that matters)
+============================================================================
+World: PhyxelProjects/LodStripe — created for this defect. PRODUCED BY THE ENGINE'S OWN
+WorldGenerator (game.json "type":"Flat", seed 424242, chunks -3..3 x/z, y=0, streaming off);
+NOT hand-placed voxels. 49 chunks generated, 62 chunks in the LOD path.
+Chosen FLAT on purpose: flat terrain merges to the fewest fine faces = worst-case truncation.
+
+Controlled A/B — the ONLY difference between the two builds is the 2-line fix above.
+Pose CONFIRMED IDENTICAL by reading back GET /api/camera on both runs:
+    position {x:0, y:70, z:110}, yaw -90, pitch -30
+LOD level 1 in both runs; face count IDENTICAL in both runs: faces_after = 54066
+(level 1 is the truncating case here: 54066 coarse > 30799 fine. Level 2 on this world is
+ 14350 < 30799, i.e. the OVER-draw case, which visually hides the bug — noted so the next
+ reader does not conclude "level 2 looked fine, so it was fixed".)
+
+  REVERTED (fix commented out): screenshots/screenshot_20260730_152234_662.png
+      -> long stripe-shaped gaps, floating detached slabs, terrain see-through to the sky.
+  FIXED:                        screenshots/screenshot_20260730_152743_876.png
+      -> solid continuous terrain, no holes.
+  Supporting, same session, same world, FIXED build, pose (0,70,110):
+      level 0: screenshots/screenshot_20260730_151638_256.png  (30799 faces)
+      level 2: screenshots/screenshot_20260730_151645_329.png  (14350 faces) — solid
+
+============================================================================
+WHAT THIS DOES *NOT* CLAIM
+============================================================================
+* No performance claim. This is a CORRECTNESS fix. The three prior null results stand:
+  LodBench is not geometry-bound, so halving faces there changed nothing measurable.
+* The coarse mesher is still UNMERGED: level 1 emits MORE faces than the greedy-merged fine
+  mesh (54066 vs 30799 here; 410004 vs 250845 on LodBench). Greedy-merging the coarse mesher
+  is still open, and until then low LOD levels can cost more than full detail.
+* LodBench itself was NOT re-measured after the fix: the Debug build wedged on that
+  380-chunk world (game loop >30 s per API command) before any capture. Open.
+
+============================================================================
+FOLLOW-UP 1 — A THIRD DEFECT, FOUND WHILE CLOSING THE AUDITOR'S GAP
+============================================================================
+Re-running the ORIGINAL LodBench scenario exposed an inconsistency: the debug endpoint
+reported chunks_by_level {1:21, 2:359} while total_chunk_faces stayed 250845 (the FINE count).
+
+CAUSE: POST /api/debug/lod_level rebuilt each chunk's mesh but never recorded the new level
+(Application.cpp set_lod_level called setLodFaces() without setLodLevel()). RenderCoordinator::
+updateChunkLod() compares wanted-vs-current and `continue`s when they match, so once the tracked
+level was stale, distance-driven LOD SKIPPED EVERY CHUNK and silently did nothing -- while
+chunks_by_level cheerfully reported success. Any screenshot taken in that state shows full
+detail regardless of the toggle, i.e. it is worthless as evidence either way.
+
+FIX (makes the desync unrepresentable rather than merely fixing the one caller):
+  * Chunk::setLodFaces(faces, LEVEL) now takes the level and records it.
+  * Chunk::rebuildFaces() sets m_lodLevel = 0 (a fine rebuild IS level 0).
+  * Both call sites updated; the redundant setLodLevel() in updateChunkLod removed.
+RED->GREEN: LodChunkMeshTest.LodLevelTracksTheMeshActuallyBuilt, verified RED by mutating
+`m_lodLevel = level;` to `(void)level;`, deleting phyxel_tests.exe and rebuilding:
+    "tracked level disagrees with the mesh just built" x3 (levels 1,2,3) -> FAILED.
+Restored -> 59/59 LOD tests pass.
+
+============================================================================
+FOLLOW-UP 2 — THE ORIGINAL LodBench SCENARIO, RE-MEASURED (closes the audit gap)
+============================================================================
+The Debug build wedges on LodBench (578-chunk DB load blocks the game loop >6 min), which is why
+the first attempt failed. Built RELEASE and it boots in ~20 s.
+
+Engine: build/editor/Release/phyxel.exe --project PhyxelProjects/LodBench (the SAME world the
+striping was first reported on, 380 chunks). Pose read back from GET /api/camera:
+    position {x:0, y:420, z:620}, yaw -90, pitch -34;  render_distance 2048; daynight pinned 9.5.
+
+  distance_lod OFF: chunks_by_level {0:380}, total_chunk_faces 250172
+      -> screenshots/screenshot_20260730_161706_538.png   (solid, full detail)
+  distance_lod ON : chunks_by_level {1:21, 2:359}, total_chunk_faces 122218, and this state was
+      STABLE across 6 consecutive polls with rebuilt_last_frame 0. Levels AND face count now
+      agree, which is what proves the coarse meshes are actually resident this time.
+      -> screenshots/screenshot_20260730_161745_158.png   (SOLID — no stripes)
+
+That is the same 250172 -> 122218 (2.05x) convergence recorded on 2026-07-29, at the same pose,
+on the same world — the scenario the striping was originally reported against. It now renders
+without holes.
+
+NOT A PERFORMANCE CLAIM: the on-screen FPS counter read 176 (OFF) vs 194 (ON) in these two
+captures, but those are SINGLE SAMPLES on a counter this project has documented at +/-20%
+restart variance. No perf conclusion is drawn from them, and the three prior null results stand.
+  [CORRECTION, solution-auditor re-audit: this line first said "159 (OFF)". 159 was the FPS in
+   an EARLIER capture (screenshot_20260730_160422_380.png, taken before the level-tracking fix),
+   not in the screenshot actually cited here. Both figures were re-read by cropping the status
+   bar of the two cited PNGs: 161706_538 = "FPS: 176", 161745_158 = "FPS: 194". Quoting a number
+   that does not match its own cited artifact is exactly the failure mode this project has been
+   burned by; recorded rather than silently edited.]

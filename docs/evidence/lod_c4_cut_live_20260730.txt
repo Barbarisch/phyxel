@@ -1,0 +1,51 @@
+=== C4 — THE CUT, live on LodBench (Release) ===
+loaded, faces=250172
+
+--- LOD level 1 ---
+  chunks=380  faces 250172 -> 409908
+  visible_faces=250172  visible_chunks=50
+  static_geom=2.651 ms  shadow=2.937 ms
+--- LOD level 2 ---
+  chunks=380  faces 409908 -> 104932
+  visible_faces=250172  visible_chunks=50
+  static_geom=3.851 ms  shadow=4.773 ms
+--- LOD level 3 ---
+  chunks=380  faces 104932 -> 27554
+  visible_faces=250172  visible_chunks=50
+  static_geom=6.674 ms  shadow=6.356 ms
+--- LOD level 0 ---
+  chunks=380  faces 27554 -> 250845
+  visible_faces=250845  visible_chunks=50
+  static_geom=4.763 ms  shadow=5.432 ms
+
+=== C4 RESULT ===
+Visual proof: screenshots/screenshot_20260730_131125_096.png (level 0, full detail) vs
+              screenshots/screenshot_20260730_131154_892.png (level 3, 8-cube cells).
+Same camera (0,95,150 yaw -90 pitch -30), sun paused. At level 3 the hills render as huge
+stepped blocks and the village collapses to a coarse blob -- the cut is unmistakably active.
+
+Face counts (380 chunks, whole world re-meshed at each level):
+  level 0 (fine, greedy-merged)   250,845
+  level 1 (2-cube cells)          409,908   <-- INCREASE, see below
+  level 2 (4-cube cells)          104,932   2.4x fewer
+  level 3 (8-cube cells)           27,554   9.1x fewer
+
+FINDING 1 -- level 1 makes it WORSE. The fine path is greedy-merged (large merged rectangles);
+the coarse path emits one quad per cell face with NO merging. So a 2-cube cell mesh has more
+quads than the merged fine mesh. The coarse mesher needs greedy merging to be useful below
+level 2. Not a defect in the cut; a missing optimisation in the coarse mesher.
+
+FINDING 2 -- timings got WORSE at coarser levels (static geom 2.65 -> 6.67 ms at level 3
+despite 9x fewer faces). This is a METHODOLOGY artifact of this debug route, not a defect:
+the route applies one level GLOBALLY, including chunks right in front of the camera. A level-3
+cell is an 8x8-cube quad; near the camera those cover enormous screen area, so fill cost rises
+even as face count falls. LOD only pays when geometry is FAR (small on screen).
+=> The cut MUST be distance-driven (LodService::levelForDistance). A global level is exactly
+   the wrong way to use it, and this run demonstrates why.
+
+FINDING 3 -- `total_visible_faces` in /api/render/stats did NOT track the swap (stayed 250,172
+across levels). That counter is computed from chunkStats elsewhere and does not see LOD faces.
+The per-chunk faces_before/faces_after in the route response are the real numbers.
+
+NOT MEASURED: any performance WIN. This run cannot show one, by construction (finding 2).
+The missing measurement is distance-driven selection + a fixed-pose A/B at range.
