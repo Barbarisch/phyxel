@@ -791,8 +791,11 @@ bool WorldStorage::saveLodBlob(const glm::ivec3& chunkCoord, int lod,
     sqlite3_bind_int(insertLodBlobStmt, 3, chunkCoord.z);
     sqlite3_bind_int(insertLodBlobStmt, 4, lod);
     sqlite3_bind_int(insertLodBlobStmt, 5, static_cast<int>(Core::LodBlobCodec::kCodecVersion));
-    // SQLITE_TRANSIENT: sqlite copies the bytes. The caller's vector is routinely a temporary
-    // from encode(), so handing sqlite a pointer it would read at step() time is a use-after-free.
+    // SQLITE_TRANSIENT: sqlite copies the bytes rather than borrowing the caller's buffer.
+    // Bind and step happen in this same call, so SQLITE_STATIC would also survive today's
+    // callers (the temporary from encode() lives to the end of the full expression). TRANSIENT
+    // is the defensive choice: it stays correct if anyone later splits bind and step across
+    // calls, which is exactly when a borrowed pointer becomes a use-after-free.
     sqlite3_bind_blob(insertLodBlobStmt, 6, data.data(), static_cast<int>(data.size()),
                       SQLITE_TRANSIENT);
     const bool ok = sqlite3_step(insertLodBlobStmt) == SQLITE_DONE;

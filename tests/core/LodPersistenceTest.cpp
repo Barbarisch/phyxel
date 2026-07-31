@@ -10,6 +10,8 @@
 #include "core/LodChunkMesh.h"
 #include "core/WorldStorage.h"
 
+#include <sqlite3.h>
+
 using namespace Phyxel;
 using namespace Phyxel::Core;
 
@@ -185,4 +187,35 @@ TEST_F(LodPersistenceTest, SurvivesReopeningTheDatabase) {
     LodVolume back;
     std::vector<std::string> pal;
     EXPECT_TRUE(LodBlobCodec::decode(blob.data(), blob.size(), back, pal));
+}
+
+/// MIGRATION: every world.db that already exists predates chunk_lod_blobs. Opening one must
+/// ADD the table, not error and not silently leave LOD persistence dead. Simulated by dropping
+/// the table from a live DB (exactly the shape of an older world) and reopening.
+TEST_F(LodPersistenceTest, AddsTheLodTableToADatabaseThatPredatesIt) {
+    ASSERT_NE(storage->getDb(), nullptr);
+    char* err = nullptr;
+    ASSERT_EQ(sqlite3_exec(storage->getDb(), "DROP TABLE IF EXISTS chunk_lod_blobs;",
+                           nullptr, nullptr, &err), SQLITE_OK)
+        << (err ? err : "drop failed");
+
+    // Sanity: with the table gone the write path must fail rather than pretend to succeed.
+    auto c = terrainChunk();
+    std::vector<std::string> palette;
+    LodVolume v = squash(LodChunkMesh::volumeFromChunk(*c, &palette), SquashConfig{});
+    const glm::ivec3 coord(4, 4, 4);
+    EXPECT_FALSE(storage->saveLodBlob(coord, 1, LodBlobCodec::encode(v, palette)))
+        << "reported success writing to a table that does not exist";
+
+    // Reopen: createTables() must restore it.
+    storage->close();
+    storage = std::make_unique<WorldStorage>(dbPath);
+    ASSERT_TRUE(storage->initialize()) << "failed to open a DB lacking chunk_lod_blobs";
+
+    EXPECT_TRUE(storage->saveLodBlob(coord, 1, LodBlobCodec::encode(v, palette)))
+        << "the LOD table was not restored on open -- LOD persistence would be silently dead "
+           "for every pre-existing world";
+    std::vector<uint8_t> blob;
+    EXPECT_TRUE(storage->loadLodBlob(coord, 1, blob));
+    EXPECT_FALSE(blob.empty());
 }
