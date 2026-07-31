@@ -45,6 +45,22 @@ public:
     bool loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk);
     bool chunkExists(const glm::ivec3& chunkCoord);
     bool deleteChunk(const glm::ivec3& chunkCoord);
+
+    // --- C3: persisted LOD pyramid (docs/ContinuousLodPlan.md) ---------------------------
+    // Coarse geometry for a chunk, stored per LEVEL so a reader fetches only the coarseness
+    // it needs. This is what lets a distant region render WITHOUT its full-resolution chunk
+    // becoming resident — the R^2 residency wall measured in
+    // docs/evidence/lod_residency_wall_20260730.txt.
+    bool saveLodBlob(const glm::ivec3& chunkCoord, int lod, const std::vector<uint8_t>& data);
+    /// Returns false when there is no row for (chunkCoord, lod) — an absent level is a normal
+    /// state (never built, or deliberately not persisted), not an error.
+    bool loadLodBlob(const glm::ivec3& chunkCoord, int lod, std::vector<uint8_t>& outData);
+    /// Drop every level for a chunk. Called when the chunk's voxels change, because a stale
+    /// pyramid would render old geometry at distance — the failure mode that looks like the
+    /// world "not updating" until you walk up to it.
+    bool deleteLodBlobs(const glm::ivec3& chunkCoord);
+    /// Levels present for a chunk, ascending. Empty when nothing is persisted.
+    std::vector<int> getLodLevels(const glm::ivec3& chunkCoord);
     
     // Individual cube operations
     bool deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos);
@@ -97,6 +113,10 @@ private:
     sqlite3_stmt* insertBlobStmt = nullptr;
     sqlite3_stmt* selectBlobStmt = nullptr;
     sqlite3_stmt* deleteBlobStmt = nullptr;
+    // C3: persisted LOD pyramid (chunk_lod_blobs), keyed (x,y,z,lod).
+    sqlite3_stmt* insertLodBlobStmt = nullptr;
+    sqlite3_stmt* selectLodBlobStmt = nullptr;
+    sqlite3_stmt* deleteLodBlobStmt = nullptr;
     sqlite3_stmt* deleteCubeRowsStmt = nullptr;
     sqlite3_stmt* deleteSubcubeRowsStmt = nullptr;
     sqlite3_stmt* deleteMicrocubeRowsStmt = nullptr;

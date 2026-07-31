@@ -1,4 +1,5 @@
 #include "core/WorldStorage.h"
+#include "core/LodBlobCodec.h"
 #include "core/Chunk.h"
 #include "core/ChunkBlobCodec.h"
 #include "core/Cube.h"
@@ -36,6 +37,10 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { retur
 bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) { return false; }
+bool WorldStorage::saveLodBlob(const glm::ivec3&, int, const std::vector<uint8_t>&) { return false; }
+bool WorldStorage::loadLodBlob(const glm::ivec3&, int, std::vector<uint8_t>&) { return false; }
+bool WorldStorage::deleteLodBlobs(const glm::ivec3&) { return false; }
+std::vector<int> WorldStorage::getLodLevels(const glm::ivec3&) { return {}; }
 bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) { return false; }
 bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) { return false; }
 std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) { return {}; }
@@ -241,6 +246,21 @@ bool WorldStorage::createTables() {
             PRIMARY KEY (chunk_x, chunk_y, chunk_z)
         );
 
+        -- C3 (docs/ContinuousLodPlan.md): the persisted LOD pyramid, keyed (x,y,z,lod) per
+        -- godot_voxel's schema. Its own table and its own lifetime: written rarely (on chunk
+        -- save), read often (whenever a distant region needs geometry without its
+        -- full-resolution chunk becoming resident). One row per LEVEL, so a reader can fetch
+        -- exactly the coarseness it needs instead of the whole pyramid.
+        CREATE TABLE IF NOT EXISTS chunk_lod_blobs (
+            chunk_x INTEGER NOT NULL,
+            chunk_y INTEGER NOT NULL,
+            chunk_z INTEGER NOT NULL,
+            lod     INTEGER NOT NULL,
+            version INTEGER NOT NULL,
+            data    BLOB NOT NULL,
+            PRIMARY KEY (chunk_x, chunk_y, chunk_z, lod)
+        );
+
         -- The old secondary indexes duplicated each table's PRIMARY KEY
         -- prefix (pure write cost + file size) — drop them.
         DROP INDEX IF EXISTS idx_chunks_coord;
@@ -363,6 +383,16 @@ bool WorldStorage::prepareStatements() {
     const char* deleteBlobSQL = R"(
         DELETE FROM chunk_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;
     )";
+    const char* insertLodBlobSQL = R"(
+        INSERT OR REPLACE INTO chunk_lod_blobs
+        (chunk_x, chunk_y, chunk_z, lod, version, data) VALUES (?, ?, ?, ?, ?, ?);
+    )";
+    const char* selectLodBlobSQL = R"(
+        SELECT data FROM chunk_lod_blobs
+        WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ? AND lod = ?;
+    )";
+    const char* deleteLodBlobSQL =
+        "DELETE FROM chunk_lod_blobs WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
     const char* deleteCubeRowsSQL = "DELETE FROM cubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
     const char* deleteSubcubeRowsSQL = "DELETE FROM subcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
     const char* deleteMicrocubeRowsSQL = "DELETE FROM microcubes WHERE chunk_x = ? AND chunk_y = ? AND chunk_z = ?;";
@@ -381,6 +411,9 @@ bool WorldStorage::prepareStatements() {
             sqlite3_prepare_v2(db, insertBlobSQL, -1, &insertBlobStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, selectBlobSQL, -1, &selectBlobStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteBlobSQL, -1, &deleteBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, insertLodBlobSQL, -1, &insertLodBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, selectLodBlobSQL, -1, &selectLodBlobStmt, nullptr) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, deleteLodBlobSQL, -1, &deleteLodBlobStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteCubeRowsSQL, -1, &deleteCubeRowsStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteSubcubeRowsSQL, -1, &deleteSubcubeRowsStmt, nullptr) == SQLITE_OK &&
             sqlite3_prepare_v2(db, deleteMicrocubeRowsSQL, -1, &deleteMicrocubeRowsStmt, nullptr) == SQLITE_OK);
@@ -400,6 +433,9 @@ void WorldStorage::finalizeStatements() {
     if (insertBlobStmt) { sqlite3_finalize(insertBlobStmt); insertBlobStmt = nullptr; }
     if (selectBlobStmt) { sqlite3_finalize(selectBlobStmt); selectBlobStmt = nullptr; }
     if (deleteBlobStmt) { sqlite3_finalize(deleteBlobStmt); deleteBlobStmt = nullptr; }
+    if (insertLodBlobStmt) { sqlite3_finalize(insertLodBlobStmt); insertLodBlobStmt = nullptr; }
+    if (selectLodBlobStmt) { sqlite3_finalize(selectLodBlobStmt); selectLodBlobStmt = nullptr; }
+    if (deleteLodBlobStmt) { sqlite3_finalize(deleteLodBlobStmt); deleteLodBlobStmt = nullptr; }
     if (deleteCubeRowsStmt) { sqlite3_finalize(deleteCubeRowsStmt); deleteCubeRowsStmt = nullptr; }
     if (deleteSubcubeRowsStmt) { sqlite3_finalize(deleteSubcubeRowsStmt); deleteSubcubeRowsStmt = nullptr; }
     if (deleteMicrocubeRowsStmt) { sqlite3_finalize(deleteMicrocubeRowsStmt); deleteMicrocubeRowsStmt = nullptr; }
@@ -739,6 +775,78 @@ bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) {
     sqlite3_reset(deleteChunkStmt);
     
     return success;
+}
+
+// --- C3: persisted LOD pyramid -----------------------------------------------------------
+// Own table, own lifetime. Written rarely (chunk save), read often (distant regions), which is
+// why it is NOT folded into chunk_blobs: a reader that only wants level 3 must not have to pull
+// the full-resolution chunk blob to get it -- that would defeat the entire purpose.
+
+bool WorldStorage::saveLodBlob(const glm::ivec3& chunkCoord, int lod,
+                               const std::vector<uint8_t>& data) {
+    if (!db || !insertLodBlobStmt || data.empty() || lod < 0) return false;
+    sqlite3_reset(insertLodBlobStmt);
+    sqlite3_bind_int(insertLodBlobStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(insertLodBlobStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(insertLodBlobStmt, 3, chunkCoord.z);
+    sqlite3_bind_int(insertLodBlobStmt, 4, lod);
+    sqlite3_bind_int(insertLodBlobStmt, 5, static_cast<int>(Core::LodBlobCodec::kCodecVersion));
+    // SQLITE_TRANSIENT: sqlite copies the bytes. The caller's vector is routinely a temporary
+    // from encode(), so handing sqlite a pointer it would read at step() time is a use-after-free.
+    sqlite3_bind_blob(insertLodBlobStmt, 6, data.data(), static_cast<int>(data.size()),
+                      SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(insertLodBlobStmt) == SQLITE_DONE;
+    sqlite3_reset(insertLodBlobStmt);
+    return ok;
+}
+
+bool WorldStorage::loadLodBlob(const glm::ivec3& chunkCoord, int lod,
+                               std::vector<uint8_t>& outData) {
+    outData.clear();
+    if (!db || !selectLodBlobStmt || lod < 0) return false;
+    sqlite3_reset(selectLodBlobStmt);
+    sqlite3_bind_int(selectLodBlobStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(selectLodBlobStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(selectLodBlobStmt, 3, chunkCoord.z);
+    sqlite3_bind_int(selectLodBlobStmt, 4, lod);
+    bool ok = false;
+    if (sqlite3_step(selectLodBlobStmt) == SQLITE_ROW) {
+        const void* blob = sqlite3_column_blob(selectLodBlobStmt, 0);
+        const int n = sqlite3_column_bytes(selectLodBlobStmt, 0);
+        if (blob && n > 0) {
+            const uint8_t* p = static_cast<const uint8_t*>(blob);
+            outData.assign(p, p + n);
+            ok = true;
+        }
+    }
+    sqlite3_reset(selectLodBlobStmt);
+    return ok;
+}
+
+bool WorldStorage::deleteLodBlobs(const glm::ivec3& chunkCoord) {
+    if (!db || !deleteLodBlobStmt) return false;
+    sqlite3_reset(deleteLodBlobStmt);
+    sqlite3_bind_int(deleteLodBlobStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(deleteLodBlobStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(deleteLodBlobStmt, 3, chunkCoord.z);
+    const bool ok = sqlite3_step(deleteLodBlobStmt) == SQLITE_DONE;
+    sqlite3_reset(deleteLodBlobStmt);
+    return ok;
+}
+
+std::vector<int> WorldStorage::getLodLevels(const glm::ivec3& chunkCoord) {
+    std::vector<int> levels;
+    if (!db) return levels;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "SELECT lod FROM chunk_lod_blobs WHERE chunk_x = ? AND chunk_y = ? "
+                      "AND chunk_z = ? ORDER BY lod ASC;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return levels;
+    sqlite3_bind_int(stmt, 1, chunkCoord.x);
+    sqlite3_bind_int(stmt, 2, chunkCoord.y);
+    sqlite3_bind_int(stmt, 3, chunkCoord.z);
+    while (sqlite3_step(stmt) == SQLITE_ROW) levels.push_back(sqlite3_column_int(stmt, 0));
+    sqlite3_finalize(stmt);
+    return levels;
 }
 
 bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) {
