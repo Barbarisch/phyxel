@@ -60,6 +60,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "ai/TTSService.h"  // TTSVoiceHint + setVoiceHintResolver (personality-driven voice)
 #include "core/WorldStorage.h"
 #include "core/Chunk.h"
+#include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
 #include "core/HydrologyMap.h"
 #include "core/FlowField.h"
@@ -12055,6 +12056,100 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("enabled"))
             Graphics::RenderCoordinator::s_shadowFrustumCull = cmd.params["enabled"].get<bool>();
         r = {{"success", true}, {"shadow_frustum_cull", Graphics::RenderCoordinator::s_shadowFrustumCull}};
+    });
+
+    // C1 screen-space LOD toggle (docs/ContinuousLodPlan.md). ON = character LOD/cull and
+    // vegetation radii scale with resolution/FOV; OFF = the legacy world-unit behaviour.
+    // Exactly equivalent at the reference config (1600x900, fovY 45), so a live A/B there
+    // must be pixel-identical. Also reports the current view scale for verification.
+    // C2.1 GPU-driven shadow submission (one multidraw per arena buffer). DEFAULT OFF; this is
+    // the live A/B for docs/ContinuousLodPlan.md C2.1. Reports the resulting draw counts so the
+    // collapse (~131 chunk draws -> a handful of multidraws) is directly observable.
+    // C4 (docs/ContinuousLodPlan.md) — THE CUT, live. Rebuild every resident chunk's mesh at a
+    // chosen LOD level. level 0 restores the normal fine mesh (which includes sub/microcubes and
+    // greedy merging, so it is NOT LodChunkMesh::buildForLevel(0)); level >= 1 swaps in coarse
+    // LOD-cell faces that the vertex shaders expand to 2^level-cube quads.
+    // C5 — DISTANCE-DRIVEN LOD (docs/ContinuousLodPlan.md). Body:
+    //   { "enabled": bool, "target_pixels": float, "budget": int }
+    // This is the join between C1's screen-space metric and C4's cut: each chunk is meshed at the
+    // level where its cells stop earning their pixels. Also reports the live level distribution,
+    // which is the only way to see the cut actually varying across the world.
+    reg.on("set_distance_lod", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_distanceDrivenLod = cmd.params["enabled"].get<bool>();
+        if (cmd.params.contains("target_pixels"))
+            Graphics::RenderCoordinator::s_lodTargetPixels = cmd.params["target_pixels"].get<float>();
+        if (cmd.params.contains("budget"))
+            Graphics::RenderCoordinator::s_lodRebuildBudgetPerFrame = cmd.params["budget"].get<int>();
+        std::map<int, int> hist;
+        size_t faces = 0;
+        if (chunkManager) {
+            for (const auto& c : chunkManager->chunks) {
+                if (!c) continue;
+                hist[c->getLodLevel()]++;
+                faces += c->getFaces().size();
+            }
+        }
+        nlohmann::json levels = nlohmann::json::object();
+        for (const auto& kv : hist) levels[std::to_string(kv.first)] = kv.second;
+        r = {{"success", true},
+             {"distance_lod", Graphics::RenderCoordinator::s_distanceDrivenLod},
+             {"target_pixels", Graphics::RenderCoordinator::s_lodTargetPixels},
+             {"budget", Graphics::RenderCoordinator::s_lodRebuildBudgetPerFrame},
+             {"chunks_by_level", levels},
+             {"total_chunk_faces", faces},
+             {"rebuilt_last_frame", renderCoordinator ? renderCoordinator->getLodRebuiltLastFrame() : 0}};
+    });
+
+    reg.on("set_lod_level", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
+        const int level = cmd.params.value("level", 0);
+        Core::SquashConfig cfg;   // OrWithOpeningMask + SurfaceAreaMajority
+        size_t chunksTouched = 0, facesBefore = 0, facesAfter = 0;
+        for (const auto& chunk : chunkManager->chunks) {
+            if (!chunk) continue;
+            facesBefore += chunk->getFaces().size();
+            if (level <= 0) {
+                chunk->rebuildFaces();
+            } else {
+                std::vector<Phyxel::InstanceData> faces;
+                Core::LodChunkMesh::buildForLevel(*chunk, level, cfg, faces);
+                chunk->setLodFaces(std::move(faces), level);
+            }
+            chunk->updateVulkanBuffer();
+            facesAfter += chunk->getFaces().size();
+            ++chunksTouched;
+        }
+        r = {{"success", true}, {"level", level}, {"chunks", chunksTouched},
+             {"faces_before", facesBefore}, {"faces_after", facesAfter}};
+    });
+
+    reg.on("set_gpu_driven_shadow", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_gpuDrivenShadow = cmd.params["enabled"].get<bool>();
+        nlohmann::json out = {{"success", true},
+             {"gpu_driven_shadow", Graphics::RenderCoordinator::s_gpuDrivenShadow},
+             {"supported", vulkanDevice ? vulkanDevice->supportsGpuDrivenSubmission() : false}};
+        if (renderCoordinator) {
+            const auto& fs = renderCoordinator->getLastFrameStats();
+            out["shadow_chunks_drawn"] = fs.shadowChunksDrawn;
+            out["shadow_instances_drawn"] = fs.shadowInstancesDrawn;
+            out["shadow_multidraw_calls"] = fs.shadowMultidrawCalls;
+        }
+        r = out;
+    });
+
+    reg.on("set_screen_space_lod", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_screenSpaceLod = cmd.params["enabled"].get<bool>();
+        // force_scale pins the view scale so the scaling path can be exercised LIVE. At the
+        // reference config the correction is inert, so a capture there cannot prove the wiring.
+        if (cmd.params.contains("force_scale"))
+            Graphics::RenderCoordinator::s_forcedViewScale = cmd.params["force_scale"].get<float>();
+        r = {{"success", true},
+             {"screen_space_lod", Graphics::RenderCoordinator::s_screenSpaceLod},
+             {"forced_view_scale", Graphics::RenderCoordinator::s_forcedViewScale},
+             {"lod_view_scale", renderCoordinator ? renderCoordinator->lodViewScale() : 1.0f}};
     });
 }
 
