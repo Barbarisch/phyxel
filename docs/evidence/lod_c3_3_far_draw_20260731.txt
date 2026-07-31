@@ -45,3 +45,32 @@ I ran out of session before re-running it. So the 638 -> 2 FPS regression is MEA
 repair is UNMEASURED. Do not assume the fix works; re-run the A/B above and read the FPS counter.
 Note for whoever does: STOP the engine before rebuilding -- the linker cannot overwrite a running
 phyxel.exe, and I wasted a cycle testing a stale binary whose timestamp predated the fix.
+
+============================================================================
+FOLLOW-UP — THE FPS FIX IS VERIFIED, AND IT COST COVERAGE
+============================================================================
+Re-ran the identical A/B on the FIXED Release binary (built 16:50:55, after the fix was written;
+engine stopped first this time so the linker could actually replace the exe). Pose read back
+from GET /api/camera: (420,260,420) yaw -135 pitch -28, render distance 2048, daynight pinned.
+FPS read by cropping the status bar of each screenshot, not from memory:
+
+    BEFORE the fix:  far_lod OFF 638 FPS  ->  ON   2 FPS     (7.2M chunk probes per frame)
+    AFTER  the fix:  far_lod OFF 626 FPS  ->  ON 624 FPS     (~0.3%, inside noise)
+    screenshots/screenshot_20260731_171854_457.png (OFF) / _171913_793.png (ON)
+
+So the 300x collapse is GONE. Bounding reach and rescanning only on a chunk crossing fixed it.
+
+BUT THE FIX TRADED REACH FOR COST, and the same run shows it:
+    far_chunks 5 -> 1  at the identical pose.
+The camera sits in chunk (13,8,13); the structure chunks are at (0,1,0), (1,1,0), (0,1,1),
+(1,1,1), (-2,1,0), (0,1,-2), i.e. Chebyshev distances 13, 12, 13, 12, 15, 15 chunks. kMaxFarReach
+= 12 admits only the one at distance 12. So the FPS number above is measured while drawing ONE
+far chunk, not five -- honest note: it is not a perfectly matched comparison to the old 5-chunk
+ON case. The collapse was SCAN-driven (7.2M probes/frame regardless of how many chunks drew), so
+the fix addresses the real cause, but the perf figure should be re-taken once coverage is restored.
+
+THE RIGHT FIX, not taken here: do not scan a volume at all. Ask storage which chunks HAVE
+pyramids within range and iterate THAT set -- it is tiny (5 chunks in this world) versus 25^3 =
+15,625 speculative probes, and it removes the reach cap entirely, so coverage stops depending on
+an arbitrary constant. That needs a new WorldStorage query (list chunk coords with LOD rows) and
+was not attempted.
