@@ -11,6 +11,38 @@ namespace Physics {
 
 // ---- Utility ----
 
+namespace {
+
+// splitmix64 finalizer — cheap, well-mixed 64-bit hash for manifold pair keys.
+uint64_t mix64(uint64_t x) {
+    x ^= x >> 33; x *= 0xff51afd7ed558ccdull;
+    x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ull;
+    x ^= x >> 33;
+    return x;
+}
+
+// Terrain manifold identity: body + occupied cell. Cell centers land on the 1/18 grid
+// (cube 0.5, subcube 1/6, microcube 1/18), so x*18 quantizes all three levels exactly.
+uint64_t terrainPairKey(uint32_t bodyId, const glm::vec3& cellCenter) {
+    const uint32_t qx = static_cast<uint32_t>(std::lround(cellCenter.x * 18.0f));
+    const uint32_t qy = static_cast<uint32_t>(std::lround(cellCenter.y * 18.0f));
+    const uint32_t qz = static_cast<uint32_t>(std::lround(cellCenter.z * 18.0f));
+    const uint64_t cell = (uint64_t(qx) * 73856093u) ^ (uint64_t(qy) * 19349663u)
+                        ^ (uint64_t(qz) * 83492791u);
+    return mix64((uint64_t(bodyId) << 32) ^ cell ^ 0x9E3779B97F4A7C15ull);
+}
+
+// Body-body manifold identity: canonical pair order + the box indices (a multi-box
+// body pair produces one manifold per box pair, not one shared 4-point cap).
+uint64_t bodyPairKey(uint32_t idA, uint32_t idB, size_t boxA, size_t boxB) {
+    uint32_t lo = idA, hi = idB;
+    uint64_t bl = boxA, bh = boxB;
+    if (idA > idB) { lo = idB; hi = idA; bl = boxB; bh = boxA; }
+    return mix64(((uint64_t(lo) << 32) | hi) ^ mix64((bl << 32) | bh));
+}
+
+} // namespace
+
 void VoxelContactSolver::buildTangents(const glm::vec3& n, glm::vec3& t1, glm::vec3& t2) {
     if (std::abs(n.x) > 0.57735f)
         t1 = glm::normalize(glm::vec3(n.y, -n.x, 0.0f));
@@ -131,7 +163,7 @@ int VoxelContactSolver::generateOBBvsOBB(VoxelRigidBody* bodyA, size_t boxIdxA,
     if (glm::dot(wbA.center - wbB.center, normal) < 0.0f) normal = -normal;
 
     int before = static_cast<int>(out.size());
-    clipFaceVsOBB(wbA, wbB, normal, best.overlap, bodyA, bodyB, out);
+    clipFaceVsOBB(wbA, wbB, normal, best.overlap, bodyA, bodyB, boxIdxA, boxIdxB, out);
     return static_cast<int>(out.size()) - before;
 }
 
@@ -242,6 +274,7 @@ void VoxelContactSolver::clipFaceVsAABB(const WorldBox& obbBox, const glm::vec3&
             cp.bodyB    = nullptr;
             cp.rA       = contactPt - body->position;
             cp.rB       = glm::vec3(0.0f);
+            cp.pairKey  = terrainPairKey(body->id, terrainCenter);
             out.push_back(cp);
             if (++contactCount >= MAX_CONTACTS_PER_PAIR) break;
         }
@@ -251,6 +284,7 @@ void VoxelContactSolver::clipFaceVsAABB(const WorldBox& obbBox, const glm::vec3&
 void VoxelContactSolver::clipFaceVsOBB(const WorldBox& wbA, const WorldBox& wbB,
                                          const glm::vec3& normal, float depth,
                                          VoxelRigidBody* bodyA, VoxelRigidBody* bodyB,
+                                         size_t boxIdxA, size_t boxIdxB,
                                          std::vector<ContactPoint>& out) {
     // Incident face: A face most anti-aligned with normal
     std::vector<glm::vec3> incidentFace = getOBBFaceVerts(wbA, -normal);
@@ -299,50 +333,82 @@ void VoxelContactSolver::clipFaceVsOBB(const WorldBox& wbA, const WorldBox& wbB,
             cp.bodyB    = bodyB;
             cp.rA       = contactPt - bodyA->position;
             cp.rB       = contactPt - bodyB->position;
+            cp.pairKey  = bodyPairKey(bodyA->id, bodyB->id, boxIdxA, boxIdxB);
             out.push_back(cp);
             if (++contactCount >= MAX_CONTACTS_PER_PAIR) break;
         }
     }
 }
 
-// ---- PGS Solver ----
+// ---- Soft-step PGS solver (docs/PhysicsRestOverhaul.md) ----
 
-void VoxelContactSolver::prepareContact(ContactPoint& cp, float dt) {
+VoxelContactSolver::Softness VoxelContactSolver::makeSoft(float hertz, float zeta, float h) {
+    // Box3D b3MakeSoft: critically-damped soft constraint coefficients.
+    if (hertz <= 0.0f) return {};
+    constexpr float kPi = 3.14159265358979f;
+    const float omega = 2.0f * kPi * hertz;
+    const float a1 = 2.0f * zeta + h * omega;
+    const float a2 = h * omega * a1;
+    const float a3 = 1.0f / (1.0f + a2);
+    Softness s;
+    s.biasRate     = omega / a1;
+    s.massScale    = a2 * a3;
+    s.impulseScale = a3;
+    return s;
+}
+
+VoxelContactSolver::SolveParams VoxelContactSolver::makeParams(float dt) {
+    SolveParams sp;
+    sp.invH = dt > 0.0f ? 1.0f / dt : 0.0f;
+    // Contact stiffness may not exceed a quarter of the step rate (Box2D v3 rule) or the
+    // soft constraint overshoots. Static/sleeping contacts are 2x stiffer than dynamic.
+    const float hertz = std::min(CONTACT_HERTZ, 0.25f * sp.invH);
+    sp.dyn  = makeSoft(hertz, CONTACT_DAMPING, dt);
+    sp.stat = makeSoft(2.0f * hertz, CONTACT_DAMPING, dt);
+    return sp;
+}
+
+void VoxelContactSolver::prepareContact(ContactPoint& cp, float /*dt*/) {
     buildTangents(cp.normal, cp.tangent1, cp.tangent2);
 
     VoxelRigidBody* A = cp.bodyA;
     VoxelRigidBody* B = cp.bodyB;
 
-    auto computeEffectiveMass = [&](const glm::vec3& axis,
-                                    const glm::vec3& rA_,
-                                    const glm::vec3& rB_) -> float {
-        float em = A->invMass;
-        glm::vec3 rAxN = glm::cross(rA_, axis);
-        em += glm::dot(rAxN, A->invInertiaTensorWorld * rAxN);
-        if (B) {
+    // A sleeping side is treated as STATIC (no inverse mass, receives no impulses):
+    // awake bodies can rest on a sleeper without waking it. Impacts hard enough to
+    // matter wake the sleeper BEFORE prepare (VoxelDynamicsWorld::wakeFromImpacts).
+    const bool aStatic = A->isAsleep;
+    const bool bStatic = (B == nullptr) || B->isAsleep;
+
+    auto computeEffectiveMass = [&](const glm::vec3& axis) -> float {
+        float em = 0.0f;
+        if (!aStatic) {
+            em += A->invMass;
+            glm::vec3 rAxN = glm::cross(cp.rA, axis);
+            em += glm::dot(rAxN, A->invInertiaTensorWorld * rAxN);
+        }
+        if (B && !bStatic) {
             em += B->invMass;
-            glm::vec3 rBxN = glm::cross(rB_, axis);
+            glm::vec3 rBxN = glm::cross(cp.rB, axis);
             em += glm::dot(rBxN, B->invInertiaTensorWorld * rBxN);
         }
         return em > 1e-8f ? 1.0f / em : 0.0f;
     };
 
-    cp.effectiveMassN  = computeEffectiveMass(cp.normal,   cp.rA, cp.rB);
-    cp.effectiveMassT1 = computeEffectiveMass(cp.tangent1, cp.rA, cp.rB);
-    cp.effectiveMassT2 = computeEffectiveMass(cp.tangent2, cp.rA, cp.rB);
+    cp.effectiveMassN  = computeEffectiveMass(cp.normal);
+    cp.effectiveMassT1 = computeEffectiveMass(cp.tangent1);
+    cp.effectiveMassT2 = computeEffectiveMass(cp.tangent2);
 
     glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
     glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
                      : cp.obstacleVelocity;
-    float relVn = glm::dot(vA - vB, cp.normal);
+    cp.relVn0 = glm::dot(vA - vB, cp.normal);   // captured for the restitution pass
 
-    float e = A->restitution;
-    if (B) e = (e + B->restitution) * 0.5f;
-    float bounce = (relVn < -1.0f) ? -e * relVn : 0.0f;
+    // Slop-adjusted signed separation: < 0 penetrating beyond slop (soft push-out),
+    // > 0 separated (speculative — resist closing faster than separation/h).
+    cp.separation = SLOP - cp.depth;
 
-    float bias = BAUMGARTE / dt * std::max(0.0f, cp.depth - SLOP);
-
-    cp.targetVelocityN = bounce + bias;
+    // Accumulators start at zero; the warm-start pass restores last step's impulses.
     cp.lambdaN = cp.lambdaT1 = cp.lambdaT2 = 0.0f;
 }
 
@@ -351,23 +417,37 @@ void VoxelContactSolver::prepareContacts(std::vector<ContactPoint>& contacts, fl
         prepareContact(cp, dt);
 }
 
-void VoxelContactSolver::solveOneContact(ContactPoint& cp) {
+void VoxelContactSolver::solveOneContact(ContactPoint& cp, const SolveParams& sp, bool useBias) {
     VoxelRigidBody* A = cp.bodyA;
     VoxelRigidBody* B = cp.bodyB;
 
     glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
     glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
                      : cp.obstacleVelocity;
-    float relVn = glm::dot(vA - vB, cp.normal);
+    float vn = glm::dot(vA - vB, cp.normal);
 
-    float deltaLambda = cp.effectiveMassN * (cp.targetVelocityN - relVn);
-    float prevLambda  = cp.lambdaN;
-    cp.lambdaN = std::max(0.0f, prevLambda + deltaLambda);
-    deltaLambda = cp.lambdaN - prevLambda;
+    const bool vsStatic = (B == nullptr) || B->isAsleep || A->isAsleep;
+    const Softness& so = vsStatic ? sp.stat : sp.dyn;
 
-    glm::vec3 impulse = deltaLambda * cp.normal;
-    A->applyImpulse(impulse, cp.worldPos);
-    if (B) B->applyImpulse(-impulse, cp.worldPos);
+    float bias = 0.0f, massScale = 1.0f, impulseScale = 0.0f;
+    if (cp.separation > 0.0f) {
+        bias = cp.separation * sp.invH;   // speculative: may close at most separation this step
+    } else if (useBias) {
+        bias         = std::max(so.biasRate * cp.separation, -MAX_PUSH_SPEED);
+        massScale    = so.massScale;
+        impulseScale = so.impulseScale;
+    }
+    // useBias=false (relax pass): plain velocity constraint — removes the energy the
+    // biased pass injected, so resting bodies end the step with ~zero velocity.
+
+    float delta = -cp.effectiveMassN * massScale * (vn + bias) - impulseScale * cp.lambdaN;
+    float newLambda = std::max(cp.lambdaN + delta, 0.0f);
+    delta = newLambda - cp.lambdaN;
+    cp.lambdaN = newLambda;
+
+    glm::vec3 impulse = delta * cp.normal;
+    if (!A->isAsleep) A->applyImpulse(impulse, cp.worldPos);
+    if (B && !B->isAsleep) B->applyImpulse(-impulse, cp.worldPos);
 }
 
 void VoxelContactSolver::solveFriction(ContactPoint& cp) {
@@ -390,20 +470,47 @@ void VoxelContactSolver::solveFriction(ContactPoint& cp) {
         delta       = accLambda - prev;
 
         glm::vec3 imp = delta * t;
-        A->applyImpulse(imp, cp.worldPos);
-        if (B) B->applyImpulse(-imp, cp.worldPos);
+        if (!A->isAsleep) A->applyImpulse(imp, cp.worldPos);
+        if (B && !B->isAsleep) B->applyImpulse(-imp, cp.worldPos);
     };
 
     solveTangent(cp.tangent1, cp.lambdaT1, cp.effectiveMassT1);
     solveTangent(cp.tangent2, cp.lambdaT2, cp.effectiveMassT2);
 }
 
-void VoxelContactSolver::solveContacts(std::vector<ContactPoint>& contacts) {
-    for (int iter = 0; iter < SOLVER_ITERATIONS; ++iter) {
+void VoxelContactSolver::solvePass(std::vector<ContactPoint>& contacts, const SolveParams& sp,
+                                   bool useBias, int iterations) {
+    for (int iter = 0; iter < iterations; ++iter) {
         for (auto& cp : contacts) {
-            solveOneContact(cp);
+            solveOneContact(cp, sp, useBias);
             solveFriction(cp);
         }
+    }
+}
+
+void VoxelContactSolver::applyRestitution(std::vector<ContactPoint>& contacts) {
+    for (auto& cp : contacts) {
+        float e = cp.bodyA->restitution;
+        if (cp.bodyB) e = (e + cp.bodyB->restitution) * 0.5f;
+        // Bounce only real impacts: captured approach speed past the threshold AND the
+        // contact actually carries normal impulse. Resting contacts never bounce.
+        if (e <= 0.0f || cp.relVn0 > -RESTITUTION_THRESHOLD || cp.lambdaN <= 0.0f) continue;
+
+        VoxelRigidBody* A = cp.bodyA;
+        VoxelRigidBody* B = cp.bodyB;
+        glm::vec3 vA = A->linearVelocity + glm::cross(A->angularVelocity, cp.rA);
+        glm::vec3 vB = B ? (B->linearVelocity + glm::cross(B->angularVelocity, cp.rB))
+                         : cp.obstacleVelocity;
+        float vn = glm::dot(vA - vB, cp.normal);
+
+        float delta = -cp.effectiveMassN * (vn + e * cp.relVn0);
+        float newLambda = std::max(cp.lambdaN + delta, 0.0f);
+        delta = newLambda - cp.lambdaN;
+        cp.lambdaN = newLambda;
+
+        glm::vec3 impulse = delta * cp.normal;
+        if (!A->isAsleep) A->applyImpulse(impulse, cp.worldPos);
+        if (B && !B->isAsleep) B->applyImpulse(-impulse, cp.worldPos);
     }
 }
 

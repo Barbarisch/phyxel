@@ -24,6 +24,10 @@ struct ContactPoint {
     // Zero for static terrain, set to character velocity for segment box contacts.
     glm::vec3 obstacleVelocity{0.0f};
 
+    // Manifold identity for cross-step impulse warm starting (docs/PhysicsRestOverhaul.md):
+    // hashes the body pair (+ box indices) or body + terrain cell. Set at generation.
+    uint64_t pairKey = 0;
+
     // Solver state (filled during warmup / solve)
     glm::vec3 tangent1{0.0f};
     glm::vec3 tangent2{0.0f};
@@ -33,16 +37,40 @@ struct ContactPoint {
     float lambdaN  = 0.0f;   // accumulated normal impulse
     float lambdaT1 = 0.0f;   // accumulated tangent impulse 1
     float lambdaT2 = 0.0f;   // accumulated tangent impulse 2
-    float targetVelocityN = 0.0f; // bias + restitution target
+    float separation = 0.0f; // signed slop-adjusted separation: <0 penetrating, >0 speculative
+    float relVn0     = 0.0f; // approach speed captured at prepare (restitution pass input)
 };
 
-// Generates contacts and solves them with sequential impulses (PGS).
+// Generates contacts and solves them with sequential impulses (PGS), using Box3D-style
+// "soft step" contact softness: penetration is recovered by a critically-damped soft
+// bias (massScale/impulseScale blend) inside the biased pass, then a bias-free relax
+// pass removes the injected correction energy so resting bodies carry ~zero residual
+// velocity. Restitution is a separate final pass. See docs/PhysicsRestOverhaul.md.
 class VoxelContactSolver {
 public:
-    static constexpr int   SOLVER_ITERATIONS = 10;
-    static constexpr float BAUMGARTE         = 0.2f;   // position correction factor
+    static constexpr int   SOLVER_ITERATIONS = 10;   // biased velocity iterations
+    static constexpr int   RELAX_ITERATIONS  = 4;    // bias-free iterations (jitter removal)
     static constexpr float SLOP              = 0.005f;  // penetration allowed before correction
     static constexpr float MAX_CONTACTS_PER_PAIR = 4;
+    static constexpr float CONTACT_HERTZ     = 30.0f;   // clamped to 0.25/h in makeParams
+    static constexpr float CONTACT_DAMPING   = 10.0f;   // damping ratio zeta
+    static constexpr float MAX_PUSH_SPEED    = 3.0f;    // push-out speed cap (m/s)
+    static constexpr float RESTITUTION_THRESHOLD = 1.0f; // approach speed that may bounce (m/s)
+
+    // Soft-constraint coefficients (Box3D b3MakeSoft): critically-damped penetration
+    // recovery expressed as a velocity-solver bias + impulse blend.
+    struct Softness {
+        float biasRate     = 0.0f;
+        float massScale    = 1.0f;
+        float impulseScale = 0.0f;
+    };
+    struct SolveParams {
+        float    invH = 60.0f;
+        Softness dyn;       // dynamic vs dynamic
+        Softness stat;      // vs terrain / kinematic / sleeping body (2x hertz, stiffer)
+    };
+    static Softness    makeSoft(float hertz, float zeta, float h);
+    static SolveParams makeParams(float dt);
 
     // ---- Contact generation ----
 
@@ -59,14 +87,23 @@ public:
 
     // ---- Solver ----
 
-    // Prepare cached constraint data (effective masses, tangents, bias).
+    // Prepare cached constraint data (effective masses, tangents, separation).
+    // A sleeping body on either side is treated as static (infinite mass) so awake
+    // bodies can rest against sleepers without waking them.
     static void prepareContacts(std::vector<ContactPoint>& contacts, float dt);
 
     // Prepare a single contact — called per-contact from the parallel prepare path.
     static void prepareContact(ContactPoint& cp, float dt);
 
-    // Run PGS iterations over all contacts.
-    static void solveContacts(std::vector<ContactPoint>& contacts);
+    // One solver pass over all contacts (normal + friction), `iterations` times.
+    // useBias=true: biased pass (soft penetration recovery + speculative), run BEFORE
+    // position integration. useBias=false: relax pass (removes bias energy), run AFTER.
+    static void solvePass(std::vector<ContactPoint>& contacts, const SolveParams& sp,
+                          bool useBias, int iterations);
+
+    // Separate restitution pass (after relax): bounce only contacts whose captured
+    // approach speed exceeded RESTITUTION_THRESHOLD and that carry normal impulse.
+    static void applyRestitution(std::vector<ContactPoint>& contacts);
 
 private:
     // SAT helpers
@@ -102,6 +139,7 @@ private:
     static void clipFaceVsOBB(const WorldBox& wbA, const WorldBox& wbB,
                                const glm::vec3& normal, float depth,
                                VoxelRigidBody* bodyA, VoxelRigidBody* bodyB,
+                               size_t boxIdxA, size_t boxIdxB,
                                std::vector<ContactPoint>& out);
 
     // Sutherland-Hodgman clip of polygon against a half-space (plane normal + distance).
@@ -113,7 +151,7 @@ private:
     static std::vector<glm::vec3> getOBBFaceVerts(const WorldBox& wb, const glm::vec3& dir);
 
     // Apply one PGS impulse iteration to a single contact.
-    static void solveOneContact(ContactPoint& cp);
+    static void solveOneContact(ContactPoint& cp, const SolveParams& sp, bool useBias);
     static void solveFriction(ContactPoint& cp);
 
     // Build two tangent vectors perpendicular to n.
