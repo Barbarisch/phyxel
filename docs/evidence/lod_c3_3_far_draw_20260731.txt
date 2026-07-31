@@ -63,11 +63,25 @@ So the 300x collapse is GONE. Bounding reach and rescanning only on a chunk cros
 BUT THE FIX TRADED REACH FOR COST, and the same run shows it:
     far_chunks 5 -> 1  at the identical pose.
 The camera sits in chunk (13,8,13); the structure chunks are at (0,1,0), (1,1,0), (0,1,1),
-(1,1,1), (-2,1,0), (0,1,-2), i.e. Chebyshev distances 13, 12, 13, 12, 15, 15 chunks. kMaxFarReach
-= 12 admits only the one at distance 12. So the FPS number above is measured while drawing ONE
+(1,1,1), (-2,1,0), (0,1,-2), i.e. Chebyshev distances 13, 13, 13, 12, 15, 15 chunks. kMaxFarReach
+= 12 admits only (1,1,1), the one at distance 12.
+  [CORRECTION, solution-auditor: this list first said (1,1,0) was distance 12. It is 13. The
+   conclusion is unchanged -- it is excluded either way -- but a wrong number in an evidence
+   file is exactly what this project has been burned by, so it is corrected in place, not
+   silently edited.] So the FPS number above is measured while drawing ONE
 far chunk, not five -- honest note: it is not a perfectly matched comparison to the old 5-chunk
 ON case. The collapse was SCAN-driven (7.2M probes/frame regardless of how many chunks drew), so
 the fix addresses the real cause, but the perf figure should be re-taken once coverage is restored.
+
+SHARPER CAUSE than I first stated (solution-auditor, from reading the pre-fix control flow):
+once the 5 chunks were already in m_farLod, the `already` check meant `built` never incremented,
+so the `built < s_farLodBudgetPerFrame` early-exit COULD NEVER FIRE. The full 7.19M-probe scan
+therefore ran on EVERY frame, not merely on the first. That is why it was 2 FPS rather than one
+bad frame followed by recovery.
+
+REMAINING GAP, stated rather than closed: post-fix far_instances was never logged and the ON run
+drew 1 chunk, so "626 -> 624" is not a matched 5-vs-5 measurement. The scan-vs-draw attribution
+is supported by the control flow above, but the magnitude comparison is partly inferred.
 
 THE RIGHT FIX, not taken here: do not scan a volume at all. Ask storage which chunks HAVE
 pyramids within range and iterate THAT set -- it is tiny (5 chunks in this world) versus 25^3 =
