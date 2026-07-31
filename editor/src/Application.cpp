@@ -12214,7 +12214,7 @@ void Application::registerEffectsCommands() {
     reg.on("set_lod_level", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
         const int level = cmd.params.value("level", 0);
-        Core::SquashConfig cfg;   // OrWithOpeningMask + SurfaceAreaMajority
+        Core::SquashConfig cfg;   // default: OrWithOpeningMask + SurfaceAreaMajority
         size_t chunksTouched = 0, facesBefore = 0, facesAfter = 0;
         for (const auto& chunk : chunkManager->chunks) {
             if (!chunk) continue;

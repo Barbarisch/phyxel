@@ -1,0 +1,114 @@
+RESIDENCY WALL — MEASURED ON LodBench, 2026-07-30 (Release build)
+Question: with LOD working, can we drop the view-distance limit? Where does it actually break?
+
+============================================================================
+PART 1 — RENDER DISTANCE DOES NOT MOVE RESIDENCY (baked world)
+docs/evidence/lod_residency_sweep_20260730.jsonl  (tools/lod_residency_sweep.py)
+============================================================================
+Baked LodBench (380 chunks), pose (0,420,620) pinned, render distance swept:
+
+  dist   resident    faces     RAM_MB   gpu_allocs  mesh_avg_ms
+   192      380     250172     5829.9        9         4.55
+   384      380     250172     5829.9        9         4.55
+   768      380     250172     5829.9        9         4.55
+  1536      380     250172     5830.7        9         4.55
+  3072      380     250172     5830.8        9         4.55
+
+RAM is FLAT to 0.9 MB across a 16x change in render distance. That is the point:
+maxChunkRenderDistance is a FRUSTUM-CULL knob. It changes what is DRAWN, never what is
+RESIDENT. On a finite baked world every chunk is loaded regardless, so "raising view
+distance" costs draw work only -- and the LOD cut reduces exactly that draw work.
+It does nothing for the thing that actually bounds us.
+
+============================================================================
+PART 2 — THE ACTUAL WALL IS RESIDENCY, AND IT SCALES R^2
+============================================================================
+Same world (LodBench streaming variant, Perlin seed 777001), only `loadRadius` varied, so
+chunk COUNT varies while chunk CONTENT stays comparable. (A first attempt compared LodStripe
+62 chunks / 4921.8 MB against LodBench 380 / 5829.9 MB and got 2.86 MB/chunk -- DISCARDED:
+those are different worlds, so it conflates chunk count with chunk complexity.)
+
+  loadRadius   chunks resident   RAM_MB    total_chunk_faces
+      3             216          5375.4          107386
+      6             645          6078.7          228564
+      9            1271          7188.0          267790
+     12            2236          7944.7          436975
+
+Least-squares over the four points:
+    ~1.28 MB of process working set PER RESIDENT CHUNK
+    ~5251 MB FIXED BASELINE before a single chunk is resident
+Chunk count scales as ~15.5 * R^2 (R in chunk units) for this world's vertical extent.
+
+Extrapolated full-resolution residency ceiling:
+     8 GB ->   2301 chunks -> radius  12.2 chunks =  390 units
+    16 GB ->   8712 chunks -> radius  23.7 chunks =  758 units
+    32 GB ->  21533 chunks -> radius  37.2 chunks = 1192 units
+    64 GB ->  47175 chunks -> radius  55.1 chunks = 1764 units   (dev target: 64 GB)
+
+So on the 64 GB dev rig the wall is roughly a 1,760-unit view distance -- about 9x today's
+192-unit editor default, and nowhere near "unlimited". Because the cost is R^2, each further
+doubling of view distance costs 4x the RAM: 3,500 units would need ~4x64 GB.
+
+CAVEATS (do not quote the ceiling without these):
+  * The per-chunk slope is NOT clean: the marginal cost per step was 1.64, 1.77, then
+    0.78 MB/chunk. The last step is cheaper, plausibly because chunks further out are
+    emptier (more air) -- so 1.28 is an average over this world, not a constant.
+  * Working set is a proxy. GPU device-local memory was NOT measured; the chunk arena
+    reported only gpu_chunk_allocs_live = 9 (pooled), so GPU VRAM could bind first and is
+    an OPEN measurement.
+  * The 5.25 GB fixed baseline is its own finding and is unexplained here. It dwarfs the
+    chunk cost at every radius below ~26 chunks. Worth its own investigation before anyone
+    optimises per-chunk residency.
+
+============================================================================
+PART 3 — WHY LOD DOES NOT MOVE THIS WALL, AND WHAT DOES
+============================================================================
+A chunk must be loaded, meshed, and hold GPU buffers to be drawn at ANY level, including the
+coarsest. The C4/C5 cut lowers face COUNT per chunk; it does not remove the chunk. Confirmed
+above: LOD changed total_chunk_faces 250172 -> 122218 while resident chunks stayed 380.
+
+C3 (persist the pyramid, keyed (x,y,z,lod)) is the phase that breaks the R^2 law, because a
+distant region is then served from coarse persisted data WITHOUT the full-resolution chunk
+ever becoming resident. Terrain can come from CoarseWorldModel directly; only edited chunks
+and structures need downsampling. Until C3 exists, "no view-distance limit" means "load the
+whole world at full resolution first", which is the wall above.
+
+============================================================================
+PART 4 — DOES THE WORLD DB STORE VOXEL VISIBILITY? WOULD IT HELP LOAD TIME?
+============================================================================
+NO, and it would not help much. Read of engine/src/core/ChunkBlobCodec.cpp (blob-v2, the
+current format; the legacy per-row `cubes` table did have an `is_visible` column):
+
+  encode(): `if (cube ? cube->isVisible() : store.visible(i))` -> palette index, else 0.
+  Invisible cubes are written as index 0 (== air) and invisible sub/microcubes are SKIPPED.
+
+So visibility is used as a FILTER at save time, not stored as an attribute -- a hidden voxel
+is not recorded as hidden, it is dropped. Note also that isVisible() here means "present and
+should render", NOT "occluded by its neighbours". There is no occlusion / face-exposure data
+in the database at all.
+
+Storing it would not meaningfully help load time:
+  1. Decode is not the cost. The cube section is RLE over the 32768 slots, so a solid
+     interior already collapses to a handful of runs -- interior voxels are nearly free to
+     store and to read.
+  2. Meshing is the cost, and a per-voxel hidden bit does not avoid it: deciding which FACES
+     are exposed IS the meshing work. To skip it you would have to persist the FACE LIST
+     (i.e. the mesh), not a per-voxel flag.
+  3. The chunk-granular version of this idea ALREADY SHIPS: uniform chunks (fully solid or
+     pure air) are sealed and skip the mesh/bake scans entirely, releasing ~364 KB of
+     per-chunk scratch (ChunkRenderManager::clearForUniform, Phase 4.4).
+
+MEASURED cost breakdown on the LodBench load just run (/api/render/stats):
+     mesh_timing        avg 4.55 ms   max 136.42 ms   count 863
+     buffer_upload      avg 0.23 ms   max  38.19 ms   count 863
+     buffer_create      avg 0.0002 ms max   0.06 ms   count 380
+     buffer_realloc     count 0
+     dirty_update_total avg 5.28 ms   max  50.80 ms
+NOTE: ChunkRenderManager's T0 comment says "the real edit/stream hitch is GPU buffer
+(re)allocation, not this mesh." On THIS world that is not what the counters show -- realloc
+never fired and meshing carried both the average and the 136 ms worst case. Recorded as a
+discrepancy, not resolved: the T0 baseline was taken on a different scenario.
+
+CONCLUSION: the load-time lever is persisting DERIVED data (the mesh, or better the LOD
+pyramid), not annotating voxels. That is C3, which is also the fix for Part 2 -- one change
+addresses both.

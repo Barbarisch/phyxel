@@ -88,7 +88,13 @@ enum class MaterialRule {
 };
 
 struct SquashConfig {
-    OccupancyRule occupancy = OccupancyRule::OrPreserveOpenings;
+    /// OrWithOpeningMask, NOT OrPreserveOpenings. The renderer coarsens to maxLevel = 5
+    /// (32-cube cells, RenderCoordinator::updateChunkLod), and OrPreserveOpenings blanks a
+    /// whole cell whenever any child carries an authored opening — with preserveOpening
+    /// propagating upward, one window erases an entire walled room from level 3 on. The mask
+    /// rule keeps the mass solid and conserves the opening volume for the renderer to use.
+    /// Pinned by LodQuadFootprintTest.DefaultSquashConfigIsSafeAtRendererMaxLevel.
+    OccupancyRule occupancy = OccupancyRule::OrWithOpeningMask;
     MaterialRule material = MaterialRule::SurfaceAreaMajority;
 };
 

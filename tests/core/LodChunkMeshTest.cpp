@@ -364,3 +364,225 @@ TEST(LodChunkMeshTest, LodLevelTracksTheMeshActuallyBuilt) {
     EXPECT_EQ(c->getLodLevel(), 0)
         << "rebuildFaces() left a stale coarse level behind";
 }
+
+// ===========================================================================
+// QUAD FOOTPRINT vs LEVEL — the measurement that was missing.
+//
+// Nothing measured the SIZE of the quad an isolated thin voxel produces once coarsened.
+// CoverageReflectsSubCubeFillLevel only checks the coverage NUMBER at level 0. That gap is
+// why a "~9x fattening" estimate went unchallenged when the real figure is level-dependent
+// and reaches chunk scale.
+//
+// Helper: squash `src` to `level` under `cfg` and report whether the probe cell is still
+// solid, plus the cell edge length in cubes at that level.
+// ===========================================================================
+namespace {
+struct Footprint { bool solid; int cellCubes; };
+
+Footprint footprintAt(const LodVolume& src, int level, const SquashConfig& cfg) {
+    LodVolume v = src;
+    for (int i = 0; i < level; ++i) v = squash(v, cfg);
+    bool anySolid = false;
+    for (int x = 0; x < v.dim().x && !anySolid; ++x)
+        for (int y = 0; y < v.dim().y && !anySolid; ++y)
+            for (int z = 0; z < v.dim().z && !anySolid; ++z)
+                if (v.at(x, y, z).solid()) anySolid = true;
+    return {anySolid, v.cellSizeInCubes()};
+}
+
+/// A 1-MICROCUBE-thick wall spanning one cube face: 9*9*1 = 81 of 729 microcubes = 11.1%.
+/// This is the geometry the structure generator actually emits (timber_cottage interior_wall).
+LodVolume thinWallVolume() {
+    LodVolume v(glm::ivec3(8, 8, 8), 0);
+    for (int y = 0; y < 8; ++y)
+        for (int z = 0; z < 8; ++z) v.at(4, y, z).coverage = 81;   // 11.1% per cube
+    return v;
+}
+LodVolume isolatedMicrocubeVolume() {
+    LodVolume v(glm::ivec3(8, 8, 8), 0);
+    v.at(3, 3, 3).coverage = 1;                                    // 1 of 729
+    return v;
+}
+LodVolume solidBlockVolume() {
+    LodVolume v(glm::ivec3(8, 8, 8), 0);
+    for (int x = 0; x < 8; ++x)
+        for (int y = 0; y < 8; ++y)
+            for (int z = 0; z < 8; ++z) v.at(x, y, z).coverage = LodVolume::kFullCoverage;
+    return v;
+}
+} // namespace
+
+// INVARIANT WE REQUIRE: the generator's 1-microcube wall must SURVIVE coarsening. If it
+// vanishes, buildings become invisible at distance -- a worse failure than fattening.
+// This is what makes HalfThreshold unusable as a default, per LodBrick.h's own note.
+TEST(LodQuadFootprintTest, ThinWallSurvivesUnderEveryOrFamilyRule) {
+    const LodVolume wall = thinWallVolume();
+    for (OccupancyRule rule : {OccupancyRule::Or, OccupancyRule::OrPreserveOpenings,
+                               OccupancyRule::OrWithOpeningMask}) {
+        SquashConfig cfg; cfg.occupancy = rule;
+        for (int level = 1; level <= 3; ++level) {
+            EXPECT_TRUE(footprintAt(wall, level, cfg).solid)
+                << "rule " << int(rule) << " level " << level
+                << ": the 1-microcube generator wall VANISHED -- buildings would be invisible";
+        }
+    }
+}
+
+// The documented reason HalfThreshold is not a candidate: it deletes that same wall.
+// Pinning it so nobody "fixes" the fattening by switching to it (I nearly proposed exactly that).
+TEST(LodQuadFootprintTest, HalfThresholdDeletesTheGeneratorWall) {
+    SquashConfig cfg; cfg.occupancy = OccupancyRule::HalfThreshold;
+    EXPECT_FALSE(footprintAt(thinWallVolume(), 1, cfg).solid)
+        << "HalfThreshold kept an 11.1%-coverage wall -- if this now passes, the rule changed "
+           "and it may have become a viable default; re-evaluate";
+    EXPECT_TRUE(footprintAt(solidBlockVolume(), 3, cfg).solid) << "solid mass must always survive";
+}
+
+// Solid mass survives under every rule -- the control.
+TEST(LodQuadFootprintTest, SolidMassSurvivesEveryRule) {
+    for (OccupancyRule rule : {OccupancyRule::Or, OccupancyRule::HalfThreshold,
+                               OccupancyRule::OrPreserveOpenings,
+                               OccupancyRule::OrWithOpeningMask}) {
+        SquashConfig cfg; cfg.occupancy = rule;
+        EXPECT_TRUE(footprintAt(solidBlockVolume(), 3, cfg).solid) << "rule " << int(rule);
+    }
+}
+
+// MEASURES THE DEFECT. A lone microcube (1/729) stays solid at every level, so the emitted
+// quad grows with the cell while the geometry does not: 2 cubes at level 1 (18x the
+// microcube's 1/9-cube edge) up to 32 cubes at level 5 (288x). Unbounded upward because the
+// OR family never dilutes coverage.
+TEST(LodQuadFootprintTest, IsolatedMicrocubeFattensWithLevel_KNOWN_DEFECT) {
+    SquashConfig cfg;   // the shipped default
+    const LodVolume speck = isolatedMicrocubeVolume();
+    for (int level = 1; level <= 3; ++level) {
+        Footprint f = footprintAt(speck, level, cfg);
+        EXPECT_TRUE(f.solid) << "level " << level;
+        EXPECT_EQ(f.cellCubes, 1 << level);
+        // linear fattening = cell edge in cubes / (1/9 cube) = cellCubes * 9
+        const int linearFatten = f.cellCubes * 9;
+        EXPECT_GE(linearFatten, 18) << "level " << level << " fattening " << linearFatten << "x";
+    }
+}
+
+// The invariant we WANT once the appearance tier (plan M2) consumes fractional coverage:
+// a 1/729-coverage speck must not render as a multi-cube solid. Disabled because it is a
+// known, recorded gap -- enable it when M2 lands. Left visible rather than silently absent.
+TEST(LodQuadFootprintTest, DISABLED_IsolatedMicrocubeMustNotFatten_REQUIRES_M2) {
+    SquashConfig cfg;
+    Footprint f = footprintAt(isolatedMicrocubeVolume(), 3, cfg);
+    EXPECT_FALSE(f.solid && f.cellCubes > 1)
+        << "a 1/729 speck still emits a " << f.cellCubes << "-cube solid quad";
+}
+
+// ===========================================================================
+// THE SHIPPED DEFAULT IS A RULE ITS OWN DOCS FORBID ABOVE LEVEL 1.
+//
+// LodBrick.h on OrPreserveOpenings: "Correct at level 1 (2 cubes) and CATASTROPHIC at brick
+// sizes -- measured to erase 49.7% (4^3) to 100% (16^3) of a settlement block. NOT recommended
+// above level 1." But RenderCoordinator::updateChunkLod runs levelForDistance(..., maxLevel=5),
+// so the LIVE renderer reaches 32-cube cells with that rule as the default SquashConfig.
+//
+// Mechanism: `solid = (cov > 0) && !anyOpening`, and preserveOpening propagates upward, so ONE
+// authored window keeps blanking an ever-larger cell at every level.
+// ===========================================================================
+namespace {
+/// A solid wall slab carrying ONE authored opening (a window) at a single cube.
+LodVolume walledRoomWithOneWindow() {
+    LodVolume v(glm::ivec3(8, 8, 8), 0);
+    for (int x = 0; x < 8; ++x)
+        for (int y = 0; y < 8; ++y)
+            for (int z = 0; z < 8; ++z) v.at(x, y, z).coverage = LodVolume::kFullCoverage;
+    LodCell& win = v.at(2, 2, 2);
+    win.preserveOpening = true;
+    win.openingCoverage = LodVolume::kFullCoverage / 2;
+    return v;
+}
+size_t solidCellCount(const LodVolume& v) {
+    size_t n = 0;
+    for (int x = 0; x < v.dim().x; ++x)
+        for (int y = 0; y < v.dim().y; ++y)
+            for (int z = 0; z < v.dim().z; ++z) if (v.at(x, y, z).solid()) ++n;
+    return n;
+}
+LodVolume squashTo(const LodVolume& src, int level, const SquashConfig& cfg) {
+    LodVolume v = src;
+    for (int i = 0; i < level; ++i) v = squash(v, cfg);
+    return v;
+}
+} // namespace
+
+TEST(LodQuadFootprintTest, OrPreserveOpeningsErasesSolidMassAsLevelRises) {
+    SquashConfig cfg; cfg.occupancy = OccupancyRule::OrPreserveOpenings;
+    const LodVolume room = walledRoomWithOneWindow();
+    // 8^3 = 512 solid cells, ONE of which carries a window.
+    ASSERT_EQ(solidCellCount(room), 512u);
+    // level 3 collapses the whole 8^3 into a single cell -- and that cell inherits the window,
+    // so the ENTIRE solid mass is erased by one authored opening.
+    EXPECT_EQ(solidCellCount(squashTo(room, 3, cfg)), 0u)
+        << "if this is non-zero the rule changed; re-check whether it is still unsafe above L1";
+}
+
+// The documented recommendation conserves the opening instead of deleting the wall.
+TEST(LodQuadFootprintTest, OrWithOpeningMaskKeepsTheMassAndCarriesTheOpening) {
+    SquashConfig cfg; cfg.occupancy = OccupancyRule::OrWithOpeningMask;
+    const LodVolume room = walledRoomWithOneWindow();
+    const LodVolume top = squashTo(room, 3, cfg);
+    EXPECT_EQ(solidCellCount(top), 1u) << "the wall must survive coarsening";
+    EXPECT_GT(top.at(0, 0, 0).openingCoverage, 0u)
+        << "the authored opening must be CONSERVED upward, not silently dropped";
+}
+
+// The default the engine actually ships must be safe at the levels the renderer reaches.
+TEST(LodQuadFootprintTest, DefaultSquashConfigIsSafeAtRendererMaxLevel) {
+    SquashConfig shipped;   // default-constructed -- what every live call site uses
+    const LodVolume room = walledRoomWithOneWindow();
+    for (int level = 1; level <= 5; ++level) {   // updateChunkLod caps at maxLevel = 5
+        EXPECT_GT(solidCellCount(squashTo(room, level, shipped)), 0u)
+            << "level " << level << ": the DEFAULT rule erased an entire walled room because it "
+               "contained one window -- this is what the live renderer does at distance";
+    }
+}
+
+// ===========================================================================
+// THE NO-OP CLAIM, TESTED DIRECTLY.
+//
+// The default OccupancyRule changed OrPreserveOpenings -> OrWithOpeningMask. The claim is that
+// this is a NO-OP for real chunks, because volumeFromChunk never authors preserveOpening /
+// openingCoverage, so both rules reduce to `solid = cov > 0`.
+//
+// That was originally argued from cross-day face counts on LodBench -- a weak proxy, and it did
+// not even hold to the digit (archived pre-fix level 1 was 409908 vs 410004 today; the delta is
+// attributable to the C5 striping fix landing in between, but the archives cannot prove that).
+// This asserts the property itself on a REAL chunk instead: identical output at every level the
+// renderer can reach. If a future structure path starts authoring openings, this test FAILS and
+// tells you the two rules have diverged -- which is exactly when the choice starts to matter.
+// ===========================================================================
+TEST(LodQuadFootprintTest, BothOrRulesAgreeOnRealChunksBecauseNoOpeningsAreAuthored) {
+    auto c = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
+    c->initializeForLoading();
+    for (int x = 0; x < 32; ++x)                       // terrain mass
+        for (int z = 0; z < 32; ++z)
+            for (int y = 0; y < 5; ++y) c->addCube(glm::ivec3(x, y, z), "Stone");
+    for (int x = 8; x < 20; ++x)                       // a wall with a gap in it (a "doorway")
+        for (int y = 5; y < 11; ++y)
+            if (!(x >= 13 && x <= 15 && y < 9)) c->addCube(glm::ivec3(x, y, 10), "WoodPlanks");
+    for (int y = 0; y < 3; ++y)                        // sub/micro detail
+        for (int z = 0; z < 3; ++z) c->addSubcube(glm::ivec3(6, 6, 6), glm::ivec3(1, y, z), "Wood");
+    c->addMicrocube(glm::ivec3(7, 6, 6), glm::ivec3(1, 1, 1), glm::ivec3(1, 1, 1), "Metal");
+
+    SquashConfig preserve; preserve.occupancy = OccupancyRule::OrPreserveOpenings;
+    SquashConfig mask;     mask.occupancy     = OccupancyRule::OrWithOpeningMask;
+
+    for (int level = 1; level <= 5; ++level) {         // updateChunkLod caps at maxLevel = 5
+        std::vector<InstanceData> a, b;
+        LodChunkMesh::buildForLevel(*c, level, preserve, a);
+        LodChunkMesh::buildForLevel(*c, level, mask, b);
+        ASSERT_EQ(a.size(), b.size())
+            << "level " << level << ": the two occupancy rules DISAGREE on a real chunk, so the "
+               "default swap is NOT a no-op -- something now authors openings and the runtime "
+               "impact must be re-measured";
+        for (size_t i = 0; i < a.size(); ++i)
+            EXPECT_EQ(a[i].packedData, b[i].packedData) << "level " << level << " face " << i;
+    }
+}

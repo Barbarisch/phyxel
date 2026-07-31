@@ -1,0 +1,99 @@
+SQUASH DEFAULT RULE — WHAT I WAS ASKED TO DO, WHAT WAS ACTUALLY WRONG, AND WHAT CHANGED
+Date 2026-07-31. Release + Debug. Branch destruction-system-v2.
+
+============================================================================
+THE REQUESTED FIX WAS WRONG — MEASURED, NOT ARGUED
+============================================================================
+I proposed (and the user approved) swapping the default OccupancyRule to HalfThreshold to stop
+isolated thin voxels fattening. That is a BAD fix and LodBrick.h already said so:
+    HalfThreshold: "DELETES thin walls -- including the 1-microcube wall the generator emits,
+                    which is the same geometry SpawnGate relies on. Kept for A/B only."
+Now measured rather than quoted. The structure generator's interior wall is ONE microcube thick
+= 9*9*1 = 81 of 729 microcubes = 11.1% coverage, so a >=50% rule deletes it at the FIRST squash.
+    LodQuadFootprintTest.HalfThresholdDeletesTheGeneratorWall  -- PASSES, i.e. confirms deletion
+    LodQuadFootprintTest.ThinWallSurvivesUnderEveryOrFamilyRule -- the invariant it would break
+Buildings invisible at distance is worse than buildings slightly too fat. HalfThreshold NOT taken.
+
+============================================================================
+THE DEFECT THAT WAS ACTUALLY THERE (found while checking the above)
+============================================================================
+The shipped default was OrPreserveOpenings. LodBrick.h on that rule:
+    "Correct at level 1 (2 cubes) and CATASTROPHIC at brick sizes -- measured to erase 49.7%
+     (4^3) to 100% (16^3) of a settlement block. NOT recommended above level 1."
+But RenderCoordinator::updateChunkLod calls levelForDistance(..., maxLevel = 5) -- the LIVE
+renderer coarsens to 32-cube cells. So the engine shipped a default its own documentation
+forbids above level 1, at levels up to 5.
+
+Mechanism: `solid = (cov > 0) && !anyOpening`, and `p.preserveOpening = anyOpening` propagates
+upward, so ONE authored window keeps blanking an ever-larger cell at every level.
+
+RED (default = OrPreserveOpenings), LodQuadFootprintTest.DefaultSquashConfigIsSafeAtRendererMaxLevel:
+    level 3: the DEFAULT rule erased an entire walled room because it contained one window
+    level 4: (same)
+    level 5: (same)
+    -> FAILED.  Levels 1-2 survived, exactly as the doc predicted.
+FIX: default is now OrWithOpeningMask -- LodBrick.h's own stated recommendation ("The recommended
+rule for brick levels"), which keeps the mass solid and CONSERVES the opening volume upward.
+GREEN: 39/39 across LodQuadFootprintTest + LodBrickTest + LodChunkMeshTest.
+Also corrected a comment in Application.cpp that named OrWithOpeningMask while the default was
+actually OrPreserveOpenings -- it had described the INTENDED config, not the real one.
+
+============================================================================
+HONEST SCOPE — THIS CHANGES NOTHING VISIBLE TODAY
+============================================================================
+Do NOT read this as a visual improvement. `volumeFromChunk` NEVER sets preserveOpening or
+openingCoverage -- grep confirms the only writer is squash() propagating from children that were
+authored with them, and nothing in the chunk -> volume path authors them. So in the live path
+preserveOpening is ALWAYS false, and both rules reduce to `solid = cov > 0`. The two are
+IDENTICAL at runtime today.
+
+PROVEN DIRECTLY (not by proxy). LodQuadFootprintTest.BothOrRulesAgreeOnRealChunksBecauseNo
+OpeningsAreAuthored builds a REAL Chunk (terrain mass + a wall with a doorway gap + sub/micro
+detail), runs buildForLevel under BOTH rules at levels 1-5, and asserts the emitted faces are
+byte-identical (count AND packedData). It passes. Mutation-verified: authoring one opening
+inside volumeFromChunk makes the rules DISAGREE at level 2 and the test fails, so it is a real
+check, not a tautology. It is also the tripwire for later -- if a structure path ever starts
+marking openings, this test goes red and says the choice now has runtime impact.
+
+CORRECTION (solution-auditor, 2026-07-31): the first version of this file supported the no-op
+claim with cross-day LodBench face counts and called level 1 "IDENTICAL" at 410004. That was
+sloppy in exactly the way this project has been burned by before. The archived RAW run in
+lod_c4_cut_live_20260730.txt is 409908, not 410004; 410004 was a figure I had CITED in the C5
+writeup, not a raw capture. Levels 2 and 3 differ likewise (104932 vs 104954, 27554 vs 27572).
+Those deltas are attributable to the C5 striping fix landing between the two captures, but the
+archives cannot PROVE that, so the face-count comparison is demoted to corroboration only. The
+direct test above is the actual evidence. Level 0 (250845) does match the archive exactly.
+
+Runtime capture, LodBench, Release, pose read back from GET /api/camera as (0,420,620) yaw -90
+pitch -34, render distance 2048, uniform levels forced via /api/debug/lod_level:
+
+    level 0 -> 250845 faces     (archived lod_c4 raw run: 250845 -- exact match)
+    level 1 -> 410004 faces     (archived lod_c4 raw run: 409908 -- differs by 96; see CORRECTION)
+    level 2 -> 104954 faces
+    level 3 ->  27572 faces     screenshots/screenshot_20260731_073729_206.png -- solid, coherent,
+                                structures still present, 321 FPS, 9.1x fewer faces than level 0
+    level 4 ->   7518 faces
+    level 5 ->   2280 faces     screenshots/screenshot_20260731_073737_689.png
+
+Level 0 matches the archive exactly. Levels 1-3 differ by 96 / 22 / 18 faces from the lod_c4
+archive -- small, and consistent with the C5 fix landing in between, but NOT proof of anything.
+The no-op claim rests on the direct test, not on these numbers.
+
+WHAT THIS FIX IS WORTH: it removes a latent landmine. The moment anything starts marking
+openings from real chunks -- which is the entire purpose of the opening machinery, and is
+required for structures to read as windowed at distance -- the old default would have erased
+whole buildings from level 3 out. It is now safe before that path exists rather than after.
+
+============================================================================
+STILL UNFIXED: THE FATTENING (the thing I was originally asked to fix)
+============================================================================
+Unchanged by this work, because it is not an occupancy-rule problem. `LodCell::solid()` is
+`coverage > 0`, a BOOLEAN, so a 1/729 speck emits the same full-size quad as a full cell, and no
+OR-family rule dilutes coverage as it rises. Measured range (solution-auditor probe + new test):
+18x linear at level 1, up to 288x at level 5 -- a single microcube can render as a whole-chunk
+solid slab.
+    LodQuadFootprintTest.IsolatedMicrocubeFattensWithLevel_KNOWN_DEFECT   pins current behaviour
+    LodQuadFootprintTest.DISABLED_IsolatedMicrocubeMustNotFatten_REQUIRES_M2  encodes the wanted
+        invariant, disabled so the gap is VISIBLE rather than silently absent
+The real fix is the appearance tier (plan M2): consume fractional coverage -- shrink/fade the
+quad -- instead of a binary solid test. That is renderer + shader work, not a config swap.

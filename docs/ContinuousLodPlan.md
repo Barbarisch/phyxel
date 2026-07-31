@@ -1174,6 +1174,63 @@ fixed flight path stays under budget (§1.1 — an opinion about a screenshot is
 > 122,218 faces, stable over 6 polls with levels **and** face count agreeing →
 > `screenshot_20260730_161745_158.png` — **solid, no stripes.**
 >
+> ### ✅ DEFAULT SQUASH RULE FIXED — was unsafe at the levels the renderer reaches (2026-07-31)
+> Evidence: [`docs/evidence/lod_squash_default_20260731.txt`](evidence/lod_squash_default_20260731.txt).
+>
+> The shipped default was `OrPreserveOpenings`, which `LodBrick.h` itself documents as
+> *"CATASTROPHIC at brick sizes — measured to erase 49.7% (4³) to 100% (16³) of a settlement
+> block. NOT recommended above level 1."* But `updateChunkLod` coarsens to **`maxLevel = 5`**.
+> Mechanism: `solid = (cov > 0) && !anyOpening`, with `preserveOpening` propagating upward, so
+> **one authored window erases an entire walled room from level 3 on** (red-proven at levels
+> 3/4/5; levels 1–2 survive, exactly as documented).
+> **Default is now `OrWithOpeningMask`** — the header's own recommendation: keeps the mass solid
+> and conserves the opening volume upward. Pinned by
+> `LodQuadFootprintTest.DefaultSquashConfigIsSafeAtRendererMaxLevel`.
+>
+> **This is a no-op at runtime *today*, and that is proven, not assumed:** `volumeFromChunk`
+> never authors `preserveOpening`/`openingCoverage`, so both rules reduce to `solid = cov > 0`.
+> `BothOrRulesAgreeOnRealChunksBecauseNoOpeningsAreAuthored` asserts byte-identical faces at
+> levels 1–5 on a real chunk, and is mutation-verified to fail the moment an opening is authored.
+> Its value is removing a landmine **before** the structure path starts marking openings — which
+> it must, for buildings to read as windowed at distance.
+>
+> **`HalfThreshold` was considered and rejected, with a measurement.** The generator's interior
+> wall is one microcube thick = 81/729 = **11.1%** coverage, so a ≥50% rule deletes it at the
+> first squash — buildings invisible at distance, worse than fattening.
+> `HalfThresholdDeletesTheGeneratorWall` pins this so it isn't retried.
+>
+> ### 🚨 MEASURED DEFECT — isolated thin detail FATTENS without bound (2026-07-30)
+> `LodCell::solid()` is `coverage > 0` — a **boolean** — and the default `OrPreserveOpenings`
+> rule never dilutes coverage as it propagates up the pyramid. So a lone microcube
+> (coverage 1 of 729) survives to the TOP of the ladder and emits a full-size cell quad.
+>
+> Measured by a standalone probe over `LodBrick.cpp` (solution-auditor, 2026-07-30): one
+> microcube in an otherwise-empty 32³ volume stays `solid() == true` at **every level 0–5**,
+> and the top-level cell is `cellSizeInCubes() == 32`.
+>
+> Linear fattening, using the levels the LIVE renderer actually reaches (level 0 is
+> special-cased back to `rebuildFaces()`, and `updateChunkLod` caps at `maxLevel = 5`):
+> - level 1 (2 cubes) → **18×** — the smallest coarse cell in live use
+> - level 5 (32 cubes) → **288×** — a 1-microcube fence rail becomes a whole-chunk solid slab
+>
+> Unbounded upward: raising `maxLevel` makes it strictly worse, because nothing dilutes.
+>
+> **An earlier note of mine said "~9×", which was wrong** — it assumed level 0 was in live use
+> and framed the defect as small and bounded. It is neither.
+>
+> **Missing test (this is why the wrong number went unchallenged):** nothing measures the
+> emitted QUAD SIZE for an isolated thin voxel at increasing levels.
+> `CoverageReflectsSubCubeFillLevel` only checks the coverage NUMBER at level 0, never the
+> rendered footprint once coarsened.
+>
+> **Fix direction:** this is the plan's appearance tier (M2) — consume the fractional coverage
+> (shrink/fade the quad, or a coverage threshold that dilutes with level) instead of a binary
+> `> 0` test. `HalfThreshold` already exists and dilutes correctly; it is simply not the default.
+>
+> **Note:** `coverage` is NOT "visually unused" — `squash()` also reads it as the volume-majority
+> weight that picks `bulkMaterial` (and thus the rendered material for fully-interior cells).
+> The accurate statement is narrower: coverage never scales quad SIZE.
+>
 > **Still open:** the coarse mesher is **unmerged**, so low levels can emit *more* faces than the
 > greedy-merged fine mesh (54,066 vs 30,799 on LodStripe; 410,004 vs 250,845 on LodBench at level
 > 1). Greedy-merging the coarse mesher is the next correctness-adjacent perf item.
