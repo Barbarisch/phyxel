@@ -432,6 +432,11 @@ void WaterManager::setRiverQuery(std::function<float(float, float)> depthAt) {
     m_oceanDirty = true;   // re-derive channel tags + bed pins on the next update
 }
 
+void WaterManager::setRiverOrderQuery(std::function<int(float, float)> orderAt) {
+    m_riverOrderFn = std::move(orderAt);
+    m_oceanDirty = true;   // pin masses depend on order — re-derive
+}
+
 void WaterManager::setRiverFlowQuery(std::function<glm::vec2(float, float)> dirAt) {
     m_riverDirFn = std::move(dirAt);
     rebuildSurface();      // shading-only input: just restamp the surface cells
@@ -505,10 +510,26 @@ void WaterManager::applyRiverInflows() {
         }
         if (bedY < 0) continue;
         m_sim.setChannel(lx, bedY, lz, true);   // riverbed never evaporates dry
-        // Implicit-reservoir pins on the RECESSED part of the band only (see setRiverQuery):
-        // the ribbon is full inside the carve; the non-recessed parabolic edges are left to the CA.
-        if (carveDepth >= 0.5f)
-            m_sim.setSource(lx, bedY, lz, WaterSimulation::MAX_MASS);
+        // Order-aware pins (small-scale plan Phase 2a). Unbound order query = legacy: everything
+        // is a big river.
+        const int order = m_riverOrderFn
+            ? m_riverOrderFn(static_cast<float>(m_origin.x + lx) + 0.5f,
+                             static_cast<float>(m_origin.z + lz) + 0.5f)
+            : 3;
+        if (order >= 3) {
+            // Implicit-reservoir pins on the RECESSED part of the band only (see setRiverQuery):
+            // the ribbon is full inside the carve; the non-recessed parabolic edges are left to
+            // the CA. carve ≥ 0.5 is exactly where the generator's lround recessed the bed a full
+            // voxel, so every full pin sits at-or-below its banks by construction.
+            if (carveDepth >= 0.5f)
+                m_sim.setSource(lx, bedY, lz, WaterSimulation::MAX_MASS);
+        } else if (carveDepth >= 0.15f) {
+            // CREEK (order 1-2): a FRACTIONAL ribbon on uncarved ground. Clamping the pin to the
+            // sim's MIN_HOLD makes the ribbon incapable of horizontal transfers — the worst case
+            // is a static ribbon, never the hillside sheet that forced the 496cdc10 revert. The
+            // parabolic sub-0.15 band edges stay tag-only (mirroring the big rivers' edge rule).
+            m_sim.setSource(lx, bedY, lz, std::min(carveDepth, m_sim.minHold()));
+        }
     }
 }
 

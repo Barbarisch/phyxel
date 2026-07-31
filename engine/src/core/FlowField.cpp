@@ -95,7 +95,12 @@ float FlowField::channelHalfWidth(int order) {
 }
 
 float FlowField::channelDepth(int order) {
-    static const float dp[6] = {0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 2.0f};  // orders 1-2 sub-voxel → no carve
+    // Orders 1-2 are CREEKS (small-scale plan Phase 2a): sub-voxel WATER depths — thirds of a
+    // voxel, matching the subcube step — that the water runtime pins as a fractional ribbon
+    // (clamped to the sim's MIN_HOLD so it can never sheet). They still cut no TERRAIN: the
+    // generator clamps the surface carve to order ≥ 3 (a 0.66 centreline would lround to a full
+    // voxel trench), and nearestChannel still skips them for valley shaping.
+    static const float dp[6] = {0.33f, 0.66f, 1.0f, 1.0f, 1.0f, 2.0f};
     if (order < 1) return 0.0f;
     return dp[order > 6 ? 5 : order - 1];
 }
@@ -103,7 +108,7 @@ float FlowField::channelDepth(int order) {
 FlowField::ChannelHit FlowField::segmentChannel(float px, float pz, float ax, float az,
                                                 float bx, float bz, int order) {
     ChannelHit h;
-    if (order < 3) return h;                       // orders 1-2 are sub-voxel → no bed carve
+    if (order < 1) return h;                       // not a river cell
     const float halfW = channelHalfWidth(order);
     const float dist = pointSegDist(px, pz, ax, az, bx, bz);
     if (dist >= halfW) return h;

@@ -579,6 +579,28 @@ TEST(WaterSimulation, PuddlePersistsUnderEvaporation) {
     EXPECT_NEAR(sim.totalMass(), 0.3f, 1e-4f);
 }
 
+// A line of FRACTIONAL pins (a creek ribbon, small-scale plan Phase 2a) must reach genuine rest:
+// the re-pin pass counts a drifted source as movement, so if pinned-at-hold cells leaked ANY mass
+// each step, the field would churn forever (and the settle-skip perf win would never engage).
+TEST(WaterSimulation, FractionalPinnedRibbonSettles) {
+    WaterSimulation sim(16, 4, 5);
+    addFloor(sim);
+    for (int x = 2; x <= 13; ++x) sim.setSource(x, 1, 2, 0.3f);   // the ribbon, pinned at the hold
+    int guard = 0;
+    while (!sim.settled() && guard++ < 500) sim.step();
+    ASSERT_TRUE(sim.settled()) << "fractional pinned ribbon never reached rest (re-pin churn)";
+
+    const unsigned long long sweeps = sim.sweepsRun();
+    const float mass = sim.totalMass();
+    for (int i = 0; i < 100; ++i) sim.step();
+    EXPECT_EQ(sim.sweepsRun(), sweeps) << "settled ribbon kept sweeping";
+    EXPECT_FLOAT_EQ(sim.totalMass(), mass);
+    for (int x = 2; x <= 13; ++x)
+        EXPECT_FLOAT_EQ(sim.massAt(x, 1, 2), 0.3f) << "ribbon cell drifted at x=" << x;
+    EXPECT_FLOAT_EQ(sim.massAt(2, 1, 1), 0.0f) << "ribbon leaked sideways";
+    EXPECT_FLOAT_EQ(sim.massAt(2, 1, 3), 0.0f) << "ribbon leaked sideways";
+}
+
 // Unbounded-spread red case WITHOUT evaporation: the footprint must be bounded by geometry alone.
 TEST(WaterSimulation, SpillFootprintIsBounded) {
     WaterSimulation sim(31, 5, 31);

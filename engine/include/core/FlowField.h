@@ -46,15 +46,18 @@ public:
                                             const std::vector<int>& accum, int threshold);
 
     // Grounded channel geometry by Strahler order (docs/TerrainGenerationV2.md §P2; Doll et al.
-    // NC Coastal-Plain hydraulic geometry). Width 2/3/5/8/14/22 voxels → half-width below; carve
-    // depth 0/0/1/1/1/2 voxels — orders 1–2 are SUB-VOXEL so they do NOT carve a bed (surface-only).
+    // NC Coastal-Plain hydraulic geometry). Width 2/3/5/8/14/22 voxels → half-width below; depth
+    // 0.33/0.66/1/1/1/2 voxels. Orders 1–2 are CREEKS: sub-voxel WATER depths for the runtime's
+    // fractional ribbon pin — they carve no TERRAIN (the generator clamps the surface carve to
+    // order ≥ 3) and shape no valley (nearestChannel skips them).
     static float channelHalfWidth(int order);
     static float channelDepth(int order);
 
-    // River carve at a world column: rivers are coarse cells, so each is modeled as a segment from its
-    // centre to its downstream river cell's centre; a column carves if within half-width of the nearest
-    // such segment, with a parabolic bed (deepest at the centreline). Returns the deepest (max-order)
-    // hit. hit=false where no order≥3 channel is within range.
+    // Channel at a world column: rivers are coarse cells, so each is modeled as a segment from its
+    // centre to its downstream river cell's centre; a column is on the channel if within half-width
+    // of the nearest such segment, with a parabolic depth profile (deepest at the centreline).
+    // Returns the deepest (max-order) hit; hit=false off the network. Orders 1-2 report fractional
+    // sub-voxel depths (creek water); consumers that CARVE TERRAIN must gate on order ≥ 3.
     struct ChannelHit {
         bool hit = false;
         int order = 0;
@@ -81,9 +84,9 @@ public:
     };
     NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius) const;
 
-    // Per-segment channel test (the geometry, exposed for direct testing): a point p carves iff
-    // order>=3 (orders 1-2 sub-voxel → no bed) AND p is within half-width of segment a→b, with a
-    // parabolic bed (full depth at the centreline, 0 at the edge). channelAt applies this per river cell.
+    // Per-segment channel test (the geometry, exposed for direct testing): a point p is on the
+    // channel iff order>=1 AND p is within half-width of segment a→b, with a parabolic depth
+    // (full channelDepth at the centreline, 0 at the edge). channelAt applies this per river cell.
     static ChannelHit segmentChannel(float px, float pz, float ax, float az, float bx, float bz, int order);
 
     int maxAccum() const { return m_maxAccum; }

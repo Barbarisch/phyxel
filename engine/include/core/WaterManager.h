@@ -120,6 +120,18 @@ public:
     void setRiverQuery(std::function<float(float worldX, float worldZ)> depthAt);
     bool hasRiverQuery() const { return static_cast<bool>(m_riverFn); }
 
+    // Strahler ORDER of the channel at a world column (0 = none) — FlowField::channelAt(...).order
+    // matches the contract: the order of the SAME segment hit the depth query reports, NEVER the
+    // column's coarse cell order (orderAt) — the two disagree wherever a creek segment crosses a
+    // higher-order cell, and mixing them full-pins uncarved creek ground (measured flood).
+    // Orders 1-2 are creeks (small-scale plan Phase 2a): their beds get a FRACTIONAL pin
+    // clamped to the sim's MIN_HOLD, so a creek is a static sub-voxel ribbon that physically CANNOT
+    // sheet sideways (a pinned cell at/below the hold never makes horizontal transfers) — the
+    // zero-flood-risk re-opening of the gates the 496cdc10 revert closed. Unbound → every channel
+    // is treated as order ≥ 3 (legacy full-pin semantics, keeps existing tests/worlds unchanged).
+    void setRiverOrderQuery(std::function<int(float worldX, float worldZ)> orderAt);
+    bool hasRiverOrderQuery() const { return static_cast<bool>(m_riverOrderFn); }
+
     // KINEMATIC river flow direction (WaterSystemV3 Phase 3). A baked river is pinned full along
     // its whole carve, so it performs NO transfers and the CA's flow proxy reads zero — a river
     // would shade like a long thin lake. Bind the bake's downhill direction
@@ -231,6 +243,7 @@ private:
                                                      // match the sea-plane renderer or they drift
     std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
     std::function<float(float, float)> m_riverFn;    // river carve depth (Phase C2); null = none
+    std::function<int(float, float)>   m_riverOrderFn; // Strahler order (creek pins); null = legacy ≥3
     std::function<glm::vec2(float, float)> m_riverDirFn; // baked downhill dir (V3 P3); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)

@@ -351,6 +351,54 @@ TEST(WaterManagerTest, RiverWithEvaporationReachesBoundedSteadyStateWithWetBed) 
         << "a non-recessed band-edge column was pinned — full water standing on the bank";
 }
 
+// ── CREEKS (small-scale plan Phase 2a) ────────────────────────────────────────────────────────
+// Orders 1-2 were pure labels: four separate gates kept them bone dry, and the one attempt to
+// open them (496cdc10) pinned FULL voxels into channels with no bed and flooded a hillside —
+// reverted. This is the re-opening with both fixes in place: the pin is FRACTIONAL and clamped
+// to the sim's MIN_HOLD, so a pinned creek cell can never make a horizontal transfer. The worst
+// case is a static ribbon, never a sheet. RED before the order-aware pin mapping: an order-2
+// creek's carve depth (0.66) is below the legacy 0.5→full-pin threshold's intent but above the
+// threshold itself — under the OLD mapping it would FULL-PIN (1.0 > hold → donates → spreads);
+// an order-1 creek (0.33 < 0.5) pins nothing at all and stays dry. Both wrong, both caught here.
+TEST(WaterManagerTest, CreekPinIsFractionalAndConfined) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(24, 8, 24));
+    for (int z = 0; z < 24; ++z)          // flat solid ground at y=2 — no bed recess AT ALL,
+        for (int x = 0; x < 24; ++x)      // the exact geometry that made the full pin flood
+            wm.setSolidWorld(x, 2, z, true);
+    // An order-2 creek along x at z=12.5: parabolic band, half-width 1.5, centreline depth 0.66.
+    wm.setRiverQuery([](float, float wz) {
+        const float d = std::fabs(wz - 12.5f);
+        if (d >= 1.5f) return 0.0f;
+        const float t = d / 1.5f;
+        return 0.66f * (1.0f - t * t);
+    });
+    wm.setRiverOrderQuery([](float, float) { return 2; });
+
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+
+    const float hold = wm.sim().minHold();
+    // Bed cells (y=3, on the solid ground): wet, fractional, at/below the hold, channel-tagged.
+    for (int x = 4; x <= 20; x += 4) {
+        const float m = wm.massAtWorld(glm::vec3(x + 0.5f, 3.5f, 12.5f));
+        EXPECT_GT(m, 0.1f)  << "creek bed dry at x=" << x << " — the order gates are back";
+        EXPECT_LE(m, hold + 1e-4f)
+            << "creek pinned ABOVE the hold at x=" << x << " — the 496cdc10 flood risk";
+    }
+    // CONFINEMENT — the anti-hillside-sheet assertion. No evaporation is enabled here: the bound
+    // must come from the hold alone. Off-band columns must be EXACTLY dry.
+    for (int z = 0; z < 24; ++z) {
+        if (std::fabs((z + 0.5f) - 12.5f) < 2.5f) continue;   // the creek band ± a cell
+        for (int x = 0; x < 24; ++x)
+            for (int y = 3; y < 8; ++y)
+                ASSERT_EQ(wm.massAtWorld(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f)), 0.0f)
+                    << "creek water escaped the band at (" << x << "," << y << "," << z << ")";
+    }
+    // And the ribbon is STATIC: total mass constant over another observation window.
+    const float before = wm.totalMass();
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+    EXPECT_NEAR(wm.totalMass(), before, 1e-3f) << "creek ribbon is not at rest";
+}
+
 // River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
 // neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
 // region floor wherever chunks haven't streamed in yet.

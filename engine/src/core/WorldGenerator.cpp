@@ -671,7 +671,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         if (m_flow) {
             const FlowField::ChannelHit ch = m_flow->channelAt(mwx, mwz);
             if (ch.hit) {
-                col.surfaceY -= static_cast<int>(std::lround(ch.depth));
+                // TERRAIN carve is order ≥ 3 ONLY. Orders 1-2 (creeks) report fractional WATER
+                // depths for the runtime's ribbon pin — an order-2 centreline (0.66) would lround
+                // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
+                // creek. riverOrder is still recorded for every order: the water runtime and the
+                // flora gate both consume it (no trees standing in the creek line).
+                if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
                 col.riverOrder = ch.order;
             }
         }

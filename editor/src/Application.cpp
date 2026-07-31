@@ -5796,6 +5796,25 @@ void Application::autoLoadGameDefinition() {
                             return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
+                        // Strahler order (small-scale Phase 2a): lets the pin mapping distinguish
+                        // creeks (orders 1-2 → fractional MIN_HOLD-clamped ribbon) from rivers
+                        // (order ≥ 3 → full pins in the recessed carve).
+                        //
+                        // MUST be channelAt().order — the order OF THE HIT SEGMENT the depth came
+                        // from — NEVER orderAt (the column's coarse CELL order). They disagree
+                        // wherever a creek segment crosses a higher-order cell (every junction
+                        // cell: its 128-unit cell claims order 3 while the order-2 segment runs
+                        // through it). Cell-order + segment-depth pinned FULL voxels onto uncarved
+                        // creek ground there — a ~900-mass sheet flood, measured live in CreekLab
+                        // 2026-07-30 before this binding was corrected.
+                        waterManager->setRiverOrderQuery([this](float wx, float wz) -> int {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            const FlowField* f = g ? g->riverNetwork() : nullptr;
+                            if (!f) return 0;
+                            const auto h = f->channelAt(wx, wz);
+                            return h.hit ? h.order : 0;
+                        });
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
                         // flow for them. Feed the shader the bake's downhill direction so a river
                         // reads as MOVING. Visual only — the field stays hydrostatic.
@@ -5811,6 +5830,7 @@ void Application::autoLoadGameDefinition() {
                         LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
                         waterManager->setRiverQuery(nullptr);
+                        waterManager->setRiverOrderQuery(nullptr);
                         waterManager->setRiverFlowQuery(nullptr);
                     }
                     // Evaporation default (river flow tuning): generation-fed worlds want bounded
