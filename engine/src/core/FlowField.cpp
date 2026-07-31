@@ -123,8 +123,9 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     // segment comes within halfWidth of the point has its centre within halfWidth + cellSize of it.
     // DEPENDS on drainage being 4-connected (segment length = one orthogonal cellSize hop — see
     // PriorityFlood::fillWithFlow + the steepest-descent pass); if that ever becomes 8-connected the
-    // segment length grows to cellSize·√2 and this radius must grow too. For the real 32 m cell it is
-    // 5×5 (r=2, since ceil(11/32)=1); it stays correct for small cellSize / large orders.
+    // segment length grows to cellSize·√2 and this radius must grow too. At the real 128-unit bake
+    // cell (WorldGenerator kHydroCell) it is 5×5 (r=2, since ceil(11/128)=1); it stays correct for
+    // small cellSize / large orders.
     const int r = 1 + static_cast<int>(std::ceil(channelHalfWidth(m_maxOrder) / m_cellSize));
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {

@@ -11523,6 +11523,122 @@ void Application::registerWaterCommands() {
             r["surface_cells"]       = static_cast<int>(waterManager->surfaceCells().size());
         }
     });
+
+    // ── Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4) ──────────────
+    // Everything a shallow-water / creek / entity-coupling change needs to assert at L2 without
+    // screenshots: per-cell sim state, waterfall lips, a rect confinement scan, and the bake's
+    // sea-level configuration.
+
+    // Full per-cell sim state at one world cell — mass, floor, solid, channel tag, source pin, flow.
+    reg.on("water_probe", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::ivec3 w(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));
+        const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
+        const glm::ivec3 l = w - o;
+        r = {{"x", w.x}, {"y", w.y}, {"z", w.z},
+             {"in_region", l.x >= 0 && l.y >= 0 && l.z >= 0 && l.x < d.x && l.y < d.y && l.z < d.z}};
+        if (!r["in_region"].get<bool>()) {
+            r["detail"] = "outside the sim region; region origin/dims included";
+            r["origin"] = {{"x", o.x}, {"y", o.y}, {"z", o.z}};
+            r["dims"]   = {{"x", d.x}, {"y", d.y}, {"z", d.z}};
+            return;
+        }
+        const auto& sim = waterManager->sim();
+        const glm::vec2 flow = sim.flowAt(l.x, l.y, l.z);
+        const float src = sim.sourceAt(l.x, l.y, l.z);
+        r["mass"]    = sim.massAt(l.x, l.y, l.z);
+        r["solid"]   = sim.isSolid(l.x, l.y, l.z);
+        r["floor"]   = sim.floorAt(l.x, l.y, l.z);
+        r["channel"] = sim.isChannel(l.x, l.y, l.z);
+        r["source_pinned"] = src >= 0.0f;
+        r["source_mass"]   = src;
+        r["flow"] = {{"x", flow.x}, {"z", flow.y}};
+    });
+
+    // Current waterfall lips (world lip point + drop height) — the mist emitter inputs.
+    reg.on("water_waterfalls", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        nlohmann::json arr = nlohmann::json::array();
+        for (const glm::vec4& f : waterManager->waterfalls())
+            arr.push_back({{"x", f.x}, {"y", f.y}, {"z", f.z}, {"drop", f.w}});
+        r = {{"waterfalls", arr}, {"count", arr.size()},
+             {"cap", Core::WaterManager::MAX_WATERFALLS}};
+    });
+
+    // Rect confinement scan — THE L2 assertion surface for "water stays where it belongs"
+    // (puddle footprints, creek ribbons, no hillside sheets). Scans the world rect clipped to
+    // the sim region; wet = mass > threshold (default RENDER_MIN, i.e. what would draw).
+    reg.on("water_footprint", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
+        const int minX = cmd.params.value("minX", o.x),  maxX = cmd.params.value("maxX", o.x + d.x - 1);
+        const int minZ = cmd.params.value("minZ", o.z),  maxZ = cmd.params.value("maxZ", o.z + d.z - 1);
+        const float thresh = cmd.params.value("threshold", Core::WaterManager::RENDER_MIN);
+        const int x0 = std::max(minX, o.x), x1 = std::min(maxX, o.x + d.x - 1);
+        const int z0 = std::max(minZ, o.z), z1 = std::min(maxZ, o.z + d.z - 1);
+        const auto& sim = waterManager->sim();
+        long wetCells = 0, wetCols = 0;
+        double mass = 0.0;
+        glm::ivec2 lo(INT_MAX), hi(INT_MIN);
+        for (int wz = z0; wz <= z1; ++wz)
+            for (int wx = x0; wx <= x1; ++wx) {
+                bool colWet = false;
+                for (int ly = 0; ly < d.y; ++ly) {
+                    const float m = sim.massAt(wx - o.x, ly, wz - o.z);
+                    if (m <= 0.0f) continue;
+                    mass += m;
+                    if (m > thresh) { ++wetCells; colWet = true; }
+                }
+                if (colWet) {
+                    ++wetCols;
+                    lo.x = std::min(lo.x, wx); lo.y = std::min(lo.y, wz);
+                    hi.x = std::max(hi.x, wx); hi.y = std::max(hi.y, wz);
+                }
+            }
+        r = {{"wet_cells", wetCells}, {"wet_columns", wetCols}, {"mass", mass},
+             {"threshold", thresh},
+             {"rect_scanned", {{"minX", x0}, {"minZ", z0}, {"maxX", x1}, {"maxZ", z1}}},
+             {"rect_clipped", x0 != minX || z0 != minZ || x1 != maxX || z1 != maxZ}};
+        if (wetCols > 0)
+            r["wet_bbox"] = {{"minX", lo.x}, {"minZ", lo.y}, {"maxX", hi.x}, {"maxZ", hi.y}};
+    });
+
+    // The bake's sea-level configuration + the §2e closed-basin detector, queryable at runtime.
+    reg.on("water_bake_info", [this](const Core::APICommand&, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!g) {
+            r = {{"error", "no streaming generator"},
+                 {"detail", "the hydrology bake lives on the streaming generator "
+                            "(world.streaming: true in a height-based world)"}};
+            return;
+        }
+        r = {{"generator_sea_level", g->getTerrainParams().seaLevelY}};
+        const HydrologyMap* h = g->hydrology();
+        const FlowField* f = g->riverNetwork();
+        if (!h || !f) {
+            r["error"]  = "no hydrology bake";
+            r["detail"] = "height-based streamed worlds bake on construction; Flat/heightmap worlds don't";
+            return;
+        }
+        r["bake_sea_level"]     = h->seaLevel();
+        r["min_terrain"]        = h->minTerrain();
+        r["has_outlet"]         = h->hasOutlet();
+        r["drainage_complete"]  = f->drainageComplete();
+        r["max_order"]          = f->maxOrder();
+        r["hydro_cell_size"]    = f->cellSize();
+        r["hydro_cells"]        = {{"x", f->cellsX()}, {"z", f->cellsZ()}};
+        if (!h->hasOutlet())
+            r["warning"] = "terrain never reaches sea level: every basin fills to its spill "
+                           "(perched hillside lakes). Set game.json water.seaLevel to a level "
+                           "the terrain reaches, then regenerate the world.";
+    });
+
+    // Ripple/disturbance injection — lands with the RippleField (small-scale plan Phase 3).
+    reg.on("water_ripple", [](const Core::APICommand&, nlohmann::json& r) {
+        r = {{"error", "no ripple field yet"},
+             {"detail", "the disturbance heightfield is small-scale plan Phase 3; this command is "
+                        "registered ahead of it as the entity-independent L4 hook"}};
+    });
 }
 
 namespace {

@@ -16,8 +16,18 @@
 
 ### Done, verified, on `origin/main`
 
+> **ACTIVE WORKSTREAM (2026-07-30): the SMALL-SCALE plan** — user-chosen scope: (a) close-up
+> physical feel (splashes, ripples, wading, buoyancy) + (b) small water bodies (creeks, puddles,
+> ponds). Phases: 0 foundations (✅ DONE, below) → 1 MIN_HOLD shallow-water gate → 2 creek
+> fractional ribbon (2a static, user-chosen) → 3 RippleField → 4 entity coupling (4.1 query API,
+> 4.2 buoyancy, 4.3 wading; swimming deferred by user decision). The far-field Tier-0/outflow
+> work in this doc's §2d is deliberately DEFERRED behind it.
+
 | # | Item | Evidence |
 |---|---|---|
+| ✅ | **Bake honors `water.seaLevel`** (2026-07-30) — plumbed into `HydrologyMap`/`FlowField` construction + the seabed/altitude/flora/fauna material gates + the hydro-cache key; persisted as `WorldRecipe.seaLevelY` in `world_meta` (stored value wins, loader WARNs on game.json mismatch); loud closed-basin WARN at bake time (`HydrologyMap::minTerrain/hasOutlet`) | Red→green `TerrainRecipeTest.SeaLevelOverrideReachesTheHydrologyBake` (was 16 regardless of recipe); `SeaLevelRoundTripsThroughRecipeJson`; `HydrologyMapTest.ReportsOutletAndMinTerrain`; full suite 3021/3024 (2 fails = pre-existing LLM-network tests, 1 skip) |
+| ✅ | **Near-field probes** (2026-07-30) — `water_probe` (per-cell mass/floor/solid/channel/pin/flow), `water_footprint` (rect confinement scan — the L2 assertion surface), `water_waterfalls`, `water_bake_info`, `water_ripple` (stub until Phase 3) | All exercised live in CreekLab/RiverLab; `WaterSimulation::sourceAt` added for the pin probe |
+| ✅ | **Testbeds measured, §2e OVERTURNED** (2026-07-30) — see the correction in §2e; labs need NO seaLevel change and NO regen; reference baselines committed in `docs/water-refs/` with cameras recorded in each lab's game.json | CreekLab: min_terrain −23.5, outlet TRUE, drainage TRUE. RiverLab: min_terrain −14.1, outlet TRUE, max order 5, order-3 gorge verified wet (`water_footprint` 448 wet cells) |
 | ✅ | **Sea mesh: polar → Cartesian clipmap** (`SeaMesh.h/.cpp`, `water.vert`) | Camera-centred wave vortex gone: top-down crest-orientation concentration **0.915** about one direction. **29,312 tris reaching 1024u** vs the old ~33,800 reaching 700u. 5 tests in `SeaMeshTest`. |
 | ✅ | **Shallow-water "quilt"** — was the foam layer, now simplex + 2-scale mask | Attributed by A/B probe (`WATER_FOAM_DEBUG_SCALE`), not inference. Axis-alignment 1.13 → 0.98 against a 1.02 isotropic reference. |
 | ✅ | **Per-cell water surface read as a tiled grid** (`water_cell.vert`) | Side faces nudged 0.04 outward overlapped the neighbour's top quad → double-blended bright lines at cell pitch (artifact peak 36.3px ≈ one voxel). Now only real curtains draw. |
@@ -276,6 +286,19 @@ for rendering; the sim should only drive the near field where it adds motion.
 no per-frame CPU meshing. Lakes are calm, so it should be drawn with a low wave amplitude.
 
 ## ⚠️ 2e. READ FIRST — much of §2b–§2d was diagnosed against BROKEN TEST WORLDS (2026-07-30)
+
+> **⚡ MEASURED CORRECTION (2026-07-30, later the same day): the "broken testbeds" theory below is
+> itself WRONG.** After plumbing `water.seaLevel` into the bake and adding `water_bake_info`
+> (`HydrologyMap::minTerrain/hasOutlet`), both labs measure SOUND: CreekLab min terrain **−23.5**,
+> RiverLab **−14.1** — both below sea level 16, so Priority-Flood has a real ocean outlet and
+> drainage completes in both. The "terrain y≈36-41 / y≈100-380" readings were NEAR-SPAWN samples;
+> over the full 32 km bake box both worlds reach the sea. Consequences: the perched high lakes in
+> RiverLab (flat levels y≈272-346) are **legitimate mountain basins filled to their spill — do not
+> "fix" them**; the labs need no seaLevel override and no regeneration; and every §2c/§2d symptom
+> reduces to the two real defects — the **render slab** (§2c, still open) and the **small-scale
+> gaps** (orders 1-2 dry, shallow water deleted — the active small-scale plan). The paragraphs
+> below are kept as a record of the reasoning error: a config-level theory was adopted without a
+> region-wide measurement, twice. The METHOD warnings (camera confirm, restart refill) remain valid.
 
 Anyone picking this up should treat the diagnoses below with suspicion, because the testbeds they
 were measured in are misconfigured **by me**, and I spent a day debugging the engine against my own

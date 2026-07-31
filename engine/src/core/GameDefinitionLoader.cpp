@@ -34,6 +34,7 @@
 
 #include <unordered_set>
 #include <algorithm>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -153,7 +154,13 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
 
     // Load each section in order: world → structures → player → camera → NPCs → story
     if (definition.contains("world")) {
-        loadWorld(definition["world"], subsystems, result);
+        // The sea level the world generates against comes from the sibling "water" block — the
+        // hydrology bake needs the SAME level the water runtime will fill to, or Priority-Flood
+        // floods against the wrong outlet (perched hillside lakes; WaterPhysicalFeelPlan §2e).
+        float bakeSeaLevelY = Core::kSeaLevelY;
+        if (definition.contains("water") && definition["water"].is_object())
+            bakeSeaLevelY = definition["water"].value("seaLevel", Core::kSeaLevelY);
+        loadWorld(definition["world"], bakeSeaLevelY, subsystems, result);
         if (!result.error.empty()) return result;
     }
 
@@ -210,7 +217,8 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
 // World Generation
 // ============================================================================
 
-void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, GameDefinitionResult& result) {
+void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, GameSubsystems& sub,
+                                     GameDefinitionResult& result) {
     if (!sub.chunkManager) {
         result.error = "ChunkManager not available for world generation";
         return;
@@ -252,6 +260,9 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
         if (p.contains("stoneLevel")) tp.stoneLevel = p["stoneLevel"].get<float>();
         if (p.contains("climateFrequency")) tp.climateFrequency = p["climateFrequency"].get<float>();
     }
+    // Sea level from the game.json "water" block (extracted by the caller) — set unconditionally
+    // so the recipe snapshot below carries it and the bake floods against the right outlet.
+    generator.getTerrainParams().seaLevelY = bakeSeaLevelY;
 
     // Per-world recipe (docs/WorldRecipeAndFlora.md): the world DB is the source of truth for
     // generation tuning. If a recipe is stored, apply it (reproducible, immune to global
@@ -262,13 +273,30 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, GameSubsystems& sub, 
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
             recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));
+            // The stored recipe's sea level WINS over game.json: the terrain carve, seabed
+            // materials and hydrology table were generated against it, and re-flooding an
+            // existing world at a different level makes them all lie. Warn loudly instead.
+            if (std::abs(recipe.seaLevelY - bakeSeaLevelY) > 0.01f)
+                LOG_WARN("GameDefinitionLoader", "World: game.json water.seaLevel " +
+                         std::to_string(bakeSeaLevelY) + " != world.db recipe seaLevelY " +
+                         std::to_string(recipe.seaLevelY) +
+                         " — using the recipe value (the terrain was generated against it). "
+                         "Regenerate the world to change its sea level.");
             generator.applyRecipe(recipe);
             LOG_INFO("GameDefinitionLoader", "World: applied generation recipe from world.db");
         } else {
             recipe.type = typeStr;
             if (storage->setMeta("recipe", recipe.toJson()))
                 LOG_INFO("GameDefinitionLoader", "World: synthesized + persisted generation recipe to world.db");
+            // Fresh world: apply the just-synthesized recipe so the coarse model + hydrology
+            // bake are rebuilt with the game.json params (climateFrequency, seaLevelY). The
+            // ctor baked with defaults; without this the up-front generation would use that
+            // stale bake while streamed chunks (applyRecipe'd below) use the correct one.
+            generator.applyRecipe(recipe);
         }
+    } else {
+        // No world storage (ephemeral host / tests): still rebake with the game.json params.
+        generator.applyRecipe(recipe);
     }
 
     // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the

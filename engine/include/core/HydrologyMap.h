@@ -38,8 +38,17 @@ public:
     int cellsZ() const { return m_cellsZ; }
     float seaLevel() const { return m_seaLevel; }
 
+    // Lowest sampled terrain over the baked grid. If it sits ABOVE sea level the Priority-Flood
+    // had no ocean outlet anywhere — the whole region is one closed basin filling to its spill,
+    // which puts lakes on hillsides. That is a world/sea-level CONFIGURATION problem, not a bake
+    // defect; expose the fact so callers can warn loudly instead of someone diagnosing the
+    // symptom downstream (docs/WaterPhysicalFeelPlan.md §2e).
+    float minTerrain() const { return m_minTerrain; }
+    bool hasOutlet() const { return m_minTerrain <= m_seaLevel; }
+
 private:
     float m_originX = 0.0f, m_originZ = 0.0f, m_cellSize = 1.0f, m_seaLevel = 0.0f;
+    float m_minTerrain = 1e30f;       // lowest sampled terrain (1e30 = nothing baked)
     int m_cellsX = 0, m_cellsZ = 0;
     std::vector<float> m_waterLevel;  // per cell; NO_WATER = dry
 };

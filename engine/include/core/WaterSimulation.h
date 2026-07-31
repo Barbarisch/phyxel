@@ -64,6 +64,8 @@ public:
     // Note: sources inject/remove mass, so total mass is not conserved while any exist.
     void  setSource(int x, int y, int z, float mass);
     void  clearSource(int x, int y, int z);
+    // Pinned source mass at a cell (< 0 = not a source). Debug/probe surface (water_probe).
+    float sourceAt(int x, int y, int z) const;
 
     // Ocean seam: flood from `localSeeds` through non-solid cells with y <= seaLevelY
     // and pin each reached cell as a full source — an infinite reservoir that holds sea

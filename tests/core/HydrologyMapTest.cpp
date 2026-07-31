@@ -72,6 +72,21 @@ TEST(HydrologyMapTest, DrainingSlopeHasNoSpuriousLakes) {
     EXPECT_EQ(wet, 0) << "a draining slope above sea must not grow lakes";
 }
 
+TEST(HydrologyMapTest, ReportsOutletAndMinTerrain) {
+    // The §2e misconfiguration detector: terrain entirely above sea level means Priority-Flood has
+    // no ocean outlet — the whole region is one closed basin and lakes perch on hillsides. The map
+    // must expose that fact (minTerrain/hasOutlet) so world load can warn loudly.
+    auto plateau = [](float, float) { return 200.0f; };  // uniform, far above sea=16
+    HydrologyMap closed(plateau, 0.0f, 0.0f, 8, 8, 10.0f, 16.0f);
+    EXPECT_FLOAT_EQ(closed.minTerrain(), 200.0f);
+    EXPECT_FALSE(closed.hasOutlet()) << "terrain never reaches sea level → no outlet";
+
+    auto coast = [](float x, float) { return x < 25.0f ? 0.0f : 200.0f; };  // low strip reaches the sea
+    HydrologyMap open(coast, 0.0f, 0.0f, 8, 8, 10.0f, 16.0f);
+    EXPECT_FLOAT_EQ(open.minTerrain(), 0.0f);
+    EXPECT_TRUE(open.hasOutlet()) << "sub-sea terrain exists → the flood has an outlet";
+}
+
 TEST(HydrologyMapTest, Deterministic) {
     auto height = [](float x, float z) { return std::sin(x * 0.01f) * 20.0f + std::cos(z * 0.013f) * 15.0f + 30.0f; };
     HydrologyMap a(height, -100.0f, -100.0f, 24, 24, 12.0f, 5.0f);

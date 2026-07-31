@@ -9,6 +9,7 @@
 
 #include "core/CoarseWorldModel.h"
 #include "core/Spline.h"
+#include "core/WorldConstants.h"
 
 namespace Phyxel {
 
@@ -62,6 +63,12 @@ public:
         float caveThreshold = 0.3f;     // Cave generation threshold
         float stoneLevel = 8.0f;        // Below this level, generate stone instead of grass
         float climateFrequency = 0.002f; // Biome size: lower = bigger biomes (~1/cf wavelength). 0.002 ~= 500-unit climate cells, biomes several chunks across.
+        // Sea level this world generates against: the hydrology bake's Priority-Flood outlet AND
+        // the seabed/altitude/flora material gates. Sourced from game.json `water.seaLevel` via the
+        // recipe (applyRecipe rebakes); default keeps legacy behavior. Deliberately NOT consumed by
+        // the continental height spline or Flat's surface Y — a water setting must never move
+        // terrain that existing worlds/cameras were authored against (WaterLab sets 54).
+        float seaLevelY = Core::kSeaLevelY;
     };
     
     TerrainParams& getTerrainParams() { return terrainParams; }

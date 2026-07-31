@@ -258,9 +258,11 @@ struct HydroBakeKey {
     int genType;
     uint32_t seed;
     float climateFreq;
+    float seaLevel;   // the flood outlet is part of the bake's identity (same seed, different sea → different lakes)
     std::vector<Spline::Point> spline;
     bool operator==(const HydroBakeKey& o) const {
-        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq) return false;
+        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
+            seaLevel != o.seaLevel) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
@@ -332,8 +334,9 @@ void WorldGenerator::rebuildCoarseModel() {
         return;
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
+    const float seaLvl = terrainParams.seaLevelY;
     const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
-                           m_continentalHeightSpline.points()};
+                           seaLvl, m_continentalHeightSpline.points()};
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
@@ -356,12 +359,23 @@ void WorldGenerator::rebuildCoarseModel() {
         1, static_cast<int>(std::lround(FlowField::kDefaultRiverThresholdCells *
                                         (32.0 * 32.0) / (kHydroCell * kHydroCell))));
     m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
-                                             kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
+                                             kHydroCells, kHydroCells, kHydroCell, seaLvl);
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
-                                          kHydroCells, kHydroCells, kHydroCell, kSeaLevelY, riverThresh);
+                                          kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
-             << " cells, maxAccum=" << m_flow->maxAccum() << " maxOrder=" << m_flow->maxOrder()
+             << " cells, seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
+             << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
+    // Loud misconfiguration guard (docs/WaterPhysicalFeelPlan.md §2e): terrain that never reaches
+    // sea level gives Priority-Flood no ocean outlet, so the whole region is one closed basin that
+    // fills to its spill — lakes perch on hillsides and every downstream water diagnosis is chasing
+    // a config error. Say so HERE, at bake time, instead of letting it surface as a "water bug".
+    if (!m_hydro->hasOutlet()) {
+        LOG_WARN_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology bake has NO sea outlet: min terrain "
+                 << m_hydro->minTerrain() << " sits ABOVE seaLevel " << seaLvl
+                 << ". Every basin fills to its spill (perched hillside lakes). Set game.json "
+                    "water.seaLevel to a level the terrain actually reaches.");
+    }
     // Store in the cache (another thread may have baked the same key meanwhile — keep the first, they
     // are identical). Bounded: evict oldest once over the cap (few distinct configs in practice).
     {
@@ -612,6 +626,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     }
 
     if (generationType == GenerationType::Flat) {
+        // Deliberately the ENGINE constant, not terrainParams.seaLevelY: Flat worlds are authored
+        // against "solid below Y=16", and a water.seaLevel override must not move their ground.
         col.surfaceY = static_cast<int>(kSeaLevelY);  // Flat stays flat; biome affects material only
     } else {
         // surfaceY = Layer-0 continental base (sea level + landmass rise/ocean carve)
@@ -664,7 +680,10 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
         // level, exposed rock past the angle of repose, and a lapse-rate snow line. Moderate,
         // gently-sloped land keeps its biome surface. (Flat is exempt — it stays a clean biome map.)
-        const int altitude = col.surfaceY - static_cast<int>(kSeaLevelY);
+        // Per-world sea level (terrainParams.seaLevelY): the material gates below must agree with
+        // the hydrology bake's outlet, or seabed sand / the snow line disagree with where water
+        // actually sits. (kSeaLevelY remains the default when no world override exists.)
+        const int altitude = col.surfaceY - static_cast<int>(terrainParams.seaLevelY);
         // Local slope (rise/run) via central difference over ±1 column. Reuse the centre column's
         // biome blend (climate varies far slower than the ±1 step) instead of re-running biome
         // selection per neighbor — an approximation good to well under a voxel at this scale.
@@ -677,7 +696,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         const float slope = std::sqrt(dhx * dhx + dhz * dhz);
         const float effTemp = col.temperature - altitude * kLapse01PerVoxel;  // colder with altitude
 
-        if (col.surfaceY < static_cast<int>(kSeaLevelY)) {
+        if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) {
             col.surfaceMat = "Sand";    // ocean floor / seabed (water itself arrives in P2)
         } else if (slope > kRockSlope) {
             col.surfaceMat = "Stone";   // too steep for soil to hold → exposed rock / scree
@@ -726,7 +745,7 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
     // biome's own high ground -- and that blocks flora. The Snow biome's lower ground is "SnowGrass"
     // (snow-dusted soil), which is NOT gated, so boreal conifers still grow there. sampleColumn
     // already applied the override to col.surfaceMat. (docs/TerrainGenerationV2.md §P1)
-    if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;              // seabed / underwater
+    if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) return false; // seabed / underwater (per-world sea level)
     if (col.surfaceMat == "Stone") return false;                                // cliff (slope override; no biome surfaces Stone)
     if (col.surfaceMat == "Snow") return false;                                 // alpine permanent-snow cap (above treeline)
     // P2: no trees in a carved river channel, nor on land that sits below a lake/sea surface (the
@@ -834,7 +853,7 @@ bool WorldGenerator::faunaCell(int cx, int cz, FaunaPlacement& out) {
 
     // Same physical surface gates as flora: no seabed, cliff, alpine snow, riverbed, or land
     // under a lake/sea surface (animals shouldn't spawn on water or bare rock).
-    if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;
+    if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) return false;  // per-world sea level
     if (col.surfaceMat == "Stone" || col.surfaceMat == "Snow") return false;
     if (col.riverOrder > 0) return false;
     if (m_hydro) {
@@ -910,6 +929,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     WorldRecipe r;
     r.seed = seed;
     r.climateFrequency = terrainParams.climateFrequency;
+    r.seaLevelY = terrainParams.seaLevelY;
     for (const auto& b : m_biomes) {
         WorldRecipe::BiomeTune bt;
         bt.name = b.name;
@@ -935,6 +955,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     terrainParams.climateFrequency = recipe.climateFrequency;
+    terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.
     for (const auto& bt : recipe.biomes) {
         for (auto& b : m_biomes) {

@@ -102,6 +102,11 @@ void WaterSimulation::clearSource(int x, int y, int z) {
     markCol(x, z);
 }
 
+float WaterSimulation::sourceAt(int x, int y, int z) const {
+    if (!inBounds(x, y, z)) return -1.0f;
+    return m_source[idx(x, y, z)];
+}
+
 int WaterSimulation::fillOcean(const std::vector<glm::ivec3>& localSeeds, int seaLevelY) {
     markAllCols();                           // the ocean re-pin/clear can touch any column
     // Ocean owns the source system: clear all pins, then re-flood.
