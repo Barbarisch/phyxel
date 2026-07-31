@@ -1,0 +1,64 @@
+C3.2 / C3.4 + THE C3.3 MEASUREMENT — Core::LodPyramidService
+Date 2026-07-31. Debug build. Branch destruction-system-v2.
+
+C3.2 -- build / persist / invalidate / SERVE. facesFromStorage() is C3's payoff: renderable
+geometry for a chunk that is NOT loaded. 8 tests, all green.
+  * ServedFacesMatchTheResidentMesherExactly -- byte-identical packedData + textureIndex against
+    LodChunkMesh::buildForLevel on the live chunk, levels 1-3. If storage ever drifts from the
+    live mesher, distant terrain silently disagrees with near terrain; this catches that.
+  * ServesFacesForAChunkThatIsNotResident also asserts every served face is tagged isLodCell()
+    with the RIGHT level -- mis-tagged faces decode as unit cubes and collapse the chunk to a
+    corner rather than failing loudly.
+  * UsesChunkCoordinatesNotWorldOrigin -- built at world origin (64,0,-96), asserts the pyramid
+    lands at chunk (2,0,-3) and NOT at (64,0,-96). Getting that conversion wrong serves the right
+    geometry in the wrong place: plausible-looking, badly wrong terrain.
+  * InvalidateStopsServingStaleGeometry -- and that a failed serve leaves the out param empty.
+
+C3.4 -- only persist what the generator cannot reproduce (LargeWorldScalePlan.md:756, "the
+field's #1 correction"). shouldPersist() is sub/microcube content: the terrain generator emits
+whole cubes; structures and edits introduce finer voxels.
+    DoesNotPersistPlainGeneratedTerrain   -> buildAndPersist returns 0, nothing stored
+    PersistsChunksCarryingStructures      -> stored
+  STATED LIMITATION: flora templates are stamped as sub/microcubes, so a chunk holding only
+  generated trees currently reads as "worth persisting". Conservative (stores more, never less).
+  Narrowing it needs a real edited-vs-generated flag on Chunk, which does not exist.
+
+============================================================================
+C3.3's MEASUREMENT — what serving a level actually costs in RAM
+============================================================================
+C3.0 compared blob BYTES against process working set. Those are not the same thing, and the
+auditor was right to refuse the extrapolation. Measured here (decoded LodVolume + emitted face
+buffer), on a terrain+structure chunk:
+
+    lod 1: blob 10317 B, volume 98304 B, faces 1306 (31344 B) -> RAM 129648 B
+    lod 2: blob  1691 B, volume 12288 B, faces  266 ( 6384 B) -> RAM  18672 B
+    lod 3: blob   347 B, volume  1536 B, faces   70 ( 1680 B) -> RAM   3216 B
+    lod 4: blob   127 B, volume   192 B, faces   22 (  528 B) -> RAM    720 B
+    lod 5: blob    56 B, volume    24 B, faces    6 (  144 B) -> RAM    168 B
+
+vs ~1,310,720 B for a RESIDENT chunk. At the coarse levels actually used at distance that is
+70x (lod 2) to 7800x (lod 5) less RAM. Gated by ServeCostIsFarBelowResidency at residency/4.
+
+PROJECTED CEILING (chunks ~ 15.5 * R^2 fitted on LodBench; 5251 MB fixed baseline):
+    64 GB, full-res resident :     48,228 chunks -> radius  1,785 units   (today's wall)
+    64 GB, lod 2 served      :  3,385,465 chunks -> radius 14,955 units
+    64 GB, lod 3 served      : 19,655,909 chunks -> radius 36,036 units
+So the residency wall moves from ~1,800 units to ~15,000-36,000. THIS IS A PROJECTION, not a
+measurement: it assumes the R^2 chunk-count fit holds far outside the range it was fitted on,
+and it EXCLUDES GPU buffers for the coarse meshes and per-chunk bookkeeping. It is not a claim
+that the engine renders at 15,000 units.
+
+============================================================================
+WHAT IS *NOT* DONE
+============================================================================
+* NOT HOOKED INTO THE ENGINE. buildAndPersist is not called on chunk save, invalidate is not
+  called on voxel edit, and facesFromStorage is not called by the renderer. grep confirms
+  LodPyramidService has no production call sites -- it is reachable only from tests.
+* C3.3's RENDERER INTEGRATION IS NOT DONE. Nothing draws served geometry: there is no GPU
+  buffer, no draw call, and no far-chunk registry. The data path and its cost are proven; the
+  drawing is not written.
+* No end-to-end runtime evidence. No screenshot, no live face count, no FPS. Every number above
+  is from unit tests, not a running engine.
+* The pyramid-build cost gate from the plan ("does not regress chunk-edit remesh beyond the
+  recorded ~40-50 ms/chunk budget") is NOT measured, because the build is not on the save path
+  yet to measure.
