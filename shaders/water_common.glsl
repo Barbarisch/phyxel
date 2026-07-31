@@ -40,23 +40,130 @@ vec3 waterCamForward(mat4 V) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Noise
+// ---------------------------------------------------------------------------------------------
+//
+// WHY THIS EXISTS. Foam used to be drawn by summing three sines. A sum of a few sines is not
+// "random-looking" — it is a LATTICE, and the eye reads a lattice as fabric. Measured on the live
+// frame (FFT of the water region, strongest non-DC peak over median power): the sine foam scored
+// 4.9 MILLION, with peaks at exactly the sines' own wavelengths (2.19 / 1.43 / 0.62 world units
+// against the shader's 1.90 / 1.29 / 0.66). That is the reported "patchwork quilt". Adding a
+// fourth sine cannot fix it; the pattern has to stop being periodic at all.
+//
+// Noise, not a texture: no fetch, no atlas slot, and no tiling period to give the game away.
+//
+// ⚑PRECISION LIMIT: the hash is fed the INTEGER lattice cell, so it stays well-conditioned as long
+// as |cell| stays far below fp32's 2^24 exact-integer range — i.e. world coordinates up to ~1e5.
+// Beyond that adjacent cells collapse onto the same float and the noise degenerates into bands.
+// Do NOT "fix" that with a mod() wrap: that was tried on the voxel orientation hash and produced a
+// hard seam at the wrap boundary.
+//
+// AND SIMPLEX, not value noise. Value noise interpolates a SQUARE lattice, so its cells are aligned
+// to world X/Z and a thresholded mask reads as a grid of rectangles — which is exactly what replaced
+// the sine lattice on the first attempt at this fix. Measured axis-alignment of the thresholded mask
+// (gradient orientation concentrated near an axis; 1.00 = isotropic, Gaussian reference = 1.02):
+//
+//     value noise, 2 octaves    1.13     8 sin
+//     value noise, 4 octaves    1.06    16 sin
+//     simplex,     2 octaves    0.98    12 sin   <- chosen: isotropic AND cheaper than value-4
+//     simplex,     3 octaves    1.00    18 sin
+//
+// Simplex tiles the plane with triangles, so there is no axis-aligned cell to see in the first
+// place. 12 transcendentals per sample is the cost; see the commit for the measured frame time.
+vec2 waterGrad(vec2 cell) {
+    vec2 h = fract(sin(vec2(dot(cell, vec2(127.1, 311.7)),
+                            dot(cell, vec2(269.5, 183.3)))) * 43758.5453);
+    vec2 g = h * 2.0 - 1.0;
+    // Guard the degenerate near-zero draw: normalize(0) is NaN, and one NaN fragment propagates
+    // through the foam blend into a black pixel.
+    return g * inversesqrt(max(dot(g, g), 1e-6));
+}
+
+float waterSimplex(vec2 p) {
+    const float F2 = 0.3660254;   // (sqrt(3) - 1) / 2
+    const float G2 = 0.2113249;   // (3 - sqrt(3)) / 6
+    vec2 i  = floor(p + (p.x + p.y) * F2);
+    vec2 x0 = p - (i - (i.x + i.y) * G2);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec2 x1 = x0 - i1 + G2;
+    vec2 x2 = x0 - 1.0 + 2.0 * G2;
+    vec3 t  = max(0.5 - vec3(dot(x0, x0), dot(x1, x1), dot(x2, x2)), 0.0);
+    t = t * t;
+    t = t * t;                                     // t^4 falloff
+    float n = t.x * dot(waterGrad(i),               x0)
+            + t.y * dot(waterGrad(i + i1),          x1)
+            + t.z * dot(waterGrad(i + vec2(1.0)),   x2);
+    return n * 35.0 + 0.5;                         // ~[0,1], mean 0.5
+}
+
+// Two octaves. A deliberate budget, not a shrug: this runs on every water fragment and water can
+// cover most of the screen. Two gives a patch size plus a broken edge, which is all foam needs.
+// ⚑Measured std is ~0.142, NOT the ~0.29 a uniform [0,1] field would have — interpolated noise
+// clusters hard around its mean. Anything using this as a DISPLACEMENT must scale accordingly;
+// assuming uniformity is what made the first depth dither 3x too weak to cover a 1-unit step.
+float waterFbm(vec2 p) {
+    return waterSimplex(p) * 0.65
+         + waterSimplex(p * 2.17 + vec2(19.3, 7.1)) * 0.35;
+}
+const float WATER_FBM_STD = 0.142;
+
+// ---------------------------------------------------------------------------------------------
 // Surface normal
 // ---------------------------------------------------------------------------------------------
 
-// Animated ripple normal: two crossing directional waves. Phase 2 replaces this with scrolling
-// normal-map octaves + distance LOD.
-vec3 waterRippleNormal(vec2 p, float t) {
-    vec2 d1 = normalize(vec2( 1.0, 0.4));
-    vec2 d2 = normalize(vec2(-0.6, 1.0));
-    float a1 = 0.06, a2 = 0.04;     // amplitudes
-    float f1 = 0.35, f2 = 0.6;      // spatial frequencies
-    float s1 = 0.9,  s2 = 1.3;      // temporal speeds
+// Fine surface detail: crossing directional ripples layered on top of whatever macro shape the
+// surface has (the Gerstner swell at sea, a flat quad on a pond).
+//
+// THESE MUST BE MUCH FINER THAN THE SWELL. The original values were 18.0 and 10.5 world units — the
+// same scale as the swell's own components (14 / 8.5 / 4.6), so the water had exactly ONE band of
+// detail and nothing else. That is why it looked smooth and featureless up close while reading as
+// nothing but big rolling waves at a distance: there was no small-scale texture to see. Four
+// octaves from ~4.5 down to ~0.8 units now cover the near field.
+//
+// `pixelWorld` is the world size of one screen pixel at this point. Each octave fades out on its
+// OWN terms — when its wavelength approaches a few pixels it stops being texture and becomes a
+// shimmering sparkle, so it is dropped. A single blanket distance fade was wrong twice over: it
+// killed coarse and fine detail together (so distant water went dead flat instead of keeping its
+// large-scale shape), and being a fixed radius around the camera it was a visible ring that
+// travelled with the viewer.
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
+    vec2 d1 = normalize(vec2( 1.0,  0.4));
+    vec2 d2 = normalize(vec2(-0.6,  1.0));
+    vec2 d3 = normalize(vec2( 0.8, -0.7));
+    vec2 d4 = normalize(vec2(-0.3, -1.0));
+    // wavelengths ~4.5, ~2.4, ~1.4, ~0.8 world units (f = 2*pi/lambda)
+    float f1 = 1.40, f2 = 2.60, f3 = 4.50, f4 = 7.90;
+    // AMPLITUDES ARE DELIBERATELY TINY. What matters visually is the SLOPE each octave contributes
+    // (a*f), because that is what tilts the normal. The first version summed to 0.151 — over three
+    // times the 0.045 of the detail it replaced, at far higher frequency — and the result was a
+    // corduroy of micro-ridges over every wave face that looked worse than having no detail at all.
+    // These sum to ~0.048: the same gentle sheen as before, but spread across four fine scales
+    // instead of sitting at the swell's own scale.
+    float a1 = 0.0100, a2 = 0.0055, a3 = 0.0028, a4 = 0.0014;
+    float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
-    float phase1 = dot(p, d1) * f1 + t * s1;
-    float phase2 = dot(p, d2) * f2 + t * s2;
+    // Per-octave visibility: full while the wavelength covers >~7 px, gone under ~2.5 px. Coarse
+    // octaves therefore persist far into the distance and only the finest drop out early, which is
+    // what keeps far water looking like water rather than a flat sheet.
+    float px = max(pixelWorld, 1e-4);
+    float k1 = smoothstep(2.5, 7.0, (6.2831853 / f1) / px);
+    float k2 = smoothstep(2.5, 7.0, (6.2831853 / f2) / px);
+    float k3 = smoothstep(2.5, 7.0, (6.2831853 / f3) / px);
+    float k4 = smoothstep(2.5, 7.0, (6.2831853 / f4) / px);
 
-    float dx = a1 * f1 * d1.x * cos(phase1) + a2 * f2 * d2.x * cos(phase2);
-    float dz = a1 * f1 * d1.y * cos(phase1) + a2 * f2 * d2.y * cos(phase2);
+    float p1 = dot(p, d1) * f1 + t * s1;
+    float p2 = dot(p, d2) * f2 + t * s2;
+    float p3 = dot(p, d3) * f3 + t * s3;
+    float p4 = dot(p, d4) * f4 + t * s4;
+
+    float dx = a1 * f1 * d1.x * cos(p1) * k1
+             + a2 * f2 * d2.x * cos(p2) * k2
+             + a3 * f3 * d3.x * cos(p3) * k3
+             + a4 * f4 * d4.x * cos(p4) * k4;
+    float dz = a1 * f1 * d1.y * cos(p1) * k1
+             + a2 * f2 * d2.y * cos(p2) * k2
+             + a3 * f3 * d3.y * cos(p3) * k3
+             + a4 * f4 * d4.y * cos(p4) * k4;
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
@@ -76,7 +183,7 @@ vec3 waterRippleNormal(vec2 p, float t) {
 //      even with smoothing, because the distortion grows with |p| — far from the origin, a tiny
 //      direction difference becomes a large coordinate difference.
 // Amplitude/choppiness scaling is safe: it does not move the sample point.
-vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength) {
+vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld) {
     // ⚑GROUND: 2.5 world-units/sec at full strength. Fast enough to read as a current at a glance,
     // slow enough that the wave pattern doesn't alias into a strobe at 60 fps.
     const float ADVECT_SPEED = 2.5;
@@ -94,8 +201,8 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength) {
     float ph0 = fract(t / PERIOD);
     float ph1 = fract(t / PERIOD + 0.5);
     float k = ADVECT_SPEED * strength * PERIOD;
-    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t);
-    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t);
+    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld);
+    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld);
     // Weight each sample by how far it is from its own wrap point, so the crossfade hides the reset.
     vec3 n = normalize(mix(n0, n1, abs(2.0 * ph0 - 1.0)));
     // Moving water is choppier: exaggerate the normal's tilt with speed (safe — no coord change).
@@ -151,6 +258,17 @@ const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
 // starts reading as water.
 const float SHORE_FADE = 0.4;
 
+// A/B probe. Screen-space metrics cannot separate world-aligned voxel terraces from the foam
+// noise's own cells whenever the camera is yawed, so attribute artifacts by switching foam OFF
+// and re-shooting the identical vantage instead of inferring. Ships at 1.0.
+//
+// It has already settled two questions that inference got wrong or could not reach:
+//   * the shallow-water "patchwork quilt" is 100% this foam layer, NOT seabed voxel terracing;
+//   * the pale open ocean from a low vantage is NOT foam — foam moves those pixels by at most
+//     4 grey levels out of ~200, and the far band matches the sky reference to within 0.3. It is
+//     grazing-angle Fresnel doing the physically correct thing.
+const float WATER_FOAM_DEBUG_SCALE = 1.0;
+
 struct WaterSurfaceInput {
     vec3  worldPos;      // the water surface point being shaded
     vec3  camPos;        // camera world position
@@ -170,10 +288,24 @@ struct WaterSurfaceInput {
     // ── SHORE SURF (Phase 2 leftover) ─────────────────────────────────────────────────────────
     float wavePhase;   // -1 trough .. +1 crest; 0 for water with no swell
     float breakDepth;  // water depth at which waves break (world units); 0 disables surf
+    // The UNDISTURBED water level. Ground above it is dry land and must never be covered, however
+    // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
+    // level is whatever the sim says it is).
+    float restLevelY;
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
-    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength);
+    // DETAIL LOD. The fine octaves are sub-metre; past a few tens of metres they are smaller than a
+    // pixel and stop being texture, becoming a shimmering sparkle that crawls as the camera moves.
+    // ⚑GROUND: full detail to 45 units, gone by 220. 45 is roughly where the ~0.8-unit finest
+    // octave drops under a couple of pixels at this FOV and resolution; 220 is a long enough ramp
+    // that the transition is never a visible ring on the water.
+    // World size of one screen pixel here: distance * (2*tan(fovY/2) / screenHeightPx), with the
+    // engine's fixed 45-degree vertical FOV. Driving the LOD off this rather than off a fixed radius
+    // is what lets each octave retire on its own terms AND removes the camera-centred ring.
+    float viewDist = length(inp.worldPos - inp.camPos);
+    float pixelWorld = viewDist * (0.828427 / max(inp.screenSize.y, 1.0));
+    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, pixelWorld);
     // Perturb the macro normal by the ripple detail's tilt (detail is around +Y, so its xz IS the
     // tilt). Keeping the two separate is what lets a swell read as a swell at distance while still
     // sparkling up close.
@@ -246,23 +378,54 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // solitary-wave breaking criterion), so with a trough-to-crest height H = 2*amplitude they
     // break once the depth falls below H/0.78 = 2.56*amplitude. `breakDepth` carries that, so the
     // surf zone's width follows the sea state instead of being dialled in by eye.
+    // DE-QUANTISE THE DEPTH BEFORE KEYING FOAM OFF IT.
+    //
+    // The seabed is voxels, so `verticalDepth` is piecewise CONSTANT over each voxel top and jumps a
+    // whole unit at every terrace edge. Anything keyed directly to it therefore paints the terraces:
+    // one flat foam value per plateau with a hard sawtooth step between them, which reads as a
+    // patchwork quilt laid over the shallows (reported 2026-07-29 — see the screenshot in the plan).
+    //
+    // Perturbing the depth breaks the foam boundary across the steps instead of letting it snap to
+    // them. ⚑GROUND: peak-to-peak 1.0 = exactly the quantisation step, so the dither is the same
+    // size as the artifact it hides — smaller leaves stairs visible, larger detaches the foam from
+    // the real shoreline.
+    //
+    // ⚑THE DITHER MUST BE FINER THAN THE STEP IT HIDES. The first attempt used two sines of
+    // wavelength ~15 and ~20 world units — an order of magnitude COARSER than the 1-unit terrace it
+    // was meant to disguise. That does not dither anything; it just repaints the shoreline as broad
+    // diagonal bands, and the reported quilt got a second layer. Noise at ~1.2 units is comparable
+    // to the step, so the boundary dissolves into a stipple instead of acquiring new structure.
+    //
+    // The REAL fix is a smooth shore field (docs/WaterPhysicalFeelPlan.md §2) whose distance
+    // transform is continuous by construction; this is the cheap stand-in until that exists.
+    // Scaled to std 0.40 — a bit under half the 1.0 step, so the boundary dissolves without the
+    // foam wandering far enough to leave the real shoreline. Divide by the measured std rather
+    // than trusting the raw range: this field's raw spread is a quarter of what "0..1" suggests.
+    float wob = (waterFbm(inp.worldPos.xz * 0.83) - 0.5) * (0.40 / WATER_FBM_STD);
+    float foamDepth = max(verticalDepth + wob, 0.0);
+
     float surfFoam = 0.0;
     if (inp.breakDepth > 0.0001 && hasSeabed) {
-        // Shoaling: 0 offshore, 1 at the waterline. Cubed, not squared — on a gently sloping bed a
-        // 1-voxel depth band covers a LOT of ground, and a gentler falloff turned the whole shelf
-        // into a milky wash instead of a break line (first live attempt did exactly that).
-        float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, verticalDepth);
-        shoal = shoal * shoal * shoal;
-        // A wave breaks on its CREST, and ONLY on its crest — no floor term here. That is what
-        // makes the foam a moving band running shoreward with each wave rather than a static ring.
-        float crest = smoothstep(0.05, 0.75, inp.wavePhase);
-        surfFoam = shoal * crest;
+        // Shoaling: 0 offshore, 1 at the waterline. Squared — cubed collapsed the band to nothing
+        // once the swell was scaled down to the voxel world (breakDepth 2.56*0.30 = 0.77 voxels,
+        // which is sub-voxel and simply invisible). The band has to be a WIDTH you can see.
+        float shoal = 1.0 - smoothstep(0.0, inp.breakDepth, foamDepth);
+        shoal *= shoal;
+        // A wave breaks on its CREST — the phase gate is what makes this a band running shoreward
+        // with each wave rather than a static ring.
+        // ⚑The between-crest floor was 0.25 and that was the single biggest reason the shallows
+        // read as one white sheet: this seabed is a very gently sloping shelf, so "depth < 2.5"
+        // is a huge horizontal area, and a 0.25 floor painted ALL of it permanently. Surf is a
+        // travelling line, not a filled zone. 0.06 leaves a faint standing trace of the breaker
+        // line — enough to see from a distance — without frosting the bay between waves.
+        float crest = smoothstep(-0.35, 0.55, inp.wavePhase);
+        surfFoam = shoal * mix(0.06, 1.0, crest);
     }
-    // The waterline itself always carries a little foam, wave or not — the line that makes a coast
-    // read as a coast even on flat calm water (and what lakes and rivers get). Kept narrow and
-    // weak: it should suggest a wet edge, not paint a white stripe around every puddle.
-    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.18, verticalDepth)) : 0.0;
-    inp.foam = max(inp.foam, max(surfFoam, rim * 0.45));
+    // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
+    // coast even on flat calm water (and what lakes and rivers get).
+    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
+    inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
+    inp.foam *= WATER_FOAM_DEBUG_SCALE;   // A/B probe: 0 disables all foam
 
     // WHITEWATER (Phase 3): where the water is moving AND shallow it breaks white over its bed.
     // Streaked along the flow so it reads as motion rather than a static frosting, and lit by the
@@ -272,9 +435,20 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
         // with time (an unbounded offset tiles the foam exactly the way it tiled the normals).
         float fph = fract(inp.time / 3.0);
         vec2 fp = inp.worldPos.xz - inp.flowDir * (fph * 3.0 * 3.0 * inp.flowStrength);
-        float bands = sin(fp.x * 2.7 + fp.y * 1.9) * 0.5 + 0.5;
-        float fine  = sin(fp.x * 6.1 - fp.y * 7.3) * 0.5 + 0.5;
-        float mask = clamp(bands * 0.7 + fine * 0.5 - 0.35, 0.0, 1.0);
+        // Simplex, NOT summed sines and NOT value noise. Both were tried and both are lattices:
+        // three sines gave a dotted plaid (FFT peaks at exactly the sines' wavelengths), value
+        // noise gave axis-aligned rectangles. See the note above waterGrad.
+        //
+        // TWO SCALES, because one scale is what makes foam read as tiles whatever noise feeds it:
+        // the coarse field decides WHERE a patch sits, the fine field tears its edge so the patch
+        // has no characteristic size.
+        float coarse = waterFbm(fp * 0.32);          // ~3-unit patches
+        // The fine octave is sub-metre and turns into crawling sparkle once it drops under a couple
+        // of pixels, exactly like the ripple octaves — so retire it on the same terms.
+        float fineK = smoothstep(2.5, 7.0, (1.0 / 1.55) / max(pixelWorld, 1e-4));
+        float fine  = waterSimplex(fp * 1.55) * fineK;
+        float n = coarse * (1.0 - 0.28 * fineK) + fine * 0.28;
+        float mask = smoothstep(0.44, 0.74, n);
         mask *= 1.0 - abs(2.0 * fph - 1.0) * 0.5;   // fade across the wrap so the reset isn't a pop
         vec3 foamCol = mix(vec3(0.35), ubo.sunColor, clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0))
                      * max(ubo.ambientLight, 0.3);
@@ -290,5 +464,20 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // Foam is opaque spray: it should stay visible even where the water itself is fading out at a
     // shoreline, which is exactly where a stream's whitewater lives.
     alpha = max(alpha, inp.foam * 0.6);
+
+    // ── NO WATER ON DRY LAND ──────────────────────────────────────────────────────────────────
+    // The swell displaces the whole sheet uniformly, because the vertex shader has no idea how deep
+    // the water beneath each vertex is. Near a shore that means a crest physically rises OVER the
+    // beach, and since the ray then hits ground well below the crest, the depth test reads plenty
+    // of "water" and happily draws it — a wave climbing a hillside with dry land visible behind it.
+    //
+    // Ground above the undisturbed water level is land, full stop. Gating on the REST level rather
+    // than on the displaced surface is what pins the waterline to the true sea-level contour
+    // instead of letting it breathe up and down the slope with every wave.
+    // ⚑GROUND: a 0.25-voxel run-up band, so a wave can still visibly wash a little way up a flat
+    // beach (swash) without ever climbing a slope.
+    if (inp.restLevelY > -1e8 && hasSeabed) {
+        alpha *= 1.0 - smoothstep(0.0, 0.25, seabedY - inp.restLevelY);
+    }
     return vec4(color, alpha);
 }

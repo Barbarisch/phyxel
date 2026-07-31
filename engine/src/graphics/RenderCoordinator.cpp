@@ -331,6 +331,14 @@ bool RenderCoordinator::initUISystem() {
     return true;
 }
 
+void RenderCoordinator::setMaxChunkRenderDistance(float distance) {
+    maxChunkRenderDistance = distance;
+    // The sea's wave zone has to outreach the far plane, or its taper is a ring of flattening water
+    // centred on the camera (a visible vortex from above). 1.35x gives the taper somewhere no one
+    // can see it, including into the screen corners where the diagonal FOV reaches furthest.
+    if (waterPipeline) waterPipeline->setWaveRadius(distance * 1.35f);
+}
+
 void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDirectionRadians) {
     if (waterPipeline) waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
 }

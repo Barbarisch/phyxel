@@ -227,7 +227,7 @@ public:
     void drawFrame();
     
     // Render distance management
-    void setMaxChunkRenderDistance(float distance) { maxChunkRenderDistance = distance; }
+    void setMaxChunkRenderDistance(float distance);
     void setChunkInclusionDistance(float distance) { chunkInclusionDistance = distance; }
 
     // Occlusion culling (chunk visibility graph). Default ON (Phase 3).

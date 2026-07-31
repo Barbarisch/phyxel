@@ -463,6 +463,13 @@ field and its render channel, CA momentum, sub-voxel floor heights, SSR, caustic
 - **Whether Phase 4 momentum is worth its stability risk** — Phase 3 may deliver enough of the read
   of moving water that the CA can stay a pure leveling automaton. Decide after Phase 3 ships.
 
+## Successor plan
+
+Making water *behave* physically against the world — refraction and breaking on land, spray off
+voxels, grass swash, and rivers you can actually navigate to — is planned separately in
+[`docs/WaterPhysicalFeelPlan.md`](WaterPhysicalFeelPlan.md). That plan also carries the look-first
+review rule adopted after the 2026-07-28 visual regression.
+
 ## References
 [`docs/WaterSystemV2.md`](WaterSystemV2.md) (scale plan + open items),
 [`docs/WaterSystem.md`](WaterSystem.md) (v1 CA/implicit-ocean rationale),

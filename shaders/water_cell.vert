@@ -37,13 +37,37 @@ void main() {
     else if (ox > 0.0 && oz > 0.0) idx = 2; // (+x,+z)
     else                           idx = 3; // (-x,+z)
 
+    // IS THIS EDGE A REAL CURTAIN? Only a genuine drop (a waterfall face, a step down to a lower
+    // pool, an open border) should draw a side face at all. Between two water cells at the same
+    // level there is nothing to show, and drawing one anyway is what painted a bright GRID over
+    // every river and lake surface — reported as the water looking tiled.
+    //
+    // Two separate causes, both fixed here:
+    //   1. THE OUTWARD NUDGE. Side faces are pushed 0.04 out so a falling curtain does not z-fight
+    //      the cliff behind it. But that pushes them PAST the cell boundary and over the NEIGHBOUR's
+    //      top quad, so even a perfectly collapsed side face laid a 0.04-wide strip of extra
+    //      transparent geometry along every cell edge. Blended twice, that reads as a bright line.
+    //   2. A SINGLE PER-EDGE BOTTOM. WaterManager passes min(corner, corner) as the edge bottom
+    //      while the side face's TOP edge spans both corners, so wherever the surface slopes — i.e.
+    //      everywhere on a flowing river — the "collapsed" face was actually a thin sliver.
+    //
+    // So: take the two corners belonging to THIS edge, and treat it as a curtain only if the skirt
+    // bottom is meaningfully below both. Otherwise collapse the face onto its own corner heights
+    // exactly (zero area, no fragments) and skip the nudge.
+    float ca, cb;
+    if      (edge == 0) { ca = inCorners[1]; cb = inCorners[2]; }   // +x
+    else if (edge == 1) { ca = inCorners[0]; cb = inCorners[3]; }   // -x
+    else if (edge == 2) { ca = inCorners[2]; cb = inCorners[3]; }   // +z
+    else                { ca = inCorners[0]; cb = inCorners[1]; }   // -z
+    // ⚑GROUND: 0.05 voxel. Below that a "drop" is smaller than the surface's own ripple detail and
+    // there is physically nothing to render a wall of water for.
+    bool curtain = (min(ca, cb) - inSkirt[edge]) > 0.05;
+
     // vtype 0 = top face corner, 2 = side-face top corner, 1 = side-face bottom (skirt).
-    float y = (vtype == 1) ? inSkirt[edge] : inCorners[idx];
+    float y = (vtype == 1 && curtain) ? inSkirt[edge] : inCorners[idx];
 
     vec3 world = vec3(inCenterDepth.x + ox, y, inCenterDepth.z + oz);
-    // Nudge side faces (vtype 1/2) slightly outward so a falling-water curtain doesn't
-    // z-fight the solid cliff/terrain directly behind it.
-    if (vtype != 0) {
+    if (vtype != 0 && curtain) {
         vec2 n = vec2(0.0);
         if      (edge == 0) n = vec2( 1.0, 0.0);
         else if (edge == 1) n = vec2(-1.0, 0.0);

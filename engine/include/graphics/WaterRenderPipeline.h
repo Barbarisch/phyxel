@@ -69,6 +69,13 @@ public:
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 
+    // Size the wave zone so its taper falls OUTSIDE the far plane. If the zone ends within view,
+    // its edge is a ring of flattening water centred on the camera that follows the viewer around —
+    // seen from above as a vortex, and read from any angle as "the waves come from where I stand".
+    // Rebuilds the mesh only when the radius changes materially. Safe to call on world load.
+    void setWaveRadius(float radius);
+    float waveRadius() const { return m_waveRadius; }
+
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
@@ -92,14 +99,21 @@ private:
 
     VkBuffer       m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
-    VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // radial sea mesh (Phase 2)
+    VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // sea clipmap; see SeaMesh.h
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t       m_indexCount = 0;
+    float          m_waveRadius = 700.0f;      // world units; set from the render distance
+    float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 
-    // ⚑GROUND: a 0.45-voxel wave height and a 14-voxel wavelength. With 1 voxel ~= 1 m that is a
-    // ~0.9 m trough-to-crest swell on a 14 m period — a moderate breeze (Beaufort 4) at sea, which
-    // is the "clearly alive, not stormy" look. It also keeps the crest well under the ~1-voxel
-    // shoreline band, so a crest cannot visibly climb the beach.
+    // ⚑GROUND: 0.45-voxel amplitude on a 14-voxel wavelength — a ~0.9 m swell on a 14 m period,
+    // a moderate breeze (Beaufort 4).
+    //
+    // THESE WERE SHRUNK TO 0.30/9.5 AND PUT BACK. The complaint that prompted the shrink ("waves
+    // look too big from far away") had a different cause: the ocean had no small-scale detail at
+    // ANY distance, so the swell was the only thing to look at. Shrinking it did not add detail, it
+    // just removed the majesty and left a busy chop that read worse. The actual fix was the fine
+    // octaves + per-octave screen-space LOD; with those in place the larger swell is what makes it
+    // read as an ocean rather than a pond. Runtime-settable via the water_waves debug command.
     float m_waveAmplitude = 0.45f;
     float m_waveLength = 14.0f;
     float m_windDirection = 0.6f;   // radians; the dominant swell heading

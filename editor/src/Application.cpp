@@ -372,8 +372,31 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
+    // WATER SIM REGION SIZE. Water is only DRAWN where the sim has cells, so this box is also the
+    // water's render extent — which is why any body larger than it reads as a flat slab with hard
+    // straight edges that ignores the terrain and travels with the viewer. At 64x64 the edge sat
+    // ~32 units from the camera, i.e. permanently in view.
+    //
+    // Bounding the SIMULATION is correct and unavoidable (a cellular automaton cannot cover a
+    // world), but the bound was far tighter than it needs to be. The cost is dominated by memory and
+    // by the terrain re-read on recentre, NOT by stepping: the benchmark measures a settled step at
+    // 0.002 us against 242 us active (~150,000x cheaper) and a partially-active step sweeping only
+    // 77 of 4096 columns, so a large mostly-still region is nearly free to step.
+    // ⚑Verify frame time AND the recentre hitch after changing this — recentre re-reads solidity for
+    // every cell, so that cost scales 1:1 with the cell count.
+    // ⚑DO NOT GROW THIS TO COVER THE VISIBLE WORLD. That was tried (256x32x256, 2.1M cells) and it
+    // is the wrong axis entirely: growing it means SIMULATING an ocean. Frame rate fell to 19 FPS and
+    // total mass oscillated (531k -> 889k -> 571k) instead of settling, because a cellular automaton
+    // was being asked to solve hundreds of thousands of cells of water that are simply at rest.
+    //
+    // Static water must be a 2D HEIGHT FIELD, not cells: one water-surface level per column (the
+    // hydrology bake already computes exactly that), rendered wherever level > terrain. That costs
+    // AREA rather than VOLUME and scales to a world of any size. The CA is only for water that is
+    // actually CHANGING - near the player, around terrain edits, waterfalls, splashes - so this
+    // region wants to stay SMALL, and can shrink further once static water renders from the field.
+    static constexpr glm::ivec3 kWaterRegionDims(64, 32, 64);
     waterManager = std::make_unique<Core::WaterManager>(
-        chunkManager, glm::ivec3(0, 8, 0), glm::ivec3(64, 32, 64));
+        chunkManager, glm::ivec3(0, 8, 0), kWaterRegionDims);
     renderCoordinator->setWaterManager(waterManager.get());
     // Keep the water sim's solid mask in sync with terrain edits so water flows into
     // newly-removed voxels (break / spell / blast) without a manual water_sync.
@@ -11362,6 +11385,93 @@ void Application::registerWaterCommands() {
             r["river_channel"] = f->channelAt(wx, wz).hit;
         }
     });
+    // FIND A RIVER. Rivers are a baked, procedural network — nobody knows where they are, so
+    // without this the only way to look at one is to guess coordinates and fly around. That is
+    // exactly why the river work had never actually been LOOKED at: the default testbed has
+    // streaming off, so it has no hydrology bake and therefore no rivers at all, and nothing
+    // reported that. This searches the baked network on an expanding ring around a start point and
+    // returns the best channels it finds, highest Strahler order first.
+    //
+    // Reports the reason for an empty result rather than just returning nothing, because "no
+    // rivers" and "no bake" and "no streaming generator" are three very different problems.
+    reg.on("water_find_river", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!g) {
+            r = {{"error", "no streaming generator"},
+                 {"detail", "rivers need a height-based world with world.streaming: true - the "
+                            "hydrology bake lives on the streaming generator"}};
+            return;
+        }
+        const FlowField* f = g->riverNetwork();
+        if (!f) {
+            r = {{"error", "no hydrology bake"},
+                 {"detail", "the streaming generator has no river network baked"}};
+            return;
+        }
+
+        const float cx = cmd.params.value("x", 0.0f);
+        const float cz = cmd.params.value("z", 0.0f);
+        const float radius = cmd.params.value("radius", 3000.0f);
+        const float step = cmd.params.value("step", 64.0f);   // ~2 hydrology cells
+        const int   minOrder = cmd.params.value("min_order", 3);
+        const size_t want = static_cast<size_t>(cmd.params.value("count", 5));
+
+        struct Found { float x, z; int order; bool channel; };
+        std::vector<Found> hits;
+        int scanned = 0, anyRiverCells = 0;
+        // Expanding square rings so the nearest rivers are found first and a big radius costs
+        // nothing when a river happens to be close by.
+        for (float ring = 0.0f; ring <= radius && hits.size() < want * 8; ring += step) {
+            const int side = static_cast<int>(ring / step);
+            for (int i = -side; i <= side; ++i) {
+                for (int j = -side; j <= side; ++j) {
+                    // Perimeter of this ring only — the interior was covered by earlier rings.
+                    if (side != 0 && std::abs(i) != side && std::abs(j) != side) continue;
+                    const float wx = cx + static_cast<float>(i) * step;
+                    const float wz = cz + static_cast<float>(j) * step;
+                    ++scanned;
+                    const int ord = f->orderAt(wx, wz);
+                    if (ord > 0) ++anyRiverCells;
+                    if (ord < minOrder) continue;
+                    hits.push_back({wx, wz, ord, f->channelAt(wx, wz).hit});
+                }
+            }
+        }
+
+        std::sort(hits.begin(), hits.end(), [cx, cz](const Found& a, const Found& b) {
+            if (a.order != b.order) return a.order > b.order;   // biggest river first
+            const float da = (a.x - cx) * (a.x - cx) + (a.z - cz) * (a.z - cz);
+            const float db = (b.x - cx) * (b.x - cx) + (b.z - cz) * (b.z - cz);
+            return da < db;                                      // then nearest
+        });
+        if (hits.size() > want) hits.resize(want);
+
+        nlohmann::json arr = nlohmann::json::array();
+        for (const Found& h : hits) {
+            nlohmann::json e = {{"x", h.x}, {"z", h.z}, {"order", h.order},
+                                {"carves_bed", h.channel},
+                                {"width", 2.0f * FlowField::channelHalfWidth(h.order)},
+                                {"carve_depth", FlowField::channelDepth(h.order)}};
+            // The surface height there, so a caller can put a camera at the water rather than
+            // having to probe separately.
+            e["surface_y"] = g->sampleSurface(static_cast<int>(h.x), static_cast<int>(h.z)).surfaceY;
+            if (waterManager) {
+                const float wl = waterManager->tableLevelAt(h.x, h.z);
+                e["water_level"] = wl > Core::WaterManager::TABLE_DRY ? wl : 0.0f;
+                e["wet"] = wl > Core::WaterManager::TABLE_DRY;
+            }
+            arr.push_back(e);
+        }
+        r = {{"rivers", arr}, {"max_order_in_world", f->maxOrder()},
+             {"columns_scanned", scanned}, {"river_columns_seen", anyRiverCells},
+             {"min_order", minOrder}};
+        if (hits.empty()) {
+            r["detail"] = anyRiverCells > 0
+                ? "river cells exist but none reach min_order - lower min_order"
+                : "no river cells at all within radius";
+        }
+    });
+
     reg.on("water_validate", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         if (!waterManager->hasWaterTable()) { r = {{"error", "no water table bound"}}; return; }

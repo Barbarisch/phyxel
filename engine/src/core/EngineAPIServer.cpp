@@ -1700,6 +1700,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_table_level",    waterEndpoint("water_table_level"));
     srv.Post("/api/debug/water_waves",          waterEndpoint("water_waves"));
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
+    srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
 
     // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
