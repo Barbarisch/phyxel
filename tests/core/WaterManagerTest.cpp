@@ -360,6 +360,181 @@ TEST(WaterManagerTest, OutflowBankSurvivesSerializeLoadRoundTrip) {
     EXPECT_NEAR(wm2.outflowBankTotal(), banked, 1e-2f) << "bank lines lost in the round trip";
 }
 
+// ─── Finite bodies + per-BODY deltas (tangible-water Phase C) ────────────────────────────────────
+// Ponds (finite class) are excluded from table pinning: their water is real conserved mass
+// hydrated to baseline + a per-BODY level delta. One float per body IS the sparse representation
+// (a settled body's surface is flat) — per-column records cannot express a scooped multi-column
+// pond without re-minting mass from unrecorded neighbors on every rebuild (the F1 failure mode,
+// regression-pinned below).
+
+namespace {
+
+// The TerrainBasinFixture's walled interior [12,15]^2 declared a FINITE pond (id 7, baseline 6:
+// water y 3..5, flush with the wall top). Everything else: no body.
+Phyxel::Core::WaterManager::BodyInfo basinPondBody(float wx, float wz) {
+    Phyxel::Core::WaterManager::BodyInfo b;
+    if (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) {
+        b.id = 7;
+        b.finite = true;
+        b.baselineLevel = 6.0f;
+    }
+    return b;
+}
+
+float basinPondTable(float wx, float wz) {
+    return (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) ? 6.0f : -1e30f;
+}
+
+}  // namespace
+
+TEST(WaterManagerTest, FiniteBodyColumnsAreNotPinnedButHydrate) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    wm.update(0.1f);
+
+    // Unpinned everywhere in the pond, yet full to baseline (16 columns × 3 cells).
+    for (int y = 3; y <= 5; ++y) {
+        EXPECT_LT(wm.sim().sourceAt(13, y, 13), 0.0f) << "finite pond cell pinned at y=" << y;
+        EXPECT_GT(wm.sim().massAt(13, y, 13), 0.9f) << "finite pond not hydrated at y=" << y;
+    }
+    EXPECT_NEAR(wm.totalMass(), 48.0f, 2.0f) << "pond should hold ~16 columns x 3 cells";
+}
+
+TEST(WaterManagerTest, FiniteBodyHydrationIsIdempotentAcrossRebuilds) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float settled = wm.totalMass();
+    ASSERT_GT(settled, 40.0f);
+    for (int i = 0; i < 5; ++i) {
+        wm.setSolidWorld(2, 8, 2, true);    // far-away terrain pokes dirty the ocean → rebuild
+        wm.setSolidWorld(2, 8, 2, false);
+        wm.update(0.1f);
+    }
+    EXPECT_NEAR(wm.totalMass(), settled, 0.1f)
+        << "re-hydration on rebuild minted or destroyed pond mass";
+}
+
+// THE F1 regression: a lowered body record must hold across arbitrarily many rebuilds — a naive
+// per-column store refills the body from unrecorded neighbors and mass rises every rebuild.
+TEST(WaterManagerTest, ScoopedBodyDoesNotRefillFromUnrecordedNeighbors) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    ASSERT_TRUE(wm.loadOverrides("D 7 -1.000\n"));   // the pond was scooped one level down
+    wm.update(0.1f);
+    const float lowered = wm.totalMass();
+    EXPECT_NEAR(lowered, 32.0f, 2.0f) << "delta -1 should hydrate to level 5 (2 cells deep)";
+    EXPECT_LT(wm.sim().massAt(13, 5, 13), 0.05f) << "the scooped-away top layer refilled";
+    for (int i = 0; i < 8; ++i) {
+        wm.setSolidWorld(2, 8, 2, true);
+        wm.setSolidWorld(2, 8, 2, false);
+        wm.update(0.1f);
+        ASSERT_LE(wm.totalMass(), lowered + 0.1f)
+            << "rebuild " << i << " minted mass into the scooped pond";
+    }
+}
+
+TEST(WaterManagerTest, RecenterAwayCommitsBodyDeltaNotColumnOverrides) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 40.0f);
+
+    wm.recenter(glm::ivec3(200, 0, 200));
+    EXPECT_EQ(wm.overrideCount(), 0u)
+        << "finite-body columns wrote COLUMN overrides — F1 double-count path";
+    wm.recenter(glm::ivec3(0, 0, 0));
+    wm.update(0.1f);
+    EXPECT_NEAR(wm.totalMass(), before, 1.0f) << "pond did not survive the round trip";
+}
+
+TEST(WaterManagerTest, FiniteBodyEdgeColumnsDoNotBleed) {
+    // Window shifted so the WALLED basin pond sits ON the +x ring: window x ∈ [-16,16), basin
+    // interior world x 12..15 → local 28..31 (ring at lx=31). Terrain-contained, so the only
+    // way it can lose mass at the ring is the P4 frontier bleed — which the no-bleed mask must
+    // block for finite-body columns (F3).
+    TerrainBasinFixture f(glm::ivec3(-16, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    wm.setEdgeOutflow(true);
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.outflowBankTotal(), 0.0f)
+        << "edge outflow siphoned a finite pond at the window ring (F3)";
+    EXPECT_GT(wm.totalMass(), 40.0f) << "the ring pond should hold its hydrated mass";
+}
+
+TEST(WaterManagerTest, SampleWaterOutOfWindowHonorsBodyDelta) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    ASSERT_TRUE(wm.loadOverrides("D 7 -2.000\n"));   // pond down to level 4
+    wm.update(0.1f);
+    wm.recenter(glm::ivec3(200, 0, 200));            // pond far outside the window
+
+    const auto below = wm.sampleWater(glm::vec3(13.5f, 3.5f, 13.5f));
+    EXPECT_TRUE(below.inWater) << "below the delta'd level must still read wet";
+    EXPECT_NEAR(below.surfaceY, 4.0f, 1e-3f) << "out-of-window surface must honor the delta";
+    const auto above = wm.sampleWater(glm::vec3(13.5f, 5.5f, 13.5f));
+    EXPECT_FALSE(above.inWater)
+        << "the table's bake level (6) leaked through — a drained pond read full (F4)";
+}
+
+TEST(WaterManagerTest, BodyDeltasSurviveSerializeLoadRoundTrip) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm.loadOverrides("D 42 -1.500\n13 13 4.500\nB 1 2 0.500\n"));
+    EXPECT_FLOAT_EQ(wm.bodyDelta(42), -1.5f);
+    EXPECT_EQ(wm.overrideCount(), 1u);
+
+    WaterManager wm2(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm2.loadOverrides(wm.serializeOverrides()));
+    EXPECT_FLOAT_EQ(wm2.bodyDelta(42), -1.5f) << "body delta lost in the round trip";
+    EXPECT_EQ(wm2.overrideCount(), 1u);
+    EXPECT_NEAR(wm2.outflowBankTotal(), 0.5f, 1e-3f);
+
+    // v1 (pre-body) text must still load — the world_meta migration path.
+    WaterManager wm3(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm3.loadOverrides("13 13 4.500\nB 1 2 0.500\n"));
+    EXPECT_EQ(wm3.bodyDeltaCount(), 0u);
+    EXPECT_EQ(wm3.overrideCount(), 1u);
+}
+
+TEST(WaterManagerTest, SnapDoesNotExpandLakeIntoAdjacentFiniteBody) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    // An infinite lake at level 4 over [18,21]^2 next to the finite pond [12,15]^2 (baseline 6).
+    // The flat ground between (y<=2) sits below the lake level, so the shoreline snap expands
+    // the lake across it — and WOULD pin into the pond's columns without the rim guard. Level 4
+    // stays below the pond's wall top (6), so nothing legitimately overtops; any water inside
+    // the pond above its own baseline would be the guard failing, not physics.
+    wm.setWaterTable([](float wx, float wz) {
+        if (wx >= 18.0f && wx < 22.0f && wz >= 12.0f && wz < 16.0f) return 4.0f;
+        return basinPondTable(wx, wz);
+    });
+    wm.setBodyQuery(basinPondBody);
+    wm.update(0.1f);
+
+    // The snap genuinely ran: the open-ground column between lake and pond is pinned...
+    EXPECT_GE(wm.sim().sourceAt(17, 3, 13), 0.0f)
+        << "fixture: the snap should have expanded the lake across the low open ground";
+    // ...but stopped at the pond's columns (the rim guard), which stay unpinned at their own level.
+    for (int y = 3; y <= 5; ++y)
+        EXPECT_LT(wm.sim().sourceAt(13, y, 13), 0.0f)
+            << "lake snap pinned INSIDE the finite pond at y=" << y;
+    EXPECT_LT(wm.sim().massAt(13, 6, 13), 0.5f)
+        << "pond filled above its own baseline — the lake's level leaked in via the snap";
+}
+
 // Monotone stress: walk away and back MANY times. Capture→reseed is level-based, so repeated
 // cycles must never grow the water (each reseed fills to at most the captured level; each capture
 // records at most the reseeded level). Asserted EVERY cycle, not just at the end.

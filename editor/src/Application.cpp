@@ -5855,8 +5855,32 @@ void Application::autoLoadGameDefinition() {
                             return h ? h->waterLevelAt(wx, wz) : -1e30f; // NO_WATER
                         });
                         LOG_INFO("Application", "[WATER] baked hydrology water table bound (Phase C)");
+                        // Water BODY identity (tangible-water Phase C). BAKE bodies are ALL
+                        // infinite for now — including bake-cell "ponds": a 128-u cell's flood
+                        // level does not bind to fine terrain, so hydrating one as finite water
+                        // FRAGMENTS into sub-basins at different levels, the flat-body invariant
+                        // breaks, and the min-level capture reads near-total drain (measured
+                        // live: a 6.5k-mass pond returned as 17.8). FINITE bodies arrive with
+                        // the fine-scale pond pass (Phase B): true sub-cell ponds, contained by
+                        // construction, genuinely flat — the machinery below this binding is
+                        // already tested against exactly those.
+                        waterManager->setBodyQuery(
+                            [this](float wx, float wz) -> Core::WaterManager::BodyInfo {
+                                Core::WaterManager::BodyInfo out;
+                                const WorldGenerator* g =
+                                    chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                                const WaterBodyIndex* wb = g ? g->waterBodies() : nullptr;
+                                const WaterBodyIndex::Body* b = wb ? wb->bodyAt(wx, wz) : nullptr;
+                                if (!b) return out;
+                                out.id = b->id;
+                                out.finite = false;   // Phase B flips this for FINE ponds only
+                                out.baselineLevel = b->level;
+                                return out;
+                            });
+                        LOG_INFO("Application", "[WATER] water body identity bound (tangible-water C; finite awaits fine ponds)");
                     } else {
                         waterManager->setWaterTable(nullptr);
+                        waterManager->setBodyQuery(nullptr);
                     }
                     // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
                     // upstream inflow at the region frontier, flowing downhill through the valley.

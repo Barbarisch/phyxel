@@ -147,6 +147,29 @@ public:
     void setWaterTable(std::function<float(float worldX, float worldZ)> levelAt);
     bool hasWaterTable() const { return static_cast<bool>(m_tableFn); }
 
+    // --- Water BODY identity (tangible-water Phase C) ---
+    // Bind "which body is this column, and what kind" (WaterBodyIndex::bodyAt matches). While
+    // bound, FINITE bodies (ponds) are EXCLUDED from table pinning: their water is real
+    // conserved mass hydrated from `baseline + bodyDelta` — scooping them lowers a per-BODY
+    // level record that persists (one float per body: a settled body's surface is flat, so the
+    // body delta IS the sparse representation — per-column records cannot express a scooped
+    // 30k-column pond without re-minting mass from unrecorded neighbors on every rebuild).
+    // Infinite bodies (ocean/lakes) keep pin semantics untouched. Null id (< 0) = no body.
+    struct BodyInfo {
+        int64_t id = -1;
+        bool    finite = false;    // true = pond-class: unpinned, scoopable, delta-tracked
+        float   baselineLevel = 0.0f;
+    };
+    void setBodyQuery(std::function<BodyInfo(float worldX, float worldZ)> bodyAt);
+    bool hasBodyQuery() const { return static_cast<bool>(m_bodyFn); }
+    // Current level delta of a finite body (0 = at baseline; kBodyDry = scooped dry).
+    float bodyDelta(int64_t bodyId) const {
+        auto it = m_bodyDeltas.find(bodyId);
+        return it == m_bodyDeltas.end() ? 0.0f : it->second;
+    }
+    size_t bodyDeltaCount() const { return m_bodyDeltas.size(); }
+    static constexpr float kBodyDry = -1e28f;   // sentinel delta: the body was drained dry
+
     // --- Baked RIVERS (WaterSystemV2 Phase C2) ---
     // Bind a river-channel CARVE-DEPTH query (world column → carve depth in voxels, 0 = not on a
     // channel — FlowField::channelAt(...).depth matches the contract). While bound, every rebuild
@@ -249,7 +272,10 @@ public:
     // Levels only ever fall between capture and re-capture (mass spreads/evaporates, reseed fills
     // to at most the stored level), so walk-away/walk-back cycles cannot grow water.
     size_t overrideCount() const { return m_overrides.size(); }
-    std::string serializeOverrides() const;          // compact text: "x z level\n" (+ "B x z mass")
+    // Serialized water state, v2 (tangible-water Phase C): body-level deltas + the legacy column
+    // overrides + the outflow bank, one text blob. loadOverrides also accepts the v1 format
+    // (bare "x z level" / "B x z mass" lines) for world_meta["water_overrides"] migration.
+    std::string serializeOverrides() const;
     bool loadOverrides(const std::string& data);     // replaces the store; false on parse garbage
     void captureOverridesInWindow();                 // save-time hook (leaves the live water alone)
     static constexpr size_t MAX_OVERRIDES = 65536;   // sparse store cap (arbitrary eviction beyond)
@@ -332,6 +358,9 @@ private:
     void applyOverrides();
     void drainOutflowToBank();   // P4: move the sim's per-column edge outflow into m_outflowBank
     void applyOutflowBank();     // P4: drop in-window banked mass back as live water
+    // Phase C (finite bodies): hydrate in-window finite-body columns to baseline+delta (top-up
+    // only, idempotent), consuming any capture-time level observations into m_bodyDeltas.
+    void applyFiniteBodies();
     // Baked kinematic channel flow at a world column: normalized downhill direction (zero when
     // off-channel/unbound), Strahler order via orderOut. THE shared source for both the surface
     // shading and flowAtWorld (tangible-water Phase E).
@@ -364,6 +393,15 @@ private:
     std::unordered_map<uint64_t, float> m_overrides;
     // P4: packed world column → MASS bled out of the window edge, awaiting redeposit.
     std::unordered_map<uint64_t, float> m_outflowBank;
+    // Phase C: body identity + per-BODY level deltas (finite bodies only; kBodyDry = drained).
+    std::function<BodyInfo(float, float)> m_bodyFn;
+    std::unordered_map<int64_t, float>    m_bodyDeltas;
+    std::unordered_map<int64_t, float>    m_bodyObserved;   // per-recenter min observed level
+    // Snapped finite-body per-column levels (LOCAL grid Y, INT_MIN dry) + body ids, cached each
+    // rebuild — the far-layer suppression grid for UNPINNED at-rest body cells (mirror of
+    // m_tableLvlLocal) and the hydration target map.
+    std::vector<int>     m_bodyLvlLocal;
+    std::vector<int64_t> m_bodyIdLocal;
 
     // GPU backend state.
     void stepGpu();        // upload field+masks, dispatch flow, read back

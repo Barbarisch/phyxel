@@ -255,6 +255,13 @@ void WaterManager::rebuildSurface() {
             ? (y == seaLocalY)
             : (y == m_tableLvlLocal[colIdx(x, z)]);
         if (pinned && atLayerLevel) continue;   // the water-layer clipmap draws this water
+        // Finite bodies (Phase C): an UNPINNED at-rest pond cell sitting exactly at its body's
+        // hydration level is likewise the clipmap's to draw (same coarseness as the pinned
+        // rule); transients above/below the level — a splash, mid-scoop churn — still
+        // cell-render, which is exactly the near-field job.
+        if (!pinned && !m_bodyLvlLocal.empty() &&
+            m_bodyIdLocal[colIdx(x, z)] >= 0 && y == m_bodyLvlLocal[colIdx(x, z)])
+            continue;
         cells.push_back({x, y, z, surfaceY, depth});
     }
 
@@ -512,6 +519,11 @@ void WaterManager::setWaterTable(std::function<float(float, float)> levelAt) {
     m_oceanDirty = true;   // re-derive the pins from (or without) the table on the next update
 }
 
+void WaterManager::setBodyQuery(std::function<BodyInfo(float, float)> bodyAt) {
+    m_bodyFn = std::move(bodyAt);
+    m_oceanDirty = true;   // finite bodies unpin / re-derive on the next rebuild
+}
+
 void WaterManager::setRiverQuery(std::function<float(float, float)> depthAt) {
     m_riverFn = std::move(depthAt);
     m_oceanDirty = true;   // re-derive channel tags + bed pins on the next update
@@ -630,12 +642,30 @@ void WaterManager::rebuildOcean() {
             return static_cast<size_t>(lx) + static_cast<size_t>(sx) * static_cast<size_t>(lz);
         };
         std::vector<int> lvl(static_cast<size_t>(sx) * sz);
+        // FINITE bodies (tangible-water Phase C): excluded from pinning BEFORE the shoreline
+        // snap — their water is real conserved mass hydrated to baseline + per-body delta, not
+        // an infinite reservoir. m_bodyLvlLocal/m_bodyIdLocal cache the per-column hydration
+        // target + ownership for the suppression grid, the no-bleed mask, and capture routing.
+        m_bodyLvlLocal.assign(static_cast<size_t>(sx) * sz, INT_MIN);
+        m_bodyIdLocal.assign(static_cast<size_t>(sx) * sz, -1);
         for (int lz = 0; lz < sz; ++lz)
             for (int lx = 0; lx < sx; ++lx) {
-                const float wl = m_tableFn(static_cast<float>(m_origin.x + lx) + 0.5f,
-                                           static_cast<float>(m_origin.z + lz) + 0.5f);
-                lvl[colIdx(lx, lz)] = (wl <= TABLE_DRY)
-                    ? INT_MIN : static_cast<int>(std::floor(wl)) - m_origin.y;
+                const float wx = static_cast<float>(m_origin.x + lx) + 0.5f;
+                const float wz = static_cast<float>(m_origin.z + lz) + 0.5f;
+                const float wl = m_tableFn(wx, wz);
+                if (wl <= TABLE_DRY) { lvl[colIdx(lx, lz)] = INT_MIN; continue; }
+                if (m_bodyFn) {
+                    const BodyInfo bi = m_bodyFn(wx, wz);
+                    if (bi.id >= 0 && bi.finite) {
+                        lvl[colIdx(lx, lz)] = INT_MIN;   // no pin for finite bodies
+                        const float target = bi.baselineLevel + bodyDelta(bi.id);
+                        m_bodyIdLocal[colIdx(lx, lz)] = bi.id;
+                        m_bodyLvlLocal[colIdx(lx, lz)] =
+                            static_cast<int>(std::floor(target - 1e-4f)) - m_origin.y;
+                        continue;
+                    }
+                }
+                lvl[colIdx(lx, lz)] = static_cast<int>(std::floor(wl)) - m_origin.y;
             }
         // RUNTIME SHORELINE SNAP (the L3 rim-leak fix, water side): the bake is 128 m/cell coarse,
         // so its wet/dry boundary sits far from the carved waterline — the validator measured 65/65
@@ -666,6 +696,9 @@ void WaterManager::rebuildOcean() {
                     const int nx = c.x + NX[k], nz = c.y + NZ[k];
                     if (nx < 0 || nx >= sx || nz < 0 || nz >= sz) continue;
                     if (lvl[colIdx(nx, nz)] != INT_MIN) continue;   // already wet/snapped
+                    // Rim guard (Phase C): a lake must never snap-expand INTO a finite pond
+                    // across a low divide — those columns belong to the pond's own hydration.
+                    if (m_bodyIdLocal[colIdx(nx, nz)] >= 0) continue;
                     const int t = topSolid(nx, nz);
                     if (t == INT_MIN || t >= L) continue;           // void/unloaded or land above level
                     lvl[colIdx(nx, nz)] = L;
@@ -676,14 +709,22 @@ void WaterManager::rebuildOcean() {
         m_sim.fillWaterTable([&](int lx, int lz) -> int { return lvl[colIdx(lx, lz)]; });
         // Cache the snapped grid for rebuildSurface's far-layer suppression (water-layer P1).
         m_tableLvlLocal = std::move(lvl);
+        // No-bleed mask (Phase C, F3): the P4 edge outflow must not siphon a finite pond that
+        // straddles the window ring — its mass is conserved and owned by the body record.
+        for (int lz = 0; lz < sz; ++lz)
+            for (int lx = 0; lx < sx; ++lx)
+                m_sim.setColumnNoBleed(lx, lz, m_bodyIdLocal[colIdx(lx, lz)] >= 0);
         applySprings();       // authored springs still ride on top of the baked table
         applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
         applyOverrides();     // P3: reseed captured pours over the pinned bodies
+        applyFiniteBodies();  // Phase C: hydrate finite bodies to baseline + delta
         applyOutflowBank();   // P4: redeposit mass that once bled out of the window here
         rebuildSurface();
         return;
     }
     m_tableLvlLocal.clear();   // no table → only the sea-band rule suppresses (below)
+    m_bodyLvlLocal.clear();    // finite-body machinery is table-path-only
+    m_bodyIdLocal.clear();
     const int seaLevelLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
     std::vector<glm::ivec3> localSeeds;
     localSeeds.reserve(m_oceanSeeds.size());
@@ -718,6 +759,15 @@ void WaterManager::rebuildOcean() {
 // ── Poured-water persistence (water-as-terrain-stage P3) ─────────────────────────────────────────
 
 void WaterManager::captureColumnOverride(int lx, int lz, int yLo, int yHi) {
+    // Finite-body columns route to the per-BODY observation instead of a column override (F1):
+    // a body's settled surface is flat, so its state is ONE level — per-column records cannot
+    // express a partially-scooped body without re-minting mass from unrecorded neighbors.
+    const bool bodyCol = !m_bodyIdLocal.empty() &&
+                         m_bodyIdLocal[static_cast<size_t>(lx) +
+                                       static_cast<size_t>(m_dims.x) * lz] >= 0;
+    const int64_t bodyId = bodyCol
+        ? m_bodyIdLocal[static_cast<size_t>(lx) + static_cast<size_t>(m_dims.x) * lz] : -1;
+
     // Top wet cell of the departing slice decides the column's surface. A pinned top means the
     // water is bake-derived (sea/lake/river/spring) — never captured, it re-derives on return.
     for (int y = yHi; y >= yLo; --y) {
@@ -727,6 +777,11 @@ void WaterManager::captureColumnOverride(int lx, int lz, int yLo, int yHi) {
         const float f = m_sim.floorAt(lx, y, lz);
         const float level = static_cast<float>(m_origin.y + y) +
                             f + std::min(m, 1.0f) * (1.0f - f);   // same surface formula as sampleWater
+        if (bodyCol) {
+            auto it = m_bodyObserved.find(bodyId);
+            if (it == m_bodyObserved.end() || level < it->second) m_bodyObserved[bodyId] = level;
+            return;
+        }
         if (m_overrides.size() >= MAX_OVERRIDES) {
             const auto victim = m_overrides.find(packColumnKey(m_origin.x + lx, m_origin.z + lz));
             if (victim == m_overrides.end()) m_overrides.erase(m_overrides.begin());  // arbitrary evict
@@ -734,6 +789,91 @@ void WaterManager::captureColumnOverride(int lx, int lz, int yLo, int yHi) {
         m_overrides[packColumnKey(m_origin.x + lx, m_origin.z + lz)] = level;
         return;
     }
+    // No wet cell in a departing FINITE-body column that should hold water: observe it DRY at
+    // its ground level, so a drained pond does not silently refill from an unchanged record.
+    // Whole-column exits only (a vertical slice may just miss the water band); unloaded columns
+    // (no solid) are skipped — nothing was observable there.
+    if (bodyCol && yLo == 0 && yHi == m_dims.y - 1) {
+        for (int y = m_dims.y - 1; y >= 0; --y)
+            if (m_sim.isSolid(lx, y, lz)) {
+                const float ground = static_cast<float>(m_origin.y + y + 1);
+                auto it = m_bodyObserved.find(bodyId);
+                if (it == m_bodyObserved.end() || ground < it->second)
+                    m_bodyObserved[bodyId] = ground;
+                return;
+            }
+    }
+}
+
+void WaterManager::applyFiniteBodies() {
+    if (m_bodyLvlLocal.empty()) return;
+    const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+    for (int lz = 0; lz < sz; ++lz)
+        for (int lx = 0; lx < sx; ++lx) {
+            const size_t ci = static_cast<size_t>(lx) + static_cast<size_t>(sx) * lz;
+            const int64_t id = m_bodyIdLocal[ci];
+            if (id < 0) continue;
+            const float wx = static_cast<float>(m_origin.x + lx) + 0.5f;
+            const float wz = static_cast<float>(m_origin.z + lz) + 0.5f;
+            const BodyInfo bi = m_bodyFn(wx, wz);
+            if (bi.id != id) continue;   // paranoia: grid/query drift
+            // Resolve a level observation (recorded by the recenter capture) into the body
+            // delta now that the baseline is in hand. Never-grow invariant: MIN against the
+            // existing record, clamped ≤ 0 — capture can only lower a body and reseed fills to
+            // at most the record, so walk-away/walk-back cycles cannot grow water (the column
+            // overrides' invariant, lifted to body granularity).
+            auto obs = m_bodyObserved.find(id);
+            if (obs != m_bodyObserved.end()) {
+                const float obsDelta = std::min(0.0f, obs->second - bi.baselineLevel);
+                auto cur = m_bodyDeltas.find(id);
+                if (cur == m_bodyDeltas.end() || obsDelta < cur->second)
+                    m_bodyDeltas[id] = obsDelta;
+                m_bodyObserved.erase(obs);
+                // The cached hydration/suppression level predates this commit — refresh it so
+                // THIS rebuild already hydrates to the just-observed level.
+                m_bodyLvlLocal[ci] =
+                    static_cast<int>(std::floor(bi.baselineLevel + m_bodyDeltas[id] - 1e-4f)) -
+                    m_origin.y;
+            }
+            const float target = bi.baselineLevel + bodyDelta(id);
+            const int yTop = static_cast<int>(std::floor(target - 1e-4f)) - m_origin.y;
+            if (yTop < 0 || yTop >= sy) continue;
+            // Contiguous open run downward from the surface cell; requires loaded ground (same
+            // guard as the overrides/river beds).
+            int yBottom = yTop;
+            while (yBottom >= 0 && !m_sim.isSolid(lx, yBottom, lz)) --yBottom;
+            if (yBottom < 0) continue;   // unloaded/void column: hydrate on a later visit
+            // COLUMN-TOTAL deficit fill, distributed bottom-up. Two failure modes bracketed
+            // this design: per-cell top-up re-minted a sliver every rebuild (the settled CA
+            // redistributes mass inside a column — compression leaves bottom cells over 1.0 and
+            // the top under, and topping each cell to nominal added the difference back, ~0.19
+            // per rebuild on a 16-column pond); dumping the whole deficit into the TOP cell
+            // sloshed over the basin walls before gravity could settle it (measured +5.6 mass
+            // escaping per cycle). So: compare COLUMN totals (idempotent under any internal
+            // redistribution), then place only the missing mass, bottom-up, capping each cell
+            // at its nominal fraction — water lands where it will rest, nothing overfills.
+            const auto nominal = [&](int y) {
+                const float f = m_sim.floorAt(lx, y, lz);
+                return (y == yTop)
+                    ? glm::clamp((target - static_cast<float>(m_origin.y + y) - f) /
+                                 std::max(1.0f - f, 1e-4f), 0.0f, 1.0f)
+                    : 1.0f;
+            };
+            float targetTotal = 0.0f, haveTotal = 0.0f;
+            for (int y = yTop; y > yBottom; --y) {
+                targetTotal += nominal(y);
+                haveTotal += m_sim.massAt(lx, y, lz);
+            }
+            float deficit = targetTotal - haveTotal;
+            if (deficit <= 0.02f) continue;
+            for (int y = yBottom + 1; y <= yTop && deficit > 1e-4f; ++y) {
+                const float room = nominal(y) - m_sim.massAt(lx, y, lz);
+                if (room <= 0.0f) continue;
+                const float add = std::min(room, deficit);
+                m_sim.addWater(lx, y, lz, add);
+                deficit -= add;
+            }
+        }
 }
 
 void WaterManager::captureOverridesInWindow() {
@@ -751,6 +891,13 @@ void WaterManager::applyOverrides() {
         const float level = it->second;
         const int lx = wx - m_origin.x, lz = wz - m_origin.z;
         if (lx < 0 || lx >= sx || lz < 0 || lz >= sz) { ++it; continue; }  // out of window: keep
+        // Finite-body columns (Phase C): the body record owns this water — a stale column
+        // override here would double-pour on top of the hydration. Erase it.
+        if (!m_bodyIdLocal.empty() &&
+            m_bodyIdLocal[static_cast<size_t>(lx) + static_cast<size_t>(sx) * lz] >= 0) {
+            it = m_overrides.erase(it);
+            continue;
+        }
         // Double-count guard: the snapped baked table already pins water at/above this level in
         // this column — the pour merged into a persistent body; the override is redundant.
         if (!m_tableLvlLocal.empty()) {
@@ -840,20 +987,33 @@ std::string WaterManager::serializeOverrides() const {
         std::snprintf(line, sizeof(line), "B %d %d %.3f\n", wx, wz, mass);
         out += line;
     }
+    // Phase C body lines: "D bodyId delta" — one float per scooped/drained finite body.
+    for (const auto& [id, delta] : m_bodyDeltas) {
+        if (delta >= 0.0f) continue;   // at-baseline records carry no information
+        std::snprintf(line, sizeof(line), "D %lld %.3f\n", static_cast<long long>(id), delta);
+        out += line;
+    }
     return out;
 }
 
 bool WaterManager::loadOverrides(const std::string& data) {
     std::unordered_map<uint64_t, float> fresh, freshBank;
+    std::unordered_map<int64_t, float>  freshBodies;
     size_t pos = 0;
     while (pos < data.size()) {
         size_t eol = data.find('\n', pos);
         if (eol == std::string::npos) eol = data.size();
         int wx = 0, wz = 0;
         float value = 0.0f;
+        long long bodyId = 0;
         const std::string lineStr = data.substr(pos, eol - pos);
         pos = eol + 1;
         if (lineStr.empty()) continue;
+        if (std::sscanf(lineStr.c_str(), "D %lld %f", &bodyId, &value) == 2) {
+            if (freshBodies.size() < MAX_OVERRIDES)
+                freshBodies[static_cast<int64_t>(bodyId)] = std::min(value, 0.0f);
+            continue;
+        }
         if (std::sscanf(lineStr.c_str(), "B %d %d %f", &wx, &wz, &value) == 3) {
             if (freshBank.size() < MAX_OVERRIDES)
                 freshBank[packColumnKey(wx, wz)] = std::min(value, BANK_CAP_PER_COLUMN);
@@ -865,6 +1025,7 @@ bool WaterManager::loadOverrides(const std::string& data) {
     }
     m_overrides = std::move(fresh);
     m_outflowBank = std::move(freshBank);
+    m_bodyDeltas = std::move(freshBodies);
     m_oceanDirty = true;   // reseed anything in-window on the next update
     return true;
 }
@@ -951,6 +1112,13 @@ WaterManager::WaterSample WaterManager::sampleWater(const glm::vec3& worldPos) c
     float level = TABLE_DRY;
     if (m_tableFn) level = m_tableFn(worldPos.x, worldPos.z);
     else if (m_implicitSea) level = m_seaLevel;
+    // Finite bodies (Phase C, F4): the table reports the BAKE level forever, but a scooped pond
+    // is genuinely lower — honor the body delta so a drained pond reads drained (or dry) from
+    // outside the window too (NPC buoyancy's slept re-check, fog, wading all come through here).
+    if (level > TABLE_DRY && m_bodyFn) {
+        const BodyInfo bi = m_bodyFn(worldPos.x, worldPos.z);
+        if (bi.id >= 0 && bi.finite) level = bi.baselineLevel + bodyDelta(bi.id);
+    }
     if (level > TABLE_DRY && worldPos.y < level) {
         s.inWater = true;
         s.surfaceY = level;

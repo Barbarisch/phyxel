@@ -194,6 +194,13 @@ public:
     // hold — which is how a spill actually leaves the window. Off by default (legacy walls).
     void setEdgeOutflow(bool on);
     bool edgeOutflow() const { return m_edgeOutflow; }
+    // Per-column edge-bleed exemption (tangible-water Phase C): a FINITE body's columns are real
+    // conserved mass owned by its body record — the frontier bleed must not siphon a pond that
+    // happens to straddle the window ring. Re-derived by the owner on every rebuild.
+    void setColumnNoBleed(int lx, int lz, bool noBleed) {
+        if (lx >= 0 && lx < m_sx && lz >= 0 && lz < m_sz)
+            m_colNoBleed[colIdx(lx, lz)] = noBleed ? 1 : 0;
+    }
     // Move the accumulated per-column outflow to the caller: `sink(lx, lz, mass)` per non-empty
     // ring column, cleared afterward. Returns the total mass drained.
     float drainEdgeOutflow(const std::function<void(int lx, int lz, float mass)>& sink);
@@ -269,6 +276,7 @@ private:
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
     bool                 m_edgeOutflow = false;            // P4: ring columns bleed instead of walling
     std::vector<float>   m_edgeOutflowAccum;               // per-column outflow since the last drain
+    std::vector<uint8_t> m_colNoBleed;                     // Phase C: finite-body bleed exemption
     void runEdgeOutflow();                                 // one bleed pass over the ring (in step())
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;

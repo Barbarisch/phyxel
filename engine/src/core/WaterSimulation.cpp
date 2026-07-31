@@ -19,7 +19,8 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_floor(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
       m_flow(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
       m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
-      m_edgeOutflowAccum(static_cast<size_t>(sizeX) * sizeZ, 0.0f) {}
+      m_edgeOutflowAccum(static_cast<size_t>(sizeX) * sizeZ, 0.0f),
+      m_colNoBleed(static_cast<size_t>(sizeX) * sizeZ, 0) {}
 
 glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
     if (!inBounds(x, y, z)) return glm::vec2(0.0f);
@@ -244,6 +245,7 @@ void WaterSimulation::setEdgeOutflow(bool on) {
 
 void WaterSimulation::runEdgeOutflow() {
     auto bleedColumn = [&](int x, int z) {
+        if (m_colNoBleed[colIdx(x, z)]) return;   // finite-body column (Phase C): conserved mass
         for (int y = m_sy - 1; y >= 0; --y) {
             const size_t i = idx(x, y, z);
             if (m_solid[i] || m_mass[i] <= 0.0f) continue;
