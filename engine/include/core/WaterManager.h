@@ -80,6 +80,20 @@ public:
     };
     WaterSample sampleWater(const glm::vec3& worldPos) const;
 
+    // ── Current velocity (tangible-water Phase E) ─────────────────────────────────────────────
+    // Horizontal water-current VELOCITY (m/s, y = 0) at a world point — THE physics/gameplay
+    // flow query ("which way is this water carrying things, and how hard"). In-window: the live
+    // CA flow proxy scaled to world speed; where the pinned river field shows ~none, the baked
+    // kinematic downhill direction at an order-scaled speed (a pinned river performs no
+    // transfers, so the proxy alone would read a river as a lake — same substitution the
+    // surface shading makes, through the same helper so they can't disagree). Out-of-window:
+    // kinematic only. Zero when dry/still. Thread-safe for concurrent reads (immutable bake
+    // queries + sim arrays that mutate only on the main thread between physics steps).
+    glm::vec3 flowAtWorld(const glm::vec3& worldPos) const;
+    // ⚑GROUND: FLOW_FULL (0.15 mass/step — a vigorous channel) maps to 1.5 m/s: brisk stream
+    // pace, and the speed the surface shading already treats as "clearly moving".
+    static constexpr float kFlowSpeedScale = 10.0f;
+
     // Fraction of an AABB below the local water surface, for buoyancy/drag. Samples the surface
     // at the footprint's centre + 4 corners and averages the per-column submerged fractions —
     // cheap, monotone, and exact for a flat surface over a uniform column.
@@ -318,6 +332,10 @@ private:
     void applyOverrides();
     void drainOutflowToBank();   // P4: move the sim's per-column edge outflow into m_outflowBank
     void applyOutflowBank();     // P4: drop in-window banked mass back as live water
+    // Baked kinematic channel flow at a world column: normalized downhill direction (zero when
+    // off-channel/unbound), Strahler order via orderOut. THE shared source for both the surface
+    // shading and flowAtWorld (tangible-water Phase E).
+    glm::vec2 kinematicRiverFlow(float wx, float wz, int* orderOut = nullptr) const;
     static uint64_t packColumnKey(int wx, int wz) {
         return (static_cast<uint64_t>(static_cast<uint32_t>(wx)) << 32) |
                static_cast<uint64_t>(static_cast<uint32_t>(wz));

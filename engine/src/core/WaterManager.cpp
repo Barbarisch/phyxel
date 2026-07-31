@@ -367,12 +367,11 @@ void WaterManager::rebuildSurface() {
         // KINEMATIC RIVER FLOW: a baked river is pinned full along its carve, so it performs no
         // transfers and the CA proxy above reads ZERO — it would shade as a long thin lake. Where
         // the bake says this column is a channel, take the direction from the drainage network
-        // instead. Visual only: the field is still hydrostatic (see setRiverFlowQuery).
-        if (m_riverDirFn && strength < 0.35f) {
-            const glm::vec2 rd = m_riverDirFn(wX + 0.5f, wZ + 0.5f);
-            const float rmag = std::sqrt(rd.x * rd.x + rd.y * rd.y);
-            if (rmag > 1e-5f) {
-                fdir = rd / rmag;
+        // instead (shared helper with flowAtWorld, so shading and the physics current agree).
+        if (strength < 0.35f) {
+            const glm::vec2 kd = kinematicRiverFlow(wX + 0.5f, wZ + 0.5f);
+            if (kd.x != 0.0f || kd.y != 0.0f) {
+                fdir = kd;
                 // ⚑GROUND: 0.55 — a visible current, deliberately below the 1.0 of a genuinely
                 // churning CA flow so a broad river reads as purposeful drift, not rapids.
                 strength = 0.55f;
@@ -389,6 +388,59 @@ void WaterManager::rebuildSurface() {
                               edge(c.x, c.z - 1, std::min(cNN, cPN), wX + 0.5f, wZ + 0.0f)); // -z
         m_surface.push_back(out);
     }
+}
+
+glm::vec2 WaterManager::kinematicRiverFlow(float wx, float wz, int* orderOut) const {
+    if (orderOut) *orderOut = 0;
+    if (!m_riverDirFn) return glm::vec2(0.0f);
+    const glm::vec2 rd = m_riverDirFn(wx, wz);
+    const float rmag = std::sqrt(rd.x * rd.x + rd.y * rd.y);
+    if (rmag <= 1e-5f) return glm::vec2(0.0f);
+    if (orderOut && m_riverOrderFn) *orderOut = m_riverOrderFn(wx, wz);
+    return rd / rmag;
+}
+
+glm::vec3 WaterManager::flowAtWorld(const glm::vec3& worldPos) const {
+    // Locate the wet cell this point rides in (the point may sit fractionally above the surface
+    // cell of the water carrying it — a floating body's AABB center often does).
+    int lx, ly, lz;
+    if (worldToLocal(worldPos, lx, ly, lz)) {
+        if (m_sim.massAt(lx, ly, lz) <= 0.0f) {
+            if (ly > 0 && m_sim.massAt(lx, ly - 1, lz) > 0.0f) --ly;
+            else return glm::vec3(0.0f);   // genuinely dry cell — no current
+        }
+        const glm::vec2 fv = m_sim.flowAt(lx, ly, lz);
+        const glm::vec2 simVel = fv * kFlowSpeedScale;
+        const float simSpeed = std::sqrt(simVel.x * simVel.x + simVel.y * simVel.y);
+        // A genuinely moving CA flow (a spill, a breach) wins outright.
+        if (simSpeed > 0.5f) return glm::vec3(simVel.x, 0.0f, simVel.y);
+        // Pinned river water shows ~no proxy flow; substitute the baked downhill current at an
+        // order-scaled speed. ⚑GROUND: creeks ~0.8 m/s (ankle-deep push), order-3 ~1.6 (a real
+        // river you lean against), +0.4 per order, capped 3 — hydraulic-geometry-flavored, tuned
+        // for feel, not measured discharge.
+        int order = 0;
+        const glm::vec2 kd = kinematicRiverFlow(std::floor(worldPos.x) + 0.5f,
+                                                std::floor(worldPos.z) + 0.5f, &order);
+        if ((kd.x != 0.0f || kd.y != 0.0f) && order > 0) {
+            const float speed = (order <= 2)
+                ? 0.8f
+                : std::min(1.6f + 0.4f * static_cast<float>(order - 3), 3.0f);
+            return glm::vec3(kd.x * speed, 0.0f, kd.y * speed);
+        }
+        return glm::vec3(simVel.x, 0.0f, simVel.y);   // gentle residual drift
+    }
+    // Out of the sim window: the kinematic river current still exists (callers gate on being in
+    // water via sampleWater/submergedFraction, which already handle out-of-window wetness).
+    int order = 0;
+    const glm::vec2 kd = kinematicRiverFlow(std::floor(worldPos.x) + 0.5f,
+                                            std::floor(worldPos.z) + 0.5f, &order);
+    if ((kd.x != 0.0f || kd.y != 0.0f) && order > 0) {
+        const float speed = (order <= 2)
+            ? 0.8f
+            : std::min(1.6f + 0.4f * static_cast<float>(order - 3), 3.0f);
+        return glm::vec3(kd.x * speed, 0.0f, kd.y * speed);
+    }
+    return glm::vec3(0.0f);
 }
 
 bool WaterManager::worldToLocal(const glm::vec3& w, int& lx, int& ly, int& lz) const {

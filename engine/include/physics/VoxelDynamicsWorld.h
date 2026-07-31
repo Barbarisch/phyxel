@@ -50,6 +50,16 @@ public:
     }
     bool hasWaterQuery() const { return static_cast<bool>(m_waterQuery); }
 
+    // Horizontal water-current VELOCITY (m/s, y = 0) at a world point (tangible-water Phase E):
+    // moving water carries what floats in it. The host wires WaterManager::flowAtWorld. Same
+    // thread-safety contract as setWaterQuery (concurrent READS from the parallel velocity
+    // phase; the flow field only mutates on the main thread between steps). Null = no currents
+    // (bit-identical to pre-current behavior).
+    void setWaterFlowQuery(std::function<glm::vec3(const glm::vec3& worldPos)> q) {
+        m_waterFlowQuery = std::move(q);
+    }
+    bool hasWaterFlowQuery() const { return static_cast<bool>(m_waterFlowQuery); }
+
     // ---- Terrain ----
     // Register a chunk's occupancy grid. Does not take ownership.
     // Call when a chunk is loaded / physics body created.
@@ -166,6 +176,7 @@ private:
     uint32_t  m_nextId        = 1;
     int       m_threadCount   = 1;  // initialized to hardware_concurrency in constructor
     std::function<float(const glm::vec3&, const glm::vec3&)> m_waterQuery; // Phase 4.2; null = dry
+    std::function<glm::vec3(const glm::vec3&)> m_waterFlowQuery; // tangible-water E; null = still
     uint64_t  m_stepCounter   = 0;  // staggers the slept-body water re-check (Phase 4.2)
 
     void substep(float dt);
@@ -174,6 +185,30 @@ private:
     void generateContacts();
     void updateSleepState(float dt);
     void cleanupDead();
+
+    // ---- Rest overhaul (docs/PhysicsRestOverhaul.md) ----
+
+    // Approach speed (m/s) at which an awake body impacting a sleeper wakes it (and,
+    // transitively, what the sleeper was touching). Slower touches rest ON the sleeper.
+    static constexpr float WAKE_IMPACT_SPEED = 0.5f;
+
+    // Cross-step contact manifold cache for impulse warm starting. Keyed by
+    // ContactPoint::pairKey; points matched by body-A-local contact position.
+    struct CachedContactPoint {
+        glm::vec3 localPosA;
+        float lambdaN, lambdaT1, lambdaT2;
+    };
+    struct CachedManifold {
+        CachedContactPoint pts[4];
+        int count = 0;
+    };
+    std::unordered_map<uint64_t, CachedManifold> m_manifoldCache;
+
+    void wakeFromImpacts();      // after contact gen: fast impacts wake sleeping bodies
+    void warmStartContacts();    // apply last step's impulses to matched contacts
+    void storeManifolds();       // persist this step's impulses for the next step
+    void wakeChain(VoxelRigidBody* body);          // wake + transitive touching set
+    void wakeSleepersTouching(uint32_t bodyId);    // support removed → wake dependents
 
     // §15.5 / U1a broadphase index. m_grids stayed a flat vector scanned in full per
     // collision box per substep — O(worldSize), not O(object). m_gridByChunk keys each

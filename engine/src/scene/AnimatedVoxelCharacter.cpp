@@ -170,6 +170,17 @@ namespace Scene {
                 const float slow = glm::mix(1.0f, 0.55f, glm::clamp(depth / hip, 0.0f, 1.0f));
                 m_kinVelocity.x *= slow;
                 m_kinVelocity.z *= slow;
+                // Current push (tangible-water Phase E): flowing water shoves a wader
+                // downstream — an additive velocity you can walk against, scaled by how deep
+                // you stand, NEVER a controller override. Applied after the slowdown so deep
+                // fast water both slows you and carries you, which is what a real river does.
+                if (m_water.flowAt && depth > 0.4f) {
+                    const glm::vec3 flow = m_water.flowAt(worldPosition + glm::vec3(0.0f, 0.05f, 0.0f));
+                    constexpr float kCharPush = 0.6f;
+                    const float engage = glm::clamp(depth / 1.2f, 0.0f, 1.0f) * kCharPush;
+                    m_kinVelocity.x += flow.x * engage;
+                    m_kinVelocity.z += flow.z * engage;
+                }
                 // Footstep rings while striding through shallow water (deep water = no stepping).
                 const float hspeed = glm::length(glm::vec2(m_kinVelocity.x, m_kinVelocity.z));
                 if (m_water.addRipple && m_kinGrounded && depth < 1.2f && hspeed > 0.3f) {

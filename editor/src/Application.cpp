@@ -1608,6 +1608,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (raycastVisualizer) {
         npcManager->setRaycastVisualizer(raycastVisualizer.get());
     }
+    // NPC water hooks (tangible-water Phase E — closes the "wading was player-only" gap):
+    // copied onto every spawned NPC's character. The lambdas null-check waterManager at CALL
+    // time, so wiring them here — before any world/water exists — is safe and covers every
+    // later spawn path (game.json NPCs, fauna, MCP spawns).
+    {
+        Scene::AnimatedVoxelCharacter::WaterHooks npcHooks;
+        npcHooks.depthAt = [this](const glm::vec3& p) -> float {
+            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
+        };
+        npcHooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
+            if (waterManager) waterManager->addRipple(p, radius, strength);
+        };
+        npcHooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
+            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
+        };
+        // No entry-splash burst for NPCs (VFX budget: 100 fauna hitting a river edge at once
+        // must not monopolize the burst cap); rings + slowdown + current push only.
+        npcManager->setCharacterWaterHooks(std::move(npcHooks));
+    }
     // Static placed objects (wells, woodpiles, furniture) are NOT chunk voxels, so
     // pathfinding routed straight through them and NPCs treadmilled against their
     // collision. Feed their boxes to the nav build as obstacles. Structures excluded:
@@ -5026,6 +5045,10 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         hooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
             if (waterManager) waterManager->addRipple(p, radius, strength);
         };
+        // Current push (tangible-water Phase E): flowing water shoves a wader downstream.
+        hooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
+            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
+        };
         hooks.splash = [this](const glm::vec3& p, float intensity) {
             auto* vfx = renderCoordinator ? renderCoordinator->getVfxSystem() : nullptr;
             if (!vfx) return;
@@ -5693,6 +5716,12 @@ void Application::autoLoadGameDefinition() {
                 chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(
                     [this](const glm::vec3& mn, const glm::vec3& mx) -> float {
                         return waterManager ? waterManager->submergedFraction(mn, mx) : 0.0f;
+                    });
+                // Current forces (tangible-water Phase E): moving water carries floating
+                // bodies — same dependency-inversion, same thread-safety contract.
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterFlowQuery(
+                    [this](const glm::vec3& p) -> glm::vec3 {
+                        return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
                     });
             }
         }

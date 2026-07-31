@@ -148,13 +148,17 @@ void VoxelDynamicsWorld::removeBody(VoxelRigidBody* body) {
     if (!body) return;
     auto it = std::find_if(m_bodies.begin(), m_bodies.end(),
                            [body](const auto& u) { return u.get() == body; });
-    if (it != m_bodies.end())
+    if (it != m_bodies.end()) {
+        const uint32_t id = body->id;
         m_bodies.erase(it);
+        wakeSleepersTouching(id);   // support vanished → dependents must resettle
+    }
 }
 
 void VoxelDynamicsWorld::removeAllBodies() {
     m_bodies.clear();
     m_contacts.clear();
+    m_manifoldCache.clear();
 }
 
 size_t VoxelDynamicsWorld::getActiveCount() const {
@@ -190,17 +194,124 @@ void VoxelDynamicsWorld::substep(float dt) {
     m_contacts.clear();
     generateContacts();
 
-    // Parallel prepareContacts — each contact is independent
+    // Fast impacts wake sleeping bodies BEFORE prepare, so a woken body is solved as
+    // dynamic this very substep (a slow touch leaves the sleeper static — restable).
+    wakeFromImpacts();
+
+    // Parallel prepareContacts — each contact is independent (no body writes)
     parallelRange(m_contacts.size(), m_threadCount, [&](size_t b, size_t e) {
         for (size_t i = b; i < e; ++i)
             VoxelContactSolver::prepareContact(m_contacts[i], dt);
     });
 
-    VoxelContactSolver::solveContacts(m_contacts);  // sequential PGS — cannot parallelize
-
+    // Soft-step solve (docs/PhysicsRestOverhaul.md): warm start → biased iterations →
+    // integrate positions → bias-free relax (removes injected correction energy) →
+    // restitution pass → persist impulses for next step's warm start.
+    warmStartContacts();
+    const auto sp = VoxelContactSolver::makeParams(dt);
+    VoxelContactSolver::solvePass(m_contacts, sp, /*useBias=*/true,
+                                  VoxelContactSolver::SOLVER_ITERATIONS);
     integratePositions(dt);
+    VoxelContactSolver::solvePass(m_contacts, sp, /*useBias=*/false,
+                                  VoxelContactSolver::RELAX_ITERATIONS);
+    VoxelContactSolver::applyRestitution(m_contacts);
+    storeManifolds();
+
     updateSleepState(dt);
     cleanupDead();
+}
+
+// ---- Rest overhaul helpers (docs/PhysicsRestOverhaul.md) ------------------------
+
+void VoxelDynamicsWorld::wakeChain(VoxelRigidBody* body) {
+    std::vector<VoxelRigidBody*> stack{body};
+    while (!stack.empty()) {
+        VoxelRigidBody* cur = stack.back();
+        stack.pop_back();
+        if (!cur->isAsleep) continue;
+        cur->isAsleep      = false;
+        cur->sleepTimer    = 0.0f;
+        cur->sleepPosTimer = 0.0f;
+        cur->sleepRefPos   = cur->position;
+        for (uint32_t id : cur->touchingAtSleep) {
+            VoxelRigidBody* nb = getBodyById(id);
+            if (nb && nb->isAsleep) stack.push_back(nb);
+        }
+        cur->touchingAtSleep.clear();
+    }
+}
+
+void VoxelDynamicsWorld::wakeSleepersTouching(uint32_t bodyId) {
+    // A body vanished (died / removed): anything that slept resting against it must
+    // wake or it would float on the memory of its support.
+    for (auto& b : m_bodies) {
+        if (!b->isAsleep) continue;
+        const auto& t = b->touchingAtSleep;
+        if (std::find(t.begin(), t.end(), bodyId) != t.end())
+            wakeChain(b.get());
+    }
+}
+
+void VoxelDynamicsWorld::wakeFromImpacts() {
+    for (const auto& cp : m_contacts) {
+        if (!cp.bodyB) continue;                       // terrain/kinematic handled elsewhere
+        const bool aS = cp.bodyA->isAsleep;
+        const bool bS = cp.bodyB->isAsleep;
+        if (aS == bS) continue;                        // both awake (or, impossibly, both asleep)
+        VoxelRigidBody* sleeper = aS ? cp.bodyA : cp.bodyB;
+        VoxelRigidBody* mover   = aS ? cp.bodyB : cp.bodyA;
+        // Approach speed of the awake body along the contact normal (sleeper is still).
+        glm::vec3 vm = mover->linearVelocity +
+                       glm::cross(mover->angularVelocity,
+                                  cp.worldPos - mover->position);
+        // normal points B→A; approaching means relVn = dot(vA - vB, n) < 0 either way.
+        float relVn = (mover == cp.bodyA) ? glm::dot(vm, cp.normal)
+                                          : -glm::dot(vm, cp.normal);
+        if (relVn < -WAKE_IMPACT_SPEED)
+            wakeChain(sleeper);
+    }
+}
+
+void VoxelDynamicsWorld::warmStartContacts() {
+    if (m_manifoldCache.empty()) return;
+    constexpr float kMatchTolSq = 0.04f * 0.04f;   // 4 cm point-identity tolerance
+    for (auto& cp : m_contacts) {
+        auto it = m_manifoldCache.find(cp.pairKey);
+        if (it == m_manifoldCache.end()) continue;
+        const glm::vec3 localPosA =
+            glm::inverse(cp.bodyA->orientation) * (cp.worldPos - cp.bodyA->position);
+        const CachedManifold& m = it->second;
+        for (int i = 0; i < m.count; ++i) {
+            const glm::vec3 d = m.pts[i].localPosA - localPosA;
+            if (glm::dot(d, d) > kMatchTolSq) continue;
+            cp.lambdaN  = m.pts[i].lambdaN;
+            cp.lambdaT1 = m.pts[i].lambdaT1;
+            cp.lambdaT2 = m.pts[i].lambdaT2;
+            const glm::vec3 imp = cp.lambdaN  * cp.normal
+                                + cp.lambdaT1 * cp.tangent1
+                                + cp.lambdaT2 * cp.tangent2;
+            if (!cp.bodyA->isAsleep) cp.bodyA->applyImpulse(imp, cp.worldPos);
+            if (cp.bodyB && !cp.bodyB->isAsleep) cp.bodyB->applyImpulse(-imp, cp.worldPos);
+            break;
+        }
+    }
+}
+
+void VoxelDynamicsWorld::storeManifolds() {
+    std::unordered_map<uint64_t, CachedManifold> next;
+    next.reserve(m_contacts.size());
+    for (const auto& cp : m_contacts) {
+        if (cp.lambdaN == 0.0f && cp.lambdaT1 == 0.0f && cp.lambdaT2 == 0.0f) continue;
+        CachedManifold& m = next[cp.pairKey];
+        if (m.count >= 4) continue;
+        CachedContactPoint& pt = m.pts[m.count++];
+        pt.localPosA =
+            glm::inverse(cp.bodyA->orientation) * (cp.worldPos - cp.bodyA->position);
+        pt.lambdaN  = cp.lambdaN;
+        pt.lambdaT1 = cp.lambdaT1;
+        pt.lambdaT2 = cp.lambdaT2;
+    }
+    m_manifoldCache = std::move(next);
 }
 
 // ---- Parallel physics phases ------------------------------------------------
@@ -230,6 +341,20 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
                     constexpr float kWaterAngularDrag = 0.85f;
                     body->linearVelocity  *= std::pow(1.0f - kWaterLinearDrag,  dt * wet);
                     body->angularVelocity *= std::pow(1.0f - kWaterAngularDrag, dt * wet);
+                    // Current force (tangible-water Phase E): moving water carries what floats
+                    // in it — a relative drag pulling the body's horizontal velocity toward the
+                    // current's, scaled by how submerged it is. Applied AFTER the water damp so
+                    // the drift converges to a stable terminal speed ≈ the current's own (the
+                    // damp erodes velocity, the coupling restores it toward the flow each step).
+                    if (m_waterFlowQuery) {
+                        const glm::vec3 flow = m_waterFlowQuery(0.5f * (mn + mx));
+                        if (flow.x != 0.0f || flow.z != 0.0f) {
+                            constexpr float kCurrentCouple = 3.0f;
+                            const float k = std::min(1.0f, kCurrentCouple * wet * dt);
+                            body->linearVelocity.x += (flow.x - body->linearVelocity.x) * k;
+                            body->linearVelocity.z += (flow.z - body->linearVelocity.z) * k;
+                        }
+                    }
                 }
                 body->wetLastStep = wet > 0.0f;
             }
@@ -277,7 +402,12 @@ void VoxelDynamicsWorld::generateContacts() {
     size_t n  = m_bodies.size();
     int    tc = std::max(1, m_threadCount);
 
-    // Build awake-body list and cache each AABB once — shared by terrain and body-body phases.
+    // Build the candidate list and cache each AABB once — awake bodies first ([0, na)),
+    // then SLEEPING bodies appended ([na, end)). Sleeping bodies skip the terrain phase
+    // (they cannot move) but MUST stay body-body collision candidates: an awake body
+    // rests against them (sleeper solved as static) or wakes them on impact. Excluding
+    // them entirely let falling bodies tunnel clean through slept piles
+    // (docs/PhysicsRestOverhaul.md diagnosis #4).
     struct AwakeBody { VoxelRigidBody* body; glm::vec3 mn, mx; };
     std::vector<AwakeBody> awake;
     awake.reserve(n);
@@ -289,12 +419,20 @@ void VoxelDynamicsWorld::generateContacts() {
         awake.push_back(ab);
     }
     size_t na = awake.size();
+    for (auto& b : m_bodies) {
+        if (b->isDead || !b->isAsleep || b->invMass == 0.0f) continue;
+        AwakeBody ab;
+        ab.body = b.get();
+        b->getWorldAABB(ab.mn, ab.mx);
+        awake.push_back(ab);
+    }
+    const size_t nAll = awake.size();
 
     // §15.5: the terrain broadphase visits Σ(boxes) × gridCount grids per substep — cost that
     // scales with WORLD SIZE, not the falling object. Count the calls arithmetically (rather than
     // atomically inside the parallel hot loop, which would distort the timing beside it).
     size_t awakeBoxes = 0;
-    for (const AwakeBody& ab : awake) awakeBoxes += ab.body->getLocalBoxes().size();
+    for (size_t i = 0; i < na; ++i) awakeBoxes += awake[i].body->getLocalBoxes().size();
     const auto tTerrain0 = Clock::now();
 
     // ---- Body vs terrain (parallel, per-thread contact buffers) ----
@@ -388,8 +526,7 @@ void VoxelDynamicsWorld::generateContacts() {
                 const bool touched = m_contacts.size() > before;
                 const bool obsMoving = glm::dot(obs.velocity, obs.velocity) > 1e-4f;
                 if (touched && body->isAsleep && obsMoving) {
-                    body->isAsleep   = false;
-                    body->sleepTimer = 0.0f;
+                    wakeChain(body.get());   // wake what rested on/under it too
                 }
                 if (body->isAsleep) {
                     m_contacts.resize(before);   // sleeping body: discard, nothing to solve
@@ -421,7 +558,8 @@ void VoxelDynamicsWorld::generateContacts() {
     // ---- Body vs body: spatial hash broadphase ----
     // Buckets bodies into 3-D cells of CELL_SIZE. Only pairs sharing a cell are
     // tested, reducing average complexity from O(N²) to O(N) for sparse scenes.
-    if (na < 2) { recordStats(); return; }
+    // Candidates include sleeping bodies; pairs where BOTH sleep are skipped.
+    if (na == 0 || nAll < 2) { recordStats(); return; }
     {
         static constexpr float CELL_SIZE = 2.0f;
         static constexpr float INV_CELL  = 1.0f / CELL_SIZE;
@@ -436,8 +574,8 @@ void VoxelDynamicsWorld::generateContacts() {
 
         // Insert each body into every cell its AABB overlaps (usually 1–8 cells).
         std::unordered_map<uint64_t, std::vector<uint32_t>> spatialHash;
-        spatialHash.reserve(na * 4);
-        for (uint32_t i = 0; i < static_cast<uint32_t>(na); ++i) {
+        spatialHash.reserve(nAll * 4);
+        for (uint32_t i = 0; i < static_cast<uint32_t>(nAll); ++i) {
             const AwakeBody& ab = awake[i];
             int x0 = static_cast<int>(std::floor(ab.mn.x * INV_CELL));
             int y0 = static_cast<int>(std::floor(ab.mn.y * INV_CELL));
@@ -453,7 +591,7 @@ void VoxelDynamicsWorld::generateContacts() {
 
         // Test each unique pair that shares at least one cell.
         std::unordered_set<uint64_t> testedPairs;
-        testedPairs.reserve(na * 4);
+        testedPairs.reserve(nAll * 4);
 
         for (auto& [key, indices] : spatialHash) {
             size_t nc = indices.size();
@@ -462,6 +600,7 @@ void VoxelDynamicsWorld::generateContacts() {
                 for (size_t b = a + 1; b < nc; ++b) {
                     uint32_t ia = indices[a], ib = indices[b];
                     if (ia > ib) std::swap(ia, ib);
+                    if (ia >= na) continue;   // both asleep — nothing to solve or wake
                     uint64_t pairKey = (static_cast<uint64_t>(ia) << 32) | static_cast<uint64_t>(ib);
                     if (!testedPairs.insert(pairKey).second) continue;
 
@@ -486,70 +625,126 @@ void VoxelDynamicsWorld::generateContacts() {
 void VoxelDynamicsWorld::updateSleepState(float dt) {
     ++m_stepCounter;
     size_t n = m_bodies.size();
+
+    // Water/sleep interaction (Phase 4.2), sequential because waking chains across
+    // bodies: a SLEPT body re-checks the water ~once a second (staggered by id) —
+    // rising water must wake what it reaches, including whatever rests on it.
+    if (m_waterQuery) {
+        for (auto& body : m_bodies) {
+            if (!body->isAsleep || body->invMass == 0.0f || body->isDead) continue;
+            if ((m_stepCounter + body->id) % 60 != 0) continue;
+            glm::vec3 mn, mx;
+            body->getWorldAABB(mn, mx);
+            if (m_waterQuery(mn, mx) > 0.0f) {
+                wakeChain(body.get());
+                body->wetLastStep = true;
+            }
+        }
+    }
+
+    // Phase A (parallel): per-body sleep QUALIFICATION timers only — nothing sleeps
+    // here. Sleeping is decided per contact ISLAND below, so a body mid-pile can't
+    // freeze while its neighbours still move; the pile freezes together (Box3D model).
     parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
         for (size_t i = b; i < e; ++i) {
             auto& body = m_bodies[i];
-            if (body->invMass == 0.0f) continue;
-            // Water/sleep interaction (Phase 4.2):
-            //  • A WET body never sleeps — a floater that slept would hover mid-air when its
-            //    water drained (sleep freezes position and skips integration entirely).
-            //  • A SLEPT body re-checks the water ~once a second (staggered by id so a big
-            //    field of debris doesn't re-check in lockstep): rising water must wake and
-            //    float what it reaches, and nothing else ever re-queries a sleeping body.
-            if (m_waterQuery) {
-                if (body->isAsleep) {
-                    if ((m_stepCounter + body->id) % 60 == 0) {
-                        glm::vec3 mn, mx;
-                        body->getWorldAABB(mn, mx);
-                        if (m_waterQuery(mn, mx) > 0.0f) {
-                            body->isAsleep = false;
-                            body->sleepTimer = 0.0f;
-                            body->sleepPosTimer = 0.0f;
-                            body->wetLastStep = true;
-                        }
-                    }
-                    continue;
-                }
-                if (body->wetLastStep) {
-                    body->sleepTimer = 0.0f;
-                    body->sleepPosTimer = 0.0f;
-                    body->sleepRefPos = body->position;
-                    continue;
-                }
+            if (body->invMass == 0.0f || body->isAsleep || body->isDead) continue;
+            // A WET body never sleeps — a floater that slept would hover mid-air when
+            // its water drained (sleep freezes position and skips integration).
+            if (m_waterQuery && body->wetLastStep) {
+                body->sleepTimer    = 0.0f;
+                body->sleepPosTimer = 0.0f;
+                body->sleepRefPos   = body->position;
+                continue;
             }
             float vSq  = glm::dot(body->linearVelocity,  body->linearVelocity);
             float wSq  = glm::dot(body->angularVelocity, body->angularVelocity);
             bool  slow = vSq < VoxelRigidBody::SLEEP_VELOCITY_SQ
                       && wSq < VoxelRigidBody::SLEEP_ANGULAR_SQ;
-            if (slow) {
-                body->sleepTimer += dt;
-                if (body->sleepTimer >= VoxelRigidBody::SLEEP_TIME && !body->isAsleep) {
-                    body->isAsleep        = true;
-                    body->linearVelocity  = glm::vec3(0.0f);
-                    body->angularVelocity = glm::vec3(0.0f);
-                }
+            if (slow) body->sleepTimer += dt;
+            else      body->sleepTimer = 0.0f;
+            // Position fallback: a body that has not MOVED for SLEEP_POS_TIME counts as
+            // qualified even if something keeps spiking its velocity — but it now feeds
+            // the island decision instead of unilaterally freezing mid-pile.
+            const glm::vec3 d = body->position - body->sleepRefPos;
+            if (glm::dot(d, d) < VoxelRigidBody::SLEEP_POS_EPS * VoxelRigidBody::SLEEP_POS_EPS) {
+                body->sleepPosTimer += dt;
+                if (body->sleepPosTimer >= VoxelRigidBody::SLEEP_POS_TIME)
+                    body->sleepTimer = std::max(body->sleepTimer, VoxelRigidBody::SLEEP_TIME);
             } else {
-                body->sleepTimer = 0.0f;
-                body->isAsleep   = false;
-            }
-            // Position fallback: still in place for SLEEP_POS_TIME → sleep, even
-            // when solver jitter keeps the velocity test from ever passing.
-            if (!body->isAsleep) {
-                const glm::vec3 d = body->position - body->sleepRefPos;
-                if (glm::dot(d, d) < VoxelRigidBody::SLEEP_POS_EPS * VoxelRigidBody::SLEEP_POS_EPS) {
-                    body->sleepPosTimer += dt;
-                    if (body->sleepPosTimer >= VoxelRigidBody::SLEEP_POS_TIME) {
-                        body->isAsleep        = true;
-                        body->linearVelocity  = glm::vec3(0.0f);
-                        body->angularVelocity = glm::vec3(0.0f);
-                    }
-                } else {
-                    body->sleepRefPos   = body->position;
-                    body->sleepPosTimer = 0.0f;
-                }
+                body->sleepRefPos   = body->position;
+                body->sleepPosTimer = 0.0f;
             }
         }
     });
+
+    // Phase B (sequential): island sleep. Union-find over this substep's
+    // dynamic-dynamic contacts among awake bodies; an island sleeps only when EVERY
+    // member qualifies — all freeze together with exactly-zero velocities, each
+    // recording who it was touching (incl. already-sleeping neighbours,
+    // bidirectionally) so wakeChain can un-freeze the pile transitively.
+    std::unordered_map<VoxelRigidBody*, int> index;
+    std::vector<VoxelRigidBody*> awakeBodies;
+    for (auto& b : m_bodies) {
+        if (b->isDead || b->isAsleep || b->invMass == 0.0f) continue;
+        index.emplace(b.get(), static_cast<int>(awakeBodies.size()));
+        awakeBodies.push_back(b.get());
+    }
+    if (awakeBodies.empty()) return;
+
+    std::vector<int> parent(awakeBodies.size());
+    for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);
+    auto find = [&](int x) {
+        while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+        return x;
+    };
+    for (const auto& cp : m_contacts) {
+        if (!cp.bodyB) continue;
+        auto ia = index.find(cp.bodyA);
+        auto ib = index.find(cp.bodyB);
+        if (ia == index.end() || ib == index.end()) continue;   // sleeping side: no union
+        int ra = find(ia->second), rb = find(ib->second);
+        if (ra != rb) parent[ra] = rb;
+    }
+
+    std::unordered_map<int, bool> islandCanSleep;
+    for (size_t i = 0; i < awakeBodies.size(); ++i) {
+        const bool q = awakeBodies[i]->sleepTimer >= VoxelRigidBody::SLEEP_TIME;
+        auto [it, inserted] = islandCanSleep.try_emplace(find(static_cast<int>(i)), q);
+        if (!inserted) it->second = it->second && q;
+    }
+
+    std::unordered_set<VoxelRigidBody*> justSlept;
+    for (size_t i = 0; i < awakeBodies.size(); ++i) {
+        if (!islandCanSleep[find(static_cast<int>(i))]) continue;
+        VoxelRigidBody* b = awakeBodies[i];
+        b->isAsleep        = true;
+        b->linearVelocity  = glm::vec3(0.0f);
+        b->angularVelocity = glm::vec3(0.0f);
+        b->touchingAtSleep.clear();
+        justSlept.insert(b);
+    }
+    if (justSlept.empty()) return;
+
+    auto link = [](VoxelRigidBody* from, uint32_t toId) {
+        auto& v = from->touchingAtSleep;
+        if (std::find(v.begin(), v.end(), toId) == v.end()) v.push_back(toId);
+    };
+    for (const auto& cp : m_contacts) {
+        if (!cp.bodyB) continue;
+        VoxelRigidBody* A = cp.bodyA;
+        VoxelRigidBody* B = cp.bodyB;
+        if (justSlept.count(A)) {
+            link(A, B->id);
+            // Slept resting against a PRE-EXISTING sleeper: link back too, so waking
+            // that sleeper later also wakes us (its own list predates our arrival).
+            if (B->isAsleep && !justSlept.count(B)) link(B, A->id);
+        }
+        if (justSlept.count(B)) {
+            link(B, A->id);
+            if (A->isAsleep && !justSlept.count(A)) link(A, B->id);
+        }
+    }
 }
 
 // ---- Queries ----------------------------------------------------------------
@@ -705,15 +900,18 @@ void VoxelDynamicsWorld::removeKinematicObstacles(const void* owner) {
 }
 
 void VoxelDynamicsWorld::cleanupDead() {
-    size_t n = m_bodies.size();
-    parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
-        for (size_t i = b; i < e; ++i) {
-            auto& body = m_bodies[i];
-            body->lifetime -= 1.0f / 60.0f;
-            if (body->lifetime <= 0.0f || body->position.y < m_fallThreshold)
-                body->isDead = true;
+    // Sequential: expiry marking is trivial, and a death must wake whatever slept
+    // resting on the dead body (or it would float on the memory of its support).
+    std::vector<uint32_t> newlyDead;
+    for (auto& body : m_bodies) {
+        body->lifetime -= 1.0f / 60.0f;
+        if (!body->isDead && (body->lifetime <= 0.0f || body->position.y < m_fallThreshold)) {
+            body->isDead = true;
+            newlyDead.push_back(body->id);
         }
-    });
+    }
+    for (uint32_t id : newlyDead)
+        wakeSleepersTouching(id);
 }
 
 } // namespace Physics

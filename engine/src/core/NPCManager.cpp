@@ -78,6 +78,7 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     }
 
     auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
     npc->setBehavior(std::move(behavior));
 
     // Wire pathfinder to PatrolBehavior if available
@@ -580,6 +581,7 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     // Create NPC entity with procedural skeleton (no file re-read)
     auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
 
     // Set behavior
     std::unique_ptr<Scene::NPCBehavior> behavior;
@@ -652,6 +654,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     }
 
     auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance, true);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
 
     std::unique_ptr<Scene::NPCBehavior> behavior;
     switch (behaviorType) {
@@ -734,6 +737,7 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
 
     auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips, true);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
 
     std::unique_ptr<Scene::NPCBehavior> behavior;
     switch (behaviorType) {

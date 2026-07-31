@@ -1084,6 +1084,50 @@ TEST(WaterManagerTest, RiverFlowQueryStampsBakedDirectionOnPinnedRiver) {
                                      "river derives none from the CA, so the bake must supply it";
 }
 
+// ─── flowAtWorld — the physics/gameplay current query (tangible-water Phase E) ───────────────────
+// Written RED: flowAtWorld doesn't exist yet; these pin its contract. A pinned river performs no
+// transfers, so the CA proxy reads zero — the query must substitute the baked kinematic direction
+// at an order-scaled speed. Live CA flow, where it genuinely exists, wins.
+
+TEST(WaterManagerTest, FlowAtWorldUsesKinematicDirOnPinnedRiver) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildRiverChannel(wm);
+    auto inChannel = [](float wx, float wz) {
+        return wz >= 20.0f && wz < 21.0f && wx >= 8.0f && wx < 27.0f;
+    };
+    wm.setRiverQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 1.0f : 0.0f; });
+    wm.setRiverOrderQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 3 : 0; });
+    wm.setRiverFlowQuery([inChannel](float wx, float wz) {
+        return inChannel(wx, wz) ? glm::vec2(1.0f, 0.0f) : glm::vec2(0.0f);
+    });
+    for (int i = 0; i < 40; ++i) wm.update(0.1f);
+
+    // In the pinned channel: the baked +x current at the order-3 speed (~1.6 m/s).
+    const glm::vec3 flow = wm.flowAtWorld(glm::vec3(17.5f, 3.2f, 20.5f));
+    EXPECT_GT(flow.x, 1.0f) << "pinned river must report the baked kinematic current";
+    EXPECT_NEAR(flow.z, 0.0f, 0.2f);
+    // A dry point far from any water: no current.
+    const glm::vec3 dry = wm.flowAtWorld(glm::vec3(5.5f, 12.5f, 5.5f));
+    EXPECT_FLOAT_EQ(glm::length(dry), 0.0f) << "dry cells must report zero current";
+}
+
+TEST(WaterManagerTest, FlowAtWorldReportsCreeksSlowerThanRivers) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildRiverChannel(wm);
+    auto inChannel = [](float wx, float wz) {
+        return wz >= 20.0f && wz < 21.0f && wx >= 8.0f && wx < 27.0f;
+    };
+    wm.setRiverQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 1.0f : 0.0f; });
+    wm.setRiverOrderQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 2 : 0; });
+    wm.setRiverFlowQuery([inChannel](float wx, float wz) {
+        return inChannel(wx, wz) ? glm::vec2(1.0f, 0.0f) : glm::vec2(0.0f);
+    });
+    for (int i = 0; i < 40; ++i) wm.update(0.1f);
+    const glm::vec3 creek = wm.flowAtWorld(glm::vec3(17.5f, 3.2f, 20.5f));
+    EXPECT_GT(creek.x, 0.4f) << "a creek still pushes";
+    EXPECT_LT(creek.x, 1.2f) << "a creek must push noticeably less than an order-3 river";
+}
+
 // The stamp must be confined to the channel: a still pool elsewhere must NOT pick up a river
 // direction, or every pond in a world with rivers would shade as though it were flowing.
 TEST(WaterManagerTest, RiverFlowQueryDoesNotTouchWaterOffTheChannel) {

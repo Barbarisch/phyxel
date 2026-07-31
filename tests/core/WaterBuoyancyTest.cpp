@@ -55,6 +55,45 @@ TEST(WaterBuoyancy, BuoyantBodyRisesBreaksSurfaceAndComesToRest) {
     EXPECT_LT(std::abs(b->linearVelocity.y), 0.05f) << "bobbing never decayed to rest";
 }
 
+// ─── Current forces (tangible-water Phase E) ─────────────────────────────────────────────────────
+// Written RED: setWaterFlowQuery doesn't exist yet. Moving water carries what floats in it — a
+// submerged body must drift with the current and converge to a bounded terminal speed ≈ the
+// current's own, and a null flow query must change nothing.
+
+TEST(WaterBuoyancy, FloaterDriftsWithTheCurrentToBoundedTerminalSpeed) {
+    VoxelDynamicsWorld w;
+    w.setThreadCount(1);
+    w.setFallThreshold(-1000.0f);
+    w.setWaterQuery(flatWater(50.0f));
+    w.setWaterFlowQuery([](const glm::vec3&) { return glm::vec3(1.6f, 0.0f, 0.0f); });
+    VoxelRigidBody* b = unitBody(w, glm::vec3(0.0f, 49.5f, 0.0f), 2.0f);  // floating at the line
+    const float x0 = b->position.x;
+    for (int i = 0; i < 240; ++i) w.stepSimulation(1.0f / 60.0f, 1);
+    EXPECT_GT(b->position.x, x0 + 2.0f) << "floater did not drift with the current";
+    EXPECT_GT(b->linearVelocity.x, 0.8f) << "drift never approached the current's speed";
+    EXPECT_LT(b->linearVelocity.x, 2.0f) << "drift overshot the current — coupling is a thruster";
+    EXPECT_NEAR(b->linearVelocity.z, 0.0f, 0.05f) << "current is +x only";
+}
+
+TEST(WaterBuoyancy, NullFlowQueryChangesNothing) {
+    VoxelDynamicsWorld a, b;
+    for (VoxelDynamicsWorld* w : {&a, &b}) {
+        w->setThreadCount(1);
+        w->setFallThreshold(-1000.0f);
+        w->setWaterQuery(flatWater(50.0f));
+    }
+    b.setWaterFlowQuery([](const glm::vec3&) { return glm::vec3(0.0f); });  // bound but still
+    VoxelRigidBody* ba = unitBody(a, glm::vec3(0.0f, 44.0f, 0.0f), 2.0f);
+    VoxelRigidBody* bb = unitBody(b, glm::vec3(0.0f, 44.0f, 0.0f), 2.0f);
+    for (int i = 0; i < 240; ++i) {
+        a.stepSimulation(1.0f / 60.0f, 1);
+        b.stepSimulation(1.0f / 60.0f, 1);
+    }
+    EXPECT_FLOAT_EQ(ba->position.x, bb->position.x);
+    EXPECT_FLOAT_EQ(ba->position.y, bb->position.y);
+    EXPECT_FLOAT_EQ(ba->position.z, bb->position.z);
+}
+
 TEST(WaterBuoyancy, DryBehaviorIsBitIdenticalWithAndWithoutQuery) {
     // The null-query world and a query-that-says-dry world must produce IDENTICAL motion —
     // the coupling may cost nothing and change nothing on dry land.

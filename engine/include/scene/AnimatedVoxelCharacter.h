@@ -343,6 +343,9 @@ namespace Scene {
             std::function<float(const glm::vec3&)> depthAt;
             std::function<void(const glm::vec3&, float, float)> addRipple;
             std::function<void(const glm::vec3&, float)> splash;
+            // Horizontal current velocity (m/s) at a world point (tangible-water Phase E) —
+            // WaterManager::flowAtWorld matches. Null = still water everywhere.
+            std::function<glm::vec3(const glm::vec3&)> flowAt;
         };
         void setWaterHooks(WaterHooks hooks) { m_water = std::move(hooks); }
 
