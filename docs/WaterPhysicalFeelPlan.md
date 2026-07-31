@@ -1,14 +1,70 @@
 # Water — Physical Feel Plan
 
-> Status: **PLAN, nothing built** (written 2026-07-28). Successor workstream to
-> [`docs/WaterSystemV3.md`](WaterSystemV3.md), which made water *look* like a volume (refraction,
-> absorption, swell, surf, flow shading). This plan is about making it *behave* like water against
-> the world: breaking on land, splashing off voxels, moving grass, and running downhill in rivers
-> you can actually go and look at.
+> Status: **PARTIALLY BUILT.** Written 2026-07-28; state below current as of **2026-07-30**.
+> Successor workstream to [`docs/WaterSystemV3.md`](WaterSystemV3.md), which made water *look* like a
+> volume (refraction, absorption, swell, surf, flow shading). This plan is about making it *behave*
+> like water against the world: breaking on land, splashing off voxels, moving grass, and running
+> downhill in rivers you can actually go and look at.
 >
 > Standing discipline applies (⚑GROUND every dimension, red-before-green, named validation layer
-> L1–L4 per deliverable) — **plus the look-first rule in §7, which exists because ignoring it cost a
-> day of visual regressions on 2026-07-28.**
+> L1–L4 per deliverable) — **plus the look-first rule in §7**, and **§2e, which you must read before
+> trusting any diagnosis in §2c/§2d.**
+
+---
+
+## 0. CURRENT STATE — pick up here (2026-07-30)
+
+### Done, verified, on `origin/main`
+
+| # | Item | Evidence |
+|---|---|---|
+| ✅ | **Sea mesh: polar → Cartesian clipmap** (`SeaMesh.h/.cpp`, `water.vert`) | Camera-centred wave vortex gone: top-down crest-orientation concentration **0.915** about one direction. **29,312 tris reaching 1024u** vs the old ~33,800 reaching 700u. 5 tests in `SeaMeshTest`. |
+| ✅ | **Shallow-water "quilt"** — was the foam layer, now simplex + 2-scale mask | Attributed by A/B probe (`WATER_FOAM_DEBUG_SCALE`), not inference. Axis-alignment 1.13 → 0.98 against a 1.02 isotropic reference. |
+| ✅ | **Per-cell water surface read as a tiled grid** (`water_cell.vert`) | Side faces nudged 0.04 outward overlapped the neighbour's top quad → double-blended bright lines at cell pitch (artifact peak 36.3px ≈ one voxel). Now only real curtains draw. |
+| ✅ | **Rivers are findable** — `POST /api/debug/water_find_river` | Rivers need `world.streaming: true` (the bake lives on the streaming generator). Reports *why* a result is empty. |
+
+### THE open defect
+
+**Water is drawn from the sim's cell list, not from where water actually is.** The CA region is a
+64×32×64 box centred on the viewer, so any body larger than it renders as a flat slab with straight
+edges that ignores terrain and travels with the camera. Bounding the *simulation* is correct;
+bounding the *render* by it is not. Design in §2d (two tiers, one renderer). Three cheap shortcuts
+are ruled out with evidence in §2c/§2d — read those before proposing one.
+
+### Attempted and REVERTED (do not retry as-is)
+
+- **Far-water plane at one basin level** → filled the whole frame; terrain 234-291 is mostly below a
+  277.6 level, so the dry-land gate correctly wetted it all. A bbox does not help.
+- **Reusing the per-cell renderer for far water** → cells are hardcoded 1×1 in the vertex offsets,
+  no scale field; ~90k instances for a modest lake.
+- **Growing the CA region to 256×32×256** → that is *simulating an ocean*: **19 FPS**, mass
+  oscillating 531k → 889k → 571k instead of settling. The region should get SMALLER, not bigger.
+- **Creek water** (orders 1-2 were bone dry behind FOUR separate order≥3 gates) → the fix worked
+  mechanically (0 → 1593 cells) but pinned a full voxel into channels with no bed, so it spread into
+  a sheet across a hillside. Reverted. Creek *shape* needs a sub-voxel pin or a shallow carve.
+
+### Traps that cost this session a day
+
+1. **§2e** — the testbeds were misconfigured; most "water in the wrong place" evidence is void.
+2. `set_camera` right after `launch_engine` is silently overwritten by the project's camera config.
+   **`get_camera` and confirm before trusting a frame.**
+3. `git checkout` does not rebuild. A "revert" is not real until the binary is rebuilt AND relaunched.
+4. A restart empties the water sim; it refills over ~1 min. Check `total_mass` is RISING before
+   concluding a change broke rendering.
+5. Water shading edits: `build_shaders.bat` does NOT rebuild on `#include` changes — force-compile
+   `water.frag`/`water_cell.frag` after touching `water_common.glsl`.
+
+### Suggested order
+
+1. **Tier 0 static water field** (§2d step 1) — removes the slab and is what makes water scale.
+2. Give the CA region an **outflow boundary** instead of walls (§2d step 2).
+3. Only then: creeks, shore field (§2), spray (§4), grass swash (§5).
+
+### Decisions still needed from the user
+
+Shore-field window size · whether sea wind direction belongs in `game.json` · how physical rivers
+should get (flow forces on entities? erosion? visual only) · whether editing `voxel.frag` for shore
+wetness is acceptable (it is on the hot path for all terrain).
 
 ---
 
@@ -30,10 +86,11 @@
 3. **Water and vegetation ignore each other.** Grass has a displacer system, but it holds **16**
    spheres — enough for characters, useless for a coastline. Grass standing in the surf neither
    bends nor looks wet.
-4. **Rivers have never been seen.** This is a real gap, not a small one: the flow proxy and the
-   kinematic river direction were built and unit-tested, but WaterLab is an authored world with no
-   hydrology bake, so **no river has ever been rendered**. Everything claimed about river flow rests
-   on tests, not on looking at one.
+4. ~~**Rivers have never been seen.**~~ **RESOLVED 2026-07-29.** The cause was structural: WaterLab
+   has no hydrology bake (streaming off), so it could not contain a river at all. A river was then
+   found and looked at in a streaming world - a wet, flowing order-3 gorge with whitewater - via the
+   new `water_find_river`. NOTE the follow-on caveat in 2e: that testbed is itself misconfigured, so
+   the river EXISTS and renders, but its water LEVEL there is not trustworthy evidence of anything.
 
 ---
 
