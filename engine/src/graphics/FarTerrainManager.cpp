@@ -88,7 +88,15 @@ void FarTerrainManager::workerLoop() {
 }
 
 std::vector<FarTerrainManager::RingSpec> FarTerrainManager::computeRings() const {
+    return computeRingsFor(m_params);
+}
+
+std::vector<FarTerrainManager::RingSpec> FarTerrainManager::computeRingsFor(const Params& m_params) {
     std::vector<RingSpec> rings;
+    // C1: scale the horizon and the band edges together, so ring proportions are preserved
+    // and only the absolute distances move with resolution/FOV. 1.0 == no-op.
+    const float vs = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
+    const float maxDist = m_params.maxDistance * vs;
     float start = 0.0f;
     for (size_t i = 0; i < m_params.ringSteps.size(); ++i) {
         RingSpec r;
@@ -98,12 +106,12 @@ std::vector<FarTerrainManager::RingSpec> FarTerrainManager::computeRings() const
         r.startR   = start;
         // Default band edges double per ring (512, 1024, 2048, ...); the last ring
         // always extends to maxDistance so the configured horizon is honored.
-        float end = 512.0f * float(1u << i);
-        if (i + 1 == m_params.ringSteps.size()) end = m_params.maxDistance;
-        r.endR = std::min(std::max(end, start), m_params.maxDistance);
+        float end = 512.0f * float(1u << i) * vs;
+        if (i + 1 == m_params.ringSteps.size()) end = maxDist;
+        r.endR = std::min(std::max(end, start), maxDist);
         rings.push_back(r);
         start = r.endR;
-        if (start >= m_params.maxDistance) break;
+        if (start >= maxDist) break;
     }
     return rings;
 }
@@ -111,6 +119,7 @@ std::vector<FarTerrainManager::RingSpec> FarTerrainManager::computeRings() const
 void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
     m_lastRefreshPos = glm::vec2(cameraPos.x, cameraPos.z);
     m_hasRefreshed = true;
+    m_lastRefreshViewScale = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
     m_wanted.clear();
     m_keep.clear();
 
@@ -274,7 +283,10 @@ void FarTerrainManager::update(const glm::vec3& cameraPos) {
     m_wasEnabled = true;
 
     const glm::vec2 camXZ(cameraPos.x, cameraPos.z);
-    if (!m_hasRefreshed || glm::length(camXZ - m_lastRefreshPos) > kRefreshDistance) {
+    const float vsNow = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
+    const bool viewScaleChanged = std::abs(vsNow - m_lastRefreshViewScale) > 1e-4f;
+    if (!m_hasRefreshed || viewScaleChanged ||
+        glm::length(camXZ - m_lastRefreshPos) > kRefreshDistance) {
         refreshWantedSet(cameraPos);
         evictTiles(cameraPos);
     }

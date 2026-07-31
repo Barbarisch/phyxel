@@ -9,6 +9,8 @@
 //   scaleLevel 0 = cube      (1.0  scale) — full texture tile
 //   scaleLevel 1 = subcube   (1/3  scale) — 1/3 of texture, offset by subcube grid pos (0-2)
 //   scaleLevel 2 = microcube (1/9  scale) — 1/9 of texture, offset by subcube + microcube grid pos
+//   scaleLevel 3 = LOD CELL (C4)  — a COARSE quad covering 2^lodLevel cubes on a side. Bits 20-22
+//                  carry lodLevel; the cell origin is in cube coords like a normal cube face.
 //
 // Texture mapping: each voxel face shows only its portion of the parent cube's texture.
 // Subcube/microcube grid positions are packed into bits 20-31 of inPackedData
@@ -216,6 +218,12 @@ void main() {
 
         // fineSizeVec extends the quad across a merged run of microcells (1 for unmerged faces).
         worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * fineSizeVec * MICROCUBE_SCALE);
+    } else if (scaleLevel == 3u) {
+        // C4 LOD CELL: one quad covering 2^lodLevel cubes per side.
+        uint lodLevel = (inPackedData >> 20) & 0x7u;
+        float cell = float(1u << lodLevel);
+        scale = cell;
+        worldPos = basePos + faceOffset * cell;
 
     } else {
         // Reserved scale level (fallback to cube)
@@ -270,7 +278,13 @@ void main() {
     }
     
     // Apply texture coordinate scaling based on scale level
-    if (scaleLevel == 0u) {
+    if (scaleLevel == 3u) {
+        // C4 LOD CELL: tile the material texture once per CUBE across the coarse quad, so a
+        // level-N cell reads like the 2^N cubes it replaces rather than one stretched texel.
+        float cellUv = float(1u << ((inPackedData >> 20) & 0x7u));
+        uv = baseUV * vec2(cellUv, cellUv);
+
+    } else if (scaleLevel == 0u) {
         // Regular cube: tile the texture sizeU x sizeV across the merged rectangle.
         // The fragment shader wraps with fract() into the atlas tile. baseUV.x derives
         // from vertexID bit0 (sizeU axis), baseUV.y from bit1 (sizeV axis).

@@ -1,0 +1,22 @@
+=== C2.1 — GPU-driven shadow submission: BLOCKED by an arena alignment contract ===
+
+ROOT CAUSE: vkCmdDrawIndexedIndirect's firstInstance addresses instances by STRIDE, so a
+chunk's arena span offset must be an exact multiple of sizeof(InstanceData)=24. Arena spans
+are kAlignment=256-byte aligned (ChunkArenaAllocator.h:48) and 256 % 24 == 16, so offsets
+are generally NOT stride multiples -> offset/24 TRUNCATES -> every chunk reads the wrong
+instances. First A/B showed the symptom: shadow 3.3ms -> 11.6ms with wrong geometry.
+A hard guard now refuses the path and falls back rather than render silent garbage.
+
+world loaded, faces=250172 (baseline 250172)
+
+--- OFF (legacy) ---
+    shadow_ms=3.359  chunks=352  instances=244825
+    shadow_ms=3.331  chunks=352  instances=244825
+
+--- ON: guard must REFUSE and fall back (timings must match OFF) ---
+{"gpu_driven_shadow":true,"shadow_chunks_drawn":352,"shadow_instances_drawn":244825,"shadow_multidraw_calls":0,"success":true,"supported":true}
+    shadow_ms=3.396  chunks=352  instances=244825
+    shadow_ms=3.356  chunks=352  instances=244825
+
+--- the guard's warning ---
+[10:22:54.044] [WARN] [RenderCoordinator] C2.1 GPU-driven shadow DISABLED: arena span offset 256 is not a multiple of the 24-byte instance stride, so firstInstance cannot address it. Align arena spans to lcm(kAlignment, stride) first.

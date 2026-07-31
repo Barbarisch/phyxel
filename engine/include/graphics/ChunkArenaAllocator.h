@@ -45,7 +45,16 @@ struct ArenaSpan {
  */
 class ChunkArenaAllocator {
 public:
-    static constexpr size_t   kAlignment        = 256;
+    /// Span alignment. MUST be a common multiple of the GPU binding alignment (256) AND the
+    /// instance stride (sizeof(InstanceData) = 24), because C2's multidraw addresses each chunk's
+    /// span via vkCmdDrawIndexedIndirect's `firstInstance`, which counts in INSTANCES, not bytes.
+    /// At the old value of 256 (256 % 24 == 16) `offset / 24` truncated and every chunk read the
+    /// wrong instances — the C2.1 blocker. lcm(256, 24) = 768 satisfies both.
+    /// Cost: <= 768 B of padding per chunk span, against a ~586 KB/chunk buffer floor.
+    static constexpr size_t   kAlignment        = 768;
+    /// Compile-time proof of the two properties the value exists to guarantee.
+    static_assert(kAlignment % 256 == 0, "span offsets must stay 256-byte GPU-aligned");
+    static_assert(kAlignment % 24 == 0,  "span offsets must be addressable by firstInstance (24 B stride)");
     static constexpr size_t   kDefaultBlockSize = 64ull << 20;  // 64 MB
     static constexpr uint32_t kRetireMargin     = 3;            // ticks before byte reuse
 

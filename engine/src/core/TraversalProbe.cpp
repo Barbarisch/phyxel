@@ -50,9 +50,26 @@ int TraversalProbe::settle(int fx, int fy, int fz, int minY) const {
 
 bool TraversalProbe::reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 goalHi,
                                glm::ivec3 boundLo, glm::ivec3 boundHi) const {
+    bool hit = false;
+    bfs(start, boundLo, boundHi, &goalLo, &goalHi, &hit, nullptr);
+    return hit;
+}
+
+std::vector<glm::ivec3> TraversalProbe::flood(glm::ivec3 start, glm::ivec3 boundLo,
+                                              glm::ivec3 boundHi) const {
+    std::vector<glm::ivec3> out;
+    bfs(start, boundLo, boundHi, nullptr, nullptr, nullptr, &out);
+    return out;
+}
+
+void TraversalProbe::bfs(glm::ivec3 start, glm::ivec3 boundLo, glm::ivec3 boundHi,
+                         const glm::ivec3* goalLo, const glm::ivec3* goalHi,
+                         bool* hitGoal, std::vector<glm::ivec3>* out) const {
+    if (hitGoal) *hitGoal = false;
     auto inGoal = [&](const glm::ivec3& p) {
-        return p.x >= goalLo.x && p.x <= goalHi.x && p.y >= goalLo.y && p.y <= goalHi.y &&
-               p.z >= goalLo.z && p.z <= goalHi.z;
+        if (!goalLo || !goalHi) return false;
+        return p.x >= goalLo->x && p.x <= goalHi->x && p.y >= goalLo->y && p.y <= goalHi->y &&
+               p.z >= goalLo->z && p.z <= goalHi->z;
     };
     auto inBounds = [&](int x, int y, int z) {
         return x >= boundLo.x && x <= boundHi.x && y >= boundLo.y && y <= boundHi.y &&
@@ -63,7 +80,7 @@ bool TraversalProbe::reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 g
     };
 
     int sy = settle(start.x, start.y, start.z, boundLo.y);
-    if (sy == INT_MIN) return false;
+    if (sy == INT_MIN) return;
     glm::ivec3 s(start.x, sy, start.z);
 
     std::deque<glm::ivec3> q;
@@ -78,7 +95,8 @@ bool TraversalProbe::reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 g
     while (!q.empty()) {
         glm::ivec3 c = q.front();
         q.pop_front();
-        if (inGoal(c)) return true;
+        if (out) out->push_back(c);
+        if (inGoal(c)) { if (hitGoal) *hitGoal = true; return; }
         if ((int)seen.size() > maxVisited) break;
 
         for (int d = 0; d < 4; ++d) {
@@ -95,7 +113,6 @@ bool TraversalProbe::reachable(glm::ivec3 start, glm::ivec3 goalLo, glm::ivec3 g
             if (seen.insert(k).second) q.push_back(glm::ivec3(nx, placedY, nz));
         }
     }
-    return false;
 }
 
 }  // namespace Core

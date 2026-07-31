@@ -1,6 +1,23 @@
 # Binary Greedy Meshing for Subcube/Microcube Faces — Implementation Plan
 
-> **Status: PLANNED — not started.** Written 2026-07-02. This is item #1 of
+> **Status: ✅ SUPERSEDED — THE WORK SHIPPED.** (Header corrected 2026-07-29; it read "PLANNED —
+> not started" long after the fact.) Fine (subcube/microcube) greedy merging was built and landed as
+> **Increments 1–4a**, tracked in [`RenderOptimization.md`](RenderOptimization.md)`:139-315`, and has
+> been **default ON since 2026-07-07** — `ChunkRenderManager::s_fineGreedyMerge = true`
+> (`ChunkRenderManager.cpp:62`); per-face path still reachable via
+> `POST /api/debug/fine_merge {"enabled":false}` for A/B. Measured (Release, hash-verified binary,
+> `docs/evidence/inc5_heavy_scene_fps_release.txt`): 9 taverns **639,585 → 53,219 faces (12.0×),
+> 41.5 → 206.5 FPS**; 16 taverns **1,126,856 → 92,438 (12.2×), 26.4 → 180.4 FPS** — ~5–8× recovery on
+> face-bound scenes. Re-mesh cost +~11% (~10 ms/chunk) on an already-stuttering rebuild path.
+>
+> **So the "#1 known issue" this plan was written to attack is substantially retired.** Two defects
+> the merge introduced or exposed remain OPEN and are the live follow-ons:
+> **T-junction cracks at merge borders** (`RenderOptimization.md:489`) and cross-cube **microcube**
+> merge (Increment 4b, parked). The crack defect is now shared with the LOD-seam problem — see
+> [`ContinuousLodPlan.md`](ContinuousLodPlan.md) §2.5, which proposes solving both with one skirt
+> mechanism.
+>
+> **Original status (2026-07-02): PLANNED — not started.** This is item #1 of
 > [`EngineAdvancesResearch.md`](EngineAdvancesResearch.md) and the reopening of the **parked
 > Phase 2** of [`RenderOptimization.md`](RenderOptimization.md) (attempted 2026-06-28, reverted,
 > post-mortem preserved in commit `4c3182d`). It attacks the project's **#1 known issue**: one

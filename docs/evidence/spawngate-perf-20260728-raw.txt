@@ -1,0 +1,47 @@
+# SPAWN-GATE ESCALATION PERF: the 27-second main-loop stall the solution-auditor measured
+# commit(code): 2272cb3c7d55ded32247062059587a7c8061bf15 + the cost fix
+# exe:    Jul 28 14:54
+# utc:    2026-07-28T18:57:19Z
+# repro:  11x11 Stone column y18-31 at x60-70,z60-70; spawn at its BASE (65.5,19,65.5),
+#         encased, lateral 4 m blocked at every height -> the escalation climb runs.
+
+=== spawn into the base of the column (timed) ===
+{"grounded_from":{"x":65.5,"y":19.0,"z":65.5},"id":"perf_encased","position":{"x":65.5,"y":32.0,"z":65.5},"success":true,"type":"animated","uuid":"e439d8b5-8ba4-4422-8cf5-6da53e5acc57","warning":"spawn point (65,19,65) was inside solid voxels; grounded to y=32"}
+round-trip: 328 ms
+
+=== STUTTER lines in the engine log (auditor measured 27067.3 ms on the old code) ===
+[14:56:38.503] [WARN] [Performance] STUTTER DETECTED! Frame Time: 53.585ms, Input Latency: 26.8848ms
+[14:56:38.569] [WARN] [Performance] STUTTER DETECTED! Frame Time: 32.6805ms, Input Latency: 30.4069ms
+[14:56:38.571] [WARN] [Performance] STUTTER DETECTED! Frame Time: 30.8648ms, Input Latency: 2.0666ms
+[14:57:19.439] [WARN] [Performance] STUTTER DETECTED! Frame Time: 33.5216ms, Input Latency: 51.4753ms
+[14:57:19.443] [WARN] [Performance] STUTTER DETECTED! Frame Time: 51.9867ms, Input Latency: 3.4928ms
+--- (no STUTTER line above = no frame stall) ---
+
+(first probe absorbed by the COARSE layer -- feet cube solid -> grounded to y=32.
+ Carved ONE air cube at (65,25,65) so the feet cube is EMPTY and the ESCALATION runs.)
+=== spawn into the mid-column air pocket (escalation path, timed) ===
+{"id":"perf_pocket","position":{"x":65.5,"y":32.0,"z":65.5},"relocated_from":{"x":65.5,"y":25.0,"z":65.5},"success":true,"type":"animated","uuid":"20fe269e-1d67-4bba-abef-c1bb6c5bd5d9","warning":"spawn position was inside static geometry; relocated to the nearest clear standing spot"}
+round-trip: 360 ms
+--- worst frame time logged AFTER this spawn ---
+[14:57:41.823] [WARN] [Performance] STUTTER DETECTED! Frame Time: 59.0859ms, Input Latency: 30.5667ms
+[14:57:41.827] [WARN] [Performance] STUTTER DETECTED! Frame Time: 31.9729ms, Input Latency: 3.0006ms
+[14:57:50.380] [WARN] [Performance] STUTTER DETECTED! Frame Time: 45.0724ms, Input Latency: 3.2378ms
+[14:57:50.345] [WARN] [Application] character spawn was encased; lifted out of the solid column to y=32 (lifted out of the solid column onto clear standing ground)
+
+--- WHAT IS MEASURED AND WHAT IS ONLY BOUNDED ---
+MEASURED: a real escalation (log line "character spawn was encased; lifted out of the
+solid column to y=32") completed with a 360 ms HTTP round-trip and a worst nearby frame
+of 45 ms. The auditor measured 27067.3 ms of main-loop stall on the pre-fix code.
+
+NOT MEASURED -- the true worst case. Forcing all 1536 climb iterations needs ~512 m of
+continuous solid above the spawn, and this world cannot host that: neither
+/api/world/voxel nor /api/world/voxel/batch auto-creates chunks (a 24200-voxel column at
+y40-240 returned placed:0 / failed:24200), so the tallest constructible column here is
+the 14-cube one used above. The worst case is therefore bounded by ARITHMETIC, not
+observation:
+    old: <=1536 iterations x a full resolveSpawn (9 heights x up to 12 ring shells,
+         ~5,000-11,000 AABB tests each)   ~= 8-17 MILLION AABB tests
+    new: <=1536 iterations x 2 AABB tests ~= 3,072 AABB tests
+i.e. ~3-4 orders of magnitude, with the iteration count itself unchanged and still hard-
+capped at 512 m. Anyone who can build a >512 m column should re-run this and replace the
+arithmetic with a number.

@@ -276,3 +276,8 @@ tools/interaction_pipeline/reports/
 
 window_census_actual.txt
 canvas_digest_actual.txt
+
+# Evidence archive: L4 run artifacts are the citable record behind "verified" claims
+# (docs/evidence/). The global *.log rule above was silently swallowing the engine
+# logs that ARE the evidence, leaving only hand-copied excerpts in git.
+!docs/evidence/*.log

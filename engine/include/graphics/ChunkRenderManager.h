@@ -212,6 +212,30 @@ public:
 
     // Accessors
     const std::vector<InstanceData>& getFaces() const { return faces; }
+
+    /// C4 (docs/ContinuousLodPlan.md) — THE CUT. Replace this chunk's face set with a COARSE
+    /// LOD-cell mesh built by LodChunkMesh at `level`. The faces carry scaleLevel 3 + lodLevel,
+    /// which the vertex shaders expand to 2^level-cube quads. Call updateVulkanBuffer() after.
+    /// Level 0 is NOT this path: the fine mesh includes sub/microcubes and greedy merging, so
+    /// returning to full detail means a normal rebuildFaces(), not buildForLevel(0).
+    void setFacesFromLod(std::vector<InstanceData>&& lodFaces) {
+        faces = std::move(lodFaces);
+        // The DRAW COUNT must follow the swap. numInstances is otherwise assigned only at the
+        // end of the fine rebuild, so omitting it here left the renderer drawing the FINE mesh's
+        // count against the coarse buffer: too few (truncated tail => see-through stripes, worst
+        // on flat terrain, which greedy-merges to very few fine faces) or too many (instances
+        // read from stale memory past the valid data). Pinned by
+        // LodChunkMeshTest.SetLodFacesUpdatesDrawCount.
+        numInstances = static_cast<uint32_t>(faces.size());
+        needsUpdate = true;
+        // The coarse set is a single homogeneous run: face-direction bucketing indexes into
+        // faces[] by faceID range, and the LOD set is not sorted that way, so disable the
+        // fast path for this chunk by making the ranges degenerate (renderer falls back to a
+        // full draw -- see RenderCoordinator's dirRanges check).
+        for (auto& r : m_dirRangeOffsets) r = 0;
+        m_dirRangeOffsets[6] = static_cast<uint32_t>(faces.size() + 1);   // != numInstances => full draw
+    }
+
     uint32_t getNumInstances() const { return numInstances; }
 
     /// Face-direction ranges (Phase 3 bucketing): after rebuildAllFaces the instance

@@ -1,0 +1,44 @@
+{
+  "name": "LodBench",
+  "description": "Dedicated LOD/perf bench: BAKED deterministic Perlin-hills world holding a density ladder (bare terrain -> tavern -> village -> town) in separate regions, measured from named camera poses. Companion streaming variant lives in game.streaming.json. See docs/ContinuousLodPlan.md 7b and the project README.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 777001,
+    "streaming": false,
+    "from": {
+      "x": -8,
+      "y": 1,
+      "z": -8
+    },
+    "to": {
+      "x": 8,
+      "y": 2,
+      "z": 8
+    },
+    "params": {
+      "heightScale": 14.0,
+      "frequency": 0.03,
+      "octaves": 4,
+      "persistence": 0.5
+    },
+    "_surfaceNote": "MEASURED 2026-07-29: with these params the Perlin surface is at y~53 => CHUNK y=1. Chunk y=0 alone generates buried stone only (flat plane at y=31, ~1900 faces) - the CLAUDE.md gotcha."
+  },
+  "camera": {
+    "position": {
+      "x": 0,
+      "y": 60,
+      "z": 90
+    },
+    "yaw": -90,
+    "pitch": -25
+  },
+  "player": {
+    "type": "animated",
+    "position": {
+      "x": 0,
+      "y": 40,
+      "z": 0
+    }
+  }
+}

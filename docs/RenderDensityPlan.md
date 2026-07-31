@@ -1,6 +1,23 @@
 # Render-Density FPS — Diagnosis & Fix Plan
 
-> **Status: PLANNED.** Written 2026-07-08 on branch `render-offthread-mesh`, after the T0→B0→B1
+> **Status: D0/D1/D1b/D1c DONE — the wall is CHARACTERIZED and the remaining fixes are STRUCTURAL.**
+> (Header corrected 2026-07-29; the body below was already current — only this status line and the
+> §2 hypothesis block lagged.) Summary of what measurement established, so nobody re-plans against
+> the original hypothesis:
+> - §2's load-bearing hypothesis (main-pass ~3× overdraw) is **REFUTED as the dominant cost** (§2d).
+>   The 36-index amplifier is real (~12 tris/drawn-face) but the main pass is not overdraw-bound.
+> - **The wall is the SHADOW PASS: 24–26 ms of a 34.8 ms frame (~75%)** on the dense 377k-face scene.
+> - `s_quadDraw` (6-index quad) **shipped default ON for the MAIN OPAQUE PASS ONLY** — 4.7→3.0 ms.
+>   It must NOT be applied to the shadow pass (front-culling needs both windings; D1's correction).
+> - Three shadow levers are **exhausted**: primitives (no effect), resolution (~30%), light-frustum
+>   cull (no effect — the fitted volume legitimately contains ~131 chunks; `s_shadowFrustumCull`
+>   shipped default OFF, kept for cascades). Decomposition: **~17 ms FIXED + ~11 ms fill**, the fixed
+>   part most consistent with **per-draw GPU overhead across ~131 draws (~0.13 ms/draw)**.
+> - Remaining named fixes (§ "Shadow characterization"): **batch the shadow chunk draws**, shadow
+>   update cadence, cascades. These are the structural items now carried by
+>   [`ContinuousLodPlan.md`](ContinuousLodPlan.md) C2/C5; D4's "sub-pixel microcube LOD" is its C0.
+>
+> **Original status (2026-07-08): PLANNED.** Written on branch `render-offthread-mesh`, after the T0→B0→B1
 > investigation established that render **density**, not meshing/chunk-update, is the dominant
 > recurring frame cost (B0: ~99% of dense-scene "stutters" were the steady ~32 ms/frame cost of
 > 377k faces ≈ 30 FPS on an RTX 4090). Companion to
@@ -20,10 +37,17 @@ measure *why each face is so expensive*. This plan finds and removes the per-fac
 ## 2. Ground truth (Explore audit + code read 2026-07-08 — cite before editing; lines drift)
 
 ### The load-bearing HYPOTHESIS — a suspected ~3× rasterization amplifier on EVERY face
-> **NOT YET MEASURED.** The code chain below is verified by reading, and the ~3× is arithmetically
-> consistent with it, but the actual overdraw factor and any FPS win are UNCONFIRMED until D0 runs the
-> `PIPELINE_STATISTICS` counter and D1 measures an A/B delta. Treat this as the top hypothesis to test
-> in D0, not a measured fact.
+> **⛔ REFUTED AS THE DOMINANT COST by D0 — read [§2d](#2d-d0-result-measured-2026-07-08--docsevidencerenderdensity_baselinetxt)
+> before acting on anything in this subsection.** The amplifier is REAL (pipeline stats: ~12
+> triangles per drawn face) but the main pass is **not** overdraw-bound (`frag_invocations` ≈ one
+> 1440p screen), so removing it was worth only 4.7→3.0 ms. The wall is the **shadow pass** (~75% of
+> the frame). The reading below is retained as accurate code archaeology and as the rationale for
+> `s_quadDraw` — not as a live hypothesis.
+>
+> *(Original framing, 2026-07-08: "NOT YET MEASURED. The code chain below is verified by reading,
+> and the ~3× is arithmetically consistent with it, but the actual overdraw factor and any FPS win
+> are UNCONFIRMED until D0 runs the `PIPELINE_STATISTICS` counter and D1 measures an A/B delta.
+> Treat this as the top hypothesis to test in D0, not a measured fact.")*
 
 Each visible face is one `InstanceData` (one `faceID`), but the draw is
 `vkCmdDrawIndexed(36, faceCount)` (`RenderCoordinator.cpp:404`, `VulkanDevice.cpp:1832`) — **36

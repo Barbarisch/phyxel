@@ -245,10 +245,30 @@ namespace InstanceDataUtils {
     // Bits 5-9:   Y position (5 bits) - cube position in chunk
     // Bits 10-14: Z position (5 bits) - cube position in chunk
     // Bits 15-17: Face ID (3 bits) - which face 0-5
-    // Bits 18-19: Scale level (2 bits) - 0=cube, 1=subcube, 2=microcube, 3=reserved
+    // Bits 18-19: Scale level (2 bits) - 0=cube, 1=subcube, 2=microcube, 3=LOD CELL (C4)
     // Bits 20-25: Parent subcube encoded position (6 bits) - x+y*3+z*9 for 3x3x3 grid
     // Bits 26-31: Microcube encoded position (6 bits) - x+y*3+z*9 for 3x3x3 grid within subcube
     
+    /// C4 (docs/ContinuousLodPlan.md): a COARSE LOD CELL face. scaleLevel 3 was the reserved
+    /// code; it now means "this quad covers 2^lodLevel cubes on a side".
+    ///   bits 0-14  cell origin in CUBE coords (the cell's min corner, 0-31)
+    ///   bits 15-17 faceID
+    ///   bits 18-19 = 3  (LOD cell)
+    ///   bits 20-22 lodLevel 0-7  -> edge length in cubes = 1 << lodLevel
+    /// Level 0 is deliberately legal and identical in coverage to a plain cube face, so the
+    /// coarse path can be exercised at 1:1 against the fine path.
+    inline uint32_t packLodCellData(uint32_t x, uint32_t y, uint32_t z,
+                                    uint32_t faceID, uint32_t lodLevel) {
+        return (x & 0x1F) |
+               ((y & 0x1F) << 5) |
+               ((z & 0x1F) << 10) |
+               ((faceID & 0x7) << 15) |
+               (3u << 18) |
+               ((lodLevel & 0x7) << 20);
+    }
+    inline uint32_t lodCellLevel(uint32_t packed) { return (packed >> 20) & 0x7u; }
+    inline bool isLodCell(uint32_t packed) { return ((packed >> 18) & 0x3u) == 3u; }
+
     // Encode 3D position in 3x3x3 grid to 6 bits (0-26 range)
     inline uint32_t encodeGrid3x3x3(uint32_t x, uint32_t y, uint32_t z) {
         return (x & 0x3) + ((y & 0x3) * 3) + ((z & 0x3) * 9);

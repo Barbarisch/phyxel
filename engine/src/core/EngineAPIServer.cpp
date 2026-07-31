@@ -4293,6 +4293,36 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_pipeline_stats", params).dump(), "application/json");
     });
 
+    // POST /api/debug/distance_lod — C5 distance-driven LOD.
+    // Body: { "enabled": bool, "target_pixels": float, "budget": int }
+    srv.Post("/api/debug/distance_lod", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_distance_lod", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/lod_level — C4 THE CUT. Body: { "level": int }. 0 = full detail.
+    srv.Post("/api/debug/lod_level", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_lod_level", params, 60000).dump(), "application/json");
+    });
+
+    // POST /api/debug/gpu_driven_shadow — C2.1 multidraw shadow submission. Body: {"enabled":bool}
+    srv.Post("/api/debug/gpu_driven_shadow", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_gpu_driven_shadow", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/screen_space_lod — C1 screen-space LOD toggle (docs/ContinuousLodPlan.md).
+    // Body: { "enabled": bool }. Returns the live lod_view_scale (1.0 at the reference config).
+    srv.Post("/api/debug/screen_space_lod", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_screen_space_lod", params).dump(), "application/json");
+    });
+
     // POST /api/debug/shadow_cull — D1c shadow light-frustum cull toggle. Body: { "enabled": bool }
     srv.Post("/api/debug/shadow_cull", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::parse(req.body, nullptr, false);

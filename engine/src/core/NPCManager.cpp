@@ -25,6 +25,64 @@ namespace Core {
 
 NPCManager::~NPCManager() = default;
 
+namespace {
+/// Shared by both spawn paths. Returns false when the caller must NOT spawn.
+/// Mutates `position` to the resolved one when the request was embedded.
+bool applySpawnGate(const SolidAABBFn& solid, bool allowEmbedded, const std::string& name,
+                    glm::vec3& position) {
+    if (allowEmbedded || !solid) return true;   // escape hatch, or no world to check against
+    const SpawnResult sr = resolveSpawn(solid, position);
+    if (!sr.ok()) {
+        LOG_ERROR("NPCManager", "Refusing to spawn NPC '{}': {}", name, sr.reason);
+        return false;
+    }
+    if (sr.outcome == SpawnOutcome::Relocated) {
+        LOG_WARN("NPCManager", "NPC '{}' spawn adjusted: {}", name, sr.reason);
+        position = sr.position;
+    }
+    return true;
+}
+
+/// SECOND PASS, with the body that actually exists. applySpawnGate necessarily runs
+/// BEFORE construction, so it can only assume the humanoid default -- but a species'
+/// real capsule is resolved by resizeController() during construction, from the loaded
+/// skeleton. For fauna (BodyPlan clamps half-width to [0.12, 0.60]) that default is
+/// wrong by up to 2.4x, so a gap a humanoid fits can leave a wolf or dragon embedded in
+/// the walls either side. Re-check here and reposition; refuse only if the real body
+/// cannot be placed at all. No-op for anything close to humanoid.
+bool verifySpawnForRealBody(const SolidAABBFn& solid, bool allowEmbedded,
+                            const std::string& name, Scene::NPCEntity* npc) {
+    if (allowEmbedded || !solid || !npc) return true;
+    auto* ch = npc->getAnimatedCharacter();
+    if (!ch) return true;
+    CharacterBounds body;
+    body.halfWidth = ch->getControllerHalfWidth();
+    body.height = ch->getControllerHalfHeight() * 2.0f;
+    const glm::vec3 at = npc->getPosition();
+    const SpawnResult sr = verifyPlacedBody(solid, at, body);
+    if (sr.outcome == SpawnOutcome::Clear) return true;   // the common case: nothing to do
+    if (!sr.ok()) {
+        LOG_ERROR("NPCManager", "Refusing to spawn '{}': its REAL body ({}m half-width, {}m "
+                  "tall) is inside static geometry and no clear position was found",
+                  name, body.halfWidth, body.height);
+        return false;
+    }
+    LOG_WARN("NPCManager", "'{}' re-placed for its real body ({}m half-width): {}",
+             name, body.halfWidth, sr.reason);
+    npc->setPosition(sr.position);
+    return true;
+}
+
+}  // namespace
+
+SolidAABBFn NPCManager::staticSolidQuery() const {
+    Physics::VoxelDynamicsWorld* vw = m_physicsWorld ? m_physicsWorld->getVoxelWorld() : nullptr;
+    if (!vw) return {};   // no world to check against -> the gate stands down (see SpawnGate.h)
+    return [vw](const glm::vec3& lo, const glm::vec3& hi) {
+        return vw->anyStaticSolidInAABB(lo, hi);
+    };
+}
+
 Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::string& animFile,
                                         const glm::vec3& position, NPCBehaviorType behaviorType,
                                         const std::vector<glm::vec3>& waypoints,
@@ -77,8 +135,13 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
         return nullptr;
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance);
-    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, animFile, appearance);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // tangible-water E
     npc->setBehavior(std::move(behavior));
 
     // Wire pathfinder to PatrolBehavior if available
@@ -103,7 +166,20 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
 
-    LOG_INFO("NPCManager", "Spawned NPC '{}' at ({}, {}, {})", name, position.x, position.y, position.z);
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
+        return nullptr;
+    }
+
+    LOG_INFO("NPCManager", "Spawned NPC '{}' at ({}, {}, {})", name, spawnPos.x, spawnPos.y, spawnPos.z);
     return rawPtr;
 }
 
@@ -579,7 +655,12 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     }
 
     // Create NPC entity with procedural skeleton (no file re-read)
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips);
     if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
 
@@ -634,6 +715,19 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
 
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
+        return nullptr;
+    }
+
     LOG_INFO("NPCManager", "Spawned procedural NPC '{}' (role='{}') at ({}, {}, {})",
              name, role, position.x, position.y, position.z);
     return rawPtr;
@@ -653,8 +747,13 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         return nullptr;
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, animFile, appearance, true);
-    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, animFile, appearance, true);
+    if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // tangible-water E
 
     std::unique_ptr<Scene::NPCBehavior> behavior;
     switch (behaviorType) {
@@ -705,6 +804,19 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
 
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
+        return nullptr;
+    }
+
     LOG_INFO("NPCManager", "Spawned physics NPC '{}' at ({}, {}, {})", name, position.x, position.y, position.z);
     return rawPtr;
 }
@@ -735,7 +847,12 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         finalAppearance = Scene::CharacterAppearance::generateFromSeed(name, role, morph);
     }
 
-    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, position, name, finalAppearance,
+    // SPAWN GATE: never create a character inside static geometry (see SpawnGate.h).
+    glm::vec3 spawnPos = position;
+    if (!applySpawnGate(staticSolidQuery(), m_allowEmbeddedSpawns, name, spawnPos))
+        return nullptr;
+
+    auto npc = std::make_unique<Scene::NPCEntity>(m_physicsWorld, spawnPos, name, finalAppearance,
                                                    tmpl->skeleton, tmpl->voxelModel, tmpl->clips, true);
     if (auto* ch = npc->getAnimatedCharacter()) ch->setWaterHooks(m_waterHooks);  // Phase E
 
@@ -787,6 +904,19 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
 
     auto* rawPtr = npc.get();
     m_npcs[name] = std::move(npc);
+
+    // The gate ran pre-construction against the humanoid default; the species' real
+    // capsule exists only now, so check the body that actually got built.
+    if (!verifySpawnForRealBody(staticSolidQuery(), m_allowEmbeddedSpawns, name, rawPtr)) {
+        // removeNPC, NOT a bare m_npcs.erase: registerEntity() was handed this entity's
+        // raw pointer ABOVE, so erasing the unique_ptr alone frees the object while
+        // EntityRegistry keeps pointing at it -- a use-after-free for any registry
+        // lookup/iteration, and it also poisons the id (registerEntity rejects
+        // duplicates, and its return is unchecked here). removeNPC unregisters, drops
+        // the attached light, then erases. (solution-auditor, round 7.)
+        removeNPC(name);
+        return nullptr;
+    }
 
     LOG_INFO("NPCManager", "Spawned physics procedural NPC '{}' (role='{}') at ({}, {}, {})",
              name, role, position.x, position.y, position.z);

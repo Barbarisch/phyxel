@@ -73,5 +73,15 @@ struct FenceRun {
 /// planes missed each other by up to 8 micro and rails stopped a cube short.
 std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD);
 
+/// The GATE WINDOW cut into a run: the half-open micro span [lo, hi) of `run` that is
+/// left open so a character can walk in. Cube-ALIGNED and centred (a naive micro-space
+/// formula drifts up to 4 micro off centre on odd spans -- an auditor-caught defect).
+/// Returns false and leaves lo/hi untouched when this run carries no gate.
+///
+/// This exists because the arithmetic was duplicated between the fence stamper and the
+/// walkability validator's composition. They were identical, but a validator that keeps
+/// its own copy of the rule it validates stops being a check the moment either drifts.
+bool fenceGateWindow(int runLenMicro, int gateWidthCubes, int& loMicro, int& hiMicro);
+
 }  // namespace Core
 }  // namespace Phyxel

@@ -133,6 +133,7 @@ namespace Scene {
         std::vector<std::string> getAnimationNames() const;
         void cycleAnimation(bool next);
         void setPosition(const glm::vec3& pos);
+
         glm::vec3 getPosition() const;
         float getControllerHalfHeight() const;
         float getControllerHalfWidth() const;

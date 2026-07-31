@@ -44,9 +44,28 @@ public:
         float maxDistance = 2048.0f;        ///< outer far-terrain radius (world units)
         std::vector<int> ringSteps{2, 4, 8};///< LOD step per ring; tileSize = 64*step
         int   maxResidentTiles    = 512;    ///< LRU cap on resident tiles
+        /// C1 (docs/ContinuousLodPlan.md): screen-space correction applied to maxDistance
+        /// and the per-ring band edges. 1.0 == the reference config (1600x900, fovY 45), so
+        /// the default is an exact no-op; RenderCoordinator overwrites it each frame from
+        /// Core::LodService. Without this the horizon sat at a fixed WORLD distance and so
+        /// covered a different number of pixels at every resolution.
+        float viewScale           = 1.0f;
         int   uploadBudgetPerFrame = 4;     ///< GPU uploads per frame
         bool  threaded            = true;   ///< false = build 1 tile/frame on main thread (bisect aid)
     };
+
+    struct RingSpec {
+        int   ring;      // 1-based ring index
+        int   step;      // world units per column
+        int   tileSize;  // world units per side
+        float startR;    // annulus inner radius (tile-center distance)
+        float endR;      // annulus outer radius
+    };
+
+    /// Pure ring layout for a given Params. STATIC and PUBLIC so a test can exercise the
+    /// SHIPPED math rather than re-deriving it (the instance ctor needs a VkDevice).
+    /// computeRings() delegates here.
+    static std::vector<RingSpec> computeRingsFor(const Params& p);
 
     /// A resident tile's draw data + cull AABB.
     struct TileDraw {
@@ -109,13 +128,6 @@ private:
         glm::vec3      aabbMin{0.0f};
         glm::vec3      aabbMax{0.0f};
     };
-    struct RingSpec {
-        int   ring;      // 1-based ring index
-        int   step;      // world units per column
-        int   tileSize;  // world units per side
-        float startR;    // annulus inner radius (tile-center distance)
-        float endR;      // annulus outer radius
-    };
     struct TileRequest {
         FarTileKey key;
         int   step;
@@ -162,6 +174,12 @@ private:
     std::vector<std::pair<int, GpuTile>> m_graveyard;          // frames-left, retired buffers
     std::vector<TileDraw> m_draws;
     glm::vec2 m_lastRefreshPos{0.0f};
+    /// C1: the viewScale the wanted-set was last built at. A scale change moves the whole
+    /// horizon, so it MUST invalidate the wanted set — otherwise the rings only rebuild once
+    /// the camera happens to travel kRefreshDistance, and a resolution change silently does
+    /// nothing (found by a live force_scale sweep: far-tile counts were byte-identical at
+    /// 0.5/1.0/2.0 because refreshWantedSet never re-ran).
+    float m_lastRefreshViewScale = -1.0f;
     bool      m_hasRefreshed = false;
     bool      m_wasEnabled   = false;
 };

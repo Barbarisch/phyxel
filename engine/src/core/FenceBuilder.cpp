@@ -95,5 +95,16 @@ std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD) {
     return runs;
 }
 
+bool fenceGateWindow(int runLenMicro, int gateWidthCubes, int& loMicro, int& hiMicro) {
+    if (runLenMicro <= 0 || gateWidthCubes <= 0) return false;
+    // runLenMicro = (cubes-1)*9 + 1, so ceil-div recovers the cube span; centre in CUBES.
+    const int cubeSpan = (runLenMicro + 8) / 9;
+    if (cubeSpan < gateWidthCubes) return false;
+    const int gs = ((cubeSpan - gateWidthCubes) / 2) * 9;
+    loMicro = gs;
+    hiMicro = gs + gateWidthCubes * 9;
+    return true;
+}
+
 }  // namespace Core
 }  // namespace Phyxel

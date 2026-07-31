@@ -1,0 +1,37 @@
+# E1 CLOSURE: the two sub-fixes I shipped in fff00ee but never witnessed at runtime
+#   (a) relocated_from in the spawn RESPONSE  (b) the encased -> column-lift escalation
+# commit: 273153ef3c697067ced1db75225ea51b34f8d282 + the E3 test tightening
+# exe:    Jul 28 12:22
+# exe contains 'relocated_from': 1
+# exe contains 'lifted out of the solid column': 1
+# utc:    2026-07-28T18:06:37Z
+
+=== (a) RELOCATION: does the RESPONSE now carry relocated_from + the true position? ===
+{"grounded_from":{"x":25.899999618530273,"y":17.0,"z":23.0},"id":"e1_wall","position":{"x":25.899999618530273,"y":18.0,"z":23.0},"success":true,"type":"animated","uuid":"7c0f96eb-d2cb-42d1-82dd-cb0778fa407c","warning":"spawn point (25,17,23) was inside solid voxels; grounded to y=18"}
+(above: absorbed by the COARSE layer - (25,17,23) is inside the croft footprint, so the
+cube reads solid. Need feet in an EMPTY cube with the BODY overlapping the wall: the croft
+at (20,16,20) has its west wall at x 20.0-20.33, so feet x=19.9 -> body 19.65-20.15.)
+--- feet (19.9,17,23): body overlaps the west wall, feet cube 19 is empty ---
+{"id":"e1_bodyoverlap","position":{"x":19.566665649414063,"y":17.0,"z":22.66666603088379},"relocated_from":{"x":19.899999618530273,"y":17.0,"z":23.0},"success":true,"type":"animated","uuid":"9473d5f7-c16c-4bc4-9048-170bff7d72a2","warning":"spawn position was inside static geometry; relocated to the nearest clear standing spot"}
+
+--- [Application] gate lines ---
+[14:06:34.185] [WARN] [Application] character spawn adjusted: spawn was embedded in static geometry; relocated 0.471405 m to clear standing ground
+[14:07:36.003] [WARN] [Application] character spawn adjusted: spawn was embedded in static geometry; relocated 0.471405 m to clear standing ground
+
+=== (b) ESCALATION: encased spawn -> column lift (searchUp=512), never before witnessed ===
+Constructed a 9x9x9 Stone block at (62..70, 19..27, 62..70) with ONE air cube carved at
+(66,23,66): feet cube EMPTY so the coarse spawn_entity check passes, body extends into rock,
+and nothing is clear within resolveSpawn's 4 m -- so the ONLY way out is the escalation
+branch (climb the solid column, re-check, then refuse only if still embedded).
+Verified before probing: (66,23,66) exists=false; all six neighbours exist=true.
+{"error":"spawn refused: the requested position is inside static geometry and no clear position was found","requested":{"x":66.5,"y":23.0,"z":66.5}}
+
+--- [Application] escalation / refusal lines ---
+[14:09:37.968] [ERROR] [Application] Refusing to create character: spawn REFUSED: the character body at (66.5, 23, 66.5) is inside static geometry and no clear position was found within 4 m
+
+--- RE-RUN after making the escalation BODY-AWARE (the first attempt REFUSED: the old
+    feet-cube escalation was inert here, because groundSpawnYIfInsideSolid early-returns
+    when the feet cube is empty -- which is exactly this case) ---
+{"id":"e1_encased2","position":{"x":66.16666412353516,"y":28.0,"z":66.16666412353516},"relocated_from":{"x":66.5,"y":23.0,"z":66.5},"success":true,"type":"animated","uuid":"bff08c83-af79-4c8d-86ff-7efcce69cb59","warning":"spawn position was inside static geometry; relocated to the nearest clear standing spot"}
+--- [Application] escalation line ---
+[14:13:15.669] [WARN] [Application] character spawn was encased; lifted out of the solid column to y=28 (spawn was embedded in static geometry; relocated 2.05481 m to clear standing ground)

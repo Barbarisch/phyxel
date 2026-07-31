@@ -159,3 +159,49 @@ TEST(FenceProfileTest, PostPositionsEvenAndCornerShared) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// fenceGateWindow — the gate cut, extracted so the stamper and the walkability
+// validator share ONE definition instead of two copies that were identical only
+// by luck. Extraction can silently change edge cases, so pin the contract:
+// cube-ALIGNED centring (a naive micro formula drifts up to 4 micro off centre on
+// odd spans -- previously auditor-caught), and honest refusal on a run too short
+// to hold a gate rather than emitting a negative window.
+// ---------------------------------------------------------------------------
+TEST(FenceProfileTest, GateWindowIsCubeAlignedAndCentred) {
+    int lo = -1, hi = -1;
+    // A 9-cube run: runLenMicro = (9-1)*9 + 1 = 73. Gate 2 cubes -> centred at cube 3.
+    ASSERT_TRUE(Phyxel::Core::fenceGateWindow(73, 2, lo, hi));
+    EXPECT_EQ(lo % 9, 0) << "gate start is not cube-aligned (lo=" << lo << ")";
+    EXPECT_EQ(hi - lo, 2 * 9) << "gate is not the requested 2 cubes wide";
+    const int cubeSpan = (73 + 8) / 9;
+    EXPECT_EQ(lo, ((cubeSpan - 2) / 2) * 9) << "gate is not centred in cubes";
+
+    // Odd span: still cube-aligned, still exactly gateWidth wide.
+    lo = hi = -1;
+    ASSERT_TRUE(Phyxel::Core::fenceGateWindow(64, 2, lo, hi));
+    EXPECT_EQ(lo % 9, 0);
+    EXPECT_EQ(hi - lo, 18);
+}
+
+TEST(FenceProfileTest, GateWindowRefusesARunTooShortToHoldAGate) {
+    int lo = -7, hi = -7;
+    EXPECT_FALSE(Phyxel::Core::fenceGateWindow(10, 3, lo, hi))
+        << "a 2-cube run reported room for a 3-cube gate";
+    EXPECT_EQ(lo, -7) << "a refused gate must leave the caller's window untouched, not write a "
+                         "negative span the stamper would read as 'skip from the start'";
+    EXPECT_EQ(hi, -7);
+    EXPECT_FALSE(Phyxel::Core::fenceGateWindow(0, 2, lo, hi));
+    EXPECT_FALSE(Phyxel::Core::fenceGateWindow(73, 0, lo, hi));
+}
+
+// The smallest run the parcel stamper can actually produce (a 2-cube side) must
+// still yield a gate -- otherwise extracting this helper would silently SEAL the
+// smallest parcels and the walkability suite would be the only thing to notice.
+TEST(FenceProfileTest, TheSmallestStampableRunStillGetsItsGate) {
+    int lo = -1, hi = -1;
+    ASSERT_TRUE(Phyxel::Core::fenceGateWindow(10, 2, lo, hi))   // 2-cube side: (2-1)*9+1 = 10
+        << "the minimum parcel side lost its gate - every small plot would be sealed";
+    EXPECT_EQ(lo, 0);
+    EXPECT_EQ(hi, 18);
+}

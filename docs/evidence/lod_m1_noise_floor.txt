@@ -1,0 +1,89 @@
+dist=192 n=25 shadow_draws=[187] shadow_instances=[325550]
+  shadow_ms  min=3.97 med=3.99 max=10.68 stdev=2.13
+  static_ms  min=0.65 med=0.66 max=0.72 stdev=0.02
+dist=512 n=25 shadow_draws=[187] shadow_instances=[325550]
+  shadow_ms  min=3.97 med=4.08 max=11.77 stdev=2.78
+  static_ms  min=6.34 med=6.53 max=13.57 stdev=2.68
+
+=== M1 SUMMARY (derived from the two sweeps + this noise floor) ===
+Build: Release, branch destruction-system-v2, built 2026-07-29 (returncode 0).
+Scene: engine-generated. Perlin underground plane (15x15 chunks, y0..31, seed 1337,
+POST /api/world/generate) + 7 medieval villages (POST /api/settlement/build, seeds
+7/11/12/13/14/15/16). NOTHING hand-placed. Camera: free mode, fixed + verified per step.
+
+RUN 1  (95,739 faces, cam 0/78/130)   -> lod_m1_shadow_vs_drawcount.jsonl
+  dist  64: draws 186  inst  95,610  shadow 3.187 ms
+  dist 128: draws 235  inst  95,735  shadow 3.090 ms
+  dist 160+: draws 236 inst  95,739  shadow 2.867-2.944 ms
+  => +50 draws (+27%) at CONSTANT instances (+0.1%) => shadow ms did NOT rise (it fell ~10%).
+
+RUN 2  (589,563 faces, cam 0/160/320) -> lod_m1_shadow_vs_drawcount_dense.jsonl
+  dist  64: draws  81  inst 112,776  shadow 2.478 ms
+  dist 160: draws 187  inst 325,550  shadow 4.011 ms
+  dist 160..512: draws/inst PINNED at 187/325,550 -> shadow median ~4.0 ms, flat.
+
+NOISE FLOOR (n=25 per point, draws/inst pinned): median 3.99 (d=192) / 4.08 (d=512);
+min 3.97 both; max 10.68/11.77; stdev 2.13/2.78 -> distribution is bimodal: a tight
+~3.97-4.1 mode plus occasional ~10-12 ms spikes. Medians are stable to ~0.1 ms.
+
+CROSS-RUN: run1 236 draws /  95.7k inst -> 2.9 ms
+           run2 187 draws / 325.5k inst -> 4.0 ms
+           FEWER draws + 3.4x instances = MORE time.
+
+CONCLUSIONS (scoped):
+1. The ~0.13 ms/draw per-draw-overhead model (RenderDensityPlan "Shadow characterization")
+   DID NOT REPRODUCE here. It predicts +6.5 ms for run 1's +50 draws; measured ~0
+   (medians stable to ~0.1 ms => per-draw cost is >1 order of magnitude below 0.13 ms).
+2. Shadow cost tracks INSTANCES/fill, not draw count, on this scene.
+3. The 24-26 ms shadow wall was NOT reproduced: max median observed 4.08 ms at 589k faces.
+   So this is a DIFFERENT operating point from the 377k-face Perlin-hills scene that
+   produced the 24-26 ms figure; these results do not refute that measurement, they fail
+   to reproduce it on different content.
+4. UNEXPLAINED: the ~10-12 ms spikes (~10-15% of samples) at otherwise-constant inputs.
+5. Shadow draws >> visible chunks persists (run 1: 236 vs 94).
+
+NOT MEASURED / OPEN: Perlin-hills terrain (the original scene shape); 4096^2 vs 2048^2
+shadow map; the spike cause; M2/M3/M4/M5.
+
+=== AUDIT OUTCOME 2026-07-29: solution-auditor VERDICT = FAIL ===
+The CONCLUSIONS section above is RETRACTED IN PART. Defects found:
+
+D1 POSE INVALID (fatal to the headline claim). The harness recorded `pose_ok` per sample and
+   I never inspected it. Verified breakdown:
+     run 1 (lod_m1_shadow_vs_drawcount.jsonl): pose_ok TRUE only at dist 64, 96;
+       FALSE at 128,160,192,224,256,320,384,448,512  (27 of 33 samples)
+     run 2 (..._dense.jsonl): pose_ok TRUE at all 11 distances
+   => The "clean per-draw test" (186 draws @64 vs 236 draws @>=160) SPANS a pose boundary.
+      Conclusion 1 (per-draw model did not reproduce) is UNFALSIFIED, not refuted.
+
+D2 MECHANISM CONTRADICTED. "Shadow cost tracks instances/fill" cannot explain the source
+   measurement: RenderDensityPlan 377k faces / ~131 draws -> 24-26 ms, vs this run 589k faces /
+   187 draws / 325,550 instances -> ~4 ms. MORE of everything, 6x FASTER. Conclusion 2 RETRACTED.
+
+D3 CHERRY-PICK. "flat ... to 512" has n=25 at only 2 of 8 plateau distances; the archived n=3
+   sweep medians at 224-512 include 7.93 / 7.82 / 10.41 ms, unmentioned above.
+
+D4 UNARCHIVED FRACTION. The "~10-15% spikes" figure cannot be checked (the 25 raw samples were
+   never written out - only min/med/max/stdev). Archived proxy (24 plateau-pinned sweep samples):
+   45.8% >6ms, 20.8% >8ms.
+
+D5 PROVENANCE NOT ARCHIVED. The scene-generation calls were real but their raw responses were
+   never written here. Exact commands, recorded now for reproducibility (TRANSCRIBED from the
+   session, NOT captured at the time - treat as reproduction instructions, not as evidence):
+     POST /api/world/generate {"type":"Perlin","seed":1337,"from":{"x":<-7|-3|1|5>,"y":0,"z":-7},
+                               "to":{"x":<-4|0|4|7>,"y":0,"z":7}}      (4 calls, 64-chunk cap)
+     POST /api/settlement/build {"era":"medieval","tier":"village","seed":S,
+                                 "position":{"x":X,"y":32,"z":Z},"width":80,"depth":80,
+                                 "terrain":false}
+       (S,X,Z) = (7,-40,-40) (11,-200,-200) (12,-200,60) (13,60,-200) (14,60,60)
+                 (15,-70,-200) (16,-200,-70)
+   Next run MUST archive these responses alongside the samples.
+
+SURVIVING CLAIM (the only one): on this flat-plane + 7-village scene at up to 589,563 faces,
+Release, no 24-26 ms shadow wall was observed (max individual sample ~12.6 ms; medians ~4 ms at
+the two n=25 points). Everything built on top of that is NOT established by this data.
+
+RE-RUN REQUIREMENTS: reject pose_ok=false samples; pin+log s_shadowFrustumCull and the fitted
+shadow-volume bounds (chunkInclusionDistance = distance x 1.5, Application.cpp:7917, confounds
+draw count with volume); n>=15 at every claimed point; archive generation responses; use
+Perlin-hills terrain + settlement to match the original scene shape.

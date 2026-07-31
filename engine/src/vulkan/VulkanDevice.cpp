@@ -227,7 +227,25 @@ bool VulkanDevice::createInstance() {
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
+    // C2 PREREQUISITE (docs/ContinuousLodPlan.md). The plan calls C2 "portable Vulkan 1.2",
+    // but this instance was pinned to 1.0, which makes its two load-bearing entry points
+    // unavailable: gl_DrawID (1.1 core / VK_KHR_shader_draw_parameters) and
+    // vkCmdDrawIndexedIndirectCount (1.2 core / VK_KHR_draw_indirect_count). Request the
+    // highest version the loader actually offers, capped at 1.2, and fall back to 1.0 when
+    // vkEnumerateInstanceVersion is absent (a strict 1.0 loader). Vulkan is backward
+    // compatible, so asking for more never changes existing behaviour.
+    uint32_t loaderVersion = VK_API_VERSION_1_0;
+    if (auto fn = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+            vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"))) {
+        if (fn(&loaderVersion) != VK_SUCCESS) loaderVersion = VK_API_VERSION_1_0;
+    }
+    instanceApiVersion_ = std::min(loaderVersion, (uint32_t)VK_API_VERSION_1_2);
+    appInfo.apiVersion = instanceApiVersion_;
+    LOG_INFO("Vulkan", "Instance API version requested: " +
+             std::to_string(VK_VERSION_MAJOR(instanceApiVersion_)) + "." +
+             std::to_string(VK_VERSION_MINOR(instanceApiVersion_)) +
+             " (loader offers " + std::to_string(VK_VERSION_MAJOR(loaderVersion)) + "." +
+             std::to_string(VK_VERSION_MINOR(loaderVersion)) + ")");
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -462,8 +480,68 @@ bool VulkanDevice::createLogicalDevice() {
         LOG_WARN("Vulkan", "Device lacks pipelineStatisticsQuery; D0 overdraw counter disabled");
     }
 
+    // C2 PREREQUISITE: multiDrawIndirect is a CORE 1.0 *optional* feature. Without it,
+    // vkCmdDrawIndexedIndirect with drawCount > 1 is invalid usage -- so the whole
+    // one-draw-per-region plan is unavailable until it is explicitly requested.
+    if (supportedFeatures.multiDrawIndirect) {
+        deviceFeatures.multiDrawIndirect = VK_TRUE;
+        multiDrawIndirectSupported_ = true;
+    } else {
+        LOG_WARN("Vulkan", "Device lacks multiDrawIndirect; C2 GPU-driven submission unavailable");
+    }
+    // drawIndirectFirstInstance: required to use firstInstance != 0 in an indirect command,
+    // which is exactly how a region arena's per-chunk span is selected in one multidraw.
+    if (supportedFeatures.drawIndirectFirstInstance) {
+        deviceFeatures.drawIndirectFirstInstance = VK_TRUE;
+        drawIndirectFirstInstanceSupported_ = true;
+    } else {
+        LOG_WARN("Vulkan", "Device lacks drawIndirectFirstInstance; arena-span multidraw unavailable");
+    }
+
+    // Device-level API version decides whether gl_DrawID and vkCmdDrawIndexedIndirectCount
+    // are core.
+    {
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(physicalDevice, &props);
+        deviceApiVersion_ = props.apiVersion;
+        const uint32_t effective = std::min(deviceApiVersion_, instanceApiVersion_);
+        // CORRECTION to the first version of this block: an API version >= 1.1 makes
+        // gl_DrawID *available*, but `shaderDrawParameters` is a FEATURE that must be
+        // explicitly enabled -- reporting it purely from the version number was wrong and
+        // would have produced a shader that fails to link. Query it, and only claim support
+        // when the device actually reports the feature.
+        shaderDrawParametersAvailable_ = false;
+        if (effective >= VK_API_VERSION_1_1) {
+            VkPhysicalDeviceShaderDrawParametersFeatures sdp{};
+            sdp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+            VkPhysicalDeviceFeatures2 f2{};
+            f2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            f2.pNext = &sdp;
+            if (auto fn = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(
+                    vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2"))) {
+                fn(physicalDevice, &f2);
+                shaderDrawParametersAvailable_ = sdp.shaderDrawParameters == VK_TRUE;
+            }
+        }
+        drawIndirectCountAvailable_ = effective >= VK_API_VERSION_1_2;
+        LOG_INFO("Vulkan", std::string("C2 capability set: multiDrawIndirect=") +
+                 (multiDrawIndirectSupported_ ? "yes" : "NO") +
+                 " drawIndirectFirstInstance=" + (drawIndirectFirstInstanceSupported_ ? "yes" : "NO") +
+                 " gl_DrawID(1.1)=" + (shaderDrawParametersAvailable_ ? "yes" : "NO") +
+                 " drawIndirectCount(1.2)=" + (drawIndirectCountAvailable_ ? "yes" : "NO") +
+                 " deviceApi=" + std::to_string(VK_VERSION_MAJOR(deviceApiVersion_)) + "." +
+                 std::to_string(VK_VERSION_MINOR(deviceApiVersion_)));
+    }
+
+    // Actually ENABLE shaderDrawParameters (gl_DrawID). Availability != enabled; a shader
+    // using gl_DrawIDARB against a device that did not enable this feature is invalid.
+    VkPhysicalDeviceShaderDrawParametersFeatures enableSdp{};
+    enableSdp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+    enableSdp.shaderDrawParameters = shaderDrawParametersAvailable_ ? VK_TRUE : VK_FALSE;
+
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    if (shaderDrawParametersAvailable_) createInfo.pNext = &enableSdp;
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();

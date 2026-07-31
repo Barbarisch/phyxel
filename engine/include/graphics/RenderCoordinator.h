@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "core/LodService.h"
 #include "core/WorldConstants.h"
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
@@ -113,6 +114,80 @@ public:
     void setCharacterInstanceCapacity(uint32_t parts) { m_charInstanceCapacity = parts; }
     uint32_t getCharacterInstanceCapacity() const { return m_charInstanceCapacity; }
 
+    /// Hand-tuned character LOD distances, in WORLD UNITS. Exposed as a struct so a
+    /// characterization test can pin them without constructing a RenderCoordinator
+    /// (which needs a live Vulkan device). These had ZERO test coverage before
+    /// 2026-07-29. They are the thresholds C1 of docs/ContinuousLodPlan.md re-homes
+    /// onto Core::LodService's screen-space metric — today they are blind to FOV and
+    /// resolution, so the same character at the same distance decimates identically
+    /// at 480p/100° and 4K/20°.
+    /// C1: vegetation fade radius, screen-space corrected. Grass/foliage are pure render
+    /// fades — a blade covering the same pixels should fade at the same point regardless
+    /// of resolution. Exactly the base value at the reference config (viewScale == 1).
+    ///
+    /// STATIC and PUBLIC on purpose: as a private member it could not be called from a
+    /// test, so the test re-derived the formula instead — and mutating this function to
+    /// `return baseRadius` (disabling the feature) left all 32 tests green. Same defect
+    /// as the character path had. Tests now call THIS.
+    static float effectiveVegetationRadius(float baseRadius, float viewScale) {
+        return baseRadius * viewScale;
+    }
+
+    /// A/B toggle for the screen-space correction across ALL re-homed systems
+    /// (POST /api/debug/screen_space_lod). OFF reproduces the legacy world-unit behaviour
+    /// byte-for-byte, which is what the characterization tests pin.
+    static bool s_screenSpaceLod;
+
+    /// C2.1: one multidraw per arena block in the SHADOW pass instead of one draw per chunk.
+    /// DEFAULT OFF (POST /api/debug/gpu_driven_shadow). The shadow pass is 75% of the frame and
+    /// ~131 draws (docs/RenderDensityPlan.md §2d), and chunks sharing an arena buffer can be
+    /// submitted together — the per-chunk origin moves to ShadowMap's SSBO indexed by gl_DrawIDARB.
+    static bool s_gpuDrivenShadow;
+
+    /// C5 (docs/ContinuousLodPlan.md): DISTANCE-DRIVEN LOD. Joins C1's screen-space metric to
+    /// C4's cut — each chunk is meshed at the level where its cells stop being worth their
+    /// pixels. DEFAULT OFF; every timing so far applied one level GLOBALLY, which puts huge
+    /// quads right in front of the camera and is exactly the wrong way to use LOD.
+    static bool s_distanceDrivenLod;
+    /// Target on-screen size (pixels) for one LOD cell. Larger = coarsen sooner/harder.
+    static float s_lodTargetPixels;
+    /// Chunk re-meshes allowed per frame. A full re-mesh is ~40-50 ms, so an unbounded
+    /// budget would turn camera motion into a stutter storm.
+    static int s_lodRebuildBudgetPerFrame;
+
+    /// Per-frame: pick each chunk's level from the metric and re-mesh a bounded number of the
+    /// chunks whose level changed. Returns how many were re-meshed.
+    int updateChunkLod();
+    int getLodRebuiltLastFrame() const { return m_lodRebuiltLastFrame; }
+
+    /// C2.1 guard, as a PURE function so it is testable without a Vulkan device.
+    /// `vkCmdDrawIndexedIndirect`'s firstInstance addresses instances by STRIDE, so a chunk's
+    /// arena span byte offset is only addressable when it is an exact multiple of the instance
+    /// stride. Arena spans are kAlignment=256-aligned and the stride is 24 bytes; 256 % 24 == 16,
+    /// so this is false for essentially every real span today. Extracted and made public after an
+    /// audit noted the guard had ZERO regression coverage — deleting it would have left all 3110
+    /// tests green while the GPU path silently rendered wrong geometry.
+    static bool spanIsStrideAddressable(size_t byteOffset, size_t instanceStride) {
+        return instanceStride != 0 && (byteOffset % instanceStride) == 0;
+    }
+
+    /// C1 (docs/ContinuousLodPlan.md): scales the world-unit character thresholds by how
+    /// much bigger/smaller a character actually is ON SCREEN than at the config they were
+    /// tuned at (1600x900, fovY 45deg). EXACTLY 1.0 at that config, so this is a no-op
+    /// there and a correction everywhere else. Updated per frame from the swapchain.
+    float lodViewScale() const {
+        return m_lodViewScale > 0.0f ? m_lodViewScale : 1.0f;
+    }
+
+    /// Debug-only scale override. 0 = derive from the live view (normal operation).
+    static float s_forcedViewScale;
+
+    struct CharacterLodDefaults {
+        float lod1Distance = 35.0f;
+        float lod2Distance = 80.0f;
+        float cullDistance = 400.0f;
+    };
+
     /// Characters beyond this distance from the camera are not drawn at all. Generous
     /// by default — this is a safety net for huge worlds, not an aesthetic LOD knob.
     void  setCharacterCullDistance(float d) { m_charCullDistance = d; }
@@ -180,6 +255,7 @@ public:
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;
         long long shadowInstancesDrawn = 0;   // face instances (each drawn with 36 indices)
+        int shadowMultidrawCalls = 0;  ///< C2.1: vkCmdDrawIndexedIndirect calls (one per arena buffer)
         float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
         float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
@@ -400,16 +476,44 @@ private:
     std::vector<CharacterInstanceData> m_charInstanceScratch;
     size_t   m_charInstanceHighWater = 0;
     uint32_t m_charInstanceCapacity = kCharacterInstanceCapacity;
-    float    m_charCullDistance     = 400.0f;
+    float    m_charCullDistance     = CharacterLodDefaults{}.cullDistance;
     bool     m_shadowCharactersEnabled = true;
-    float    m_charLod1Distance = 35.0f;
-    float    m_charLod2Distance = 80.0f;
+    float    m_charLod1Distance = CharacterLodDefaults{}.lod1Distance;
+    float    m_charLod2Distance = CharacterLodDefaults{}.lod2Distance;
+    float    m_lodViewScale = 1.0f;   ///< C1: screen-space correction, 1.0 at reference config
+
     /// LOD level for a squared camera distance. 0 = full part set.
+    /// Screen-space aware: thresholds scale with resolution/FOV so a character that covers
+    /// the same number of pixels gets the same LOD level regardless of the view. The legacy
+    /// world-unit path is kept for A/B (s_screenSpaceLod=false) and is what the
+    /// characterization tests pin.
     int lodForDistanceSq(float distSq) const {
-        if (m_charLod2Distance > 0.0f && distSq > m_charLod2Distance * m_charLod2Distance) return 2;
-        if (m_charLod1Distance > 0.0f && distSq > m_charLod1Distance * m_charLod1Distance) return 1;
-        return 0;
+        return Core::LodService::characterLodLevel(
+            distSq, m_charLod1Distance, m_charLod2Distance,
+            s_screenSpaceLod ? lodViewScale() : 1.0f);
     }
+
+    /// Effective cull distance after the same screen-space correction.
+    float effectiveCharacterCullDistance() const {
+        return m_charCullDistance * (s_screenSpaceLod ? lodViewScale() : 1.0f);
+    }
+
+    /// Recompute the view scale. `fovYDegrees` is 45 today (Camera.h) but is a parameter so
+    /// a configurable FOV changes LOD correctly for free.
+    void updateLodView(float viewportHeight, float fovYDegrees) {
+        // s_forcedViewScale (> 0) pins the scale for live verification: at the reference
+        // config the correction is inert by construction, so a runtime capture there proves
+        // nothing about the scaling path. POST /api/debug/screen_space_lod {"force_scale":2.0}.
+        m_lodViewScale = s_forcedViewScale > 0.0f
+            ? s_forcedViewScale
+            : Core::LodService::viewScaleVsReference(viewportHeight, fovYDegrees);
+    }
+
+
+
+    /// The scale the render path should apply to any re-homed world-unit radius this frame.
+    /// 1.0 when the correction is disabled or when at the reference config.
+    float screenSpaceLodScale() const { return s_screenSpaceLod ? lodViewScale() : 1.0f; }
     // Conservative model-space bound used for the per-character cull sphere. Cheap and
     // O(1): a real per-frame AABB would mean walking every part, which is the work the
     // cull exists to avoid. Oversized on purpose — it can only cull too little.
@@ -426,6 +530,8 @@ private:
     // because lastFrameStats is reset after the shadow pass runs). See docs/RenderDensityPlan.md.
     int m_shadowChunksDrawn = 0;
     long long m_shadowInstancesDrawn = 0;
+    int m_shadowMultidrawCalls = 0;
+    int m_lodRebuiltLastFrame = 0;   ///< C5: chunks re-meshed for LOD last frame   ///< C2: vkCmdDrawIndexedIndirect calls issued this frame
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;

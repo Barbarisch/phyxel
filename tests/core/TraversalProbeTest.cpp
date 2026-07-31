@@ -61,3 +61,41 @@ TEST(TraversalProbeTest, AdequateCeilingAllowsPassage) {
     World w; w.ceilX0 = 20; w.ceilX1 = 45; w.ceilY = 3 + 16;             // head-room 16 >= height
     EXPECT_TRUE(walk(w));
 }
+
+// ---------------------------------------------------------------------------
+// flood() — the reachable SET, so a failed reachability check can be LOCATED
+// instead of merely reported. It must agree with reachable() (same stepping rule)
+// AND actually stop at a barrier: a flood that leaks past a wall would point the
+// settlement validator's pinch diagnosis at the wrong place.
+// ---------------------------------------------------------------------------
+TEST(TraversalProbeTest, FloodAgreesWithReachableOnAnOpenCorridor) {
+    const World w;
+    const auto set = probe(w).flood({10, 3, 11}, {0, 0, 0}, {60, 40, 22});
+    ASSERT_FALSE(set.empty());
+    // Everything reachable() accepts must appear in the flood.
+    bool sawGoal = false;
+    for (const auto& c : set)
+        if (c.x >= 38 && c.x <= 44 && c.z >= 8 && c.z <= 14) { sawGoal = true; break; }
+    EXPECT_TRUE(sawGoal) << "flood did not reach a cell reachable() says is reachable";
+    EXPECT_TRUE(walk(w));
+}
+
+TEST(TraversalProbeTest, FloodStopsAtAWallAndStaysOnTheStartSide) {
+    World w;
+    w.barrierX0 = 24; w.barrierX1 = 27; w.barrierTop = 20;   // full wall across the corridor
+    const auto set = probe(w).flood({10, 3, 11}, {0, 0, 0}, {60, 40, 22});
+    ASSERT_FALSE(set.empty());
+    int beyond = 0;
+    for (const auto& c : set) if (c.x >= 27) ++beyond;
+    EXPECT_EQ(beyond, 0) << beyond << " flooded cells leaked PAST a full-height wall";
+    EXPECT_FALSE(walk(w));
+}
+
+TEST(TraversalProbeTest, FloodOfAnUnsupportedStartIsEmpty) {
+    const World w;
+    // Start in mid-air above the corridor with nothing to settle onto below within bounds:
+    // bound the floor away so settle() runs out of world.
+    const auto set = probe(w).flood({10, 30, 11}, {0, 25, 0}, {60, 40, 22});
+    EXPECT_TRUE(set.empty()) << "an unsupported start must flood nothing (it is bad probe input, "
+                                "not a walkable region)";
+}

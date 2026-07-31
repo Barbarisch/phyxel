@@ -23,6 +23,14 @@ enum class ProjectionMode {
 
 class Camera {
 public:
+    /// Vertical field of view, degrees. Single source of truth: the projection matrix below
+    /// AND Core::LodService's screen-space metric both read this, so if FOV ever becomes
+    /// configurable the LOD correction tracks it automatically instead of silently keeping
+    /// the old constant. (Before this, 45 was hardcoded inline in getProjectionMatrix and
+    /// RenderCoordinator::updateLodView just defaulted to the same number by coincidence.)
+    static constexpr float kFovYDegrees = 45.0f;
+    float getFovYDegrees() const { return kFovYDegrees; }
+
     // Constructor with vectors
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 
@@ -87,7 +95,7 @@ public:
             // non-linear, so we keep glm::perspective for that path.
             proj = glm::orthoRH_ZO(-w, w, -h, h, nearP, farP);
         } else {
-            proj = glm::perspective(glm::radians(45.0f), aspect, nearP, farP);
+            proj = glm::perspective(glm::radians(kFovYDegrees), aspect, nearP, farP);
         }
         proj[1][1] *= -1; // Vulkan flips Y vs OpenGL
         return proj;

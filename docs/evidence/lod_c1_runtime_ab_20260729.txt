@@ -1,0 +1,16 @@
+=== C1 runtime A/B — LodBench, Release, Wed Jul 29 19:38:19 UTC 2026 ===
+world loaded, faces=250172
+
+--- window size (determines the view scale) ---
+[32m[15:55:50.998] [INFO] [WindowManager] Window created: 1600x900 'StructGenTest'[0m
+
+--- toggle ON (default) ---
+{"lod_view_scale":1.0,"screen_space_lod":true,"success":true}
+ON : grass=8.990 foliage=0.034 static=3.156 vis=45
+
+--- toggle OFF (legacy world-unit path) ---
+{"lod_view_scale":1.0,"screen_space_lod":false,"success":true}
+OFF: grass=8.478 foliage=0.033 static=3.074 vis=45
+
+EXPECTATION: at 1600x900 lod_view_scale == 1.0, so ON and OFF are the SAME code path
+(radius * 1.0). visible_chunks must match exactly; ms differ only by frame noise.

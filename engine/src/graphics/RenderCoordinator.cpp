@@ -1,4 +1,6 @@
 #include "graphics/RenderCoordinator.h"
+
+#include "core/LodChunkMesh.h"
 #include "core/GpuParticlePhysics.h"
 #include "graphics/LightManager.h"
 #include "graphics/RaycastVisualizer.h"
@@ -544,7 +546,12 @@ void RenderCoordinator::renderGrass() {
     // Cull whole chunks by center distance, padded by a chunk half-diagonal (~sqrt(3)*16) so a
     // chunk with grass near its edge inside the radius isn't dropped; the per-blade height fade in
     // the shader does the smooth cutoff at the true radius.
-    const float radius = grassPipeline->params().radius + 27.8f;
+    // C1: screen-space corrected (no-op at the reference config). updateLodView() ran at
+    // the top of drawFrame(), so the scale is fresh. The +27.8 chunk half-diagonal pad is a
+    // GEOMETRIC safety margin for center-distance culling and must NOT scale — shrinking it
+    // below the true half-diagonal would reintroduce edge-of-chunk grass popping.
+    const float radius = effectiveVegetationRadius(grassPipeline->params().radius,
+                                                   screenSpaceLodScale()) + 27.8f;
     const float radiusSq = radius * radius;
 
     std::vector<GrassRenderPipeline::ChunkDraw> draws;
@@ -569,6 +576,10 @@ void RenderCoordinator::renderGrass() {
 }
 
 void RenderCoordinator::renderFarTerrain() {
+    // C1: keep the far-terrain horizon on the shared screen-space metric (no-op at the
+    // reference config). Must be set before update()/computeRings() runs this frame.
+    if (farTerrainManager) farTerrainManager->params().viewScale = screenSpaceLodScale();
+
     // Far-terrain LOD tiles. Drawn AFTER static geometry so near chunks fill depth
     // first and far-tile pixels behind them are z-rejected. Excluded from the shadow
     // pass by construction. Tiles are frustum-culled by their AABB here.
@@ -659,7 +670,9 @@ void RenderCoordinator::renderFoliage() {
     if (visibleChunkIndices.empty()) return;
 
     const glm::vec3 cameraPos = camera->getPosition();
-    const float radius = foliagePipeline->params().radius + 27.8f;  // chunk half-diagonal pad
+    // C1: screen-space corrected (no-op at the reference config); pad is geometric, unscaled.
+    const float radius = effectiveVegetationRadius(foliagePipeline->params().radius,
+                                                   screenSpaceLodScale()) + 27.8f;
     const float radiusSq = radius * radius;
 
     std::vector<FoliageRenderPipeline::ChunkDraw> draws;
@@ -1176,6 +1189,20 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
+// C1 (docs/ContinuousLodPlan.md): screen-space correction for the character LOD/cull
+// thresholds. ON by default -- it is EXACTLY a no-op at the reference config (1600x900,
+// fovY 45) that the 35/80/400 numbers were tuned at, and a correction elsewhere.
+bool RenderCoordinator::s_screenSpaceLod = true;
+// C2.1 (docs/ContinuousLodPlan.md): one multidraw per arena block for the SHADOW pass, replacing
+// one draw per chunk. DEFAULT OFF -- it changes the primary submission path, so it ships behind a
+// live A/B toggle (POST /api/debug/gpu_driven_shadow) exactly like s_quadDraw and s_fineGreedyMerge.
+bool RenderCoordinator::s_gpuDrivenShadow = false;
+// C5 distance-driven LOD. DEFAULT OFF -- it re-meshes chunks, which is the most invasive thing
+// in this plan, so it ships behind a live toggle like every other risky change here.
+bool  RenderCoordinator::s_distanceDrivenLod = false;
+float RenderCoordinator::s_lodTargetPixels = 8.0f;
+int   RenderCoordinator::s_lodRebuildBudgetPerFrame = 2;
+float RenderCoordinator::s_forcedViewScale = 0.0f;  // 0 = derive from the live view
 
 void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
                                          const glm::vec3& cullCenter, float cullRadius) {
@@ -1209,7 +1236,137 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // of the loose distance sphere. Cuts the 138-chunk draw count → the suspected draw-call floor.
     Utils::Frustum lightFrustum;
     if (s_shadowFrustumCull) lightFrustum.extractFromMatrix(lightSpaceMatrix);
+    // C2.1: the shadow pipeline layout now declares set 0 (per-draw chunk origins). Bind it
+    // unconditionally -- the legacy path ignores its contents (push-constant flag 0), but a
+    // declared set must still be bound.
+    if (shadowMap->getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
+        VkDescriptorSet set = shadowMap->getChunkDataSet(currentFrame);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                shadowMap->getPipelineLayout(), 0, 1, &set, 0, nullptr);
+    }
+
     gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+
+    // ---- C2.1 GPU-DRIVEN PATH: one multidraw per arena buffer ----------------------------
+    // Chunks sharing an arena VkBuffer are in the same allocator block, so they can be
+    // submitted together: bind that buffer once, then issue ONE vkCmdDrawIndexedIndirect whose
+    // commands select each chunk's slice via firstInstance. The per-chunk origin comes from the
+    // SSBO indexed by gl_DrawIDARB, which is why this needs shaderDrawParameters (C2.0b) and
+    // drawIndirectFirstInstance (C2.0).
+    if (s_gpuDrivenShadow && chunkManager && !chunkManager->chunks.empty() &&
+        vulkanDevice->supportsGpuDrivenSubmission() && shadowMap->getIndirectMapped(currentFrame)) {
+        Utils::Frustum lightFrustumG;
+        if (s_shadowFrustumCull) lightFrustumG.extractFromMatrix(lightSpaceMatrix);
+
+        // Gather survivors grouped by arena buffer, preserving the legacy cull tests exactly.
+        std::unordered_map<VkBuffer, std::vector<const Chunk*>> byBuffer;
+        for (const auto& chunk : chunkManager->chunks) {
+            if (chunk->getNumInstances() == 0) continue;
+            glm::vec3 minB = chunk->getMinBounds(), maxB = chunk->getMaxBounds();
+            glm::vec3 centre = (minB + maxB) * 0.5f;
+            if (glm::length(centre - cullCenter) > cullRadius + 160.0f) continue;
+            if (s_shadowFrustumCull && !lightFrustumG.intersects(Utils::AABB(minB, maxB))) continue;
+            byBuffer[chunk->getInstanceBuffer()].push_back(chunk.get());
+        }
+
+        auto* cmds = static_cast<VkDrawIndexedIndirectCommand*>(shadowMap->getIndirectMapped(currentFrame));
+        std::vector<glm::vec4> origins;
+        origins.reserve(ShadowMap::kMaxChunkDataEntries);
+        uint32_t cmdCursor = 0;
+        int gpuDraws = 0;
+        long long gpuInstances = 0;
+        const uint32_t stride = static_cast<uint32_t>(sizeof(Phyxel::Vulkan::InstanceData));
+
+        // HARD GUARD (root-caused 2026-07-29): firstInstance addresses instances by STRIDE, so a
+        // chunk's arena span offset must be an exact multiple of sizeof(InstanceData). Arena spans
+        // are kAlignment=256-byte aligned (ChunkArenaAllocator.h:48) and the stride is 24 bytes;
+        // 256 % 24 == 16, so span offsets are generally NOT stride multiples and offset/stride
+        // TRUNCATES -- every chunk would read the wrong instances. Refuse and fall back rather
+        // than render silent garbage. Fix is in the allocator (align spans to lcm(256,24)=768) or
+        // by padding InstanceData to 32B; see docs/ContinuousLodPlan.md C2.1.
+        bool strideMisaligned = false;
+        for (auto& kv : byBuffer) {
+            if (strideMisaligned) break;
+            for (const Chunk* ch : kv.second) {
+                if (!spanIsStrideAddressable(ch->getInstanceBindOffset(), stride)) {
+                    static bool warned = false;
+                    if (!warned) {
+                        warned = true;
+                        LOG_WARN("RenderCoordinator",
+                                 "C2.1 GPU-driven shadow DISABLED: arena span offset " +
+                                 std::to_string(ch->getInstanceBindOffset()) +
+                                 " is not a multiple of the " + std::to_string(stride) +
+                                 "-byte instance stride, so firstInstance cannot address it. "
+                                 "Align arena spans to lcm(kAlignment, stride) first.");
+                    }
+                    strideMisaligned = true; break;
+                }
+            }
+        }
+
+      if (!strideMisaligned) {
+        struct Batch { VkBuffer buf; uint32_t first; uint32_t count; };
+        std::vector<Batch> batches;
+        for (auto& kv : byBuffer) {
+            const uint32_t firstCmd = cmdCursor;
+            uint32_t n = 0;
+            for (const Chunk* ch : kv.second) {
+                if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
+                    origins.size() >= ShadowMap::kMaxChunkDataEntries) break;
+                VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
+                c.indexCount    = 36;   // 36-index cube REQUIRED here (see the note above)
+                c.instanceCount = ch->getNumInstances();
+                c.firstIndex    = 0;
+                c.vertexOffset  = 0;
+                c.firstInstance = static_cast<uint32_t>(ch->getInstanceBindOffset() / stride);
+                glm::ivec3 wo = ch->getWorldOrigin();
+                glm::vec3 rel = camera->relativeTo(glm::dvec3(wo));
+                origins.emplace_back(rel.x, rel.y, rel.z, 0.0f);
+                gpuInstances += c.instanceCount;
+                ++cmdCursor; ++n;
+            }
+            if (n) batches.push_back({kv.first, firstCmd, n});
+        }
+        shadowMap->uploadChunkOrigins(currentFrame, origins.data(), static_cast<uint32_t>(origins.size()));
+
+        struct ShadowPushConstsG {
+            glm::mat4 lightSpaceMatrix;
+            glm::vec3 chunkBaseOffset;
+            uint32_t  useChunkDataSsbo;
+            uint32_t  drawIndexBase;
+        } pcG;
+        pcG.lightSpaceMatrix = lightSpaceMatrix;
+        pcG.chunkBaseOffset = glm::vec3(0.0f);
+        pcG.useChunkDataSsbo = 1u;      // read origins[drawIndexBase + gl_DrawIDARB]
+
+        for (const Batch& b : batches) {
+            // gl_DrawIDARB restarts at 0 for EVERY indirect call, so each batch must be told
+            // where its slice of `origins` begins. Push constants may be re-recorded between
+            // draws (unlike vertex bindings), which is what makes this legal.
+            pcG.drawIndexBase = b.first;
+            vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pcG), &pcG);
+            VkBuffer bufs[] = { b.buf };
+            VkDeviceSize offs[] = { 0 };   // firstInstance selects the span, not the bind offset
+            vkCmdBindVertexBuffers(commandBuffer, 1, 1, bufs, offs);
+            vkCmdDrawIndexedIndirect(commandBuffer, shadowMap->getIndirectBuffer(currentFrame),
+                                     b.first * sizeof(VkDrawIndexedIndirectCommand),
+                                     b.count, sizeof(VkDrawIndexedIndirectCommand));
+            ++gpuDraws;
+        }
+        gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+        // Write the MEMBERS, not lastFrameStats: drawFrame() does `lastFrameStats = {}` after
+        // the shadow pass and repopulates from these, so direct writes here were discarded and
+        // the API reported stale legacy counts (which is why shadow_multidraw_calls read 0 even
+        // though this path was executing).
+        m_shadowChunksDrawn = static_cast<int>(cmdCursor);
+        m_shadowInstancesDrawn = gpuInstances;
+        m_shadowMultidrawCalls = gpuDraws;
+        shadowMap->endRenderPass(commandBuffer);
+        return;
+      }   // !strideMisaligned
+    }
+
     if (chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
              if (chunk->getNumInstances() == 0) continue;
@@ -1232,7 +1389,11 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              struct ShadowPushConsts {
                  glm::mat4 lightSpaceMatrix;
                  glm::vec3 chunkBaseOffset;
+                 uint32_t  useChunkDataSsbo;   // C2.1: 0 = legacy origin from this push constant
+                 uint32_t  drawIndexBase;      // unused when useChunkDataSsbo == 0
              } pushConsts;
+             pushConsts.useChunkDataSsbo = 0u;
+             pushConsts.drawIndexBase = 0u;
 
              pushConsts.lightSpaceMatrix = lightSpaceMatrix;
              glm::ivec3 worldOrigin = chunk->getWorldOrigin();
@@ -1254,6 +1415,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // Stash in members — lastFrameStats is reset AFTER the shadow pass in drawFrame, so copy these
     // into lastFrameStats there (see the visibleChunkCount block).
     m_shadowChunksDrawn = shadowChunks;
+    m_shadowMultidrawCalls = 0;   // legacy path issues no indirect calls
     m_shadowInstancesDrawn = shadowInstances;
 
     // -------------------------------------------------------------------------
@@ -1361,7 +1523,68 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     shadowMap->endRenderPass(commandBuffer);
 }
 
+
+// C5 (docs/ContinuousLodPlan.md) — DISTANCE-DRIVEN LOD: the join between C1's metric and C4's cut.
+//
+// For each chunk, ask LodService what cell size still earns its pixels at that chunk's distance,
+// then re-mesh chunks whose level changed -- at most s_lodRebuildBudgetPerFrame per frame,
+// because a full re-mesh is ~40-50 ms (RenderOptimization.md) and doing them unbounded would turn
+// camera motion into a stutter storm.
+//
+// Hysteresis: a chunk only changes level when the metric disagrees by a FULL level. Without it a
+// chunk hovering on a boundary re-meshes every frame, which costs far more than the LOD saves.
+int RenderCoordinator::updateChunkLod() {
+    if (!s_distanceDrivenLod || !chunkManager || !camera) return 0;
+
+    const auto view = Core::LodService::makeView(
+        vulkanDevice ? static_cast<float>(vulkanDevice->getSwapChainExtent().height) : 900.0f,
+        camera->getFovYDegrees());
+    const glm::vec3 camPos = camera->getPosition();
+    Core::SquashConfig cfg;
+
+    int rebuilt = 0;
+    for (const auto& chunk : chunkManager->chunks) {
+        if (!chunk || rebuilt >= s_lodRebuildBudgetPerFrame) break;
+        if (chunk->getNumInstances() == 0 && chunk->getLodLevel() == 0) continue;
+
+        const glm::vec3 centre = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
+        const float dist = glm::length(centre - camPos);
+        // baseCellSize 1.0 == one cube; maxLevel 5 keeps a 32-cube cell as the coarsest, i.e.
+        // one cell per chunk -- beyond that the chunk itself is the unit and far-terrain owns it.
+        const int wanted = Core::LodService::levelForDistance(1.0f, dist, s_lodTargetPixels, view, 5);
+        const int current = chunk->getLodLevel();
+        if (wanted == current) continue;
+
+        if (wanted == 0) {
+            chunk->rebuildFaces();          // back to the real fine mesh (sub/micro + greedy merge)
+        } else {
+            std::vector<InstanceData> faces;
+            Core::LodChunkMesh::buildForLevel(*chunk, wanted, cfg, faces);
+            chunk->setLodFaces(std::move(faces), wanted);
+        }
+        chunk->updateVulkanBuffer();
+        ++rebuilt;
+    }
+    m_lodRebuiltLastFrame = rebuilt;
+    return rebuilt;
+}
+
 void RenderCoordinator::drawFrame() {
+    // C1 (docs/ContinuousLodPlan.md): refresh the shared screen-space LOD scale ONCE, before
+    // any consumer runs. It previously lived in buildCharacterFrameData, which runs after
+    // renderGrass/renderFoliage in the scene pass — those would have read a one-frame-stale
+    // scale (and the default 1.0 on frame 0). Exactly 1.0 at the reference config either way.
+    if (vulkanDevice) {
+        // Pass the camera's REAL vertical FOV rather than letting it default to the reference
+        // constant — otherwise the correction is resolution-only and silently stops tracking
+        // FOV the moment it becomes configurable.
+        updateLodView(static_cast<float>(vulkanDevice->getSwapChainExtent().height),
+                      camera ? camera->getFovYDegrees() : Camera::kFovYDegrees);
+    }
+
+    // C5: pick each chunk's LOD level from the shared metric before culling/drawing.
+    updateChunkLod();
+
     // Skip rendering when window is minimized (0x0 extent is invalid in Vulkan)
     if (windowManager->getWidth() == 0 || windowManager->getHeight() == 0) {
         return;
@@ -1880,6 +2103,7 @@ void RenderCoordinator::drawFrame() {
     // D1 shadow-pass diagnosis (computed in renderShadowPass above, before this reset).
     lastFrameStats.shadowChunksDrawn = m_shadowChunksDrawn;
     lastFrameStats.shadowInstancesDrawn = m_shadowInstancesDrawn;
+    lastFrameStats.shadowMultidrawCalls = m_shadowMultidrawCalls;
 
     hasMirrorVoxels = scanForMirrorVoxels();
     LOG_DEBUG("RenderCoordinator", "Frame: visibleChunks={} hasMirrorVoxels={}", visibleChunkIndices.size(), hasMirrorVoxels);
@@ -2410,7 +2634,10 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     cameraFrustum.extractFromMatrix(cameraViewProj);
     lightFrustum.extractFromMatrix(lightSpaceMatrix);
 
-    const float cullDistSq = m_charCullDistance * m_charCullDistance;
+    // C1: refresh the screen-space correction from the live swapchain, then use the
+    // corrected cull distance. At 1600x900 this is identical to the legacy value.
+    const float effCull = effectiveCharacterCullDistance();
+    const float cullDistSq = effCull * effCull;
 
     struct Candidate {
         Scene::RagdollCharacter* ch;

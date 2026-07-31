@@ -533,6 +533,31 @@ private:
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
+    // ---- C2 (docs/ContinuousLodPlan.md) capability set, resolved at device creation ----
+    uint32_t instanceApiVersion_ = VK_API_VERSION_1_0;
+    uint32_t deviceApiVersion_   = VK_API_VERSION_1_0;
+    bool multiDrawIndirectSupported_ = false;
+    bool drawIndirectFirstInstanceSupported_ = false;
+    bool shaderDrawParametersAvailable_ = false;   ///< gl_DrawID (Vulkan 1.1 core)
+    bool drawIndirectCountAvailable_ = false;      ///< vkCmdDrawIndexedIndirectCount (1.2 core)
+
+public:
+    /// C2 prerequisites. The plan assumed "portable Vulkan 1.2"; the instance was pinned to
+    /// 1.0 with only VK_KHR_swapchain and no multiDrawIndirect, so every one of these had to
+    /// be established before GPU-driven submission was even expressible.
+    uint32_t getInstanceApiVersion() const { return instanceApiVersion_; }
+    uint32_t getDeviceApiVersion() const { return deviceApiVersion_; }
+    bool supportsMultiDrawIndirect() const { return multiDrawIndirectSupported_; }
+    bool supportsDrawIndirectFirstInstance() const { return drawIndirectFirstInstanceSupported_; }
+    bool supportsShaderDrawParameters() const { return shaderDrawParametersAvailable_; }
+    bool supportsDrawIndirectCount() const { return drawIndirectCountAvailable_; }
+    /// True when every prerequisite for one-multidraw-per-region is present.
+    bool supportsGpuDrivenSubmission() const {
+        return multiDrawIndirectSupported_ && drawIndirectFirstInstanceSupported_ &&
+               shaderDrawParametersAvailable_;
+    }
+private:
+
 #ifdef NDEBUG
     // Release: validation layers compiled out entirely (zero overhead).
     const bool enableValidationLayers = false;

@@ -1,0 +1,49 @@
+# TERRAIN-MODE settlement L4 + walkability probe (the open question since the flat-ground result)
+# commit: 41bf161f7b4a8e491ce55d73af55cd78051aab83
+# exe:    Jul 28 12:22
+# utc:    2026-07-28T17:39:45Z
+# world:  StructGenHills, Perlin seed 1234, generated chunks 0-3 x 0-1 x 0-3
+# site:   sampled relief 7 cubes over the build rect; surface y ~52-63 (NOT flat)
+
+=== SUBMIT (terrain:true) ===
+{"async":true,"job_id":1000000,"program":{"below_tier_min":6,"dropped_plots":0,"era":"medieval","main_street":{"d":32,"w":5,"x":24,"z":30},"morphology":"main_street","seed":3,"tier":"village"},"queued_builds":[{"footprint":[6,8],"plot":0,"position":{"x":30,"y":56,"z":34},"shape":"rect","style":"stone_keep","typology":"croft"},{"footprint":[8,16],"plot":1,"position":{"x":14,"y":57,"z":35},"shape":"rect","style":"stone_manor","typology":"hall_house"},{"footprint":[6,8],"plot":2,"position":{"x":31,"y":58,"z":46},"shape":"rect","style":"timber_cottage","typology":"croft"}],"settlement":{"buildings":3,"origin":{"x":12,"y":56,"z":30},"plots":3,"streets":1},"success":true}
+
+=== FINAL /api/jobs ===
+{"count":1,"jobs":[{"elapsed_seconds":138.95,"id":1000000,"label":"settlement medieval/village seed 3","main_thread":true,"message":"complete","progress":1.0,"result":{"paths":{"cut_cells_unpaved":0,"cut_cols_honored":828,"cut_cubes_removed":23,"fence_micros":6588,"fence_type":"picket","fill_cols":243,"grass_converted":142,"level_cols":12054,"material":"Gravel","parcels":3,"paved_columns":13125,"paved_microcubes":28479,"spurs":3,"spurs_too_steep":0,"stamp_ms":16386},"residents":{"planned":3,"spawned":3},"yard_props":{"placed":7,"skipped":0}},"state":"complete","type":"build_settlement","units_done":15,"units_total":15}]}
+
+=== WALKABILITY: /api/navgraph/path between every pair of building anchors ===
+# navgraph IS what the resident movers route with (navgrid/path is a conservative 2.5D proxy)
+croft_28_38        -> hall_house_23_39    found=True  nodes=[{'x': 28.5, 'y': 58.0, 'z': 38.5}, {'x': 24.5, 'y': 58.0, 'z': 38.5}]
+croft_28_38        -> croft_29_50         found=True  nodes=[{'x': 28.5, 'y': 58.0, 'z': 38.5}, {'x': 28.5, 'y': 59.0, 'z': 45.5}, {'x': 29.5, 'y': 59.0, 'z': 49.5}]
+hall_house_23_39   -> croft_29_50         found=True  nodes=[{'x': 24.5, 'y': 58.0, 'z': 38.5}, {'x': 28.5, 'y': 59.0, 'z': 45.5}, {'x': 29.5, 'y': 59.0, 'z': 49.5}]
+
+ROUTES: 3 walkable, 0 BLOCKED (of 3 pairs)
+
+=== NEGATIVE CONTROLS (does navgraph/path ever say no?) ===
+anchor -> (500,58,500) far outside generated terrain found=False
+anchor -> (28,120,38) high in mid-air above the village found=True
+anchor -> (28,20,38) buried deep inside solid rock   found=False
+
+!! NO TEETH: an unreachable target returned found=TRUE - the 3/3 result above proves nothing
+
+--- WHAT THIS DOES AND DOES NOT ESTABLISH ---
+ESTABLISHED: on genuinely graded terrain (828 cut columns honored, 243 fill, 23 cubes
+removed, 0 cut_cells_unpaved -- the flat run by contrast was 100% level), all 3 building
+anchors are mutually routable by /api/navgraph/path, which is the router the resident
+movers actually use. Routes cross a Y change (58 -> 59), so they traverse the grade
+rather than running on a flat shelf.
+
+BOUNDED BY: the negative controls. Two of three fired (a target 500 cubes outside the
+generated terrain -> found=false; a target buried deep in rock -> found=false). The
+THIRD DID NOT: a target 60 cubes up in open air returned found=TRUE, because the
+endpoint SNAPS the target vertically to a walkable cell rather than refusing. So
+"found=true" means "a walkable cell near the target is reachable", NOT "that exact
+point is reachable". For BUILDING ANCHORS that is the correct semantics -- they are
+already snapToStandable-resolved ground positions -- but it means this probe cannot be
+used to test arbitrary points, and any future use of navgraph/path must account for it.
+
+NOT ESTABLISHED: this site hosted only 3 buildings (the planner surfaced
+below_tier_min: 6 -- honest degradation on a small/steep site), so N=3 pairs. The
+originally observed jam was ~3 stragglers out of 14 residents at a pinch corridor.
+This run is far too small to reproduce or exclude that. It is a positive signal on
+terrain grading, not a verdict on the jam.
