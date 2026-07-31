@@ -5655,6 +5655,15 @@ void Application::autoLoadGameDefinition() {
                 // region only when this world actually has water (small-scale Phase 4.1).
                 waterManager->setImplicitSea(water.value("enabled", false));
             }
+            // Buoyancy + water drag for dynamic bodies (small-scale Phase 4.2): the CPU
+            // rigid-body world reads submersion through this injected query — physics never
+            // links WaterManager. Null-safe: a missing manager reads as dry.
+            if (chunkManager && chunkManager->physicsWorld && chunkManager->physicsWorld->getVoxelWorld()) {
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(
+                    [this](const glm::vec3& mn, const glm::vec3& mx) -> float {
+                        return waterManager ? waterManager->submergedFraction(mn, mx) : 0.0f;
+                    });
+            }
         }
 
         // Combat ruleset is locked per-game (see docs/TurnBasedCombat.md). Read

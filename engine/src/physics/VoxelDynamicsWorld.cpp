@@ -213,6 +213,26 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
             if (body->isDead || body->isAsleep || body->invMass == 0.0f) continue;
             body->updateInertiaTensorWorld();
             body->linearVelocity += m_gravity * dt;
+            // Buoyancy + water drag (small-scale water plan Phase 4.2): enters exactly where
+            // gravity does. Anti-gravity scales with the submerged fraction × the body's density
+            // ratio, so a floater settles bobbing around its equilibrium line (~1/buoyancy under)
+            // and a dense body just falls slower; the extra damping is what kills the bob into a
+            // rest instead of a perpetual oscillator. Query is read-only + thread-safe (see
+            // setWaterQuery); null query = bit-identical dry behavior.
+            float wet = 0.0f;
+            if (m_waterQuery) {
+                glm::vec3 mn, mx;
+                body->getWorldAABB(mn, mx);
+                wet = m_waterQuery(mn, mx);
+                if (wet > 0.0f) {
+                    body->linearVelocity -= m_gravity * (wet * body->buoyancy) * dt;
+                    constexpr float kWaterLinearDrag  = 0.90f;   // strong — water is thick
+                    constexpr float kWaterAngularDrag = 0.85f;
+                    body->linearVelocity  *= std::pow(1.0f - kWaterLinearDrag,  dt * wet);
+                    body->angularVelocity *= std::pow(1.0f - kWaterAngularDrag, dt * wet);
+                }
+                body->wetLastStep = wet > 0.0f;
+            }
             float ld = std::pow(1.0f - body->linearDamping,  dt);
             float ad = std::pow(1.0f - body->angularDamping, dt);
             body->linearVelocity  *= ld;
@@ -464,11 +484,39 @@ void VoxelDynamicsWorld::generateContacts() {
 }
 
 void VoxelDynamicsWorld::updateSleepState(float dt) {
+    ++m_stepCounter;
     size_t n = m_bodies.size();
     parallelRange(n, m_threadCount, [&](size_t b, size_t e) {
         for (size_t i = b; i < e; ++i) {
             auto& body = m_bodies[i];
             if (body->invMass == 0.0f) continue;
+            // Water/sleep interaction (Phase 4.2):
+            //  • A WET body never sleeps — a floater that slept would hover mid-air when its
+            //    water drained (sleep freezes position and skips integration entirely).
+            //  • A SLEPT body re-checks the water ~once a second (staggered by id so a big
+            //    field of debris doesn't re-check in lockstep): rising water must wake and
+            //    float what it reaches, and nothing else ever re-queries a sleeping body.
+            if (m_waterQuery) {
+                if (body->isAsleep) {
+                    if ((m_stepCounter + body->id) % 60 == 0) {
+                        glm::vec3 mn, mx;
+                        body->getWorldAABB(mn, mx);
+                        if (m_waterQuery(mn, mx) > 0.0f) {
+                            body->isAsleep = false;
+                            body->sleepTimer = 0.0f;
+                            body->sleepPosTimer = 0.0f;
+                            body->wetLastStep = true;
+                        }
+                    }
+                    continue;
+                }
+                if (body->wetLastStep) {
+                    body->sleepTimer = 0.0f;
+                    body->sleepPosTimer = 0.0f;
+                    body->sleepRefPos = body->position;
+                    continue;
+                }
+            }
             float vSq  = glm::dot(body->linearVelocity,  body->linearVelocity);
             float wSq  = glm::dot(body->angularVelocity, body->angularVelocity);
             bool  slow = vSq < VoxelRigidBody::SLEEP_VELOCITY_SQ

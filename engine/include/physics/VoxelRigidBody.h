@@ -50,6 +50,17 @@ public:
     float linearDamping = 0.05f;
     float angularDamping= 0.08f;
 
+    // ---- Water interaction (small-scale water plan Phase 4.2) ----
+    // Buoyancy as a per-body density ratio: the anti-gravity acceleration while submerged is
+    // gravity · buoyancy · submergedFraction. 1 = neutrally buoyant, > 1 floats (equilibrium
+    // submerged fraction ≈ 1/buoyancy — 1.6 sits ~60% under, the "wooden crate" look), < 1
+    // sinks. Only consulted when the world has a water query bound (VoxelDynamicsWorld::
+    // setWaterQuery); costs nothing on dry land.
+    float buoyancy = 1.6f;
+    // Submerged at the last awake step (world-managed): wet bodies never sleep — a floating
+    // body that slept would hover in place when its water drained away.
+    bool  wetLastStep = false;
+
     // ---- Lifecycle ----
     float    lifetime = 30.0f;
     bool     isDead   = false;
