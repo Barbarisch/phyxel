@@ -29,11 +29,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
 layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
+// Ripple/disturbance heightfield (small-scale plan Phase 3) — same texture the vertex stage
+// displaces by; here its gradient tilts the shading normal so rings catch the light.
+layout(set = 1, binding = 2) uniform sampler2D rippleTex;
 
+// Must match water_cell.vert's block exactly (one push-constant range, both stages). 112 bytes.
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
     vec4 screen;     // xy = screen size (px), zw unused
+    vec4 ripple;     // ripple window: xy = origin (world XZ), z = 1/windowSize, w = amplitude
 } pc;
 
 #include "water_common.glsl"
@@ -55,8 +60,25 @@ void main() {
     inp.flowStrength = fragFlow.z;
     inp.foam         = fragFlow.w;
     // Per-cell water has no Gerstner swell — its macro shape is the sloped quad the vertex shader
-    // already built from the sim's per-corner heights, so the shading normal starts flat.
-    inp.baseNormal   = vec3(0.0, 1.0, 0.0);
+    // already built from the sim's per-corner heights, so the shading normal starts flat. The
+    // ripple field's gradient then tilts it (a height OFFSET sampled isotropically by world XZ —
+    // not an advection; see the water_common.glsl footguns).
+    vec3 rippleN = vec3(0.0, 1.0, 0.0);
+    {
+        vec2 uv = (fragWorldPos.xz - pc.ripple.xy) * pc.ripple.z;
+        if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 1.0) {
+            float texel = 1.0 / float(textureSize(rippleTex, 0).x);
+            float texelWorld = texel / pc.ripple.z;   // one texel in world units
+            float hx = texture(rippleTex, uv + vec2(texel, 0.0)).r
+                     - texture(rippleTex, uv - vec2(texel, 0.0)).r;
+            float hz = texture(rippleTex, uv + vec2(0.0, texel)).r
+                     - texture(rippleTex, uv - vec2(0.0, texel)).r;
+            // Central difference over 2 texels; the 2.0 boost makes rings read at ripple scale.
+            float g = pc.ripple.w * 2.0 / (2.0 * texelWorld);
+            rippleN = normalize(vec3(-hx * g, 1.0, -hz * g));
+        }
+    }
+    inp.baseNormal   = rippleN;
     // No swell here, so no breaking surf — but a lake or river still gets the waterline rim, which
     // is what stops its edge from simply dissolving into the bank.
     inp.wavePhase    = 0.0;

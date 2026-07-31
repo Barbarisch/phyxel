@@ -2070,6 +2070,12 @@ void RenderCoordinator::drawFrame() {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
             postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
         }
+        // Ripple heightfield upload (small-scale plan Phase 3) — also outside any render pass.
+        // Skips the copy on unchanged frames; always refreshes the window push params.
+        if (drawWaterCells)
+            waterCellPipeline->updateRipple(vulkanDevice->getCommandBuffer(currentFrame),
+                                            static_cast<uint32_t>(currentFrame),
+                                            m_waterManager->ripple());
         postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
         if (drawWaterPlane) {

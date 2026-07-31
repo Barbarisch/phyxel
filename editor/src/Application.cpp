@@ -11663,6 +11663,7 @@ void Application::registerWaterCommands() {
         const auto& f = waterManager->ripple();
         r = {{"success", true}, {"asleep", f.asleep()},
              {"total_amplitude", f.totalAmplitude()},
+             {"height_at_injection", f.heightAt(glm::vec2(p.x, p.z))},
              {"window", {{"minX", f.origin().x}, {"minZ", f.origin().y},
                           {"size", f.windowSize()}}}};
     });

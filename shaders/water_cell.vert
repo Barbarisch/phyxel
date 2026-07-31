@@ -14,11 +14,19 @@ layout(location = 3) in vec4 inSkirt;       // per-edge side bottom world Y: (+x
 layout(location = 4) in vec4 inFlow;        // Phase 3: xy = flow dir, z = strength, w = foam
 
 // Must match water_cell.frag's block exactly (one push-constant range, both stages).
+// 112 bytes — still under the 128-byte guaranteed push-constant minimum.
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
     vec4 screen;     // xy = screen size (px) — the fragment stage needs it for screen-space taps
+    vec4 ripple;     // ripple window: xy = origin (world XZ), z = 1/windowSize, w = amplitude
 } pc;
+
+// Ripple/disturbance heightfield (small-scale plan Phase 3): impact rings, footstep wakes,
+// splash rims. Sampled by WORLD XZ — a pure function of world position, so adjacent instances
+// that share corner positions get identical offsets and the surface stays C0-continuous (never
+// per-instance ripple data; that is how you get a cell grid).
+layout(set = 1, binding = 2) uniform sampler2D rippleTex;
 
 layout(location = 0) out vec3  fragWorldPos;
 layout(location = 1) out float fragColumnDepth; // sim column depth in cells
@@ -75,6 +83,19 @@ void main() {
         else                n = vec2( 0.0,-1.0);
         world.x += n.x * 0.04;
         world.z += n.y * 0.04;
+    }
+
+    // Ripple displacement — applied AFTER the curtain decision (which must read the UNDISPLACED
+    // corners or side faces flicker on/off at the 0.05 threshold) and never to skirt bottoms
+    // (vtype 1): a curtain hangs from a rippling lip, its base stays put. Scaled by column depth
+    // so films barely move while ponds ring fully; clamped so a big impulse can't tear the surface.
+    if (vtype != 1) {
+        vec2 uv = (world.xz - pc.ripple.xy) * pc.ripple.z;
+        if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 1.0) {
+            float h = textureLod(rippleTex, uv, 0.0).r;
+            float depthScale = clamp(inCenterDepth.w, 0.0, 1.0);
+            world.y += clamp(h, -0.5, 0.5) * pc.ripple.w * depthScale;
+        }
     }
 
     fragWorldPos    = world;
