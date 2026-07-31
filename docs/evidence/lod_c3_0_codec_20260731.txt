@@ -1,0 +1,102 @@
+C3.0 — PERSISTED LOD PYRAMID: THE STORAGE FORMAT
+Date 2026-07-31. Debug build. Branch destruction-system-v2.
+
+WHY: docs/evidence/lod_residency_wall_20260730.txt measured the wall C3 exists to break --
+~1.28 MB of process working set per RESIDENT chunk, chunk count growing as R^2, capping
+full-resolution view distance at ~1,764 units even on 64 GB. The C4/C5 cut cannot help: a chunk
+must be loaded and meshed to be drawn at ANY level. C3 serves distant regions from coarse
+persisted data so the full-resolution chunk never becomes resident.
+
+WHAT LANDED: Core::LodBlobCodec (engine/{include,src}/core/LodBlobCodec.*) -- encode/decode one
+LOD level of a chunk's pyramid, keyed (x,y,z,lod) per godot_voxel's schema. Deliberately mirrors
+ChunkBlobCodec's conventions (magic + version + palette + RLE over canonical z-minor order) so
+there is one storage idiom in this engine, not two. coverage is stored u64 because it is
+729 * 8^level and overflows u32 around level 8 -- the same trap that bit LodCell itself.
+
+============================================================================
+THE GATE: IS THIS ACTUALLY CHEAPER THAN RESIDENCY?  (measured, not assumed)
+============================================================================
+LodBlobCodecTest.PyramidCostsFarLessThanResidency, on a realistic terrain chunk (heightfield +
+grass skin + a wall):
+    level 1 (16^3 cells): 10317 bytes
+    level 2  (8^3 cells):  1691 bytes
+    level 3  (4^3 cells):   347 bytes
+    level 4  (2^3 cells):   127 bytes
+    level 5  (1^3 cells):    56 bytes
+    levels 1-5 total     : 12538 bytes  (12.2 KB)
+
+    resident chunk       : ~1,310,720 bytes (1.28 MB)
+    ratio                : 104x cheaper for the WHOLE pyramid ON THIS FIXTURE
+    levels 2-5 only      : 2221 bytes (2.2 KB)
+
+THE RATIO IS FIXTURE-DEPENDENT -- report it as a RANGE, never as "104x" alone (solution-auditor,
+2026-07-31, which compiled adversarial fixtures against the real codec):
+    coherent heightfield + wall (the test above) : 12538 bytes -> 104x
+    noisy ~25%-carved, 4-material cave chunk     :  9038 bytes -> 145x
+    maximally heterogeneous, 8 materials, per-cube
+      hashed, height varied per column to break
+      vertical runs too (an RLE worst case)      : 35167 bytes ->  37x
+The >10x gate held on EVERY fixture, including the one built to defeat RLE, so the gate is
+sound -- but headroom over the threshold falls from ~10x to ~3.7x in the adversarial case.
+
+CAVEAT ON THE DENOMINATOR, carried forward rather than left in the other file: the 1.28 MB/chunk
+residency figure is a 4-point least-squares fit whose marginal cost per step was 1.64, 1.77, then
+0.78 MB/chunk (docs/evidence/lod_residency_wall_20260730.txt). It is an average over one world,
+NOT a constant, and it carries roughly 2x variance. Every ratio above inherits that.
+
+The test asserts pyramidBytes < residency/10, so if the format ever bloats past being decisively
+cheaper, the gate fails loudly instead of C3 quietly becoming pointless.
+
+============================================================================
+TESTS (8), AND THE MUTATIONS THAT PROVE THEY CAN FAIL
+============================================================================
+  RoundTripsEveryFieldOfAMixedVolume        every persisted field, not just occupancy
+  RoundTripsEveryLevelOfARealChunkPyramid   levels 0-5 (updateChunkLod caps at 5)
+  DecodedVolumeMeshesIdenticallyToTheOriginal  the property C3 actually needs: a chunk served
+        from storage must emit BYTE-IDENTICAL faces to one meshed from resident voxels
+  EmptyVolumeCostsAlmostNothing             sky chunks RLE to one run (<64 bytes)
+  RejectsTruncatedBlob / RejectsBadMagicAndUnknownVersion / RejectsRunsThatDoNotTileTheVolume
+        corruption is REFUSED, never half-decoded -- a partially-populated volume renders holes
+        and would read as a mesher bug
+  PyramidCostsFarLessThanResidency          the gate above
+
+MUTATION 1 -- sameCell() compares occupancy only (`a.solid() == b.solid()`), i.e. runs merge
+across differing materials/coverage:
+    RoundTripsEveryFieldOfAMixedVolume      FAILED
+    RoundTripsEveryLevelOfARealChunkPyramid FAILED
+    (DecodedVolumeMeshesIdenticallyToTheOriginal still PASSED -- worth noting: that chunk's
+     materials happen to be uniform within runs, so face output survived. The round-trip tests
+     are what catch this class, not the mesh-equality one.)
+MUTATION 2 -- drop the `written == total` tiling check:
+    RejectsRunsThatDoNotTileTheVolume       FAILED
+
+TWO REAL HOLES THE AUDITOR FOUND BY PROBING THE COMPILED decode(), NOT BY READING IT.
+The header claimed decode() "bounds-validates every field". It did not:
+  1. PALETTE INDICES WERE NEVER RANGE-CHECKED. A blob whose cell named palette index 200 against
+     a 2-entry palette decoded and returned TRUE. The mesher indexes palette[skinMaterial]
+     directly, so that is an out-of-bounds read from data we did not author.
+  2. DIMENSIONS WERE NEVER CAPPED BEFORE ALLOCATING. LodVolume reserves dx*dy*dz eagerly, so a
+     19-byte header claiming 65535^3 threw std::bad_alloc STRAIGHT OUT OF decode() -- a process
+     kill on the read path, from a function contracted to return false on bad data.
+Both reproduced as red tests here (RejectsOutOfRangePaletteIndex,
+RejectsAbsurdDimensionsWithoutThrowing), then fixed: palette ids validated against paletteCount
+on every solid cell, and declared cells capped at 64^3 (the largest legitimate volume is a
+level-0 chunk at 32^3) BEFORE the volume is constructed, with the product widened to size_t so
+it cannot wrap. The header docstring now enumerates exactly what is validated instead of
+claiming "every field".
+Both restored. LodBlobCodecTest is 10/10 green in the final state.
+
+============================================================================
+WHAT THIS DOES *NOT* YET CLAIM
+============================================================================
+* NOT wired to anything. No SQLite table, no write path, no read path, no renderer use. This is
+  the format only -- C3.1 (build+persist), C3.2 (read for non-resident chunks) and C3.3
+  (renderer integration) are unstarted.
+* The 104x figure is a STORAGE comparison: blob bytes vs resident working set. The IN-RAM cost
+  of a decoded coarse level plus its emitted faces is NOT measured -- a level-2 LodVolume is
+  512 cells of ~24 B plus the face buffer, which is more than the 1.7 KB blob. The real
+  end-to-end residency win must be measured at C3.3, not extrapolated from here.
+* No view-distance number is claimed. Projecting the ~1,764-unit wall outward from the storage
+  ratio alone would ignore decode cost, GPU buffers for the coarse meshes, and draw-call count.
+* Terrain-from-CoarseWorldModel (the field's #1 correction: only EDITED chunks and structures
+  should be downsampled at all) is not implemented; today every chunk would be encoded.
