@@ -35,21 +35,24 @@ layout(push_constant) uniform PushConstants {
 // are piecewise-constant and filtering across a divide would tilt the surface.
 layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
 
-// Per-column basin level at a world XZ. Falls back to the flat sea level when no layer is bound
-// (invCellSize 0), outside the baked region (the open ocean beyond ±16 km), or on dry columns
-// (sentinel) — the dry-land gate in the fragment stage removes the sheet over genuinely dry land.
-float basinLevelAt(vec2 worldXZ, out float valid) {
+// Per-column basin level + wave ENERGY at a world XZ (RG texture: R = level, G = energy from
+// body size — tangible-water F). Falls back to the flat sea level at full energy when no layer
+// is bound (invCellSize 0), outside the baked region (the open ocean beyond ±16 km), or on dry
+// columns (sentinel) — the dry-land gate in the fragment stage removes the sheet over dry land.
+float basinLevelAt(vec2 worldXZ, out float valid, out float energy) {
     valid = 0.0;
+    energy = 1.0;
     float invCell = pc.params3.w;
     if (invCell <= 0.0) return pc.params.x;
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
         return pc.params.x;
-    float l = texelFetch(hydroLevelTex, ivec2(cellF), 0).r;
-    if (l < -1e5) return pc.params.x;   // dry column sentinel
+    vec2 le = texelFetch(hydroLevelTex, ivec2(cellF), 0).rg;
+    if (le.r < -1e5) return pc.params.x;   // dry column sentinel
     valid = 1.0;
-    return l;
+    energy = le.g;
+    return le.r;
 }
 
 layout(location = 0) out vec3 fragWorldPos;
@@ -104,11 +107,13 @@ void main() {
     // quads one mesh cell wide; the fragment stage re-samples the level per pixel for the
     // dry-land gate, and the divide's terrain is above both basins' levels by definition, so
     // those wall pixels gate to zero alpha.
-    float levelValid;
-    float level = basinLevelAt(base, levelValid);
+    float levelValid, bodyEnergy;
+    float level = basinLevelAt(base, levelValid, bodyEnergy);
     vec3 world = vec3(base.x, level, base.y);
-    // Lakes are sheltered water: keep a fraction of the sea's swell (per-column, free).
-    if (levelValid > 0.5 && abs(level - seaLevel) > 0.5) amp *= 0.2;
+    // Wave energy proportional to BODY SIZE (tangible-water F): fetch-limited waves — the ocean
+    // carries the full swell (energy 1), a big lake most of it, a mountain tarn barely a ripple
+    // (floor 0.15). Replaces the old binary "not sea → 0.2×" rule; per-column, free.
+    amp *= bodyEnergy;
 
     vec3 ddx = vec3(1.0, 0.0, 0.0);   // d(position)/dx starts as the flat tangent
     vec3 ddz = vec3(0.0, 0.0, 1.0);
