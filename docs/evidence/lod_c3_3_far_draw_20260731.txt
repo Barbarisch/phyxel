@@ -88,3 +88,30 @@ pyramids within range and iterate THAT set -- it is tiny (5 chunks in this world
 15,625 speculative probes, and it removes the reach cap entirely, so coverage stops depending on
 an arbitrary constant. That needs a new WorldStorage query (list chunk coords with LOD rows) and
 was not attempted.
+
+============================================================================
+FALSIFICATION — THE GEOMETRY REALLY DOES COME FROM chunk_lod_blobs
+============================================================================
+Everything before this showed geometry APPEARING when far_lod was enabled, which only proves the
+toggle does something -- not that the pixels came from the persisted pyramid rather than some
+other path. This is the test that distinguishes them: delete the rows and see if it disappears.
+
+Identical pose both runs, read back from GET /api/camera: (300,220,300) yaw -135 pitch -30,
+render distance 2048, far_lod ON in BOTH runs. The ONLY variable changed is the DELETE.
+
+  chunk_lod_blobs = 25 rows:  far_chunks 5, far_instances 4876, FPS 555
+        screenshots/screenshot_20260731_174529_698.png -- terrain island + structures VISIBLE
+  DELETE FROM chunk_lod_blobs (0 rows; chunk_blobs left INTACT at 16, verified):
+                              far_chunks 0, far_instances 0,    FPS 639
+        screenshots/screenshot_20260731_174719_016.png -- EMPTY SKY
+
+Both runs report the same world state otherwise: Chunks(104), Placed Objects(6), structure(6).
+So the voxels still exist and the chunks still stream; only the coarse rows are gone, and the
+far geometry goes with them. The rendered pixels are sourced from the persisted pyramid.
+
+(The DB was restored from a copy taken before the delete; lod rows back to 25.)
+
+NOTE ON THE FPS DIFFERENCE, so nobody reads it as a regression: 555 with geometry vs 639 with an
+empty sky is the cost of actually DRAWING 4876 instances, not scan overhead. It is also the first
+matched-ish data point for draw cost: 5 chunks / 4876 instances costs ~84 FPS at 555-639, i.e.
+roughly 0.24 ms/frame -- nothing like the 300x collapse the unbounded scan caused.
