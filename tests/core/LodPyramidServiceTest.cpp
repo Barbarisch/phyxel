@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -179,4 +180,73 @@ TEST_F(LodPyramidServiceTest, ServeCostIsFarBelowResidency) {
     EXPECT_LT(worstRam, kResidentChunkBytes / 4)
         << "serving a level from storage is not decisively cheaper than keeping the chunk "
            "resident -- C3 does not break the R^2 wall";
+}
+
+// --- C3.2 wiring: the pyramid must ride along with the ordinary chunk save ----------------
+
+/// Saving a chunk is the only thing the rest of the engine already does. If the pyramid does
+/// not ride along with it, C3 needs a second call site nobody will remember to make.
+TEST_F(LodPyramidServiceTest, SavingAChunkPersistsItsPyramid) {
+    auto c = terrainWithStructure(glm::ivec3(32, 0, 32));   // chunk (1,0,1)
+    ASSERT_TRUE(storage->saveChunk(*c));
+    EXPECT_FALSE(storage->getLodLevels(glm::ivec3(1, 0, 1)).empty())
+        << "an ordinary saveChunk did not persist the LOD pyramid";
+
+    std::vector<InstanceData> faces;
+    EXPECT_TRUE(LodPyramidService::facesFromStorage(*storage, glm::ivec3(1, 0, 1), 2, faces));
+    EXPECT_GT(faces.size(), 0u);
+}
+
+/// Plain terrain saves must NOT write a pyramid (C3.4), or every chunk in the world stores a
+/// coarse copy of something the generator makes for free.
+TEST_F(LodPyramidServiceTest, SavingPlainTerrainWritesNoPyramid) {
+    auto c = generatedTerrain(glm::ivec3(32, 0, 0));        // chunk (1,0,0)
+    ASSERT_TRUE(storage->saveChunk(*c));
+    EXPECT_TRUE(storage->getLodLevels(glm::ivec3(1, 0, 0)).empty());
+}
+
+/// DEMOLITION. A chunk that had a structure and no longer does must stop being served, or a
+/// building you tore down keeps standing at distance.
+TEST_F(LodPyramidServiceTest, DemolishingAStructureClearsItsPersistedPyramid) {
+    const glm::ivec3 coord(1, 0, 2);
+    auto withStruct = terrainWithStructure(coord * 32);
+    ASSERT_TRUE(storage->saveChunk(*withStruct));
+    ASSERT_FALSE(storage->getLodLevels(coord).empty()) << "precondition: a pyramid exists";
+
+    // Same chunk position, structure gone.
+    auto plain = generatedTerrain(coord * 32);
+    ASSERT_TRUE(storage->saveChunk(*plain));
+
+    EXPECT_TRUE(storage->getLodLevels(coord).empty())
+        << "the demolished structure is still being served at distance";
+    std::vector<InstanceData> faces;
+    EXPECT_FALSE(LodPyramidService::facesFromStorage(*storage, coord, 2, faces));
+}
+
+/// THE PLAN'S GATE: pyramid build must not regress the chunk-edit path beyond the recorded
+/// ~40-50 ms/chunk remesh budget (RenderOptimization.md:409). Measured as the DELTA a save
+/// costs with the pyramid on vs off, so it isolates the pyramid rather than timing SQLite.
+TEST_F(LodPyramidServiceTest, PyramidBuildStaysInsideTheChunkEditBudget) {
+    auto c = terrainWithStructure(glm::ivec3(0, 0, 0));
+    constexpr int kReps = 12;
+
+    auto timeSaves = [&](bool pyramidOn) {
+        WorldStorage::s_lodPyramidOnSave = pyramidOn;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < kReps; ++i) storage->saveChunk(*c);
+        const auto t1 = std::chrono::steady_clock::now();
+        return std::chrono::duration<double, std::milli>(t1 - t0).count() / kReps;
+    };
+
+    timeSaves(true);                       // warm caches/statements first
+    const double off = timeSaves(false);
+    const double on  = timeSaves(true);
+    WorldStorage::s_lodPyramidOnSave = true;
+
+    const double delta = on - off;
+    std::cout << "  save with pyramid " << on << " ms, without " << off
+              << " ms, pyramid costs " << delta << " ms/chunk" << std::endl;
+    EXPECT_LT(delta, 40.0)
+        << "building the pyramid costs " << delta << " ms/chunk, which blows the ~40-50 ms "
+           "chunk-edit remesh budget the plan gates on";
 }

@@ -51,6 +51,11 @@ public:
     // it needs. This is what lets a distant region render WITHOUT its full-resolution chunk
     // becoming resident — the R^2 residency wall measured in
     // docs/evidence/lod_residency_wall_20260730.txt.
+    /// C3.2: build+persist the LOD pyramid as part of every chunk save. Default ON. Exposed as
+    /// a kill switch because it adds work to the save path, and a save regression must be
+    /// attributable to one flag rather than bisected.
+    static bool s_lodPyramidOnSave;
+
     bool saveLodBlob(const glm::ivec3& chunkCoord, int lod, const std::vector<uint8_t>& data);
     /// Returns false when there is no row for (chunkCoord, lod) — an absent level is a normal
     /// state (never built, or deliberately not persisted), not an error.

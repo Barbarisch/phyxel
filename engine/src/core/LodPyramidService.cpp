@@ -28,6 +28,14 @@ int LodPyramidService::buildAndPersist(const Chunk& chunk, WorldStorage& storage
     return written;
 }
 
+bool LodPyramidService::refreshPyramid(const Chunk& chunk, WorldStorage& storage, int maxLevel) {
+    const glm::ivec3 coord = chunk.getWorldOrigin() / 32;
+    // Always clear first. If the chunk no longer warrants a pyramid, the stale one must GO --
+    // otherwise a demolished building keeps rendering at distance.
+    storage.deleteLodBlobs(coord);
+    return buildAndPersist(chunk, storage, maxLevel) > 0;
+}
+
 bool LodPyramidService::invalidate(WorldStorage& storage, const glm::ivec3& chunkCoord) {
     return storage.deleteLodBlobs(chunkCoord);
 }

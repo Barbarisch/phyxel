@@ -35,6 +35,13 @@ public:
     static int buildAndPersist(const Chunk& chunk, WorldStorage& storage,
                                int maxLevel = kMaxLevel);
 
+    /// The ONE call the save path should make. Drops any existing pyramid, then rebuilds it if
+    /// the chunk still warrants one. Doing it in that order is what makes the "was a structure,
+    /// now it is plain terrain" case correct: a bare buildAndPersist would leave the old levels
+    /// behind and keep serving a building that no longer exists.
+    static bool refreshPyramid(const Chunk& chunk, WorldStorage& storage,
+                               int maxLevel = kMaxLevel);
+
     /// Drop every persisted level for a chunk. MUST be called whenever its voxels change: a
     /// stale pyramid renders the pre-edit world at distance, which reads as "the world does not
     /// update until I walk up to it" rather than as a cache bug.

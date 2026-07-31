@@ -1,5 +1,6 @@
 #include "core/WorldStorage.h"
 #include "core/LodBlobCodec.h"
+#include "core/LodPyramidService.h"
 #include "core/Chunk.h"
 #include "core/ChunkBlobCodec.h"
 #include "core/Cube.h"
@@ -14,6 +15,11 @@
 #endif
 
 // Only compile SQLite functionality if available
+// C3.2 kill switch. Defined OUTSIDE the ENABLE_WORLD_STORAGE guard so it exists in both the
+// real and the no-SQLite stub builds -- placing it beside a saveChunk definition put it inside
+// the stub-only branch, and the real build failed to link.
+namespace Phyxel { bool WorldStorage::s_lodPyramidOnSave = true; }
+
 #ifndef ENABLE_WORLD_STORAGE
 // Provide stub implementations when SQLite is not available
 namespace Phyxel {
@@ -504,6 +510,14 @@ bool WorldStorage::saveChunk(const Chunk& chunk, bool useTransaction) {
         LOG_DEBUG_FMT("WorldStorage", "[WORLD_STORAGE] Chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
                   << ") - Saved blob: " << blob.size() << " bytes (" << counts.cubes << " cubes, "
                   << counts.subcubes << " subcubes, " << counts.microcubes << " microcubes)");
+
+        // C3.2: keep the persisted LOD pyramid in step with the voxels, INSIDE the same
+        // transaction. Outside it, a crash between the two writes would leave a pyramid
+        // describing a chunk that no longer exists -- stale geometry at distance, which reads
+        // as "the world does not update until I walk up to it" rather than as a torn write.
+        // refreshPyramid drops the old levels first, so a chunk that stops warranting one
+        // (its structure demolished) stops being served.
+        if (s_lodPyramidOnSave) Core::LodPyramidService::refreshPyramid(chunk, *this);
     }
 
     if (ownTransaction) {
