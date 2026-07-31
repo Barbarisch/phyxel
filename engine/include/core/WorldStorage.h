@@ -64,6 +64,12 @@ public:
     /// pyramid would render old geometry at distance — the failure mode that looks like the
     /// world "not updating" until you walk up to it.
     bool deleteLodBlobs(const glm::ivec3& chunkCoord);
+    /// Every chunk coordinate that has ANY persisted LOD level. This is what lets the renderer
+    /// iterate the chunks that actually HAVE coarse geometry instead of probing a volume of
+    /// speculative coordinates -- the difference between a handful of rows and 25^3 = 15,625
+    /// misses per scan, and it removes the need for an arbitrary reach cap.
+    std::vector<glm::ivec3> getChunksWithLodBlobs();
+
     /// Levels present for a chunk, ascending. Empty when nothing is persisted.
     std::vector<int> getLodLevels(const glm::ivec3& chunkCoord);
     

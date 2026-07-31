@@ -1604,44 +1604,37 @@ int RenderCoordinator::updateFarLodChunks() {
 
     const glm::vec3 camPos = camera->getPosition();
     const glm::ivec3 camChunk = glm::ivec3(glm::floor(camPos / 32.0f));
-    // The scan is O(reach^3). Deriving reach from chunkInclusionDistance (3072 => 96) made it
-    // 193^3 = 7.2 MILLION chunk lookups PER FRAME and dropped the engine from 638 to 2 FPS --
-    // measured, not theorised. Two bounds fix it:
-    //   1. cap the radius, so the volume stays small;
-    //   2. only rescan when the camera CROSSES into a new chunk. A stationary camera then costs
-    //      nothing, and moving costs one scan per chunk boundary instead of one per frame.
-    // Eviction still runs every frame, because a chunk becoming resident must stop being drawn
-    // immediately or it double-draws against itself.
-    constexpr int kMaxFarReach = 12;   // 25^3 = 15,625 probes, and only on a chunk crossing
-    const int reach = std::max(1, std::min(kMaxFarReach,
-                                           int(chunkInclusionDistance / 32.0f)));
 
-    // Evict anything that left the ring, or that has since become RESIDENT -- drawing both
-    // would double-draw the chunk and z-fight with itself.
+    // Evict every frame: a chunk that has just become RESIDENT must stop being drawn here
+    // immediately, or it double-draws against itself.
     m_farLod.erase(std::remove_if(m_farLod.begin(), m_farLod.end(),
         [&](const std::unique_ptr<FarLodChunk>& f) {
             if (!f) return true;
-            const glm::ivec3 d = f->chunkCoord - camChunk;
-            if (std::abs(d.x) > reach || std::abs(d.y) > reach || std::abs(d.z) > reach) return true;
-            return chunkManager->getChunkAtCoord(f->chunkCoord) != nullptr;
+            if (chunkManager->getChunkAtCoord(f->chunkCoord) != nullptr) return true;
+            const glm::vec3 c = glm::vec3(f->worldOrigin) + glm::vec3(16.0f);
+            return glm::length(c - camPos) > chunkInclusionDistance;
         }), m_farLod.end());
+
+    // Drive from the chunks that ACTUALLY have persisted geometry instead of probing a volume.
+    // The old version scanned a (2*reach+1)^3 box of speculative coordinates; with reach derived
+    // from chunkInclusionDistance that was 7.2M probes per frame (638 -> 2 FPS, measured), and
+    // capping reach at 12 to fix that silently dropped chunks past ~384 units -- 5 of 5 became
+    // 1 of 5 at one pose, and 5 of 7 at another. Iterating the stored set removes BOTH problems:
+    // the work is proportional to what exists (a handful of rows), and there is no reach cap, so
+    // coverage no longer depends on an arbitrary constant.
+    if (camChunk != m_farLodLastScanChunk || m_farLodScanIncomplete) {
+        m_farLodLastScanChunk = camChunk;
+        m_farLodCandidates = storage->getChunksWithLodBlobs();
+    }
 
     const auto view = Core::LodService::makeView(
         vulkanDevice ? static_cast<float>(vulkanDevice->getSwapChainExtent().height) : 900.0f,
         camera->getFovYDegrees());
 
-    // Nothing new can enter the ring until the camera changes chunk. Budgeted work may still be
-    // outstanding, so keep scanning while the last pass hit its budget.
-    if (camChunk == m_farLodLastScanChunk && !m_farLodScanIncomplete) return 0;
-    m_farLodLastScanChunk = camChunk;
-
     int built = 0;
-    for (int dx = -reach; dx <= reach && built < s_farLodBudgetPerFrame; ++dx)
-    for (int dy = -reach; dy <= reach && built < s_farLodBudgetPerFrame; ++dy)
-    for (int dz = -reach; dz <= reach && built < s_farLodBudgetPerFrame; ++dz) {
-        const glm::ivec3 coord = camChunk + glm::ivec3(dx, dy, dz);
-        // Resident chunks own themselves; never serve one from storage as well.
-        if (chunkManager->getChunkAtCoord(coord)) continue;
+    for (const glm::ivec3& coord : m_farLodCandidates) {
+        if (built >= s_farLodBudgetPerFrame) break;
+        if (chunkManager->getChunkAtCoord(coord)) continue;      // resident chunks own themselves
         bool already = false;
         for (const auto& f : m_farLod) if (f && f->chunkCoord == coord) { already = true; break; }
         if (already) continue;
@@ -1667,8 +1660,6 @@ int RenderCoordinator::updateFarLodChunks() {
         m_farLod.push_back(std::move(entry));
         ++built;
     }
-    // If we filled the budget there may be more to build at this position; keep scanning next
-    // frame rather than waiting for the camera to move.
     m_farLodScanIncomplete = (built >= s_farLodBudgetPerFrame);
     return built;
 }

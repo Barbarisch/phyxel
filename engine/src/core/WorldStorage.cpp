@@ -47,6 +47,7 @@ bool WorldStorage::saveLodBlob(const glm::ivec3&, int, const std::vector<uint8_t
 bool WorldStorage::loadLodBlob(const glm::ivec3&, int, std::vector<uint8_t>&) { return false; }
 bool WorldStorage::deleteLodBlobs(const glm::ivec3&) { return false; }
 std::vector<int> WorldStorage::getLodLevels(const glm::ivec3&) { return {}; }
+std::vector<glm::ivec3> WorldStorage::getChunksWithLodBlobs() { return {}; }
 bool WorldStorage::saveChunks(const std::vector<std::reference_wrapper<const Chunk>>& chunks) { return false; }
 bool WorldStorage::saveDirtyChunks(const std::vector<std::reference_wrapper<Chunk>>& chunks) { return false; }
 std::vector<glm::ivec3> WorldStorage::getChunksInRegion(const glm::ivec3& minChunk, const glm::ivec3& maxChunk) { return {}; }
@@ -849,6 +850,21 @@ bool WorldStorage::deleteLodBlobs(const glm::ivec3& chunkCoord) {
     const bool ok = sqlite3_step(deleteLodBlobStmt) == SQLITE_DONE;
     sqlite3_reset(deleteLodBlobStmt);
     return ok;
+}
+
+std::vector<glm::ivec3> WorldStorage::getChunksWithLodBlobs() {
+    std::vector<glm::ivec3> coords;
+    if (!db) return coords;
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql = "SELECT DISTINCT chunk_x, chunk_y, chunk_z FROM chunk_lod_blobs;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return coords;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        coords.emplace_back(sqlite3_column_int(stmt, 0),
+                            sqlite3_column_int(stmt, 1),
+                            sqlite3_column_int(stmt, 2));
+    }
+    sqlite3_finalize(stmt);
+    return coords;
 }
 
 std::vector<int> WorldStorage::getLodLevels(const glm::ivec3& chunkCoord) {

@@ -170,6 +170,9 @@ public:
     // until it has runtime evidence behind it.
     static bool s_farLodChunks;
     static int  s_farLodBudgetPerFrame;   // buffers created per frame; creation is the hitch
+    // NOTE: there is deliberately no reach cap any more. The candidate set comes from
+    // storage (chunks that actually HAVE pyramids), so coverage is bounded by the world's
+    // real contents rather than by a constant somebody guessed.
 
     struct FarLodChunk {
         glm::ivec3 chunkCoord{0};
@@ -565,6 +568,7 @@ private:
     int m_lodRebuiltLastFrame = 0;   ///< C5: chunks re-meshed for LOD last frame   ///< C2: vkCmdDrawIndexedIndirect calls issued this frame
     glm::ivec3 m_farLodLastScanChunk{INT_MIN};   ///< C3.3: rescan only on a chunk crossing
     bool m_farLodScanIncomplete = false;          ///< budget was hit; more may remain
+    std::vector<glm::ivec3> m_farLodCandidates;   ///< chunks with persisted pyramids
     std::vector<std::unique_ptr<FarLodChunk>> m_farLod;   ///< C3.3: non-resident chunks served from the persisted pyramid
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;

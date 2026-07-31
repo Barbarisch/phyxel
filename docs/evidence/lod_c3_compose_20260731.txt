@@ -78,3 +78,29 @@ So THE SEAM REMAINS UNANALYSED. It is not "no artifacts found" -- the test could
 To run it: place structures spread across a range wider than loadRadius (e.g. at 0, 60, 120, 200,
 320 units out) so a single pose necessarily has some resident and some far, then inspect that
 boundary. That fixture does not exist yet.
+
+============================================================================
+THE VOLUME SCAN IS GONE — CANDIDATES NOW COME FROM STORAGE
+============================================================================
+updateFarLodChunks no longer probes a box of speculative coordinates. It asks
+WorldStorage::getChunksWithLodBlobs() which chunks ACTUALLY have persisted geometry and iterates
+that. This removes both defects the box scan created:
+  * the 7.2M-probes-per-frame cost (638 -> 2 FPS), and
+  * kMaxFarReach = 12, the constant added to fix that, which silently dropped chunks past
+    ~384 units (5 of 5 at one pose, 5 of 7 at another).
+Work is now proportional to what exists -- a handful of rows -- and there is NO reach cap, so
+coverage depends on the world's real contents rather than a guessed constant.
+
+MEASURED, far_lod ON, render distance 2048, structures at (0..96):
+    camera 330 -> far_chunks 7, far_instances 7122     (was 5 of 7 under the cap)
+    camera 500 -> far_chunks 7, far_instances 7122     (cap would have dropped ALL of these)
+    camera 700 -> far_chunks 7, far_instances 7122
+    FPS 591 at camera 700 -- screenshots/screenshot_20260731_192053_647.png
+Coverage is now flat with distance out to at least 700 units, where before it fell to zero past
+~384. No perf regression: 591 FPS versus the 624-639 range measured on the capped version, and
+that gap is within the +/-20% restart variance this project documents for the FPS counter -- it
+is NOT evidence of a slowdown, and equally not evidence of a speedup.
+
+NOT VERIFIED: no independent audit of this change; no unit test covers getChunksWithLodBlobs; and
+the seam test is still unrunnable for the reason recorded above (the fixture's structures all sit
+within one load radius).
