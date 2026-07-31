@@ -219,9 +219,18 @@ TEST(WaterManagerTest, BakedWaterTableFillsLakeAndSurvivesRecenter) {
     EXPECT_LT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 1e-3f) << "water above the baked level";
     EXPECT_LT(wm.massAtWorld(glm::vec3(25.5f, 0.5f, 25.5f)), 1e-3f) << "dry column got water";
 
-    // A lake sits at ITS OWN level (≠ the sea plane's height), so it must render per-cell —
-    // the sea-suppression below must not swallow it.
-    EXPECT_FALSE(wm.surfaceCells().empty()) << "baked lake lost its per-cell surface";
+    // ⚠ SPEC CHANGE (water-layer P1): a pinned, undisturbed lake surface is now drawn by the
+    // water-layer clipmap at its baked level — per-cell emission is SUPPRESSED, exactly like the
+    // sea has been since 2026-07-11 (the old assertion here demanded the opposite and was the
+    // red proof for this change). Disturbed water on the lake must still render per-cell.
+    EXPECT_TRUE(wm.surfaceCells().empty())
+        << "pinned lake surface emitted per-cell quads — double-draws over the water layer";
+    wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), 2.0f);   // a splash ABOVE the lake level
+    EXPECT_FALSE(wm.surfaceCells().empty())
+        << "disturbed water above a lake must still render per-cell";
+    // Drain the splash back out so the recenter checks below measure the undisturbed lake.
+    wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), -2.0f);
+    wm.update(0.1f);
 
     // Move the region; the table re-derives at the new origin — the lake stays at its world position.
     wm.recenter(glm::ivec3(6, 0, 6));

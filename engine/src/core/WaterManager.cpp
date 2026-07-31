@@ -220,12 +220,20 @@ void WaterManager::rebuildSurface() {
         }
         float& top = colTop[colIdx(x, z)];
         if (surfaceY > top) top = surfaceY;
-        const bool isPinnedSea =
-            y == seaLocalY &&
+        // FAR-LAYER SUPPRESSION (water-layer P1, generalizing the 2026-07-11 sea rule above):
+        // any source-pinned surface cell sitting at its column's baked level — the sea at the
+        // sea band, a lake at its spill (snapped grid) — is drawn by the water-layer clipmap,
+        // one look inside and outside the region, so emitting it per-cell double-draws a
+        // camera-following slab. Unpinned water (pours, splashes, spills), river/creek bed pins
+        // (below the level or on table-dry columns), and waterfall cells still render per-cell.
+        const bool pinned =
             srcMask[static_cast<size_t>(x) +
                     static_cast<size_t>(sx) * (static_cast<size_t>(y) +
                     static_cast<size_t>(sy) * static_cast<size_t>(z))] >= 0.0f;
-        if (isPinnedSea) continue;   // the flat sea plane draws this water
+        const bool atLayerLevel = m_tableLvlLocal.empty()
+            ? (y == seaLocalY)
+            : (y == m_tableLvlLocal[colIdx(x, z)]);
+        if (pinned && atLayerLevel) continue;   // the water-layer clipmap draws this water
         cells.push_back({x, y, z, surfaceY, depth});
     }
 
@@ -593,11 +601,14 @@ void WaterManager::rebuildOcean() {
             }
         }
         m_sim.fillWaterTable([&](int lx, int lz) -> int { return lvl[colIdx(lx, lz)]; });
+        // Cache the snapped grid for rebuildSurface's far-layer suppression (water-layer P1).
+        m_tableLvlLocal = std::move(lvl);
         applySprings();       // authored springs still ride on top of the baked table
         applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
         rebuildSurface();
         return;
     }
+    m_tableLvlLocal.clear();   // no table → only the sea-band rule suppresses (below)
     const int seaLevelLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
     std::vector<glm::ivec3> localSeeds;
     localSeeds.reserve(m_oceanSeeds.size());

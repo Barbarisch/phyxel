@@ -26,6 +26,8 @@
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
 #include "core/ChunkManager.h"
+#include "core/WorldGenerator.h"
+#include "core/HydrologyMap.h"
 #include "core/Chunk.h"
 #include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
@@ -771,7 +773,15 @@ bool RenderCoordinator::scanForMirrorVoxels() {
     // contents change (Chunk::rebuildFaces). Here we just check the cached flag
     // for each visible chunk — O(visibleChunks), not O(visibleChunks * 32768).
     // (The old brute-force per-frame voxel scan cost ~46ms/frame; see git history.)
+    //
+    // visibleChunkIndices is LAST frame's cull result (renderStaticGeometry refills it
+    // later in this frame), and the streaming update may have unloaded chunks since —
+    // a camera teleport can shrink the list by hundreds, leaving stale out-of-range
+    // indices here. Worst case of an in-range-but-swapped index is one frame with a
+    // wrong mirror plane, which the next frame corrects.
+    const size_t numChunks = chunkManager->chunks.size();
     for (size_t chunkIndex : visibleChunkIndices) {
+        if (chunkIndex >= numChunks) continue;
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
         if (!chunk || chunk->getNumInstances() == 0) continue;
         if (!chunk->hasMirrorVoxel()) continue;
@@ -1418,6 +1428,27 @@ void RenderCoordinator::drawFrame() {
         windowManager->acknowledgeResize();
         projectionMatrixNeedsUpdate = true;
         return; // Skip this frame — render cleanly on the next one
+    }
+
+    // WATER LAYER (P1): (re)bind the hydrology level grid when the world's bake appears or
+    // changes (world switch). Rare — a descriptor rewrite on a possibly in-flight set, so it
+    // idles the device first (a once-per-world-load hitch, hidden by the load itself).
+    if (waterPipeline && chunkManager) {
+        const auto* gen = chunkManager->getStreamingGenerator();
+        const auto* hydro = gen ? gen->hydrology() : nullptr;
+        if (static_cast<const void*>(hydro) != m_lastHydroUploaded) {
+            vkDeviceWaitIdle(vulkanDevice->getDevice());
+            VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+            if (hydro)
+                waterPipeline->recordHydrologyUpload(oneShot, hydro->levels().data(),
+                                                     hydro->cellsX(), hydro->cellsZ(),
+                                                     hydro->originX(), hydro->originZ(),
+                                                     hydro->cellSize());
+            else
+                waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
+            vulkanDevice->endSingleTimeCommands(oneShot);
+            m_lastHydroUploaded = hydro;
+        }
     }
 
     // Wait for previous frame

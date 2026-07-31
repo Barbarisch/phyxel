@@ -76,6 +76,19 @@ public:
     void setWaveRadius(float radius);
     float waveRadius() const { return m_waveRadius; }
 
+    // ── WATER LAYER (terrain-gen stage output; water-layer P1) ────────────────────────────────
+    // Record the per-column basin-level grid upload into `cmd` (one-shot command buffer, outside
+    // any render pass) and point set-1 binding 3 at it. The clipmap then draws EVERY basin in
+    // view at its own level — sea at sea level, each lake at its spill — with the dry-land gate
+    // deriving shorelines per pixel. levels==nullptr uploads a 1×1 "no water layer" sentinel and
+    // keeps flat-sea mode (per-column lookup disabled, pixel-identical to the pre-P1 look): call
+    // that form once right after initialize() so the binding is always valid.
+    // REPLACING a previously-uploaded grid re-writes the descriptor — the caller must ensure the
+    // device is idle (vkDeviceWaitIdle) when swapping mid-session (world change).
+    void recordHydrologyUpload(VkCommandBuffer cmd, const float* levels, int cellsX, int cellsZ,
+                               float originX, float originZ, float cellSize);
+    bool hydrologyBound() const { return m_hydroBound; }
+
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
@@ -102,6 +115,20 @@ private:
     VkBuffer       m_indexBuffer = VK_NULL_HANDLE;        // sea clipmap; see SeaMesh.h
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t       m_indexCount = 0;
+
+    // Water-layer level grid (P1): owned here like the cell pipeline owns its ripple texture.
+    void destroyHydrologyResources();
+    VkImage        m_hydroImage = VK_NULL_HANDLE;
+    VkDeviceMemory m_hydroImageMemory = VK_NULL_HANDLE;
+    VkImageView    m_hydroView = VK_NULL_HANDLE;
+    VkSampler      m_hydroSampler = VK_NULL_HANDLE;      // NEAREST — basins are piecewise-constant
+    VkBuffer       m_hydroStaging = VK_NULL_HANDLE;
+    VkDeviceMemory m_hydroStagingMemory = VK_NULL_HANDLE;
+    void*          m_hydroStagingMapped = nullptr;
+    VkDeviceSize   m_hydroStagingBytes = 0;
+    int            m_hydroCellsX = 0, m_hydroCellsZ = 0;
+    bool           m_hydroBound = false;                 // no draw until binding 3 is valid
+    glm::vec3      m_hydroParams{0.0f, 0.0f, 0.0f};      // originX, originZ, invCellSize (0 = flat)
     float          m_waveRadius = 700.0f;      // world units; set from the render distance
     float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 

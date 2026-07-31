@@ -31,13 +31,28 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
 layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 layout(set = 1, binding = 2) uniform sampler2D reflectionTex;
+// Water-layer per-column basin levels (water-layer P1) — see water.vert.
+layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 params;     // x = seaLevel, y = quad size, zw unused
-    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w unused
+    vec4 params;     // x = seaLevel, y = hydro grid originX, z = wave amplitude, w = wind dir (rad)
+    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w = wave length
+    vec4 params3;    // x = core spacing, y = core half-extent, z = hydro originZ, w = hydro invCellSize (0 = flat)
 } pc;
+
+// Same lookup as water.vert (kept in sync by hand — 12 lines; the include is frag-only).
+float basinLevelAt(vec2 worldXZ) {
+    float invCell = pc.params3.w;
+    if (invCell <= 0.0) return pc.params.x;
+    vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
+    ivec2 sz = textureSize(hydroLevelTex, 0);
+    if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
+        return pc.params.x;
+    float l = texelFetch(hydroLevelTex, ivec2(cellF), 0).r;
+    return (l < -1e5) ? pc.params.x : l;
+}
 
 #include "water_common.glsl"
 
@@ -72,9 +87,26 @@ void main() {
     // several voxels deep to land on more than one step of the seabed.
     inp.wavePhase    = fragWavePhase;
     inp.breakDepth   = max(pc.params.z * 2.56, 2.5);
-    // Ground above the UNDISTURBED sea level is dry land: a wave crest must never be drawn climbing
-    // it, however high the swell happens to lift the sheet there.
-    inp.restLevelY   = pc.params.x;
+    // Ground above the UNDISTURBED rest level is dry land: a wave crest must never be drawn
+    // climbing it, however high the swell happens to lift the sheet there. Re-sampled PER PIXEL
+    // (not taken from the vertex) so the stretched wall quads at basin rims gate against their
+    // own column's level and vanish — a divide's terrain sits above both basins' levels by
+    // definition (water-layer P1).
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz);
+
+    // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at
+    // different levels (lake rim, lake→dry falloff), the connecting quad is a vertical wall
+    // of "water" spanning the two levels. The depth-based dry-land gate inside the shade
+    // function only catches wall pixels with terrain behind them; against sky — or when the
+    // wall passes near the camera and fills the whole frame — it never fires. But every
+    // real water pixel satisfies a property no wall pixel does: its surface lies within one
+    // wave excursion of ITS OWN column's rest level. Wall fragments interpolate Y across
+    // the two basins' levels, so almost all of them land far outside their column's band
+    // (an above-only test was not enough: the half of the wall hanging over the HIGH basin's
+    // columns sits below that basin's level and survived it). Max Gerstner excursion =
+    // amp * (1 + .52 + .28 + .70) = 2.5 * amp, + 0.5 slack for the lake amp scale.
+    float maxCrest = pc.params.z * 2.5 + 0.5;
+    if (abs(fragWorldPos.y - inp.restLevelY) > maxCrest) discard;
 
     vec4 water = shadeWaterSurface(inp);
 

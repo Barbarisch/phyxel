@@ -37,6 +37,13 @@ public:
     int cellsX() const { return m_cellsX; }
     int cellsZ() const { return m_cellsZ; }
     float seaLevel() const { return m_seaLevel; }
+    // Grid geometry + raw levels (row-major, index = z*cellsX + x; NO_WATER = dry) — the WATER
+    // LAYER export surface: the renderer uploads this grid as a texture so every basin draws at
+    // its own level out to the horizon (water-layer P1). Immutable after the bake.
+    float originX()  const { return m_originX; }
+    float originZ()  const { return m_originZ; }
+    float cellSize() const { return m_cellSize; }
+    const std::vector<float>& levels() const { return m_waterLevel; }
 
     // Lowest sampled terrain over the baked grid. If it sits ABOVE sea level the Priority-Flood
     // had no ocean outlet anywhere — the whole region is one closed basin filling to its spill,

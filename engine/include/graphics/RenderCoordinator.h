@@ -431,6 +431,10 @@ private:
     Input::InputManager* inputManager;
     Camera* camera;
     ChunkManager* chunkManager;
+    // Water-layer P1: identity of the last hydrology bake uploaded to the sea pipeline. Starts
+    // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
+    // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
+    const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
     RaycastVisualizer* raycastVisualizer;

@@ -4,6 +4,7 @@
 #include "core/AssetManager.h"
 #include "utils/Logger.h"
 #include <array>
+#include <cstring>
 #include <fstream>
 #include <stdexcept>
 
@@ -23,12 +24,14 @@ namespace Graphics {
 struct WaterPushConstants {
     glm::mat4 viewProj;    // 64
     glm::vec4 camPosTime;  // 16  (camera xyz, time seconds)
-    glm::vec4 params;      // 16  (seaLevel, wave zone radius, wave amplitude, wind dir radians)
+    glm::vec4 params;      // 16  (seaLevel, hydro grid originX, wave amplitude, wind dir radians)
     glm::vec4 params2;     // 16  (screen width, screen height, reflectionEnabled, wave length)
-    // The clipmap core spacing and half-extent. water.vert reconstructs the LOCAL grid spacing from
-    // these to decide which wave components it can still sample. Passed rather than duplicated as
-    // shader literals: this project has already been bitten by hand-synced definitions drifting.
-    glm::vec4 params3;     // 16  (core spacing, core half-extent, unused, unused)
+    // params3.xy: the clipmap core spacing and half-extent — water.vert reconstructs the LOCAL grid
+    // spacing from these to decide which wave components it can still sample. Passed rather than
+    // duplicated as shader literals: hand-synced definitions drift.
+    // params3.zw + params.y: the WATER-LAYER grid transform (hydro originZ, invCellSize; 0 = flat-
+    // sea mode) — per-column basin levels sampled by both stages (water-layer P1).
+    glm::vec4 params3;     // 16  (core spacing, core half-extent, hydro originZ, hydro invCellSize)
 };
 
 static std::vector<char> readFile(const std::string& filename) {
@@ -59,6 +62,7 @@ WaterRenderPipeline::~WaterRenderPipeline() { cleanup(); }
 
 void WaterRenderPipeline::cleanup() {
     if (m_device != VK_NULL_HANDLE) {
+        destroyHydrologyResources();
         vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
         vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
         if (m_indexBuffer != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
@@ -70,6 +74,153 @@ void WaterRenderPipeline::cleanup() {
         vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     }
+}
+
+void WaterRenderPipeline::destroyHydrologyResources() {
+    if (m_hydroSampler != VK_NULL_HANDLE) vkDestroySampler(m_device, m_hydroSampler, nullptr);
+    if (m_hydroView != VK_NULL_HANDLE) vkDestroyImageView(m_device, m_hydroView, nullptr);
+    if (m_hydroImage != VK_NULL_HANDLE) vkDestroyImage(m_device, m_hydroImage, nullptr);
+    if (m_hydroImageMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_hydroImageMemory, nullptr);
+    if (m_hydroStagingMapped) vkUnmapMemory(m_device, m_hydroStagingMemory);
+    if (m_hydroStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_hydroStaging, nullptr);
+    if (m_hydroStagingMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_hydroStagingMemory, nullptr);
+    m_hydroSampler = VK_NULL_HANDLE; m_hydroView = VK_NULL_HANDLE;
+    m_hydroImage = VK_NULL_HANDLE; m_hydroImageMemory = VK_NULL_HANDLE;
+    m_hydroStaging = VK_NULL_HANDLE; m_hydroStagingMemory = VK_NULL_HANDLE;
+    m_hydroStagingMapped = nullptr; m_hydroStagingBytes = 0;
+    m_hydroCellsX = m_hydroCellsZ = 0;
+}
+
+void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float* levels,
+                                                int cellsX, int cellsZ,
+                                                float originX, float originZ, float cellSize) {
+    if (m_device == VK_NULL_HANDLE || m_descriptorSet == VK_NULL_HANDLE) return;
+
+    // The "no layer" sentinel: a 1×1 dry texel, per-column lookup disabled — the shaders take
+    // the flat-sea path (pixel-identical to pre-P1), but binding 3 is VALID from the first draw.
+    const float kNoWater = -1e6f;
+    const float sentinel = kNoWater;
+    if (!levels) { levels = &sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; }
+
+    // (Re)create the image when the grid size changes. The caller guarantees device idleness when
+    // replacing a live grid (world change) — documented on the declaration.
+    if (cellsX != m_hydroCellsX || cellsZ != m_hydroCellsZ) {
+        destroyHydrologyResources();
+        m_hydroCellsX = cellsX; m_hydroCellsZ = cellsZ;
+
+        VkImageCreateInfo ii{};
+        ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        ii.imageType = VK_IMAGE_TYPE_2D;
+        ii.extent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
+        ii.mipLevels = 1; ii.arrayLayers = 1;
+        ii.format = VK_FORMAT_R32_SFLOAT;
+        ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+        ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        ii.samples = VK_SAMPLE_COUNT_1_BIT;
+        ii.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateImage(m_device, &ii, nullptr, &m_hydroImage) != VK_SUCCESS)
+            throw std::runtime_error("failed to create water-layer level image!");
+        VkMemoryRequirements mr;
+        vkGetImageMemoryRequirements(m_device, m_hydroImage, &mr);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits,
+                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_hydroImageMemory) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate water-layer level memory!");
+        vkBindImageMemory(m_device, m_hydroImage, m_hydroImageMemory, 0);
+
+        VkImageViewCreateInfo vi{};
+        vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        vi.image = m_hydroImage;
+        vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        vi.format = VK_FORMAT_R32_SFLOAT;
+        vi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        if (vkCreateImageView(m_device, &vi, nullptr, &m_hydroView) != VK_SUCCESS)
+            throw std::runtime_error("failed to create water-layer level view!");
+
+        // NEAREST on purpose: basin levels are piecewise-constant; bilinear filtering would tilt
+        // water surfaces across basin divides. (Also R32F linear filtering is optional in Vulkan
+        // — the ripple-texture lesson.)
+        VkSamplerCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        si.magFilter = VK_FILTER_NEAREST; si.minFilter = VK_FILTER_NEAREST;
+        si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        if (vkCreateSampler(m_device, &si, nullptr, &m_hydroSampler) != VK_SUCCESS)
+            throw std::runtime_error("failed to create water-layer level sampler!");
+
+        VkDescriptorImageInfo info{ m_hydroSampler, m_hydroView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        VkWriteDescriptorSet w{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstSet = m_descriptorSet; w.dstBinding = 3; w.descriptorCount = 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; w.pImageInfo = &info;
+        vkUpdateDescriptorSets(m_device, 1, &w, 0, nullptr);
+    }
+
+    // Stage + record the copy into the caller's one-shot command buffer. The staging buffer is
+    // transient: freed by the caller's queue-idle boundary… we cannot free it here safely, so use
+    // a small persistent member sized to the largest grid seen.
+    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * sizeof(float);
+    if (bytes > m_hydroStagingBytes) {
+        if (m_hydroStagingMapped) vkUnmapMemory(m_device, m_hydroStagingMemory);
+        if (m_hydroStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_hydroStaging, nullptr);
+        if (m_hydroStagingMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_hydroStagingMemory, nullptr);
+        m_hydroStaging = VK_NULL_HANDLE; m_hydroStagingMemory = VK_NULL_HANDLE; m_hydroStagingMapped = nullptr;
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size = bytes;
+        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_hydroStaging) != VK_SUCCESS)
+            throw std::runtime_error("failed to create water-layer staging buffer!");
+        VkMemoryRequirements mr;
+        vkGetBufferMemoryRequirements(m_device, m_hydroStaging, &mr);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_hydroStagingMemory) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate water-layer staging memory!");
+        vkBindBufferMemory(m_device, m_hydroStaging, m_hydroStagingMemory, 0);
+        vkMapMemory(m_device, m_hydroStagingMemory, 0, bytes, 0, &m_hydroStagingMapped);
+        m_hydroStagingBytes = bytes;
+    }
+    memcpy(m_hydroStagingMapped, levels, static_cast<size_t>(bytes));
+
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.image = m_hydroImage;
+    b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.srcAccessMask = 0;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &b);
+    VkBufferImageCopy region{};
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.imageExtent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
+    vkCmdCopyBufferToImage(cmd, m_hydroStaging, m_hydroImage,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &b);
+
+    m_hydroParams = glm::vec3(originX, originZ, cellSize > 0.0f ? 1.0f / cellSize : 0.0f);
+    m_hydroBound = true;
+    LOG_INFO("WaterPipeline", "Water-layer levels bound: {}x{} cells, origin ({}, {}), cell {} "
+             "(invCell 0 = flat-sea mode)", cellsX, cellsZ, originX, originZ, cellSize);
 }
 
 void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,
@@ -134,13 +285,17 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
     //   0 = half-res scene colour copy (refraction)
     //   1 = scene depth (seabed distance → absorption thickness + soft shoreline)
     //   2 = planar reflection (dormant; see docs/WaterSystemV3.md Phase 5)
-    std::array<VkDescriptorSetLayoutBinding, 3> binds{};
+    //   3 = the water-layer level grid (per-column basin levels; water-layer P1 — VERTEX too,
+    //       because the level moves the surface GEOMETRY, not just the shading)
+    std::array<VkDescriptorSetLayoutBinding, 4> binds{};
     binds[0].binding = 0;
     binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     binds[0].descriptorCount = 1;
     binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     binds[1] = binds[0]; binds[1].binding = 1;
     binds[2] = binds[0]; binds[2].binding = 2;
+    binds[3] = binds[0]; binds[3].binding = 3;
+    binds[3].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -169,7 +324,7 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
 void WaterRenderPipeline::createDescriptorPool() {
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 3;   // refraction + scene depth + reflection
+    poolSize.descriptorCount = 4;   // refraction + scene depth + reflection + water-layer levels
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -464,9 +619,10 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
                                  const Camera& camera,
                                  const glm::mat4& projectionMatrix, float seaLevel, float size,
                                  VkExtent2D screenExtent, bool reflectionEnabled) {
-    // The fragment shader samples every binding in set 1 unconditionally; don't draw until they
-    // point at real images. (Reflection is written at init, refraction/depth by setSceneTextures.)
-    if (!m_sceneBound || !m_reflectionBound || uboSet == VK_NULL_HANDLE) return;
+    // The shaders sample every binding in set 1 unconditionally; don't draw until they all point
+    // at real images. (Refraction/depth via setSceneTextures, reflection via setReflectionTexture,
+    // the water-layer levels via recordHydrologyUpload — the sentinel form counts.)
+    if (!m_sceneBound || !m_reflectionBound || !m_hydroBound || uboSet == VK_NULL_HANDLE) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
@@ -484,15 +640,15 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
     WaterPushConstants pc{};
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camPos, t);
-    // params.y carries the WAVE RADIUS (not the old sheet size — the mesh holds absolute world
-    // offsets now). The vertex shader no longer tapers the swell at the zone edge; it retires each
-    // wave component individually where the clipmap's local spacing stops resolving it.
+    // params.y / params3.zw carry the WATER-LAYER grid transform (water-layer P1): hydro origin XZ
+    // + inverse cell size (0 = flat-sea mode). params.y previously held the wave radius, which no
+    // shader stage read — evicted for a lane that is actually consumed.
     (void)size;
-    pc.params     = glm::vec4(seaLevel, m_waveRadius, m_waveAmplitude, m_windDirection);
+    pc.params     = glm::vec4(seaLevel, m_hydroParams.x, m_waveAmplitude, m_windDirection);
     pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
                               static_cast<float>(screenExtent.height),
                               reflectionEnabled ? 1.0f : 0.0f, m_waveLength);
-    pc.params3    = glm::vec4(SEA_CORE_SPACING, SEA_CORE_HALF, 0.0f, 0.0f);
+    pc.params3    = glm::vec4(SEA_CORE_SPACING, SEA_CORE_HALF, m_hydroParams.y, m_hydroParams.z);
 
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,

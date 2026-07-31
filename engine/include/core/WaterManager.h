@@ -278,6 +278,11 @@ private:
     float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
                                                      // match the sea-plane renderer or they drift
     std::function<float(float, float)> m_tableFn;    // baked water table (Phase C); null = authored path
+    // Snapped per-column table levels in LOCAL grid Y (INT_MIN = dry), cached from the last
+    // rebuildOcean: the shoreline-snapped grid is the truth about where pinned baked water sits,
+    // and rebuildSurface uses it to suppress pinned-at-level cells the water-layer clipmap draws
+    // (water-layer P1). Empty when no table is bound.
+    std::vector<int>                   m_tableLvlLocal;
     std::function<float(float, float)> m_riverFn;    // river carve depth (Phase C2); null = none
     std::function<int(float, float)>   m_riverOrderFn; // Strahler order (creek pins); null = legacy ≥3
     std::function<glm::vec2(float, float)> m_riverDirFn; // baked downhill dir (V3 P3); null = none
