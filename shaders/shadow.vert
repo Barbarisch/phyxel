@@ -1,5 +1,12 @@
 #version 450
 
+// C2.1 (docs/ContinuousLodPlan.md): gl_DrawIDARB lets ONE multidraw cover every chunk in an
+// arena block, by indexing per-draw data instead of re-pushing constants per chunk (an indirect
+// draw cannot vary push constants or vertex bindings). Requires the shaderDrawParameters FEATURE
+// to be enabled on the device -- see VulkanDevice C2.0b; availability by API version is NOT
+// sufficient and a shader built against a device that did not enable it is invalid.
+#extension GL_ARB_shader_draw_parameters : require
+
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index (unused)
@@ -8,8 +15,18 @@ layout(location = 4) in uint inLight;           // per-instance: fine-face merge
 
 layout(push_constant) uniform PushConstants {
     mat4 lightSpaceMatrix;
-    vec3 chunkBaseOffset;
+    vec3 chunkBaseOffset;   // legacy per-chunk origin (one draw per chunk)
+    uint useChunkDataSsbo;  // 0 = use chunkBaseOffset (DEFAULT, byte-identical to pre-C2.1)
+    uint drawIndexBase;     // C2: gl_DrawIDARB restarts at 0 for EVERY vkCmdDrawIndexedIndirect,
+                            // so each batch pushes the base index of its slice of `origins`.
+                            // Without this, every batch after the first read the wrong origins --
+                            // measured as a 14.9% pixel difference against the legacy path.
 } pushConstants;
+
+// Per-draw chunk origins for the multidraw path. xyz = camera-relative chunk origin.
+layout(std430, set = 0, binding = 0) readonly buffer ChunkData {
+    vec4 origins[];
+} chunkData;
 
 void main() {
     // Extract chunk-relative position from packed data (5 bits each for x,y,z)
@@ -53,7 +70,12 @@ void main() {
 
     // Calculate base position
     vec3 chunkRelativePos = vec3(float(chunkX), float(chunkY), float(chunkZ));
-    vec3 basePos = pushConstants.chunkBaseOffset + chunkRelativePos;
+    // Uniform branch: with useChunkDataSsbo == 0 this is exactly the old expression, so the
+    // legacy per-chunk draw path is unchanged. gl_DrawIDARB is 0 for non-indirect draws.
+    vec3 chunkOrigin = (pushConstants.useChunkDataSsbo != 0u)
+        ? chunkData.origins[pushConstants.drawIndexBase + uint(gl_DrawIDARB)].xyz
+        : pushConstants.chunkBaseOffset;
+    vec3 basePos = chunkOrigin + chunkRelativePos;
     
     vec3 faceOffset = vec3(0.0);
     
@@ -91,6 +113,10 @@ void main() {
         vec3 subcubeOffset = vec3(float(subcubeLocalX), float(subcubeLocalY), float(subcubeLocalZ)) * SUBCUBE_SCALE;
         vec3 microcubeOffset = vec3(float(microcubeLocalX), float(microcubeLocalY), float(microcubeLocalZ)) * MICROCUBE_SCALE;
         worldPos = basePos + subcubeOffset + microcubeOffset + (faceOffset * fineSizeVec * MICROCUBE_SCALE);
+    } else if (scaleLevel == 3u) {
+        // C4 LOD CELL — MUST match static_voxel.vert or a coarse chunk casts a 1x1 shadow.
+        float cell = float(1u << ((inPackedData >> 20) & 0x7u));
+        worldPos = basePos + faceOffset * cell;
     } else {
         worldPos = basePos + faceOffset;
     }

@@ -1,4 +1,6 @@
 #include "graphics/ShadowMap.h"
+
+#include <cstring>
 #include "utils/FileUtils.h"
 #include "core/AssetManager.h"
 #include "core/Types.h"
@@ -38,6 +40,7 @@ bool ShadowMap::initialize() {
     if (!createRenderPass()) return false;
     if (!createFramebuffer()) return false;
     if (!createSampler()) return false;
+    if (!createChunkDataResources()) return false;   // C2.1: needed by createPipeline's layout
     if (!createPipeline()) return false;
     if (!createCharacterShadowPipeline()) return false;
     if (!createKinematicShadowPipeline()) return false;
@@ -47,6 +50,18 @@ bool ShadowMap::initialize() {
 
 void ShadowMap::cleanup() {
     VkDevice vkDevice = device->getDevice();
+
+    // C2.1 per-draw chunk data + indirect commands
+    for (uint32_t f = 0; f < kFrames; ++f) {
+        if (chunkDataMapped[f]) { vkUnmapMemory(vkDevice, chunkDataMemory[f]); chunkDataMapped[f] = nullptr; }
+        if (chunkDataBuffer[f] != VK_NULL_HANDLE) { vkDestroyBuffer(vkDevice, chunkDataBuffer[f], nullptr); chunkDataBuffer[f] = VK_NULL_HANDLE; }
+        if (chunkDataMemory[f] != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, chunkDataMemory[f], nullptr); chunkDataMemory[f] = VK_NULL_HANDLE; }
+        if (indirectMapped[f]) { vkUnmapMemory(vkDevice, indirectMemory[f]); indirectMapped[f] = nullptr; }
+        if (indirectBuffer[f] != VK_NULL_HANDLE) { vkDestroyBuffer(vkDevice, indirectBuffer[f], nullptr); indirectBuffer[f] = VK_NULL_HANDLE; }
+        if (indirectMemory[f] != VK_NULL_HANDLE) { vkFreeMemory(vkDevice, indirectMemory[f], nullptr); indirectMemory[f] = VK_NULL_HANDLE; }
+    }
+    if (chunkDataPool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(vkDevice, chunkDataPool, nullptr); chunkDataPool = VK_NULL_HANDLE; for (uint32_t f = 0; f < kFrames; ++f) chunkDataSet[f] = VK_NULL_HANDLE; }
+    if (chunkDataLayout != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(vkDevice, chunkDataLayout, nullptr); chunkDataLayout = VK_NULL_HANDLE; }
 
     if (pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(vkDevice, pipeline, nullptr);
@@ -211,6 +226,88 @@ bool ShadowMap::createSampler() {
     return true;
 }
 
+// C2.1 (docs/ContinuousLodPlan.md): the per-draw chunk-origin SSBO + the indirect command
+// buffer. Both are host-visible and persistently mapped -- they are rewritten every frame from
+// the CPU-side visible set, which is the "phase 1" shape; a later increment moves the culling
+// itself to compute and writes these from a shader instead.
+bool ShadowMap::createChunkDataResources() {
+    VkDevice vkDevice = device->getDevice();
+
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = 0;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &binding;
+    if (vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &chunkDataLayout) != VK_SUCCESS) {
+        LOG_ERROR("ShadowMap", "C2.1: failed to create chunk-data descriptor set layout");
+        return false;
+    }
+
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = kFrames;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = kFrames;
+    if (vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &chunkDataPool) != VK_SUCCESS) {
+        LOG_ERROR("ShadowMap", "C2.1: failed to create chunk-data descriptor pool");
+        return false;
+    }
+
+    const VkDeviceSize dataBytes = sizeof(glm::vec4) * kMaxChunkDataEntries;
+    const VkDeviceSize indirectBytes = sizeof(VkDrawIndexedIndirectCommand) * kMaxIndirectCommands;
+    for (uint32_t f = 0; f < kFrames; ++f) {
+        device->createBuffer(dataBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                             chunkDataBuffer[f], chunkDataMemory[f]);
+        vkMapMemory(vkDevice, chunkDataMemory[f], 0, dataBytes, 0, &chunkDataMapped[f]);
+        device->createBuffer(indirectBytes, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                             indirectBuffer[f], indirectMemory[f]);
+        vkMapMemory(vkDevice, indirectMemory[f], 0, indirectBytes, 0, &indirectMapped[f]);
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = chunkDataPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &chunkDataLayout;
+        if (vkAllocateDescriptorSets(vkDevice, &allocInfo, &chunkDataSet[f]) != VK_SUCCESS) {
+            LOG_ERROR("ShadowMap", "C2.1: failed to allocate chunk-data descriptor set");
+            return false;
+        }
+        VkDescriptorBufferInfo bufInfo{};
+        bufInfo.buffer = chunkDataBuffer[f];
+        bufInfo.offset = 0;
+        bufInfo.range = dataBytes;
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = chunkDataSet[f];
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.pBufferInfo = &bufInfo;
+        vkUpdateDescriptorSets(vkDevice, 1, &write, 0, nullptr);
+    }
+
+    LOG_INFO("ShadowMap", "C2.1 chunk-data SSBO ready (" +
+             std::to_string(kMaxChunkDataEntries) + " entries) + indirect buffer (" +
+             std::to_string(kMaxIndirectCommands) + " commands)");
+    return true;
+}
+
+void ShadowMap::uploadChunkOrigins(uint32_t frame, const glm::vec4* origins, uint32_t count) {
+    void* dst = chunkDataMapped[frame % kFrames];
+    if (!dst || count == 0) return;
+    if (count > kMaxChunkDataEntries) count = kMaxChunkDataEntries;
+    std::memcpy(dst, origins, sizeof(glm::vec4) * count);
+}
+
 bool ShadowMap::createPipeline() {
     // Load shaders
     auto vertShaderCode = Utils::readFile(Core::AssetManager::instance().resolveShader("shadow.vert.spv"));
@@ -324,12 +421,15 @@ bool ShadowMap::createPipeline() {
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(glm::mat4) + sizeof(glm::vec3); // Matrix + Offset
+    // C2.1: + a uint flag selecting the origin source. 0 = push-constant origin (legacy,
+    // byte-identical); 1 = read origins[gl_DrawIDARB] from the SSBO (multidraw path).
+    pushConstantRange.size = sizeof(glm::mat4) + sizeof(glm::vec3) + 2 * sizeof(uint32_t);
 
     // Pipeline Layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // No descriptor sets for now
+    pipelineLayoutInfo.setLayoutCount = 1;              // C2.1 per-draw chunk data (set 0)
+    pipelineLayoutInfo.pSetLayouts = &chunkDataLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 

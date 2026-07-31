@@ -166,12 +166,19 @@ TEST(ChunkArenaAllocatorTest, AdjacentRetiredSpansCoalesce) {
 TEST(ChunkArenaAllocatorTest, OpensSecondBlockWhenFullAndChainsRegion) {
     MockBackend be;
     ChunkArenaAllocator a(&be, kTestBlock, 100);
-    // Exhaust block 0.
-    const int spansPerBlock = int(kTestBlock / 512);
-    for (int i = 0; i < spansPerBlock; ++i) ASSERT_TRUE(a.allocate(9, 512).valid());
+    // Exhaust block 0. Derive the count from the ACTUAL alignment: a 512-byte request
+    // consumes alignUp(512, kAlignment) bytes, not 512. Hardcoding /512 silently assumed
+    // kAlignment <= 512 and broke when it became 768 (lcm(256,24), needed so C2's
+    // firstInstance can address a span — see ChunkArenaAllocator.h).
+    constexpr size_t kReq = 512;
+    constexpr size_t kSpanBytes =
+        ((kReq + ChunkArenaAllocator::kAlignment - 1) / ChunkArenaAllocator::kAlignment) *
+        ChunkArenaAllocator::kAlignment;
+    const int spansPerBlock = int(kTestBlock / kSpanBytes);
+    for (int i = 0; i < spansPerBlock; ++i) ASSERT_TRUE(a.allocate(9, kReq).valid());
     EXPECT_EQ(a.liveBlocks(), 1u);
     // Next allocation in the SAME region opens a second block.
-    ArenaSpan s = a.allocate(9, 512);
+    ArenaSpan s = a.allocate(9, kReq);
     ASSERT_TRUE(s.valid());
     EXPECT_EQ(a.liveBlocks(), 2u);
 }
