@@ -6,6 +6,8 @@
 #include "vulkan/ComputePipeline.h"
 #include <functional>
 #include <glm/glm.hpp>
+#include <string>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 
 namespace Phyxel {
@@ -219,6 +221,25 @@ public:
     const std::vector<glm::ivec3>& oceanSeeds()   const { return m_oceanSeeds; }
     const std::vector<glm::ivec3>& channelCells() const { return m_channelCells; }
 
+    // ── Poured-water persistence (water-as-terrain-stage P3) ────────────────────────────────────
+    // The bounded region drops water that falls off its frontier when it recenters — hand-poured
+    // (unpinned) ponds silently vanished when the player walked away (and the window follows the
+    // camera VERTICALLY too, so even looking up could drain a pour). Now:
+    //  - recenter() CAPTURES each departing column's unpinned surface level into a sparse
+    //    world-keyed override store before the shift;
+    //  - rebuildOcean() RESEEDS any stored override that re-enters the window (erasing it as the
+    //    water becomes live sim mass again — it will be re-captured if it departs again);
+    //  - serializeOverrides()/loadOverrides() round-trip the store through world_meta, and
+    //    captureOverridesInWindow() folds still-visible pours in at save time.
+    // PINNED water (sea/lakes/rivers/springs) is never captured — it re-derives from the bake.
+    // Levels only ever fall between capture and re-capture (mass spreads/evaporates, reseed fills
+    // to at most the stored level), so walk-away/walk-back cycles cannot grow water.
+    size_t overrideCount() const { return m_overrides.size(); }
+    std::string serializeOverrides() const;          // compact text: "x z level\n" per column
+    bool loadOverrides(const std::string& data);     // replaces the store; false on parse garbage
+    void captureOverridesInWindow();                 // save-time hook (leaves the live water alone)
+    static constexpr size_t MAX_OVERRIDES = 65536;   // sparse store cap (arbitrary eviction beyond)
+
     // --- GPU backend ---
     // Run the per-tick flow step on a compute shader instead of the CPU. Behaviour is
     // close (gather-formulated, see docs/WaterSystem.md), not bit-identical. Masks
@@ -274,6 +295,15 @@ private:
     void rebuildOcean(); // re-run the ocean flood-fill from the seeds
     void applySprings(); // (re-)pin authored springs after the ocean clears sources
     void applyRiverInflows(); // channel-tag river beds + pin edge river columns (Phase C2)
+    // P3 (poured-water persistence): capture one column's unpinned surface into m_overrides,
+    // considering only cells y in [yLo, yHi] (the slice leaving the window); reseed in-window
+    // stored overrides as unpinned mass (called by rebuildOcean on both table and authored paths).
+    void captureColumnOverride(int lx, int lz, int yLo, int yHi);
+    void applyOverrides();
+    static uint64_t packColumnKey(int wx, int wz) {
+        return (static_cast<uint64_t>(static_cast<uint32_t>(wx)) << 32) |
+               static_cast<uint64_t>(static_cast<uint32_t>(wz));
+    }
 
     float                   m_seaLevel = kSeaLevelY; // shared default (WorldConstants.h) — must
                                                      // match the sea-plane renderer or they drift
@@ -294,6 +324,8 @@ private:
     struct Spring { glm::ivec3 cell; float mass; };
     std::vector<Spring>     m_springs;      // world-space authored sources
     std::vector<glm::ivec3> m_channelCells; // world-space channel cells (for persistence)
+    // P3: packed world column (x<<32|z) → captured unpinned water-surface world Y.
+    std::unordered_map<uint64_t, float> m_overrides;
 
     // GPU backend state.
     void stepGpu();        // upload field+masks, dispatch flow, read back

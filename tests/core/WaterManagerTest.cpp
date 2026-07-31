@@ -153,14 +153,142 @@ TEST(WaterManagerTest, OceanBoundaryLeavesSealedPocketDry) {
         << "the sealed pocket flooded — connectivity-gating broke with boundary seeds";
 }
 
-// Recentering far enough that the pool leaves the window drops it (mass falls off the frontier) —
-// the seam-loss the ocean boundary condition (Phase A2) will later replace at the leading edge.
-TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {
-    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
-    buildBasinAndFill(wm);
-    ASSERT_GT(wm.totalMass(), 15.0f);
-    wm.recenter(glm::ivec3(200, 0, 200));  // pool now far outside the window
-    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "pool outside the moved window should be gone";
+// ─── Poured-water persistence (water-as-terrain-stage P3) ─────────────────────────────────────────
+// This suite REPLACES RecenterPastThePoolDropsItAtTheFrontier: the silent drop that test pinned is
+// exactly what P3 removes. The sim still drops off-frontier mass (bounded by design), but the
+// departing columns' unpinned surface levels are CAPTURED first and reseeded when the window
+// returns. Terrain here is a REAL chunk (persists across recenters — setSolidWorld walls travel
+// with the window and are lost off the frontier, which is why buildBasinAndFill can't back these).
+
+namespace {
+
+// Ground everywhere at y<=2; wall ring y 3..5 around the 4x4 interior [12,15]^2; 16 cells poured →
+// a settled 1-deep pool at y=3 (surface level 4.0).
+struct TerrainBasinFixture {
+    ChunkManager cm;
+    std::unique_ptr<WaterManager> wm;
+    explicit TerrainBasinFixture(const glm::ivec3& origin = glm::ivec3(0, 0, 0), bool pour = true) {
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
+        owned->initializeForLoading();
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z) {
+                for (int y = 0; y <= 2; ++y) owned->addCube(glm::ivec3(x, y, z));
+                const bool ring = x >= 11 && x <= 16 && z >= 11 && z <= 16 &&
+                                  !(x >= 12 && x <= 15 && z >= 12 && z <= 15);
+                if (ring)
+                    for (int y = 3; y <= 5; ++y) owned->addCube(glm::ivec3(x, y, z));
+            }
+        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
+        cm.chunks.push_back(std::move(owned));
+        wm = std::make_unique<WaterManager>(&cm, origin, glm::ivec3(32, 16, 32));
+        if (pour) {
+            for (int x = 12; x <= 15; ++x)
+                for (int z = 12; z <= 15; ++z)
+                    wm->placeWater(glm::vec3(x + 0.5f, 4.0f, z + 0.5f), 1.0f);
+            for (int i = 0; i < 40; ++i) wm->update(0.1f);
+        }
+    }
+};
+
+}  // namespace
+
+// Walking away captures the pour; walking back reseeds it at its level. The in-window mass still
+// drops to zero while away (the sim is bounded — that part is by design and stays).
+TEST(WaterManagerTest, RecenterPastThePoolCapturesAndReseedsIt) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 15.0f) << "pool did not fill";
+    ASSERT_EQ(wm.overrideCount(), 0u) << "nothing departed yet — no overrides expected";
+
+    wm.recenter(glm::ivec3(200, 0, 200));  // pool far outside the window
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "in-window mass while away should be zero";
+    EXPECT_EQ(wm.overrideCount(), 16u) << "each departing pool column should be captured once";
+
+    wm.recenter(glm::ivec3(0, 0, 0));      // walk back
+    EXPECT_NEAR(wm.totalMass(), before, 0.1f) << "pour did not reseed at its captured level";
+    EXPECT_GT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 0.9f)
+        << "reseeded water is not at the pool's world position";
+    EXPECT_EQ(wm.overrideCount(), 0u) << "consumed overrides must be erased (live again)";
+}
+
+// Vertical window travel drops water too (the region follows the camera in Y — this is how live
+// pours were FIRST observed draining). A pure-Y recenter must capture and restore the same way.
+TEST(WaterManagerTest, VerticalRecenterCapturesAndReseedsThePour) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 15.0f);
+
+    wm.recenter(glm::ivec3(0, 40, 0));     // camera looked up a cliff: band now y 40..56
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f);
+    EXPECT_EQ(wm.overrideCount(), 16u) << "the departing vertical slice should be captured";
+    wm.recenter(glm::ivec3(0, 0, 0));
+    EXPECT_NEAR(wm.totalMass(), before, 0.1f) << "pour lost across a vertical round trip";
+}
+
+// A stale override at a column the baked table already covers must NOT double-pour: the reseed
+// erases it instead of stacking unpinned mass onto pinned lake water.
+TEST(WaterManagerTest, OverridesDoNotDoubleCountTablePinnedColumns) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    // Bake a lake over the basin interior at level 6 (above ground y<=2, inside the walls).
+    wm.setWaterTable([](float wx, float wz) -> float {
+        return (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) ? 6.0f : -1e30f;
+    });
+    wm.update(0.1f);
+    const float tableOnly = wm.totalMass();
+    ASSERT_GT(tableOnly, 5.0f) << "the baked lake should have filled";
+
+    // A stale capture below the lake surface (e.g. recorded before the bake was bound).
+    ASSERT_TRUE(wm.loadOverrides("13 13 4.5\n"));
+    ASSERT_EQ(wm.overrideCount(), 1u);
+    wm.update(0.1f);   // oceanDirty → rebuild → applyOverrides
+    EXPECT_NEAR(wm.totalMass(), tableOnly, 1e-3f)
+        << "override double-poured mass onto the pinned lake";
+    EXPECT_EQ(wm.overrideCount(), 0u) << "redundant override should be erased, not kept forever";
+}
+
+// The store round-trips through its serialized form: a fresh manager (fresh world session) restores
+// the pond from text alone once its window reaches the columns.
+TEST(WaterManagerTest, OverridesSurviveSerializeLoadRoundTrip) {
+    TerrainBasinFixture f;
+    const float before = f.wm->totalMass();
+    f.wm->recenter(glm::ivec3(200, 0, 200));
+    ASSERT_EQ(f.wm->overrideCount(), 16u);
+    const std::string blob = f.wm->serializeOverrides();
+    ASSERT_FALSE(blob.empty());
+
+    TerrainBasinFixture g(glm::ivec3(200, 0, 200), /*pour=*/false);  // fresh session, window far away
+    ASSERT_TRUE(g.wm->loadOverrides(blob));
+    EXPECT_EQ(g.wm->overrideCount(), 16u);
+    g.wm->recenter(glm::ivec3(0, 0, 0));
+    EXPECT_NEAR(g.wm->totalMass(), before, 0.1f) << "pond not restored from serialized overrides";
+    EXPECT_GT(g.wm->massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 0.9f);
+
+    EXPECT_FALSE(g.wm->loadOverrides("this is not an override line"))
+        << "garbage must be rejected, not half-loaded";
+}
+
+// Monotone stress: walk away and back MANY times. Capture→reseed is level-based, so repeated
+// cycles must never grow the water (each reseed fills to at most the captured level; each capture
+// records at most the reseeded level). Asserted EVERY cycle, not just at the end.
+TEST(WaterManagerTest, StressWalkAwayAndBackNeverGrowsThePour) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float initial = wm.totalMass();
+    ASSERT_GT(initial, 15.0f);
+    for (int i = 0; i < 10; ++i) {
+        wm.recenter(glm::ivec3(200, 0, 200));
+        ASSERT_EQ(wm.overrideCount(), 16u) << "cycle " << i << ": capture count drifted";
+        wm.recenter(glm::ivec3(0, 0, 0));
+        ASSERT_EQ(wm.overrideCount(), 0u) << "cycle " << i << ": overrides not consumed";
+        const float back = wm.totalMass();
+        ASSERT_LE(back, initial + 1e-3f) << "cycle " << i << ": the pour GREW — capture/reseed pumps mass";
+        ASSERT_NEAR(back, initial, 0.1f) << "cycle " << i << ": the pour eroded";
+        for (int u = 0; u < 5; ++u) wm.update(0.1f);   // let it settle between cycles
+    }
 }
 
 // A fully settled field must not pay the O(box) surface rebuild every update tick: update() only

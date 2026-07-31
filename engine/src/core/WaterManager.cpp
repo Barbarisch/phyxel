@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cstdint>
 
@@ -112,6 +113,24 @@ void WaterManager::update(float dt) {
 void WaterManager::recenter(const glm::ivec3& newOrigin) {
     const glm::ivec3 delta = newOrigin - m_origin;
     if (delta == glm::ivec3(0)) return;
+    // P3 (poured-water persistence): before the shift silently drops water off the frontier,
+    // capture every departing column's unpinned surface level. A column departs whole (XZ exit)
+    // or as a vertical slice (the window also follows the camera in Y — the way live pours were
+    // first observed draining). Pinned columns re-derive from the bake and are skipped inside
+    // captureColumnOverride.
+    for (int lz = 0; lz < m_dims.z; ++lz)
+        for (int lx = 0; lx < m_dims.x; ++lx) {
+            const int wx = m_origin.x + lx, wz = m_origin.z + lz;
+            const bool exitsXZ = wx < newOrigin.x || wx >= newOrigin.x + m_dims.x ||
+                                 wz < newOrigin.z || wz >= newOrigin.z + m_dims.z;
+            int yLo = 0, yHi = m_dims.y - 1;
+            if (!exitsXZ) {
+                if (delta.y > 0)      yHi = std::min(yHi, delta.y - 1);          // slice below new floor
+                else if (delta.y < 0) yLo = std::max(yLo, m_dims.y + delta.y);   // slice above new top
+                else continue;                                                    // column fully survives
+            }
+            captureColumnOverride(lx, lz, yLo, yHi);
+        }
     // Translate the field so world content stays put, then move the window origin.
     m_sim.shift(delta);
     m_origin = newOrigin;
@@ -605,6 +624,7 @@ void WaterManager::rebuildOcean() {
         m_tableLvlLocal = std::move(lvl);
         applySprings();       // authored springs still ride on top of the baked table
         applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
+        applyOverrides();     // P3: reseed captured pours over the pinned bodies
         rebuildSurface();
         return;
     }
@@ -635,7 +655,113 @@ void WaterManager::rebuildOcean() {
     m_sim.fillOcean(localSeeds, seaLevelLocalY); // clears all sources, then pins the ocean
     applySprings();                               // re-pin authored springs over the top
     applyRiverInflows();                          // baked river channel tags + edge inflows (Phase C2)
+    applyOverrides();                             // P3: reseed captured pours (authored path too)
     rebuildSurface();
+}
+
+// ── Poured-water persistence (water-as-terrain-stage P3) ─────────────────────────────────────────
+
+void WaterManager::captureColumnOverride(int lx, int lz, int yLo, int yHi) {
+    // Top wet cell of the departing slice decides the column's surface. A pinned top means the
+    // water is bake-derived (sea/lake/river/spring) — never captured, it re-derives on return.
+    for (int y = yHi; y >= yLo; --y) {
+        const float m = m_sim.massAt(lx, y, lz);
+        if (m < 0.15f) continue;                        // ignore films below the pin threshold
+        if (m_sim.sourceAt(lx, y, lz) >= 0.0f) return;  // pinned water: the bake owns it
+        const float f = m_sim.floorAt(lx, y, lz);
+        const float level = static_cast<float>(m_origin.y + y) +
+                            f + std::min(m, 1.0f) * (1.0f - f);   // same surface formula as sampleWater
+        if (m_overrides.size() >= MAX_OVERRIDES) {
+            const auto victim = m_overrides.find(packColumnKey(m_origin.x + lx, m_origin.z + lz));
+            if (victim == m_overrides.end()) m_overrides.erase(m_overrides.begin());  // arbitrary evict
+        }
+        m_overrides[packColumnKey(m_origin.x + lx, m_origin.z + lz)] = level;
+        return;
+    }
+}
+
+void WaterManager::captureOverridesInWindow() {
+    for (int lz = 0; lz < m_dims.z; ++lz)
+        for (int lx = 0; lx < m_dims.x; ++lx)
+            captureColumnOverride(lx, lz, 0, m_dims.y - 1);
+}
+
+void WaterManager::applyOverrides() {
+    if (m_overrides.empty()) return;
+    const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+    for (auto it = m_overrides.begin(); it != m_overrides.end();) {
+        const int wx = static_cast<int32_t>(static_cast<uint32_t>(it->first >> 32));
+        const int wz = static_cast<int32_t>(static_cast<uint32_t>(it->first & 0xffffffffu));
+        const float level = it->second;
+        const int lx = wx - m_origin.x, lz = wz - m_origin.z;
+        if (lx < 0 || lx >= sx || lz < 0 || lz >= sz) { ++it; continue; }  // out of window: keep
+        // Double-count guard: the snapped baked table already pins water at/above this level in
+        // this column — the pour merged into a persistent body; the override is redundant.
+        if (!m_tableLvlLocal.empty()) {
+            const int t = m_tableLvlLocal[static_cast<size_t>(lx) + static_cast<size_t>(sx) * lz];
+            if (t != INT_MIN && static_cast<float>(m_origin.y + t + 1) >= level) {
+                it = m_overrides.erase(it);
+                continue;
+            }
+        }
+        const int yTop = static_cast<int>(std::floor(level - 1e-4f)) - m_origin.y;
+        if (yTop < 0 || yTop >= sy) { ++it; continue; }  // outside the vertical band: keep for later
+        // Refill the contiguous open run downward from the surface cell. Requires real ground
+        // under the run (the loop stops at the first solid); a column that is open all the way to
+        // the window floor is unloaded terrain or void — restoring there would strand water in
+        // the wrong place, so keep the override for a visit when the terrain exists (same guard
+        // as the river-bed pins).
+        int yBottom = yTop;
+        while (yBottom >= 0 && !m_sim.isSolid(lx, yBottom, lz)) --yBottom;
+        if (yBottom < 0) { ++it; continue; }             // no loaded ground: keep
+        bool placedAny = false;
+        for (int y = yTop; y > yBottom; --y) {
+            const float f = m_sim.floorAt(lx, y, lz);
+            const float target = (y == yTop)
+                ? glm::clamp((level - static_cast<float>(m_origin.y + y) - f) /
+                             std::max(1.0f - f, 1e-4f), 0.0f, 1.0f)
+                : 1.0f;
+            const float have = m_sim.massAt(lx, y, lz);
+            if (target > have) { m_sim.addWater(lx, y, lz, target - have); placedAny = true; }
+        }
+        // Live again — the water will be re-captured if it departs. An empty restore (the level
+        // sat below the terrain after an edit) is dropped rather than kept forever.
+        (void)placedAny;
+        it = m_overrides.erase(it);
+    }
+}
+
+std::string WaterManager::serializeOverrides() const {
+    std::string out;
+    out.reserve(m_overrides.size() * 24);
+    char line[64];
+    for (const auto& [key, level] : m_overrides) {
+        const int wx = static_cast<int32_t>(static_cast<uint32_t>(key >> 32));
+        const int wz = static_cast<int32_t>(static_cast<uint32_t>(key & 0xffffffffu));
+        std::snprintf(line, sizeof(line), "%d %d %.3f\n", wx, wz, level);
+        out += line;
+    }
+    return out;
+}
+
+bool WaterManager::loadOverrides(const std::string& data) {
+    std::unordered_map<uint64_t, float> fresh;
+    size_t pos = 0;
+    while (pos < data.size()) {
+        size_t eol = data.find('\n', pos);
+        if (eol == std::string::npos) eol = data.size();
+        int wx = 0, wz = 0;
+        float level = 0.0f;
+        const std::string lineStr = data.substr(pos, eol - pos);
+        pos = eol + 1;
+        if (lineStr.empty()) continue;
+        if (std::sscanf(lineStr.c_str(), "%d %d %f", &wx, &wz, &level) != 3) return false;
+        if (fresh.size() >= MAX_OVERRIDES) break;
+        fresh[packColumnKey(wx, wz)] = level;
+    }
+    m_overrides = std::move(fresh);
+    m_oceanDirty = true;   // reseed anything in-window on the next update
+    return true;
 }
 
 void WaterManager::applySprings() {

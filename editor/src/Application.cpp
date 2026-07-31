@@ -5887,6 +5887,17 @@ void Application::autoLoadGameDefinition() {
                     // Override either way with water.evaporation.
                     waterManager->setEvaporation(
                         w.value("evaporation", waterManager->hasWaterTable()));
+                    // Poured-water persistence (water-as-terrain-stage P3): restore captured
+                    // pours from world_meta — they reseed as unpinned mass when the sim window
+                    // reaches their columns.
+                    if (chunkManager) {
+                        if (auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            ws && ws->getDb()) {
+                            const std::string ov = ws->getMeta("water_overrides");
+                            if (!ov.empty() && !waterManager->loadOverrides(ov))
+                                LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
+                        }
+                    }
                 }
             }
 
@@ -14591,6 +14602,16 @@ void Application::processAPICommands() {
                                     }
                                     Core::RuntimeEntityStore::saveToDb(ws->getDb(), rvec);
                                 }
+                            }
+                        }
+                        // Poured-water persistence (water-as-terrain-stage P3): fold the pours
+                        // still inside the sim window into the override store, then persist the
+                        // whole store — a hand-made pond survives save/reload like terrain does.
+                        if (waterManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws && ws->getDb()) {
+                                waterManager->captureOverridesInWindow();
+                                ws->setMeta("water_overrides", waterManager->serializeOverrides());
                             }
                         }
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");
