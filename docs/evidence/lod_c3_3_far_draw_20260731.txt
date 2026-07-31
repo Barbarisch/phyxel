@@ -109,7 +109,23 @@ Both runs report the same world state otherwise: Chunks(104), Placed Objects(6),
 So the voxels still exist and the chunks still stream; only the coarse rows are gone, and the
 far geometry goes with them. The rendered pixels are sourced from the persisted pyramid.
 
-(The DB was restored from a copy taken before the delete; lod rows back to 25.)
+*** CORRECTION -- THE RESTORE FAILED, AND MY FIRST WRITE-UP OF IT WAS WRONG. ***
+This file originally said "the DB was restored from a copy taken before the delete; lod rows back
+to 25." That is FALSE and is corrected here rather than silently edited.
+
+I backed the world up with a plain file copy of default.db. SQLite was in WAL mode, so the
+committed rows lived in the -wal sidecar, which I did not copy. Both default.db and the .withlod
+"backup" are 8192 bytes containing ZERO tables. The FarLodTest world DB is therefore EMPTY, and
+the backup never held anything.
+
+This does NOT affect the falsification result above: both runs happened before the restore
+attempt, and their screenshots, far_chunks/far_instances counters and row counts are archived.
+It DOES mean the fixture must be rebuilt before anyone re-runs this test: boot FarLodTest, place
+the 5 rooms via POST /api/structure/build, save, and confirm chunk_lod_blobs is non-empty.
+
+LESSON, since this will bite again: NEVER back up or inspect a live SQLite world by copying the
+.db alone. Copy .db + -wal + -shm together, or checkpoint first (PRAGMA wal_checkpoint(TRUNCATE))
+with the engine stopped. A .db copied without its WAL can look valid and contain nothing.
 
 NOTE ON THE FPS DIFFERENCE, so nobody reads it as a regression: 555 with geometry vs 639 with an
 empty sky is the cost of actually DRAWING 4876 instances, not scan overhead. It is also the first
