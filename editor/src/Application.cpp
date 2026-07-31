@@ -11718,6 +11718,53 @@ void Application::registerWaterCommands() {
                            "(perched hillside lakes). Set game.json water.seaLevel to a level "
                            "the terrain reaches, then regenerate the world.";
     });
+    // Water BODY table (tangible-water Phase A): every labeled body with class/area/level/volume
+    // + world-space bbox. THE scouting tool for finding a scoopable pond or checking what class a
+    // body resolved to. Optional filters: {"class":"pond|lake|ocean", "max": N}.
+    reg.on("water_bodies", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        const WaterBodyIndex* wb = g ? g->waterBodies() : nullptr;
+        if (!wb) {
+            r = {{"error", "no water body index"},
+                 {"detail", "bodies are labeled with the hydrology bake (height-based streamed "
+                            "worlds only)"}};
+            return;
+        }
+        const std::string clsFilter = cmd.params.value("class", "");
+        const size_t maxOut = static_cast<size_t>(cmd.params.value("max", 50));
+        auto clsName = [](WaterBodyIndex::Class c) {
+            switch (c) {
+                case WaterBodyIndex::Class::Ocean: return "ocean";
+                case WaterBodyIndex::Class::Lake:  return "lake";
+                default:                           return "pond";
+            }
+        };
+        const HydrologyMap* h = g->hydrology();
+        const float ox = h->originX(), oz = h->originZ(), cs = h->cellSize();
+        int oceans = 0, lakes = 0, ponds = 0;
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& b : wb->bodies()) {
+            switch (b.cls) {
+                case WaterBodyIndex::Class::Ocean: ++oceans; break;
+                case WaterBodyIndex::Class::Lake:  ++lakes;  break;
+                default:                           ++ponds;  break;
+            }
+            if (!clsFilter.empty() && clsFilter != clsName(b.cls)) continue;
+            if (list.size() >= maxOut) continue;
+            list.push_back({{"id", b.id},
+                            {"class", clsName(b.cls)},
+                            {"area_cells", b.areaCells},
+                            {"level", b.level},
+                            {"volume_est", b.volumeEst},
+                            {"bbox_world", {{"min_x", ox + b.bboxMin.x * cs},
+                                            {"min_z", oz + b.bboxMin.y * cs},
+                                            {"max_x", ox + (b.bboxMax.x + 1) * cs},
+                                            {"max_z", oz + (b.bboxMax.y + 1) * cs}}}});
+        }
+        r = {{"total", wb->bodies().size()},
+             {"oceans", oceans}, {"lakes", lakes}, {"ponds", ponds},
+             {"bodies", list}};
+    });
 
     // Ripple/disturbance injection (small-scale plan Phase 3) — the entity-independent L4 hook:
     // poke the field at a world point and watch the ring, no character needed.

@@ -9,6 +9,7 @@
 
 #include "core/CoarseWorldModel.h"
 #include "core/FlowField.h"
+#include "core/WaterBodyIndex.h"
 #include "core/Spline.h"
 #include "core/WorldConstants.h"
 
@@ -183,8 +184,11 @@ public:
     // Baked hydrology backings (docs/TerrainGenerationV2.md §P2), for the water runtime + tests.
     // Null for Flat / non-height-based types (nothing baked). Owned by the generator; the pointers
     // are valid until the next rebuild (ctor / applyRecipe).
-    const FlowField*    riverNetwork() const { return m_flow.get(); }
-    const HydrologyMap* hydrology()    const { return m_hydro.get(); }
+    const FlowField*      riverNetwork() const { return m_flow.get(); }
+    const HydrologyMap*   hydrology()    const { return m_hydro.get(); }
+    // Water BODY identity over the bake (tangible-water Phase A): which body a wet column belongs
+    // to and what kind (OCEAN/LAKE infinite; POND finite/scoopable). Null when nothing is baked.
+    const WaterBodyIndex* waterBodies()  const { return m_waterBodies.get(); }
 
     // THE channel line, as the terrain actually carves it (water-as-terrain-stage P2): channelAt
     // through the SAME meander warp sampleColumn uses for the carve, valley, swale, and bed shelf.
@@ -270,8 +274,9 @@ private:
     // shared_ptr with a PURE source, so the streaming worker's generator copy shares them safely
     // (like m_coarse). Columns outside the baked region get no water/rivers (infinite-world
     // partitioning is P5). Null for Flat / non-height-based types.
-    std::shared_ptr<HydrologyMap> m_hydro;
-    std::shared_ptr<FlowField>    m_flow;
+    std::shared_ptr<HydrologyMap>   m_hydro;
+    std::shared_ptr<FlowField>      m_flow;
+    std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
 
     // The continentalness → base-elevation shaping spline (docs/TerrainGenerationV2.md §2a): the
     // "how tall" art-direction curve, decoupled from the "how mountainous" noise. Default is a

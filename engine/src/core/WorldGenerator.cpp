@@ -269,7 +269,11 @@ struct HydroBakeKey {
         return true;
     }
 };
-struct HydroBake { std::shared_ptr<HydrologyMap> hydro; std::shared_ptr<FlowField> flow; };
+struct HydroBake {
+    std::shared_ptr<HydrologyMap> hydro;
+    std::shared_ptr<FlowField> flow;
+    std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
+};
 std::mutex g_hydroCacheMutex;
 std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
 constexpr size_t kHydroCacheCap = 64;
@@ -297,6 +301,7 @@ void WorldGenerator::rebuildCoarseModel() {
                                                       m_mapSource->blocksPerPixel);
         m_hydro.reset();
         m_flow.reset();
+        m_waterBodies.reset();
         return;
     }
 
@@ -331,6 +336,7 @@ void WorldGenerator::rebuildCoarseModel() {
     if (!isHeightBased() || generationType == GenerationType::Flat) {
         m_hydro.reset();
         m_flow.reset();
+        m_waterBodies.reset();
         return;
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
@@ -340,7 +346,12 @@ void WorldGenerator::rebuildCoarseModel() {
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
-            if (e.first == key) { m_hydro = e.second.hydro; m_flow = e.second.flow; return; }
+            if (e.first == key) {
+                m_hydro = e.second.hydro;
+                m_flow = e.second.flow;
+                m_waterBodies = e.second.bodies;
+                return;
+            }
     }
     // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
     // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
@@ -362,6 +373,11 @@ void WorldGenerator::rebuildCoarseModel() {
                                              kHydroCells, kHydroCells, kHydroCell, seaLvl);
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
                                           kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
+    // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
+    // the flood's height function, which is not retained anywhere after this scope.
+    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, heightAt);
+    LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
+             << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
              << " cells, seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
              << " maxOrder=" << m_flow->maxOrder()
@@ -382,7 +398,7 @@ void WorldGenerator::rebuildCoarseModel() {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
             if (e.first == key) return;  // someone else inserted it; ours is identical, drop it
-        g_hydroCache.push_back({key, {m_hydro, m_flow}});
+        g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
         if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
     }
 }

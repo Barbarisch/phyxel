@@ -1707,6 +1707,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_footprint",      waterEndpoint("water_footprint"));
     srv.Post("/api/debug/water_bake_info",      waterEndpoint("water_bake_info"));
     srv.Post("/api/debug/water_ripple",         waterEndpoint("water_ripple"));
+    srv.Post("/api/debug/water_bodies",         waterEndpoint("water_bodies"));  // tangible-water A
 
     // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region
