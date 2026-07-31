@@ -366,33 +366,18 @@ float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
     const float BAND = 0.35f;
 
     if (m_waterManager) {
-        const glm::ivec3 o = m_waterManager->origin();
-        const glm::ivec3 d = m_waterManager->dims();
-        const bool inRegion = eye.x >= o.x && eye.x < o.x + d.x &&
-                              eye.y >= o.y && eye.y < o.y + d.y &&
-                              eye.z >= o.z && eye.z < o.z + d.z;
-        if (inRegion) {
-            // Fill fraction matters: a cell holding 0.4 mass has its surface 0.4 of the way up, so
-            // the eye is only submerged below that height.
-            const float here = m_waterManager->massAtWorld(eye);
-            if (here <= 0.0f) return 0.0f;
-            const float cellFloor = std::floor(eye.y);
-            depthBelow = std::max(0.0f, (cellFloor + std::min(here, 1.0f)) - eye.y);
-            // If this cell is full there may be more water stacked above; the true depth drives how
-            // dark/blue the fog gets, so walk up while the column stays wet.
-            if (here >= 0.999f) {
-                for (float y = cellFloor + 1.0f; y < static_cast<float>(o.y + d.y); y += 1.0f) {
-                    const float m = m_waterManager->massAtWorld(glm::vec3(eye.x, y + 0.5f, eye.z));
-                    if (m <= 0.0f) break;
-                    depthBelow = (y + std::min(m, 1.0f)) - eye.y;
-                    if (m < 0.999f) break;
-                }
-            }
-            return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
-        }
+        // The submergence walk moved to WaterManager::sampleWater (small-scale Phase 4.1) so the
+        // camera fog, buoyancy and wading all read the SAME facts. Two deliberate upgrades over
+        // the old inline walk: sub-voxel floors raise the surface correctly, and outside the sim
+        // region a bound baked table answers per-body levels (the old code jumped straight to the
+        // flat sea level, wrong over an inland lake). The manager's implicit-sea flag mirrors
+        // m_waterEnabled (wired at world load).
+        const Core::WaterManager::WaterSample s = m_waterManager->sampleWater(eye);
+        depthBelow = s.depthBelow;
+        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
     }
 
-    if (m_waterEnabled) {   // implicit ocean outside the sim region
+    if (m_waterEnabled) {   // implicit ocean when no manager exists at all
         depthBelow = m_seaLevel - eye.y;
         if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
         return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);

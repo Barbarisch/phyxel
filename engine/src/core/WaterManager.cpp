@@ -675,6 +675,64 @@ float WaterManager::massAtWorld(const glm::vec3& worldPos) const {
     return m_sim.massAt(lx, ly, lz);
 }
 
+WaterManager::WaterSample WaterManager::sampleWater(const glm::vec3& worldPos) const {
+    WaterSample s;
+    int lx, ly, lz;
+    if (worldToLocal(worldPos, lx, ly, lz)) {
+        // Inside the region: the SIM is authoritative — including "dry" (a sealed sub-sea cavity
+        // must not read wet just because it sits below sea level; connectivity decided that).
+        const float m = m_sim.massAt(lx, ly, lz);
+        if (m <= 0.0f) return s;
+        // Surface of THIS cell, floor-aware: water rests ON a sub-voxel platform, so its surface
+        // is floor + fill·(1−floor) up the cell (same formula the renderer uses).
+        const float cellBase = static_cast<float>(m_origin.y + ly);
+        const float f = m_sim.floorAt(lx, ly, lz);
+        float surface = cellBase + f + std::min(m, 1.0f) * (1.0f - f);
+        // A full cell may carry more water stacked above — walk up while the column stays wet so
+        // depth reflects the whole body, not one cell.
+        if (m >= 0.999f) {
+            for (int y = ly + 1; y < m_dims.y; ++y) {
+                const float above = m_sim.massAt(lx, y, lz);
+                if (above <= 0.0f) break;
+                surface = static_cast<float>(m_origin.y + y) + std::min(above, 1.0f);
+                if (above < 0.999f) break;
+            }
+        }
+        s.surfaceY = surface;
+        s.depthBelow = std::max(0.0f, surface - worldPos.y);
+        s.inWater = s.depthBelow > 0.0f;
+        const glm::vec2 fl = m_sim.flowAt(lx, ly, lz);
+        s.flow = fl;
+        return s;
+    }
+    // Outside the region: the baked table knows every body's level; else the implicit sea.
+    float level = TABLE_DRY;
+    if (m_tableFn) level = m_tableFn(worldPos.x, worldPos.z);
+    else if (m_implicitSea) level = m_seaLevel;
+    if (level > TABLE_DRY && worldPos.y < level) {
+        s.inWater = true;
+        s.surfaceY = level;
+        s.depthBelow = level - worldPos.y;
+    }
+    return s;
+}
+
+float WaterManager::submergedFraction(const glm::vec3& aabbMin, const glm::vec3& aabbMax) const {
+    const float height = std::max(aabbMax.y - aabbMin.y, 1e-4f);
+    const glm::vec2 c(0.5f * (aabbMin.x + aabbMax.x), 0.5f * (aabbMin.z + aabbMax.z));
+    const glm::vec2 corners[5] = {
+        c, {aabbMin.x, aabbMin.z}, {aabbMax.x, aabbMin.z}, {aabbMin.x, aabbMax.z}, {aabbMax.x, aabbMax.z}};
+    float sum = 0.0f;
+    for (const glm::vec2& p : corners) {
+        // Sample just above the box floor so the column lookup lands inside the body the box
+        // stands in (sampling at aabbMin.y exactly can hit the solid below).
+        const WaterSample s = sampleWater(glm::vec3(p.x, aabbMin.y + 0.05f, p.y));
+        if (s.inWater)
+            sum += glm::clamp((s.surfaceY - aabbMin.y) / height, 0.0f, 1.0f);
+    }
+    return sum / 5.0f;
+}
+
 // ---- GPU backend ----
 
 void WaterManager::enableGpu(Vulkan::VulkanDevice* device) {

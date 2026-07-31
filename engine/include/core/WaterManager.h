@@ -63,6 +63,32 @@ public:
     void  placeWater(const glm::vec3& worldPos, float amount);
     float massAtWorld(const glm::vec3& worldPos) const;
 
+    // ── Entity-facing water query (small-scale plan Phase 4.1) ────────────────────────────────
+    // THE gameplay/physics surface for "am I in water, how deep, which way is it moving" —
+    // generalized from the camera's submergence walk so every consumer (fog, buoyancy, wading,
+    // splash detection) reads the same facts. Inside the sim region the SIM is authoritative
+    // (fill-fraction + sub-voxel-floor aware, connectivity-honest: a sealed dry cavity reads
+    // dry); outside it falls back to the baked table when bound, else the implicit sea level
+    // when the world has water enabled (setImplicitSea), else dry.
+    struct WaterSample {
+        bool  inWater = false;    // the queried point sits below a water surface
+        float surfaceY = 0.0f;    // world Y of that surface (valid only when inWater)
+        float depthBelow = 0.0f;  // metres/voxels of water above the point (0 when dry)
+        glm::vec2 flow{0.0f};     // horizontal flow at the point's cell (sim-only; 0 elsewhere)
+    };
+    WaterSample sampleWater(const glm::vec3& worldPos) const;
+
+    // Fraction of an AABB below the local water surface, for buoyancy/drag. Samples the surface
+    // at the footprint's centre + 4 corners and averages the per-column submerged fractions —
+    // cheap, monotone, and exact for a flat surface over a uniform column.
+    float submergedFraction(const glm::vec3& aabbMin, const glm::vec3& aabbMax) const;
+
+    // Whether an implicit flat sea at seaLevel() exists OUTSIDE the region/table (game.json
+    // water.enabled). Off = out-of-region points with no baked table read dry, so a waterless
+    // world never reports phantom submersion at y < 16.
+    void setImplicitSea(bool on) { m_implicitSea = on; }
+    bool implicitSea() const { return m_implicitSea; }
+
     // Update one cell's solid state (world coords) — wired to voxel break/place so
     // water flows into newly-removed cells on the next step. Cheap; ignores cells
     // outside the region.
@@ -257,6 +283,7 @@ private:
     std::function<glm::vec2(float, float)> m_riverDirFn; // baked downhill dir (V3 P3); null = none
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
+    bool                    m_implicitSea = false;   // implicit flat sea outside region/table (4.1)
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     struct Spring { glm::ivec3 cell; float mass; };

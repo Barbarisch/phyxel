@@ -402,6 +402,88 @@ TEST(WaterManagerTest, CreekPinIsFractionalAndConfined) {
 // River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
 // neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
 // region floor wherever chunks haven't streamed in yet.
+// ── sampleWater / submergedFraction (small-scale plan Phase 4.1) ──────────────────────────────
+// The entity-facing water query: fill-fraction + floor aware inside the region, table/implicit-
+// sea fallback outside, honest about dry. This is the foundation buoyancy/wading/fog build on.
+
+TEST(WaterManagerTest, SampleWaterReadsFractionalFillAndStackedColumns) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 12, 16));
+    for (int z = 0; z < 16; ++z)
+        for (int x = 0; x < 16; ++x) wm.setSolidWorld(x, 0, z, true);
+    // Walled 2x2 pool holding a 2.4-deep body: y1 full, y2 full, y3 at 0.4.
+    for (int y = 1; y < 8; ++y)
+        for (int i = 3; i <= 6; ++i) {
+            wm.setSolidWorld(i, y, 3, true); wm.setSolidWorld(i, y, 6, true);
+            wm.setSolidWorld(3, y, i, true); wm.setSolidWorld(6, y, i, true);
+        }
+    wm.placeWater(glm::vec3(4.5f, 2.5f, 4.5f), 9.6f);   // 9.6 over the 4 interior columns → 2.4 each
+    for (int i = 0; i < 400; ++i) wm.update(0.2f);
+
+    // Fractional top cell: surface at ~3.4; probe inside the top cell.
+    const auto top = wm.sampleWater(glm::vec3(4.5f, 3.1f, 4.5f));
+    EXPECT_TRUE(top.inWater);
+    EXPECT_NEAR(top.surfaceY, 3.4f, 0.1f);
+    EXPECT_NEAR(top.depthBelow, 0.3f, 0.1f);
+    // Deep probe in the full bottom cell: the walk must climb the stack to the same surface.
+    const auto deep = wm.sampleWater(glm::vec3(4.5f, 1.2f, 4.5f));
+    EXPECT_TRUE(deep.inWater);
+    EXPECT_NEAR(deep.surfaceY, 3.4f, 0.1f);
+    EXPECT_NEAR(deep.depthBelow, 2.2f, 0.15f);
+    // Dry point just above the surface, and dry land outside the pool.
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(4.5f, 3.6f, 4.5f)).inWater);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(10.5f, 1.5f, 10.5f)).inWater);
+}
+
+TEST(WaterManagerTest, SampleWaterRespectsSubVoxelFloors) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    for (int z = 0; z < 8; ++z)
+        for (int x = 0; x < 8; ++x) wm.setSolidWorld(x, 0, z, true);
+    for (int y = 1; y < 5; ++y)     // walls around one cell so the film can't creep
+        for (int i = 2; i <= 5; ++i) {
+            wm.setSolidWorld(i, y, 2, true); wm.setSolidWorld(i, y, 5, true);
+            wm.setSolidWorld(2, y, i, true); wm.setSolidWorld(5, y, i, true);
+        }
+    wm.setFloorWorld(3, 1, 3, 1.0f / 3.0f);            // a subcube step under the water
+    wm.placeWater(glm::vec3(3.5f, 1.8f, 3.5f), 0.3f);  // resting film ON the step
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+
+    // Surface = floor + fill·(1−floor) = 1/3 + 0.3·(2/3) = 0.533 up the cell.
+    const auto s = wm.sampleWater(glm::vec3(3.5f, 1.4f, 3.5f));
+    EXPECT_TRUE(s.inWater);
+    EXPECT_NEAR(s.surfaceY, 1.0f + (1.0f / 3.0f) + 0.3f * (2.0f / 3.0f), 0.05f);
+}
+
+TEST(WaterManagerTest, SampleWaterFallsBackToTableThenImplicitSeaOutsideRegion) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    // No table, implicit sea OFF: a far point below sea level must read DRY (waterless world).
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f)).inWater);
+    // Implicit sea ON: below-sea far points submerge to the scalar level.
+    wm.setSeaLevel(20.0f);
+    wm.setImplicitSea(true);
+    const auto sea = wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f));
+    EXPECT_TRUE(sea.inWater);
+    EXPECT_FLOAT_EQ(sea.surfaceY, 20.0f);
+    EXPECT_FLOAT_EQ(sea.depthBelow, 15.0f);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(500.0f, 25.0f, 500.0f)).inWater);
+    // A bound baked table supersedes the scalar: per-column levels answer far queries.
+    wm.setWaterTable([](float wx, float) { return wx > 400.0f ? 60.0f : -1e30f; });
+    const auto lake = wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f));
+    EXPECT_TRUE(lake.inWater);
+    EXPECT_FLOAT_EQ(lake.surfaceY, 60.0f);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(100.0f, 5.0f, 100.0f)).inWater)
+        << "table says dry → dry, even below the scalar sea level";
+}
+
+TEST(WaterManagerTest, SubmergedFractionScalesWithImmersion) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    wm.setSeaLevel(20.0f);
+    wm.setImplicitSea(true);
+    // Out-of-region unit boxes against the flat sea: fully under, half under, dry.
+    EXPECT_NEAR(wm.submergedFraction(glm::vec3(500, 10, 500), glm::vec3(501, 11, 501)), 1.0f, 1e-4f);
+    EXPECT_NEAR(wm.submergedFraction(glm::vec3(500, 19.5f, 500), glm::vec3(501, 20.5f, 501)), 0.5f, 1e-4f);
+    EXPECT_FLOAT_EQ(wm.submergedFraction(glm::vec3(500, 30, 500), glm::vec3(501, 31, 501)), 0.0f);
+}
+
 TEST(WaterManagerTest, RiverColumnsWithoutLoadedTerrainAreSkipped) {
     WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
     wm.setRiverQuery([](float, float) { return 1.0f; });   // "river everywhere" — but no terrain

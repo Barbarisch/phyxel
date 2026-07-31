@@ -5649,7 +5649,12 @@ void Application::autoLoadGameDefinition() {
                 renderCoordinator->setWaterEnabled(water.value("enabled", false));
                 renderCoordinator->setSeaLevel(seaLevel);
             }
-            if (waterManager) waterManager->setSeaLevel(seaLevel);
+            if (waterManager) {
+                waterManager->setSeaLevel(seaLevel);
+                // Entity/camera water queries fall back to an implicit flat sea OUTSIDE the sim
+                // region only when this world actually has water (small-scale Phase 4.1).
+                waterManager->setImplicitSea(water.value("enabled", false));
+            }
         }
 
         // Combat ruleset is locked per-game (see docs/TurnBasedCombat.md). Read
