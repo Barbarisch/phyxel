@@ -1,0 +1,40 @@
+THE ZOOM-OUT VIEW — FAR TERRAIN AND FAR LOD COMPOSED IN ONE FRAME
+Date 2026-07-31. Release. World: PhyxelProjects/FarLodTest (rebuilt fixture).
+
+This is the case the whole C3 phase was for, and the one thing never previously tested: the two
+far-field systems running TOGETHER. They cover different things and neither is sufficient alone --
+FarTerrainManager knows only GENERATOR terrain (it structurally cannot show a building), and the
+C3 pyramid is only written for EDITED/structure chunks (streaming worlds never save plain
+generated terrain, so there is no pyramid for it). The mid-field gap C3 was created to close only
+actually closes if both draw at once, without seams or double-draw.
+
+FIXTURE (rebuilt after the WAL mishap destroyed the previous one): streaming Perlin seed 424243,
+loadRadius 3 / unloadRadius 4, render distance 2048. Eight rooms placed by the ENGINE's structure
+generator via POST /api/structure/build ("placed":212 each) at (0,0) (48,0) (0,48) (48,48)
+(-48,0) (0,-48) (96,0) (0,96) -- NOT hand-placed voxels. Saved; DB then holds 35 LOD rows over
+7 chunks.
+
+MEASURED, camera (330,260,330) yaw -135 pitch -30 read back from GET /api/camera:
+    far terrain : far_tiles_drawn 41, far_tiles_resident 142
+    far LOD     : far_chunks 7, far_instances 7122
+    resident    : Chunks(110)      structures: Placed Objects(8) / structure(8)
+    FPS 409
+    screenshots/screenshot_20260731_180143_562.png
+
+The frame shows terrain running to the horizon (far terrain) with the eight structures standing
+in the mid-field (far LOD). The structure chunks are NOT resident -- they are drawn from
+chunk_lod_blobs, which the falsification test earlier in this file proved by deleting the rows
+and watching that geometry vanish while the terrain stayed.
+
+WHAT THIS DOES AND DOES NOT SHOW
+  * It shows both systems drawing simultaneously in one frame at 409 FPS, which is the composed
+    behaviour that was never verified before.
+  * It does NOT show a seam analysis. Nobody has checked the boundary where far-terrain tiles
+    meet resident chunks meet far-LOD chunks for cracks, z-fighting or double-draw. The eviction
+    rule (a far chunk is dropped the moment it becomes resident) exists precisely to prevent
+    double-draw, but it has not been visually verified at the boundary.
+  * FPS 409 is a single sample on a counter this project documents at +/-20% restart variance.
+    It is evidence that the composed path is not catastrophic, not a performance measurement.
+  * Coverage still depends on kMaxFarReach = 12 chunks. All 7 pyramids happen to fall inside it
+    at this pose. A farther camera silently drops chunks -- see the 5 -> 1 regression recorded
+    earlier in this file. Replacing the volume scan with a storage query removes that cap.
