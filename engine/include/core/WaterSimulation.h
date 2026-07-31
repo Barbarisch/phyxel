@@ -153,6 +153,22 @@ public:
     bool                        evaporationOn() const { return m_evaporate; }
     int                         cellCount()   const { return m_sx * m_sy * m_sz; }
 
+    // ── MIN_HOLD donor gate (small-scale plan Phase 1) ────────────────────────────────────────
+    // Minimum working mass a cell must exceed to make HORIZONTAL transfers. Below it, water
+    // rests: films, puddles and fractional creek pins stop creeping sideways forever (the
+    // missing term that made the 496cdc10 creek fix sheet across a hillside, and made every
+    // placed puddle spread thin and evaporate). Gravity and upward pressure are NOT gated —
+    // thin water still falls and columns still equalize vertically. Deep bodies are unaffected:
+    // once leveling raises every cell above the hold, equalization proceeds exactly as before
+    // (a body only stalls when its mass over the reachable area is at or below the hold).
+    // NOTE v1 simplification: the hold tests MASS, not effective depth `fill·(1−floor)` —
+    // a floored cell holds slightly more than a bare one before it flows.
+    // Kept ABOVE EVAP_THRESHOLD so a resting puddle survives evaporation (films below the
+    // threshold still dry; the pool itself persists).
+    static constexpr float MIN_HOLD_DEFAULT = 0.3f;
+    void  setMinHold(float depth);   // wakes the field (a lower hold can release held water)
+    float minHold() const { return m_minHold; }
+
     // Evaporation sink: when enabled, cells thinner than EVAP_THRESHOLD lose mass each
     // step. This bounds free flow (a source/spill spreads, thins at the frontier, and
     // the thin edge evaporates → finite extent) and dries up thin films, while deep
@@ -237,6 +253,7 @@ private:
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
     float                m_momentum   = 1.0f;  // Phase 4 inertia strength (0 = pure diffusion)
+    float                m_minHold    = MIN_HOLD_DEFAULT; // horizontal-flow depth gate (Phase 1)
     bool                 m_settled    = false; // last step moved no mass → skip until disturbed
     unsigned long long   m_sweepsRun  = 0;     // steps that ran the full sweep (observability)
 };

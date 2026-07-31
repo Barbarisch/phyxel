@@ -465,8 +465,16 @@ TEST(WaterSimulation, DisconnectedPitStaysDryThenFloodsAfterBreach) {
     EXPECT_GE(sim.minMass(), -1e-5f);
 }
 
-// With evaporation on, a thin spill on flat ground dries up (bounds free spread).
-TEST(WaterSimulation, ThinSpillEvaporates) {
+// ⚠ SPEC CHANGE (small-scale plan Phase 1, MIN_HOLD): this test used to assert the OPPOSITE —
+// that a 3.0 spill on open flat ground spreads thin and evaporates to (almost) nothing
+// (EXPECT_LT(totalMass, 1.0)). That behaviour was the defect: shallow water could not EXIST —
+// anything below one voxel sheeted outward (no minimum-depth-to-flow) and evaporation then
+// deleted the films, which is why a placed puddle vanished in ~2 s (measured live, CreekLab
+// 2026-07-30). With the MIN_HOLD donor gate a spill comes to rest as a BOUNDED PERSISTENT
+// puddle: cells at or below the hold stop donating, so the pool stops spreading while it is
+// still deep enough (>= EVAP_THRESHOLD) to survive. Evaporation's job narrows to drying the
+// sub-threshold frontier films.
+TEST(WaterSimulation, SpillSettlesIntoBoundedPersistentPuddle) {
     WaterSimulation sim(15, 4, 15);
     addFloor(sim);
     sim.setEvaporation(true);
@@ -474,9 +482,131 @@ TEST(WaterSimulation, ThinSpillEvaporates) {
 
     for (int i = 0; i < 800; ++i) sim.step();
 
-    // It spread thin and evaporated away rather than dispersing into an endless film.
-    EXPECT_LT(sim.totalMass(), 1.0f);
+    // The puddle PERSISTS (old behaviour: < 1.0 left). Some frontier film loss is fine.
+    EXPECT_GT(sim.totalMass(), 1.5f) << "the spill should rest as a puddle, not evaporate away";
+    // ...and it is BOUNDED: the wet footprint is a pool around the pour point, not a floor-wide
+    // film. 3.0 mass at ~MIN_HOLD depth covers ~mass/minHold columns; allow generous slack.
+    int wetCols = 0;
+    for (int z = 0; z < 15; ++z)
+        for (int x = 0; x < 15; ++x)
+            if (sim.massAt(x, 1, z) > 0.01f) ++wetCols;
+    EXPECT_LE(wetCols, static_cast<int>(3.0f / sim.minHold()) * 3)
+        << "spill spread into a floor-wide film instead of resting as a bounded puddle";
     EXPECT_GE(sim.minMass(), -1e-5f);
+}
+
+// ── MIN_HOLD donor gate (small-scale plan Phase 1) ────────────────────────────────────────────
+// The horizontal rule had no minimum-depth-to-flow: ANY fractional cell beside a drier neighbor
+// donated (remaining − neighbor) · rate forever, so sub-voxel water could not rest — it sheeted
+// outward until evaporation deleted it. That single missing term is why puddles vanished and why
+// the reverted creek fix (496cdc10) flooded a hillside. The gate: a donor at or below MIN_HOLD
+// makes no horizontal transfers. Gravity and pressure are untouched — thin water still falls.
+
+// THE keystone red test: a fractional cell on flat dry ground must simply stay put.
+TEST(WaterSimulation, FractionalCellOnDryFlatGroundHoldsStill) {
+    WaterSimulation sim(11, 4, 11);
+    addFloor(sim);
+    sim.addWater(5, 1, 5, 0.3f);   // exactly MIN_HOLD — a resting film
+
+    for (int i = 0; i < 400; ++i) sim.step();
+
+    EXPECT_NEAR(sim.massAt(5, 1, 5), 0.3f, 1e-4f) << "the film crept out of its cell";
+    for (int z = 0; z < 11; ++z)
+        for (int x = 0; x < 11; ++x)
+            if (x != 5 || z != 5)
+                EXPECT_LT(sim.massAt(x, 1, z), 1e-5f)
+                    << "film leaked to (" << x << "," << z << ")";
+    EXPECT_NEAR(sim.totalMass(), 0.3f, 1e-4f);
+    EXPECT_TRUE(sim.settled()) << "a resting film should reach rest, not churn forever";
+}
+
+// Gravity is deliberately NOT gated: fractional water still falls, then rests where it lands.
+TEST(WaterSimulation, FractionalWaterStillFallsThenHolds) {
+    WaterSimulation sim(5, 8, 5);
+    addFloor(sim);
+    sim.addWater(2, 6, 2, 0.25f);  // sub-hold water dropped in mid-air
+
+    for (int i = 0; i < 200; ++i) sim.step();
+
+    EXPECT_NEAR(sim.massAt(2, 1, 2), 0.25f, 1e-4f) << "water did not fall to the floor and rest";
+    EXPECT_NEAR(sim.totalMass(), 0.25f, 1e-4f);
+}
+
+// A held cell is not a dam: feed it from upstream and it passes water on once above the hold.
+TEST(WaterSimulation, HeldCellReleasesWhenFed) {
+    WaterSimulation sim(7, 4, 1);
+    addFloor(sim);
+    sim.addWater(3, 1, 0, 0.3f);   // a resting film mid-row
+    for (int i = 0; i < 100; ++i) sim.step();
+    ASSERT_NEAR(sim.massAt(3, 1, 0), 0.3f, 1e-4f) << "precondition: the film rests";
+
+    sim.addWater(3, 1, 0, 1.2f);   // upstream feed arrives (total 1.5 — well above the hold)
+    for (int i = 0; i < 400; ++i) sim.step();
+
+    // The fed cell donated to its neighbors — water moved on instead of damming up.
+    EXPECT_GT(sim.massAt(2, 1, 0), 0.05f) << "fed cell dammed the water";
+    EXPECT_GT(sim.massAt(4, 1, 0), 0.05f) << "fed cell dammed the water";
+    EXPECT_NEAR(sim.totalMass(), 1.5f, 1e-3f);
+}
+
+// The gate only REMOVES transfers; every transfer that happens is still a paired -from/+to.
+TEST(WaterSimulation, HoldRuleConservesMassExactly) {
+    WaterSimulation sim(12, 6, 12);
+    addFloor(sim);
+    sim.addWater(2, 1, 2, 0.2f);    // resting film
+    sim.addWater(6, 3, 6, 2.5f);    // deep pour that spreads and stalls at the frontier
+    sim.addWater(9, 1, 9, 0.35f);   // just above the hold — donates a little, then rests
+    const float total = sim.totalMass();
+    for (int i = 0; i < 500; ++i) {
+        sim.step();
+        ASSERT_NEAR(sim.totalMass(), total, 1e-3f) << "hold gate leaked mass at step " << i;
+        ASSERT_GE(sim.minMass(), -1e-6f) << "hold gate drove a cell negative at step " << i;
+    }
+}
+
+// A resting puddle at/above EVAP_THRESHOLD survives evaporation indefinitely — the pairing that
+// makes puddles EXPRESSIBLE: the hold keeps it deep, and evaporation only eats sub-threshold film.
+TEST(WaterSimulation, PuddlePersistsUnderEvaporation) {
+    WaterSimulation sim(9, 4, 9);
+    addFloor(sim);
+    sim.setEvaporation(true);
+    sim.addWater(4, 1, 4, 0.3f);
+
+    for (int i = 0; i < 800; ++i) sim.step();
+
+    EXPECT_NEAR(sim.massAt(4, 1, 4), 0.3f, 1e-4f)
+        << "a resting puddle above EVAP_THRESHOLD must persist";
+    EXPECT_NEAR(sim.totalMass(), 0.3f, 1e-4f);
+}
+
+// Unbounded-spread red case WITHOUT evaporation: the footprint must be bounded by geometry alone.
+TEST(WaterSimulation, SpillFootprintIsBounded) {
+    WaterSimulation sim(31, 5, 31);
+    addFloor(sim);
+    sim.addWater(15, 1, 15, 5.0f);  // evaporation OFF — only the hold bounds this
+
+    int guard = 0;
+    while (!sim.settled() && guard++ < 4000) sim.step();
+    ASSERT_TRUE(sim.settled()) << "spill never came to rest";
+
+    int wetCols = 0;
+    float maxCell = 0.0f;
+    for (int z = 0; z < 31; ++z)
+        for (int x = 0; x < 31; ++x) {
+            const float m = sim.massAt(x, 1, z);
+            maxCell = std::max(maxCell, m);
+            if (m > 0.01f) ++wetCols;
+        }
+    // 5.0 mass resting at ~minHold depth needs ~mass/minHold columns; generous 3x slack. Today
+    // (no gate) it creeps across hundreds of columns — this is the anti-hillside-sheet assertion.
+    EXPECT_LE(wetCols, static_cast<int>(5.0f / sim.minHold()) * 3)
+        << "spill footprint unbounded — the sheeting defect";
+    // ...and the pool must remain VISIBLE water, not a sub-render film. Without the gate the
+    // 5.0 disperses to ~0.005/cell across the whole floor — every cell below RENDER_MIN, so a
+    // naive footprint count reads "bounded" precisely because the water has effectively
+    // vanished. Sheeting hides from a threshold count; this clause catches it.
+    EXPECT_GE(maxCell, 0.1f) << "spill dispersed into an invisible film — the sheeting defect";
+    EXPECT_NEAR(sim.totalMass(), 5.0f, 1e-3f) << "no evaporation: mass must be exact";
 }
 
 // Evaporation spares deep water, so a contained pond persists.
@@ -498,24 +628,40 @@ TEST(WaterSimulation, DeepPondPersistsUnderEvaporation) {
     EXPECT_GT(sim.massAt(1, 1, 1), 0.9f); // floor of the pond stays full
 }
 
-// A spring (continuous source) on flat ground, bounded by evaporation, settles to a
-// persistent puddle — it neither dries up nor grows without bound.
+// ⚠ SPEC CHANGE (small-scale plan Phase 1, MIN_HOLD): pre-gate, a spring's outflow spread as an
+// ever-thinning film whose sub-0.1 frontier evaporated as fast as it arrived — a wide, nearly
+// invisible wet smear. With the hold, spilled water rests at visible depth, so a spring builds a
+// COMPACT POND. The rim (still sub-0.1) is the evaporation sink; capacity grows with the
+// perimeter until it matches the pour, so the pond radius scales with the source's level above
+// the hold: drive = pin − MIN_HOLD. A full-mass point source's natural pond (~17 cells) dwarfs
+// this box, so this test uses a 0.5 spring (drive 0.2 → radius ~5) — the mechanism, at a size
+// the box can bound. Line sources (rivers) are NOT rim-bounded — they fill their basin to spill;
+// that geometric bound is pinned by WaterManagerTest.RiverWithEvaporation... instead.
 TEST(WaterSimulation, SpringReachesBoundedSteadyState) {
     WaterSimulation sim(15, 4, 15);
     addFloor(sim);
     sim.setEvaporation(true);
-    sim.setSource(7, 1, 7, WaterSimulation::MAX_MASS); // the spring
+    sim.setSource(7, 1, 7, 0.5f); // a gentle spring: drive above the hold = 0.5 − 0.3 = 0.2
 
-    for (int i = 0; i < 400; ++i) sim.step();
-    float t1 = sim.totalMass();
-    for (int i = 0; i < 400; ++i) sim.step();
-    float t2 = sim.totalMass();
+    for (int i = 0; i < 1200; ++i) sim.step();
+    const float t1 = sim.totalMass();
+    for (int i = 0; i < 1200; ++i) sim.step();
+    const float t2 = sim.totalMass();
+    for (int i = 0; i < 1200; ++i) sim.step();
+    const float t3 = sim.totalMass();
 
-    EXPECT_GT(t2, 0.5f);                    // a persistent puddle exists
-    EXPECT_LT(std::abs(t2 - t1), 1.0f);     // steady, not growing unbounded
-    // The spring cell is re-pinned full each step but flows out during it, so it reads
-    // partial after a step — what matters is the spring area stays wet (continuously fed).
-    EXPECT_GT(sim.massAt(7, 1, 7), 0.3f);
+    EXPECT_GT(t3, 0.5f);                        // a persistent pond exists
+    const float g1 = t2 - t1, g2 = t3 - t2;
+    EXPECT_LT(g2, std::max(0.25f, g1 * 0.6f))   // growth is decaying toward steady state
+        << "spring pond growth is not converging (windows " << g1 << " then " << g2 << ")";
+    // Compact pond, not a floor-wide flood: the rim-evaporation bound engages inside the box.
+    int wetCols = 0;
+    for (int z = 0; z < 15; ++z)
+        for (int x = 0; x < 15; ++x)
+            if (sim.massAt(x, 1, z) > 0.1f) ++wetCols;
+    EXPECT_LE(wetCols, 150) << "spring flooded the whole floor instead of pooling";
+    // The spring cell is re-pinned each step but flows out during it — it must stay wet.
+    EXPECT_GT(sim.massAt(7, 1, 7), 0.25f);
 }
 
 // Channel cells are exempt from evaporation: thin water on a channel persists while the

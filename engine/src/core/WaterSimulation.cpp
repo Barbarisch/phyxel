@@ -35,6 +35,13 @@ float WaterSimulation::floorAt(int x, int y, int z) const {
     return m_floor[idx(x, y, z)];
 }
 
+void WaterSimulation::setMinHold(float depth) {
+    m_minHold = std::max(0.0f, depth);
+    // A changed hold can release water that was resting (or hold water that was flowing) —
+    // the settled flag and per-column clean state no longer reflect reality.
+    wake();
+}
+
 void WaterSimulation::setMomentum(float strength) {
     strength = std::max(0.0f, strength);
     if (m_momentum == strength) return;
@@ -372,7 +379,17 @@ void WaterSimulation::step(float flowSide) {
         }
         const float mramp = std::min(mspeed / FLOW_FULL, 1.0f) * m_momentum;
 
-        for (int k = 0; k < 4 && remaining > 0.0f; ++k) {
+        // MIN_HOLD donor gate (small-scale plan Phase 1): a donor at or below the hold makes no
+        // horizontal transfers, so films/puddles/fractional pins REST instead of creeping
+        // sideways forever (the sheeting that flooded a hillside in the reverted creek fix and
+        // deleted every placed puddle via spread-then-evaporate). Donor-local and a pure function
+        // of the snapshot working mass: it only REMOVES transfers, so mass conservation, active-set
+        // equivalence (full sweep computes the identical gate) and settling are unaffected. Deep
+        // bodies still level exactly — leveling raises every cell above the hold, and equalization
+        // then proceeds as before; only a body whose mass over its reachable area is at or below
+        // the hold stalls (which is the point). Gravity above and pressure below are NOT gated.
+        // m_minHold = 0 restores the old behavior exactly.
+        for (int k = 0; k < 4 && remaining > m_minHold; ++k) {
             int nx = x + HX[k], nz = z + HZ[k];
             if (!inBounds(nx, y, nz) || m_solid[idx(nx, y, nz)]) continue;
             const size_t n = idx(nx, y, nz);

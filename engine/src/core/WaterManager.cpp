@@ -654,6 +654,12 @@ float WaterManager::massAtWorld(const glm::vec3& worldPos) const {
 
 void WaterManager::enableGpu(Vulkan::VulkanDevice* device) {
     if (m_gpuReady || !device) return;
+    // Parity gap, stated loudly: water_flow.comp implements only the base gravity/level/pressure
+    // rules — it has NO momentum bias, NO flow proxy, NO sub-voxel floors, and NO MIN_HOLD donor
+    // gate. On the GPU path shallow water sheets and creek pins would spread (the exact defects
+    // the CPU rules fix). Fine for perf experiments; not behaviorally equivalent.
+    LOG_WARN("WaterManager", "GPU water backend enabled: compute step lacks momentum/flow-proxy/"
+             "sub-voxel floors/MIN_HOLD — shallow-water behavior differs from the CPU step");
     m_vk = device;
     VkDevice dev = device->getDevice();
     VkPhysicalDevice phys = device->getPhysicalDevice();

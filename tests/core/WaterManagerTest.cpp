@@ -318,16 +318,27 @@ TEST(WaterManagerTest, RiverWithEvaporationReachesBoundedSteadyStateWithWetBed) 
     EXPECT_GT(growthWithout, 5.0f)
         << "expected the untuned river to keep growing through the breach (rising-pool defect)";
 
-    // Half 2 (the tuning): evaporation on → the pour bounds, the ribbon stays full.
+    // Half 2: the pour is BOUNDED — post-MIN_HOLD, by GEOMETRY rather than evaporation.
+    // ⚠ SPEC CHANGE (small-scale plan Phase 1): pre-gate, the breach pour spread as a thin film
+    // whose sub-0.1 frontier evaporated on arrival — "evaporation bounds off-channel spill"
+    // held within ~400 steps. With the hold, spilled water rests at visible depth, and a LINE
+    // source is not rim-bounded (rim capacity doesn't grow with extent), so a breach now does
+    // the physical thing: it FILLS the downhill shelves toward their spill/pin level and then
+    // STOPS. The guarantee worth pinning is that a true steady state exists — growth decays to
+    // ~zero once the containment fills — plus the unchanged ribbon/bank assertions below.
     WaterManager with(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
     build(with);
     with.setEvaporation(true);
-    for (int i = 0; i < 100; ++i) with.update(0.2f);
-    const float m2 = with.totalMass();
-    for (int i = 0; i < 100; ++i) with.update(0.2f);
-    const float growthWith = with.totalMass() - m2;
-    EXPECT_LT(std::abs(growthWith), std::max(1.0f, growthWithout * 0.2f))
-        << "evaporation did not bound the breach pour";
+    float lastGrowth = 1e9f;
+    int windows = 0;
+    for (; windows < 14 && lastGrowth >= 1.0f; ++windows) {
+        const float before = with.totalMass();
+        for (int i = 0; i < 250; ++i) with.update(0.2f);
+        lastGrowth = with.totalMass() - before;
+    }
+    EXPECT_LT(lastGrowth, 1.0f)
+        << "breach pour never saturated its containment (" << windows
+        << " windows, last growth " << lastGrowth << ")";
     EXPECT_GT(with.massAtWorld(glm::vec3(0.5f, 7.5f, 16.5f)), 0.5f)
         << "the river bed dried out at the top of the course";
     EXPECT_GT(with.massAtWorld(glm::vec3(15.5f, 5.5f, 16.5f)), 0.5f)
