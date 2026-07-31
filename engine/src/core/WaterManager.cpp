@@ -652,8 +652,10 @@ void WaterManager::rebuildOcean() {
             for (int lx = 0; lx < sx; ++lx) {
                 const float wx = static_cast<float>(m_origin.x + lx) + 0.5f;
                 const float wz = static_cast<float>(m_origin.z + lz) + 0.5f;
-                const float wl = m_tableFn(wx, wz);
-                if (wl <= TABLE_DRY) { lvl[colIdx(lx, lz)] = INT_MIN; continue; }
+                // A FINITE body claims its columns regardless of the table: fine-scale ponds
+                // (Phase B) live in table-DRY columns — the bake never saw their sub-cell
+                // basins — while a finite bake body would be table-wet. Either way the column
+                // is the body's: no pin, hydration owns it.
                 if (m_bodyFn) {
                     const BodyInfo bi = m_bodyFn(wx, wz);
                     if (bi.id >= 0 && bi.finite) {
@@ -665,7 +667,9 @@ void WaterManager::rebuildOcean() {
                         continue;
                     }
                 }
-                lvl[colIdx(lx, lz)] = static_cast<int>(std::floor(wl)) - m_origin.y;
+                const float wl = m_tableFn(wx, wz);
+                lvl[colIdx(lx, lz)] = (wl <= TABLE_DRY)
+                    ? INT_MIN : static_cast<int>(std::floor(wl)) - m_origin.y;
             }
         // RUNTIME SHORELINE SNAP (the L3 rim-leak fix, water side): the bake is 128 m/cell coarse,
         // so its wet/dry boundary sits far from the carved waterline — the validator measured 65/65

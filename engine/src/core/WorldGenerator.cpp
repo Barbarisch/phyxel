@@ -4,9 +4,11 @@
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
+#include "core/FinePonds.h"
 #include "core/FlowField.h"
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
+#include <algorithm>
 #include <random>
 #include <cmath>
 #include <climits>
@@ -291,6 +293,8 @@ void WorldGenerator::setHeightmapSource(std::shared_ptr<const MapCoarseData> src
 
 void WorldGenerator::rebuildCoarseModel() {
     clearColumnCache();  // memoized samples derive from the model being rebuilt
+    m_finePondCache.clear();        // fine ponds derive from the columns (Phase B)
+    m_finePondCacheOrder.clear();
     // Layer-0 override (P4): an imported heightmap drives base elevation directly. The map's
     // rivers/valleys are already baked into the height, so we skip the procedural hydrology
     // bake (m_hydro/m_flow stay null; sampleColumn's carve is guarded on m_flow). cellSize =
@@ -765,6 +769,105 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // else: keep the biome surface material set above (moderate, gently-sloped land).
     }
     return col;
+}
+
+// ── Fine-scale ponds (tangible-water Phase B) ────────────────────────────────────────────────
+
+std::shared_ptr<const std::vector<WorldGenerator::StoredFinePond>>
+WorldGenerator::finePondsForCell(int cellX, int cellZ) {
+    const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(cellX)) << 32) |
+                         static_cast<uint64_t>(static_cast<uint32_t>(cellZ));
+    auto it = m_finePondCache.find(key);
+    if (it != m_finePondCache.end()) return it->second;
+
+    auto fresh = std::make_shared<std::vector<StoredFinePond>>();
+    // No fine ponds without a bake (Flat/heightmap worlds keep authored water only).
+    if (m_flow && m_hydro) {
+        constexpr int kWin = 64, kMargin = 16;
+        const int ox = cellX * 32 - kMargin, oz = cellZ * 32 - kMargin;
+        auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : (a - b + 1) / b; };
+        // Heights via the chunk-column cache (shared with generation — hot when the area has
+        // generated). Surface = top face of the surface voxel: water rests on it.
+        auto heightAt = [&](int x, int z) -> float {
+            const int wx = ox + x, wz = oz + z;
+            const int ccx = floorDiv(wx, 32), ccz = floorDiv(wz, 32);
+            const auto blk = columnsForChunk(glm::ivec2(ccx, ccz));
+            const ColumnSample& c =
+                (*blk)[static_cast<size_t>(wx - ccx * 32) * 32 + (wz - ccz * 32)];
+            return static_cast<float>(c.surfaceY + 1);
+        };
+        int index = 0;
+        for (const FinePond& p : discoverFinePonds(heightAt, kWin, kWin)) {
+            // OWNERSHIP: the cell containing the deepest column owns the pond — every window
+            // that fully contains the basin computes it identically, and exactly one cell
+            // claims it (basins near a cell edge whose window can't contain them are dropped
+            // by the border rule; accepted coverage loss, documented).
+            const glm::ivec2 deepW(ox + p.deepest.x, oz + p.deepest.y);
+            if (floorDiv(deepW.x, 32) != cellX || floorDiv(deepW.y, 32) != cellZ) continue;
+            // Reject overlap with baked water or a carved channel — those columns already have
+            // an owner (the bake's bodies / the river ribbon).
+            const float cx = ox + (p.bboxMin.x + p.bboxMax.x + 1) * 0.5f;
+            const float cz = oz + (p.bboxMin.y + p.bboxMax.y + 1) * 0.5f;
+            if (m_hydro->hasWater(cx, cz) ||
+                m_hydro->hasWater(static_cast<float>(deepW.x), static_cast<float>(deepW.y)))
+                continue;
+            if (channelHitAt(static_cast<float>(deepW.x) + 0.5f,
+                             static_cast<float>(deepW.y) + 0.5f).hit)
+                continue;
+
+            StoredFinePond sp;
+            // Namespaced above bake-body ids; deterministic in (cell, discovery order).
+            sp.id = (int64_t(1) << 40) |
+                    (static_cast<int64_t>(static_cast<uint16_t>(cellX)) << 24) |
+                    (static_cast<int64_t>(static_cast<uint16_t>(cellZ)) << 8) |
+                    static_cast<int64_t>(index++);
+            sp.level = p.level;
+            sp.bboxMinW = glm::ivec2(ox + p.bboxMin.x, oz + p.bboxMin.y);
+            sp.bboxMaxW = glm::ivec2(ox + p.bboxMax.x, oz + p.bboxMax.y);
+            sp.columns.reserve(p.columns.size());
+            for (uint32_t pc : p.columns) {
+                const int lx = static_cast<int>(pc >> 16), lz = static_cast<int>(pc & 0xffffu);
+                sp.columns.push_back(
+                    (static_cast<uint64_t>(static_cast<uint32_t>(ox + lx)) << 32) |
+                    static_cast<uint64_t>(static_cast<uint32_t>(oz + lz)));
+            }
+            std::sort(sp.columns.begin(), sp.columns.end());
+            fresh->push_back(std::move(sp));
+        }
+    }
+    if (m_finePondCache.size() >= kFinePondCacheMax) {   // FIFO eviction (column-cache pattern)
+        m_finePondCache.erase(m_finePondCacheOrder.front());
+        m_finePondCacheOrder.erase(m_finePondCacheOrder.begin());
+    }
+    m_finePondCache.emplace(key, fresh);
+    m_finePondCacheOrder.push_back(key);
+    return fresh;
+}
+
+WorldGenerator::FinePondHit WorldGenerator::finePondAt(int worldX, int worldZ) {
+    FinePondHit hit;
+    if (!m_flow || !m_hydro) return hit;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : (a - b + 1) / b; };
+    const int cellX = floorDiv(worldX, 32), cellZ = floorDiv(worldZ, 32);
+    const uint64_t colKey = (static_cast<uint64_t>(static_cast<uint32_t>(worldX)) << 32) |
+                            static_cast<uint64_t>(static_cast<uint32_t>(worldZ));
+    // A pond's columns lie within its owner's ±16-margin window, so the owner is one of the
+    // 3×3 cells around this column's cell.
+    for (int dz = -1; dz <= 1; ++dz)
+        for (int dx = -1; dx <= 1; ++dx) {
+            const auto ponds = finePondsForCell(cellX + dx, cellZ + dz);
+            for (const StoredFinePond& sp : *ponds) {
+                if (worldX < sp.bboxMinW.x || worldX > sp.bboxMaxW.x ||
+                    worldZ < sp.bboxMinW.y || worldZ > sp.bboxMaxW.y)
+                    continue;
+                if (std::binary_search(sp.columns.begin(), sp.columns.end(), colKey)) {
+                    hit.id = sp.id;
+                    hit.level = sp.level;
+                    return hit;
+                }
+            }
+        }
+    return hit;
 }
 
 glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {

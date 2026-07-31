@@ -190,6 +190,29 @@ public:
     // to and what kind (OCEAN/LAKE infinite; POND finite/scoopable). Null when nothing is baked.
     const WaterBodyIndex* waterBodies()  const { return m_waterBodies.get(); }
 
+    // ── Fine-scale ponds (tangible-water Phase B) ────────────────────────────────────────────
+    // TRUE small ponds — sub-bake-cell depressions the 128 u/cell hydrology can never see —
+    // discovered per 32×32-column analysis cell over a ±16 margin window (chunk-column cache
+    // reuse; border-touching basins discarded = seam-free by construction; see FinePonds.h).
+    // These are the FINITE bodies: contained (level = spill − freeboard, cannot leak),
+    // genuinely flat, ≤ 200 columns — the shape the per-body delta store requires. Bake-cell
+    // "ponds" stay infinite: their coarse levels fragment against fine terrain (measured).
+    struct FinePondHit {
+        int64_t id = -1;
+        float   level = 0.0f;
+    };
+    // The fine pond owning this world column, or id −1. Deterministic and memoized; safe on the
+    // generation worker's copy (same argument as the column cache).
+    FinePondHit finePondAt(int worldX, int worldZ);
+    // Full pond records for one analysis cell (world-space; tests + tooling).
+    struct StoredFinePond {
+        int64_t id;
+        float   level;
+        glm::ivec2 bboxMinW, bboxMaxW;         // inclusive world columns
+        std::vector<uint64_t> columns;         // packed world columns, sorted (membership test)
+    };
+    std::shared_ptr<const std::vector<StoredFinePond>> finePondsForCell(int cellX, int cellZ);
+
     // THE channel line, as the terrain actually carves it (water-as-terrain-stage P2): channelAt
     // through the SAME meander warp sampleColumn uses for the carve, valley, swale, and bed shelf.
     // The water runtime MUST bind these (not FlowField::channelAt on raw coordinates): the warp
@@ -277,6 +300,11 @@ private:
     std::shared_ptr<HydrologyMap>   m_hydro;
     std::shared_ptr<FlowField>      m_flow;
     std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
+
+    // Fine-pond registry cache (Phase B), FIFO-capped like the column cache.
+    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<StoredFinePond>>> m_finePondCache;
+    std::vector<uint64_t> m_finePondCacheOrder;
+    static constexpr size_t kFinePondCacheMax = 256;
 
     // The continentalness → base-elevation shaping spline (docs/TerrainGenerationV2.md §2a): the
     // "how tall" art-direction curve, decoupled from the "how mountainous" noise. Default is a

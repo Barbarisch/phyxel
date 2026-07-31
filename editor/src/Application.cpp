@@ -5867,17 +5867,28 @@ void Application::autoLoadGameDefinition() {
                         waterManager->setBodyQuery(
                             [this](float wx, float wz) -> Core::WaterManager::BodyInfo {
                                 Core::WaterManager::BodyInfo out;
-                                const WorldGenerator* g =
+                                WorldGenerator* g =
                                     chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                                const WaterBodyIndex* wb = g ? g->waterBodies() : nullptr;
-                                const WaterBodyIndex::Body* b = wb ? wb->bodyAt(wx, wz) : nullptr;
-                                if (!b) return out;
-                                out.id = b->id;
-                                out.finite = false;   // Phase B flips this for FINE ponds only
-                                out.baselineLevel = b->level;
+                                if (!g) return out;
+                                const WaterBodyIndex* wb = g->waterBodies();
+                                if (const WaterBodyIndex::Body* b = wb ? wb->bodyAt(wx, wz) : nullptr) {
+                                    out.id = b->id;
+                                    out.finite = false;   // bake bodies are infinite (see above)
+                                    out.baselineLevel = b->level;
+                                    return out;
+                                }
+                                // Fine-scale ponds (Phase B): THE finite bodies — sub-cell,
+                                // contained by construction, genuinely flat.
+                                const auto fp = g->finePondAt(static_cast<int>(std::floor(wx)),
+                                                              static_cast<int>(std::floor(wz)));
+                                if (fp.id >= 0) {
+                                    out.id = fp.id;
+                                    out.finite = true;
+                                    out.baselineLevel = fp.level;
+                                }
                                 return out;
                             });
-                        LOG_INFO("Application", "[WATER] water body identity bound (tangible-water C; finite awaits fine ponds)");
+                        LOG_INFO("Application", "[WATER] water body identity bound (bake infinite + fine ponds finite)");
                     } else {
                         waterManager->setWaterTable(nullptr);
                         waterManager->setBodyQuery(nullptr);
@@ -11781,6 +11792,30 @@ void Application::registerWaterCommands() {
             r = {{"error", "no water body index"},
                  {"detail", "bodies are labeled with the hydrology bake (height-based streamed "
                             "worlds only)"}};
+            return;
+        }
+        // Fine-pond scout mode (Phase B): {"fine":true, "x":..,"z":..,"radius":..} scans the
+        // fine-pond registry's analysis cells around a point instead of the bake bodies.
+        if (cmd.params.value("fine", false)) {
+            const int cx0 = static_cast<int>(std::floor(cmd.params.value("x", 0.0f) / 32.0f));
+            const int cz0 = static_cast<int>(std::floor(cmd.params.value("z", 0.0f) / 32.0f));
+            const int rad = std::max(1, static_cast<int>(cmd.params.value("radius", 640.0f)) / 32);
+            nlohmann::json list = nlohmann::json::array();
+            int total = 0;
+            for (int dz = -rad; dz <= rad; ++dz)
+                for (int dx = -rad; dx <= rad; ++dx) {
+                    const auto ponds = g->finePondsForCell(cx0 + dx, cz0 + dz);
+                    for (const auto& p : *ponds) {
+                        ++total;
+                        if (list.size() >= 20) continue;
+                        list.push_back({{"id", p.id},
+                                        {"level", p.level},
+                                        {"columns", p.columns.size()},
+                                        {"bbox_world", {{"min_x", p.bboxMinW.x}, {"min_z", p.bboxMinW.y},
+                                                        {"max_x", p.bboxMaxW.x}, {"max_z", p.bboxMaxW.y}}}});
+                    }
+                }
+            r = {{"fine_ponds", total}, {"bodies", list}};
             return;
         }
         const std::string clsFilter = cmd.params.value("class", "");
