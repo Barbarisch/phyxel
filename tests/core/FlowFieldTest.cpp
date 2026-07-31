@@ -183,6 +183,24 @@ TEST(FlowFieldTest, ChannelAtCarvesAnOrder3RiverAtItsCentreline) {
     EXPECT_LT(seg.depth, 1.0f) << "the order-2 segment's depth must stay sub-voxel";
 }
 
+// nearestChannel's minOrder parameter (water-as-terrain-stage P2): the default (3) keeps valley
+// shaping blind to creeks, while minOrder=1 lets the creek-swale pass see orders 1-2. On the tree
+// fixture, (15,25) sits ON the order-2 tributary c1→c3; the nearest order≥3 segment (c3→outlet
+// along z=35) is 10 units away.
+TEST(FlowFieldTest, NearestChannelMinOrderSeesCreeks) {
+    FlowField f(treeHeight, 0.0f, 0.0f, 7, 7, 10.0f, -1000.0f, /*riverThreshold=*/0);
+    ASSERT_GE(f.maxOrder(), 3);
+
+    const auto big = f.nearestChannel(15.0f, 25.0f, 12.0f);         // default minOrder=3
+    EXPECT_EQ(big.order, 3) << "default must keep reporting only order>=3";
+    EXPECT_NEAR(big.dist, 10.0f, 0.5f) << "nearest order-3 segment is the c3->outlet run at z=35";
+
+    const auto creek = f.nearestChannel(15.0f, 25.0f, 12.0f, 1);    // creek swale query
+    EXPECT_GE(creek.order, 1);
+    EXPECT_LE(creek.order, 2);
+    EXPECT_NEAR(creek.dist, 0.0f, 0.5f) << "the point lies ON the order-2 tributary centreline";
+}
+
 TEST(FlowFieldTest, ChannelAtReportsFractionalCreeksAtOrder1And2) {
     // Phase 2a rewrite — this test used to pin the OPPOSITE (orders 1-2 report NO channel at all),
     // which was gate #2 of the four that kept creeks bone dry. The single valley tops out at order

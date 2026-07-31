@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/CoarseWorldModel.h"
+#include "core/FlowField.h"
 #include "core/Spline.h"
 #include "core/WorldConstants.h"
 
@@ -147,6 +148,10 @@ public:
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
         int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
                                       // >0 marks a carved riverbed (for the flora gate + water runtime)
+        bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
+                                      // threshold): the surface voxel is emitted as a 2/3 subcube
+                                      // shelf so the creek rests in a 1/3-voxel recess
+                                      // (water-as-terrain-stage P2)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -180,6 +185,15 @@ public:
     // are valid until the next rebuild (ctor / applyRecipe).
     const FlowField*    riverNetwork() const { return m_flow.get(); }
     const HydrologyMap* hydrology()    const { return m_hydro.get(); }
+
+    // THE channel line, as the terrain actually carves it (water-as-terrain-stage P2): channelAt
+    // through the SAME meander warp sampleColumn uses for the carve, valley, swale, and bed shelf.
+    // The water runtime MUST bind these (not FlowField::channelAt on raw coordinates): the warp
+    // displaces the channel by up to ~kMeanderAmp, so a raw-coordinate ribbon lands beside the
+    // carved bed — measured live as creek pins with no shelf under them (floor 0.0, CreekLab
+    // 2026-07-31). Empty hit / zero vector when no network is baked.
+    FlowField::ChannelHit channelHitAt(float worldX, float worldZ) const;
+    glm::vec2 channelFlowDirAt(float worldX, float worldZ) const;
 
     // Testing/tooling hook: clear the process-wide hydrology-bake memoization cache so the NEXT
     // generator construction re-bakes independently instead of sharing a cached backing. Used to keep
@@ -224,6 +238,9 @@ public:
                                           int edgeInset = 0);
 
 private:
+    // The single meander displacement every channel-line consumer shares (see channelHitAt).
+    glm::vec2 meanderedChannelPos(float wx, float wz) const;
+
     GenerationType generationType;
     uint32_t seed;
     TerrainParams terrainParams;

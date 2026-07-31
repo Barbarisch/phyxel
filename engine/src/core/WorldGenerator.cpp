@@ -487,6 +487,19 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                     if (caveNoise > terrainParams.caveThreshold) continue;
                 }
 
+                // Creek bed recess (water-as-terrain-stage P2): the surface voxel of an inner-band
+                // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
+                // below the banks, and the runtime's fractional ribbon pin rests IN the recess
+                // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
+                if (col.creekBed && wy == col.surfaceY) {
+                    const std::string& shelfMat = materialForColumn(wy, col);
+                    for (int sy = 0; sy < 2; ++sy)
+                        for (int sx = 0; sx < 3; ++sx)
+                            for (int sz = 0; sz < 3; ++sz)
+                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), shelfMat);
+                    continue;
+                }
+
                 chunk.addCube(localPos, materialForColumn(wy, col));
             }
         }
@@ -646,9 +659,11 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // valley and channel stay aligned. Two decorrelated fbm bands (distinct offsets) give an x/z
         // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
+        float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
         if (m_flow) {
-            mwx += kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
-            mwz += kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+            const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
+            mwx = m.x;
+            mwz = m.y;
         }
 
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
@@ -660,8 +675,23 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
                 relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
             }
+
+            // Creek SWALE (water-as-terrain-stage P2): orders 1-2 get a NARROW, BOUNDED parabolic
+            // dip — a swale the creek lies in, over a band ~2 channel-widths wide, aligned with the
+            // ribbon via the same meandered (mwx,mwz). This is what makes a creek read as shaped BY
+            // the terrain instead of painted across it. The dip is an ABSOLUTE depth (~1.6 voxels
+            // at the centreline), deliberately NOT a fraction of relief: a fractional attenuation
+            // (the big rivers' valley rule) scaled by mountain relief cut measured 55-voxel slot
+            // canyons along 3-voxel-wide creeks — a fraction is only safe over a wide valley.
+            const float creekSwaleHalf = FlowField::channelHalfWidth(2) * 2.0f;   // 3 voxels
+            const FlowField::NearestChannel cs = m_flow->nearestChannel(mwx, mwz, creekSwaleHalf, 1);
+            if (cs.order >= 1 && cs.order <= 2 && cs.dist < creekSwaleHalf) {
+                constexpr float kCreekSwaleDepth = 1.6f;
+                const float t = cs.dist / creekSwaleHalf;
+                creekSwale = kCreekSwaleDepth * (1.0f - t * t);
+            }
         }
-        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset));
+        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset - creekSwale));
 
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
         // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
@@ -678,6 +708,12 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // flora gate both consume it (no trees standing in the creek line).
                 if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
                 col.riverOrder = ch.order;
+                // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
+                // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
+                // applyRiverInflows), so every pinned ribbon cell gets a recess and the parabolic
+                // band edges get neither. generateChunk emits the surface voxel as a 2-layer
+                // subcube shelf (floor 2/3): the ribbon rests 1/3 voxel below its banks.
+                col.creekBed = (ch.order <= 2 && ch.depth >= 0.15f);
             }
         }
 
@@ -713,6 +749,29 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // else: keep the biome surface material set above (moderate, gently-sloped land).
     }
     return col;
+}
+
+glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {
+    // The ONE meander warp (docs/TerrainGenerationV2.md §P2): everything that touches the channel
+    // line — carve, valley, swale, bed shelf (sampleColumn) AND the water runtime's ribbon queries
+    // (channelHitAt) — must go through this same displacement, or the water lands beside its bed.
+    return glm::vec2(
+        wx + kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u),
+        wz + kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u));
+}
+
+FlowField::ChannelHit WorldGenerator::channelHitAt(float worldX, float worldZ) const {
+    if (!m_flow) return {};
+    const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
+    return m_flow->channelAt(m.x, m.y);
+}
+
+glm::vec2 WorldGenerator::channelFlowDirAt(float worldX, float worldZ) const {
+    if (!m_flow) return glm::vec2(0.0f);
+    const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
+    // Only claim a direction where there IS a channel (a spill on open ground must not read as a
+    // river); direction itself is cell-granular, sampled at the warped position for consistency.
+    return m_flow->channelAt(m.x, m.y).hit ? m_flow->flowDirAt(m.x, m.y) : glm::vec2(0.0f);
 }
 
 std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& col) const {

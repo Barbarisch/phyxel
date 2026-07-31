@@ -5832,12 +5832,15 @@ void Application::autoLoadGameDefinition() {
                     // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
                     // upstream inflow at the region frontier, flowing downhill through the valley.
                     if (w.value("bakedTable", true) && gen && gen->riverNetwork()) {
+                        // channelHitAt, NOT riverNetwork()->channelAt: the generator carves the
+                        // channel along a MEANDER-WARPED line (displacement up to ~55 u). Raw
+                        // coordinates put the ribbon beside its carved bed — measured live as
+                        // creek pins with no shelf under them (water-as-terrain-stage P2).
                         waterManager->setRiverQuery([this](float wx, float wz) -> float {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            if (!f) return 0.0f;
-                            const auto h = f->channelAt(wx, wz);
+                            if (!g) return 0.0f;
+                            const auto h = g->channelHitAt(wx, wz);
                             return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
@@ -5855,9 +5858,8 @@ void Application::autoLoadGameDefinition() {
                         waterManager->setRiverOrderQuery([this](float wx, float wz) -> int {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            if (!f) return 0;
-                            const auto h = f->channelAt(wx, wz);
+                            if (!g) return 0;
+                            const auto h = g->channelHitAt(wx, wz);
                             return h.hit ? h.order : 0;
                         });
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
@@ -5866,11 +5868,10 @@ void Application::autoLoadGameDefinition() {
                         waterManager->setRiverFlowQuery([this](float wx, float wz) -> glm::vec2 {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            if (!f) return glm::vec2(0.0f);
-                            // Only claim a direction where there IS a channel; elsewhere leave the
-                            // CA's own proxy alone (a spill on open ground must not read as a river).
-                            return f->channelAt(wx, wz).hit ? f->flowDirAt(wx, wz) : glm::vec2(0.0f);
+                            // channelFlowDirAt claims a direction only where the (meandered)
+                            // channel runs; elsewhere the CA's own proxy stands (a spill on open
+                            // ground must not read as a river).
+                            return g ? g->channelFlowDirAt(wx, wz) : glm::vec2(0.0f);
                         });
                         LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
@@ -11393,7 +11394,8 @@ void Application::registerWaterCommands() {
         const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (const FlowField* f = g ? g->riverNetwork() : nullptr) {
             r["river_order"]   = f->orderAt(wx, wz);
-            r["river_channel"] = f->channelAt(wx, wz).hit;
+            // The MEANDERED line — must agree with the runtime ribbon binding (channelHitAt).
+            r["river_channel"] = g->channelHitAt(wx, wz).hit;
         }
     });
     // FIND A RIVER. Rivers are a baked, procedural network — nobody knows where they are, so
@@ -11444,7 +11446,7 @@ void Application::registerWaterCommands() {
                     const int ord = f->orderAt(wx, wz);
                     if (ord > 0) ++anyRiverCells;
                     if (ord < minOrder) continue;
-                    hits.push_back({wx, wz, ord, f->channelAt(wx, wz).hit});
+                    hits.push_back({wx, wz, ord, g->channelHitAt(wx, wz).hit});
                 }
             }
         }

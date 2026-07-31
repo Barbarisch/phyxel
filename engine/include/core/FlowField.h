@@ -73,16 +73,19 @@ public:
     // WaterManager::setRiverQuery), so the direction has to come from the bake.
     glm::vec2 flowDirAt(float worldX, float worldZ) const;
 
-    // Nearest order≥3 channel to a world column, for VALLEY shaping (wider than the channel itself):
+    // Nearest channel to a world column, for VALLEY/SWALE shaping (wider than the channel itself):
     // the distance (world units) to the closest channel centreline segment and that channel's order,
     // scanning cells within `searchRadius`. dist is huge and order 0 if none is in range. The
     // generator attenuates Layer-1 relief toward the centreline so rivers seat in a smooth valley
     // floor, not a thin slot buried by relief roughness. (docs/TerrainGenerationV2.md §P2)
+    // `minOrder` (default 3) keeps the historical big-river behavior; the creek swale pass queries
+    // with minOrder=1 so orders 1-2 shape a NARROW dip (water-as-terrain-stage P2 — a creek is
+    // shaped by the terrain around it, not painted on top of it).
     struct NearestChannel {
         float dist = 1e30f;
         int   order = 0;
     };
-    NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius) const;
+    NearestChannel nearestChannel(float worldX, float worldZ, float searchRadius, int minOrder = 3) const;
 
     // Per-segment channel test (the geometry, exposed for direct testing): a point p is on the
     // channel iff order>=1 AND p is within half-width of segment a→b, with a parabolic depth

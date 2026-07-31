@@ -3,6 +3,8 @@
 #include "core/WorldGenerator.h"
 #include "core/FlowField.h"
 #include "core/HydrologyMap.h"
+#include "core/Chunk.h"
+#include "core/ChunkVoxelManager.h"
 
 #include <algorithm>
 #include <cmath>
@@ -271,6 +273,146 @@ TEST(TerrainRiverTest, PrintRiverCellsSeed7) {
     });
     std::printf("[river]   TRUNK (%d,%d) order=%d accum=%d\n", trunk.first, trunk.second,
                 rn->orderAt(trunk.first, trunk.second), rn->accumAt(trunk.first, trunk.second));
+}
+
+// ── Water-as-terrain-stage P2: creeks shaped by the terrain ─────────────────────────────────────
+//
+// User directive (2026-07-31): "a creek should be shaped by the terrain around it — not generated
+// and just exist independent of the land." Two mechanisms, each with its own red baseline:
+//  - SWALE: orders 1-2 attenuate Layer-1 relief in a narrow band (~40% floor at the centreline).
+//    RED (no swale): creek columns average the same height as their surroundings.
+//  - BED RECESS: inner-band creek columns emit their surface voxel as a 2-layer subcube shelf
+//    (floor 2/3), so the runtime's fractional ribbon rests 1/3 voxel below the banks.
+//    RED (no shelf): the surface voxel is a full cube (subVoxelFloor == 1).
+
+// World-column positions of creek (order 1-2) channel columns near order 1-2 cells, found by the
+// generator's own recorded riverOrder (so the meander warp is accounted for).
+std::vector<std::pair<int, int>> creekColumns(WorldGenerator& g, size_t maxCount) {
+    std::vector<std::pair<int, int>> out;
+    const FlowField* rn = g.riverNetwork();
+    if (!rn) return out;
+    const float ox = rn->originX(), oz = rn->originZ(), cs = rn->cellSize();
+    for (int j = 0; j < rn->cellsZ() && out.size() < maxCount; ++j)
+        for (int i = 0; i < rn->cellsX() && out.size() < maxCount; ++i) {
+            const float wx = ox + (i + 0.5f) * cs, wz = oz + (j + 0.5f) * cs;
+            // Keep the scan affordable: only cells in the seed-7 anchor box neighbourhood.
+            if (wx < kBoxX0 - 800 || wx > kBoxX1 + 800 || wz < kBoxZ0 - 800 || wz > kBoxZ1 + 800) continue;
+            const int ord = rn->orderAt(wx, wz);
+            if (ord < 1 || ord > 2) continue;
+            const int cx = static_cast<int>(std::floor(wx)), cz = static_cast<int>(std::floor(wz));
+            for (int dz = -3; dz <= 3 && out.size() < maxCount; ++dz)
+                for (int dx = -3; dx <= 3 && out.size() < maxCount; ++dx) {
+                    const auto c = g.sampleSurface(cx + dx, cz + dz);
+                    if (c.riverOrder >= 1 && c.riverOrder <= 2) out.emplace_back(cx + dx, cz + dz);
+                }
+        }
+    return out;
+}
+
+// Creek columns sit LOWER than their immediate (off-channel) surroundings on average — the swale.
+// RED (no swale): fine relief is uncorrelated with the channel line at a 5-voxel offset, so the
+// mean height difference is ~0.
+TEST(TerrainRiverTest, CreeksSitInASwale) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto creeks = creekColumns(g, 300);
+    ASSERT_GT(creeks.size(), 50u) << "too few creek columns found to measure a swale";
+
+    double sumDiff = 0.0;
+    int n = 0;
+    for (const auto& c : creeks) {
+        const int creekY = g.sampleSurface(c.first, c.second).surfaceY;
+        static const int OX[4] = {5, -5, 0, 0}, OZ[4] = {0, 0, 5, -5};
+        double off = 0.0;
+        int m = 0;
+        for (int k = 0; k < 4; ++k) {
+            const auto o = g.sampleSurface(c.first + OX[k], c.second + OZ[k]);
+            if (o.riverOrder != 0) continue;   // offset landed on a channel — not a bank sample
+            off += o.surfaceY;
+            ++m;
+        }
+        if (m < 2) continue;
+        sumDiff += off / m - creekY;
+        ++n;
+    }
+    ASSERT_GT(n, 50) << "too few usable creek/bank pairs";
+    const double meanDiff = sumDiff / n;
+    std::printf("[creek] swale: mean(bank - creek) = %.3f voxels over %d columns\n", meanDiff, n);
+    EXPECT_GT(meanDiff, 0.5) << "creek columns do not sit in a swale — terrain ignores the creek";
+}
+
+// The water runtime's channel queries must follow the MEANDERED line the terrain actually carves
+// (WorldGenerator::channelHitAt), not FlowField::channelAt on raw coordinates. The warp displaces
+// the channel by up to ~kMeanderAmp (55 u), so the raw query provably disagrees with the carve —
+// binding it put ribbons beside their beds (measured live: creek pins with floor 0.0 under them).
+TEST(TerrainRiverTest, RuntimeChannelQueryFollowsTheMeanderedCarve) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto cells = riverCellCentres(g, kBoxX0, kBoxX1, kBoxZ0, kBoxZ1);
+    const auto carved = carvedColumnsNear(g, cells, 22);
+    ASSERT_GT(carved.size(), 200u);
+
+    // Query at the SAME coordinates sampleColumn recorded riverOrder from (integer corners):
+    // a half-voxel offset flips hit/miss on the parabolic band edge and only muddies the metric.
+    int warpedHits = 0, rawHits = 0;
+    for (const auto& c : carved) {
+        const float wx = static_cast<float>(c.first), wz = static_cast<float>(c.second);
+        if (g.channelHitAt(wx, wz).hit) ++warpedHits;
+        if (g.riverNetwork()->channelAt(wx, wz).hit) ++rawHits;
+    }
+    const double n = static_cast<double>(carved.size());
+    std::printf("[river] carved columns: %zu; warped-query hits %.1f%%, raw-query hits %.1f%%\n",
+                carved.size(), 100.0 * warpedHits / n, 100.0 * rawHits / n);
+    EXPECT_GT(warpedHits / n, 0.99)
+        << "channelHitAt does not cover the carved channel — warp mismatch between query and carve";
+    EXPECT_LT(rawHits, warpedHits)
+        << "raw channelAt covers the carve as well as the warped query — either the meander is "
+           "gone or this guard is vacuous";
+}
+
+// The inner-band creek bed generates as a 2/3 subcube shelf the water ribbon can rest IN; ordinary
+// ground stays a full cube. This is the L1 gate for generation-time sub-voxel terrain.
+TEST(TerrainRiverTest, CreekBedIsARecessedSubcubeShelf) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    const auto creeks = creekColumns(g, 300);
+
+    // Find a creek column flagged as inner-band bed.
+    int bx = 0, bz = 0;
+    bool found = false;
+    WorldGenerator::ColumnSample bed;
+    for (const auto& c : creeks) {
+        const auto s = g.sampleSurface(c.first, c.second);
+        if (s.creekBed) { bx = c.first; bz = c.second; bed = s; found = true; break; }
+    }
+    ASSERT_TRUE(found) << "no inner-band creek bed column flagged (creekBed never set)";
+
+    const glm::ivec3 chunkCoord(static_cast<int>(std::floor(bx / 32.0)),
+                                static_cast<int>(std::floor(bed.surfaceY / 32.0)),
+                                static_cast<int>(std::floor(bz / 32.0)));
+    Chunk chunk(chunkCoord * 32);
+    chunk.initializeForLoading();
+    g.generateChunk(chunk, chunkCoord);
+
+    const glm::ivec3 local(bx - chunkCoord.x * 32, bed.surfaceY - chunkCoord.y * 32,
+                           bz - chunkCoord.z * 32);
+    EXPECT_NEAR(chunk.subVoxelFloor(local), 2.0f / 3.0f, 1e-4f)
+        << "creek bed surface voxel at (" << bx << "," << bed.surfaceY << "," << bz
+        << ") is not a 2/3 shelf";
+
+    // Control: a nearby non-channel column's surface voxel stays fully solid.
+    for (int r = 4; r <= 8; ++r) {
+        const auto o = g.sampleSurface(bx + r, bz);
+        if (o.riverOrder != 0) continue;
+        const glm::ivec3 oChunk(static_cast<int>(std::floor((bx + r) / 32.0)),
+                                static_cast<int>(std::floor(o.surfaceY / 32.0)),
+                                static_cast<int>(std::floor(bz / 32.0)));
+        Chunk oc(oChunk * 32);
+        oc.initializeForLoading();
+        g.generateChunk(oc, oChunk);
+        const glm::ivec3 ol(bx + r - oChunk.x * 32, o.surfaceY - oChunk.y * 32,
+                            bz - oChunk.z * 32);
+        EXPECT_NEAR(oc.subVoxelFloor(ol), ChunkVoxelManager::kSolidFloor, 1e-4f)
+            << "plain bank column is not a plain solid cube — shelf leaked off the creek line";
+        break;
+    }
 }
 
 }  // namespace
