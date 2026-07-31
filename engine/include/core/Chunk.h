@@ -293,6 +293,33 @@ public:
     const std::vector<glm::vec3>& getFlamingVoxels() const { return renderManager.getFlamingVoxels(); }
 
     void updateVulkanBuffer();                     // Update GPU buffer with face data
+
+    /// C4/C5: the LOD level this chunk's mesh is currently built at. 0 = full detail (the normal
+    /// fine mesh); N >= 1 = coarse LOD-cell mesh with 2^N-cube cells.
+    int  getLodLevel() const { return m_lodLevel; }
+    // NOTE: there is deliberately NO setLodLevel(). The level is recorded by whichever call
+    // BUILT the mesh -- setLodFaces(faces, level) or rebuildFaces() -- so the tracked level and
+    // the resident mesh cannot disagree. A standalone setter would let a caller record a level
+    // without building the matching mesh, which is precisely the bug fixed on 2026-07-30
+    // (updateChunkLod then saw "already correct" and skipped every chunk).
+
+    /// C4 — swap this chunk's faces for a coarse LOD-cell mesh (docs/ContinuousLodPlan.md).
+    /// Caller supplies faces from Core::LodChunkMesh::buildForLevel; call updateVulkanBuffer()
+    /// afterwards. Return to full detail with rebuildFaces() + updateVulkanBuffer().
+    /// `level` is RECORDED here rather than left to the caller. Callers previously had to
+    /// remember a separate setLodLevel(), and POST /api/debug/lod_level did not — so a chunk's
+    /// tracked level said "2" while its mesh was the fine one. updateChunkLod() then compared
+    /// wanted-vs-current, saw "already correct", and skipped every chunk: distance LOD silently
+    /// did nothing while chunks_by_level reported success. Taking the level as an argument makes
+    /// that desync unrepresentable. Pinned by LodChunkMeshTest.LodLevelTracksTheMeshActuallyBuilt.
+    void setLodFaces(std::vector<InstanceData>&& lodFaces, int level) {
+        renderManager.setFacesFromLod(std::move(lodFaces));
+        m_lodLevel = level;
+    }
+
+private:
+    int m_lodLevel = 0;
+public:
     
     // Efficient partial updates for hover effects (avoids full rebuild)
     void updateSingleCubeTexture(const glm::ivec3& localPos, uint16_t textureIndex);

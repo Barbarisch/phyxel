@@ -319,6 +319,11 @@ void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).
     computeVisibilityMask();
+    // A fine rebuild IS level 0 (sub/micro + greedy merge). Recording it here keeps the tracked
+    // level honest for every caller — including the ones that return a coarse chunk to full
+    // detail without going through the LOD path. See Chunk::setLodFaces for the desync this
+    // prevents.
+    m_lodLevel = 0;
 }
 
 // Build the per-chunk face visibility graph for occlusion culling. A cell blocks
