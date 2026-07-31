@@ -12211,6 +12211,21 @@ void Application::registerEffectsCommands() {
              {"rebuilt_last_frame", renderCoordinator ? renderCoordinator->getLodRebuiltLastFrame() : 0}};
     });
 
+    reg.on("set_far_lod", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled"))
+            Graphics::RenderCoordinator::s_farLodChunks = cmd.params["enabled"].get<bool>();
+        if (cmd.params.contains("budget"))
+            Graphics::RenderCoordinator::s_farLodBudgetPerFrame =
+                std::max(1, cmd.params["budget"].get<int>());
+        r = {{"success", true},
+             {"far_lod", Graphics::RenderCoordinator::s_farLodChunks},
+             {"budget", Graphics::RenderCoordinator::s_farLodBudgetPerFrame}};
+        if (renderCoordinator) {
+            r["far_chunks"] = renderCoordinator->farLodChunkCount();
+            r["far_instances"] = renderCoordinator->farLodInstanceCount();
+        }
+    });
+
     reg.on("set_lod_level", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "ChunkManager not available"}}; return; }
         const int level = cmd.params.value("level", 0);

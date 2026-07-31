@@ -158,6 +158,36 @@ public:
     /// Per-frame: pick each chunk's level from the metric and re-mesh a bounded number of the
     /// chunks whose level changed. Returns how many were re-meshed.
     int updateChunkLod();
+
+    // --- C3.3: the far-chunk draw path (docs/ContinuousLodPlan.md) ------------------------
+    // Geometry for chunks that are NOT resident, served from the persisted LOD pyramid. This
+    // is what breaks the R^2 residency wall measured in
+    // docs/evidence/lod_residency_wall_20260730.txt: a far chunk costs its coarse face buffer
+    // (~18.7 KB at lod 2) instead of ~1.28 MB of resident chunk.
+    //
+    // Default OFF. It draws geometry the streaming system does not own, so it must be opt-in
+    // until it has runtime evidence behind it.
+    static bool s_farLodChunks;
+    static int  s_farLodBudgetPerFrame;   // buffers created per frame; creation is the hitch
+
+    struct FarLodChunk {
+        glm::ivec3 chunkCoord{0};
+        glm::ivec3 worldOrigin{0};
+        // unique_ptr because ChunkRenderBuffer takes the device in its constructor and has
+        // no default ctor -- it cannot be a plain member of a default-constructed struct.
+        std::unique_ptr<ChunkRenderBuffer> buffer;
+        uint32_t instanceCount = 0;
+        int level = 0;
+    };
+
+    /// Populate/evict far chunks around the camera. Returns how many were newly built.
+    int updateFarLodChunks();
+    /// Draw them with the same pipeline as resident LOD cells -- the InstanceData is identical,
+    /// so no second pipeline and no second shader path.
+    void drawFarLodChunks(uint32_t currentFrame);
+    size_t farLodChunkCount() const { return m_farLod.size(); }
+    size_t farLodInstanceCount() const;
+
     int getLodRebuiltLastFrame() const { return m_lodRebuiltLastFrame; }
 
     /// C2.1 guard, as a PURE function so it is testable without a Vulkan device.
@@ -532,6 +562,7 @@ private:
     long long m_shadowInstancesDrawn = 0;
     int m_shadowMultidrawCalls = 0;
     int m_lodRebuiltLastFrame = 0;   ///< C5: chunks re-meshed for LOD last frame   ///< C2: vkCmdDrawIndexedIndirect calls issued this frame
+    std::vector<std::unique_ptr<FarLodChunk>> m_farLod;   ///< C3.3: non-resident chunks served from the persisted pyramid
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
     Input::InputManager* inputManager;

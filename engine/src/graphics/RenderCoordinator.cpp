@@ -1,6 +1,8 @@
 #include "graphics/RenderCoordinator.h"
 
 #include "core/LodChunkMesh.h"
+#include "core/WorldStorage.h"
+#include "core/LodPyramidService.h"
 #include "core/GpuParticlePhysics.h"
 #include "graphics/LightManager.h"
 #include "graphics/RaycastVisualizer.h"
@@ -543,6 +545,11 @@ size_t RenderCoordinator::renderStaticGeometry() {
             renderedChunks++;
         }
     }
+
+    // C3.3: chunks that are NOT resident, served from the persisted pyramid. Drawn here so they
+    // share the bound pipeline, descriptor sets and index buffer with the resident chunks above
+    // -- their InstanceData is ordinary scaleLevel==3 LOD cells, so nothing else differs.
+    drawFarLodChunks(currentFrame);
 
     return renderedChunks;
 }
@@ -1205,6 +1212,10 @@ bool RenderCoordinator::s_gpuDrivenShadow = false;
 // C5 distance-driven LOD. DEFAULT OFF -- it re-meshes chunks, which is the most invasive thing
 // in this plan, so it ships behind a live toggle like every other risky change here.
 bool  RenderCoordinator::s_distanceDrivenLod = false;
+// C3.3: default OFF. This draws geometry the streaming system does not own, so it stays opt-in
+// until it has runtime evidence behind it.
+bool  RenderCoordinator::s_farLodChunks = false;
+int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
 float RenderCoordinator::s_lodTargetPixels = 8.0f;
 int   RenderCoordinator::s_lodRebuildBudgetPerFrame = 2;
 float RenderCoordinator::s_forcedViewScale = 0.0f;  // 0 = derive from the live view
@@ -1574,6 +1585,93 @@ int RenderCoordinator::updateChunkLod() {
     return rebuilt;
 }
 
+
+// --- C3.3: the far-chunk draw path --------------------------------------------------------
+// A chunk beyond the residency radius is served from its persisted pyramid instead of being
+// loaded. It costs its coarse face buffer (~18.7 KB at lod 2, measured) rather than the
+// ~1.28 MB a resident chunk costs, which is what breaks the R^2 wall.
+
+size_t RenderCoordinator::farLodInstanceCount() const {
+    size_t n = 0;
+    for (const auto& f : m_farLod) if (f) n += f->instanceCount;
+    return n;
+}
+
+int RenderCoordinator::updateFarLodChunks() {
+    if (!s_farLodChunks || !chunkManager || !camera) { m_farLod.clear(); return 0; }
+    Phyxel::WorldStorage* storage = chunkManager->getWorldStorage();
+    if (!storage) return 0;
+
+    const glm::vec3 camPos = camera->getPosition();
+    const glm::ivec3 camChunk = glm::ivec3(glm::floor(camPos / 32.0f));
+    const int reach = std::max(1, int(chunkInclusionDistance / 32.0f));
+
+    // Evict anything that left the ring, or that has since become RESIDENT -- drawing both
+    // would double-draw the chunk and z-fight with itself.
+    m_farLod.erase(std::remove_if(m_farLod.begin(), m_farLod.end(),
+        [&](const std::unique_ptr<FarLodChunk>& f) {
+            if (!f) return true;
+            const glm::ivec3 d = f->chunkCoord - camChunk;
+            if (std::abs(d.x) > reach || std::abs(d.y) > reach || std::abs(d.z) > reach) return true;
+            return chunkManager->getChunkAtCoord(f->chunkCoord) != nullptr;
+        }), m_farLod.end());
+
+    const auto view = Core::LodService::makeView(
+        vulkanDevice ? static_cast<float>(vulkanDevice->getSwapChainExtent().height) : 900.0f,
+        camera->getFovYDegrees());
+
+    int built = 0;
+    for (int dx = -reach; dx <= reach && built < s_farLodBudgetPerFrame; ++dx)
+    for (int dy = -reach; dy <= reach && built < s_farLodBudgetPerFrame; ++dy)
+    for (int dz = -reach; dz <= reach && built < s_farLodBudgetPerFrame; ++dz) {
+        const glm::ivec3 coord = camChunk + glm::ivec3(dx, dy, dz);
+        // Resident chunks own themselves; never serve one from storage as well.
+        if (chunkManager->getChunkAtCoord(coord)) continue;
+        bool already = false;
+        for (const auto& f : m_farLod) if (f && f->chunkCoord == coord) { already = true; break; }
+        if (already) continue;
+
+        const glm::vec3 centre = glm::vec3(coord * 32) + glm::vec3(16.0f);
+        const float dist = glm::length(centre - camPos);
+        if (dist > chunkInclusionDistance) continue;
+        const int level = std::max(1, Core::LodService::levelForDistance(
+            1.0f, dist, s_lodTargetPixels, view, Core::LodPyramidService::kMaxLevel));
+
+        std::vector<InstanceData> faces;
+        if (!Core::LodPyramidService::facesFromStorage(*storage, coord, level, faces)) continue;
+        if (faces.empty()) continue;
+
+        auto entry = std::make_unique<FarLodChunk>();
+        entry->chunkCoord = coord;
+        entry->worldOrigin = coord * 32;
+        entry->level = level;
+        entry->instanceCount = static_cast<uint32_t>(faces.size());
+        entry->buffer = std::make_unique<ChunkRenderBuffer>(vulkanDevice->getDevice(),
+                                                            vulkanDevice->getPhysicalDevice());
+        entry->buffer->createBuffer(faces);
+        m_farLod.push_back(std::move(entry));
+        ++built;
+    }
+    return built;
+}
+
+void RenderCoordinator::drawFarLodChunks(uint32_t currentFrame) {
+    if (!s_farLodChunks || m_farLod.empty() || !camera || !vulkanDevice) return;
+    for (const auto& f : m_farLod) {
+        if (!f || !f->buffer || f->instanceCount == 0 ||
+            f->buffer->getBuffer() == VK_NULL_HANDLE) continue;
+        VkBuffer bufs[] = {f->buffer->getBuffer()};
+        VkDeviceSize offs[] = {0};
+        vkCmdBindVertexBuffers(vulkanDevice->getCommandBuffer(currentFrame), 1, 1, bufs, offs);
+        const glm::vec3 rel = camera->relativeTo(glm::dvec3(f->worldOrigin));
+        const glm::vec3 abs = glm::vec3(f->worldOrigin);
+        vulkanDevice->pushConstants(currentFrame, renderPipeline->getGraphicsLayout(), rel, abs);
+        // The faces are ordinary scaleLevel==3 LOD cells, identical to what a resident chunk
+        // emits, so they use the SAME pipeline -- no second shader path to keep in sync.
+        vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), f->instanceCount);
+    }
+}
+
 void RenderCoordinator::drawFrame() {
     // C1 (docs/ContinuousLodPlan.md): refresh the shared screen-space LOD scale ONCE, before
     // any consumer runs. It previously lived in buildCharacterFrameData, which runs after
@@ -1589,6 +1687,7 @@ void RenderCoordinator::drawFrame() {
 
     // C5: pick each chunk's LOD level from the shared metric before culling/drawing.
     updateChunkLod();
+    updateFarLodChunks();   // C3.3: serve non-resident chunks from the persisted pyramid
 
     // Skip rendering when window is minimized (0x0 extent is invalid in Vulkan)
     if (windowManager->getWidth() == 0 || windowManager->getHeight() == 0) {

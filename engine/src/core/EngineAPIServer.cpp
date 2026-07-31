@@ -4287,6 +4287,14 @@ void EngineAPIServer::setupRoutes() {
 
     // POST /api/debug/distance_lod — C5 distance-driven LOD.
     // Body: { "enabled": bool, "target_pixels": float, "budget": int }
+    // POST /api/debug/far_lod — C3.3: draw NON-RESIDENT chunks from the persisted pyramid.
+    // Body: { "enabled": bool }  (empty body = report only). Default OFF.
+    srv.Post("/api/debug/far_lod", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_far_lod", params, 30000).dump(), "application/json");
+    });
+
     srv.Post("/api/debug/distance_lod", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::parse(req.body, nullptr, false);
         if (params.is_discarded()) params = json::object();
