@@ -14,6 +14,7 @@
 #include "ui/HudDataContext.h"
 #include <memory>
 #include <chrono>
+#include <climits>
 #include <vector>
 #include <cstdint>
 #include <unordered_map>
@@ -562,6 +563,8 @@ private:
     long long m_shadowInstancesDrawn = 0;
     int m_shadowMultidrawCalls = 0;
     int m_lodRebuiltLastFrame = 0;   ///< C5: chunks re-meshed for LOD last frame   ///< C2: vkCmdDrawIndexedIndirect calls issued this frame
+    glm::ivec3 m_farLodLastScanChunk{INT_MIN};   ///< C3.3: rescan only on a chunk crossing
+    bool m_farLodScanIncomplete = false;          ///< budget was hit; more may remain
     std::vector<std::unique_ptr<FarLodChunk>> m_farLod;   ///< C3.3: non-resident chunks served from the persisted pyramid
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;

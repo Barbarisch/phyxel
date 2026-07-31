@@ -1,0 +1,47 @@
+C3.3 — FAR-CHUNK DRAW PATH: FIRST PIXELS FROM PERSISTED LOD, AND THE PERF DEFECT IT EXPOSED
+Date 2026-07-31. Release build. World: PhyxelProjects/FarLodTest.
+
+THE WORLD (built for this, because no existing world could exercise the path):
+  Streaming Perlin, seed 424243, loadRadius 3 / unloadRadius 4 (load 96 / unload 160 units),
+  render distance 2048. That gap is the ONLY condition under which the far path does anything:
+  a baked world keeps every chunk resident and it is a no-op by construction (LodBench gave
+  far_chunks = 0 for exactly this reason).
+  Structures: 5 rooms placed by the ENGINE's own generator via POST /api/structure/build
+  ("placed":212 each) -- NOT hand-placed voxels.
+
+FINDING 1 -- STREAMING WORLDS DO NOT SAVE GENERATED CHUNKS.
+A "dirty" save on the freshly-streamed world wrote NOTHING: chunk_blobs = 0, so C3.2's hook on
+saveChunk never fired and no pyramid existed. Generated terrain is regenerable from the seed, so
+it is never dirty. Pyramids therefore only exist for chunks something EDITED -- which is exactly
+C3.4's policy, but it means the far path shows edited/structure chunks only, never plain terrain.
+That is a design consequence worth knowing, not a bug.
+
+FINDING 2 -- C3.2 + C3.4 PROVEN END-TO-END IN A RUNNING ENGINE (first time).
+After placing the 5 rooms and saving, queried the DB directly:
+    chunk_blobs = 16    chunk_lod_blobs = 25 rows over 5 chunks, 12627 bytes
+16 chunks saved; only the 5 carrying structures got pyramids. Plain terrain was correctly
+skipped. Levels 1-5 present per chunk, e.g. (0,1,1): 1472 / 761 / 343 / 120 / 55 bytes.
+
+FINDING 3 -- C3.3 DRAWS. THIS IS THE PROOF C3 EXISTED FOR.
+Camera (420,260,420) yaw -135 pitch -28, read back from GET /api/camera. At that pose everything
+in view is NON-RESIDENT (the structures are ~400 units away; unload distance is 160).
+    far_lod OFF: far_chunks 0  -> screenshots/screenshot_20260731_164553_950.png = EMPTY SKY
+    far_lod ON : far_chunks 5, far_instances 1262, stable across 3 polls
+                 -> screenshots/screenshot_20260731_164639_168.png = terrain + structures VISIBLE
+Geometry appeared where there was nothing, drawn from the persisted pyramid for chunks the
+engine had unloaded. far_chunks = 5 matches the 5 chunks with pyramids exactly.
+
+FINDING 4 -- AND IT COST 638 -> 2 FPS. A REAL DEFECT, MEASURED, NOT THEORISED.
+The same screenshots carry the FPS counter: 638 with the path off, 2 with it on.
+CAUSE: reach was derived from chunkInclusionDistance (3072 / 32 = 96), making the scan
+193^3 = 7.2 MILLION chunk lookups PER FRAME, each also linearly scanning m_farLod.
+FIX WRITTEN: cap reach at 12 chunks (25^3 = 15,625 probes) AND rescan only when the camera
+CROSSES into a new chunk, so a stationary camera costs nothing. Eviction still runs every frame,
+because a chunk becoming resident must stop being drawn immediately or it double-draws.
+
+*** THE FIX IS NOT VERIFIED AT RUNTIME. ***
+It compiles (Release). The re-test raced the engine's boot (curl exit 7 = connection refused) and
+I ran out of session before re-running it. So the 638 -> 2 FPS regression is MEASURED and the
+repair is UNMEASURED. Do not assume the fix works; re-run the A/B above and read the FPS counter.
+Note for whoever does: STOP the engine before rebuilding -- the linker cannot overwrite a running
+phyxel.exe, and I wasted a cycle testing a stale binary whose timestamp predated the fix.

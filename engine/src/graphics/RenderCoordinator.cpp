@@ -1604,7 +1604,17 @@ int RenderCoordinator::updateFarLodChunks() {
 
     const glm::vec3 camPos = camera->getPosition();
     const glm::ivec3 camChunk = glm::ivec3(glm::floor(camPos / 32.0f));
-    const int reach = std::max(1, int(chunkInclusionDistance / 32.0f));
+    // The scan is O(reach^3). Deriving reach from chunkInclusionDistance (3072 => 96) made it
+    // 193^3 = 7.2 MILLION chunk lookups PER FRAME and dropped the engine from 638 to 2 FPS --
+    // measured, not theorised. Two bounds fix it:
+    //   1. cap the radius, so the volume stays small;
+    //   2. only rescan when the camera CROSSES into a new chunk. A stationary camera then costs
+    //      nothing, and moving costs one scan per chunk boundary instead of one per frame.
+    // Eviction still runs every frame, because a chunk becoming resident must stop being drawn
+    // immediately or it double-draws against itself.
+    constexpr int kMaxFarReach = 12;   // 25^3 = 15,625 probes, and only on a chunk crossing
+    const int reach = std::max(1, std::min(kMaxFarReach,
+                                           int(chunkInclusionDistance / 32.0f)));
 
     // Evict anything that left the ring, or that has since become RESIDENT -- drawing both
     // would double-draw the chunk and z-fight with itself.
@@ -1619,6 +1629,11 @@ int RenderCoordinator::updateFarLodChunks() {
     const auto view = Core::LodService::makeView(
         vulkanDevice ? static_cast<float>(vulkanDevice->getSwapChainExtent().height) : 900.0f,
         camera->getFovYDegrees());
+
+    // Nothing new can enter the ring until the camera changes chunk. Budgeted work may still be
+    // outstanding, so keep scanning while the last pass hit its budget.
+    if (camChunk == m_farLodLastScanChunk && !m_farLodScanIncomplete) return 0;
+    m_farLodLastScanChunk = camChunk;
 
     int built = 0;
     for (int dx = -reach; dx <= reach && built < s_farLodBudgetPerFrame; ++dx)
@@ -1652,6 +1667,9 @@ int RenderCoordinator::updateFarLodChunks() {
         m_farLod.push_back(std::move(entry));
         ++built;
     }
+    // If we filled the budget there may be more to build at this position; keep scanning next
+    // frame rather than waiting for the camera to move.
+    m_farLodScanIncomplete = (built >= s_farLodBudgetPerFrame);
     return built;
 }
 
