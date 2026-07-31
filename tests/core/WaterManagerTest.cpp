@@ -271,6 +271,95 @@ TEST(WaterManagerTest, OverridesSurviveSerializeLoadRoundTrip) {
         << "garbage must be rejected, not half-loaded";
 }
 
+// ─── CA edge outflow (water-as-terrain-stage P4) ──────────────────────────────────────────────────
+// The window edge stops being an invisible WALL: unpinned water reaching the ring bleeds out into
+// a world-keyed mass bank instead of piling up, and comes back as live water when the window
+// reaches its landing column. Pinned water is exempt (bleeding an infinite reservoir would mint
+// mass forever). The legacy wall behavior is the red baseline, asserted here with the flag OFF.
+
+// Repeated pours against the window edge: walls (off) stack the water; outflow (on) bounds the
+// in-window mass and grows the bank by exactly what left (conservation across the seam).
+TEST(WaterManagerTest, EdgeOutflowBleedsSpillIntoTheBankInsteadOfWalling) {
+    // Null cm: the out-of-bounds floor below y=0 is the only ground; pours at the x=0 ring column.
+    WaterManager off(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    WaterManager on(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    on.setEdgeOutflow(true);
+    // Three separate ring columns, so the bleed spreads over three bank landing columns and the
+    // per-column bank cap (4.0) is not the limiting factor for the conservation check.
+    for (int i = 0; i < 4; ++i)
+        for (const float pz : {5.5f, 8.5f, 11.5f}) {
+            off.placeWater(glm::vec3(0.5f, 2.5f, pz), 1.0f);
+            on.placeWater(glm::vec3(0.5f, 2.5f, pz), 1.0f);
+            off.update(0.1f);
+            on.update(0.1f);
+        }
+    for (int i = 0; i < 30; ++i) { off.update(0.1f); on.update(0.1f); }
+
+    // RED baseline (walls): every poured unit is still in-window.
+    EXPECT_NEAR(off.totalMass(), 12.0f, 0.5f) << "legacy walls should keep all poured mass in-window";
+    EXPECT_FLOAT_EQ(off.outflowBankTotal(), 0.0f);
+
+    // Outflow: the edge bled most of it into the bank; in-window + banked ≈ poured (the seam
+    // conserves — nothing deleted below the cap). Films below the hold may remain in-window.
+    EXPECT_LT(on.totalMass(), 6.0f) << "edge did not bleed — the wall is back";
+    EXPECT_GT(on.outflowBankTotal(), 4.0f) << "bled mass did not reach the bank";
+    EXPECT_NEAR(on.totalMass() + on.outflowBankTotal(), 12.0f, 1.0f)
+        << "mass vanished at the seam instead of banking";
+}
+
+// Banked mass is redeposited as live water when the window recenters over its landing column.
+// The window is SMALLER than the fixture's chunk, so the landing column (just outside the window)
+// still has real loaded terrain when the window later covers it.
+TEST(WaterManagerTest, OutflowBankRedepositsWhenTheWindowArrives) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);   // flat ground at y<=2, chunk 0..31
+    WaterManager wm(&f.cm, glm::ivec3(4, 0, 4), glm::ivec3(16, 8, 16));  // window x,z in [4,20)
+    wm.setEdgeOutflow(true);
+    // Pour against the x = 19 ring column: it bleeds to the bank at world x 20 (inside the chunk).
+    for (int i = 0; i < 8; ++i) {
+        wm.placeWater(glm::vec3(19.5f, 4.5f, 12.5f), 1.0f);
+        wm.update(0.1f);
+    }
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    const float banked = wm.outflowBankTotal();
+    ASSERT_GT(banked, 2.0f) << "edge pour did not bank";
+
+    wm.recenter(glm::ivec3(8, 0, 4));   // landing column x=20 → local 12: interior, real ground
+    EXPECT_LT(wm.outflowBankTotal(), banked * 0.5f)
+        << "bank did not redeposit over loaded ground";
+    EXPECT_GT(wm.totalMass(), banked * 0.5f) << "redeposited mass is not in the sim";
+}
+
+// A pinned (baked-table) shoreline at the window edge must NOT bleed: pins are infinite
+// reservoirs, and outflowing them would grow the bank forever from nothing.
+TEST(WaterManagerTest, PinnedEdgeWaterDoesNotBleed) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setEdgeOutflow(true);
+    wm.setWaterTable([](float, float) { return 3.0f; });   // uniform pinned sea to y=3
+    wm.update(0.1f);
+    const float sea = wm.totalMass();
+    ASSERT_GT(sea, 100.0f) << "table sea should have filled";
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.outflowBankTotal(), 0.0f) << "pinned sea bled at the edge — mass minted";
+    EXPECT_NEAR(wm.totalMass(), sea, sea * 0.02f);
+}
+
+// Bank entries survive the serialize/load round trip alongside the level overrides.
+TEST(WaterManagerTest, OutflowBankSurvivesSerializeLoadRoundTrip) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setEdgeOutflow(true);
+    for (int i = 0; i < 8; ++i) {
+        wm.placeWater(glm::vec3(0.5f, 2.5f, 8.5f), 1.0f);
+        wm.update(0.1f);
+    }
+    for (int i = 0; i < 20; ++i) wm.update(0.1f);
+    const float banked = wm.outflowBankTotal();
+    ASSERT_GT(banked, 1.0f);
+
+    WaterManager wm2(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm2.loadOverrides(wm.serializeOverrides()));
+    EXPECT_NEAR(wm2.outflowBankTotal(), banked, 1e-2f) << "bank lines lost in the round trip";
+}
+
 // Monotone stress: walk away and back MANY times. Capture→reseed is level-based, so repeated
 // cycles must never grow the water (each reseed fills to at most the captured level; each capture
 // records at most the reseeded level). Asserted EVERY cycle, not just at the end.

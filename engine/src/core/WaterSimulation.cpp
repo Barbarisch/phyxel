@@ -18,7 +18,8 @@ WaterSimulation::WaterSimulation(int sizeX, int sizeY, int sizeZ)
       m_colWrite(static_cast<size_t>(sizeX) * sizeZ, 0),
       m_floor(static_cast<size_t>(sizeX) * sizeY * sizeZ, 0.0f),
       m_flow(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
-      m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)) {}
+      m_flowAccum(static_cast<size_t>(sizeX) * sizeY * sizeZ, glm::vec2(0.0f)),
+      m_edgeOutflowAccum(static_cast<size_t>(sizeX) * sizeZ, 0.0f) {}
 
 glm::vec2 WaterSimulation::flowAt(int x, int y, int z) const {
     if (!inBounds(x, y, z)) return glm::vec2(0.0f);
@@ -235,7 +236,62 @@ inline float stableBottom(float total) {
 }
 } // namespace
 
+void WaterSimulation::setEdgeOutflow(bool on) {
+    if (m_edgeOutflow == on) return;
+    m_edgeOutflow = on;
+    if (on) wake();   // a settled field may hold edge water that is now eligible to bleed
+}
+
+void WaterSimulation::runEdgeOutflow() {
+    auto bleedColumn = [&](int x, int z) {
+        for (int y = m_sy - 1; y >= 0; --y) {
+            const size_t i = idx(x, y, z);
+            if (m_solid[i] || m_mass[i] <= 0.0f) continue;
+            // Pinned/channel water is an infinite reservoir / held ribbon — bleeding it would
+            // mint mass into the bank forever. It stays a wall, as before.
+            if (m_source[i] >= 0.0f || m_channel[i]) return;
+            // Bleed the top wet cell: its excess above the hold, or — when it is a thin layer
+            // riding on deeper water — the whole layer, so a stack drains from the top down to
+            // one resting ≤hold layer on actual ground. One cell per column per step.
+            const bool stacked = y > 0 && !m_solid[idx(x, y - 1, z)] && m_mass[idx(x, y - 1, z)] > 0.5f;
+            float excess = 0.0f;
+            if (m_mass[i] > m_minHold)  excess = m_mass[i] - m_minHold;
+            else if (stacked)           excess = m_mass[i];
+            else return;
+            const float take = std::min(excess, OUTFLOW_RATE);
+            m_mass[i] -= take;
+            m_edgeOutflowAccum[colIdx(x, z)] += take;
+            markCol(x, z);
+            return;
+        }
+    };
+    for (int x = 0; x < m_sx; ++x) {
+        bleedColumn(x, 0);
+        if (m_sz > 1) bleedColumn(x, m_sz - 1);
+    }
+    for (int z = 1; z < m_sz - 1; ++z) {
+        bleedColumn(0, z);
+        if (m_sx > 1) bleedColumn(m_sx - 1, z);
+    }
+}
+
+float WaterSimulation::drainEdgeOutflow(const std::function<void(int, int, float)>& sink) {
+    float total = 0.0f;
+    for (int z = 0; z < m_sz; ++z)
+        for (int x = 0; x < m_sx; ++x) {
+            const size_t c = colIdx(x, z);
+            if (m_edgeOutflowAccum[c] <= 0.0f) continue;
+            total += m_edgeOutflowAccum[c];
+            if (sink) sink(x, z, m_edgeOutflowAccum[c]);
+            m_edgeOutflowAccum[c] = 0.0f;
+        }
+    return total;
+}
+
 void WaterSimulation::step(float flowSide) {
+    // P4: the frontier bleed runs even on a settled field (edge water is eligible the moment the
+    // flag turns on or the window shifts); a bleed marks its column dirty, un-settling the field.
+    if (m_edgeOutflow) runEdgeOutflow();
     if (m_settled) return;   // provably at rest since the last executed step → nothing to do
 
     // ACTIVE SET: build the sweep set P = dirty ∪ N4(dirty) and the snapshot/write-back set

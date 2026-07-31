@@ -5887,6 +5887,11 @@ void Application::autoLoadGameDefinition() {
                     // Override either way with water.evaporation.
                     waterManager->setEvaporation(
                         w.value("evaporation", waterManager->hasWaterTable()));
+                    // CA edge outflow (water-as-terrain-stage P4): baked worlds' window edges
+                    // bleed unpinned water into the world-keyed bank instead of walling it.
+                    // Authored worlds keep legacy walls unless opted in via water.edgeOutflow.
+                    waterManager->setEdgeOutflow(
+                        w.value("edgeOutflow", waterManager->hasWaterTable()));
                     // Poured-water persistence (water-as-terrain-stage P3): restore captured
                     // pours from world_meta — they reseed as unpinned mass when the sim window
                     // reaches their columns.
@@ -11584,6 +11589,9 @@ void Application::registerWaterCommands() {
         if (!waterManager) return noWater(r);
         r = {{"total_mass", waterManager->totalMass()},
              {"water_table", waterManager->hasWaterTable()},
+             {"overrides", waterManager->overrideCount()},          // P3: captured pour columns
+             {"edge_outflow", waterManager->edgeOutflow()},         // P4: frontier bleed on?
+             {"outflow_bank", waterManager->outflowBankTotal()},    // P4: banked mass awaiting return
              {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
              {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
         if (cmd.params.contains("x")) {

@@ -182,6 +182,23 @@ public:
     static constexpr float EVAP_THRESHOLD = 0.1f;  // below this depth a cell evaporates
     static constexpr float EVAP_RATE      = 0.01f; // mass lost per step by a thin cell
 
+    // ── EDGE OUTFLOW (water-as-terrain-stage P4) ──────────────────────────────────────────────
+    // When enabled, the outermost XZ ring of columns stops being an invisible WALL for unpinned
+    // water: a ring cell holding more than the hold — or a thin layer stacked on deeper water —
+    // bleeds up to OUTFLOW_RATE mass per step out of the window, accumulated per column for the
+    // owner (WaterManager) to drain into its world-keyed persistence bank. The world continues
+    // beyond the window; water reaching the frontier keeps going instead of piling into a wall.
+    // Pinned and channel cells are EXEMPT: pins are infinite reservoirs (outflowing a lake edge
+    // would mint mass forever), and channel ribbons are held in place by design. Draining a ring
+    // column marks it dirty, so leveling keeps feeding the frontier until the body thins to the
+    // hold — which is how a spill actually leaves the window. Off by default (legacy walls).
+    void setEdgeOutflow(bool on);
+    bool edgeOutflow() const { return m_edgeOutflow; }
+    // Move the accumulated per-column outflow to the caller: `sink(lx, lz, mass)` per non-empty
+    // ring column, cleared afterward. Returns the total mass drained.
+    float drainEdgeOutflow(const std::function<void(int lx, int lz, float mass)>& sink);
+    static constexpr float OUTFLOW_RATE = 0.25f;   // per column per step; gradual, like a real spill edge
+
     // Advance the simulation one tick. `flowSide` damps horizontal equalization
     // (0..1); lower = calmer/slower leveling.
     //
@@ -250,6 +267,9 @@ private:
     std::vector<glm::vec2> m_flow;      // per-cell EMA-smoothed horizontal flow proxy (see flowAt)
     std::vector<glm::vec2> m_flowAccum; // scratch: this sweep's raw net transfer per cell
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
+    bool                 m_edgeOutflow = false;            // P4: ring columns bleed instead of walling
+    std::vector<float>   m_edgeOutflowAccum;               // per-column outflow since the last drain
+    void runEdgeOutflow();                                 // one bleed pass over the ring (in step())
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
     float                m_momentum   = 1.0f;  // Phase 4 inertia strength (0 = pure diffusion)

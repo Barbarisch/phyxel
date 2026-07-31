@@ -235,10 +235,26 @@ public:
     // Levels only ever fall between capture and re-capture (mass spreads/evaporates, reseed fills
     // to at most the stored level), so walk-away/walk-back cycles cannot grow water.
     size_t overrideCount() const { return m_overrides.size(); }
-    std::string serializeOverrides() const;          // compact text: "x z level\n" per column
+    std::string serializeOverrides() const;          // compact text: "x z level\n" (+ "B x z mass")
     bool loadOverrides(const std::string& data);     // replaces the store; false on parse garbage
     void captureOverridesInWindow();                 // save-time hook (leaves the live water alone)
     static constexpr size_t MAX_OVERRIDES = 65536;   // sparse store cap (arbitrary eviction beyond)
+
+    // ── CA edge outflow (water-as-terrain-stage P4) ─────────────────────────────────────────────
+    // With this on, the sim's window edges bleed unpinned water instead of walling it (see
+    // WaterSimulation::setEdgeOutflow); the bled mass lands in a world-keyed MASS bank at the
+    // column just outside the window and is dropped back as live water when the window reaches
+    // it (or persists via serializeOverrides). Capped per column (BANK_CAP_PER_COLUMN) so a
+    // drain fed by an infinite pinned reservoir cannot grow the bank forever — beyond the cap
+    // the outside world is deemed to have absorbed it. Enabled by the editor for baked worlds.
+    void setEdgeOutflow(bool on) { m_sim.setEdgeOutflow(on); }
+    bool edgeOutflow() const { return m_sim.edgeOutflow(); }
+    float outflowBankTotal() const {
+        float t = 0.0f;
+        for (const auto& [k, m] : m_outflowBank) t += m;
+        return t;
+    }
+    static constexpr float BANK_CAP_PER_COLUMN = 4.0f;
 
     // --- GPU backend ---
     // Run the per-tick flow step on a compute shader instead of the CPU. Behaviour is
@@ -300,6 +316,8 @@ private:
     // stored overrides as unpinned mass (called by rebuildOcean on both table and authored paths).
     void captureColumnOverride(int lx, int lz, int yLo, int yHi);
     void applyOverrides();
+    void drainOutflowToBank();   // P4: move the sim's per-column edge outflow into m_outflowBank
+    void applyOutflowBank();     // P4: drop in-window banked mass back as live water
     static uint64_t packColumnKey(int wx, int wz) {
         return (static_cast<uint64_t>(static_cast<uint32_t>(wx)) << 32) |
                static_cast<uint64_t>(static_cast<uint32_t>(wz));
@@ -326,6 +344,8 @@ private:
     std::vector<glm::ivec3> m_channelCells; // world-space channel cells (for persistence)
     // P3: packed world column (x<<32|z) → captured unpinned water-surface world Y.
     std::unordered_map<uint64_t, float> m_overrides;
+    // P4: packed world column → MASS bled out of the window edge, awaiting redeposit.
+    std::unordered_map<uint64_t, float> m_outflowBank;
 
     // GPU backend state.
     void stepGpu();        // upload field+masks, dispatch flow, read back

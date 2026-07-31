@@ -104,6 +104,7 @@ void WaterManager::update(float dt) {
         ++steps;
     }
     if (steps == MAX_STEPS_PER_UPDATE) m_accum = 0.0f; // drop backlog after a stall
+    drainOutflowToBank();   // P4: bank whatever the edge bled this tick (no-op when clean)
     // Rebuild the renderable surface only if a step actually ran (settled skips don't advance
     // sweepsRun) — otherwise a fully-at-rest field pays this O(box) scan at 20 Hz for nothing.
     // The GPU stepper doesn't advance sweepsRun, so it forces the rebuild explicitly.
@@ -113,6 +114,7 @@ void WaterManager::update(float dt) {
 void WaterManager::recenter(const glm::ivec3& newOrigin) {
     const glm::ivec3 delta = newOrigin - m_origin;
     if (delta == glm::ivec3(0)) return;
+    drainOutflowToBank();   // P4: the accumulator is window-local — bank it before the window moves
     // P3 (poured-water persistence): before the shift silently drops water off the frontier,
     // capture every departing column's unpinned surface level. A column departs whole (XZ exit)
     // or as a vertical slice (the window also follows the camera in Y — the way live pours were
@@ -625,6 +627,7 @@ void WaterManager::rebuildOcean() {
         applySprings();       // authored springs still ride on top of the baked table
         applyRiverInflows();  // baked river channel tags + edge inflows (Phase C2)
         applyOverrides();     // P3: reseed captured pours over the pinned bodies
+        applyOutflowBank();   // P4: redeposit mass that once bled out of the window here
         rebuildSurface();
         return;
     }
@@ -656,6 +659,7 @@ void WaterManager::rebuildOcean() {
     applySprings();                               // re-pin authored springs over the top
     applyRiverInflows();                          // baked river channel tags + edge inflows (Phase C2)
     applyOverrides();                             // P3: reseed captured pours (authored path too)
+    applyOutflowBank();                           // P4: redeposit banked edge outflow
     rebuildSurface();
 }
 
@@ -731,9 +735,45 @@ void WaterManager::applyOverrides() {
     }
 }
 
+void WaterManager::drainOutflowToBank() {
+    if (!m_sim.edgeOutflow()) return;
+    m_sim.drainEdgeOutflow([this](int lx, int lz, float mass) {
+        // The bled mass lands one column OUTSIDE the window, past the ring cell it left through.
+        int wx = m_origin.x + lx, wz = m_origin.z + lz;
+        if (lx == 0) --wx;
+        else if (lx == m_dims.x - 1) ++wx;
+        if (lz == 0) --wz;
+        else if (lz == m_dims.z - 1) ++wz;
+        float& bank = m_outflowBank[packColumnKey(wx, wz)];
+        // Cap: a drain fed by a pinned (infinite) reservoir bleeds forever; past the cap the
+        // outside world is deemed to have absorbed it (documented loss, not a leak).
+        bank = std::min(bank + mass, BANK_CAP_PER_COLUMN);
+    });
+}
+
+void WaterManager::applyOutflowBank() {
+    if (m_outflowBank.empty()) return;
+    const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
+    for (auto it = m_outflowBank.begin(); it != m_outflowBank.end();) {
+        const int wx = static_cast<int32_t>(static_cast<uint32_t>(it->first >> 32));
+        const int wz = static_cast<int32_t>(static_cast<uint32_t>(it->first & 0xffffffffu));
+        const int lx = wx - m_origin.x, lz = wz - m_origin.z;
+        // Interior only: redepositing ON the ring would just bleed straight back out next step.
+        if (lx <= 0 || lx >= sx - 1 || lz <= 0 || lz >= sz - 1) { ++it; continue; }
+        // Drop the mass on the column's loaded ground; gravity/leveling spreads it naturally.
+        // No ground in-window → keep for a later visit (same rule as the overrides).
+        int top = -1;
+        for (int y = sy - 1; y >= 0; --y)
+            if (m_sim.isSolid(lx, y, lz)) { top = y; break; }
+        if (top < 0 || top + 1 >= sy) { ++it; continue; }
+        m_sim.addWater(lx, top + 1, lz, it->second);
+        it = m_outflowBank.erase(it);
+    }
+}
+
 std::string WaterManager::serializeOverrides() const {
     std::string out;
-    out.reserve(m_overrides.size() * 24);
+    out.reserve((m_overrides.size() + m_outflowBank.size()) * 24);
     char line[64];
     for (const auto& [key, level] : m_overrides) {
         const int wx = static_cast<int32_t>(static_cast<uint32_t>(key >> 32));
@@ -741,25 +781,38 @@ std::string WaterManager::serializeOverrides() const {
         std::snprintf(line, sizeof(line), "%d %d %.3f\n", wx, wz, level);
         out += line;
     }
+    // P4 bank lines: "B x z mass" — banked edge outflow persists alongside the level overrides.
+    for (const auto& [key, mass] : m_outflowBank) {
+        const int wx = static_cast<int32_t>(static_cast<uint32_t>(key >> 32));
+        const int wz = static_cast<int32_t>(static_cast<uint32_t>(key & 0xffffffffu));
+        std::snprintf(line, sizeof(line), "B %d %d %.3f\n", wx, wz, mass);
+        out += line;
+    }
     return out;
 }
 
 bool WaterManager::loadOverrides(const std::string& data) {
-    std::unordered_map<uint64_t, float> fresh;
+    std::unordered_map<uint64_t, float> fresh, freshBank;
     size_t pos = 0;
     while (pos < data.size()) {
         size_t eol = data.find('\n', pos);
         if (eol == std::string::npos) eol = data.size();
         int wx = 0, wz = 0;
-        float level = 0.0f;
+        float value = 0.0f;
         const std::string lineStr = data.substr(pos, eol - pos);
         pos = eol + 1;
         if (lineStr.empty()) continue;
-        if (std::sscanf(lineStr.c_str(), "%d %d %f", &wx, &wz, &level) != 3) return false;
+        if (std::sscanf(lineStr.c_str(), "B %d %d %f", &wx, &wz, &value) == 3) {
+            if (freshBank.size() < MAX_OVERRIDES)
+                freshBank[packColumnKey(wx, wz)] = std::min(value, BANK_CAP_PER_COLUMN);
+            continue;
+        }
+        if (std::sscanf(lineStr.c_str(), "%d %d %f", &wx, &wz, &value) != 3) return false;
         if (fresh.size() >= MAX_OVERRIDES) break;
-        fresh[packColumnKey(wx, wz)] = level;
+        fresh[packColumnKey(wx, wz)] = value;
     }
     m_overrides = std::move(fresh);
+    m_outflowBank = std::move(freshBank);
     m_oceanDirty = true;   // reseed anything in-window on the next update
     return true;
 }
