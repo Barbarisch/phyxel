@@ -82,6 +82,7 @@ void WaterManager::syncSolidsFromChunks() {
 
 void WaterManager::update(float dt) {
     if (m_oceanDirty) rebuildOcean(); // re-flood once before stepping
+    m_ripple.tick(dt);   // visual disturbance field (Phase 3); O(1) while asleep
     m_accum += std::min(dt, 0.25f);
     int steps = 0;
     const unsigned long long sweepsBefore = m_sim.sweepsRun();
@@ -129,6 +130,9 @@ void WaterManager::recenter(const glm::ivec3& newOrigin) {
 }
 
 bool WaterManager::followTo(const glm::vec3& focusWorld, int hysteresisCells) {
+    // The ripple window follows the same focus (XZ only — it is a surface field). Tight
+    // hysteresis: its window (~64 units) is the near field, and a whole-cell shift is cheap.
+    m_ripple.followTo(glm::vec2(focusWorld.x, focusWorld.z), 4.0f);
     const int cx = m_origin.x + m_dims.x / 2;   // current box centre (world)
     const int cy = m_origin.y + m_dims.y / 2;
     const int cz = m_origin.z + m_dims.z / 2;

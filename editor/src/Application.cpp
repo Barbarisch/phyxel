@@ -11653,11 +11653,18 @@ void Application::registerWaterCommands() {
                            "the terrain reaches, then regenerate the world.";
     });
 
-    // Ripple/disturbance injection — lands with the RippleField (small-scale plan Phase 3).
-    reg.on("water_ripple", [](const Core::APICommand&, nlohmann::json& r) {
-        r = {{"error", "no ripple field yet"},
-             {"detail", "the disturbance heightfield is small-scale plan Phase 3; this command is "
-                        "registered ahead of it as the entity-independent L4 hook"}};
+    // Ripple/disturbance injection (small-scale plan Phase 3) — the entity-independent L4 hook:
+    // poke the field at a world point and watch the ring, no character needed.
+    reg.on("water_ripple", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::vec3 p(cmd.params.value("x", 0.0f), 0.0f, cmd.params.value("z", 0.0f));
+        waterManager->addRipple(p, cmd.params.value("radius", 1.5f),
+                                cmd.params.value("strength", 0.35f));
+        const auto& f = waterManager->ripple();
+        r = {{"success", true}, {"asleep", f.asleep()},
+             {"total_amplitude", f.totalAmplitude()},
+             {"window", {{"minX", f.origin().x}, {"minZ", f.origin().y},
+                          {"size", f.windowSize()}}}};
     });
 }
 

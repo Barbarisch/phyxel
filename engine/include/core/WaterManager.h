@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/RippleField.h"
 #include "core/WaterSimulation.h"
 #include "core/WorldConstants.h"
 #include "vulkan/ComputePipeline.h"
@@ -208,6 +209,15 @@ public:
         return out;
     }
 
+    // ── Ripple / disturbance field (small-scale plan Phase 3) ─────────────────────────────────
+    // Local dynamic surface disturbances — impact rings, footstep wakes, splashes. Purely
+    // visual (never touches CA mass); ticked in update(), recentred alongside the region in
+    // followTo(). Entities inject via addRipple; the renderer samples ripple() by world XZ.
+    void addRipple(const glm::vec3& worldPos, float radius, float strength) {
+        m_ripple.addImpulse(glm::vec2(worldPos.x, worldPos.z), radius, strength);
+    }
+    const RippleField& ripple() const { return m_ripple; }
+
     float totalMass() const { return m_sim.totalMass(); }
     const glm::ivec3& origin() const { return m_origin; }
     const glm::ivec3& dims() const   { return m_dims; }
@@ -272,6 +282,7 @@ private:
     glm::ivec3      m_origin;
     glm::ivec3      m_dims;
     WaterSimulation m_sim;
+    RippleField     m_ripple;   // visual disturbance field (Phase 3); follows the region focus
     std::vector<WaterSurfaceCell> m_surface;   // cached renderable surface cells
     std::vector<glm::vec4>        m_waterfalls; // mist emitter points (lip xyz, drop w)
     float           m_accum = 0.0f;
