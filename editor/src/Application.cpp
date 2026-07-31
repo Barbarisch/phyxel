@@ -5015,6 +5015,37 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     if (chunkManager) {
         animatedCharacter->setChunkManager(chunkManager);
     }
+    // Wading feel (small-scale water plan Phase 4.3): depth-scaled slowdown, footstep rings on
+    // the ripple field, and an entry splash copying the waterfall-mist burst pattern (splash-
+    // tuned: faster, heavier, shorter — a crown, not fog). All null-safe against a dry world.
+    {
+        Scene::AnimatedVoxelCharacter::WaterHooks hooks;
+        hooks.depthAt = [this](const glm::vec3& p) -> float {
+            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
+        };
+        hooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
+            if (waterManager) waterManager->addRipple(p, radius, strength);
+        };
+        hooks.splash = [this](const glm::vec3& p, float intensity) {
+            auto* vfx = renderCoordinator ? renderCoordinator->getVfxSystem() : nullptr;
+            if (!vfx) return;
+            VfxBurstParams sp;
+            sp.count     = std::min(6 + static_cast<int>(intensity * 10.0f), 22);
+            sp.speed     = 2.2f + 1.6f * intensity;  sp.speedVar = 1.2f;
+            sp.upBias    = 0.75f;                    // a crown thrown upward
+            sp.gravity   = -9.0f;                    // real droplets, not fog
+            sp.drag      = 0.8f;
+            sp.lifetime  = 0.55f; sp.lifetimeVar = 0.2f;
+            sp.size      = 0.10f; sp.sizeVar     = 0.05f;
+            sp.intensity = 0.12f;
+            sp.color     = glm::vec3(0.82f, 0.90f, 0.97f);
+            sp.shape     = VfxShape::Dome;
+            sp.direction = glm::vec3(0.0f, 1.0f, 0.0f);
+            sp.posJitter = glm::vec3(0.35f, 0.1f, 0.35f);
+            vfx->spawnBurst(p + glm::vec3(0.0f, 0.15f, 0.0f), sp);
+        };
+        animatedCharacter->setWaterHooks(std::move(hooks));
+    }
     // Wire F5 debug visualizer for segment box display
     if (raycastVisualizer) {
         animatedCharacter->setRaycastVisualizer(raycastVisualizer.get());

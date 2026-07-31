@@ -155,6 +155,48 @@ namespace Scene {
             }
         }
 
+        // --- Wading (small-scale water plan Phase 4.3) ---
+        // worldPosition.y is the FEET level here (the ground snap below treats it so), which is
+        // exactly where water depth matters. All through injected hooks (null = dry world).
+        // m_kinVelocity.xz is re-derived from input/external velocity every update, so the
+        // per-frame slowdown scaling cannot compound across frames.
+        if (m_water.depthAt) {
+            m_splashCooldown = std::max(0.0f, m_splashCooldown - dt);
+            const float depth = m_water.depthAt(worldPosition + glm::vec3(0.0f, 0.05f, 0.0f));
+            if (depth > 0.05f) {
+                // Hip-deep water roughly halves the pace; scale by capsule size so a wolf and an
+                // ogre wade believably in the same creek.
+                const float hip  = std::max(0.6f, m_originalHalfHeight);
+                const float slow = glm::mix(1.0f, 0.55f, glm::clamp(depth / hip, 0.0f, 1.0f));
+                m_kinVelocity.x *= slow;
+                m_kinVelocity.z *= slow;
+                // Footstep rings while striding through shallow water (deep water = no stepping).
+                const float hspeed = glm::length(glm::vec2(m_kinVelocity.x, m_kinVelocity.z));
+                if (m_water.addRipple && m_kinGrounded && depth < 1.2f && hspeed > 0.3f) {
+                    m_wadeAccum += hspeed * dt;
+                    if (m_wadeAccum >= 0.9f) {   // ~one stride
+                        m_wadeAccum = 0.0f;
+                        m_water.addRipple(worldPosition, 0.6f,
+                                          0.10f + 0.04f * std::min(hspeed, 4.0f));
+                    }
+                }
+                // Entry splash: the dry→wet crossing frame with real downward speed, rate-limited
+                // per entity (the global budget is the VFX system's own burst cap).
+                if (m_water.splash && !m_wasInWater && m_kinVelocity.y < -3.0f &&
+                    m_splashCooldown <= 0.0f) {
+                    m_splashCooldown = 0.25f;
+                    m_water.splash(worldPosition, std::min(-m_kinVelocity.y / 8.0f, 1.5f));
+                    if (m_water.addRipple)
+                        m_water.addRipple(worldPosition, 1.2f,
+                                          std::min(-m_kinVelocity.y * 0.04f, 0.35f));
+                }
+                m_wasInWater = true;
+            } else {
+                m_wasInWater = false;
+                m_wadeAccum  = 0.0f;
+            }
+        }
+
         if (voxelWorld) {
             // FAIL LOUD: a character grounds against this world's registered terrain
             // occupancy grids. If none are registered, every ground query returns
