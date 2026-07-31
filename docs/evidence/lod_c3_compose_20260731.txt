@@ -47,3 +47,34 @@ Commit 0bc273d8's MESSAGE still asserts "DB restored from a pre-delete copy", wh
 the WAL-mode copy was empty. The file was corrected in c00bee03 but a commit message cannot be
 rewritten without rewriting history, so a reader of `git log` alone would be misled. Recorded
 here so the contradiction is discoverable from the evidence rather than only from the diff.
+
+============================================================================
+EVICTION VERIFIED; THE SEAM TEST WAS *NOT* ACHIEVABLE WITH THIS FIXTURE
+============================================================================
+Walked the camera in along the diagonal, far_terrain and far_lod both ON, sampling far_chunks:
+
+    camera 330 -> far_chunks 5, far_instances 4876
+    camera 260 -> far_chunks 7, far_instances 7122
+    camera 190 -> far_chunks 7, far_instances 7122
+    camera 130 -> far_chunks 7, far_instances 7122
+    camera 115 -> far_chunks 0
+    camera 100 -> far_chunks 0
+    camera  92 -> far_chunks 0
+    camera  80 -> far_chunks 0
+
+WHAT THIS SHOWS: eviction works. Once the structure chunks come inside loadRadius they become
+resident and are dropped from m_farLod, so no chunk is ever both resident and far-drawn. That is
+the mutual exclusion the eviction rule exists to guarantee, and it holds at every sampled pose.
+(330 shows 5 rather than 7 because two pyramids fall outside kMaxFarReach = 12 at that distance --
+the same coverage cap recorded earlier, visible again here.)
+
+WHAT THIS DOES *NOT* SHOW, and why: a real seam test needs SOME structures resident while others
+are still far, so the boundary between the two renderers can be inspected for cracks, z-fighting
+or double-draw. That state is UNREACHABLE with this fixture -- all 8 rooms sit inside (0..96), a
+span smaller than the 96-unit load radius, so they cross the residency boundary together: 7 far at
+camera 130, 0 far at 115, with nothing in between. Every intermediate sample was all-or-nothing.
+
+So THE SEAM REMAINS UNANALYSED. It is not "no artifacts found" -- the test could not be run.
+To run it: place structures spread across a range wider than loadRadius (e.g. at 0, 60, 120, 200,
+320 units out) so a single pose necessarily has some resident and some far, then inspect that
+boundary. That fixture does not exist yet.
