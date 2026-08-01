@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <nlohmann/json.hpp>
 
+#include "core/WorldConstants.h"
+
 namespace Phyxel {
 
 /// Per-world generation recipe, persisted in world.db (world_meta key "recipe").
@@ -49,6 +51,11 @@ struct WorldRecipe {
     uint32_t seed = 0;
     std::string type = "Perlin";
     float climateFrequency = 0.002f;       // biome size (lower = bigger biomes)
+    // Sea level the world was BAKED against (hydrology outlet + seabed/altitude material gates).
+    // Sourced from game.json `water.seaLevel` on first load, then persisted here — the terrain
+    // carve and the water table are only coherent with the level they were generated for, so the
+    // stored value wins over a later game.json edit (the loader WARNs on a mismatch).
+    float seaLevelY = Core::kSeaLevelY;
     std::vector<BiomeTune> biomes;
     std::vector<SplinePoint> heightSpline; // continentalness → base elevation; empty = engine default
 
@@ -58,6 +65,7 @@ struct WorldRecipe {
         root["seed"] = seed;
         root["type"] = type;
         root["climateFrequency"] = climateFrequency;
+        root["seaLevelY"] = seaLevelY;
         nlohmann::json barr = nlohmann::json::array();
         for (const auto& b : biomes) {
             nlohmann::json items = nlohmann::json::array();
@@ -98,6 +106,9 @@ struct WorldRecipe {
             r.seed = root.value("seed", 0u);
             r.type = root.value("type", std::string("Perlin"));
             r.climateFrequency = root.value("climateFrequency", 0.002f);
+            // Missing key (recipes persisted before seaLevel plumbing) → the engine default the
+            // old bake actually used, so legacy worlds keep byte-identical behavior.
+            r.seaLevelY = root.value("seaLevelY", Core::kSeaLevelY);
             if (root.contains("biomes") && root["biomes"].is_array()) {
                 for (const auto& b : root["biomes"]) {
                     BiomeTune bt;

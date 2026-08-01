@@ -1611,6 +1611,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (raycastVisualizer) {
         npcManager->setRaycastVisualizer(raycastVisualizer.get());
     }
+    // NPC water hooks (tangible-water Phase E — closes the "wading was player-only" gap):
+    // copied onto every spawned NPC's character. The lambdas null-check waterManager at CALL
+    // time, so wiring them here — before any world/water exists — is safe and covers every
+    // later spawn path (game.json NPCs, fauna, MCP spawns).
+    {
+        Scene::AnimatedVoxelCharacter::WaterHooks npcHooks;
+        npcHooks.depthAt = [this](const glm::vec3& p) -> float {
+            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
+        };
+        npcHooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
+            if (waterManager) waterManager->addRipple(p, radius, strength);
+        };
+        npcHooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
+            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
+        };
+        // No entry-splash burst for NPCs (VFX budget: 100 fauna hitting a river edge at once
+        // must not monopolize the burst cap); rings + slowdown + current push only.
+        npcManager->setCharacterWaterHooks(std::move(npcHooks));
+    }
     // Static placed objects (wells, woodpiles, furniture) are NOT chunk voxels, so
     // pathfinding routed straight through them and NPCs treadmilled against their
     // collision. Feed their boxes to the nav build as obstacles. Structures excluded:
@@ -5060,6 +5079,41 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
     if (chunkManager) {
         animatedCharacter->setChunkManager(chunkManager);
     }
+    // Wading feel (small-scale water plan Phase 4.3): depth-scaled slowdown, footstep rings on
+    // the ripple field, and an entry splash copying the waterfall-mist burst pattern (splash-
+    // tuned: faster, heavier, shorter — a crown, not fog). All null-safe against a dry world.
+    {
+        Scene::AnimatedVoxelCharacter::WaterHooks hooks;
+        hooks.depthAt = [this](const glm::vec3& p) -> float {
+            return waterManager ? waterManager->sampleWater(p).depthBelow : 0.0f;
+        };
+        hooks.addRipple = [this](const glm::vec3& p, float radius, float strength) {
+            if (waterManager) waterManager->addRipple(p, radius, strength);
+        };
+        // Current push (tangible-water Phase E): flowing water shoves a wader downstream.
+        hooks.flowAt = [this](const glm::vec3& p) -> glm::vec3 {
+            return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
+        };
+        hooks.splash = [this](const glm::vec3& p, float intensity) {
+            auto* vfx = renderCoordinator ? renderCoordinator->getVfxSystem() : nullptr;
+            if (!vfx) return;
+            VfxBurstParams sp;
+            sp.count     = std::min(6 + static_cast<int>(intensity * 10.0f), 22);
+            sp.speed     = 2.2f + 1.6f * intensity;  sp.speedVar = 1.2f;
+            sp.upBias    = 0.75f;                    // a crown thrown upward
+            sp.gravity   = -9.0f;                    // real droplets, not fog
+            sp.drag      = 0.8f;
+            sp.lifetime  = 0.55f; sp.lifetimeVar = 0.2f;
+            sp.size      = 0.10f; sp.sizeVar     = 0.05f;
+            sp.intensity = 0.12f;
+            sp.color     = glm::vec3(0.82f, 0.90f, 0.97f);
+            sp.shape     = VfxShape::Dome;
+            sp.direction = glm::vec3(0.0f, 1.0f, 0.0f);
+            sp.posJitter = glm::vec3(0.35f, 0.1f, 0.35f);
+            vfx->spawnBurst(p + glm::vec3(0.0f, 0.15f, 0.0f), sp);
+        };
+        animatedCharacter->setWaterHooks(std::move(hooks));
+    }
     // Wire F5 debug visualizer for segment box display
     if (raycastVisualizer) {
         animatedCharacter->setRaycastVisualizer(raycastVisualizer.get());
@@ -5703,7 +5757,27 @@ void Application::autoLoadGameDefinition() {
                 renderCoordinator->setWaterEnabled(water.value("enabled", false));
                 renderCoordinator->setSeaLevel(seaLevel);
             }
-            if (waterManager) waterManager->setSeaLevel(seaLevel);
+            if (waterManager) {
+                waterManager->setSeaLevel(seaLevel);
+                // Entity/camera water queries fall back to an implicit flat sea OUTSIDE the sim
+                // region only when this world actually has water (small-scale Phase 4.1).
+                waterManager->setImplicitSea(water.value("enabled", false));
+            }
+            // Buoyancy + water drag for dynamic bodies (small-scale Phase 4.2): the CPU
+            // rigid-body world reads submersion through this injected query — physics never
+            // links WaterManager. Null-safe: a missing manager reads as dry.
+            if (chunkManager && chunkManager->physicsWorld && chunkManager->physicsWorld->getVoxelWorld()) {
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterQuery(
+                    [this](const glm::vec3& mn, const glm::vec3& mx) -> float {
+                        return waterManager ? waterManager->submergedFraction(mn, mx) : 0.0f;
+                    });
+                // Current forces (tangible-water Phase E): moving water carries floating
+                // bodies — same dependency-inversion, same thread-safety contract.
+                chunkManager->physicsWorld->getVoxelWorld()->setWaterFlowQuery(
+                    [this](const glm::vec3& p) -> glm::vec3 {
+                        return waterManager ? waterManager->flowAtWorld(p) : glm::vec3(0.0f);
+                    });
+            }
         }
 
         // Combat ruleset is locked per-game (see docs/TurnBasedCombat.md). Read
@@ -5835,36 +5909,93 @@ void Application::autoLoadGameDefinition() {
                             return h ? h->waterLevelAt(wx, wz) : -1e30f; // NO_WATER
                         });
                         LOG_INFO("Application", "[WATER] baked hydrology water table bound (Phase C)");
+                        // Water BODY identity (tangible-water Phase C). BAKE bodies are ALL
+                        // infinite for now — including bake-cell "ponds": a 128-u cell's flood
+                        // level does not bind to fine terrain, so hydrating one as finite water
+                        // FRAGMENTS into sub-basins at different levels, the flat-body invariant
+                        // breaks, and the min-level capture reads near-total drain (measured
+                        // live: a 6.5k-mass pond returned as 17.8). FINITE bodies arrive with
+                        // the fine-scale pond pass (Phase B): true sub-cell ponds, contained by
+                        // construction, genuinely flat — the machinery below this binding is
+                        // already tested against exactly those.
+                        waterManager->setBodyQuery(
+                            [this](float wx, float wz) -> Core::WaterManager::BodyInfo {
+                                Core::WaterManager::BodyInfo out;
+                                WorldGenerator* g =
+                                    chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                                if (!g) return out;
+                                const WaterBodyIndex* wb = g->waterBodies();
+                                if (const WaterBodyIndex::Body* b = wb ? wb->bodyAt(wx, wz) : nullptr) {
+                                    out.id = b->id;
+                                    out.finite = false;   // bake bodies are infinite (see above)
+                                    out.baselineLevel = b->level;
+                                    return out;
+                                }
+                                // Fine-scale ponds (Phase B): THE finite bodies — sub-cell,
+                                // contained by construction, genuinely flat.
+                                const auto fp = g->finePondAt(static_cast<int>(std::floor(wx)),
+                                                              static_cast<int>(std::floor(wz)));
+                                if (fp.id >= 0) {
+                                    out.id = fp.id;
+                                    out.finite = true;
+                                    out.baselineLevel = fp.level;
+                                    out.areaColumns = fp.areaColumns;
+                                }
+                                return out;
+                            });
+                        LOG_INFO("Application", "[WATER] water body identity bound (bake infinite + fine ponds finite)");
                     } else {
                         waterManager->setWaterTable(nullptr);
+                        waterManager->setBodyQuery(nullptr);
                     }
                     // Rivers (Phase C2): order≥3 carved channels get water — channel-tagged beds +
                     // upstream inflow at the region frontier, flowing downhill through the valley.
                     if (w.value("bakedTable", true) && gen && gen->riverNetwork()) {
+                        // channelHitAt, NOT riverNetwork()->channelAt: the generator carves the
+                        // channel along a MEANDER-WARPED line (displacement up to ~55 u). Raw
+                        // coordinates put the ribbon beside its carved bed — measured live as
+                        // creek pins with no shelf under them (water-as-terrain-stage P2).
                         waterManager->setRiverQuery([this](float wx, float wz) -> float {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            if (!f) return 0.0f;
-                            const auto h = f->channelAt(wx, wz);
+                            if (!g) return 0.0f;
+                            const auto h = g->channelHitAt(wx, wz);
                             return h.hit ? h.depth : 0.0f;
                         });
                         LOG_INFO("Application", "[WATER] baked river channels bound (Phase C2)");
+                        // Strahler order (small-scale Phase 2a): lets the pin mapping distinguish
+                        // creeks (orders 1-2 → fractional MIN_HOLD-clamped ribbon) from rivers
+                        // (order ≥ 3 → full pins in the recessed carve).
+                        //
+                        // MUST be channelAt().order — the order OF THE HIT SEGMENT the depth came
+                        // from — NEVER orderAt (the column's coarse CELL order). They disagree
+                        // wherever a creek segment crosses a higher-order cell (every junction
+                        // cell: its 128-unit cell claims order 3 while the order-2 segment runs
+                        // through it). Cell-order + segment-depth pinned FULL voxels onto uncarved
+                        // creek ground there — a ~900-mass sheet flood, measured live in CreekLab
+                        // 2026-07-30 before this binding was corrected.
+                        waterManager->setRiverOrderQuery([this](float wx, float wz) -> int {
+                            const WorldGenerator* g =
+                                chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                            if (!g) return 0;
+                            const auto h = g->channelHitAt(wx, wz);
+                            return h.hit ? h.order : 0;
+                        });
                         // Phase 3 (WaterSystemV3): rivers are pinned full, so the CA derives no
                         // flow for them. Feed the shader the bake's downhill direction so a river
                         // reads as MOVING. Visual only — the field stays hydrostatic.
                         waterManager->setRiverFlowQuery([this](float wx, float wz) -> glm::vec2 {
                             const WorldGenerator* g =
                                 chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
-                            const FlowField* f = g ? g->riverNetwork() : nullptr;
-                            if (!f) return glm::vec2(0.0f);
-                            // Only claim a direction where there IS a channel; elsewhere leave the
-                            // CA's own proxy alone (a spill on open ground must not read as a river).
-                            return f->channelAt(wx, wz).hit ? f->flowDirAt(wx, wz) : glm::vec2(0.0f);
+                            // channelFlowDirAt claims a direction only where the (meandered)
+                            // channel runs; elsewhere the CA's own proxy stands (a spill on open
+                            // ground must not read as a river).
+                            return g ? g->channelFlowDirAt(wx, wz) : glm::vec2(0.0f);
                         });
                         LOG_INFO("Application", "[WATER] baked river flow direction bound (V3 P3)");
                     } else {
                         waterManager->setRiverQuery(nullptr);
+                        waterManager->setRiverOrderQuery(nullptr);
                         waterManager->setRiverFlowQuery(nullptr);
                     }
                     // Evaporation default (river flow tuning): generation-fed worlds want bounded
@@ -5875,6 +6006,22 @@ void Application::autoLoadGameDefinition() {
                     // Override either way with water.evaporation.
                     waterManager->setEvaporation(
                         w.value("evaporation", waterManager->hasWaterTable()));
+                    // CA edge outflow (water-as-terrain-stage P4): baked worlds' window edges
+                    // bleed unpinned water into the world-keyed bank instead of walling it.
+                    // Authored worlds keep legacy walls unless opted in via water.edgeOutflow.
+                    waterManager->setEdgeOutflow(
+                        w.value("edgeOutflow", waterManager->hasWaterTable()));
+                    // Poured-water persistence (water-as-terrain-stage P3): restore captured
+                    // pours from world_meta — they reseed as unpinned mass when the sim window
+                    // reaches their columns.
+                    if (chunkManager) {
+                        if (auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            ws && ws->getDb()) {
+                            const std::string ov = ws->getMeta("water_overrides");
+                            if (!ov.empty() && !waterManager->loadOverrides(ov))
+                                LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
+                        }
+                    }
                 }
             }
 
@@ -11345,6 +11492,15 @@ void Application::registerWaterCommands() {
         waterManager->placeWater(p, cmd.params.value("amount", 1.0f));
         r = {{"success", true}, {"total_mass", waterManager->totalMass()}};
     });
+    // Scoop (tangible-water Phase D): bucket semantics — removes up to `amount` from the column,
+    // reports what was actually taken. Finite ponds stay lowered; pinned bodies refill.
+    reg.on("water_scoop", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        const float removed = waterManager->scoopWater(p, cmd.params.value("amount", 1.0f));
+        r = {{"success", true}, {"removed", removed}, {"total_mass", waterManager->totalMass()},
+             {"body_deltas", waterManager->bodyDeltaCount()}};
+    });
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         waterManager->syncSolidsFromChunks();
@@ -11382,7 +11538,8 @@ void Application::registerWaterCommands() {
         const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         if (const FlowField* f = g ? g->riverNetwork() : nullptr) {
             r["river_order"]   = f->orderAt(wx, wz);
-            r["river_channel"] = f->channelAt(wx, wz).hit;
+            // The MEANDERED line — must agree with the runtime ribbon binding (channelHitAt).
+            r["river_channel"] = g->channelHitAt(wx, wz).hit;
         }
     });
     // FIND A RIVER. Rivers are a baked, procedural network — nobody knows where they are, so
@@ -11433,7 +11590,7 @@ void Application::registerWaterCommands() {
                     const int ord = f->orderAt(wx, wz);
                     if (ord > 0) ++anyRiverCells;
                     if (ord < minOrder) continue;
-                    hits.push_back({wx, wz, ord, f->channelAt(wx, wz).hit});
+                    hits.push_back({wx, wz, ord, g->channelHitAt(wx, wz).hit});
                 }
             }
         }
@@ -11560,6 +11717,9 @@ void Application::registerWaterCommands() {
         if (!waterManager) return noWater(r);
         r = {{"total_mass", waterManager->totalMass()},
              {"water_table", waterManager->hasWaterTable()},
+             {"overrides", waterManager->overrideCount()},          // P3: captured pour columns
+             {"edge_outflow", waterManager->edgeOutflow()},         // P4: frontier bleed on?
+             {"outflow_bank", waterManager->outflowBankTotal()},    // P4: banked mass awaiting return
              {"origin", {{"x", waterManager->origin().x}, {"y", waterManager->origin().y}, {"z", waterManager->origin().z}}},
              {"dims",   {{"x", waterManager->dims().x},   {"y", waterManager->dims().y},   {"z", waterManager->dims().z}}}};
         if (cmd.params.contains("x")) {
@@ -11576,6 +11736,201 @@ void Application::registerWaterCommands() {
             r["camera_depth_below"]  = depthBelow;
             r["surface_cells"]       = static_cast<int>(waterManager->surfaceCells().size());
         }
+    });
+
+    // ── Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4) ──────────────
+    // Everything a shallow-water / creek / entity-coupling change needs to assert at L2 without
+    // screenshots: per-cell sim state, waterfall lips, a rect confinement scan, and the bake's
+    // sea-level configuration.
+
+    // Full per-cell sim state at one world cell — mass, floor, solid, channel tag, source pin, flow.
+    reg.on("water_probe", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::ivec3 w(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));
+        const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
+        const glm::ivec3 l = w - o;
+        r = {{"x", w.x}, {"y", w.y}, {"z", w.z},
+             {"in_region", l.x >= 0 && l.y >= 0 && l.z >= 0 && l.x < d.x && l.y < d.y && l.z < d.z}};
+        if (!r["in_region"].get<bool>()) {
+            r["detail"] = "outside the sim region; region origin/dims included";
+            r["origin"] = {{"x", o.x}, {"y", o.y}, {"z", o.z}};
+            r["dims"]   = {{"x", d.x}, {"y", d.y}, {"z", d.z}};
+            return;
+        }
+        const auto& sim = waterManager->sim();
+        const glm::vec2 flow = sim.flowAt(l.x, l.y, l.z);
+        const float src = sim.sourceAt(l.x, l.y, l.z);
+        r["mass"]    = sim.massAt(l.x, l.y, l.z);
+        r["solid"]   = sim.isSolid(l.x, l.y, l.z);
+        r["floor"]   = sim.floorAt(l.x, l.y, l.z);
+        r["channel"] = sim.isChannel(l.x, l.y, l.z);
+        r["source_pinned"] = src >= 0.0f;
+        r["source_mass"]   = src;
+        r["flow"] = {{"x", flow.x}, {"z", flow.y}};
+    });
+
+    // Current waterfall lips (world lip point + drop height) — the mist emitter inputs.
+    reg.on("water_waterfalls", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        nlohmann::json arr = nlohmann::json::array();
+        for (const glm::vec4& f : waterManager->waterfalls())
+            arr.push_back({{"x", f.x}, {"y", f.y}, {"z", f.z}, {"drop", f.w}});
+        r = {{"waterfalls", arr}, {"count", arr.size()},
+             {"cap", Core::WaterManager::MAX_WATERFALLS}};
+    });
+
+    // Rect confinement scan — THE L2 assertion surface for "water stays where it belongs"
+    // (puddle footprints, creek ribbons, no hillside sheets). Scans the world rect clipped to
+    // the sim region; wet = mass > threshold (default RENDER_MIN, i.e. what would draw).
+    reg.on("water_footprint", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
+        const int minX = cmd.params.value("minX", o.x),  maxX = cmd.params.value("maxX", o.x + d.x - 1);
+        const int minZ = cmd.params.value("minZ", o.z),  maxZ = cmd.params.value("maxZ", o.z + d.z - 1);
+        const float thresh = cmd.params.value("threshold", Core::WaterManager::RENDER_MIN);
+        const int x0 = std::max(minX, o.x), x1 = std::min(maxX, o.x + d.x - 1);
+        const int z0 = std::max(minZ, o.z), z1 = std::min(maxZ, o.z + d.z - 1);
+        const auto& sim = waterManager->sim();
+        long wetCells = 0, wetCols = 0;
+        double mass = 0.0;
+        glm::ivec2 lo(INT_MAX), hi(INT_MIN);
+        for (int wz = z0; wz <= z1; ++wz)
+            for (int wx = x0; wx <= x1; ++wx) {
+                bool colWet = false;
+                for (int ly = 0; ly < d.y; ++ly) {
+                    const float m = sim.massAt(wx - o.x, ly, wz - o.z);
+                    if (m <= 0.0f) continue;
+                    mass += m;
+                    if (m > thresh) { ++wetCells; colWet = true; }
+                }
+                if (colWet) {
+                    ++wetCols;
+                    lo.x = std::min(lo.x, wx); lo.y = std::min(lo.y, wz);
+                    hi.x = std::max(hi.x, wx); hi.y = std::max(hi.y, wz);
+                }
+            }
+        r = {{"wet_cells", wetCells}, {"wet_columns", wetCols}, {"mass", mass},
+             {"threshold", thresh},
+             {"rect_scanned", {{"minX", x0}, {"minZ", z0}, {"maxX", x1}, {"maxZ", z1}}},
+             {"rect_clipped", x0 != minX || z0 != minZ || x1 != maxX || z1 != maxZ}};
+        if (wetCols > 0)
+            r["wet_bbox"] = {{"minX", lo.x}, {"minZ", lo.y}, {"maxX", hi.x}, {"maxZ", hi.y}};
+    });
+
+    // The bake's sea-level configuration + the §2e closed-basin detector, queryable at runtime.
+    reg.on("water_bake_info", [this](const Core::APICommand&, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!g) {
+            r = {{"error", "no streaming generator"},
+                 {"detail", "the hydrology bake lives on the streaming generator "
+                            "(world.streaming: true in a height-based world)"}};
+            return;
+        }
+        r = {{"generator_sea_level", g->getTerrainParams().seaLevelY}};
+        const HydrologyMap* h = g->hydrology();
+        const FlowField* f = g->riverNetwork();
+        if (!h || !f) {
+            r["error"]  = "no hydrology bake";
+            r["detail"] = "height-based streamed worlds bake on construction; Flat/heightmap worlds don't";
+            return;
+        }
+        r["bake_sea_level"]     = h->seaLevel();
+        r["min_terrain"]        = h->minTerrain();
+        r["has_outlet"]         = h->hasOutlet();
+        r["drainage_complete"]  = f->drainageComplete();
+        r["max_order"]          = f->maxOrder();
+        r["hydro_cell_size"]    = f->cellSize();
+        r["hydro_cells"]        = {{"x", f->cellsX()}, {"z", f->cellsZ()}};
+        if (!h->hasOutlet())
+            r["warning"] = "terrain never reaches sea level: every basin fills to its spill "
+                           "(perched hillside lakes). Set game.json water.seaLevel to a level "
+                           "the terrain reaches, then regenerate the world.";
+    });
+    // Water BODY table (tangible-water Phase A): every labeled body with class/area/level/volume
+    // + world-space bbox. THE scouting tool for finding a scoopable pond or checking what class a
+    // body resolved to. Optional filters: {"class":"pond|lake|ocean", "max": N}.
+    reg.on("water_bodies", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        const WaterBodyIndex* wb = g ? g->waterBodies() : nullptr;
+        if (!wb) {
+            r = {{"error", "no water body index"},
+                 {"detail", "bodies are labeled with the hydrology bake (height-based streamed "
+                            "worlds only)"}};
+            return;
+        }
+        // Fine-pond scout mode (Phase B): {"fine":true, "x":..,"z":..,"radius":..} scans the
+        // fine-pond registry's analysis cells around a point instead of the bake bodies.
+        if (cmd.params.value("fine", false)) {
+            const int cx0 = static_cast<int>(std::floor(cmd.params.value("x", 0.0f) / 32.0f));
+            const int cz0 = static_cast<int>(std::floor(cmd.params.value("z", 0.0f) / 32.0f));
+            const int rad = std::max(1, static_cast<int>(cmd.params.value("radius", 640.0f)) / 32);
+            nlohmann::json list = nlohmann::json::array();
+            int total = 0;
+            for (int dz = -rad; dz <= rad; ++dz)
+                for (int dx = -rad; dx <= rad; ++dx) {
+                    const auto ponds = g->finePondsForCell(cx0 + dx, cz0 + dz);
+                    for (const auto& p : *ponds) {
+                        ++total;
+                        if (list.size() >= 20) continue;
+                        list.push_back({{"id", p.id},
+                                        {"level", p.level},
+                                        {"columns", p.columns.size()},
+                                        {"bbox_world", {{"min_x", p.bboxMinW.x}, {"min_z", p.bboxMinW.y},
+                                                        {"max_x", p.bboxMaxW.x}, {"max_z", p.bboxMaxW.y}}}});
+                    }
+                }
+            r = {{"fine_ponds", total}, {"bodies", list}};
+            return;
+        }
+        const std::string clsFilter = cmd.params.value("class", "");
+        const size_t maxOut = static_cast<size_t>(cmd.params.value("max", 50));
+        auto clsName = [](WaterBodyIndex::Class c) {
+            switch (c) {
+                case WaterBodyIndex::Class::Ocean: return "ocean";
+                case WaterBodyIndex::Class::Lake:  return "lake";
+                default:                           return "pond";
+            }
+        };
+        const HydrologyMap* h = g->hydrology();
+        const float ox = h->originX(), oz = h->originZ(), cs = h->cellSize();
+        int oceans = 0, lakes = 0, ponds = 0;
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& b : wb->bodies()) {
+            switch (b.cls) {
+                case WaterBodyIndex::Class::Ocean: ++oceans; break;
+                case WaterBodyIndex::Class::Lake:  ++lakes;  break;
+                default:                           ++ponds;  break;
+            }
+            if (!clsFilter.empty() && clsFilter != clsName(b.cls)) continue;
+            if (list.size() >= maxOut) continue;
+            list.push_back({{"id", b.id},
+                            {"class", clsName(b.cls)},
+                            {"area_cells", b.areaCells},
+                            {"level", b.level},
+                            {"volume_est", b.volumeEst},
+                            {"bbox_world", {{"min_x", ox + b.bboxMin.x * cs},
+                                            {"min_z", oz + b.bboxMin.y * cs},
+                                            {"max_x", ox + (b.bboxMax.x + 1) * cs},
+                                            {"max_z", oz + (b.bboxMax.y + 1) * cs}}}});
+        }
+        r = {{"total", wb->bodies().size()},
+             {"oceans", oceans}, {"lakes", lakes}, {"ponds", ponds},
+             {"bodies", list}};
+    });
+
+    // Ripple/disturbance injection (small-scale plan Phase 3) — the entity-independent L4 hook:
+    // poke the field at a world point and watch the ring, no character needed.
+    reg.on("water_ripple", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const glm::vec3 p(cmd.params.value("x", 0.0f), 0.0f, cmd.params.value("z", 0.0f));
+        waterManager->addRipple(p, cmd.params.value("radius", 1.5f),
+                                cmd.params.value("strength", 0.35f));
+        const auto& f = waterManager->ripple();
+        r = {{"success", true}, {"asleep", f.asleep()},
+             {"total_amplitude", f.totalAmplitude()},
+             {"height_at_injection", f.heightAt(glm::vec2(p.x, p.z))},
+             {"window", {{"minX", f.origin().x}, {"minZ", f.origin().y},
+                          {"size", f.windowSize()}}}};
     });
 }
 
@@ -13626,6 +13981,16 @@ void Application::processAPICommands() {
                                     }
                                     Core::RuntimeEntityStore::saveToDb(ws->getDb(), rvec);
                                 }
+                            }
+                        }
+                        // Poured-water persistence (water-as-terrain-stage P3): fold the pours
+                        // still inside the sim window into the override store, then persist the
+                        // whole store — a hand-made pond survives save/reload like terrain does.
+                        if (waterManager) {
+                            auto* ws = chunkManager->m_streamingManager.getWorldStorage();
+                            if (ws && ws->getDb()) {
+                                waterManager->captureOverridesInWindow();
+                                ws->setMeta("water_overrides", waterManager->serializeOverrides());
                             }
                         }
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");

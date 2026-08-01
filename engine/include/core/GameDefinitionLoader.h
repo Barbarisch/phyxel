@@ -190,7 +190,11 @@ public:
     static SceneManifest parseManifest(const json& definition);
 
 private:
-    static void loadWorld(const json& worldDef, GameSubsystems& sub, GameDefinitionResult& result);
+    /// bakeSeaLevelY: the game.json `water.seaLevel` (or the engine default) — the hydrology
+    /// bake's Priority-Flood outlet and the seabed/altitude material gates generate against it.
+    /// Persisted with the recipe; a stored recipe's value wins (the terrain was carved for it).
+    static void loadWorld(const json& worldDef, float bakeSeaLevelY, GameSubsystems& sub,
+                          GameDefinitionResult& result);
     static void loadStructures(const json& structures, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadPlayer(const json& playerDef, GameSubsystems& sub, GameDefinitionResult& result);
     static void loadCamera(const json& cameraDef, GameSubsystems& sub, GameDefinitionResult& result);

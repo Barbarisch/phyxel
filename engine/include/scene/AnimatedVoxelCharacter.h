@@ -8,6 +8,7 @@
 #include "physics/PhysicsWorld.h"
 #include <map>
 #include <string>
+#include <functional>
 #include <vector>
 #include <optional>
 #include <unordered_set>
@@ -333,6 +334,21 @@ namespace Scene {
 
         /// Set horizontal movement velocity (XZ), preserving vertical velocity (gravity).
         void setMoveVelocity(const glm::vec3& velocity);
+
+        // ---- Water hooks (small-scale water plan Phase 4.3) ----
+        // Injected so the scene class never links Core's WaterManager/VfxSystem. All optional;
+        // null = dry world, zero cost. depthAt returns the water depth ABOVE a world point
+        // (WaterManager::sampleWater(...).depthBelow matches). addRipple pokes the disturbance
+        // field (pos, radius, strength); splash spawns the entry burst (pos, intensity 0..1.5).
+        struct WaterHooks {
+            std::function<float(const glm::vec3&)> depthAt;
+            std::function<void(const glm::vec3&, float, float)> addRipple;
+            std::function<void(const glm::vec3&, float)> splash;
+            // Horizontal current velocity (m/s) at a world point (tangible-water Phase E) —
+            // WaterManager::flowAtWorld matches. Null = still water everywhere.
+            std::function<glm::vec3(const glm::vec3&)> flowAt;
+        };
+        void setWaterHooks(WaterHooks hooks) { m_water = std::move(hooks); }
 
         // Control inputs
         void setControlInput(float forward, float turn, float strafe = 0.0f);
@@ -743,6 +759,11 @@ namespace Scene {
         // Kinematic controller state (replaces Bullet controllerBody)
         glm::vec3 m_kinVelocity{0.0f};
         bool      m_kinGrounded = false;
+        // Water/wading state (Phase 4.3)
+        WaterHooks m_water;
+        float m_wadeAccum      = 0.0f;   // stride distance accumulator for footstep rings
+        bool  m_wasInWater     = false;  // previous-frame wetness (entry-splash edge detect)
+        float m_splashCooldown = 0.0f;   // per-entity splash rate limit (seconds)
         float currentForwardInput = 0.0f;
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;

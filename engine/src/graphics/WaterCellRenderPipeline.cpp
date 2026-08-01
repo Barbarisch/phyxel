@@ -1,6 +1,7 @@
 #include "graphics/WaterCellRenderPipeline.h"
 #include "graphics/Camera.h"
 #include "core/AssetManager.h"
+#include "utils/Logger.h"
 #include <array>
 #include <algorithm>
 #include <fstream>
@@ -35,13 +36,14 @@ static const std::array<glm::vec4, 30> BOX_VERTICES = {
     glm::vec4( 0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 1, 3), glm::vec4(-0.5f, -0.5f, 2, 3),
 };
 
-// 96 bytes — under the 128-byte guaranteed minimum. Must match the block declared in BOTH
-// water_cell.vert and water_cell.frag. Sun/ambient are NOT here: they come from the shared scene
-// UBO at set 0 (WaterSystemV3 Phase 1), which also keeps this under the push-constant limit.
+// 112 bytes — under the 128-byte guaranteed minimum (and now at its last free vec4). Must match
+// the block declared in BOTH water_cell.vert and water_cell.frag. Sun/ambient are NOT here: they
+// come from the shared scene UBO at set 0 (WaterSystemV3 Phase 1).
 struct WaterCellPush {
     glm::mat4 viewProj;   // 64
     glm::vec4 camPosTime; // 16
     glm::vec4 screen;     // 16  (screen width, height, 0, 0) — screen-space refraction/depth taps
+    glm::vec4 ripple;     // 16  ripple window: xy = origin world XZ, z = 1/windowSize, w = amplitude
 };
 
 static std::vector<char> readFile(const std::string& filename) {
@@ -69,6 +71,16 @@ WaterCellRenderPipeline::~WaterCellRenderPipeline() { cleanup(); }
 
 void WaterCellRenderPipeline::cleanup() {
     if (m_device != VK_NULL_HANDLE) {
+        for (int i = 0; i < 2; ++i) {
+            if (m_rippleStagingMapped[i]) vkUnmapMemory(m_device, m_rippleStagingMemory[i]);
+            vkDestroyBuffer(m_device, m_rippleStaging[i], nullptr);
+            vkFreeMemory(m_device, m_rippleStagingMemory[i], nullptr);
+            m_rippleStagingMapped[i] = nullptr;
+        }
+        vkDestroySampler(m_device, m_rippleSampler, nullptr);
+        vkDestroyImageView(m_device, m_rippleView, nullptr);
+        vkDestroyImage(m_device, m_rippleImage, nullptr);
+        vkFreeMemory(m_device, m_rippleImageMemory, nullptr);
         vkDestroyBuffer(m_device, m_instanceBuffer, nullptr);
         vkFreeMemory(m_device, m_instanceBufferMemory, nullptr);
         vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
@@ -110,6 +122,145 @@ void WaterCellRenderPipeline::setSceneTextures(VkImageView refractionView, VkSam
     w[1] = w[0]; w[1].dstBinding = 1; w[1].pImageInfo = &dep;
     vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(w.size()), w.data(), 0, nullptr);
     m_texturesBound = true;
+}
+
+void WaterCellRenderPipeline::createRippleResources(int cells) {
+    m_rippleCells = cells;
+    const VkDeviceSize bytes = VkDeviceSize(cells) * cells * sizeof(float);
+
+    // Device-local R32F image the shaders sample.
+    VkImageCreateInfo ii{};
+    ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    ii.imageType = VK_IMAGE_TYPE_2D;
+    ii.extent = { static_cast<uint32_t>(cells), static_cast<uint32_t>(cells), 1 };
+    ii.mipLevels = 1; ii.arrayLayers = 1;
+    ii.format = VK_FORMAT_R32_SFLOAT;
+    ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    ii.samples = VK_SAMPLE_COUNT_1_BIT;
+    ii.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(m_device, &ii, nullptr, &m_rippleImage) != VK_SUCCESS)
+        throw std::runtime_error("failed to create ripple image!");
+    VkMemoryRequirements mr;
+    vkGetImageMemoryRequirements(m_device, m_rippleImage, &mr);
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize = mr.size;
+    ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits,
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(m_device, &ai, nullptr, &m_rippleImageMemory) != VK_SUCCESS)
+        throw std::runtime_error("failed to allocate ripple image memory!");
+    vkBindImageMemory(m_device, m_rippleImage, m_rippleImageMemory, 0);
+
+    VkImageViewCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    vi.image = m_rippleImage;
+    vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    vi.format = VK_FORMAT_R32_SFLOAT;
+    vi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    if (vkCreateImageView(m_device, &vi, nullptr, &m_rippleView) != VK_SUCCESS)
+        throw std::runtime_error("failed to create ripple image view!");
+
+    // R32_SFLOAT linear filtering is NOT mandatory in Vulkan (SAMPLED_IMAGE_FILTER_LINEAR is
+    // optional for it) — a LINEAR sampler here is UB on hardware without the feature (bring-up
+    // symptom: every sample read zero while the copies were provably landing). Honor the query;
+    // fall back to NEAREST. The 0.5-voxel field is dense enough that NEAREST still reads fine,
+    // and the fragment gradient uses discrete taps anyway.
+    VkFormatProperties fp{};
+    vkGetPhysicalDeviceFormatProperties(m_physicalDevice, VK_FORMAT_R32_SFLOAT, &fp);
+    const bool linearOk =
+        (fp.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+    const VkFilter filter = linearOk ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+    VkSamplerCreateInfo si{};
+    si.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    si.magFilter = filter; si.minFilter = filter;
+    si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    si.maxLod = 0.0f;
+    if (vkCreateSampler(m_device, &si, nullptr, &m_rippleSampler) != VK_SUCCESS)
+        throw std::runtime_error("failed to create ripple sampler!");
+
+    // Persistent-mapped staging, double-buffered by frame-in-flight (see header note).
+    for (int i = 0; i < 2; ++i) {
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size = bytes;
+        bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_rippleStaging[i]) != VK_SUCCESS)
+            throw std::runtime_error("failed to create ripple staging buffer!");
+        vkGetBufferMemoryRequirements(m_device, m_rippleStaging[i], &mr);
+        ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_rippleStagingMemory[i]) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate ripple staging memory!");
+        vkBindBufferMemory(m_device, m_rippleStaging[i], m_rippleStagingMemory[i], 0);
+        vkMapMemory(m_device, m_rippleStagingMemory[i], 0, bytes, 0, &m_rippleStagingMapped[i]);
+    }
+
+    // Bind set 1 binding 2 once; the descriptor set object survives resizes, so no re-bind needed.
+    VkDescriptorImageInfo rip{ m_rippleSampler, m_rippleView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkWriteDescriptorSet w{};
+    w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    w.dstSet = m_descriptorSet; w.dstBinding = 2; w.descriptorCount = 1;
+    w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; w.pImageInfo = &rip;
+    vkUpdateDescriptorSets(m_device, 1, &w, 0, nullptr);
+    m_rippleBound = true;
+    LOG_INFO("WaterCellPipeline", "Ripple GPU resources created ({}x{} R32F) + bound", cells, cells);
+}
+
+void WaterCellRenderPipeline::updateRipple(VkCommandBuffer cmd, uint32_t frameIndex,
+                                           const Core::RippleField& field) {
+    if (m_device == VK_NULL_HANDLE) return;
+    if (m_rippleImage == VK_NULL_HANDLE) createRippleResources(field.cells());
+    if (field.cells() != m_rippleCells) return;   // config mismatch — never sample garbage
+
+    // Window/amplitude params ride the push block every frame (the window follows the player even
+    // when the heights are unchanged). Amplitude 0 while asleep keeps the math visibly inert.
+    m_rippleWindow = glm::vec4(field.origin().x, field.origin().y,
+                               1.0f / field.windowSize(), field.asleep() ? 0.0f : 1.0f);
+
+    if (field.version() == m_rippleVersion) return;   // heights unchanged — skip the copy
+    m_rippleVersion = field.version();
+
+    const int slot = static_cast<int>(frameIndex) & 1;
+    const VkDeviceSize bytes = VkDeviceSize(m_rippleCells) * m_rippleCells * sizeof(float);
+    memcpy(m_rippleStagingMapped[slot], field.heights().data(), static_cast<size_t>(bytes));
+
+    // Whole-image overwrite every upload → oldLayout UNDEFINED (discard) with an execution
+    // dependency against the previous frame's sampling. Same in-frame barrier/copy structure as
+    // PostProcessor::captureRefraction; must be recorded OUTSIDE any render pass.
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.image = m_rippleImage;
+    b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+
+    VkBufferImageCopy region{};
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.imageExtent = { static_cast<uint32_t>(m_rippleCells),
+                           static_cast<uint32_t>(m_rippleCells), 1 };
+    vkCmdCopyBufferToImage(cmd, m_rippleStaging[slot], m_rippleImage,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &b);
 }
 
 void WaterCellRenderPipeline::createBuffers() {
@@ -159,13 +310,17 @@ void WaterCellRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout ub
     pc.size = sizeof(WaterCellPush);
 
     // Set 1: the post-scene taps. 0 = half-res scene colour (refraction), 1 = scene depth
-    // (thickness → absorption + soft shoreline). See docs/WaterSystemV3.md Phase 1.
-    std::array<VkDescriptorSetLayoutBinding, 2> binds{};
+    // (thickness → absorption + soft shoreline), 2 = the ripple heightfield (small-scale Phase 3
+    // — VERTEX too: the vertex stage displaces the surface by it, the fragment stage tilts the
+    // normal). See docs/WaterSystemV3.md Phase 1 + docs/WaterPhysicalFeelPlan.md.
+    std::array<VkDescriptorSetLayoutBinding, 3> binds{};
     binds[0].binding = 0;
     binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     binds[0].descriptorCount = 1;
     binds[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     binds[1] = binds[0]; binds[1].binding = 1;
+    binds[2] = binds[0]; binds[2].binding = 2;
+    binds[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo li{};
     li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -189,7 +344,7 @@ void WaterCellRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout ub
 void WaterCellRenderPipeline::createDescriptorPool() {
     VkDescriptorPoolSize size{};
     size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    size.descriptorCount = 2;
+    size.descriptorCount = 3;   // refraction + scene depth + ripple heightfield
 
     VkDescriptorPoolCreateInfo pi{};
     pi.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -302,9 +457,9 @@ void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptor
                                      const std::vector<Core::WaterSurfaceCell>& cells,
                                      VkExtent2D screenExtent) {
     if (cells.empty()) return;
-    // The fragment shader unconditionally samples set 1; drawing before setSceneTextures() has
-    // pointed it at real images would read undefined descriptors.
-    if (!m_texturesBound || uboSet == VK_NULL_HANDLE) return;
+    // Both shader stages unconditionally sample set 1; drawing before setSceneTextures() AND
+    // setRippleTexture() have pointed every binding at real images would read undefined descriptors.
+    if (!m_texturesBound || !m_rippleBound || uboSet == VK_NULL_HANDLE) return;
     uint32_t count = static_cast<uint32_t>(std::min(cells.size(), MAX_INSTANCES));
 
     const VkDeviceSize bytes = sizeof(Core::WaterSurfaceCell) * count;
@@ -331,6 +486,7 @@ void WaterCellRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptor
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
     pc.screen = glm::vec4(static_cast<float>(screenExtent.width),
                           static_cast<float>(screenExtent.height), 0.0f, 0.0f);
+    pc.ripple = m_rippleWindow;
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(WaterCellPush), &pc);

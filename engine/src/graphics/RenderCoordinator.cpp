@@ -30,6 +30,8 @@
 #include "ui/WindowManager.h"
 #include "input/InputManager.h"
 #include "core/ChunkManager.h"
+#include "core/WorldGenerator.h"
+#include "core/HydrologyMap.h"
 #include "core/Chunk.h"
 #include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
@@ -370,33 +372,18 @@ float RenderCoordinator::cameraSubmergence(float& depthBelow) const {
     const float BAND = 0.35f;
 
     if (m_waterManager) {
-        const glm::ivec3 o = m_waterManager->origin();
-        const glm::ivec3 d = m_waterManager->dims();
-        const bool inRegion = eye.x >= o.x && eye.x < o.x + d.x &&
-                              eye.y >= o.y && eye.y < o.y + d.y &&
-                              eye.z >= o.z && eye.z < o.z + d.z;
-        if (inRegion) {
-            // Fill fraction matters: a cell holding 0.4 mass has its surface 0.4 of the way up, so
-            // the eye is only submerged below that height.
-            const float here = m_waterManager->massAtWorld(eye);
-            if (here <= 0.0f) return 0.0f;
-            const float cellFloor = std::floor(eye.y);
-            depthBelow = std::max(0.0f, (cellFloor + std::min(here, 1.0f)) - eye.y);
-            // If this cell is full there may be more water stacked above; the true depth drives how
-            // dark/blue the fog gets, so walk up while the column stays wet.
-            if (here >= 0.999f) {
-                for (float y = cellFloor + 1.0f; y < static_cast<float>(o.y + d.y); y += 1.0f) {
-                    const float m = m_waterManager->massAtWorld(glm::vec3(eye.x, y + 0.5f, eye.z));
-                    if (m <= 0.0f) break;
-                    depthBelow = (y + std::min(m, 1.0f)) - eye.y;
-                    if (m < 0.999f) break;
-                }
-            }
-            return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
-        }
+        // The submergence walk moved to WaterManager::sampleWater (small-scale Phase 4.1) so the
+        // camera fog, buoyancy and wading all read the SAME facts. Two deliberate upgrades over
+        // the old inline walk: sub-voxel floors raise the surface correctly, and outside the sim
+        // region a bound baked table answers per-body levels (the old code jumped straight to the
+        // flat sea level, wrong over an inland lake). The manager's implicit-sea flag mirrors
+        // m_waterEnabled (wired at world load).
+        const Core::WaterManager::WaterSample s = m_waterManager->sampleWater(eye);
+        depthBelow = s.depthBelow;
+        return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
     }
 
-    if (m_waterEnabled) {   // implicit ocean outside the sim region
+    if (m_waterEnabled) {   // implicit ocean when no manager exists at all
         depthBelow = m_seaLevel - eye.y;
         if (depthBelow <= 0.0f) { depthBelow = 0.0f; return 0.0f; }
         return glm::clamp(depthBelow / BAND, 0.0f, 1.0f);
@@ -806,7 +793,15 @@ bool RenderCoordinator::scanForMirrorVoxels() {
     // contents change (Chunk::rebuildFaces). Here we just check the cached flag
     // for each visible chunk — O(visibleChunks), not O(visibleChunks * 32768).
     // (The old brute-force per-frame voxel scan cost ~46ms/frame; see git history.)
+    //
+    // visibleChunkIndices is LAST frame's cull result (renderStaticGeometry refills it
+    // later in this frame), and the streaming update may have unloaded chunks since —
+    // a camera teleport can shrink the list by hundreds, leaving stale out-of-range
+    // indices here. Worst case of an in-range-but-swapped index is one frame with a
+    // wrong mirror plane, which the next frame corrects.
+    const size_t numChunks = chunkManager->chunks.size();
     for (size_t chunkIndex : visibleChunkIndices) {
+        if (chunkIndex >= numChunks) continue;
         const Chunk* chunk = chunkManager->chunks[chunkIndex].get();
         if (!chunk || chunk->getNumInstances() == 0) continue;
         if (!chunk->hasMirrorVoxel()) continue;
@@ -1766,6 +1761,54 @@ void RenderCoordinator::drawFrame() {
         return; // Skip this frame — render cleanly on the next one
     }
 
+    // WATER LAYER (P1): (re)bind the hydrology level grid when the world's bake appears or
+    // changes (world switch). Rare — a descriptor rewrite on a possibly in-flight set, so it
+    // idles the device first (a once-per-world-load hitch, hidden by the load itself).
+    // Body-aware look (tangible-water F): the upload is RG — R = level, G = per-body wave
+    // ENERGY from body size (ocean 1, lakes by log-area, floor 0.15) so a mountain tarn shows
+    // a ripple where the ocean shows swell, replacing the old binary 0.2× lake scale.
+    if (waterPipeline && chunkManager) {
+        const auto* gen = chunkManager->getStreamingGenerator();
+        const auto* hydro = gen ? gen->hydrology() : nullptr;
+        if (static_cast<const void*>(hydro) != m_lastHydroUploaded) {
+            vkDeviceWaitIdle(vulkanDevice->getDevice());
+            VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+            if (hydro) {
+                const auto* bodies = gen->waterBodies();
+                const auto& lvl = hydro->levels();
+                std::vector<float> rg(lvl.size() * 2);
+                for (int cz = 0; cz < hydro->cellsZ(); ++cz)
+                    for (int cx = 0; cx < hydro->cellsX(); ++cx) {
+                        const size_t i = static_cast<size_t>(cz) * hydro->cellsX() + cx;
+                        rg[i * 2] = lvl[i];
+                        float energy = 1.0f;
+                        if (bodies && lvl[i] > Phyxel::HydrologyMap::NO_WATER * 0.5f) {
+                            const auto* b = bodies->body(bodies->bodies().empty() ? -1 :
+                                bodies->bodyIdAt(hydro->originX() + (cx + 0.5f) * hydro->cellSize(),
+                                                 hydro->originZ() + (cz + 0.5f) * hydro->cellSize()));
+                            if (b && b->cls != Phyxel::WaterBodyIndex::Class::Ocean) {
+                                // ⚑GROUND: fetch-limited waves — energy grows with body size.
+                                // log2 area over a ~1024-cell reference: a 4-cell lake ≈ 0.23,
+                                // a 100-cell lake ≈ 0.66, floor 0.15 so nothing is dead flat.
+                                energy = glm::clamp(
+                                    std::log2(static_cast<float>(b->areaCells) + 1.0f) / 10.0f,
+                                    0.15f, 1.0f);
+                            }
+                        }
+                        rg[i * 2 + 1] = energy;
+                    }
+                waterPipeline->recordHydrologyUpload(oneShot, rg.data(),
+                                                     hydro->cellsX(), hydro->cellsZ(),
+                                                     hydro->originX(), hydro->originZ(),
+                                                     hydro->cellSize());
+            } else {
+                waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
+            }
+            vulkanDevice->endSingleTimeCommands(oneShot);
+            m_lastHydroUploaded = hydro;
+        }
+    }
+
     // Wait for previous frame
     vulkanDevice->waitForFence(currentFrame);
 
@@ -2402,6 +2445,12 @@ void RenderCoordinator::drawFrame() {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
             postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
         }
+        // Ripple heightfield upload (small-scale plan Phase 3) — also outside any render pass.
+        // Skips the copy on unchanged frames; always refreshes the window push params.
+        if (drawWaterCells)
+            waterCellPipeline->updateRipple(vulkanDevice->getCommandBuffer(currentFrame),
+                                            static_cast<uint32_t>(currentFrame),
+                                            m_waterManager->ripple());
         postProcessor->beginWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
 
         if (drawWaterPlane) {

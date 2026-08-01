@@ -35,6 +35,16 @@ void main() {
         return;
     }
 
+    // ---- Sleep (Phase 2): frozen bodies hold their pose EXACTLY ----
+    // b still carries the SLEEPING flag from sync_in (no wake bit consumed this tick).
+    // Do NOT re-derive velocity or touch position/rotation — the encoded state was
+    // zeroed at freeze time and must stay bit-identical until something wakes it.
+    if ((b.flags & PARTICLE_SLEEPING) != 0u) {
+        p.flags = b.flags;
+        particles[i] = p;
+        return;
+    }
+
     // Derive velocity from solved position change (AVBD / Shallot convention)
     vec3 solvedVel    = (b.pos - b.initial) / pc.dt;
     // Derive angular velocity from quaternion change
@@ -55,6 +65,29 @@ void main() {
         age++;
         p.flags = (p.flags & ~SPAWN_AGE_MASK) | (age << SPAWN_AGE_SHIFT);
     }
+
+    // ---- Sleep (Phase 2): consecutive-slow-tick counter → freeze ----
+    // Counts ticks where both linear and angular surface speed are below threshold
+    // (past the spawn grace, so fresh debris always gets its ballistic phase). On
+    // reaching SLEEP_TICKS: set SLEEPING and zero the encoded velocity. From the next
+    // tick sync_in gives the body invMass 0 and the solver stops touching it.
+    float linSpeed = length(solvedVel);
+    float angSpeed = length(solvedAngVel) * b.radius;
+    bool strictSlow = linSpeed < SLEEP_LIN_SPEED && angSpeed < SLEEP_ANG_SPEED;
+    bool laxSlow    = linSpeed < SLEEP_LAX_SPEED && angSpeed < SLEEP_LAX_SPEED;
+    uint ctr = (p.flags & SLEEP_CTR_MASK) >> SLEEP_CTR_SHIFT;
+    if (age > SLEEP_GRACE && laxSlow) {
+        ctr = min(ctr + 1u, 255u);
+        // Strict tier freezes fast; the lax tier force-freezes chronic slow churners.
+        if ((strictSlow && ctr >= SLEEP_TICKS) || ctr >= SLEEP_FORCE_TICKS) {
+            p.flags       |= PARTICLE_SLEEPING;
+            p.prevPosition = p.position;      // encoded velocity → exactly zero
+            p.angularVel   = vec3(0.0);
+        }
+    } else {
+        ctr = 0u;
+    }
+    p.flags = (p.flags & ~SLEEP_CTR_MASK) | (ctr << SLEEP_CTR_SHIFT);
 
     particles[i] = p;
 }

@@ -1701,6 +1701,14 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_waves",          waterEndpoint("water_waves"));
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
+    // Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4).
+    srv.Post("/api/debug/water_probe",          waterEndpoint("water_probe"));
+    srv.Post("/api/debug/water_waterfalls",     waterEndpoint("water_waterfalls"));
+    srv.Post("/api/debug/water_footprint",      waterEndpoint("water_footprint"));
+    srv.Post("/api/debug/water_bake_info",      waterEndpoint("water_bake_info"));
+    srv.Post("/api/debug/water_ripple",         waterEndpoint("water_ripple"));
+    srv.Post("/api/debug/water_bodies",         waterEndpoint("water_bodies"));  // tangible-water A
+    srv.Post("/api/debug/water_scoop",          waterEndpoint("water_scoop"));   // tangible-water D
 
     // ====================================================================
     // POST /api/world/clear — Clear all voxels in a region

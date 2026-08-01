@@ -15,9 +15,11 @@ HydrologyMap::HydrologyMap(const HeightFunc& heightAt, float originX, float orig
     // Sample the coarse base height into a grid (cell (i,j) at its world corner).
     std::vector<float> base(static_cast<size_t>(m_cellsX) * m_cellsZ);
     for (int j = 0; j < m_cellsZ; ++j)
-        for (int i = 0; i < m_cellsX; ++i)
-            base[static_cast<size_t>(j) * m_cellsX + i] =
-                heightAt(m_originX + i * m_cellSize, m_originZ + j * m_cellSize);
+        for (int i = 0; i < m_cellsX; ++i) {
+            const float h = heightAt(m_originX + i * m_cellSize, m_originZ + j * m_cellSize);
+            base[static_cast<size_t>(j) * m_cellsX + i] = h;
+            if (h < m_minTerrain) m_minTerrain = h;
+        }
 
     // Depression-fill with the ocean as an outlet: inland basins fill only to their spill.
     std::vector<float> filled = PriorityFlood::fill(base, m_cellsX, m_cellsZ, seaLevel);

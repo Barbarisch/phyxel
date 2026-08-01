@@ -361,7 +361,12 @@ void main() {
     if (i >= constraintCount) return;
 
     SolverBody a = bodies[i];
-    if ((a.flags & PARTICLE_ACTIVE) == 0u || a.invMass == 0.0) return;
+    // Sleeping bodies (invMass 0 + SLEEPING) MUST stay in the pairing loop: pairs are
+    // only discovered from the lower index, so early-returning a sleeper here would let
+    // any higher-indexed awake body fall clean through it (the CPU solver had exactly
+    // this bug — docs/PhysicsRestOverhaul.md diagnosis #4).
+    bool aSleeping = (a.flags & PARTICLE_SLEEPING) != 0u;
+    if ((a.flags & PARTICLE_ACTIVE) == 0u || (a.invMass == 0.0 && !aSleeping)) return;
 
     int cx = int(floor(a.pos.x)) & (GRID_SIZE - 1);
     int cy = int(floor(a.pos.y)) & (GRID_SIZE - 1);
@@ -391,6 +396,8 @@ void main() {
 
             SolverBody b = bodies[j];
             if ((b.flags & PARTICLE_ACTIVE) == 0u) continue;
+            bool bSleeping = (b.flags & PARTICLE_SLEEPING) != 0u;
+            if (aSleeping && bSleeping) continue;   // frozen pair — nothing to solve or wake
 
             vec3 ax0B = quatRotate(b.quat, vec3(1,0,0));
             vec3 ax1B = quatRotate(b.quat, vec3(0,1,0));
@@ -465,6 +472,19 @@ void main() {
             if (separated) break;
             }
             if (separated) continue;
+
+            // ---- Sleep (Phase 2): impact wake ----
+            // A fast awake body overlapping a sleeper wakes it on the NEXT tick
+            // (sync_in consumes the bit). Slow touches leave it frozen, so debris
+            // can come to rest ON a sleeping pile without churning it awake.
+            if (aSleeping != bSleeping) {
+                vec3 vAwake = aSleeping ? b.vel : a.vel;
+                if (dot(vAwake, vAwake) > WAKE_IMPACT_SPEED * WAKE_IMPACT_SPEED) {
+                    uint sleeperIdx = aSleeping ? i : j;
+                    atomicOr(solverState[WAKE_BITS_BASE + (sleeperIdx >> 5u)],
+                             1u << (sleeperIdx & 31u));
+                }
+            }
 
             // ================================================================
             // Contact normal: choose face or edge contact

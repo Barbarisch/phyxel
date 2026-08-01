@@ -64,6 +64,8 @@ public:
     // Note: sources inject/remove mass, so total mass is not conserved while any exist.
     void  setSource(int x, int y, int z, float mass);
     void  clearSource(int x, int y, int z);
+    // Pinned source mass at a cell (< 0 = not a source). Debug/probe surface (water_probe).
+    float sourceAt(int x, int y, int z) const;
 
     // Ocean seam: flood from `localSeeds` through non-solid cells with y <= seaLevelY
     // and pin each reached cell as a full source — an infinite reservoir that holds sea
@@ -151,6 +153,22 @@ public:
     bool                        evaporationOn() const { return m_evaporate; }
     int                         cellCount()   const { return m_sx * m_sy * m_sz; }
 
+    // ── MIN_HOLD donor gate (small-scale plan Phase 1) ────────────────────────────────────────
+    // Minimum working mass a cell must exceed to make HORIZONTAL transfers. Below it, water
+    // rests: films, puddles and fractional creek pins stop creeping sideways forever (the
+    // missing term that made the 496cdc10 creek fix sheet across a hillside, and made every
+    // placed puddle spread thin and evaporate). Gravity and upward pressure are NOT gated —
+    // thin water still falls and columns still equalize vertically. Deep bodies are unaffected:
+    // once leveling raises every cell above the hold, equalization proceeds exactly as before
+    // (a body only stalls when its mass over the reachable area is at or below the hold).
+    // NOTE v1 simplification: the hold tests MASS, not effective depth `fill·(1−floor)` —
+    // a floored cell holds slightly more than a bare one before it flows.
+    // Kept ABOVE EVAP_THRESHOLD so a resting puddle survives evaporation (films below the
+    // threshold still dry; the pool itself persists).
+    static constexpr float MIN_HOLD_DEFAULT = 0.3f;
+    void  setMinHold(float depth);   // wakes the field (a lower hold can release held water)
+    float minHold() const { return m_minHold; }
+
     // Evaporation sink: when enabled, cells thinner than EVAP_THRESHOLD lose mass each
     // step. This bounds free flow (a source/spill spreads, thins at the frontier, and
     // the thin edge evaporates → finite extent) and dries up thin films, while deep
@@ -163,6 +181,30 @@ public:
 
     static constexpr float EVAP_THRESHOLD = 0.1f;  // below this depth a cell evaporates
     static constexpr float EVAP_RATE      = 0.01f; // mass lost per step by a thin cell
+
+    // ── EDGE OUTFLOW (water-as-terrain-stage P4) ──────────────────────────────────────────────
+    // When enabled, the outermost XZ ring of columns stops being an invisible WALL for unpinned
+    // water: a ring cell holding more than the hold — or a thin layer stacked on deeper water —
+    // bleeds up to OUTFLOW_RATE mass per step out of the window, accumulated per column for the
+    // owner (WaterManager) to drain into its world-keyed persistence bank. The world continues
+    // beyond the window; water reaching the frontier keeps going instead of piling into a wall.
+    // Pinned and channel cells are EXEMPT: pins are infinite reservoirs (outflowing a lake edge
+    // would mint mass forever), and channel ribbons are held in place by design. Draining a ring
+    // column marks it dirty, so leveling keeps feeding the frontier until the body thins to the
+    // hold — which is how a spill actually leaves the window. Off by default (legacy walls).
+    void setEdgeOutflow(bool on);
+    bool edgeOutflow() const { return m_edgeOutflow; }
+    // Per-column edge-bleed exemption (tangible-water Phase C): a FINITE body's columns are real
+    // conserved mass owned by its body record — the frontier bleed must not siphon a pond that
+    // happens to straddle the window ring. Re-derived by the owner on every rebuild.
+    void setColumnNoBleed(int lx, int lz, bool noBleed) {
+        if (lx >= 0 && lx < m_sx && lz >= 0 && lz < m_sz)
+            m_colNoBleed[colIdx(lx, lz)] = noBleed ? 1 : 0;
+    }
+    // Move the accumulated per-column outflow to the caller: `sink(lx, lz, mass)` per non-empty
+    // ring column, cleared afterward. Returns the total mass drained.
+    float drainEdgeOutflow(const std::function<void(int lx, int lz, float mass)>& sink);
+    static constexpr float OUTFLOW_RATE = 0.25f;   // per column per step; gradual, like a real spill edge
 
     // Advance the simulation one tick. `flowSide` damps horizontal equalization
     // (0..1); lower = calmer/slower leveling.
@@ -232,9 +274,14 @@ private:
     std::vector<glm::vec2> m_flow;      // per-cell EMA-smoothed horizontal flow proxy (see flowAt)
     std::vector<glm::vec2> m_flowAccum; // scratch: this sweep's raw net transfer per cell
     int                  m_colsProcessed = 0; // |P| of the last executed sweep (observability)
+    bool                 m_edgeOutflow = false;            // P4: ring columns bleed instead of walling
+    std::vector<float>   m_edgeOutflowAccum;               // per-column outflow since the last drain
+    std::vector<uint8_t> m_colNoBleed;                     // Phase C: finite-body bleed exemption
+    void runEdgeOutflow();                                 // one bleed pass over the ring (in step())
     bool                 m_hasSources = false;
     bool                 m_evaporate  = false;
     float                m_momentum   = 1.0f;  // Phase 4 inertia strength (0 = pure diffusion)
+    float                m_minHold    = MIN_HOLD_DEFAULT; // horizontal-flow depth gate (Phase 1)
     bool                 m_settled    = false; // last step moved no mass → skip until disturbed
     unsigned long long   m_sweepsRun  = 0;     // steps that ran the full sweep (observability)
 };

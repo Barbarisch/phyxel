@@ -319,7 +319,12 @@ private:
     // HASH_CAP must be a power of two and >= ~2 * MAX_CONSTRAINTS.
     static constexpr uint32_t HASH_CAP        = 131072;
     static constexpr uint32_t HASH_BASE       = 8;
-    static constexpr uint32_t SOLVER_STATE_UINTS = HASH_BASE + HASH_CAP;
+    // Sleep wake-bits (docs/PhysicsRestOverhaul.md Phase 2): one bit per body appended
+    // after the hash table. Set by narrowphase/integrate, consumed by sync_in next tick.
+    // Must match solver_types.glsl WAKE_BITS_BASE/WAKE_WORDS (320 words covers 10240
+    // bodies >= MAX_PARTICLES).
+    static constexpr uint32_t WAKE_WORDS      = 320;
+    static constexpr uint32_t SOLVER_STATE_UINTS = HASH_BASE + HASH_CAP + WAKE_WORDS;
 
     // SolverBody buffer — device-local, MAX_PARTICLES × 208 bytes
     VkBuffer       m_solverBodyBuffer = VK_NULL_HANDLE;

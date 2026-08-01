@@ -94,11 +94,14 @@ TEST(FlowFieldTest, ChannelGeometryTablesAreGrounded) {
     EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(3), 2.5f);
     EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(6), 11.0f);
     EXPECT_FLOAT_EQ(FlowField::channelHalfWidth(9), 11.0f) << "clamps above order 6";
-    EXPECT_FLOAT_EQ(FlowField::channelDepth(1), 0.0f) << "order-1 is sub-voxel → no carve";
-    EXPECT_FLOAT_EQ(FlowField::channelDepth(2), 0.0f) << "order-2 is sub-voxel → no carve";
+    // Small-scale plan Phase 2a: orders 1-2 are CREEKS — sub-voxel WATER depths (fractions of a
+    // voxel) that pin a fractional ribbon. They still cut no TERRAIN (the generator clamps the
+    // carve to order ≥ 3) and no valley (nearestChannel skips them).
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(1), 0.33f) << "order-1 creek: sub-voxel water depth";
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(2), 0.66f) << "order-2 creek: sub-voxel water depth";
     EXPECT_FLOAT_EQ(FlowField::channelDepth(3), 1.0f);
     EXPECT_FLOAT_EQ(FlowField::channelDepth(6), 2.0f);
-    EXPECT_FLOAT_EQ(FlowField::channelDepth(0), 0.0f) << "non-river → no carve";
+    EXPECT_FLOAT_EQ(FlowField::channelDepth(0), 0.0f) << "non-river → no channel";
 }
 
 TEST(FlowFieldTest, SegmentChannelGeometryAndOrderGate) {
@@ -116,9 +119,15 @@ TEST(FlowFieldTest, SegmentChannelGeometryAndOrderGate) {
     auto beyond = FlowField::segmentChannel(50.0f, 3.0f, 0.0f, 0.0f, 100.0f, 0.0f, 3);  // 3 > halfW 2.5
     EXPECT_FALSE(beyond.hit) << "outside half-width → no carve";
 
-    // Order gate: orders 1-2 are sub-voxel → no carve even on the centreline; order 6 carves deeper.
-    EXPECT_FALSE(FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 2).hit) << "order 2 sub-voxel";
-    EXPECT_FALSE(FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 1).hit) << "order 1 sub-voxel";
+    // Creeks (Phase 2a): orders 1-2 now HIT with fractional sub-voxel depth — the water runtime
+    // pins their ribbon — while order 0 still reports nothing. Order 6 carves deeper as before.
+    auto creek2 = FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 2);
+    EXPECT_TRUE(creek2.hit) << "order-2 creek must report a channel";
+    EXPECT_NEAR(creek2.depth, 0.66f, 1e-4f) << "order-2 fractional depth at the centreline";
+    auto creek1 = FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 1);
+    EXPECT_TRUE(creek1.hit) << "order-1 creek must report a channel";
+    EXPECT_NEAR(creek1.depth, 0.33f, 1e-4f) << "order-1 fractional depth at the centreline";
+    EXPECT_FALSE(FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 0).hit) << "order 0 = no river";
     auto big = FlowField::segmentChannel(50.0f, 0.0f, 0.0f, 0.0f, 100.0f, 0.0f, 6);
     EXPECT_TRUE(big.hit);
     EXPECT_NEAR(big.depth, 2.0f, 1e-4f) << "order 6 depth";
@@ -153,23 +162,68 @@ TEST(FlowFieldTest, ChannelAtCarvesAnOrder3RiverAtItsCentreline) {
     EXPECT_TRUE(on.hit) << "channelAt must carve on the order-3 river";
     EXPECT_EQ(on.order, 3);
     EXPECT_NEAR(on.depth, 1.0f, 0.2f);
-    // Well off the network (a high plateau corner) → no order-≥3 channel → no carve.
+    // A high plateau corner: at riverThreshold 0 every cell is technically an order-1 channel
+    // (Phase 2a made those REPORT as fractional creeks rather than nothing), but it must never
+    // read as a CARVING river — terrain consumers gate on order ≥ 3.
     auto off = f.channelAt(55.0f, 5.0f);
-    EXPECT_FALSE(off.hit) << "channelAt must not carve off the river network";
+    EXPECT_LT(off.order, 3) << "plateau corner must not report a carving-order river";
+    if (off.hit) EXPECT_LT(off.depth, 1.0f) << "an order-1/2 report must stay sub-voxel";
+
+    // SEGMENT order ≠ CELL order — the distinction the water runtime's pin mapping depends on.
+    // (15,31) lies INSIDE the order-3 confluence CELL (c3, cell 1,3 spans z 30..40), but the only
+    // segment within range is the order-2 tributary c1→c3 running along x=15 — so channelAt must
+    // report ORDER 2 with a fractional depth while orderAt says 3. Combining orderAt's cell order
+    // with channelAt's depth full-pinned uncarved creek ground at every junction (a ~900-mass
+    // sheet flood, measured live in CreekLab 2026-07-30): consumers must take BOTH facts from the
+    // same channelAt hit.
+    ASSERT_EQ(f.orderAt(15.0f, 31.0f), 3) << "fixture: (15,31) must sit in the order-3 cell";
+    auto seg = f.channelAt(15.0f, 31.0f);
+    EXPECT_TRUE(seg.hit);
+    EXPECT_EQ(seg.order, 2) << "channelAt must report the HIT SEGMENT's order, not the cell's";
+    EXPECT_LT(seg.depth, 1.0f) << "the order-2 segment's depth must stay sub-voxel";
 }
 
-TEST(FlowFieldTest, ChannelAtGatesOrder1And2RiversAtCellCentres) {
-    // The single valley tops out at order 1-2; sampling at cell CENTRES (where the segments actually
-    // run) it must carve NOTHING (orders 1-2 sub-voxel). Sampling centres makes this sensitive to the
-    // gate — a broken order gate would produce hits here (proven by the auditor's mutation).
+// nearestChannel's minOrder parameter (water-as-terrain-stage P2): the default (3) keeps valley
+// shaping blind to creeks, while minOrder=1 lets the creek-swale pass see orders 1-2. On the tree
+// fixture, (15,25) sits ON the order-2 tributary c1→c3; the nearest order≥3 segment (c3→outlet
+// along z=35) is 10 units away.
+TEST(FlowFieldTest, NearestChannelMinOrderSeesCreeks) {
+    FlowField f(treeHeight, 0.0f, 0.0f, 7, 7, 10.0f, -1000.0f, /*riverThreshold=*/0);
+    ASSERT_GE(f.maxOrder(), 3);
+
+    const auto big = f.nearestChannel(15.0f, 25.0f, 12.0f);         // default minOrder=3
+    EXPECT_EQ(big.order, 3) << "default must keep reporting only order>=3";
+    EXPECT_NEAR(big.dist, 10.0f, 0.5f) << "nearest order-3 segment is the c3->outlet run at z=35";
+
+    const auto creek = f.nearestChannel(15.0f, 25.0f, 12.0f, 1);    // creek swale query
+    EXPECT_GE(creek.order, 1);
+    EXPECT_LE(creek.order, 2);
+    EXPECT_NEAR(creek.dist, 0.0f, 0.5f) << "the point lies ON the order-2 tributary centreline";
+}
+
+TEST(FlowFieldTest, ChannelAtReportsFractionalCreeksAtOrder1And2) {
+    // Phase 2a rewrite — this test used to pin the OPPOSITE (orders 1-2 report NO channel at all),
+    // which was gate #2 of the four that kept creeks bone dry. The single valley tops out at order
+    // 1-2; sampling at cell centres, channelAt must now report the creek with a FRACTIONAL
+    // (sub-voxel) depth — never a full voxel — so the water runtime can pin a ribbon while the
+    // terrain carve (clamped to order ≥ 3 in the generator) still leaves the ground untouched.
     auto height = [](float x, float z) { return std::fabs(z - 100.0f) * 2.0f + x * 0.1f; };
     FlowField f(height, 0.0f, 0.0f, 20, 20, 10.0f, -1000.0f, /*riverThreshold=*/20);
-    ASSERT_GE(f.maxOrder(), 1) << "there must be river cells to gate (else the test is vacuous)";
+    ASSERT_GE(f.maxOrder(), 1) << "there must be river cells (else the test is vacuous)";
     ASSERT_LE(f.maxOrder(), 2) << "this fixture is meant to top out below the carving order (3)";
+    int creekHits = 0;
     for (int j = 0; j < 20; ++j)
-        for (int i = 0; i < 20; ++i)
-            EXPECT_FALSE(f.channelAt((i + 0.5f) * 10.0f, (j + 0.5f) * 10.0f).hit)
-                << "order-<=2 river must carve nothing at cell centre (" << i << "," << j << ")";
+        for (int i = 0; i < 20; ++i) {
+            const float wx = (i + 0.5f) * 10.0f, wz = (j + 0.5f) * 10.0f;
+            const auto h = f.channelAt(wx, wz);
+            if (f.orderAt(wx, wz) >= 1) {
+                EXPECT_TRUE(h.hit) << "creek cell centre must report its channel (" << i << "," << j << ")";
+                EXPECT_LT(h.depth, 1.0f) << "creek depth must stay sub-voxel";
+                EXPECT_GT(h.depth, 0.0f);
+                ++creekHits;
+            }
+        }
+    EXPECT_GT(creekHits, 3) << "too few creek cells reported to be meaningful";
 }
 
 TEST(FlowFieldTest, Deterministic) {

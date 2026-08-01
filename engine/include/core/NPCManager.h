@@ -3,6 +3,7 @@
 #include "core/SpawnGate.h"
 
 #include "scene/NPCEntity.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "scene/CharacterAppearance.h"
 #include "ai/RelationshipManager.h"
 #include "ai/SocialInteraction.h"
@@ -140,6 +141,14 @@ public:
                                                   float walkSpeed = 2.0f, float waitTime = 2.0f,
                                                   const Scene::CharacterAppearance& appearance = Scene::CharacterAppearance{});
 
+    /// Water hooks copied onto EVERY spawned NPC's character (tangible-water Phase E — closes
+    /// the "wading/current forces were player-only" gap). Set once at world wiring; applied at
+    /// each spawn construction site. NPCs already alive when this is set are not retrofitted
+    /// (the world wiring runs before any NPC spawns in every load path).
+    void setCharacterWaterHooks(Scene::AnimatedVoxelCharacter::WaterHooks hooks) {
+        m_waterHooks = std::move(hooks);
+    }
+
     /// Remove an NPC by name. Returns false if not found.
     bool removeNPC(const std::string& name);
 
@@ -215,6 +224,7 @@ private:
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;
+    Scene::AnimatedVoxelCharacter::WaterHooks m_waterHooks;  // copied onto each spawn (Phase E)
 
     /// Cached .anim templates: animFile -> {skeleton, voxelModel, clips}
     struct AnimTemplate {

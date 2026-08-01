@@ -153,14 +153,474 @@ TEST(WaterManagerTest, OceanBoundaryLeavesSealedPocketDry) {
         << "the sealed pocket flooded — connectivity-gating broke with boundary seeds";
 }
 
-// Recentering far enough that the pool leaves the window drops it (mass falls off the frontier) —
-// the seam-loss the ocean boundary condition (Phase A2) will later replace at the leading edge.
-TEST(WaterManagerTest, RecenterPastThePoolDropsItAtTheFrontier) {
-    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
-    buildBasinAndFill(wm);
-    ASSERT_GT(wm.totalMass(), 15.0f);
-    wm.recenter(glm::ivec3(200, 0, 200));  // pool now far outside the window
-    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "pool outside the moved window should be gone";
+// ─── Poured-water persistence (water-as-terrain-stage P3) ─────────────────────────────────────────
+// This suite REPLACES RecenterPastThePoolDropsItAtTheFrontier: the silent drop that test pinned is
+// exactly what P3 removes. The sim still drops off-frontier mass (bounded by design), but the
+// departing columns' unpinned surface levels are CAPTURED first and reseeded when the window
+// returns. Terrain here is a REAL chunk (persists across recenters — setSolidWorld walls travel
+// with the window and are lost off the frontier, which is why buildBasinAndFill can't back these).
+
+namespace {
+
+// Ground everywhere at y<=2; wall ring y 3..5 around the 4x4 interior [12,15]^2; 16 cells poured →
+// a settled 1-deep pool at y=3 (surface level 4.0).
+struct TerrainBasinFixture {
+    ChunkManager cm;
+    std::unique_ptr<WaterManager> wm;
+    explicit TerrainBasinFixture(const glm::ivec3& origin = glm::ivec3(0, 0, 0), bool pour = true) {
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        auto owned = std::make_unique<Phyxel::Chunk>(glm::ivec3(0, 0, 0));
+        owned->initializeForLoading();
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z) {
+                for (int y = 0; y <= 2; ++y) owned->addCube(glm::ivec3(x, y, z));
+                const bool ring = x >= 11 && x <= 16 && z >= 11 && z <= 16 &&
+                                  !(x >= 12 && x <= 15 && z >= 12 && z <= 15);
+                if (ring)
+                    for (int y = 3; y <= 5; ++y) owned->addCube(glm::ivec3(x, y, z));
+            }
+        cm.chunkMap[glm::ivec3(0, 0, 0)] = owned.get();
+        cm.chunks.push_back(std::move(owned));
+        wm = std::make_unique<WaterManager>(&cm, origin, glm::ivec3(32, 16, 32));
+        if (pour) {
+            for (int x = 12; x <= 15; ++x)
+                for (int z = 12; z <= 15; ++z)
+                    wm->placeWater(glm::vec3(x + 0.5f, 4.0f, z + 0.5f), 1.0f);
+            for (int i = 0; i < 40; ++i) wm->update(0.1f);
+        }
+    }
+};
+
+}  // namespace
+
+// Walking away captures the pour; walking back reseeds it at its level. The in-window mass still
+// drops to zero while away (the sim is bounded — that part is by design and stays).
+TEST(WaterManagerTest, RecenterPastThePoolCapturesAndReseedsIt) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 15.0f) << "pool did not fill";
+    ASSERT_EQ(wm.overrideCount(), 0u) << "nothing departed yet — no overrides expected";
+
+    wm.recenter(glm::ivec3(200, 0, 200));  // pool far outside the window
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f) << "in-window mass while away should be zero";
+    EXPECT_EQ(wm.overrideCount(), 16u) << "each departing pool column should be captured once";
+
+    wm.recenter(glm::ivec3(0, 0, 0));      // walk back
+    EXPECT_NEAR(wm.totalMass(), before, 0.1f) << "pour did not reseed at its captured level";
+    EXPECT_GT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 0.9f)
+        << "reseeded water is not at the pool's world position";
+    EXPECT_EQ(wm.overrideCount(), 0u) << "consumed overrides must be erased (live again)";
+}
+
+// Vertical window travel drops water too (the region follows the camera in Y — this is how live
+// pours were FIRST observed draining). A pure-Y recenter must capture and restore the same way.
+TEST(WaterManagerTest, VerticalRecenterCapturesAndReseedsThePour) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 15.0f);
+
+    wm.recenter(glm::ivec3(0, 40, 0));     // camera looked up a cliff: band now y 40..56
+    EXPECT_FLOAT_EQ(wm.totalMass(), 0.0f);
+    EXPECT_EQ(wm.overrideCount(), 16u) << "the departing vertical slice should be captured";
+    wm.recenter(glm::ivec3(0, 0, 0));
+    EXPECT_NEAR(wm.totalMass(), before, 0.1f) << "pour lost across a vertical round trip";
+}
+
+// A stale override at a column the baked table already covers must NOT double-pour: the reseed
+// erases it instead of stacking unpinned mass onto pinned lake water.
+TEST(WaterManagerTest, OverridesDoNotDoubleCountTablePinnedColumns) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    // Bake a lake over the basin interior at level 6 (above ground y<=2, inside the walls).
+    wm.setWaterTable([](float wx, float wz) -> float {
+        return (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) ? 6.0f : -1e30f;
+    });
+    wm.update(0.1f);
+    const float tableOnly = wm.totalMass();
+    ASSERT_GT(tableOnly, 5.0f) << "the baked lake should have filled";
+
+    // A stale capture below the lake surface (e.g. recorded before the bake was bound).
+    ASSERT_TRUE(wm.loadOverrides("13 13 4.5\n"));
+    ASSERT_EQ(wm.overrideCount(), 1u);
+    wm.update(0.1f);   // oceanDirty → rebuild → applyOverrides
+    EXPECT_NEAR(wm.totalMass(), tableOnly, 1e-3f)
+        << "override double-poured mass onto the pinned lake";
+    EXPECT_EQ(wm.overrideCount(), 0u) << "redundant override should be erased, not kept forever";
+}
+
+// The store round-trips through its serialized form: a fresh manager (fresh world session) restores
+// the pond from text alone once its window reaches the columns.
+TEST(WaterManagerTest, OverridesSurviveSerializeLoadRoundTrip) {
+    TerrainBasinFixture f;
+    const float before = f.wm->totalMass();
+    f.wm->recenter(glm::ivec3(200, 0, 200));
+    ASSERT_EQ(f.wm->overrideCount(), 16u);
+    const std::string blob = f.wm->serializeOverrides();
+    ASSERT_FALSE(blob.empty());
+
+    TerrainBasinFixture g(glm::ivec3(200, 0, 200), /*pour=*/false);  // fresh session, window far away
+    ASSERT_TRUE(g.wm->loadOverrides(blob));
+    EXPECT_EQ(g.wm->overrideCount(), 16u);
+    g.wm->recenter(glm::ivec3(0, 0, 0));
+    EXPECT_NEAR(g.wm->totalMass(), before, 0.1f) << "pond not restored from serialized overrides";
+    EXPECT_GT(g.wm->massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 0.9f);
+
+    EXPECT_FALSE(g.wm->loadOverrides("this is not an override line"))
+        << "garbage must be rejected, not half-loaded";
+}
+
+// ─── CA edge outflow (water-as-terrain-stage P4) ──────────────────────────────────────────────────
+// The window edge stops being an invisible WALL: unpinned water reaching the ring bleeds out into
+// a world-keyed mass bank instead of piling up, and comes back as live water when the window
+// reaches its landing column. Pinned water is exempt (bleeding an infinite reservoir would mint
+// mass forever). The legacy wall behavior is the red baseline, asserted here with the flag OFF.
+
+// Repeated pours against the window edge: walls (off) stack the water; outflow (on) bounds the
+// in-window mass and grows the bank by exactly what left (conservation across the seam).
+TEST(WaterManagerTest, EdgeOutflowBleedsSpillIntoTheBankInsteadOfWalling) {
+    // Null cm: the out-of-bounds floor below y=0 is the only ground; pours at the x=0 ring column.
+    WaterManager off(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    WaterManager on(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    on.setEdgeOutflow(true);
+    // Three separate ring columns, so the bleed spreads over three bank landing columns and the
+    // per-column bank cap (4.0) is not the limiting factor for the conservation check.
+    for (int i = 0; i < 4; ++i)
+        for (const float pz : {5.5f, 8.5f, 11.5f}) {
+            off.placeWater(glm::vec3(0.5f, 2.5f, pz), 1.0f);
+            on.placeWater(glm::vec3(0.5f, 2.5f, pz), 1.0f);
+            off.update(0.1f);
+            on.update(0.1f);
+        }
+    for (int i = 0; i < 30; ++i) { off.update(0.1f); on.update(0.1f); }
+
+    // RED baseline (walls): every poured unit is still in-window.
+    EXPECT_NEAR(off.totalMass(), 12.0f, 0.5f) << "legacy walls should keep all poured mass in-window";
+    EXPECT_FLOAT_EQ(off.outflowBankTotal(), 0.0f);
+
+    // Outflow: the edge bled most of it into the bank; in-window + banked ≈ poured (the seam
+    // conserves — nothing deleted below the cap). Films below the hold may remain in-window.
+    EXPECT_LT(on.totalMass(), 6.0f) << "edge did not bleed — the wall is back";
+    EXPECT_GT(on.outflowBankTotal(), 4.0f) << "bled mass did not reach the bank";
+    EXPECT_NEAR(on.totalMass() + on.outflowBankTotal(), 12.0f, 1.0f)
+        << "mass vanished at the seam instead of banking";
+}
+
+// Banked mass is redeposited as live water when the window recenters over its landing column.
+// The window is SMALLER than the fixture's chunk, so the landing column (just outside the window)
+// still has real loaded terrain when the window later covers it.
+TEST(WaterManagerTest, OutflowBankRedepositsWhenTheWindowArrives) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);   // flat ground at y<=2, chunk 0..31
+    WaterManager wm(&f.cm, glm::ivec3(4, 0, 4), glm::ivec3(16, 8, 16));  // window x,z in [4,20)
+    wm.setEdgeOutflow(true);
+    // Pour against the x = 19 ring column: it bleeds to the bank at world x 20 (inside the chunk).
+    for (int i = 0; i < 8; ++i) {
+        wm.placeWater(glm::vec3(19.5f, 4.5f, 12.5f), 1.0f);
+        wm.update(0.1f);
+    }
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    const float banked = wm.outflowBankTotal();
+    ASSERT_GT(banked, 2.0f) << "edge pour did not bank";
+
+    wm.recenter(glm::ivec3(8, 0, 4));   // landing column x=20 → local 12: interior, real ground
+    EXPECT_LT(wm.outflowBankTotal(), banked * 0.5f)
+        << "bank did not redeposit over loaded ground";
+    EXPECT_GT(wm.totalMass(), banked * 0.5f) << "redeposited mass is not in the sim";
+}
+
+// A pinned (baked-table) shoreline at the window edge must NOT bleed: pins are infinite
+// reservoirs, and outflowing them would grow the bank forever from nothing.
+TEST(WaterManagerTest, PinnedEdgeWaterDoesNotBleed) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setEdgeOutflow(true);
+    wm.setWaterTable([](float, float) { return 3.0f; });   // uniform pinned sea to y=3
+    wm.update(0.1f);
+    const float sea = wm.totalMass();
+    ASSERT_GT(sea, 100.0f) << "table sea should have filled";
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.outflowBankTotal(), 0.0f) << "pinned sea bled at the edge — mass minted";
+    EXPECT_NEAR(wm.totalMass(), sea, sea * 0.02f);
+}
+
+// Bank entries survive the serialize/load round trip alongside the level overrides.
+TEST(WaterManagerTest, OutflowBankSurvivesSerializeLoadRoundTrip) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setEdgeOutflow(true);
+    for (int i = 0; i < 8; ++i) {
+        wm.placeWater(glm::vec3(0.5f, 2.5f, 8.5f), 1.0f);
+        wm.update(0.1f);
+    }
+    for (int i = 0; i < 20; ++i) wm.update(0.1f);
+    const float banked = wm.outflowBankTotal();
+    ASSERT_GT(banked, 1.0f);
+
+    WaterManager wm2(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm2.loadOverrides(wm.serializeOverrides()));
+    EXPECT_NEAR(wm2.outflowBankTotal(), banked, 1e-2f) << "bank lines lost in the round trip";
+}
+
+// ─── Finite bodies + per-BODY deltas (tangible-water Phase C) ────────────────────────────────────
+// Ponds (finite class) are excluded from table pinning: their water is real conserved mass
+// hydrated to baseline + a per-BODY level delta. One float per body IS the sparse representation
+// (a settled body's surface is flat) — per-column records cannot express a scooped multi-column
+// pond without re-minting mass from unrecorded neighbors on every rebuild (the F1 failure mode,
+// regression-pinned below).
+
+namespace {
+
+// The TerrainBasinFixture's walled interior [12,15]^2 declared a FINITE pond (id 7, baseline 6:
+// water y 3..5, flush with the wall top). Everything else: no body.
+Phyxel::Core::WaterManager::BodyInfo basinPondBody(float wx, float wz) {
+    Phyxel::Core::WaterManager::BodyInfo b;
+    if (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) {
+        b.id = 7;
+        b.finite = true;
+        b.baselineLevel = 6.0f;
+        b.areaColumns = 16;
+    }
+    return b;
+}
+
+float basinPondTable(float wx, float wz) {
+    return (wx >= 12.0f && wx < 16.0f && wz >= 12.0f && wz < 16.0f) ? 6.0f : -1e30f;
+}
+
+}  // namespace
+
+TEST(WaterManagerTest, FiniteBodyColumnsAreNotPinnedButHydrate) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    wm.update(0.1f);
+
+    // Unpinned everywhere in the pond, yet full to baseline (16 columns × 3 cells).
+    for (int y = 3; y <= 5; ++y) {
+        EXPECT_LT(wm.sim().sourceAt(13, y, 13), 0.0f) << "finite pond cell pinned at y=" << y;
+        EXPECT_GT(wm.sim().massAt(13, y, 13), 0.9f) << "finite pond not hydrated at y=" << y;
+    }
+    EXPECT_NEAR(wm.totalMass(), 48.0f, 2.0f) << "pond should hold ~16 columns x 3 cells";
+}
+
+TEST(WaterManagerTest, FiniteBodyHydrationIsIdempotentAcrossRebuilds) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float settled = wm.totalMass();
+    ASSERT_GT(settled, 40.0f);
+    for (int i = 0; i < 5; ++i) {
+        wm.setSolidWorld(2, 8, 2, true);    // far-away terrain pokes dirty the ocean → rebuild
+        wm.setSolidWorld(2, 8, 2, false);
+        wm.update(0.1f);
+    }
+    EXPECT_NEAR(wm.totalMass(), settled, 0.1f)
+        << "re-hydration on rebuild minted or destroyed pond mass";
+}
+
+// THE F1 regression: a lowered body record must hold across arbitrarily many rebuilds — a naive
+// per-column store refills the body from unrecorded neighbors and mass rises every rebuild.
+TEST(WaterManagerTest, ScoopedBodyDoesNotRefillFromUnrecordedNeighbors) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    ASSERT_TRUE(wm.loadOverrides("D 7 -1.000\n"));   // the pond was scooped one level down
+    wm.update(0.1f);
+    const float lowered = wm.totalMass();
+    EXPECT_NEAR(lowered, 32.0f, 2.0f) << "delta -1 should hydrate to level 5 (2 cells deep)";
+    EXPECT_LT(wm.sim().massAt(13, 5, 13), 0.05f) << "the scooped-away top layer refilled";
+    for (int i = 0; i < 8; ++i) {
+        wm.setSolidWorld(2, 8, 2, true);
+        wm.setSolidWorld(2, 8, 2, false);
+        wm.update(0.1f);
+        ASSERT_LE(wm.totalMass(), lowered + 0.1f)
+            << "rebuild " << i << " minted mass into the scooped pond";
+    }
+}
+
+TEST(WaterManagerTest, RecenterAwayCommitsBodyDeltaNotColumnOverrides) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float before = wm.totalMass();
+    ASSERT_GT(before, 40.0f);
+
+    wm.recenter(glm::ivec3(200, 0, 200));
+    EXPECT_EQ(wm.overrideCount(), 0u)
+        << "finite-body columns wrote COLUMN overrides — F1 double-count path";
+    wm.recenter(glm::ivec3(0, 0, 0));
+    wm.update(0.1f);
+    EXPECT_NEAR(wm.totalMass(), before, 1.0f) << "pond did not survive the round trip";
+}
+
+TEST(WaterManagerTest, FiniteBodyEdgeColumnsDoNotBleed) {
+    // Window shifted so the WALLED basin pond sits ON the +x ring: window x ∈ [-16,16), basin
+    // interior world x 12..15 → local 28..31 (ring at lx=31). Terrain-contained, so the only
+    // way it can lose mass at the ring is the P4 frontier bleed — which the no-bleed mask must
+    // block for finite-body columns (F3).
+    TerrainBasinFixture f(glm::ivec3(-16, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    wm.setEdgeOutflow(true);
+    for (int i = 0; i < 30; ++i) wm.update(0.1f);
+    EXPECT_FLOAT_EQ(wm.outflowBankTotal(), 0.0f)
+        << "edge outflow siphoned a finite pond at the window ring (F3)";
+    EXPECT_GT(wm.totalMass(), 40.0f) << "the ring pond should hold its hydrated mass";
+}
+
+TEST(WaterManagerTest, SampleWaterOutOfWindowHonorsBodyDelta) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    ASSERT_TRUE(wm.loadOverrides("D 7 -2.000\n"));   // pond down to level 4
+    wm.update(0.1f);
+    wm.recenter(glm::ivec3(200, 0, 200));            // pond far outside the window
+
+    const auto below = wm.sampleWater(glm::vec3(13.5f, 3.5f, 13.5f));
+    EXPECT_TRUE(below.inWater) << "below the delta'd level must still read wet";
+    EXPECT_NEAR(below.surfaceY, 4.0f, 1e-3f) << "out-of-window surface must honor the delta";
+    const auto above = wm.sampleWater(glm::vec3(13.5f, 5.5f, 13.5f));
+    EXPECT_FALSE(above.inWater)
+        << "the table's bake level (6) leaked through — a drained pond read full (F4)";
+}
+
+TEST(WaterManagerTest, BodyDeltasSurviveSerializeLoadRoundTrip) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm.loadOverrides("D 42 -1.500\n13 13 4.500\nB 1 2 0.500\n"));
+    EXPECT_FLOAT_EQ(wm.bodyDelta(42), -1.5f);
+    EXPECT_EQ(wm.overrideCount(), 1u);
+
+    WaterManager wm2(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm2.loadOverrides(wm.serializeOverrides()));
+    EXPECT_FLOAT_EQ(wm2.bodyDelta(42), -1.5f) << "body delta lost in the round trip";
+    EXPECT_EQ(wm2.overrideCount(), 1u);
+    EXPECT_NEAR(wm2.outflowBankTotal(), 0.5f, 1e-3f);
+
+    // v1 (pre-body) text must still load — the world_meta migration path.
+    WaterManager wm3(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    ASSERT_TRUE(wm3.loadOverrides("13 13 4.500\nB 1 2 0.500\n"));
+    EXPECT_EQ(wm3.bodyDeltaCount(), 0u);
+    EXPECT_EQ(wm3.overrideCount(), 1u);
+}
+
+TEST(WaterManagerTest, SnapDoesNotExpandLakeIntoAdjacentFiniteBody) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    // An infinite lake at level 4 over [18,21]^2 next to the finite pond [12,15]^2 (baseline 6).
+    // The flat ground between (y<=2) sits below the lake level, so the shoreline snap expands
+    // the lake across it — and WOULD pin into the pond's columns without the rim guard. Level 4
+    // stays below the pond's wall top (6), so nothing legitimately overtops; any water inside
+    // the pond above its own baseline would be the guard failing, not physics.
+    wm.setWaterTable([](float wx, float wz) {
+        if (wx >= 18.0f && wx < 22.0f && wz >= 12.0f && wz < 16.0f) return 4.0f;
+        return basinPondTable(wx, wz);
+    });
+    wm.setBodyQuery(basinPondBody);
+    wm.update(0.1f);
+
+    // The snap genuinely ran: the open-ground column between lake and pond is pinned...
+    EXPECT_GE(wm.sim().sourceAt(17, 3, 13), 0.0f)
+        << "fixture: the snap should have expanded the lake across the low open ground";
+    // ...but stopped at the pond's columns (the rim guard), which stay unpinned at their own level.
+    for (int y = 3; y <= 5; ++y)
+        EXPECT_LT(wm.sim().sourceAt(13, y, 13), 0.0f)
+            << "lake snap pinned INSIDE the finite pond at y=" << y;
+    EXPECT_LT(wm.sim().massAt(13, 6, 13), 0.5f)
+        << "pond filled above its own baseline — the lake's level leaked in via the snap";
+}
+
+// ─── Scoop (tangible-water Phase D) ──────────────────────────────────────────────────────────────
+
+TEST(WaterManagerTest, ScoopRemovesTopDownAndReturnsActual) {
+    TerrainBasinFixture f;                       // 16-column pool, 1 deep at y=3
+    WaterManager& wm = *f.wm;
+    const float before = wm.totalMass();
+    const float got = wm.scoopWater(glm::vec3(13.5f, 3.5f, 13.5f), 0.6f);
+    EXPECT_NEAR(got, 0.6f, 1e-3f) << "a full cell must yield the whole requested scoop";
+    EXPECT_NEAR(wm.totalMass(), before - 0.6f, 1e-3f);
+    // Scooping an empty column yields nothing.
+    EXPECT_FLOAT_EQ(wm.scoopWater(glm::vec3(2.5f, 3.5f, 2.5f), 1.0f), 0.0f);
+}
+
+TEST(WaterManagerTest, ScoopOnPinnedWaterRefillsNextStep) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);            // NO body query → the pond pins as a mini-lake
+    wm.update(0.1f);
+    const float full = wm.totalMass();
+    ASSERT_GT(full, 40.0f);
+    const float got = wm.scoopWater(glm::vec3(13.5f, 5.5f, 13.5f), 1.0f);
+    EXPECT_GT(got, 0.9f) << "the scoop itself must yield water";
+    wm.update(0.1f);                             // pins re-assert
+    EXPECT_NEAR(wm.totalMass(), full, 0.5f) << "pinned (infinite) water must refill after a scoop";
+}
+
+TEST(WaterManagerTest, ScoopFiniteBodyLowersRecordAndSurvivesRoundTrip) {
+    TerrainBasinFixture f(glm::ivec3(0, 0, 0), /*pour=*/false);
+    WaterManager& wm = *f.wm;
+    wm.setWaterTable(basinPondTable);
+    wm.setBodyQuery(basinPondBody);
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);
+    const float full = wm.totalMass();
+    ASSERT_GT(full, 40.0f);
+
+    // Scoop a bucket out: the body record drops by removed/area — the exact level change of a
+    // flat body losing that volume, which is also where the live CA re-levels to, so the
+    // record, the live mass, and a fresh hydration all agree.
+    const float got = wm.scoopWater(glm::vec3(13.5f, 5.5f, 13.5f), 1.0f);
+    EXPECT_GT(got, 0.9f);
+    EXPECT_NEAR(wm.bodyDelta(7), -got / 16.0f, 1e-3f)
+        << "scooping a finite body must lower its level record by removed/area";
+    for (int i = 0; i < 10; ++i) wm.update(0.1f);   // settle + rebuilds
+    const float after = wm.totalMass();
+    EXPECT_NEAR(after, full - got, 0.5f)
+        << "in-window mass must stay conserved (no refill, no extra loss)";
+
+    // The loss survives a fresh manager via the serialized store.
+    TerrainBasinFixture g(glm::ivec3(0, 0, 0), /*pour=*/false);
+    g.wm->setWaterTable(basinPondTable);
+    g.wm->setBodyQuery(basinPondBody);
+    ASSERT_TRUE(g.wm->loadOverrides(wm.serializeOverrides()));
+    for (int i = 0; i < 10; ++i) g.wm->update(0.1f);
+    EXPECT_NEAR(g.wm->totalMass(), after, 2.0f)
+        << "scooped level lost across serialize/load — the pond came back fuller";
+}
+
+TEST(WaterManagerTest, ScoopRespectsSubVoxelFloor) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 8, 16));
+    wm.setSolidWorld(8, 2, 8, true);
+    wm.setFloorWorld(8, 3, 8, 2.0f / 3.0f);      // a creek-shelf cell
+    wm.placeWater(glm::vec3(8.5f, 3.5f, 8.5f), 0.25f);
+    for (int i = 0; i < 5; ++i) wm.update(0.1f);
+    const float got = wm.scoopWater(glm::vec3(8.5f, 3.5f, 8.5f), 1.0f);
+    EXPECT_NEAR(got, 0.25f, 0.02f) << "a floored cell yields only the water above its shelf";
+}
+
+// Monotone stress: walk away and back MANY times. Capture→reseed is level-based, so repeated
+// cycles must never grow the water (each reseed fills to at most the captured level; each capture
+// records at most the reseeded level). Asserted EVERY cycle, not just at the end.
+TEST(WaterManagerTest, StressWalkAwayAndBackNeverGrowsThePour) {
+    TerrainBasinFixture f;
+    WaterManager& wm = *f.wm;
+    const float initial = wm.totalMass();
+    ASSERT_GT(initial, 15.0f);
+    for (int i = 0; i < 10; ++i) {
+        wm.recenter(glm::ivec3(200, 0, 200));
+        ASSERT_EQ(wm.overrideCount(), 16u) << "cycle " << i << ": capture count drifted";
+        wm.recenter(glm::ivec3(0, 0, 0));
+        ASSERT_EQ(wm.overrideCount(), 0u) << "cycle " << i << ": overrides not consumed";
+        const float back = wm.totalMass();
+        ASSERT_LE(back, initial + 1e-3f) << "cycle " << i << ": the pour GREW — capture/reseed pumps mass";
+        ASSERT_NEAR(back, initial, 0.1f) << "cycle " << i << ": the pour eroded";
+        for (int u = 0; u < 5; ++u) wm.update(0.1f);   // let it settle between cycles
+    }
 }
 
 // A fully settled field must not pay the O(box) surface rebuild every update tick: update() only
@@ -219,9 +679,18 @@ TEST(WaterManagerTest, BakedWaterTableFillsLakeAndSurvivesRecenter) {
     EXPECT_LT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 1e-3f) << "water above the baked level";
     EXPECT_LT(wm.massAtWorld(glm::vec3(25.5f, 0.5f, 25.5f)), 1e-3f) << "dry column got water";
 
-    // A lake sits at ITS OWN level (≠ the sea plane's height), so it must render per-cell —
-    // the sea-suppression below must not swallow it.
-    EXPECT_FALSE(wm.surfaceCells().empty()) << "baked lake lost its per-cell surface";
+    // ⚠ SPEC CHANGE (water-layer P1): a pinned, undisturbed lake surface is now drawn by the
+    // water-layer clipmap at its baked level — per-cell emission is SUPPRESSED, exactly like the
+    // sea has been since 2026-07-11 (the old assertion here demanded the opposite and was the
+    // red proof for this change). Disturbed water on the lake must still render per-cell.
+    EXPECT_TRUE(wm.surfaceCells().empty())
+        << "pinned lake surface emitted per-cell quads — double-draws over the water layer";
+    wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), 2.0f);   // a splash ABOVE the lake level
+    EXPECT_FALSE(wm.surfaceCells().empty())
+        << "disturbed water above a lake must still render per-cell";
+    // Drain the splash back out so the recenter checks below measure the undisturbed lake.
+    wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), -2.0f);
+    wm.update(0.1f);
 
     // Move the region; the table re-derives at the new origin — the lake stays at its world position.
     wm.recenter(glm::ivec3(6, 0, 6));
@@ -318,16 +787,27 @@ TEST(WaterManagerTest, RiverWithEvaporationReachesBoundedSteadyStateWithWetBed) 
     EXPECT_GT(growthWithout, 5.0f)
         << "expected the untuned river to keep growing through the breach (rising-pool defect)";
 
-    // Half 2 (the tuning): evaporation on → the pour bounds, the ribbon stays full.
+    // Half 2: the pour is BOUNDED — post-MIN_HOLD, by GEOMETRY rather than evaporation.
+    // ⚠ SPEC CHANGE (small-scale plan Phase 1): pre-gate, the breach pour spread as a thin film
+    // whose sub-0.1 frontier evaporated on arrival — "evaporation bounds off-channel spill"
+    // held within ~400 steps. With the hold, spilled water rests at visible depth, and a LINE
+    // source is not rim-bounded (rim capacity doesn't grow with extent), so a breach now does
+    // the physical thing: it FILLS the downhill shelves toward their spill/pin level and then
+    // STOPS. The guarantee worth pinning is that a true steady state exists — growth decays to
+    // ~zero once the containment fills — plus the unchanged ribbon/bank assertions below.
     WaterManager with(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
     build(with);
     with.setEvaporation(true);
-    for (int i = 0; i < 100; ++i) with.update(0.2f);
-    const float m2 = with.totalMass();
-    for (int i = 0; i < 100; ++i) with.update(0.2f);
-    const float growthWith = with.totalMass() - m2;
-    EXPECT_LT(std::abs(growthWith), std::max(1.0f, growthWithout * 0.2f))
-        << "evaporation did not bound the breach pour";
+    float lastGrowth = 1e9f;
+    int windows = 0;
+    for (; windows < 14 && lastGrowth >= 1.0f; ++windows) {
+        const float before = with.totalMass();
+        for (int i = 0; i < 250; ++i) with.update(0.2f);
+        lastGrowth = with.totalMass() - before;
+    }
+    EXPECT_LT(lastGrowth, 1.0f)
+        << "breach pour never saturated its containment (" << windows
+        << " windows, last growth " << lastGrowth << ")";
     EXPECT_GT(with.massAtWorld(glm::vec3(0.5f, 7.5f, 16.5f)), 0.5f)
         << "the river bed dried out at the top of the course";
     EXPECT_GT(with.massAtWorld(glm::vec3(15.5f, 5.5f, 16.5f)), 0.5f)
@@ -340,9 +820,139 @@ TEST(WaterManagerTest, RiverWithEvaporationReachesBoundedSteadyStateWithWetBed) 
         << "a non-recessed band-edge column was pinned — full water standing on the bank";
 }
 
+// ── CREEKS (small-scale plan Phase 2a) ────────────────────────────────────────────────────────
+// Orders 1-2 were pure labels: four separate gates kept them bone dry, and the one attempt to
+// open them (496cdc10) pinned FULL voxels into channels with no bed and flooded a hillside —
+// reverted. This is the re-opening with both fixes in place: the pin is FRACTIONAL and clamped
+// to the sim's MIN_HOLD, so a pinned creek cell can never make a horizontal transfer. The worst
+// case is a static ribbon, never a sheet. RED before the order-aware pin mapping: an order-2
+// creek's carve depth (0.66) is below the legacy 0.5→full-pin threshold's intent but above the
+// threshold itself — under the OLD mapping it would FULL-PIN (1.0 > hold → donates → spreads);
+// an order-1 creek (0.33 < 0.5) pins nothing at all and stays dry. Both wrong, both caught here.
+TEST(WaterManagerTest, CreekPinIsFractionalAndConfined) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(24, 8, 24));
+    for (int z = 0; z < 24; ++z)          // flat solid ground at y=2 — no bed recess AT ALL,
+        for (int x = 0; x < 24; ++x)      // the exact geometry that made the full pin flood
+            wm.setSolidWorld(x, 2, z, true);
+    // An order-2 creek along x at z=12.5: parabolic band, half-width 1.5, centreline depth 0.66.
+    wm.setRiverQuery([](float, float wz) {
+        const float d = std::fabs(wz - 12.5f);
+        if (d >= 1.5f) return 0.0f;
+        const float t = d / 1.5f;
+        return 0.66f * (1.0f - t * t);
+    });
+    wm.setRiverOrderQuery([](float, float) { return 2; });
+
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+
+    const float hold = wm.sim().minHold();
+    // Bed cells (y=3, on the solid ground): wet, fractional, at/below the hold, channel-tagged.
+    for (int x = 4; x <= 20; x += 4) {
+        const float m = wm.massAtWorld(glm::vec3(x + 0.5f, 3.5f, 12.5f));
+        EXPECT_GT(m, 0.1f)  << "creek bed dry at x=" << x << " — the order gates are back";
+        EXPECT_LE(m, hold + 1e-4f)
+            << "creek pinned ABOVE the hold at x=" << x << " — the 496cdc10 flood risk";
+    }
+    // CONFINEMENT — the anti-hillside-sheet assertion. No evaporation is enabled here: the bound
+    // must come from the hold alone. Off-band columns must be EXACTLY dry.
+    for (int z = 0; z < 24; ++z) {
+        if (std::fabs((z + 0.5f) - 12.5f) < 2.5f) continue;   // the creek band ± a cell
+        for (int x = 0; x < 24; ++x)
+            for (int y = 3; y < 8; ++y)
+                ASSERT_EQ(wm.massAtWorld(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f)), 0.0f)
+                    << "creek water escaped the band at (" << x << "," << y << "," << z << ")";
+    }
+    // And the ribbon is STATIC: total mass constant over another observation window.
+    const float before = wm.totalMass();
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+    EXPECT_NEAR(wm.totalMass(), before, 1e-3f) << "creek ribbon is not at rest";
+}
+
 // River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
 // neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
 // region floor wherever chunks haven't streamed in yet.
+// ── sampleWater / submergedFraction (small-scale plan Phase 4.1) ──────────────────────────────
+// The entity-facing water query: fill-fraction + floor aware inside the region, table/implicit-
+// sea fallback outside, honest about dry. This is the foundation buoyancy/wading/fog build on.
+
+TEST(WaterManagerTest, SampleWaterReadsFractionalFillAndStackedColumns) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 12, 16));
+    for (int z = 0; z < 16; ++z)
+        for (int x = 0; x < 16; ++x) wm.setSolidWorld(x, 0, z, true);
+    // Walled 2x2 pool holding a 2.4-deep body: y1 full, y2 full, y3 at 0.4.
+    for (int y = 1; y < 8; ++y)
+        for (int i = 3; i <= 6; ++i) {
+            wm.setSolidWorld(i, y, 3, true); wm.setSolidWorld(i, y, 6, true);
+            wm.setSolidWorld(3, y, i, true); wm.setSolidWorld(6, y, i, true);
+        }
+    wm.placeWater(glm::vec3(4.5f, 2.5f, 4.5f), 9.6f);   // 9.6 over the 4 interior columns → 2.4 each
+    for (int i = 0; i < 400; ++i) wm.update(0.2f);
+
+    // Fractional top cell: surface at ~3.4; probe inside the top cell.
+    const auto top = wm.sampleWater(glm::vec3(4.5f, 3.1f, 4.5f));
+    EXPECT_TRUE(top.inWater);
+    EXPECT_NEAR(top.surfaceY, 3.4f, 0.1f);
+    EXPECT_NEAR(top.depthBelow, 0.3f, 0.1f);
+    // Deep probe in the full bottom cell: the walk must climb the stack to the same surface.
+    const auto deep = wm.sampleWater(glm::vec3(4.5f, 1.2f, 4.5f));
+    EXPECT_TRUE(deep.inWater);
+    EXPECT_NEAR(deep.surfaceY, 3.4f, 0.1f);
+    EXPECT_NEAR(deep.depthBelow, 2.2f, 0.15f);
+    // Dry point just above the surface, and dry land outside the pool.
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(4.5f, 3.6f, 4.5f)).inWater);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(10.5f, 1.5f, 10.5f)).inWater);
+}
+
+TEST(WaterManagerTest, SampleWaterRespectsSubVoxelFloors) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    for (int z = 0; z < 8; ++z)
+        for (int x = 0; x < 8; ++x) wm.setSolidWorld(x, 0, z, true);
+    for (int y = 1; y < 5; ++y)     // walls around one cell so the film can't creep
+        for (int i = 2; i <= 5; ++i) {
+            wm.setSolidWorld(i, y, 2, true); wm.setSolidWorld(i, y, 5, true);
+            wm.setSolidWorld(2, y, i, true); wm.setSolidWorld(5, y, i, true);
+        }
+    wm.setFloorWorld(3, 1, 3, 1.0f / 3.0f);            // a subcube step under the water
+    wm.placeWater(glm::vec3(3.5f, 1.8f, 3.5f), 0.3f);  // resting film ON the step
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+
+    // Surface = floor + fill·(1−floor) = 1/3 + 0.3·(2/3) = 0.533 up the cell.
+    const auto s = wm.sampleWater(glm::vec3(3.5f, 1.4f, 3.5f));
+    EXPECT_TRUE(s.inWater);
+    EXPECT_NEAR(s.surfaceY, 1.0f + (1.0f / 3.0f) + 0.3f * (2.0f / 3.0f), 0.05f);
+}
+
+TEST(WaterManagerTest, SampleWaterFallsBackToTableThenImplicitSeaOutsideRegion) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    // No table, implicit sea OFF: a far point below sea level must read DRY (waterless world).
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f)).inWater);
+    // Implicit sea ON: below-sea far points submerge to the scalar level.
+    wm.setSeaLevel(20.0f);
+    wm.setImplicitSea(true);
+    const auto sea = wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f));
+    EXPECT_TRUE(sea.inWater);
+    EXPECT_FLOAT_EQ(sea.surfaceY, 20.0f);
+    EXPECT_FLOAT_EQ(sea.depthBelow, 15.0f);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(500.0f, 25.0f, 500.0f)).inWater);
+    // A bound baked table supersedes the scalar: per-column levels answer far queries.
+    wm.setWaterTable([](float wx, float) { return wx > 400.0f ? 60.0f : -1e30f; });
+    const auto lake = wm.sampleWater(glm::vec3(500.0f, 5.0f, 500.0f));
+    EXPECT_TRUE(lake.inWater);
+    EXPECT_FLOAT_EQ(lake.surfaceY, 60.0f);
+    EXPECT_FALSE(wm.sampleWater(glm::vec3(100.0f, 5.0f, 100.0f)).inWater)
+        << "table says dry → dry, even below the scalar sea level";
+}
+
+TEST(WaterManagerTest, SubmergedFractionScalesWithImmersion) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(8, 8, 8));
+    wm.setSeaLevel(20.0f);
+    wm.setImplicitSea(true);
+    // Out-of-region unit boxes against the flat sea: fully under, half under, dry.
+    EXPECT_NEAR(wm.submergedFraction(glm::vec3(500, 10, 500), glm::vec3(501, 11, 501)), 1.0f, 1e-4f);
+    EXPECT_NEAR(wm.submergedFraction(glm::vec3(500, 19.5f, 500), glm::vec3(501, 20.5f, 501)), 0.5f, 1e-4f);
+    EXPECT_FLOAT_EQ(wm.submergedFraction(glm::vec3(500, 30, 500), glm::vec3(501, 31, 501)), 0.0f);
+}
+
 TEST(WaterManagerTest, RiverColumnsWithoutLoadedTerrainAreSkipped) {
     WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(16, 16, 16));
     wm.setRiverQuery([](float, float) { return 1.0f; });   // "river everywhere" — but no terrain
@@ -715,6 +1325,50 @@ TEST(WaterManagerTest, RiverFlowQueryStampsBakedDirectionOnPinnedRiver) {
     EXPECT_NEAR(cell.flow.y, 0.0f, 1e-3f);
     EXPECT_GT(cell.flow.z, 0.1f)  << "river cell should report a non-zero flow STRENGTH; a pinned "
                                      "river derives none from the CA, so the bake must supply it";
+}
+
+// ─── flowAtWorld — the physics/gameplay current query (tangible-water Phase E) ───────────────────
+// Written RED: flowAtWorld doesn't exist yet; these pin its contract. A pinned river performs no
+// transfers, so the CA proxy reads zero — the query must substitute the baked kinematic direction
+// at an order-scaled speed. Live CA flow, where it genuinely exists, wins.
+
+TEST(WaterManagerTest, FlowAtWorldUsesKinematicDirOnPinnedRiver) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildRiverChannel(wm);
+    auto inChannel = [](float wx, float wz) {
+        return wz >= 20.0f && wz < 21.0f && wx >= 8.0f && wx < 27.0f;
+    };
+    wm.setRiverQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 1.0f : 0.0f; });
+    wm.setRiverOrderQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 3 : 0; });
+    wm.setRiverFlowQuery([inChannel](float wx, float wz) {
+        return inChannel(wx, wz) ? glm::vec2(1.0f, 0.0f) : glm::vec2(0.0f);
+    });
+    for (int i = 0; i < 40; ++i) wm.update(0.1f);
+
+    // In the pinned channel: the baked +x current at the order-3 speed (~1.6 m/s).
+    const glm::vec3 flow = wm.flowAtWorld(glm::vec3(17.5f, 3.2f, 20.5f));
+    EXPECT_GT(flow.x, 1.0f) << "pinned river must report the baked kinematic current";
+    EXPECT_NEAR(flow.z, 0.0f, 0.2f);
+    // A dry point far from any water: no current.
+    const glm::vec3 dry = wm.flowAtWorld(glm::vec3(5.5f, 12.5f, 5.5f));
+    EXPECT_FLOAT_EQ(glm::length(dry), 0.0f) << "dry cells must report zero current";
+}
+
+TEST(WaterManagerTest, FlowAtWorldReportsCreeksSlowerThanRivers) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(32, 16, 32));
+    buildRiverChannel(wm);
+    auto inChannel = [](float wx, float wz) {
+        return wz >= 20.0f && wz < 21.0f && wx >= 8.0f && wx < 27.0f;
+    };
+    wm.setRiverQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 1.0f : 0.0f; });
+    wm.setRiverOrderQuery([inChannel](float wx, float wz) { return inChannel(wx, wz) ? 2 : 0; });
+    wm.setRiverFlowQuery([inChannel](float wx, float wz) {
+        return inChannel(wx, wz) ? glm::vec2(1.0f, 0.0f) : glm::vec2(0.0f);
+    });
+    for (int i = 0; i < 40; ++i) wm.update(0.1f);
+    const glm::vec3 creek = wm.flowAtWorld(glm::vec3(17.5f, 3.2f, 20.5f));
+    EXPECT_GT(creek.x, 0.4f) << "a creek still pushes";
+    EXPECT_LT(creek.x, 1.2f) << "a creek must push noticeably less than an order-3 river";
 }
 
 // The stamp must be confined to the channel: a still pool elsewhere must NOT pick up a river

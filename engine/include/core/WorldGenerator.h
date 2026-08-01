@@ -8,7 +8,10 @@
 #include <vector>
 
 #include "core/CoarseWorldModel.h"
+#include "core/FlowField.h"
+#include "core/WaterBodyIndex.h"
 #include "core/Spline.h"
+#include "core/WorldConstants.h"
 
 namespace Phyxel {
 
@@ -62,6 +65,12 @@ public:
         float caveThreshold = 0.3f;     // Cave generation threshold
         float stoneLevel = 8.0f;        // Below this level, generate stone instead of grass
         float climateFrequency = 0.002f; // Biome size: lower = bigger biomes (~1/cf wavelength). 0.002 ~= 500-unit climate cells, biomes several chunks across.
+        // Sea level this world generates against: the hydrology bake's Priority-Flood outlet AND
+        // the seabed/altitude/flora material gates. Sourced from game.json `water.seaLevel` via the
+        // recipe (applyRecipe rebakes); default keeps legacy behavior. Deliberately NOT consumed by
+        // the continental height spline or Flat's surface Y — a water setting must never move
+        // terrain that existing worlds/cameras were authored against (WaterLab sets 54).
+        float seaLevelY = Core::kSeaLevelY;
     };
     
     TerrainParams& getTerrainParams() { return terrainParams; }
@@ -140,6 +149,10 @@ public:
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
         int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
                                       // >0 marks a carved riverbed (for the flora gate + water runtime)
+        bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
+                                      // threshold): the surface voxel is emitted as a 2/3 subcube
+                                      // shelf so the creek rests in a 1/3-voxel recess
+                                      // (water-as-terrain-stage P2)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -171,8 +184,44 @@ public:
     // Baked hydrology backings (docs/TerrainGenerationV2.md §P2), for the water runtime + tests.
     // Null for Flat / non-height-based types (nothing baked). Owned by the generator; the pointers
     // are valid until the next rebuild (ctor / applyRecipe).
-    const FlowField*    riverNetwork() const { return m_flow.get(); }
-    const HydrologyMap* hydrology()    const { return m_hydro.get(); }
+    const FlowField*      riverNetwork() const { return m_flow.get(); }
+    const HydrologyMap*   hydrology()    const { return m_hydro.get(); }
+    // Water BODY identity over the bake (tangible-water Phase A): which body a wet column belongs
+    // to and what kind (OCEAN/LAKE infinite; POND finite/scoopable). Null when nothing is baked.
+    const WaterBodyIndex* waterBodies()  const { return m_waterBodies.get(); }
+
+    // ── Fine-scale ponds (tangible-water Phase B) ────────────────────────────────────────────
+    // TRUE small ponds — sub-bake-cell depressions the 128 u/cell hydrology can never see —
+    // discovered per 32×32-column analysis cell over a ±16 margin window (chunk-column cache
+    // reuse; border-touching basins discarded = seam-free by construction; see FinePonds.h).
+    // These are the FINITE bodies: contained (level = spill − freeboard, cannot leak),
+    // genuinely flat, ≤ 200 columns — the shape the per-body delta store requires. Bake-cell
+    // "ponds" stay infinite: their coarse levels fragment against fine terrain (measured).
+    struct FinePondHit {
+        int64_t id = -1;
+        float   level = 0.0f;
+        int     areaColumns = 0;
+    };
+    // The fine pond owning this world column, or id −1. Deterministic and memoized; safe on the
+    // generation worker's copy (same argument as the column cache).
+    FinePondHit finePondAt(int worldX, int worldZ);
+    // Full pond records for one analysis cell (world-space; tests + tooling).
+    struct StoredFinePond {
+        int64_t id;
+        float   level;
+        glm::ivec2 bboxMinW, bboxMaxW;         // inclusive world columns
+        std::vector<uint64_t> columns;         // packed world columns, sorted (membership test)
+    };
+    std::shared_ptr<const std::vector<StoredFinePond>> finePondsForCell(int cellX, int cellZ);
+
+    // THE channel line, as the terrain actually carves it (water-as-terrain-stage P2): channelAt
+    // through the SAME meander warp sampleColumn uses for the carve, valley, swale, and bed shelf.
+    // The water runtime MUST bind these (not FlowField::channelAt on raw coordinates): the warp
+    // displaces the channel by up to ~kMeanderAmp, so a raw-coordinate ribbon lands beside the
+    // carved bed — measured live as creek pins with no shelf under them (floor 0.0, CreekLab
+    // 2026-07-31). Empty hit / zero vector when no network is baked.
+    FlowField::ChannelHit channelHitAt(float worldX, float worldZ) const;
+    glm::vec2 channelFlowDirAt(float worldX, float worldZ) const;
 
     // Testing/tooling hook: clear the process-wide hydrology-bake memoization cache so the NEXT
     // generator construction re-bakes independently instead of sharing a cached backing. Used to keep
@@ -217,6 +266,9 @@ public:
                                           int edgeInset = 0);
 
 private:
+    // The single meander displacement every channel-line consumer shares (see channelHitAt).
+    glm::vec2 meanderedChannelPos(float wx, float wz) const;
+
     GenerationType generationType;
     uint32_t seed;
     TerrainParams terrainParams;
@@ -246,8 +298,14 @@ private:
     // shared_ptr with a PURE source, so the streaming worker's generator copy shares them safely
     // (like m_coarse). Columns outside the baked region get no water/rivers (infinite-world
     // partitioning is P5). Null for Flat / non-height-based types.
-    std::shared_ptr<HydrologyMap> m_hydro;
-    std::shared_ptr<FlowField>    m_flow;
+    std::shared_ptr<HydrologyMap>   m_hydro;
+    std::shared_ptr<FlowField>      m_flow;
+    std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
+
+    // Fine-pond registry cache (Phase B), FIFO-capped like the column cache.
+    std::unordered_map<uint64_t, std::shared_ptr<const std::vector<StoredFinePond>>> m_finePondCache;
+    std::vector<uint64_t> m_finePondCacheOrder;
+    static constexpr size_t kFinePondCacheMax = 256;
 
     // The continentalness → base-elevation shaping spline (docs/TerrainGenerationV2.md §2a): the
     // "how tall" art-direction curve, decoupled from the "how mountainous" noise. Default is a

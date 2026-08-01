@@ -50,16 +50,35 @@ public:
     float linearDamping = 0.05f;
     float angularDamping= 0.08f;
 
+    // ---- Water interaction (small-scale water plan Phase 4.2) ----
+    // Buoyancy as a per-body density ratio: the anti-gravity acceleration while submerged is
+    // gravity · buoyancy · submergedFraction. 1 = neutrally buoyant, > 1 floats (equilibrium
+    // submerged fraction ≈ 1/buoyancy — 1.6 sits ~60% under, the "wooden crate" look), < 1
+    // sinks. Only consulted when the world has a water query bound (VoxelDynamicsWorld::
+    // setWaterQuery); costs nothing on dry land.
+    float buoyancy = 1.6f;
+    // Submerged at the last awake step (world-managed): wet bodies never sleep — a floating
+    // body that slept would hover in place when its water drained away.
+    bool  wetLastStep = false;
+
     // ---- Lifecycle ----
     float    lifetime = 30.0f;
     bool     isDead   = false;
 
     // ---- Sleeping ----
+    // Sleep is ISLAND-based (docs/PhysicsRestOverhaul.md): a body qualifies when its
+    // velocities stay below the thresholds for SLEEP_TIME, but only sleeps when every
+    // body in its contact island qualifies — then the whole island freezes together
+    // with exactly-zero velocities. The soft-step solver keeps resting velocities near
+    // zero, so SLEEP_TIME can be short (Box3D-class 0.5 s).
     bool  isAsleep    = false;
     float sleepTimer  = 0.0f;
     static constexpr float SLEEP_VELOCITY_SQ = 0.02f * 0.02f;
     static constexpr float SLEEP_ANGULAR_SQ  = 0.05f * 0.05f;
-    static constexpr float SLEEP_TIME        = 1.2f;
+    static constexpr float SLEEP_TIME        = 0.5f;
+    // Ids of bodies this one was touching when its island slept. Used for transitive
+    // wake: waking any island member wakes the bodies it was resting against/under.
+    std::vector<uint32_t> touchingAtSleep;
     // Position-based fallback: a body that has not actually MOVED sleeps even if
     // contact-solver jitter keeps spiking its velocities past the thresholds
     // above (large compound bodies at rest on many contacts never satisfied the

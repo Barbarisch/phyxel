@@ -52,6 +52,31 @@ void main() {
         return;
     }
 
+    // ---- Sleep (Phase 2): consume wake bit or freeze ----
+    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
+        uint word = WAKE_BITS_BASE + (i >> 5u);
+        uint bit  = 1u << (i & 31u);
+        if ((solverState[word] & bit) != 0u) {
+            atomicAnd(solverState[word], ~bit);   // consume the wake request
+            b.flags &= ~PARTICLE_SLEEPING;        // dynamic again from this tick on
+            b.flags &= ~SLEEP_CTR_MASK;           // sleep counter restarts
+        } else {
+            // Frozen: static for every downstream pass. Narrowphase still pairs it
+            // with awake bodies (they rest on it / wake it); integrate holds the pose;
+            // voxel/primal/hardcontact skip invMass == 0.
+            MaterialPhysics smat = materials[p.materialIndex];
+            b.invMass    = 0.0;
+            b.invInertia = 0.0;
+            b.friction   = smat.friction;
+            b.restitution= smat.restitution;
+            b.vel        = vec3(0.0);
+            b.prevVel    = vec3(0.0);
+            b.angVel     = vec3(0.0);
+            bodies[i] = b;
+            return;
+        }
+    }
+
     MaterialPhysics mat = materials[p.materialIndex];
     float mass = mat.mass;
     b.invMass    = (mass > 0.0) ? 1.0 / mass : 0.0;

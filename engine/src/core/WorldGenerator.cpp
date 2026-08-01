@@ -4,9 +4,11 @@
 #include "core/Chunk.h"
 #include "core/Cube.h"
 #include "core/HydrologyMap.h"
+#include "core/FinePonds.h"
 #include "core/FlowField.h"
 #include "core/WorldConstants.h"
 #include "utils/Logger.h"
+#include <algorithm>
 #include <random>
 #include <cmath>
 #include <climits>
@@ -258,16 +260,22 @@ struct HydroBakeKey {
     int genType;
     uint32_t seed;
     float climateFreq;
+    float seaLevel;   // the flood outlet is part of the bake's identity (same seed, different sea → different lakes)
     std::vector<Spline::Point> spline;
     bool operator==(const HydroBakeKey& o) const {
-        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq) return false;
+        if (genType != o.genType || seed != o.seed || climateFreq != o.climateFreq ||
+            seaLevel != o.seaLevel) return false;
         if (spline.size() != o.spline.size()) return false;
         for (size_t i = 0; i < spline.size(); ++i)
             if (spline[i].x != o.spline[i].x || spline[i].y != o.spline[i].y) return false;
         return true;
     }
 };
-struct HydroBake { std::shared_ptr<HydrologyMap> hydro; std::shared_ptr<FlowField> flow; };
+struct HydroBake {
+    std::shared_ptr<HydrologyMap> hydro;
+    std::shared_ptr<FlowField> flow;
+    std::shared_ptr<WaterBodyIndex> bodies;   // tangible-water Phase A: body identity rides the bake
+};
 std::mutex g_hydroCacheMutex;
 std::vector<std::pair<HydroBakeKey, HydroBake>> g_hydroCache;  // small: a handful of distinct configs
 constexpr size_t kHydroCacheCap = 64;
@@ -285,6 +293,8 @@ void WorldGenerator::setHeightmapSource(std::shared_ptr<const MapCoarseData> src
 
 void WorldGenerator::rebuildCoarseModel() {
     clearColumnCache();  // memoized samples derive from the model being rebuilt
+    m_finePondCache.clear();        // fine ponds derive from the columns (Phase B)
+    m_finePondCacheOrder.clear();
     // Layer-0 override (P4): an imported heightmap drives base elevation directly. The map's
     // rivers/valleys are already baked into the height, so we skip the procedural hydrology
     // bake (m_hydro/m_flow stay null; sampleColumn's carve is guarded on m_flow). cellSize =
@@ -295,6 +305,7 @@ void WorldGenerator::rebuildCoarseModel() {
                                                       m_mapSource->blocksPerPixel);
         m_hydro.reset();
         m_flow.reset();
+        m_waterBodies.reset();
         return;
     }
 
@@ -329,15 +340,22 @@ void WorldGenerator::rebuildCoarseModel() {
     if (!isHeightBased() || generationType == GenerationType::Flat) {
         m_hydro.reset();
         m_flow.reset();
+        m_waterBodies.reset();
         return;
     }
     // Cache lookup: the bake is fully determined by these inputs (region constants are compile-time).
+    const float seaLvl = terrainParams.seaLevelY;
     const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
-                           m_continentalHeightSpline.points()};
+                           seaLvl, m_continentalHeightSpline.points()};
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
-            if (e.first == key) { m_hydro = e.second.hydro; m_flow = e.second.flow; return; }
+            if (e.first == key) {
+                m_hydro = e.second.hydro;
+                m_flow = e.second.flow;
+                m_waterBodies = e.second.bodies;
+                return;
+            }
     }
     // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
     // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
@@ -356,19 +374,35 @@ void WorldGenerator::rebuildCoarseModel() {
         1, static_cast<int>(std::lround(FlowField::kDefaultRiverThresholdCells *
                                         (32.0 * 32.0) / (kHydroCell * kHydroCell))));
     m_hydro = std::make_shared<HydrologyMap>(heightAt, kHydroOrigin, kHydroOrigin,
-                                             kHydroCells, kHydroCells, kHydroCell, kSeaLevelY);
+                                             kHydroCells, kHydroCells, kHydroCell, seaLvl);
     m_flow  = std::make_shared<FlowField>(heightAt, kHydroOrigin, kHydroOrigin,
-                                          kHydroCells, kHydroCells, kHydroCell, kSeaLevelY, riverThresh);
+                                          kHydroCells, kHydroCells, kHydroCell, seaLvl, riverThresh);
+    // Body identity rides the bake (tangible-water Phase A). Built HERE because volumeEst needs
+    // the flood's height function, which is not retained anywhere after this scope.
+    m_waterBodies = std::make_shared<WaterBodyIndex>(*m_hydro, heightAt);
+    LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Water bodies labeled: "
+             << m_waterBodies->bodies().size() << " bodies");
     LOG_INFO_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology baked: " << kHydroCells << "x" << kHydroCells
-             << " cells, maxAccum=" << m_flow->maxAccum() << " maxOrder=" << m_flow->maxOrder()
+             << " cells, seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
+             << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
+    // Loud misconfiguration guard (docs/WaterPhysicalFeelPlan.md §2e): terrain that never reaches
+    // sea level gives Priority-Flood no ocean outlet, so the whole region is one closed basin that
+    // fills to its spill — lakes perch on hillsides and every downstream water diagnosis is chasing
+    // a config error. Say so HERE, at bake time, instead of letting it surface as a "water bug".
+    if (!m_hydro->hasOutlet()) {
+        LOG_WARN_FMT("WorldGenerator", "[WORLD_GENERATOR] Hydrology bake has NO sea outlet: min terrain "
+                 << m_hydro->minTerrain() << " sits ABOVE seaLevel " << seaLvl
+                 << ". Every basin fills to its spill (perched hillside lakes). Set game.json "
+                    "water.seaLevel to a level the terrain actually reaches.");
+    }
     // Store in the cache (another thread may have baked the same key meanwhile — keep the first, they
     // are identical). Bounded: evict oldest once over the cap (few distinct configs in practice).
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
             if (e.first == key) return;  // someone else inserted it; ours is identical, drop it
-        g_hydroCache.push_back({key, {m_hydro, m_flow}});
+        g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
         if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
     }
 }
@@ -471,6 +505,19 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                 if (generationType == GenerationType::Caves && wy < col.surfaceY - 2) {
                     float caveNoise = perlinNoise3D(wx * 0.05f, wy * 0.05f, wz * 0.05f, 3, 0.5f, 2.0f);
                     if (caveNoise > terrainParams.caveThreshold) continue;
+                }
+
+                // Creek bed recess (water-as-terrain-stage P2): the surface voxel of an inner-band
+                // creek column is a 2-layer subcube shelf, not a full cube — the bed sits 1/3 voxel
+                // below the banks, and the runtime's fractional ribbon pin rests IN the recess
+                // (Chunk::subVoxelFloor reads 2/3; the water sim floors the cell accordingly).
+                if (col.creekBed && wy == col.surfaceY) {
+                    const std::string& shelfMat = materialForColumn(wy, col);
+                    for (int sy = 0; sy < 2; ++sy)
+                        for (int sx = 0; sx < 3; ++sx)
+                            for (int sz = 0; sz < 3; ++sz)
+                                chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz), shelfMat);
+                    continue;
                 }
 
                 chunk.addCube(localPos, materialForColumn(wy, col));
@@ -612,6 +659,8 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     }
 
     if (generationType == GenerationType::Flat) {
+        // Deliberately the ENGINE constant, not terrainParams.seaLevelY: Flat worlds are authored
+        // against "solid below Y=16", and a water.seaLevel override must not move their ground.
         col.surfaceY = static_cast<int>(kSeaLevelY);  // Flat stays flat; biome affects material only
     } else {
         // surfaceY = Layer-0 continental base (sea level + landmass rise/ocean carve)
@@ -630,9 +679,11 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // valley and channel stay aligned. Two decorrelated fbm bands (distinct offsets) give an x/z
         // displacement of up to ~kMeanderAmp; smooth, so the meandered channel is continuous (no seam).
         float mwx = static_cast<float>(wx), mwz = static_cast<float>(wz);
+        float creekSwale = 0.0f;   // bounded creek dip (water-as-terrain-stage P2), voxels
         if (m_flow) {
-            mwx += kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
-            mwz += kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u);
+            const glm::vec2 m = meanderedChannelPos(static_cast<float>(wx), static_cast<float>(wz));
+            mwx = m.x;
+            mwz = m.y;
         }
 
         // P2 valley shaping (docs/TerrainGenerationV2.md §P2): attenuate Layer-1 relief toward the
@@ -644,8 +695,23 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 const float valleyHalf = FlowField::channelHalfWidth(nc.order) * kValleyWidthMul;
                 relief *= smoothstep01(0.0f, valleyHalf, nc.dist);  // 0 at centreline → full at edge
             }
+
+            // Creek SWALE (water-as-terrain-stage P2): orders 1-2 get a NARROW, BOUNDED parabolic
+            // dip — a swale the creek lies in, over a band ~2 channel-widths wide, aligned with the
+            // ribbon via the same meandered (mwx,mwz). This is what makes a creek read as shaped BY
+            // the terrain instead of painted across it. The dip is an ABSOLUTE depth (~1.6 voxels
+            // at the centreline), deliberately NOT a fraction of relief: a fractional attenuation
+            // (the big rivers' valley rule) scaled by mountain relief cut measured 55-voxel slot
+            // canyons along 3-voxel-wide creeks — a fraction is only safe over a wide valley.
+            const float creekSwaleHalf = FlowField::channelHalfWidth(2) * 2.0f;   // 3 voxels
+            const FlowField::NearestChannel cs = m_flow->nearestChannel(mwx, mwz, creekSwaleHalf, 1);
+            if (cs.order >= 1 && cs.order <= 2 && cs.dist < creekSwaleHalf) {
+                constexpr float kCreekSwaleDepth = 1.6f;
+                const float t = cs.dist / creekSwaleHalf;
+                creekSwale = kCreekSwaleDepth * (1.0f - t * t);
+            }
         }
-        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset));
+        col.surfaceY = static_cast<int>(std::floor(coarse.baseHeight + relief * blendScale + blendOffset - creekSwale));
 
         // P2 river carve: lower the smooth valley floor further where the network runs a channel
         // (order ≥ 3; orders 1-2 are sub-voxel → no bed), a parabolic bed (deepest at the centreline).
@@ -655,8 +721,19 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         if (m_flow) {
             const FlowField::ChannelHit ch = m_flow->channelAt(mwx, mwz);
             if (ch.hit) {
-                col.surfaceY -= static_cast<int>(std::lround(ch.depth));
+                // TERRAIN carve is order ≥ 3 ONLY. Orders 1-2 (creeks) report fractional WATER
+                // depths for the runtime's ribbon pin — an order-2 centreline (0.66) would lround
+                // to a full-voxel trench here, which is exactly the wrong outcome for a sub-voxel
+                // creek. riverOrder is still recorded for every order: the water runtime and the
+                // flora gate both consume it (no trees standing in the creek line).
+                if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
                 col.riverOrder = ch.order;
+                // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
+                // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
+                // applyRiverInflows), so every pinned ribbon cell gets a recess and the parabolic
+                // band edges get neither. generateChunk emits the surface voxel as a 2-layer
+                // subcube shelf (floor 2/3): the ribbon rests 1/3 voxel below its banks.
+                col.creekBed = (ch.order <= 2 && ch.depth >= 0.15f);
             }
         }
 
@@ -664,7 +741,10 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // These layer physical surfacing ON TOP of the biome material: a sand seabed below sea
         // level, exposed rock past the angle of repose, and a lapse-rate snow line. Moderate,
         // gently-sloped land keeps its biome surface. (Flat is exempt — it stays a clean biome map.)
-        const int altitude = col.surfaceY - static_cast<int>(kSeaLevelY);
+        // Per-world sea level (terrainParams.seaLevelY): the material gates below must agree with
+        // the hydrology bake's outlet, or seabed sand / the snow line disagree with where water
+        // actually sits. (kSeaLevelY remains the default when no world override exists.)
+        const int altitude = col.surfaceY - static_cast<int>(terrainParams.seaLevelY);
         // Local slope (rise/run) via central difference over ±1 column. Reuse the centre column's
         // biome blend (climate varies far slower than the ±1 step) instead of re-running biome
         // selection per neighbor — an approximation good to well under a voxel at this scale.
@@ -677,7 +757,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         const float slope = std::sqrt(dhx * dhx + dhz * dhz);
         const float effTemp = col.temperature - altitude * kLapse01PerVoxel;  // colder with altitude
 
-        if (col.surfaceY < static_cast<int>(kSeaLevelY)) {
+        if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) {
             col.surfaceMat = "Sand";    // ocean floor / seabed (water itself arrives in P2)
         } else if (slope > kRockSlope) {
             col.surfaceMat = "Stone";   // too steep for soil to hold → exposed rock / scree
@@ -689,6 +769,129 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         // else: keep the biome surface material set above (moderate, gently-sloped land).
     }
     return col;
+}
+
+// ── Fine-scale ponds (tangible-water Phase B) ────────────────────────────────────────────────
+
+std::shared_ptr<const std::vector<WorldGenerator::StoredFinePond>>
+WorldGenerator::finePondsForCell(int cellX, int cellZ) {
+    const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(cellX)) << 32) |
+                         static_cast<uint64_t>(static_cast<uint32_t>(cellZ));
+    auto it = m_finePondCache.find(key);
+    if (it != m_finePondCache.end()) return it->second;
+
+    auto fresh = std::make_shared<std::vector<StoredFinePond>>();
+    // No fine ponds without a bake (Flat/heightmap worlds keep authored water only).
+    if (m_flow && m_hydro) {
+        constexpr int kWin = 64, kMargin = 16;
+        const int ox = cellX * 32 - kMargin, oz = cellZ * 32 - kMargin;
+        auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : (a - b + 1) / b; };
+        // Heights via the chunk-column cache (shared with generation — hot when the area has
+        // generated). Surface = top face of the surface voxel: water rests on it.
+        auto heightAt = [&](int x, int z) -> float {
+            const int wx = ox + x, wz = oz + z;
+            const int ccx = floorDiv(wx, 32), ccz = floorDiv(wz, 32);
+            const auto blk = columnsForChunk(glm::ivec2(ccx, ccz));
+            const ColumnSample& c =
+                (*blk)[static_cast<size_t>(wx - ccx * 32) * 32 + (wz - ccz * 32)];
+            return static_cast<float>(c.surfaceY + 1);
+        };
+        int index = 0;
+        for (const FinePond& p : discoverFinePonds(heightAt, kWin, kWin)) {
+            // OWNERSHIP: the cell containing the deepest column owns the pond — every window
+            // that fully contains the basin computes it identically, and exactly one cell
+            // claims it (basins near a cell edge whose window can't contain them are dropped
+            // by the border rule; accepted coverage loss, documented).
+            const glm::ivec2 deepW(ox + p.deepest.x, oz + p.deepest.y);
+            if (floorDiv(deepW.x, 32) != cellX || floorDiv(deepW.y, 32) != cellZ) continue;
+            // Reject overlap with baked water or a carved channel — those columns already have
+            // an owner (the bake's bodies / the river ribbon).
+            const float cx = ox + (p.bboxMin.x + p.bboxMax.x + 1) * 0.5f;
+            const float cz = oz + (p.bboxMin.y + p.bboxMax.y + 1) * 0.5f;
+            if (m_hydro->hasWater(cx, cz) ||
+                m_hydro->hasWater(static_cast<float>(deepW.x), static_cast<float>(deepW.y)))
+                continue;
+            if (channelHitAt(static_cast<float>(deepW.x) + 0.5f,
+                             static_cast<float>(deepW.y) + 0.5f).hit)
+                continue;
+
+            StoredFinePond sp;
+            // Namespaced above bake-body ids; deterministic in (cell, discovery order).
+            sp.id = (int64_t(1) << 40) |
+                    (static_cast<int64_t>(static_cast<uint16_t>(cellX)) << 24) |
+                    (static_cast<int64_t>(static_cast<uint16_t>(cellZ)) << 8) |
+                    static_cast<int64_t>(index++);
+            sp.level = p.level;
+            sp.bboxMinW = glm::ivec2(ox + p.bboxMin.x, oz + p.bboxMin.y);
+            sp.bboxMaxW = glm::ivec2(ox + p.bboxMax.x, oz + p.bboxMax.y);
+            sp.columns.reserve(p.columns.size());
+            for (uint32_t pc : p.columns) {
+                const int lx = static_cast<int>(pc >> 16), lz = static_cast<int>(pc & 0xffffu);
+                sp.columns.push_back(
+                    (static_cast<uint64_t>(static_cast<uint32_t>(ox + lx)) << 32) |
+                    static_cast<uint64_t>(static_cast<uint32_t>(oz + lz)));
+            }
+            std::sort(sp.columns.begin(), sp.columns.end());
+            fresh->push_back(std::move(sp));
+        }
+    }
+    if (m_finePondCache.size() >= kFinePondCacheMax) {   // FIFO eviction (column-cache pattern)
+        m_finePondCache.erase(m_finePondCacheOrder.front());
+        m_finePondCacheOrder.erase(m_finePondCacheOrder.begin());
+    }
+    m_finePondCache.emplace(key, fresh);
+    m_finePondCacheOrder.push_back(key);
+    return fresh;
+}
+
+WorldGenerator::FinePondHit WorldGenerator::finePondAt(int worldX, int worldZ) {
+    FinePondHit hit;
+    if (!m_flow || !m_hydro) return hit;
+    auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : (a - b + 1) / b; };
+    const int cellX = floorDiv(worldX, 32), cellZ = floorDiv(worldZ, 32);
+    const uint64_t colKey = (static_cast<uint64_t>(static_cast<uint32_t>(worldX)) << 32) |
+                            static_cast<uint64_t>(static_cast<uint32_t>(worldZ));
+    // A pond's columns lie within its owner's ±16-margin window, so the owner is one of the
+    // 3×3 cells around this column's cell.
+    for (int dz = -1; dz <= 1; ++dz)
+        for (int dx = -1; dx <= 1; ++dx) {
+            const auto ponds = finePondsForCell(cellX + dx, cellZ + dz);
+            for (const StoredFinePond& sp : *ponds) {
+                if (worldX < sp.bboxMinW.x || worldX > sp.bboxMaxW.x ||
+                    worldZ < sp.bboxMinW.y || worldZ > sp.bboxMaxW.y)
+                    continue;
+                if (std::binary_search(sp.columns.begin(), sp.columns.end(), colKey)) {
+                    hit.id = sp.id;
+                    hit.level = sp.level;
+                    hit.areaColumns = static_cast<int>(sp.columns.size());
+                    return hit;
+                }
+            }
+        }
+    return hit;
+}
+
+glm::vec2 WorldGenerator::meanderedChannelPos(float wx, float wz) const {
+    // The ONE meander warp (docs/TerrainGenerationV2.md §P2): everything that touches the channel
+    // line — carve, valley, swale, bed shelf (sampleColumn) AND the water runtime's ribbon queries
+    // (channelHitAt) — must go through this same displacement, or the water lands beside its bed.
+    return glm::vec2(
+        wx + kMeanderAmp * tnFbm(wx * kMeanderFreq, 71.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u),
+        wz + kMeanderAmp * tnFbm(wx * kMeanderFreq, 131.0f, wz * kMeanderFreq, 2, 0.5f, 2.0f, seed ^ 0x9271u));
+}
+
+FlowField::ChannelHit WorldGenerator::channelHitAt(float worldX, float worldZ) const {
+    if (!m_flow) return {};
+    const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
+    return m_flow->channelAt(m.x, m.y);
+}
+
+glm::vec2 WorldGenerator::channelFlowDirAt(float worldX, float worldZ) const {
+    if (!m_flow) return glm::vec2(0.0f);
+    const glm::vec2 m = meanderedChannelPos(worldX, worldZ);
+    // Only claim a direction where there IS a channel (a spill on open ground must not read as a
+    // river); direction itself is cell-granular, sampled at the warped position for consistency.
+    return m_flow->channelAt(m.x, m.y).hit ? m_flow->flowDirAt(m.x, m.y) : glm::vec2(0.0f);
 }
 
 std::string WorldGenerator::materialForColumn(int worldY, const ColumnSample& col) const {
@@ -726,7 +929,7 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
     // biome's own high ground -- and that blocks flora. The Snow biome's lower ground is "SnowGrass"
     // (snow-dusted soil), which is NOT gated, so boreal conifers still grow there. sampleColumn
     // already applied the override to col.surfaceMat. (docs/TerrainGenerationV2.md §P1)
-    if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;              // seabed / underwater
+    if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) return false; // seabed / underwater (per-world sea level)
     if (col.surfaceMat == "Stone") return false;                                // cliff (slope override; no biome surfaces Stone)
     if (col.surfaceMat == "Snow") return false;                                 // alpine permanent-snow cap (above treeline)
     // P2: no trees in a carved river channel, nor on land that sits below a lake/sea surface (the
@@ -834,7 +1037,7 @@ bool WorldGenerator::faunaCell(int cx, int cz, FaunaPlacement& out) {
 
     // Same physical surface gates as flora: no seabed, cliff, alpine snow, riverbed, or land
     // under a lake/sea surface (animals shouldn't spawn on water or bare rock).
-    if (col.surfaceY < static_cast<int>(kSeaLevelY)) return false;
+    if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) return false;  // per-world sea level
     if (col.surfaceMat == "Stone" || col.surfaceMat == "Snow") return false;
     if (col.riverOrder > 0) return false;
     if (m_hydro) {
@@ -910,6 +1113,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     WorldRecipe r;
     r.seed = seed;
     r.climateFrequency = terrainParams.climateFrequency;
+    r.seaLevelY = terrainParams.seaLevelY;
     for (const auto& b : m_biomes) {
         WorldRecipe::BiomeTune bt;
         bt.name = b.name;
@@ -935,6 +1139,7 @@ WorldRecipe WorldGenerator::makeRecipe() const {
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
     terrainParams.climateFrequency = recipe.climateFrequency;
+    terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.
     for (const auto& bt : recipe.biomes) {
         for (auto& b : m_biomes) {

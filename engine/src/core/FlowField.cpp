@@ -95,7 +95,12 @@ float FlowField::channelHalfWidth(int order) {
 }
 
 float FlowField::channelDepth(int order) {
-    static const float dp[6] = {0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 2.0f};  // orders 1-2 sub-voxel → no carve
+    // Orders 1-2 are CREEKS (small-scale plan Phase 2a): sub-voxel WATER depths — thirds of a
+    // voxel, matching the subcube step — that the water runtime pins as a fractional ribbon
+    // (clamped to the sim's MIN_HOLD so it can never sheet). They still cut no TERRAIN: the
+    // generator clamps the surface carve to order ≥ 3 (a 0.66 centreline would lround to a full
+    // voxel trench), and nearestChannel still skips them for valley shaping.
+    static const float dp[6] = {0.33f, 0.66f, 1.0f, 1.0f, 1.0f, 2.0f};
     if (order < 1) return 0.0f;
     return dp[order > 6 ? 5 : order - 1];
 }
@@ -103,7 +108,7 @@ float FlowField::channelDepth(int order) {
 FlowField::ChannelHit FlowField::segmentChannel(float px, float pz, float ax, float az,
                                                 float bx, float bz, int order) {
     ChannelHit h;
-    if (order < 3) return h;                       // orders 1-2 are sub-voxel → no bed carve
+    if (order < 1) return h;                       // not a river cell
     const float halfW = channelHalfWidth(order);
     const float dist = pointSegDist(px, pz, ax, az, bx, bz);
     if (dist >= halfW) return h;
@@ -123,8 +128,9 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     // segment comes within halfWidth of the point has its centre within halfWidth + cellSize of it.
     // DEPENDS on drainage being 4-connected (segment length = one orthogonal cellSize hop — see
     // PriorityFlood::fillWithFlow + the steepest-descent pass); if that ever becomes 8-connected the
-    // segment length grows to cellSize·√2 and this radius must grow too. For the real 32 m cell it is
-    // 5×5 (r=2, since ceil(11/32)=1); it stays correct for small cellSize / large orders.
+    // segment length grows to cellSize·√2 and this radius must grow too. At the real 128-unit bake
+    // cell (WorldGenerator kHydroCell) it is 5×5 (r=2, since ceil(11/128)=1); it stays correct for
+    // small cellSize / large orders.
     const int r = 1 + static_cast<int>(std::ceil(channelHalfWidth(m_maxOrder) / m_cellSize));
     for (int j = cj - r; j <= cj + r; ++j)
         for (int i = ci - r; i <= ci + r; ++i) {
@@ -146,7 +152,8 @@ FlowField::ChannelHit FlowField::channelAt(float worldX, float worldZ) const {
     return best;
 }
 
-FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius) const {
+FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, float searchRadius,
+                                                    int minOrder) const {
     NearestChannel best;
     if (m_cellsX <= 0 || m_cellsZ <= 0) return best;
     const int ci = static_cast<int>(std::floor((worldX - m_originX) / m_cellSize));
@@ -159,7 +166,7 @@ FlowField::NearestChannel FlowField::nearestChannel(float worldX, float worldZ, 
             if (i < 0 || j < 0 || i >= m_cellsX || j >= m_cellsZ) continue;
             const int rc = j * m_cellsX + i;
             const int ord = m_order[rc];
-            if (ord < 3) continue;   // orders 1-2 are sub-voxel → they cut no valley
+            if (ord < minOrder) continue;   // default 3: orders 1-2 cut no VALLEY (creek swale opts in)
             const float ax = m_originX + (i + 0.5f) * m_cellSize;
             const float az = m_originZ + (j + 0.5f) * m_cellSize;
             float bx = ax, bz = az;  // sink → degenerate segment (a point at the cell centre)

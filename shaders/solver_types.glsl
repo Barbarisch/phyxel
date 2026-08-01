@@ -77,7 +77,34 @@ const uint SS_WARMSTART_NAN     = 3u;
 const uint HASH_BASE            = 8u;
 const uint HASH_CAP             = 131072u;  // 60000 * 2 rounded up to pow2
 const uint HASH_MASK            = HASH_CAP - 1u;
-const uint SOLVER_STATE_SIZE    = HASH_BASE + HASH_CAP;
+
+// ---- Sleep system (docs/PhysicsRestOverhaul.md Phase 2) ----
+// Wake bits: one bit per body, appended to the solver state buffer AFTER the warmstart
+// hash. Set by narrowphase (fast awake body touches a sleeper) and integrate (character
+// shove); consumed + cleared by sync_in on the NEXT tick. Deliberately outside the
+// per-frame counter fill so bits survive tick boundaries. Must match the C++
+// WAKE_WORDS / SOLVER_STATE_UINTS in GpuParticlePhysics.h.
+const uint WAKE_BITS_BASE       = HASH_BASE + HASH_CAP;
+const uint WAKE_WORDS           = 320u;      // covers 10240 bodies (MAX_PARTICLES = 10000)
+const uint SOLVER_STATE_SIZE    = WAKE_BITS_BASE + WAKE_WORDS;
+
+// A body freezes after SLEEP_TICKS consecutive slow ticks (past the spawn grace):
+// PARTICLE_SLEEPING set, velocity encoding zeroed, then sync_in gives it invMass 0 so
+// integrate/voxel/primal/hardcontact all treat it as static — but narrowphase still
+// pairs it against awake bodies (support + wake), never against other sleepers.
+const float SLEEP_LIN_SPEED   = 0.05;   // m/s — strict tier
+const float SLEEP_ANG_SPEED   = 0.05;   // (rad/s)·radius, surface-speed equivalent
+const uint  SLEEP_TICKS       = 30u;    // 0.5 s at 60 Hz below the strict tier
+// Graduated fallback: dense AVBD piles leave a few bodies churning at ~0.1-0.2 m/s
+// indefinitely (measured 132/150 asleep, stragglers never converge). A body that
+// stays under the LAX bound for SLEEP_FORCE_TICKS freezes regardless — visually it
+// was already still, and each freeze turns a churn source into a static wall, which
+// calms its neighbours (freezing cascades the right way).
+const float SLEEP_LAX_SPEED   = 0.15;   // m/s — lax tier
+const uint  SLEEP_FORCE_TICKS = 180u;   // 3 s continuously under the lax tier
+const float WAKE_IMPACT_SPEED = 0.5;    // m/s — awake body faster than this wakes a sleeper
+const uint  SLEEP_CTR_SHIFT   = 8u;     // particle flags bits [15:8] = sleep counter
+const uint  SLEEP_CTR_MASK    = 0x0000FF00u;
 
 // AVBD constants (match Shallot)
 const float ALPHA            = 0.99;     // Shallot canonical. (1-ALPHA) is the fraction of penetration driven per iter; lower values inject too much energy → popcorn.

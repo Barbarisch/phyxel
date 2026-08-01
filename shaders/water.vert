@@ -25,10 +25,35 @@ layout(location = 0) in vec3 inPos; // unit disc in the XZ plane: xz in [-1,1], 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 params;     // x = seaLevel, y = wave zone radius, z = wave amplitude, w = wind dir (rad)
+    vec4 params;     // x = seaLevel, y = hydro grid originX, z = wave amplitude, w = wind dir (rad)
     vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w = wave length
-    vec4 params3;    // x = clipmap core spacing, y = clipmap core half-extent, zw = unused
+    vec4 params3;    // x = clipmap core spacing, y = core half-extent, z = hydro originZ, w = hydro invCellSize (0 = flat sea)
 } pc;
+
+// WATER LAYER (terrain-gen stage output; water-layer P1): per-column basin levels baked by the
+// hydrology stage — the sea at sea level, every lake at its own spill. NEAREST-sampled: basins
+// are piecewise-constant and filtering across a divide would tilt the surface.
+layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
+
+// Per-column basin level + wave ENERGY at a world XZ (RG texture: R = level, G = energy from
+// body size — tangible-water F). Falls back to the flat sea level at full energy when no layer
+// is bound (invCellSize 0), outside the baked region (the open ocean beyond ±16 km), or on dry
+// columns (sentinel) — the dry-land gate in the fragment stage removes the sheet over dry land.
+float basinLevelAt(vec2 worldXZ, out float valid, out float energy) {
+    valid = 0.0;
+    energy = 1.0;
+    float invCell = pc.params3.w;
+    if (invCell <= 0.0) return pc.params.x;
+    vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
+    ivec2 sz = textureSize(hydroLevelTex, 0);
+    if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
+        return pc.params.x;
+    vec2 le = texelFetch(hydroLevelTex, ivec2(cellF), 0).rg;
+    if (le.r < -1e5) return pc.params.x;   // dry column sentinel
+    valid = 1.0;
+    energy = le.g;
+    return le.r;
+}
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragWaveNormal;
@@ -77,7 +102,18 @@ void main() {
     // limit as soon as the view distance grew, and the ocean aliased into smeared blobs. The skirt
     // reaches far enough to cover any view distance; the far plane clips the rest.
     vec2 base = camPos.xz + inPos.xz;
-    vec3 world = vec3(base.x, seaLevel, base.y);
+    // WATER LAYER: the sheet sits at each column's own basin level, so lakes render at their
+    // spill height and the sea at sea level from ONE draw. Rims between basins produce stretched
+    // quads one mesh cell wide; the fragment stage re-samples the level per pixel for the
+    // dry-land gate, and the divide's terrain is above both basins' levels by definition, so
+    // those wall pixels gate to zero alpha.
+    float levelValid, bodyEnergy;
+    float level = basinLevelAt(base, levelValid, bodyEnergy);
+    vec3 world = vec3(base.x, level, base.y);
+    // Wave energy proportional to BODY SIZE (tangible-water F): fetch-limited waves — the ocean
+    // carries the full swell (energy 1), a big lake most of it, a mountain tarn barely a ripple
+    // (floor 0.15). Replaces the old binary "not sea → 0.2×" rule; per-column, free.
+    amp *= bodyEnergy;
 
     vec3 ddx = vec3(1.0, 0.0, 0.0);   // d(position)/dx starts as the flat tangent
     vec3 ddz = vec3(0.0, 0.0, 1.0);
