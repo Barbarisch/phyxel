@@ -26,6 +26,10 @@ layout(std430, set=0, binding=3) readonly buffer CharacterBuffer {
     CharSegment charSeg[12];     // == GpuParticlePhysics::MAX_CHAR_SEGMENTS
 };
 
+// Wake bits live in the solver state buffer (Phase 2 sleep) — a moving character
+// overlapping a sleeping body requests a wake, consumed by sync_in next tick.
+layout(std430, set=0, binding=4) buffer SolverStateBuffer { uint solverState[]; };
+
 // AABB overlap + shortest-axis push-out. Returns true if the body AABB (bpos +/- bhe)
 // overlaps the box (cpos +/- che); if so, outDisp = displacement that moves the body
 // out of the box along the axis of least penetration.
@@ -69,6 +73,18 @@ void main() {
     if (i >= pc.count) return;
 
     SolverBody b = bodies[i];
+
+    // ---- Sleep (Phase 2): a MOVING character overlapping a sleeping body wakes it.
+    // Sleeping bodies take the static path below (invMass 0 from sync_in), which skips
+    // the per-limb shove — so without this a player could never plow through a slept
+    // debris pile. Union-AABB test only (cheap); the wake bit is consumed next tick.
+    if ((b.flags & PARTICLE_SLEEPING) != 0u && charSegCount > 0.5 &&
+        dot(charVelocity, charVelocity) > 0.01) {
+        vec3 disp;
+        if (aabbPushOut(b.pos, b.halfExt, charUnionCenter, charUnionHalfExtents, disp)) {
+            atomicOr(solverState[WAKE_BITS_BASE + (i >> 5u)], 1u << (i & 31u));
+        }
+    }
 
     if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) {
         // Static/inactive: save initial, stay in place

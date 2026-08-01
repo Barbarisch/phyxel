@@ -139,14 +139,44 @@ furniture/fells/debris — the most user-visible resting bodies.
 **Non-goals Phase 1:** true 4× sub-substepping, twist/rolling friction, terrain-edit wake
 (voxel removed under a sleeping body — pre-existing, tracked as follow-up), CCD.
 
-### Phase 2 — GPU AVBD sleep (separate session)
+### Phase 2 — GPU AVBD sleep — **IMPLEMENTED + L4-VERIFIED 2026-07-31**
 
-Per-body `sleepTime` persisted in the particle (survives sync_in), neighbour-gated sleep via the
-existing CSR adjacency (a body may sleep only if all contact neighbours also qualify —
-approximate islands, converges over frames), frozen bodies skip integrate/narrowphase/solve and
-are pinned; wake on: contact from a fast awake body, occupancy change in their cells, character
-segment push, nearby spawn. Plus the rest-height (hover) fix. Runtime-verified with a
-rest-metric readback endpoint (max/avg speed, % asleep).
+Shipped design (differs from the original sketch in two ways: the sleep counter lives in the
+particle flags, and sleep is per-body with a graduated fallback rather than island-gated):
+
+- **Sleep counter** in `GpuParticle.flags` bits [15:8] (persists; spawn-age grace reused).
+  Managed in `solver_sync_out.comp`: **graduated freeze** — strict tier (lin+ang surface speed
+  < 0.05 m/s for 30 ticks) OR lax tier (< 0.15 m/s continuously for 180 ticks). The lax tier is
+  load-bearing: without it a dense pile plateaued at 132/150 asleep with stragglers churning at
+  ~0.1–0.2 m/s forever. Freezing cascades the right way — each frozen body becomes a static
+  wall that calms its neighbours.
+- **Freeze**: `PARTICLE_SLEEPING` set, `prevPosition = position` (encoded velocity exactly 0),
+  angVel zeroed. `sync_in` then gives the body invMass 0 → integrate/voxel/primal/hardcontact
+  all skip it. `sync_out` passes frozen bodies through untouched (bit-identical hold).
+- **Pairing**: sleeping bodies STAY in the narrowphase outer loop (pairs are discovered from
+  the lower index only — early-returning them would recreate the CPU tunneling bug on GPU) and
+  in the spatial grid; both-sleeping pairs are skipped.
+- **Wake bits**: one bit per body appended to the solver-state buffer (`WAKE_BITS_BASE`,
+  320 words; persists across ticks). Set by narrowphase (awake body > 0.5 m/s touching a
+  sleeper) and by integrate (moving character union-AABB overlap). Consumed + cleared by
+  `sync_in` next tick.
+- **C++**: `SOLVER_STATE_UINTS += WAKE_WORDS`, one-time wake-region clear beside the hash init,
+  integrate pipeline gained the solver-state binding (5 bindings), post-integrate barrier.
+
+**L4 evidence (CharacterTestbed, Debug, via auto position-log CSV `P,…,flags`):**
+150-cube drop → 150/150 SLEEPING with **max encoded speed exactly 0.0000** and rest height
+17.50 (ground top + half extent — no hover in this scenario); bit-identical across 1770 frames
+(0 of sampled particles moved). Impact wake: bombarding the sleeping pile woke it to 68/180
+then it re-froze to 180/180 at 0.0000. Repeat with fresh 300-cube drop from y=40: full rest,
+all logged particles frozen. Sleeping pairs generate no constraints → settled piles cost the
+solver ~nothing.
+
+**Still open (follow-ups):** occupancy-change wake (terrain broken under a sleeping GPU pile —
+same gap as CPU terrain-edit wake); sleeping-body despawn does not wake what rested on it
+(debris lifetimes make this mostly moot); the debris-hover offset was not reproduced in this
+scenario but the historical report (`project_debris_hover_bug`) stays open until re-tested in
+its original scene; template-load boot cost (minutes in Debug) is unrelated but was measured
+here — a parsed-template cache like the .anim one would fix it.
 
 ---
 

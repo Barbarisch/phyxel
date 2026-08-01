@@ -666,12 +666,13 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
     m_solverSyncInPass.updateDescriptors();
 
-    // solver_integrate: bodies, materials, particles, character collider
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 4, sizeof(IntegratePC))) return false;
+    // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC))) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
     m_solverIntegratePass.bindBuffer(3, m_characterBuffer,    static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
+    m_solverIntegratePass.bindBuffer(4, m_solverStateBuffer,  stateSize);
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
@@ -826,6 +827,12 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
                         static_cast<VkDeviceSize>(HASH_BASE) * sizeof(uint32_t),
                         static_cast<VkDeviceSize>(HASH_CAP) * sizeof(uint32_t),
                         0xFFFFFFFFu);
+        // Wake bits (Phase 2 sleep) start clear. Like the hash table they persist
+        // across frames — set on tick N, consumed by sync_in on tick N+1.
+        vkCmdFillBuffer(cmd, m_solverStateBuffer,
+                        static_cast<VkDeviceSize>(HASH_BASE + HASH_CAP) * sizeof(uint32_t),
+                        static_cast<VkDeviceSize>(WAKE_WORDS) * sizeof(uint32_t),
+                        0u);
         m_hashInitialized = true;
     }
     insertBarrier(cmd,
@@ -851,6 +858,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         m_solverIntegratePass.dispatch(cmd, groups);
     }
     ssBarrier(m_solverBodyBuffer);
+    ssBarrier(m_solverStateBuffer);   // character-shove wake bits (Phase 2 sleep)
 
     // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
     {
