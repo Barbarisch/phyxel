@@ -368,6 +368,18 @@ public:
     // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
     glm::vec3 waveSettings() const;
 
+    // ── Water Appearance v4, W1 (docs/WaterAppearanceV4.md) ───────────────────────────────────
+    // Force a turbidity/roughness profile onto every wet column, bypassing per-body derivation.
+    // THE POSITIVE CONTROL for the profile pipe: derivation is neutral in W1, so a measurable pixel
+    // change under an override is what proves body → texture → shader → frame actually carries the
+    // value. Deliberately routed through the REAL production path (it re-uploads the hydrology
+    // texture) rather than a side channel, so it cannot pass while the shipped path is broken.
+    // `active = false` restores derivation. Only affects worlds with a hydrology bake — a flat-sea
+    // world has no bodies and therefore no profiles, by construction.
+    void setWaterLook(bool active, float turbidity, float roughness);
+    // {active ? 1 : 0, turbidity, roughness}.
+    glm::vec3 waterLook() const;
+
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
     // fades across a short band so breaking the surface doesn't pop. `depthBelow` receives how far
     // under the surface the eye is (world units, 0 when above). Drives the underwater fog overlay.
@@ -579,6 +591,10 @@ private:
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
     const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
+    bool  m_waterLookActive = false;
+    float m_waterLookTurbidity = 0.0f;
+    float m_waterLookRoughness = 1.0f;
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
     RaycastVisualizer* raycastVisualizer;

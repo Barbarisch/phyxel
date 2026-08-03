@@ -99,7 +99,10 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // The "no layer" sentinel: a 1×1 dry texel, per-column lookup disabled — the shaders take
     // the flat-sea path (pixel-identical to pre-P1), but binding 3 is VALID from the first draw.
     const float kNoWater = -1e6f;
-    static const float sentinel[2] = {kNoWater, 0.0f};   // RG: dry level + zero energy
+    // RGBA: dry level + zero energy + NEUTRAL profile (turbidity 0, roughness 1). The neutral
+    // values matter even here: a world with no bake still samples this texel on any code path that
+    // reads the profile, and neutral is defined as "exactly today's look" (v4 W1).
+    static const float sentinel[4] = {kNoWater, 0.0f, 0.0f, 1.0f};
     if (!levels) { levels = sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; }
 
     // (Re)create the image when the grid size changes. The caller guarantees device idleness when
@@ -113,7 +116,11 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
         ii.imageType = VK_IMAGE_TYPE_2D;
         ii.extent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
         ii.mipLevels = 1; ii.arrayLayers = 1;
-        ii.format = VK_FORMAT_R32G32_SFLOAT;   // R = level, G = body wave energy (tangible-water F)
+        // R = level (water-layer P1), G = body wave energy (tangible-water F),
+        // B = turbidity, A = roughness (Water Appearance v4 W1). Widened from RG32F because the
+        // sea shader's push block is EXACTLY full at 128 B — the texture is the only vehicle left
+        // for per-column data. 256² × 16 B = 1 MB, uploaded once per world.
+        ii.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         ii.tiling = VK_IMAGE_TILING_OPTIMAL;
         ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -136,7 +143,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
         vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         vi.image = m_hydroImage;
         vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        vi.format = VK_FORMAT_R32G32_SFLOAT;
+        vi.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         vi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
         if (vkCreateImageView(m_device, &vi, nullptr, &m_hydroView) != VK_SUCCESS)
             throw std::runtime_error("failed to create water-layer level view!");
@@ -165,7 +172,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // Stage + record the copy into the caller's one-shot command buffer. The staging buffer is
     // transient: freed by the caller's queue-idle boundary… we cannot free it here safely, so use
     // a small persistent member sized to the largest grid seen.
-    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * 2 * sizeof(float);   // RG
+    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * 4 * sizeof(float);   // RGBA
     if (bytes > m_hydroStagingBytes) {
         if (m_hydroStagingMapped) vkUnmapMemory(m_device, m_hydroStagingMemory);
         if (m_hydroStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_hydroStaging, nullptr);

@@ -11526,6 +11526,33 @@ void Application::registerWaterCommands() {
         const glm::vec3 now = renderCoordinator->waveSettings();
         r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z}};
     });
+    // Water Appearance v4 W1 (docs/WaterAppearanceV4.md): force a turbidity/roughness profile onto
+    // every wet column, bypassing per-body derivation.
+    //
+    // THIS IS THE POSITIVE CONTROL, not a look knob. W1's derivation is neutral by design, so the
+    // only falsifiable proof that the profile pipe reaches the screen is: force a value, measure a
+    // pixel change. It re-uploads the REAL hydrology texture the shipped path uses, so it cannot
+    // pass while that path is broken. {"active": false} restores derivation.
+    //
+    // Needs a hydrology bake — a flat-sea world has no water bodies and therefore no profiles.
+    // `hydrology_bound` reports whether this world can show anything at all.
+    reg.on("water_look", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        const glm::vec3 cur = renderCoordinator->waterLook();
+        renderCoordinator->setWaterLook(cmd.params.value("active", cur.x > 0.5f),
+                                        cmd.params.value("turbidity", cur.y),
+                                        cmd.params.value("roughness", cur.z));
+        const glm::vec3 now = renderCoordinator->waterLook();
+        const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        r = {{"success", true},
+             {"active", now.x > 0.5f},
+             {"turbidity", now.y},
+             {"roughness", now.z},
+             // Without a bake there is no per-column texture at all (the shaders take the flat-sea
+             // path), so an override would silently do nothing. Say so rather than let a null
+             // result read as "the feature is broken".
+             {"hydrology_bound", g && g->hydrology() != nullptr}};
+    });
 
     reg.on("water_table_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);

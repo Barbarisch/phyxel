@@ -126,7 +126,14 @@ const float WATER_FBM_STD = 0.142;
 // killed coarse and fine detail together (so distant water went dead flat instead of keeping its
 // large-scale shape), and being a fixed radius around the camera it was a visible ring that
 // travelled with the viewer.
-vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
+//
+// `roughness` (Water Appearance v4 W1) scales every octave's amplitude. 1.0 = the shipped detail,
+// exactly. Toward 0 the micro-chop disappears and the surface becomes a MIRROR — that is the whole
+// mechanism behind "a still lake is glassy", and it is why roughness scales AMPLITUDE rather than,
+// say, fading octaves out: the slope each octave contributes (a*f) is what tilts the normal, so a
+// uniform amplitude scale is a uniform slope scale. At 0 the sum is exactly 0 and the normal is
+// exactly +Y (normalize(vec3(0,1,0)) — no NaN).
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld, float roughness) {
     vec2 d1 = normalize(vec2( 1.0,  0.4));
     vec2 d2 = normalize(vec2(-0.6,  1.0));
     vec2 d3 = normalize(vec2( 0.8, -0.7));
@@ -139,7 +146,8 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     // corduroy of micro-ridges over every wave face that looked worse than having no detail at all.
     // These sum to ~0.048: the same gentle sheen as before, but spread across four fine scales
     // instead of sitting at the swell's own scale.
-    float a1 = 0.0100, a2 = 0.0055, a3 = 0.0028, a4 = 0.0014;
+    float a1 = 0.0100 * roughness, a2 = 0.0055 * roughness,
+          a3 = 0.0028 * roughness, a4 = 0.0014 * roughness;
     float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
     // Per-octave visibility: full while the wavelength covers >~7 px, gone under ~2.5 px. Coarse
@@ -167,6 +175,12 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
+// Shipped-detail overload (roughness 1). Keeps existing call sites — notably water.frag's dormant
+// planar-reflection branch — working unchanged.
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
+    return waterRippleNormal(p, t, pixelWorld, 1.0);
+}
+
 // FLOWING ripple normal (WaterSystemV3 Phase 3). Same wave pair, but the sample point is ADVECTED
 // along the flow direction over time and COMPRESSED across it — so ripples visibly travel
 // downstream and stretch into streaks, which is what separates a river from a pond. With
@@ -183,7 +197,8 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
 //      even with smoothing, because the distortion grows with |p| — far from the origin, a tiny
 //      direction difference becomes a large coordinate difference.
 // Amplitude/choppiness scaling is safe: it does not move the sample point.
-vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld) {
+vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld,
+                     float roughness) {
     // ⚑GROUND: 2.5 world-units/sec at full strength. Fast enough to read as a current at a glance,
     // slow enough that the wave pattern doesn't alias into a strobe at 60 fps.
     const float ADVECT_SPEED = 2.5;
@@ -201,8 +216,8 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelW
     float ph0 = fract(t / PERIOD);
     float ph1 = fract(t / PERIOD + 0.5);
     float k = ADVECT_SPEED * strength * PERIOD;
-    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld);
-    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld);
+    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld, roughness);
+    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld, roughness);
     // Weight each sample by how far it is from its own wrap point, so the crossfade hides the reset.
     vec3 n = normalize(mix(n0, n1, abs(2.0 * ph0 - 1.0)));
     // Moving water is choppier: exaggerate the normal's tilt with speed (safe — no coord change).
@@ -249,9 +264,23 @@ vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient) {
 // physical value because a voxel world's water bodies are metres deep, not tens of metres, and
 // the true blue coefficient would show no gradient at all over a 5-voxel pond.
 const vec3 WATER_EXTINCTION = vec3(0.42, 0.09, 0.045);
+// Fully-turbid endpoint. ⚑PLACEHOLDER — NOT GROUNDED, and deliberately unreachable by normal
+// operation: v4 W1's derivation returns turbidity 0 for every body, so the only way to reach this
+// is the `water_look` debug override (the positive control that proves the profile pipe carries a
+// value to the screen). W2 replaces these numbers with a Jerlov/Secchi-derived spectrum and only
+// THEN does derivation start producing non-zero turbidity. Do not cite these as grounded.
+// Shape rationale (the direction is right even though the magnitudes are not measured): sediment
+// attenuates far more overall and much more FLATLY across the spectrum than clear water, which is
+// why murky water goes grey-green instead of deep blue.
+const vec3 WATER_EXTINCTION_TURBID = vec3(1.20, 0.90, 0.75);
 
 // In-scattered colour — what the water body itself glows with as the transmitted scene fades out.
 const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
+// ⚑PLACEHOLDER, same status as WATER_EXTINCTION_TURBID. Turbid water in-scatters MORE: suspended
+// particles bounce light back, so murky water is brighter at shallow depth even as it becomes less
+// transparent. Without this term rising with turbidity, murky water just goes black — the classic
+// wrong-looking result.
+const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.24, 0.20);
 
 // Path length (world units) over which a shoreline fades from invisible to fully water.
 // ⚑GROUND: 0.4 voxel ≈ 40 cm of water — about where a real shore stops reading as wet ground and
@@ -292,6 +321,14 @@ struct WaterSurfaceInput {
     // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
     // level is whatever the sim says it is).
     float restLevelY;
+    // ── PER-BODY PROFILE (Water Appearance v4 W1; docs/WaterAppearanceV4.md) ──────────────────
+    // Every optical/mechanical property of water used to be a global constant, which is why all
+    // water looked like the same water. These two come from the hydrology texture's B/A channels,
+    // fetched per pixel. THE NEUTRAL VALUES REPRODUCE TODAY'S LOOK EXACTLY — turbidity 0 and
+    // roughness 1 are not "sensible defaults", they are an identity that W1 asserts against a
+    // pre-change capture.
+    float turbidity;   // 0 = clear (Pope & Fry constants), 1 = fully turbid
+    float roughness;   // multiplier on the fine ripple slope; 1 = shipped detail, 0 = mirror
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -305,7 +342,8 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // is what lets each octave retire on its own terms AND removes the camera-centred ring.
     float viewDist = length(inp.worldPos - inp.camPos);
     float pixelWorld = viewDist * (0.828427 / max(inp.screenSize.y, 1.0));
-    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, pixelWorld);
+    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength,
+                                  pixelWorld, inp.roughness);
     // Perturb the macro normal by the ripple detail's tilt (detail is around +Y, so its xz IS the
     // tilt). Keeping the two separate is what lets a swell read as a swell at distance while still
     // sparkling up close.
@@ -351,8 +389,12 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     vec3 behind = texture(refractionTex, refractUV).rgb;
 
     // --- Absorption: tint what we see through the water by how far the light travelled -------
-    vec3 transmit = exp(-WATER_EXTINCTION * thickness);
-    vec3 body = behind * transmit + WATER_SCATTER * (1.0 - transmit);
+    // Per-body optics (v4 W1). mix(x, y, 0.0) is exactly x, so turbidity 0 is bit-identical to the
+    // single-constant version this replaces — which is what the W1 no-regression capture asserts.
+    vec3 extinction = mix(WATER_EXTINCTION, WATER_EXTINCTION_TURBID, inp.turbidity);
+    vec3 scatter    = mix(WATER_SCATTER,    WATER_SCATTER_TURBID,    inp.turbidity);
+    vec3 transmit = exp(-extinction * thickness);
+    vec3 body = behind * transmit + scatter * (1.0 - transmit);
 
     // --- Reflection ------------------------------------------------------------------------
     float ndv  = clamp(dot(V, N), 0.0, 1.0);

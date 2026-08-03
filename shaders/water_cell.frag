@@ -86,6 +86,13 @@ void main() {
     // Per-cell water has no single rest level — the sim decides where its surface is, per column —
     // so the dry-land gate does not apply here.
     inp.restLevelY   = -1e9;
+    // PER-BODY PROFILE: pinned to NEUTRAL (Water Appearance v4 W1). Rivers, creeks, ponds and
+    // splashes are explicitly OUT OF SCOPE for v4 — its coverage decision is oceans + lakes, which
+    // are drawn by the sea clipmap. Neutral is defined as "exactly today's look", so this renderer
+    // must come out pixel-identical; that is a test, not an assumption. When flowing water gets its
+    // own profile, this is where it arrives (per-instance, alongside fragFlow).
+    inp.turbidity    = 0.0;
+    inp.roughness    = 1.0;
 
     outColor = shadeWaterSurface(inp);
 }

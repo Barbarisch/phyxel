@@ -32,6 +32,7 @@
 #include "core/ChunkManager.h"
 #include "core/WorldGenerator.h"
 #include "core/HydrologyMap.h"
+#include "core/WaterProfile.h"   // v4 W1: per-body appearance profile + hydrology texture packing
 #include "core/Chunk.h"
 #include "graphics/FireEmitterManager.h"
 #include "core/MaterialRegistry.h"
@@ -351,6 +352,20 @@ glm::vec3 RenderCoordinator::waveSettings() const {
     if (!waterPipeline) return glm::vec3(0.0f);
     return glm::vec3(waterPipeline->waveAmplitude(), waterPipeline->waveLength(),
                      waterPipeline->windDirection());
+}
+
+void RenderCoordinator::setWaterLook(bool active, float turbidity, float roughness) {
+    m_waterLookActive = active;
+    m_waterLookTurbidity = turbidity;
+    m_waterLookRoughness = roughness;
+    // Force the hydrology texture to be rebuilt on the next frame. Reusing the "never uploaded"
+    // sentinel (not nullptr — a null bake is a real, uploadable state: the 1×1 dry dummy) is what
+    // makes the override travel the SAME path a real per-body profile will.
+    m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+}
+
+glm::vec3 RenderCoordinator::waterLook() const {
+    return glm::vec3(m_waterLookActive ? 1.0f : 0.0f, m_waterLookTurbidity, m_waterLookRoughness);
 }
 
 // Is the eye under water, and how deep? (WaterSystemV3 Phase 1 item 5.)
@@ -1764,9 +1779,13 @@ void RenderCoordinator::drawFrame() {
     // WATER LAYER (P1): (re)bind the hydrology level grid when the world's bake appears or
     // changes (world switch). Rare — a descriptor rewrite on a possibly in-flight set, so it
     // idles the device first (a once-per-world-load hitch, hidden by the load itself).
-    // Body-aware look (tangible-water F): the upload is RG — R = level, G = per-body wave
-    // ENERGY from body size (ocean 1, lakes by log-area, floor 0.15) so a mountain tarn shows
-    // a ripple where the ocean shows swell, replacing the old binary 0.2× lake scale.
+    // Body-aware look: the upload is RGBA — R = level, G = per-body wave ENERGY from body size
+    // (tangible-water F: ocean 1, lakes by log-area, floor 0.15, so a mountain tarn shows a ripple
+    // where the ocean shows swell), B = turbidity and A = roughness (Water Appearance v4 W1 —
+    // NEUTRAL until W2/W3 derive them; docs/WaterAppearanceV4.md).
+    //
+    // The packing moved into Phyxel::buildHydroUpload so it is unit-testable: as an inline loop
+    // here it could only ever be checked by looking at the screen.
     if (waterPipeline && chunkManager) {
         const auto* gen = chunkManager->getStreamingGenerator();
         const auto* hydro = gen ? gen->hydrology() : nullptr;
@@ -1774,30 +1793,13 @@ void RenderCoordinator::drawFrame() {
             vkDeviceWaitIdle(vulkanDevice->getDevice());
             VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
             if (hydro) {
-                const auto* bodies = gen->waterBodies();
-                const auto& lvl = hydro->levels();
-                std::vector<float> rg(lvl.size() * 2);
-                for (int cz = 0; cz < hydro->cellsZ(); ++cz)
-                    for (int cx = 0; cx < hydro->cellsX(); ++cx) {
-                        const size_t i = static_cast<size_t>(cz) * hydro->cellsX() + cx;
-                        rg[i * 2] = lvl[i];
-                        float energy = 1.0f;
-                        if (bodies && lvl[i] > Phyxel::HydrologyMap::NO_WATER * 0.5f) {
-                            const auto* b = bodies->body(bodies->bodies().empty() ? -1 :
-                                bodies->bodyIdAt(hydro->originX() + (cx + 0.5f) * hydro->cellSize(),
-                                                 hydro->originZ() + (cz + 0.5f) * hydro->cellSize()));
-                            if (b && b->cls != Phyxel::WaterBodyIndex::Class::Ocean) {
-                                // ⚑GROUND: fetch-limited waves — energy grows with body size.
-                                // log2 area over a ~1024-cell reference: a 4-cell lake ≈ 0.23,
-                                // a 100-cell lake ≈ 0.66, floor 0.15 so nothing is dead flat.
-                                energy = glm::clamp(
-                                    std::log2(static_cast<float>(b->areaCells) + 1.0f) / 10.0f,
-                                    0.15f, 1.0f);
-                            }
-                        }
-                        rg[i * 2 + 1] = energy;
-                    }
-                waterPipeline->recordHydrologyUpload(oneShot, rg.data(),
+                Phyxel::WaterLookOverride ovr;
+                ovr.active    = m_waterLookActive;
+                ovr.turbidity = m_waterLookTurbidity;
+                ovr.roughness = m_waterLookRoughness;
+                std::vector<float> rgba;
+                Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, rgba);
+                waterPipeline->recordHydrologyUpload(oneShot, rgba.data(),
                                                      hydro->cellsX(), hydro->cellsZ(),
                                                      hydro->originX(), hydro->originZ(),
                                                      hydro->cellSize());

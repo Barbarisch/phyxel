@@ -1699,6 +1699,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_ocean_boundary", waterEndpoint("water_ocean_boundary"));
     srv.Post("/api/debug/water_table_level",    waterEndpoint("water_table_level"));
     srv.Post("/api/debug/water_waves",          waterEndpoint("water_waves"));
+    srv.Post("/api/debug/water_look",           waterEndpoint("water_look"));   // v4 W1 probe
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
     // Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4).

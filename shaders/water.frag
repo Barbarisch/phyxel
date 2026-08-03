@@ -42,16 +42,31 @@ layout(push_constant) uniform PushConstants {
     vec4 params3;    // x = core spacing, y = core half-extent, z = hydro originZ, w = hydro invCellSize (0 = flat)
 } pc;
 
-// Same lookup as water.vert (kept in sync by hand — 12 lines; the include is frag-only).
-float basinLevelAt(vec2 worldXZ) {
+// Same lookup as water.vert (kept in sync by hand — the include is frag-only).
+//
+// Water Appearance v4 W1: the texture is now RGBA — R = level, G = wave energy (read by the vertex
+// stage), B = turbidity, A = roughness. The profile is fetched PER PIXEL here, exactly like the
+// basin level already was, rather than interpolated from the vertex stage: the texture is NEAREST
+// because basins are piecewise-constant, and a varying would smear one body's profile across the
+// divide into its neighbour.
+//
+// FALLBACKS ARE THE NEUTRAL PROFILE (turbidity 0, roughness 1) — flat-sea mode, outside the baked
+// region, and dry columns all take today's look exactly. A world with no hydrology bake has no
+// water bodies, so it has no per-body profile by construction; that is correct, not a gap.
+float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness) {
+    turbidity = 0.0;
+    roughness = 1.0;
     float invCell = pc.params3.w;
     if (invCell <= 0.0) return pc.params.x;
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
         return pc.params.x;
-    float l = texelFetch(hydroLevelTex, ivec2(cellF), 0).r;
-    return (l < -1e5) ? pc.params.x : l;
+    vec4 t = texelFetch(hydroLevelTex, ivec2(cellF), 0);
+    if (t.r < -1e5) return pc.params.x;   // dry column sentinel — keep the neutral profile
+    turbidity = t.b;
+    roughness = t.a;
+    return t.r;
 }
 
 #include "water_common.glsl"
@@ -92,7 +107,7 @@ void main() {
     // (not taken from the vertex) so the stretched wall quads at basin rims gate against their
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
-    inp.restLevelY   = basinLevelAt(fragWorldPos.xz);
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness);
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at
     // different levels (lake rim, lake→dry falloff), the connecting quad is a vertical wall

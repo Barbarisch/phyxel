@@ -77,6 +77,10 @@ public:
     float waveRadius() const { return m_waveRadius; }
 
     // ── WATER LAYER (terrain-gen stage output; water-layer P1) ────────────────────────────────
+    // `levels` is RGBA, 4 floats per cell, row-major (Phyxel::buildHydroUpload packs it):
+    // R = basin level, G = wave energy, B = turbidity, A = roughness. Widened from RG in
+    // Water Appearance v4 W1 — B/A are inert until W2/W3 derive them.
+    //
     // Record the per-column basin-level grid upload into `cmd` (one-shot command buffer, outside
     // any render pass) and point set-1 binding 3 at it. The clipmap then draws EVERY basin in
     // view at its own level — sea at sea level, each lake at its spill — with the dry-land gate
