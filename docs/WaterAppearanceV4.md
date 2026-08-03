@@ -112,6 +112,94 @@ neutral profile as an explicit scope decision.
 
 ---
 
+## 0c. W2 — variable transparency (2026-08-03)
+
+**Grounding first, and it CHANGED THE DESIGN.** A grounding-auditor pass on the optical model
+produced one correction that would have shipped a wrong-looking result:
+
+- ⚑**The turbid endpoint's SPECTRAL ORDER was backwards.** The W1 placeholder was
+  `vec3(1.20, 0.90, 0.75)` — R > G > B, i.e. blue transmitting best, on my assumption that turbidity
+  merely "flattens" the spectrum toward grey. **Akkaynak & Treibitz (2017, CVPR)**, deriving RGB
+  attenuation from the Jerlov dataset, find the familiar "red dies first" rule is an **oceanic-only**
+  phenomenon: in very turbid coastal water **blue attenuates fastest**, because sediment and CDOM
+  preferentially absorb blue-green, leaving a green-yellow (~520-570 nm) window. That is why muddy
+  water reads **olive/brown, not grey**. The endpoint is now `vec3(0.95, 0.65, 1.20)` — B > R > G.
+- **Magnitude is grounded by construction**, not read off a paywalled table: eutrophic Secchi
+  0.9-2.3 m (**Carlson 1977** TSI) → mid 1.5 m; **Holmes (1970)** `Kd ≈ 1.4/Z_SD` for turbid water
+  → broadband Kd ≈ 0.93 /m. The three channels average 0.933. ⚑The per-channel SPREAD about that
+  mean is *not* measured — an artistic distribution satisfying the grounded magnitude + ordering.
+  The real fix is Jerlov's Kd(λ) for a named coastal type (Solonenko & Mobley 2015 / Jerlov 1976
+  Table XXXI); both paywalled and unobtainable this session.
+- ⚑**The CLEAR endpoint's own comment was wrong and is corrected.** Real Pope & Fry (1997) values
+  are **(0.340, 0.0565, 0.00922) /m**; the shipped `(0.42, 0.09, 0.045)` raises **all three**
+  (1.24× / 1.59× / 4.88×), not "blue only" as the old comment claimed — and the old comment even
+  misquoted the paper (it said green 0.05 while shipping 0.09). Values kept (deliberate exaggeration
+  for metre-deep voxel water); the comment now states the real numbers and the per-channel factor.
+- Also fixed: `Kd` vs beam attenuation `c` now cites **Gordon (1989)** and says plainly it
+  *under*-attenuates turbid water; the doc's "1.44" was wrong — the turbid-water constant is
+  **1.4 (Holmes 1970)**; `WATER_SCATTER` (clear) flagged as **unsourced, left as-is** since changing
+  it is a visual decision; `WATER_SCATTER_TURBID` keeps ⚑PLACEHOLDER status — **Lobo et al. (2014)**
+  grounds the *direction* (bb ≈ 0.018-0.030 × NTU) but not the RGB magnitude.
+
+**Derivation.** Turbidity now comes from **mean depth** (`volumeEst / (areaCells·cellSize²)`),
+ramped between `kTurbidDepth = 2 m` (turbidity 1) and `kClearDepth = 20 m` (turbidity 0). ⚑It is a
+**named PROXY, not a measurement** — the bake knows nothing about sediment or algae; mean depth is
+the strongest clarity-tracking quantity it carries, and the published Secchi ordering agrees
+(Crater 44 m / Tahoe ~18 m deep-and-clear vs Carlson's eutrophic 0.9-2.3 m shallow-and-murky).
+**Ocean short-circuits to CLEAR** — open ocean is Jerlov type I, the clearest natural water; it
+reads opaque because it is deep and Fresnel-mirrored, not because it is dirty.
+
+**Underwater overlay follows the surface.** `water_underwater.frag` hardcoded `VISIBILITY = 22.0`,
+so a murky lake would have read clear from below and breaking the surface would pop. It now takes
+the turbidity of the body the camera is in (via the one free push slot, `params2.w`, fed by the same
+`waterProfileAt`). ⚑`VIS_TURBID = 2.0` is derived by a **grounded ratio**, not picked: clear coastal
+Kd ≈ 1.7/20 = 0.085 vs eutrophic 1.4/1.5 = 0.93 → ~11× faster → 22.0/11. (An earlier 3.0 was a guess.)
+
+**Evidence.**
+- **Unit: 12/12** (`WaterProfileTest`), **red-before-green run as a build twice over**: the mapping
+  was stubbed
+  out first and `ShallowBodiesAreTurbidAndDeepOnesAreClear` failed with **"actual: 0 vs 0"**, then
+  passed once implemented. ⚑The monotonicity test **passed on the stub** (0 ≤ 0 is trivially
+  monotone) — it was a guard, not a falsifier, so a strict `first > last` assertion was added and is
+  labelled as the part that does the work. `W1DerivationIsNeutralEverywhere` was **changed on
+  purpose** (W2 breaks its turbidity half); what survives is roughness-stays-1 + dry-land-is-clear.
+  A second mutation run covers the `isfinite(volumeEst)` guard, which the solution-auditor found had
+  **no falsifier** — deleting it turns a non-finite volume into turbidity **1 (fully murky)** instead
+  of clear, and `DegenerateBodiesDoNotProduceNaNTurbidity` now goes red on exactly that.
+- **156/156** across `Water*:Hydrology*:SeaMesh*:Terrain*:Ripple*`.
+- **L4 (WaterTableTest, lake body #47 at (4480,−14848)), 4-frame control envelope, open-water crop
+  `300,430,1100,650`:** the derived frame sits **BETWEEN its own forced endpoints on all three
+  channels** — R: clear 74.3 < **derived 108.8** < turbid 127.6 (shift **16.9× envelope** vs clear);
+  G: 125.0 < **133.1** < 140.3; B: turbid 124.3 < **131.7** < clear 135.5. Per-channel fractional
+  position 0.34–0.65 against a predicted 0.562 (G lands at 0.529), consistent with the nonlinear
+  Beer-Lambert mapping rather than a linear one. **Blue DECREASING with turbidity is the corrected
+  spectral order showing up in pixels** — under the old placeholder it would have increased.
+- **The body's numbers are ARCHIVED, not asserted** (`docs/evidence/water-v4-w2-bodies-20260803.json`,
+  `…-lake47-column-20260803.json` — raw HTTP responses). Body #47: `area_cells 8`,
+  `volume_est 1296214.25`, cell size 128 ⇒ mean depth **9.889 m** ⇒ turbidity **0.5617**, which is
+  where the 0.562 above comes from. The project has twice been caught citing numbers from
+  un-archived sessions; this closes that loop rather than repeating it.
+- ⚑**A SECOND CROP WAS INCONCLUSIVE AND IS REPORTED HERE, NOT JUST IN THE GOOD ONE.** Crop
+  `350,100,700,350` (the near-shore mottled band) measured **0.2–0.7× envelope for every channel —
+  no result**. Its envelope is inflated (R ±5.7 vs ±2.0 on the open-water crop) because that region
+  carries animated foam and terrain showing through. Reporting only the decisive crop would have
+  been cherry-picking; the honest statement is that the effect is measurable **in open water** and
+  **not resolvable in the surf band at this vantage**.
+
+**⚑NOT verified — do not claim these.**
+1. **Per-body SPATIAL variation is not demonstrated at L4.** The override is global, so "derived
+   lands between the forced endpoints" proves the derived *value* reaches pixels, not that two
+   different bodies differ **in one frame** (this plan's stated gate). That remains unit-only
+   (`buildHydroUpload` packs per-cell from per-body derivation). This world's non-ocean bodies are
+   small and ~15 km apart, so framing two at once was not achieved.
+2. **The underwater overlay change has NO runtime verification at all** — code + shader only.
+3. A first L4 attempt at (3968,−15072) measured **nothing**, because that column is baked-DRY and
+   the pale-blue frame was **sky**, not water (16 visible chunks of 592) — the documented
+   "all-water wash" trap. `water_table_level` is the two-second disambiguator; use it *before*
+   capturing, not after.
+
+---
+
 ## 1. Ground truth — what ships today (source read 2026-08-03)
 
 | Concern | Where | State |

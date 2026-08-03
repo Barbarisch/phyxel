@@ -2487,12 +2487,27 @@ void RenderCoordinator::drawFrame() {
             const float submergence = cameraSubmergence(depthBelow);
             if (submergence > 0.0f) {
                 GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterUnderwater");
+                // v4 W2: which water are we IN? Same query the surface shading's texture was
+                // packed from (Phyxel::waterProfileAt), so the two cannot disagree — and the
+                // water_look override applies here too, or the positive control would show a
+                // murky surface over a clear underwater view.
+                float uwTurbidity = 0.0f;
+                if (m_waterLookActive) {
+                    uwTurbidity = m_waterLookTurbidity;
+                } else if (chunkManager) {
+                    const auto* gen = chunkManager->getStreamingGenerator();
+                    const auto* hyd = gen ? gen->hydrology() : nullptr;
+                    const glm::vec3 eye = camera->getPosition();
+                    if (hyd)
+                        uwTurbidity = Phyxel::waterProfileAt(gen->waterBodies(), eye.x, eye.z,
+                                                             hyd->cellSize()).turbidity;
+                }
                 waterPipeline->renderUnderwater(
                     vulkanDevice->getCommandBuffer(currentFrame),
                     vulkanDevice->getDescriptorSet(currentFrame),
                     *camera, cachedProjectionMatrix,
                     submergence, depthBelow,
-                    vulkanDevice->getSwapChainExtent());
+                    vulkanDevice->getSwapChainExtent(), uwTurbidity);
             }
         }
 

@@ -55,9 +55,14 @@ public:
     //   submergence — 0 = at/above the surface (draw skipped), 1 = fully under. The caller fades
     //                 this over a short band so breaking the surface doesn't pop.
     //   depthBelow  — how far under the surface the camera is (world units); darkens/blues the fog.
+    //   turbidity   — the profile of the body the camera is INSIDE (v4 W2). The surface reads its
+    //                 profile per pixel from the hydrology texture; this fullscreen pass has no
+    //                 per-pixel body, so it must be told which water it is in or a murky lake will
+    //                 read clear from below and breaking the surface will pop. 0 = clear.
     void renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                           const Camera& camera, const glm::mat4& projectionMatrix,
-                          float submergence, float depthBelow, VkExtent2D screenExtent);
+                          float submergence, float depthBelow, VkExtent2D screenExtent,
+                          float turbidity = 0.0f);
 
     // Gerstner swell controls (WaterSystemV3 Phase 2). amplitude 0 disables the displacement
     // entirely, which restores the pre-Phase-2 flat sheet — that is the A/B used to prove the

@@ -5,6 +5,7 @@
 #include "core/WaterProfile.h"
 
 #include <cmath>
+#include <limits>
 
 // Water Appearance v4, W1 — the per-body profile PIPE (docs/WaterAppearanceV4.md).
 //
@@ -97,17 +98,21 @@ TEST(WaterProfileTest, EnergyFormulaIsPreserved) {
     EXPECT_NEAR(out[texel(f.hydro, kPondX, kPondZ) + 1], 0.15849625f, 1e-6f);
 }
 
-TEST(WaterProfileTest, W1DerivationIsNeutralEverywhere) {
+// W1 asserted "turbidity 0 AND roughness 1 everywhere". W2 deliberately breaks the first half —
+// turbidity is now derived — so this test was CHANGED ON PURPOSE, not discovered broken. What
+// survives is the half W2 does not touch: roughness stays neutral until W3, and dry land is never
+// assigned water optics.
+TEST(WaterProfileTest, RoughnessStaysNeutralUntilW3AndDryColumnsAreClear) {
     BakedFixture f;
     std::vector<float> out;
     buildHydroUpload(f.hydro, &f.bodies, {}, out);
 
-    // The no-regression contract for W1: nothing derived may move turbidity or roughness off the
-    // values that reproduce today's shading exactly. When W2/W3 land, THIS test is the one that
-    // legitimately changes — and it must be changed deliberately, not discovered broken.
     for (size_t i = 0; i < f.hydro.levels().size(); ++i) {
-        ASSERT_FLOAT_EQ(out[i * kHydroTexelFloats + 2], 0.0f) << "turbidity must be 0 in W1, cell " << i;
-        ASSERT_FLOAT_EQ(out[i * kHydroTexelFloats + 3], 1.0f) << "roughness must be 1 in W1, cell " << i;
+        ASSERT_FLOAT_EQ(out[i * kHydroTexelFloats + 3], 1.0f)
+            << "roughness must still be 1 (W3 owns it), cell " << i;
+        if (!wetLevel(out[i * kHydroTexelFloats]))
+            ASSERT_FLOAT_EQ(out[i * kHydroTexelFloats + 2], 0.0f)
+                << "dry land must carry no turbidity, cell " << i;
     }
 }
 
@@ -147,6 +152,122 @@ TEST(WaterProfileTest, OverrideReachesEveryWetColumnAndOnlyWetColumns) {
     }
     EXPECT_GT(wet, 0) << "fixture must contain water or the test proves nothing";
     EXPECT_GT(dry, 0) << "fixture must contain dry land or the 'only wet' half proves nothing";
+}
+
+// waterProfileAt is THE shared query: the surface reads its profile per pixel from the texture,
+// but the underwater overlay is a fullscreen pass that needs ONE profile for "the water the camera
+// is in". These must be the same function or a lake reads murky from above and clear from below.
+TEST(WaterProfileTest, ProfileAtWorldColumnMatchesThePackedTexture) {
+    BakedFixture f;
+    std::vector<float> out;
+    buildHydroUpload(f.hydro, &f.bodies, {}, out);
+
+    struct Probe { int cx, cz; const char* what; };
+    for (const Probe& p : {Probe{kOceanX, kOceanZ, "ocean"}, Probe{kLakeX, kLakeZ, "lake"},
+                           Probe{kPondX, kPondZ, "pond"},   Probe{kDryX, kDryZ, "dry land"}}) {
+        const WaterProfile wp =
+            waterProfileAt(&f.bodies, (p.cx + 0.5f) * 10.0f, (p.cz + 0.5f) * 10.0f, 10.0f);
+        const size_t t = texel(f.hydro, p.cx, p.cz);
+        EXPECT_FLOAT_EQ(wp.waveEnergy, out[t + 1]) << "energy disagrees with the texture at " << p.what;
+        EXPECT_FLOAT_EQ(wp.turbidity, out[t + 2]) << "turbidity disagrees at " << p.what;
+        EXPECT_FLOAT_EQ(wp.roughness, out[t + 3]) << "roughness disagrees at " << p.what;
+    }
+}
+
+// ── W2: turbidity varies by body ──────────────────────────────────────────────────────────────
+// These are the red-before-green tests for W2. Against the W1 build (turbidity 0 for everything)
+// every ordering assertion below fails, because "clearer than" cannot hold when both sides are 0.
+//
+// Bodies are constructed directly rather than baked: WaterBodyIndex::Body is a plain struct, and
+// this is a test OF THE MAPPING, so feeding it exact depths beats hoping a fixture's geography
+// happens to produce them.
+namespace {
+constexpr float kCell = 128.0f;   // the shipped hydrology cell size (water_bake_info)
+
+WaterBodyIndex::Body bodyOfDepth(WaterBodyIndex::Class cls, int areaCells, float meanDepth) {
+    WaterBodyIndex::Body b;
+    b.cls = cls;
+    b.areaCells = areaCells;
+    // volumeEst is Sum((level - terrain) * cellSize^2), so mean depth = volumeEst/(area*cellSize^2)
+    b.volumeEst = meanDepth * static_cast<float>(areaCells) * kCell * kCell;
+    return b;
+}
+}  // namespace
+
+TEST(WaterProfileTest, ShallowBodiesAreTurbidAndDeepOnesAreClear) {
+    const WaterProfile shallow =
+        deriveWaterProfile(&bodyOfDepth(WaterBodyIndex::Class::Pond, 3, 1.0f), kCell);
+    const WaterProfile deep =
+        deriveWaterProfile(&bodyOfDepth(WaterBodyIndex::Class::Lake, 400, 40.0f), kCell);
+
+    EXPECT_GT(shallow.turbidity, deep.turbidity)
+        << "a 1 m pond must read murkier than a 40 m lake (Carlson trophic ordering)";
+    EXPECT_NEAR(shallow.turbidity, 1.0f, 1e-5f) << "at/below kTurbidDepth = fully turbid";
+    EXPECT_NEAR(deep.turbidity, 0.0f, 1e-5f)    << "at/above kClearDepth = fully clear";
+}
+
+TEST(WaterProfileTest, OceanIsTheClearWaterEndpoint) {
+    // Open ocean is the CLEAREST natural water (Jerlov type I, Secchi 30-50 m) — it reads opaque
+    // because it is deep, via Beer-Lambert, not because it is dirty. A shallow ocean shelf column
+    // must therefore still be clear: the class short-circuits before the depth proxy.
+    const WaterProfile ocean =
+        deriveWaterProfile(&bodyOfDepth(WaterBodyIndex::Class::Ocean, 5000, 1.5f), kCell);
+    EXPECT_FLOAT_EQ(ocean.turbidity, 0.0f);
+}
+
+TEST(WaterProfileTest, TurbidityIsMonotonicInDepthAndStaysInRange) {
+    float prev = 2.0f, first = -1.0f, last = -1.0f;
+    for (float depth : {0.5f, 1.0f, 2.0f, 5.0f, 10.0f, 15.0f, 20.0f, 50.0f}) {
+        const WaterProfile p =
+            deriveWaterProfile(&bodyOfDepth(WaterBodyIndex::Class::Lake, 100, depth), kCell);
+        EXPECT_GE(p.turbidity, 0.0f) << "depth " << depth;
+        EXPECT_LE(p.turbidity, 1.0f) << "depth " << depth;
+        EXPECT_LE(p.turbidity, prev) << "turbidity must never RISE with depth (depth " << depth << ")";
+        prev = p.turbidity;
+        if (first < 0.0f) first = p.turbidity;
+        last = p.turbidity;
+    }
+    // ⚑THIS assertion is what makes the test a FALSIFIER rather than a guard. Monotonicity and
+    // in-range are both trivially satisfied by "turbidity is always 0" — the exact un-implemented
+    // state — so without a STRICT decrease across the range this test passes on a stub. Verified:
+    // it did exactly that before the mapping landed.
+    EXPECT_GT(first, last) << "turbidity must actually FALL across the depth range, not be flat";
+}
+
+TEST(WaterProfileTest, DegenerateBodiesDoNotProduceNaNTurbidity) {
+    // A zero-area or zero-volume body would divide by zero in the mean-depth step.
+    for (const auto& b : {bodyOfDepth(WaterBodyIndex::Class::Pond, 0, 0.0f),
+                          bodyOfDepth(WaterBodyIndex::Class::Lake, 10, 0.0f)}) {
+        const WaterProfile p = deriveWaterProfile(&b, kCell);
+        EXPECT_FALSE(std::isnan(p.turbidity)) << "NaN turbidity from a degenerate body";
+        EXPECT_GE(p.turbidity, 0.0f);
+        EXPECT_LE(p.turbidity, 1.0f);
+    }
+    const WaterProfile z = deriveWaterProfile(&bodyOfDepth(WaterBodyIndex::Class::Lake, 10, 5.0f), 0.0f);
+    EXPECT_FALSE(std::isnan(z.turbidity)) << "NaN turbidity from cellSize 0";
+
+    // The isfinite(volumeEst) guard had no falsifier until now (solution-auditor, 2026-08-03): the
+    // other degenerate cases all trip the denom>0 check instead, so removing isfinite() left every
+    // test green. A non-finite volume must read CLEAR, never NaN — one NaN here reaches the
+    // hydrology texture and then every water pixel of that body.
+    for (float bad : {std::numeric_limits<float>::quiet_NaN(),
+                      std::numeric_limits<float>::infinity(),
+                      -std::numeric_limits<float>::infinity()}) {
+        WaterBodyIndex::Body b = bodyOfDepth(WaterBodyIndex::Class::Lake, 10, 5.0f);
+        b.volumeEst = bad;
+        const WaterProfile p = deriveWaterProfile(&b, kCell);
+        EXPECT_FALSE(std::isnan(p.turbidity)) << "non-finite volumeEst produced NaN turbidity";
+        EXPECT_FLOAT_EQ(p.turbidity, 0.0f) << "an unmeasurable body must read CLEAR, not murky";
+    }
+}
+
+TEST(WaterProfileTest, ProfileAtIsNeutralWithoutABodyIndex) {
+    // A world with no hydrology bake has no bodies at all — the honest answer is the neutral
+    // profile, not a crash and not a guess.
+    const WaterProfile wp = waterProfileAt(nullptr, 123.0f, 456.0f, 128.0f);
+    EXPECT_FLOAT_EQ(wp.turbidity, 0.0f);
+    EXPECT_FLOAT_EQ(wp.roughness, 1.0f);
+    EXPECT_FLOAT_EQ(wp.waveEnergy, 1.0f);
 }
 
 TEST(WaterProfileTest, NullBodyIndexFallsBackToFullEnergy) {

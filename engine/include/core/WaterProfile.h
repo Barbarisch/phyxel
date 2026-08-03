@@ -46,11 +46,35 @@ struct WaterLookOverride {
 };
 
 // The profile for one body (nullptr = no body at this column, e.g. open ocean beyond the bake).
+// `cellSize` is the hydrology bake's cell size in world units — needed to turn the body's
+// `volumeEst` into a MEAN DEPTH, which is what drives turbidity.
 //
-// ⚑W1 IS NEUTRAL BY DESIGN: turbidity 0 and roughness 1 for every class. Only `waveEnergy` carries
-// real per-body variation, and only because it already shipped. Do not read the class switch below
-// as "oceans are the same as tarns" — it is a placeholder with the real derivation scheduled.
-WaterProfile deriveWaterProfile(const WaterBodyIndex::Body* body);
+// ⚑TURBIDITY IS DERIVED FROM A PROXY, AND THE PROXY IS NAMED (v4 W2). The bake knows nothing about
+// sediment, algae or catchment: it knows class, area and volume. So turbidity is inferred from
+// MEAN DEPTH, which is the strongest thing the bake carries that actually tracks clarity in the
+// real world — shallow bodies resuspend bottom sediment and have a high catchment-to-volume ratio,
+// deep ones stratify and settle. The published Secchi figures line up with exactly that ordering:
+// Crater Lake (deep) 44 m and Tahoe (deep) ~18 m vs Carlson's mesotrophic 2.3-4.6 m and eutrophic
+// 0.9-2.3 m. It is a PROXY, not a measurement — a genuinely muddy deep reservoir will read clear.
+WaterProfile deriveWaterProfile(const WaterBodyIndex::Body* body, float cellSize);
+
+// The profile at a world column — THE shared "what water is this?" query, so every consumer agrees.
+// Returns the NEUTRAL profile wherever there is no body: dry land, outside the baked region, or a
+// world with no body index at all.
+//
+// ⚑WHY THIS EXISTS SEPARATELY FROM THE TEXTURE: the surface shading reads its profile from the
+// hydrology texture (per pixel), but the UNDERWATER overlay is a fullscreen pass with no per-pixel
+// body — it needs one profile for "the water the camera is inside". If those two disagree, breaking
+// the surface pops: the lake looks murky from above and clear from below. Same function, one truth.
+WaterProfile waterProfileAt(const WaterBodyIndex* bodies, float worldX, float worldZ, float cellSize);
+
+// ── Turbidity mapping anchors (v4 W2) ─────────────────────────────────────────────────────────
+// Mean depth (world units ~ metres) at which a body reads fully turbid / fully clear. ⚑GROUND by
+// the trophic-state ordering above: eutrophic shallow lakes (Secchi 0.9-2.3 m, Carlson 1977) are
+// characteristically a couple of metres deep; the clear oligotrophic references (Tahoe, Crater) are
+// tens of metres. Bodies between the two interpolate smoothly.
+inline constexpr float kTurbidDepth = 2.0f;    // <= this deep  -> turbidity 1
+inline constexpr float kClearDepth  = 20.0f;   // >= this deep  -> turbidity 0
 
 // Floats per hydrology texel. The render texture is R32G32B32A32_SFLOAT:
 //   R = basin water level (HydrologyMap::NO_WATER = dry)   — water-layer P1

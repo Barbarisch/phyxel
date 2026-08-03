@@ -258,29 +258,70 @@ vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient) {
 // The surface
 // ---------------------------------------------------------------------------------------------
 
-// Beer-Lambert extinction per world unit (≈1 m per voxel). ⚑GROUND: the SHAPE is real — clear
-// water absorbs red roughly an order of magnitude faster than blue (Pope & Fry 1997 measure
-// ~0.42 /m at 650 nm, ~0.05 /m at 550 nm, ~0.014 /m at 450 nm). Blue is nudged UP from the
-// physical value because a voxel world's water bodies are metres deep, not tens of metres, and
-// the true blue coefficient would show no gradient at all over a 5-voxel pond.
+// Beer-Lambert extinction per world unit (≈1 m per voxel), CLEAR-water endpoint (turbidity 0).
+//
+// ⚑GROUND — Pope, R.M. & Fry, E.S. (1997), "Absorption spectrum (380-700 nm) of pure water. II.
+// Integrating cavity measurements," Applied Optics 36(33):8710-8723. The authors' own tabulated
+// data (omlc.org/spectra/water/data/pope97.txt), converted to 1/m, are NAPIERIAN — i.e. already the
+// right units for exp(-a*z), no 2.303 conversion:
+//        650 nm (R) 0.340      550 nm (G) 0.0565      450 nm (B) 0.00922
+//
+// ⚑THE SHIPPED VALUES DEVIATE, AND THE OLD COMMENT MISREPORTED BY HOW MUCH (grounding-auditor,
+// 2026-08-03). It said "blue is nudged up" and quoted 0.42/0.05/0.014. In fact ALL THREE are raised
+// and the quoted figures were themselves wrong. Stated per channel, real number first:
+//    R  real 0.340   shipped 0.42    (1.24x)
+//    G  real 0.0565  shipped 0.09    (1.59x)  <- the old comment claimed to ship 0.05; it ships 0.09
+//    B  real 0.00922 shipped 0.045   (4.88x)  <- old comment claimed the real value was 0.014 (1.5x high)
+// The deviation is DELIBERATE and kept: a voxel world's water is metres deep, not tens of metres, so
+// the true coefficients show almost no gradient over a 5-voxel pond. It is an artistic exaggeration
+// of a real spectrum, not a measurement — do not cite these three numbers as physical.
 const vec3 WATER_EXTINCTION = vec3(0.42, 0.09, 0.045);
-// Fully-turbid endpoint. ⚑PLACEHOLDER — NOT GROUNDED, and deliberately unreachable by normal
-// operation: v4 W1's derivation returns turbidity 0 for every body, so the only way to reach this
-// is the `water_look` debug override (the positive control that proves the profile pipe carries a
-// value to the screen). W2 replaces these numbers with a Jerlov/Secchi-derived spectrum and only
-// THEN does derivation start producing non-zero turbidity. Do not cite these as grounded.
-// Shape rationale (the direction is right even though the magnitudes are not measured): sediment
-// attenuates far more overall and much more FLATLY across the spectrum than clear water, which is
-// why murky water goes grey-green instead of deep blue.
-const vec3 WATER_EXTINCTION_TURBID = vec3(1.20, 0.90, 0.75);
+// Fully-turbid endpoint (turbidity 1) — a eutrophic / sediment-laden inland water body.
+//
+// ⚑THE PREVIOUS PLACEHOLDER HAD THE SPECTRAL ORDER BACKWARDS. It was vec3(1.20, 0.90, 0.75):
+// R > G > B, i.e. blue transmitting BEST, on the assumption that turbidity just "flattens" the
+// clear-water spectrum toward grey. That is wrong, and citably so — Akkaynak, D. & Treibitz, T.
+// (2017), "What Is the Space of Attenuation Coefficients in Underwater Computer Vision?" (CVPR),
+// derives RGB attenuation from the Jerlov dataset and finds the familiar "red dies first" rule is
+// an OCEANIC-water phenomenon only: in very turbid coastal water BLUE attenuates fastest, because
+// suspended sediment and CDOM (gelbstoff) preferentially absorb and scatter blue-green, leaving a
+// green-yellow (~520-570 nm) transmission window. That is why real muddy water reads OLIVE/BROWN
+// rather than grey. The order here is therefore B > R > G.
+//
+// ⚑MAGNITUDE, grounded by construction rather than read off a table:
+//   * Carlson, R.E. (1977), "A Trophic State Index for Lakes," Limnol. Oceanogr. 22(2):361-368 —
+//     a eutrophic lake has Secchi depth Z_SD = 0.9-2.3 m; take the mid-range 1.5 m.
+//   * Holmes, R.W. (1970) gives Kd ~ 1.4/Z_SD for TURBID estuarine water (the turbid-end
+//     counterpart of Poole & Atkins' 1.7 for clear water).
+//   => broadband Kd ~ 1.4 / 1.5 = 0.93 /m, and these three channels average 0.933.
+//
+// ⚑WHAT IS *NOT* MEASURED: the per-channel SPLIT about that mean. The magnitude and the ordering
+// are each sourced; the exact spread between them is an artistic distribution consistent with both
+// constraints. Jerlov's own Kd(lambda) table for a named coastal type (5C-9C) would replace it —
+// see Solonenko & Mobley (2015), Applied Optics 54(17):5392-5401, or Jerlov (1976) Marine Optics
+// Table XXXI. Both are paywalled and could not be obtained; this is the honest stand-in.
+//
+// NOTE the mix() between the endpoints CROSSES OVER: clear water is R-dominated (0.42 vs 0.045),
+// turbid water is B-dominated (1.20 vs 0.95). That crossover is the physically described behaviour,
+// not an artifact — water shifts from blue-absorbing-least to blue-absorbing-most as it silts up.
+const vec3 WATER_EXTINCTION_TURBID = vec3(0.95, 0.65, 1.20);
 
 // In-scattered colour — what the water body itself glows with as the transmitted scene fades out.
+// ⚑UNSOURCED (flagged by the grounding-auditor 2026-08-03): this shipped long before v4 and carries
+// no citation. It is an artistic clear-water colour. Left AS IS deliberately — changing it would
+// alter every existing world's water, which is a visual decision, not a grounding fix.
 const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
-// ⚑PLACEHOLDER, same status as WATER_EXTINCTION_TURBID. Turbid water in-scatters MORE: suspended
-// particles bounce light back, so murky water is brighter at shallow depth even as it becomes less
-// transparent. Without this term rising with turbidity, murky water just goes black — the classic
-// wrong-looking result.
-const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.24, 0.20);
+// Turbid in-scatter. ⚑THE DIRECTION IS GROUNDED; THE MAGNITUDE IS NOT — keep it labelled.
+// Turbid water in-scatters MORE (suspended particles bounce light back, so murky water is BRIGHTER
+// at shallow depth even as it becomes less transparent; without this it just goes black, which is
+// the classic wrong-looking result). Measured support: Lobo, F.L. et al. (2014), "Light
+// backscattering in turbid freshwater: a laboratory investigation," J. Appl. Remote Sens.
+// 8(1):083611 — particle backscatter rises monotonically with turbidity, bb ~ 0.018-0.030 x NTU.
+// ⚑That grounds the SIGN and rough family, NOT this RGB triple: converting a backscattering
+// coefficient into an in-scattered colour in a Beer-Lambert compositing model needs a
+// radiative-transfer step (single-scattering albedo + source-function integration) nobody has done
+// here. Skewed green to match the transmission window named above. Artistic magnitude — do not cite.
+const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.26, 0.18);
 
 // Path length (world units) over which a shoreline fades from invisible to fully water.
 // ⚑GROUND: 0.4 voxel ≈ 40 cm of water — about where a real shore stops reading as wet ground and

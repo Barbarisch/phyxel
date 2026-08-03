@@ -668,7 +668,7 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
 void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                                            const Camera& camera, const glm::mat4& projectionMatrix,
                                            float submergence, float depthBelow,
-                                           VkExtent2D screenExtent) {
+                                           VkExtent2D screenExtent, float turbidity) {
     if (!m_sceneBound || !m_reflectionBound || uboSet == VK_NULL_HANDLE) return;
     if (m_underwaterPipeline == VK_NULL_HANDLE || submergence <= 0.0f) return;
 
@@ -682,8 +682,12 @@ void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDesc
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
     pc.params     = glm::vec4(0.0f, 0.0f, submergence, depthBelow);
+    // params2.w was the one free slot in this 128-byte block (v4 W2): the turbidity of the body the
+    // camera is INSIDE. The surface samples its profile per pixel from the hydrology texture, but a
+    // fullscreen overlay has no per-pixel body — without this the same lake reads murky from above
+    // and clear from below, and breaking the surface pops.
     pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
-                              static_cast<float>(screenExtent.height), 0.0f, 0.0f);
+                              static_cast<float>(screenExtent.height), 0.0f, turbidity);
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(WaterPushConstants), &pc);
