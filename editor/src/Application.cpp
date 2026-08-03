@@ -11536,6 +11536,13 @@ void Application::registerWaterCommands() {
     //
     // Needs a hydrology bake — a flat-sea world has no water bodies and therefore no profiles.
     // `hydrology_bound` reports whether this world can show anything at all.
+    // Screen-space reflection toggle (v4 W4). OFF = the pre-W4 procedural-sky-only reflection, so
+    // this is the A/B control for "the reflection is what changed" AND the perf A/B.
+    reg.on("water_ssr", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        renderCoordinator->setWaterSsr(cmd.params.value("enabled", renderCoordinator->waterSsr()));
+        r = {{"success", true}, {"enabled", renderCoordinator->waterSsr()}};
+    });
     reg.on("water_look", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         const glm::vec3 cur = renderCoordinator->waterLook();

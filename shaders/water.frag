@@ -108,6 +108,13 @@ void main() {
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
     inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness);
+    // SSR (v4 W4). params2.z used to be `reflectionEnabled` for a PLANAR reflection branch that was
+    // permanently dormant (RenderCoordinator hardcoded it off because the shared mirror pass is
+    // broken). The flag is now the SSR toggle — same plumbing, a reflection that actually works on
+    // displaced water. viewProj is the water's own ABSOLUTE-space matrix (ubo.viewProj is
+    // camera-relative and would march the ray in the wrong frame).
+    inp.viewProj     = pc.viewProj;
+    inp.ssr          = pc.params2.z;
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at
     // different levels (lake rim, lake→dry falloff), the connecting quad is a vertical wall
@@ -123,20 +130,10 @@ void main() {
     float maxCrest = pc.params.z * 2.5 + 0.5;
     if (abs(fragWorldPos.y - inp.restLevelY) > maxCrest) discard;
 
-    vec4 water = shadeWaterSurface(inp);
-
-    // Dormant: planar scene reflection (re-enable once a correct reflection pass lands —
-    // WaterSystemV3 Phase 5 favours screen-space reflection instead).
-    if (pc.params2.z > 0.5) {
-        vec2 screenUV = clamp(gl_FragCoord.xy / pc.params2.xy, vec2(0.001), vec2(0.999));
-        vec3 N = waterRippleNormal(fragWorldPos.xz, pc.camPosTime.w, 0.05);
-        screenUV += N.xz * 0.03;
-        screenUV = clamp(screenUV, vec2(0.001), vec2(0.999));
-        vec3 V = normalize(pc.camPosTime.xyz - fragWorldPos);
-        float ndv  = clamp(dot(V, N), 0.0, 1.0);
-        float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
-        water.rgb = mix(water.rgb, texture(reflectionTex, screenUV).rgb, 0.85 * fres);
-    }
-
-    outColor = water;
+    // The planar-reflection branch that used to live here is GONE (v4 W4). It sampled
+    // `reflectionTex` from the shared mirror pass, was permanently disabled, and would have been
+    // wrong on Gerstner-displaced water anyway (planar reflection assumes a flat mirror plane).
+    // Screen-space reflection replaces it inside shadeWaterSurface, where it composes correctly
+    // with Fresnel and the ripple normal instead of being blended over the finished colour.
+    outColor = shadeWaterSurface(inp);
 }

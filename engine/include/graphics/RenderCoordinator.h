@@ -380,6 +380,15 @@ public:
     // {active ? 1 : 0, turbidity, roughness}.
     glm::vec3 waterLook() const;
 
+    // ── Screen-space reflection on water (v4 W4) ──────────────────────────────────────────────
+    // Marches the scene depth buffer the water pass already binds, falling back to the procedural
+    // sky wherever the ray leaves the screen or finds nothing. OFF reproduces the pre-W4 look
+    // exactly (sky reflection only), which makes it the A/B control for before/after captures and
+    // the escape hatch if it misbehaves. Water can cover the whole screen, so this is the one
+    // v4 item with real per-fragment cost — measure in Release.
+    void setWaterSsr(bool on) { m_waterSsrEnabled = on; }
+    bool waterSsr() const { return m_waterSsrEnabled; }
+
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
     // fades across a short band so breaking the surface doesn't pop. `depthBelow` receives how far
     // under the surface the eye is (world units, 0 when above). Drives the underwater fog overlay.
@@ -595,6 +604,7 @@ private:
     bool  m_waterLookActive = false;
     float m_waterLookTurbidity = 0.0f;
     float m_waterLookRoughness = 1.0f;
+    bool  m_waterSsrEnabled = true;   // v4 W4; POST /api/debug/water_ssr toggles it
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
     RaycastVisualizer* raycastVisualizer;

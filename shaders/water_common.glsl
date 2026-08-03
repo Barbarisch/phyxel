@@ -328,6 +328,110 @@ const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.26, 0.18);
 // starts reading as water.
 const float SHORE_FADE = 0.4;
 
+// ---------------------------------------------------------------------------------------------
+// SCREEN-SPACE REFLECTION (Water Appearance v4 W4)
+// ---------------------------------------------------------------------------------------------
+//
+// WHY: until now water reflected a PROCEDURAL SKY and nothing else — `waterSkyReflection` is a
+// gradient plus a sun disc. A mirror-flat lake could not show the mountain behind it, which is the
+// single most obvious "this is not water" tell on calm water. Planar reflection was the other
+// option and is rejected: it assumes a flat mirror plane, and this sea is Gerstner-DISPLACED, plus
+// the engine's shared mirror pass is known-broken (wrong winding/projection, RenderCoordinator).
+//
+// The inputs cost nothing new — the water pass ALREADY binds the half-res scene-colour copy
+// (refractionTex, captured before water draws, so it contains terrain + sky and no water) and the
+// scene depth buffer. SSR is a march over data already resident.
+//
+// ⚑ROUGHNESS COUPLING IS AUTOMATIC, BY DESIGN. There is deliberately no explicit "blur by
+// roughness" term here: the reflected direction is built from N, and N already carries the ripple
+// detail scaled by the per-body `roughness`. A choppy surface therefore scatters its reflection
+// rays and the mirror breaks up on its own; when W3 derives a low roughness for a calm lake, N
+// flattens and the same code returns a coherent mirror. One parameter, both behaviours — adding a
+// second blur knob would let the two disagree.
+//
+// ⚑PROJECTION: this marches in ABSOLUTE world space and projects with the water's OWN viewProj.
+// It must not use ubo.viewProj — the scene UBO's matrix is camera-RELATIVE while water geometry is
+// authored in absolute world space (see the Phase 1 note at the top of this file). Depth, however,
+// is compared as a LINEAR DISTANCE ALONG THE CAMERA FORWARD AXIS, which is convention-independent:
+// a translation of the view origin does not change how far a point is from the camera.
+
+// Project a world point to screen UV. Returns false when it lands outside the frustum/screen.
+bool waterProjectToUV(vec3 worldP, mat4 viewProj, out vec2 uv) {
+    vec4 clip = viewProj * vec4(worldP, 1.0);
+    if (clip.w <= 1e-5) return false;              // behind the eye
+    vec2 ndc = clip.xy / clip.w;
+    uv = ndc * 0.5 + 0.5;
+    return all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
+}
+
+// March the reflected ray against the depth buffer. Returns true on a hit, with the reflected
+// colour and a confidence in [0,1] that fades the result out rather than popping it.
+bool waterSsrTrace(vec3 origin, vec3 dir, mat4 viewProj, vec3 camPos, vec3 fwd,
+                   float jitter, out vec3 hitColor, out float confidence) {
+    hitColor = vec3(0.0);
+    confidence = 0.0;
+
+    // ⚑BUDGET, stated because this is the one part of v4 with real perf risk: 24 steps over 120
+    // world units (5 u per step) then a 5-iteration binary refine. Water can cover the whole
+    // screen, so this is the cost that must be MEASURED in Release, not estimated.
+    const int   STEPS      = 24;
+    const int   REFINE     = 5;
+    const float MAX_DIST   = 120.0;
+    // A hit must be *just* behind the surface it hit. Without this, the ray passing far behind a
+    // foreground object registers as a reflection of it — the classic SSR smear.
+    const float THICKNESS  = 6.0;
+
+    float stepLen = MAX_DIST / float(STEPS);
+    float prevT = 0.0;
+    // Jitter the first step so the fixed stride does not produce banded reflections; the ripple
+    // normal already varies per pixel, but the STEP pattern would otherwise be coherent.
+    float t = stepLen * (0.5 + 0.5 * jitter);
+
+    for (int i = 0; i < STEPS; ++i) {
+        vec3 P = origin + dir * t;
+        vec2 uv;
+        if (!waterProjectToUV(P, viewProj, uv)) return false;   // left the screen -> sky fallback
+
+        float sceneD = texture(sceneDepthTex, uv).r;
+        if (sceneD >= 0.9999) { prevT = t; t += stepLen; continue; }   // sky: nothing to reflect
+
+        float sceneDist = waterLinearDepth(sceneD, ubo.proj);
+        float rayDist   = dot(P - camPos, fwd);
+        float diff      = rayDist - sceneDist;
+
+        if (diff > 0.0 && diff < THICKNESS) {
+            // Binary refine between the last miss and this hit so the reflection lands on the
+            // silhouette rather than a step-quantised approximation of it.
+            float lo = prevT, hi = t;
+            for (int r = 0; r < REFINE; ++r) {
+                float mid = 0.5 * (lo + hi);
+                vec3  Pm  = origin + dir * mid;
+                vec2  uvm;
+                if (!waterProjectToUV(Pm, viewProj, uvm)) { hi = mid; continue; }
+                float sd = texture(sceneDepthTex, uvm).r;
+                if (sd >= 0.9999) { lo = mid; continue; }
+                if (dot(Pm - camPos, fwd) - waterLinearDepth(sd, ubo.proj) > 0.0) hi = mid;
+                else                                                              lo = mid;
+            }
+            vec3 Pf = origin + dir * hi;
+            vec2 uvf;
+            if (!waterProjectToUV(Pf, viewProj, uvf)) return false;
+
+            hitColor = texture(refractionTex, uvf).rgb;
+            // Confidence: fade out at the screen edge (where the data simply runs out — the
+            // characteristic SSR artifact is a hard cut there) and with distance travelled.
+            vec2 edge = min(uvf, 1.0 - uvf);
+            float edgeFade = smoothstep(0.0, 0.12, min(edge.x, edge.y));
+            float distFade = 1.0 - smoothstep(0.6 * MAX_DIST, MAX_DIST, hi);
+            confidence = edgeFade * distFade;
+            return confidence > 0.001;
+        }
+        prevT = t;
+        t += stepLen;
+    }
+    return false;
+}
+
 // A/B probe. Screen-space metrics cannot separate world-aligned voxel terraces from the foam
 // noise's own cells whenever the camera is yawed, so attribute artifacts by switching foam OFF
 // and re-shooting the identical vantage instead of inferring. Ships at 1.0.
@@ -370,6 +474,12 @@ struct WaterSurfaceInput {
     // pre-change capture.
     float turbidity;   // 0 = clear (Pope & Fry constants), 1 = fully turbid
     float roughness;   // multiplier on the fine ripple slope; 1 = shipped detail, 0 = mirror
+    // ── SCREEN-SPACE REFLECTION (v4 W4) ───────────────────────────────────────────────────────
+    // The water's OWN absolute-world-space viewProj. NOT ubo.viewProj, which is camera-relative
+    // (see the SSR block above) — passing it explicitly keeps this file independent of each
+    // includer's push-constant layout.
+    mat4  viewProj;
+    float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -442,6 +552,21 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
     vec3  R    = reflect(-V, N);
     vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight);
+
+    // SCREEN-SPACE REFLECTION (v4 W4). The sky stays the FALLBACK, never the loser: where the ray
+    // leaves the screen, finds no geometry, or lands on a surface too far behind, the water keeps
+    // the procedural sky it always had. That is what makes this additive rather than a regression —
+    // ssr = 0 is bit-identical to the pre-W4 look.
+    if (inp.ssr > 0.5) {
+        // Offset the ray origin along the normal before marching, or the very first sample sits on
+        // the water surface itself and self-intersects.
+        vec3 ssrColor; float ssrConf;
+        float jitter = fract(waterSimplex(inp.fragCoord * 0.37) * 7.0);
+        if (waterSsrTrace(inp.worldPos + N * 0.05, R, inp.viewProj, inp.camPos, fwd,
+                          jitter, ssrColor, ssrConf)) {
+            refl = mix(refl, ssrColor, ssrConf);
+        }
+    }
 
     vec3 color = mix(body, refl, fres);
 

@@ -200,6 +200,143 @@ Kd ≈ 1.7/20 = 0.085 vs eutrophic 1.4/1.5 = 0.93 → ~11× faster → 22.0/11. 
 
 ---
 
+## 0d. W4 — screen-space reflection (2026-08-03)
+
+**The problem this closes.** Water reflected a **procedural sky and nothing else** —
+`waterSkyReflection` is a gradient plus a sun disc. A mirror-flat lake could not show the mountain
+behind it. That is the single most obvious "not water" tell on calm water, and it is what the user's
+"a big lake … reflect really well" asks for.
+
+**Why SSR and not planar.** Planar reflection assumes a flat mirror plane — this sea is
+Gerstner-**displaced**, so a plane is the wrong model — and the engine's shared mirror pass is
+known-broken (wrong winding/projection, which is why `m_waterReflectionActive` had been hardcoded
+`false` since v3). SSR also needs **no new resources**: the water pass already binds the half-res
+scene-colour copy (captured before water draws, so it holds terrain + sky and no water) and the
+scene depth buffer. It is a march over data already resident.
+
+**Design notes worth keeping.**
+- ⚑**Roughness coupling is AUTOMATIC and deliberate.** There is *no* explicit "blur by roughness"
+  term. The reflected ray is built from `N`, and `N` already carries the ripple detail scaled by the
+  per-body `roughness` — so a choppy surface scatters its own reflection rays, and when W3 derives a
+  low roughness for a calm lake the same code returns a coherent mirror. One parameter, both
+  behaviours; a second blur knob could only ever disagree with the first.
+- ⚑**Projection frame matters.** The march is in ABSOLUTE world space and projects with the water's
+  **own** `viewProj`, passed explicitly through `WaterSurfaceInput`. `ubo.viewProj` is
+  camera-RELATIVE (a v3 Phase-1 property) and would march the ray in the wrong frame. Depth is
+  compared as a linear distance along the camera forward axis, which is convention-independent.
+- Budget: 24 steps over 120 world units, 5-iteration binary refine, 6-unit thickness test to reject
+  the classic "ray passed far behind a foreground object" smear. Confidence fades at screen edges
+  (where SSR data simply runs out) and with distance, so misses **fall back to the sky** rather than
+  popping. `ssr = 0` is bit-identical to the pre-W4 look.
+- The dead planar branch in `water.frag` is **deleted**; `params2.z` is reused as the SSR flag, and
+  `POST /api/debug/water_ssr {enabled}` is the A/B control.
+- **Cell water (rivers/creeks) keeps sky reflection.** Narrow, close-range, often overhung water is
+  the worst case for a screen-space march — most rays leave the screen or hit the bank.
+
+**L4 evidence — a PURPOSE-BUILT fixture, because the natural world could not falsify it.**
+Three natural vantages in `WaterTableTest` produced **no measurable difference** between SSR on and
+off, and that was *correct but useless*: looking across open water the reflected ray travels forward
+and up into empty sky, so SSR rightly finds nothing. A null result there is equally consistent with
+"SSR is broken", so it proves nothing either way. The three, named so the claim is checkable rather
+than asserted: **(4270, 152, −14848) yaw 0** — measured A/B, 0.1–1.4× envelope, i.e. no result, over crops
+`750,380,1180,660` and `300,330,1180,660` (stated so the number is recomputable, not just
+assertable) (`screenshot_20260803_132150_219` + captures `…_132224_226`…`…_132255_472`);
+**(4400, 151, −14700) yaw −90** (`…_132407_097`); **(4450, 151, −14750) yaw 90**
+(`…_132426_616`). The last two are water-and-sky only — visibly nothing to reflect. Following the project's own rule — *pick the world that
+maximises the defect, not the world where it was noticed* — a 100×35×4 **Bricks wall** was placed
+across the water at (4400..4500, 145..180, −14702..−14698), giving the ray something high-contrast
+to hit (red brick against blue-teal water and sky).
+
+| crop | SSR ON | SSR OFF | shift |
+|---|---|---|---|
+| water beside the wall | (98.1, 111.6, 106.2) | (160.3, 181.9, 195.4) | **R 178× envelope**, G 76×, B 96× |
+| water further out | (114.7, 130.7, 133.2) | (121.9, 139.7, 146.0) | R 4.0–6.5×, G 3.7–5.3×, B 3.7–5.1× |
+
+With SSR on, water beside the wall darkens sharply; with it off, it returns to pale sky. Blue falls
+hardest (89 levels), consistent with a blue sky reflection being replaced by a brown wall, and the
+effect decays with distance from the wall.
+
+⚑**"IT GOT DARKER" IS NOT PROOF OF REFLECTION — a bug that merely darkened water would look the
+same.** The distinguishing test (run by the solution-auditor, not by me — my own prose said
+"brick-tinted", which the raw numbers do not support: R is the *lowest* channel in the ON frame):
+sample the wall's own on-screen colour (82.6, 64.9, 50.0 — identical in both frames, so only the
+flag differs), then check whether the **(ON − OFF) colour vector is parallel to the
+(wall − sky) vector**. Measured **cosine similarity 0.995**. The change points almost exactly at
+"blend toward the wall", which generic darkening cannot produce by coincidence. That is the
+falsifier for this claim; the envelope shift alone is not.
+
+**PERF — MEASURED, COUNTERBALANCED, and it is not free (Release).**
+
+⚑**The first protocol was biased and the solution-auditor caught it.** v1 measured a *block* of ON
+then a *block* of OFF, always in that order. This project has documented monotonic drift (water-sim
+refill, streaming settle, restart variance), so ON-always-first would bias ON slower in **every**
+run — precisely the pattern v1 reported. v1's numbers are therefore not cited here. The table below
+uses `scratchpad/ssr_perf2.ps1`: ON and OFF **interleaved sample by sample**, with the leading state
+**alternating each pair**, 3 frames discarded after every state switch, 30 samples per arm. Raw
+per-sample arrays are archived (they were prose-only before, a regression from the W1/W2 standard):
+
+**THREE independent sessions per vantage** (a single session would assert stability rather than show
+it — v1's repeats spanned ~0.6 ms, so one sample proves nothing about spread). Every raw array is
+archived under `docs/evidence/water-v4-w4-ssr-perf-*.json`:
+
+| vantage | run | SSR ON | SSR OFF | delta | arms overlap? |
+|---|---|---|---|---|---|
+| wall in view, rays **HIT** | 1 | 35.00 | 32.32 | **+2.68 ms (8.3%)** | no |
+| | 2 | 34.68 | 32.05 | **+2.64 ms (8.2%)** | **yes** — one OFF spike lifted p90 to 35.10 |
+| | 3 | 34.58 | 31.87 | **+2.72 ms (8.5%)** | no |
+| open water, rays **MISS** | 1 | 34.79 | 30.79 | **+4.00 ms (13.0%)** | no |
+| | 2 | 33.98 | 30.71 | **+3.27 ms (10.6%)** | no |
+| | 3 | 34.36 | 31.02 | **+3.34 ms (10.8%)** | no |
+
+**Hit case 2.64–2.72 ms (spread 0.08 ms); miss case 3.27–4.00 ms (spread 0.73 ms).** 5 of 6 runs
+have non-overlapping arms; the exception is a single OFF outlier in wall run 2 whose median is
+nevertheless within 0.04 ms of the other two. Call it **~2.7 ms when rays hit, ~3.3–4.0 ms when they
+miss — 8–13% of frame time** in this scene.
+
+**Why this is the effect and not drift** (the confound the auditor raised, answered from the data
+rather than by assertion): within the original wall run, the ON−OFF gap goes 2.54 ms (first 5
+samples) → 3.05 ms (last 5); open water 3.01 → 4.35 ms. A residual ordering/drift artifact predicts
+the **opposite** signature — a gap that is large early and collapses toward zero once the states are
+properly interleaved. The gap *widens*, so if anything the quoted medians are slightly conservative.
+Combined with the cross-session stability above, the cost is earned rather than inferred.
+
+⚑**MISSES COST MORE THAN HITS — the opposite of the intuition, and the named optimisation target.**
+A hit returns as soon as it is found; a ray that sails into open sky marches all 24 steps and then
+returns nothing. So the *common* case (water under empty sky) is the expensive one. The obvious next
+move is an early-out for rays that are climbing and have seen only sky — deliberately NOT done here,
+because it can silently drop the reflection of a tall object seen past a gap of sky, and that
+trade-off deserves its own measured increment rather than being smuggled in.
+
+⚑**A MEASUREMENT I GOT WRONG AND CORRECTED.** The first two Release runs were labelled "wall in
+view / rays hit". They were not: the wall had been placed in a *Debug* session and never saved, so
+the Release world had no wall and both runs were miss-dominated. Caught by `clear_region` returning
+`removed: 0`. The table above is after re-placing the fixture in Release and re-running. If a
+capture's fixture is not verified present *in the session being measured*, the label is a guess.
+
+**⚑NOT verified — do not claim these.**
+1. **Half-res reflection source is untested as a mirror.** `captureRefraction` is half-res *because
+   refraction is a blurred lookup*; a mirror is not. Whether a glassy lake reads soft/aliased off a
+   half-res source is an open §11 question and was not measured.
+2. No natural-scene reflection capture — the only positive evidence uses the synthetic wall. Three
+   natural vantages were tried first and all returned nothing, for the correct reason (open water
+   reflects sky), which is exactly why the fixture was built.
+3. SSR + the ⚑turbid crossover interact (a turbid body's reflection sits over a different body
+   colour); not examined.
+4. **Whether 8–13% of frame time is an acceptable price is a USER decision, not mine.** It ships
+   default-ON because the user chose "full SSR now", and `POST /api/debug/water_ssr {enabled:false}`
+   reverts to the pre-W4 look exactly. If the answer is "too expensive", the early-out above is the
+   first lever and shortening the 120-unit march is the second.
+5. **ZERO automated test coverage.** W1 and W2 each shipped with unit tests; W4 is entirely shader
+   code and has none — every claim above rests on runtime capture. That is arguably unavoidable for
+   GLSL in this codebase, but it is a real difference in evidence class and is stated rather than
+   glossed. A future increment could pin the tracer's *math* (projection round-trip, thickness
+   rejection) by extracting it to a CPU-testable form.
+6. Frame times here are ~31–35 ms (≈29 FPS) in Release at a 15 km-from-origin streaming vantage —
+   the scene is dominated by the known shadow-pass cost, so the *percentage* would differ in a
+   cheaper scene even if the absolute millisecond cost held.
+
+---
+
 ## 1. Ground truth — what ships today (source read 2026-08-03)
 
 | Concern | Where | State |

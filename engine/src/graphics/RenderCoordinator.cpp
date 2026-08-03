@@ -2224,12 +2224,14 @@ void RenderCoordinator::drawFrame() {
         renderReflectionPass(currentFrame);
     }
 
-    // Water reflection: the surface shader uses a procedural sky+sun reflection, so we
-    // no longer re-render the scene for water. True planar scene reflection is deferred
-    // until a correct reflection pass exists (the shared mirror pass is broken — wrong
-    // winding/projection). When that lands, set m_waterReflectionActive and run a
-    // reflection pass with the sea plane; the water shader's dormant branch samples it.
-    m_waterReflectionActive = false;
+    // Water reflection (Water Appearance v4 W4): this flag no longer means "planar reflection is
+    // available" — that branch is gone. It now enables SCREEN-SPACE reflection in the water shader,
+    // which marches the depth buffer the water pass already binds and falls back to the procedural
+    // sky on a miss. Planar was rejected on two counts: it assumes a flat mirror plane (this sea is
+    // Gerstner-displaced) and the shared mirror pass is broken (wrong winding/projection).
+    // Runtime-toggleable via POST /api/debug/water_ssr — that toggle is the A/B control for every
+    // before/after capture and the escape hatch if SSR misbehaves.
+    m_waterReflectionActive = m_waterSsrEnabled;
 
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));

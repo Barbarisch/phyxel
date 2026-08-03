@@ -93,6 +93,12 @@ void main() {
     // own profile, this is where it arrives (per-instance, alongside fragFlow).
     inp.turbidity    = 0.0;
     inp.roughness    = 1.0;
+    // SSR is OFF for cell water in v1 (v4 W4): the coverage decision is oceans + lakes, which the
+    // sea clipmap draws. Rivers and creeks are narrow, close-range and often overhung, which is the
+    // worst case for a screen-space march (most rays leave the screen or hit the bank), so they keep
+    // the sky reflection until there is a reason and a measurement to change it.
+    inp.viewProj     = pc.viewProj;
+    inp.ssr          = 0.0;
 
     outColor = shadeWaterSurface(inp);
 }
