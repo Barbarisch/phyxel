@@ -74,6 +74,13 @@ public:
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 
+    // WIND SPEED (v4 W3). Not used by this pipeline's own shading — it drives the CPU-side per-body
+    // profile (fetch-limited wave energy + Cox-Munk ripple roughness), which reaches the shader
+    // through the hydrology texture. Kept here because this is where the rest of the sea state
+    // already lives, so "the wind" is one object rather than two that can disagree.
+    void  setWindSpeed(float metresPerSecond) { m_windSpeed = metresPerSecond; }
+    float windSpeed() const { return m_windSpeed; }
+
     // Size the wave zone so its taper falls OUTSIDE the far plane. If the zone ends within view,
     // its edge is a ring of flattening water centred on the camera that follows the viewer around —
     // seen from above as a vortex, and read from any angle as "the waves come from where I stand".
@@ -153,6 +160,10 @@ private:
     float m_waveAmplitude = 0.45f;
     float m_waveLength = 14.0f;
     float m_windDirection = 0.6f;   // radians; the dominant swell heading
+    // ⚑GROUND: 6.7 m/s = the mid-point of Beaufort force 4 (11-16 kn), which is the sea state the
+    // amplitude/wavelength above were authored to describe. Defaulting here means the derived
+    // profile reproduces today's look exactly (Cox-Munk roughness comes out at exactly 1.0).
+    float m_windSpeed = 6.7f;
 
     std::chrono::high_resolution_clock::time_point m_startTime;
 };

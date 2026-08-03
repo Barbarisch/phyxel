@@ -345,7 +345,25 @@ void RenderCoordinator::setMaxChunkRenderDistance(float distance) {
 }
 
 void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDirectionRadians) {
-    if (waterPipeline) waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
+    if (!waterPipeline) return;
+    const float oldDir = waterPipeline->windDirection();
+    waterPipeline->setWaves(amplitude, wavelength, windDirectionRadians);
+    // v4 W3: wave energy is now FETCH-limited, and fetch depends on the wind HEADING — so changing
+    // direction changes every body's sea and the hydrology texture must be rebuilt. Before W3 the
+    // direction only rotated the swell in the vertex shader and no CPU state depended on it.
+    if (oldDir != waterPipeline->windDirection())
+        m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+}
+
+void RenderCoordinator::setWindSpeed(float metresPerSecond) {
+    if (!waterPipeline) return;
+    waterPipeline->setWindSpeed(metresPerSecond);
+    // Speed drives both fetch-limited energy and Cox-Munk roughness, both baked into the texture.
+    m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+}
+
+float RenderCoordinator::windSpeed() const {
+    return waterPipeline ? waterPipeline->windSpeed() : 0.0f;
 }
 
 glm::vec3 RenderCoordinator::waveSettings() const {
@@ -1797,8 +1815,14 @@ void RenderCoordinator::drawFrame() {
                 ovr.active    = m_waterLookActive;
                 ovr.turbidity = m_waterLookTurbidity;
                 ovr.roughness = m_waterLookRoughness;
+                // v4 W3: the LIVE wind, so fetch-limited energy and Cox-Munk roughness reflect the
+                // actual sea state rather than a default. Direction comes from the same value the
+                // vertex shader rotates the swell by, so the CPU and GPU cannot disagree on heading.
+                Phyxel::WaterWind wind;
+                wind.speedMs    = waterPipeline->windSpeed();
+                wind.dirRadians = waterPipeline->windDirection();
                 std::vector<float> rgba;
-                Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, rgba);
+                Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, rgba, wind);
                 waterPipeline->recordHydrologyUpload(oneShot, rgba.data(),
                                                      hydro->cellsX(), hydro->cellsZ(),
                                                      hydro->originX(), hydro->originZ(),
@@ -2500,9 +2524,13 @@ void RenderCoordinator::drawFrame() {
                     const auto* gen = chunkManager->getStreamingGenerator();
                     const auto* hyd = gen ? gen->hydrology() : nullptr;
                     const glm::vec3 eye = camera->getPosition();
-                    if (hyd)
+                    if (hyd) {
+                        Phyxel::WaterWind w;
+                        w.speedMs    = waterPipeline->windSpeed();
+                        w.dirRadians = waterPipeline->windDirection();
                         uwTurbidity = Phyxel::waterProfileAt(gen->waterBodies(), eye.x, eye.z,
-                                                             hyd->cellSize()).turbidity;
+                                                             hyd->cellSize(), w).turbidity;
+                    }
                 }
                 waterPipeline->renderUnderwater(
                     vulkanDevice->getCommandBuffer(currentFrame),

@@ -57,6 +57,7 @@ constexpr int kOceanX = 0, kOceanZ = 6;
 constexpr int kLakeX = 5,  kLakeZ = 5;
 constexpr int kPondX = 2,  kPondZ = 9;
 constexpr int kDryX = 9,   kDryZ = 1;   // the 50-high plateau
+constexpr float kPi = 3.14159265358979f;
 
 }  // namespace
 
@@ -75,33 +76,105 @@ TEST(WaterProfileTest, PacksFourFloatsPerCellWithLevelInRed) {
             << "R channel must be the basin level verbatim, cell " << i;
 }
 
-TEST(WaterProfileTest, EnergyFormulaIsPreserved) {
+// REPLACES EnergyFormulaIsPreserved, which pinned the old `log2(areaCells+1)/10` proxy. W3 removes
+// that formula on purpose (its normaliser was eyeballed and it was blind to wind heading), so the
+// pin is deliberately retired rather than discovered broken — and what replaces it asserts the
+// property the old formula COULD NOT express.
+TEST(WaterProfileTest, EnergyIsFetchLimitedNotAreaBased) {
     BakedFixture f;
     std::vector<float> out;
     buildHydroUpload(f.hydro, &f.bodies, {}, out);
 
-    // Sanity: the fixture really is shaped the way the expectations below assume.
     const WaterBodyIndex::Body* lake = f.bodies.bodyAt((kLakeX + 0.5f) * 10.0f, (kLakeZ + 0.5f) * 10.0f);
     const WaterBodyIndex::Body* pond = f.bodies.bodyAt((kPondX + 0.5f) * 10.0f, (kPondZ + 0.5f) * 10.0f);
     ASSERT_NE(lake, nullptr);
     ASSERT_NE(pond, nullptr);
-    ASSERT_EQ(lake->areaCells, 12);
-    ASSERT_EQ(pond->areaCells, 2);
 
-    // LITERALS, not a re-implementation of the formula — a test that recomputes the expression it
-    // is checking cannot fail when the expression changes.
-    //   ocean  -> short-circuits to full energy
-    //   lake   -> log2(12+1)/10 = 0.37004397
-    //   pond   -> log2( 2+1)/10 = 0.15849625  (above the 0.15 floor, so the floor is NOT what pins it)
+    // Ocean is open water: unlimited fetch, fully developed. Unchanged from before.
     EXPECT_FLOAT_EQ(out[texel(f.hydro, kOceanX, kOceanZ) + 1], 1.0f);
-    EXPECT_NEAR(out[texel(f.hydro, kLakeX, kLakeZ) + 1], 0.37004397f, 1e-6f);
-    EXPECT_NEAR(out[texel(f.hydro, kPondX, kPondZ) + 1], 0.15849625f, 1e-6f);
+
+    // These fixture bodies are TINY (10 m cells, tens of metres across). Under the old area proxy
+    // the lake scored 0.37 of a full ocean swell; physically a 36 m puddle carries essentially no
+    // swell at all, and the new curve says so.
+    const float lakeE = out[texel(f.hydro, kLakeX, kLakeZ) + 1];
+    const float pondE = out[texel(f.hydro, kPondX, kPondZ) + 1];
+    EXPECT_LT(lakeE, 0.10f) << "a few-tens-of-metres body cannot build a swell";
+    EXPECT_GT(lakeE, pondE) << "more fetch -> more developed";
+    EXPECT_GT(lakeE, 0.0f);
+}
+
+// THE discriminating property: the same body builds a different sea depending on WIND HEADING.
+// No area-based formula can produce this — it is why fetch replaced area.
+TEST(WaterProfileTest, TheSameBodyGetsDifferentEnergyByWindHeading) {
+    // 10x2 cells at 128 m: 1280 m along X, 256 m along Z.
+    WaterBodyIndex::Body b;
+    b.cls = WaterBodyIndex::Class::Lake;
+    b.areaCells = 20;
+    b.bboxMin = {0, 0};
+    b.bboxMax = {9, 1};
+    b.volumeEst = 30.0f * 20.0f * 128.0f * 128.0f;   // deep enough that turbidity is irrelevant here
+
+    WaterWind along; along.speedMs = kReferenceWindMs; along.dirRadians = 0.0f;          // +X, long axis
+    WaterWind across; across.speedMs = kReferenceWindMs; across.dirRadians = kPi * 0.5f; // +Z, short axis
+
+    const float eAlong  = deriveWaterProfile(&b, 128.0f, along).waveEnergy;
+    const float eAcross = deriveWaterProfile(&b, 128.0f, across).waveEnergy;
+    EXPECT_GT(eAlong, eAcross * 1.5f)
+        << "wind along a 5:1 lake must build a materially bigger sea than wind across it";
+}
+
+// ⚑OCEAN SWELL MUST RESPOND TO WIND (solution-auditor, 2026-08-03). W3's first build short-
+// circuited Ocean to the struct default waveEnergy = 1.0, inherited from W1's "oceans are fully
+// developed" shortcut. That is right about FETCH — an ocean has effectively unlimited fetch — but
+// it also froze the ocean's AMPLITUDE, so the one body the user most associates with a gale was
+// the one body whose swell ignored the wind entirely. Unlimited fetch means tanh -> 1, not
+// scale -> 1: the (U_A/U_A_ref)^2 term still applies.
+TEST(WaterProfileTest, OceanSwellRespondsToWind) {
+    WaterBodyIndex::Body ocean;
+    ocean.cls = WaterBodyIndex::Class::Ocean;
+    ocean.areaCells = 100000;
+    ocean.bboxMin = {0, 0};
+    ocean.bboxMax = {999, 999};
+    ocean.volumeEst = 200.0f * 100000.0f * 128.0f * 128.0f;
+
+    WaterWind calm; calm.speedMs = 3.0f;
+    WaterWind mid;  mid.speedMs  = kReferenceWindMs;
+    WaterWind gale; gale.speedMs = 15.0f;
+
+    const float eCalm = deriveWaterProfile(&ocean, 128.0f, calm).waveEnergy;
+    const float eMid  = deriveWaterProfile(&ocean, 128.0f, mid).waveEnergy;
+    const float eGale = deriveWaterProfile(&ocean, 128.0f, gale).waveEnergy;
+
+    EXPECT_NEAR(eMid, 1.0f, 1e-3f) << "the reference sea is still exactly 1 — existing oceans unchanged";
+    EXPECT_GT(eGale, eMid)  << "a gale must raise the ocean swell";
+    EXPECT_LT(eCalm, eMid)  << "a light air must lower it";
+}
+
+TEST(WaterProfileTest, RoughnessIsDerivedFromWindAndIsBodyIndependent) {
+    // Cox-Munk slope has no fetch term, so two very different bodies under the same wind must get
+    // the SAME roughness. Pinning this stops a future edit from quietly inventing a fetch link.
+    WaterBodyIndex::Body big;  big.cls = WaterBodyIndex::Class::Lake;
+    big.areaCells = 5000; big.bboxMin = {0, 0}; big.bboxMax = {99, 99};
+    big.volumeEst = 40.0f * 5000.0f * 128.0f * 128.0f;
+    WaterBodyIndex::Body tiny; tiny.cls = WaterBodyIndex::Class::Pond;
+    tiny.areaCells = 1; tiny.bboxMin = {0, 0}; tiny.bboxMax = {0, 0};
+    tiny.volumeEst = 1.0f * 128.0f * 128.0f;
+
+    WaterWind calm;  calm.speedMs = 0.5f;
+    WaterWind gale;  gale.speedMs = 15.0f;
+    EXPECT_FLOAT_EQ(deriveWaterProfile(&big, 128.0f, calm).roughness,
+                    deriveWaterProfile(&tiny, 128.0f, calm).roughness);
+    EXPECT_LT(deriveWaterProfile(&big, 128.0f, calm).roughness,
+              deriveWaterProfile(&big, 128.0f, gale).roughness) << "calm must be smoother than gale";
 }
 
 // W1 asserted "turbidity 0 AND roughness 1 everywhere". W2 deliberately breaks the first half —
 // turbidity is now derived — so this test was CHANGED ON PURPOSE, not discovered broken. What
 // survives is the half W2 does not touch: roughness stays neutral until W3, and dry land is never
 // assigned water optics.
+// W1 asserted roughness == 1 because nothing derived it. W3 now derives it from wind — and at the
+// DEFAULT wind (the Beaufort-4 mid-point the shipped constants were authored to) it still comes out
+// exactly 1. That identity is the reason W3 does not silently restyle every existing world.
 TEST(WaterProfileTest, RoughnessStaysNeutralUntilW3AndDryColumnsAreClear) {
     BakedFixture f;
     std::vector<float> out;
@@ -259,6 +332,166 @@ TEST(WaterProfileTest, DegenerateBodiesDoNotProduceNaNTurbidity) {
         EXPECT_FALSE(std::isnan(p.turbidity)) << "non-finite volumeEst produced NaN turbidity";
         EXPECT_FLOAT_EQ(p.turbidity, 0.0f) << "an unmeasurable body must read CLEAR, not murky";
     }
+}
+
+// ── W3: fetch geometry ────────────────────────────────────────────────────────────────────────
+// Fetch is the distance wind blows over open water before reaching a point. These test the pure
+// geometry only — how fetch becomes a wave height is the grounded part and lands separately.
+namespace {
+// A body spanning cells [0..n-1] in each axis, i.e. n cells wide.
+glm::ivec2 lo() { return {0, 0}; }
+}  // namespace
+
+TEST(WaterProfileTest, FetchIsAnisotropicForAnElongatedBody) {
+    // THE point of fetch: the same lake builds a different sea depending on wind heading. A model
+    // that only used area (the shipped log2(area) proxy) cannot express this at all.
+    const glm::ivec2 mn = lo(), mx{9, 1};   // 1280 m x 256 m
+    const float along  = fetchAlongWind(mn, mx, 128.0f, 0.0f);         // +X, the long axis
+    const float across = fetchAlongWind(mn, mx, 128.0f, kPi * 0.5f);   // +Z, the short axis
+    EXPECT_NEAR(along, 1280.0f, 0.01f);
+    EXPECT_NEAR(across, 256.0f, 0.01f);
+    EXPECT_GT(along, across * 4.0f) << "a 5:1 lake must give a >4x fetch difference by heading";
+}
+
+// ⚑THE TEST THAT CAUGHT A REAL BUG (solution-auditor, 2026-08-03). The first implementation
+// computed the bbox's SUPPORT WIDTH (|w*ux| + |d*uz|, the projection/shadow extent) instead of the
+// longest CHORD along the wind — and fetch is a chord: the distance wind actually travels over
+// water. The two coincide only at the cardinal angles AND at the rectangle's own diagonal angle,
+// which for a SQUARE is exactly 45 degrees — the one non-cardinal angle the original suite tested.
+// An elongated body at an oblique, non-diagonal angle is the case that separates them.
+TEST(WaterProfileTest, FetchOnAnElongatedBodyAtAnObliqueAngleIsTheTrueChord) {
+    const glm::ivec2 mn{0, 0}, mx{9, 1};        // 1280 m x 256 m
+    // True longest interior chord along u = min(w/|ux|, d/|uz|):
+    //   30 deg -> min(1280/0.8660, 256/0.5000) = min(1478.0, 512.0) = 512.0
+    //   60 deg -> min(1280/0.5000, 256/0.8660) = min(2560.0, 295.6) = 295.6
+    // The support-width formula gives 1236.5 and 861.7 — 141% and 191% too high.
+    EXPECT_NEAR(fetchAlongWind(mn, mx, 128.0f, kPi / 6.0f), 512.0f, 1.0f);
+    EXPECT_NEAR(fetchAlongWind(mn, mx, 128.0f, kPi / 3.0f), 295.6f, 1.0f);
+}
+
+TEST(WaterProfileTest, FetchAcrossASquareAtFortyFiveDegreesIsItsDiagonal) {
+    // Square body, 4 cells (512 m) a side. At 45 degrees the longest chord IS the diagonal.
+    // ⚑Kept, but note this case is DEGENERATE as a correctness check: for a square, 45 degrees is
+    // the diagonal angle, the one oblique angle where the (wrong) support width and the (right)
+    // chord agree. It passed against the buggy formula too. The elongated-oblique test above is
+    // what actually discriminates; this one only pins the square case.
+    const glm::ivec2 mn = lo(), mx{3, 3};
+    const float diag = fetchAlongWind(mn, mx, 128.0f, kPi * 0.25f);
+    EXPECT_NEAR(diag, 512.0f * std::sqrt(2.0f), 0.5f);
+    EXPECT_GT(diag, fetchAlongWind(mn, mx, 128.0f, 0.0f)) << "diagonal must exceed the axis extent";
+}
+
+TEST(WaterProfileTest, FetchOfASingleCellIsOneCell) {
+    // A one-cell pond must not report zero fetch (inclusive bounds) nor a whole cell-grid's worth.
+    EXPECT_NEAR(fetchAlongWind({5, 5}, {5, 5}, 128.0f, 0.0f), 128.0f, 0.01f);
+}
+
+TEST(WaterProfileTest, FetchIsSymmetricUnderWindReversal) {
+    // Wind from the east and wind from the west cross the same water.
+    const glm::ivec2 mn = lo(), mx{9, 3};
+    for (float a : {0.0f, 0.7f, 1.3f, 2.5f}) {
+        EXPECT_NEAR(fetchAlongWind(mn, mx, 128.0f, a),
+                    fetchAlongWind(mn, mx, 128.0f, a + kPi), 0.01f) << "angle " << a;
+    }
+}
+
+// ── W3: fetch-limited wave growth (SMB/CERC) and wind-driven slope (Cox & Munk) ───────────────
+// Expected values are the GROUNDING PASS's own independently-derived sanity figures, which this
+// implementation reproduces: at Beaufort-4 wind a 500 m pond reaches Hs 0.13 m, a 6 km lake
+// 0.36 m, the shipped 0.9 m swell needs ~69 km of fetch, and the fully-developed cap is 1.57 m.
+// Energy is the tanh term, so Hs = 0.283 * energy * U_A^2/g with U_A(6.7) = 7.3677.
+TEST(WaterProfileTest, FetchLimitedEnergyMatchesTheSmbCurve) {
+    const float U = kReferenceWindMs;   // 6.7 m/s, Beaufort 4 mid-point
+    EXPECT_NEAR(fetchLimitedEnergy(500.0f,   U), 0.082685f, 1e-4f) << "500 m pond";
+    EXPECT_NEAR(fetchLimitedEnergy(6000.0f,  U), 0.231080f, 1e-4f) << "6 km lake";
+    EXPECT_NEAR(fetchLimitedEnergy(69000.0f, U), 0.575964f, 1e-4f) << "69 km -> the shipped 0.9 m swell";
+
+    // The same numbers expressed as significant wave height, which is what the grounding pass
+    // actually quoted — checking the curve in the units it was sourced in, not just the ratio.
+    const float uA = 0.71f * std::pow(U, 1.23f);
+    auto hs = [&](float F) { return 0.283f * fetchLimitedEnergy(F, U) * uA * uA / 9.81f; };
+    EXPECT_NEAR(hs(500.0f),   0.13f, 0.01f);
+    EXPECT_NEAR(hs(6000.0f),  0.36f, 0.01f);
+    EXPECT_NEAR(hs(69000.0f), 0.90f, 0.01f);
+}
+
+TEST(WaterProfileTest, FetchLimitedEnergyIsBoundedAndMonotonic) {
+    const float U = kReferenceWindMs;
+    // Bounded [0,1] BY CONSTRUCTION — this is why the SMB tanh term is used directly instead of a
+    // ratio against a separately-sourced fully-developed height, which would exceed 1 at big fetch.
+    EXPECT_FLOAT_EQ(fetchLimitedEnergy(0.0f, U), 0.0f);
+    EXPECT_NEAR(fetchLimitedEnergy(1.0e9f, U), 1.0f, 1e-4f) << "unlimited fetch -> fully developed";
+    float prev = -1.0f;
+    for (float F : {10.0f, 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f}) {
+        const float e = fetchLimitedEnergy(F, U);
+        EXPECT_GE(e, 0.0f); EXPECT_LE(e, 1.0f);
+        EXPECT_GT(e, prev) << "energy must rise strictly with fetch (F=" << F << ")";
+        prev = e;
+    }
+}
+
+TEST(WaterProfileTest, StrongerWindNeedsMoreFetchToFullyDevelop) {
+    // X = g*F/U_A^2, so at a FIXED fetch a stronger wind is LESS developed. This is the physical
+    // behaviour that a pure area/size proxy cannot express at all.
+    const float F = 6000.0f;
+    EXPECT_GT(fetchLimitedEnergy(F, 4.0f), fetchLimitedEnergy(F, 6.7f));
+    EXPECT_GT(fetchLimitedEnergy(F, 6.7f), fetchLimitedEnergy(F, 15.0f));
+}
+
+TEST(WaterProfileTest, DegenerateWindAndFetchAreZeroNotNaN) {
+    for (float F : {0.0f, -1.0f, std::numeric_limits<float>::quiet_NaN()})
+        EXPECT_FLOAT_EQ(fetchLimitedEnergy(F, kReferenceWindMs), 0.0f);
+    for (float U : {0.0f, -3.0f, std::numeric_limits<float>::quiet_NaN()})
+        EXPECT_FLOAT_EQ(fetchLimitedEnergy(6000.0f, U), 0.0f) << "no wind = no wind-sea";
+}
+
+// ⚑THE RED TEST FOR A BUG THE L4 FOUND. The first W3 build scaled the swell by
+// fetchLimitedEnergy, the FRACTION of a fully-developed sea. That fraction FALLS as wind rises
+// (X = gF/U_A^2), so a gale made waves smaller — backwards. Absolute Hs rises because of the
+// U_A^2/g factor the fraction discards. On the buggy build this test failed: at a fixed 6 km fetch
+// the fraction went 0.231 (6.7 m/s) -> 0.087 (15 m/s).
+TEST(WaterProfileTest, StrongerWindMakesBiggerWavesAtFixedFetch) {
+    const float F = 6000.0f;
+    const float calm = waveHeightScale(F, 3.0f);
+    const float mid  = waveHeightScale(F, kReferenceWindMs);
+    const float gale = waveHeightScale(F, 15.0f);
+    EXPECT_GT(gale, mid)  << "a gale must build a BIGGER sea than a moderate breeze";
+    EXPECT_GT(mid,  calm) << "a moderate breeze must build a bigger sea than a light air";
+    // And the fraction alone genuinely moves the other way — this pins WHY the scale is needed,
+    // so a future edit cannot "simplify" back to the fraction without turning this red.
+    EXPECT_LT(fetchLimitedEnergy(F, 15.0f), fetchLimitedEnergy(F, kReferenceWindMs));
+}
+
+TEST(WaterProfileTest, WaveHeightScaleIsUnityForTheReferenceSea) {
+    // A fully-developed sea at the reference wind IS the sea the shipped amplitude was authored
+    // to, so its multiplier must be exactly 1 — this is what keeps existing oceans unchanged.
+    EXPECT_NEAR(waveHeightScale(1.0e9f, kReferenceWindMs), 1.0f, 1e-3f);
+    // A 6 km lake at the reference wind is fetch-limited to the same fraction as before, since the
+    // wind ratio is 1 there.
+    EXPECT_NEAR(waveHeightScale(6000.0f, kReferenceWindMs), 0.231080f, 1e-4f);
+}
+
+TEST(WaterProfileTest, WaveHeightScaleIsClampedAndNeverNaN) {
+    EXPECT_LE(waveHeightScale(1.0e9f, 40.0f), kMaxWaveHeightScale) << "storm must not blow past the clamp";
+    EXPECT_FLOAT_EQ(waveHeightScale(0.0f, 10.0f), 0.0f);
+    EXPECT_FLOAT_EQ(waveHeightScale(1000.0f, 0.0f), 0.0f);
+    EXPECT_FALSE(std::isnan(waveHeightScale(std::numeric_limits<float>::quiet_NaN(), 6.7f)));
+}
+
+TEST(WaterProfileTest, WindRoughnessIsUnityAtTheReferenceWind) {
+    // The identity that keeps W3 from silently restyling every existing world: at the wind the
+    // shipped constants were authored to, the ripple slope scale is exactly 1.
+    EXPECT_FLOAT_EQ(windRoughness(kReferenceWindMs), 1.0f);
+}
+
+TEST(WaterProfileTest, WindRoughnessFollowsCoxMunkSlope) {
+    // sqrt(mss(U)/mss(6.7)) with mss = 0.003 + 0.00512*U.
+    EXPECT_NEAR(windRoughness(0.0f),  0.283585f, 1e-4f) << "dead calm -> near-mirror micro-slope";
+    EXPECT_NEAR(windRoughness(2.0f),  0.595753f, 1e-4f);
+    EXPECT_NEAR(windRoughness(10.0f), 1.205374f, 1e-4f);
+    EXPECT_NEAR(windRoughness(15.0f), 1.462594f, 1e-4f);
+    EXPECT_GT(windRoughness(15.0f), windRoughness(0.0f) * 5.0f)
+        << "calm-to-gale must span a visible range, not a nudge";
 }
 
 TEST(WaterProfileTest, ProfileAtIsNeutralWithoutABodyIndex) {

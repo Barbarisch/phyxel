@@ -63,6 +63,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
 #include "core/HydrologyMap.h"
+#include "core/WaterProfile.h"   // v4 W3: derived-profile probe in water_look
 #include "core/FlowField.h"
 #include "core/VoxelTemplate.h"
 #include "physics/Material.h"
@@ -11523,8 +11524,13 @@ void Application::registerWaterCommands() {
         renderCoordinator->setWaves(cmd.params.value("amplitude", cur.x),
                                     cmd.params.value("wavelength", cur.y),
                                     cmd.params.value("wind", cur.z));
+        // v4 W3: wind SPEED (m/s) is a separate axis from the swell constants — it drives
+        // fetch-limited wave energy per body and Cox-Munk ripple roughness. 6.7 = Beaufort 4.
+        if (cmd.params.contains("speed"))
+            renderCoordinator->setWindSpeed(cmd.params.value("speed", 6.7f));
         const glm::vec3 now = renderCoordinator->waveSettings();
-        r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z}};
+        r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z},
+             {"speed", renderCoordinator->windSpeed()}};
     });
     // Water Appearance v4 W1 (docs/WaterAppearanceV4.md): force a turbidity/roughness profile onto
     // every wet column, bypassing per-body derivation.
@@ -11559,6 +11565,33 @@ void Application::registerWaterCommands() {
              // path), so an override would silently do nothing. Say so rather than let a null
              // result read as "the feature is broken".
              {"hydrology_bound", g && g->hydrology() != nullptr}};
+
+        // ── DERIVED-PROFILE PROBE (v4 W3) ────────────────────────────────────────────────────
+        // Reports what deriveWaterProfile ACTUALLY produces at a world column, using the live
+        // wind — the CPU half of the pipe, observable without inferring it from pixels. Added
+        // because a W3 L4 showed wind changes not reaching the screen and pixel evidence alone
+        // could not say whether the derivation or the upload was at fault.
+        const Phyxel::HydrologyMap* hyd = g ? g->hydrology() : nullptr;
+        r["bodies_bound"] = (g && g->waterBodies() != nullptr);
+        if (hyd) {
+            Phyxel::WaterWind w;
+            w.speedMs    = renderCoordinator->windSpeed();
+            w.dirRadians = renderCoordinator->waveSettings().z;
+            const float px = cmd.params.value("x", 0.0f);
+            const float pz = cmd.params.value("z", 0.0f);
+            const Phyxel::WaterProfile prof =
+                Phyxel::waterProfileAt(g->waterBodies(), px, pz, hyd->cellSize(), w);
+            const auto* b = g->waterBodies() ? g->waterBodies()->bodyAt(px, pz) : nullptr;
+            r["derived_at"] = {{"x", px}, {"z", pz},
+                               {"turbidity", prof.turbidity},
+                               {"roughness", prof.roughness},
+                               {"wave_energy", prof.waveEnergy},
+                               {"body_found", b != nullptr},
+                               {"body_class", b ? static_cast<int>(b->cls) : -1},
+                               {"wind_speed", w.speedMs},
+                               {"wind_dir", w.dirRadians},
+                               {"cell_size", hyd->cellSize()}};
+        }
     });
 
     reg.on("water_table_level", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {

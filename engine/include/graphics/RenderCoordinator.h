@@ -368,6 +368,12 @@ public:
     // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
     glm::vec3 waveSettings() const;
 
+    // Wind SPEED in m/s (v4 W3). Drives the per-body profile: fetch-limited wave energy (SMB/CERC)
+    // and Cox-Munk ripple roughness. Setting it rebuilds the hydrology texture, since both are
+    // baked per column there. Default 6.7 = Beaufort 4 mid-point = today's look.
+    void setWindSpeed(float metresPerSecond);
+    float windSpeed() const;
+
     // ── Water Appearance v4, W1 (docs/WaterAppearanceV4.md) ───────────────────────────────────
     // Force a turbidity/roughness profile onto every wet column, bypassing per-body derivation.
     // THE POSITIVE CONTROL for the profile pipe: derivation is neutral in W1, so a measurable pixel
