@@ -224,10 +224,15 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 0, nullptr, 0, nullptr, 1, &b);
 
-    m_hydroParams = glm::vec3(originX, originZ, cellSize > 0.0f ? 1.0f / cellSize : 0.0f);
+    // The SIGN of cellSize carries through 1/cellSize into the shaders as a mode flag:
+    // positive = baked-world grid (off-grid falls back to open ocean), NEGATIVE = a GROUNDED grid
+    // built from live terrain (off-grid is DRY — a bounded world has no implicit ocean beyond its
+    // edges). 0 stays flat-sea mode. The old `> 0` test silently mapped negative to flat-sea,
+    // which would have re-created the infinite phantom sheet the grounded mode exists to kill.
+    m_hydroParams = glm::vec3(originX, originZ, cellSize != 0.0f ? 1.0f / cellSize : 0.0f);
     m_hydroBound = true;
     LOG_INFO("WaterPipeline", "Water-layer levels bound: {}x{} cells, origin ({}, {}), cell {} "
-             "(invCell 0 = flat-sea mode)", cellsX, cellsZ, originX, originZ, cellSize);
+             "(invCell 0 = flat-sea; negative = grounded/off-grid-dry)", cellsX, cellsZ, originX, originZ, cellSize);
 }
 
 void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,

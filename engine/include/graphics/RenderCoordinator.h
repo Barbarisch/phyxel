@@ -393,6 +393,16 @@ public:
     // the escape hatch if it misbehaves. Water can cover the whole screen, so this is the one
     // v4 item with real per-fragment cost — measure in Release.
     void setWaterSsr(bool on) { m_waterSsrEnabled = on; }
+
+    // ── GROUNDED WATER GRID (docs/WaterAsWorldData.md) ────────────────────────────────────────
+    // Upload a per-voxel-column water grid built from LIVE terrain, for worlds with NO hydrology
+    // bake. rgba is the same packing as the bake path (R = level or the <-1e5 dry sentinel,
+    // G = wave energy, B = turbidity, A = roughness), cellSize is 1 voxel, and it is passed to the
+    // pipeline NEGATIVE — the sign tells the shaders that off-grid columns are DRY, because a
+    // bounded world has no implicit ocean beyond its edges. This replaces the implicit flat sea
+    // for such worlds: with it bound, a column with no terrain under it cannot draw water.
+    void uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX, int cellsZ,
+                                 float originX, float originZ);
     bool waterSsr() const { return m_waterSsrEnabled; }
 
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and

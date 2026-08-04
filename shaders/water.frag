@@ -64,18 +64,29 @@ layout(push_constant) uniform PushConstants {
 //   * outside the baked region       -> the open ocean beyond the grid's reach.      KEEP.
 //   * DRY COLUMN INSIDE THE BAKE     -> land. No water here at all.                  DISCARD.
 // Conflating the third case with the first two is what put an ocean under the world.
+//
+// ⚑THE SIGN OF invCellSize IS A MODE (WaterAsWorldData: grounded grids). The second KEEP above is
+// only right for a 32 km baked world, where beyond-the-bake genuinely is open ocean. For a BOUNDED
+// world whose grid was built from live terrain, beyond-the-grid is the void — no terrain, so no
+// water is representable there, and falling back to "open ocean" re-creates the exact defect the
+// grid exists to kill (an infinite sheet in all directions, drawn through solid rock). A NEGATIVE
+// invCellSize marks such a grounded grid: same lookup, but off-grid means DRY.
 float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater) {
     turbidity = 0.0;
     roughness = 1.0;
     noWater   = 0.0;
-    float invCell = pc.params3.w;
-    if (invCell <= 0.0) return pc.params.x;                  // flat-sea mode: implicit sea
+    float invCellRaw = pc.params3.w;
+    if (invCellRaw == 0.0) return pc.params.x;               // flat-sea mode: implicit sea
+    float dryBeyond = invCellRaw < 0.0 ? 1.0 : 0.0;          // grounded grid: no implicit ocean
+    float invCell   = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
-    if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
-        return pc.params.x;                                  // off-grid: open ocean
+    if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y)) {
+        noWater = dryBeyond;                                 // baked: open ocean · grounded: DRY
+        return pc.params.x;
+    }
     vec4 t = texelFetch(hydroLevelTex, ivec2(cellF), 0);
-    if (t.r < -1e5) { noWater = 1.0; return pc.params.x; }   // dry land inside the bake: NO water
+    if (t.r < -1e5) { noWater = 1.0; return pc.params.x; }   // dry land inside the grid: NO water
     turbidity = t.b;
     roughness = t.a;
     return t.r;

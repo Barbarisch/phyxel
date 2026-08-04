@@ -65,6 +65,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/WorldGenerator.h"
 #include "core/HydrologyMap.h"
 #include "core/WaterProfile.h"   // v4 W3: derived-profile probe in water_look
+#include "core/WaterOccupancy.h" // grounded water grid: buildOpenWaterSpan decides per-column wetness
 #include "core/FlowField.h"
 #include "core/VoxelTemplate.h"
 #include "physics/Material.h"
@@ -11503,6 +11504,76 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"removed", removed}, {"total_mass", waterManager->totalMass()},
              {"body_deltas", waterManager->bodyDeltaCount()}};
     });
+    // ── water_ground_sync (docs/WaterAsWorldData.md — grounded water for UN-BAKED worlds) ────
+    // Builds a per-voxel-column water grid from the LIVE chunk terrain and binds it to the water
+    // renderer, replacing the implicit flat sea. Per column: find the topmost solid voxel, then let
+    // Phyxel::buildOpenWaterSpan decide wetness against the world's sea level — the SAME function
+    // whose structural guarantee is "a span's bottom is the terrain surface and nothing else". So:
+    //   * a column whose ground stands at/above sea level  -> dry (no sheet through hillsides);
+    //   * a column with NO terrain at all (void)           -> dry (water cannot rest on nothing);
+    //   * beyond the grid                                  -> dry (negative-cellSize mode; a
+    //     bounded world has no implicit ocean past its edges).
+    // Defect this replaces, seen live 2026-08-04 in WaterBasinTest: with no bake the shader's
+    // flat-sea fallback drew an infinite sheet at y=6 across the void and THROUGH solid rock
+    // (camera inside the landmass at (-63,12,9) saw open sea with waves and foam).
+    // ⚑Refused on baked worlds: their water layer is the hydrology upload; two writers to one
+    // binding would fight across world loads.
+    reg.on("water_ground_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
+        if (!chunkManager || !renderCoordinator) { r = {{"error", "engine not ready"}}; return; }
+        const WorldGenerator* sg = chunkManager->getStreamingGenerator();
+        if (sg && sg->hydrology()) {
+            r = {{"error", "this world has a hydrology bake; its water layer comes from the bake"}};
+            return;
+        }
+        if (chunkManager->chunkMap.empty()) { r = {{"error", "no chunks loaded"}}; return; }
+
+        // World-space bounds of the loaded chunks.
+        glm::ivec3 lo(INT_MAX), hi(INT_MIN);
+        for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+            lo = glm::min(lo, cc); hi = glm::max(hi, cc);
+        }
+        const int minX = lo.x * 32, maxX = hi.x * 32 + 31;
+        const int minZ = lo.z * 32, maxZ = hi.z * 32 + 31;
+        const int minY = lo.y * 32, maxY = hi.y * 32 + 31;
+        const int w = maxX - minX + 1, d = maxZ - minZ + 1;
+        // Editor-scale worlds only: the texture is one texel per voxel column. A streaming world
+        // must come through the bake + span-storage path, not a whole-world texture.
+        if (static_cast<long long>(w) * d > (1 << 21)) {
+            r = {{"error", "world too large for a grounded grid"}, {"columns", (long long)w * d}};
+            return;
+        }
+
+        const float sea = waterManager ? waterManager->seaLevel() : static_cast<float>(Core::kSeaLevelY);
+        std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
+        long wet = 0, solidCols = 0;
+        for (int z = 0; z < d; ++z)
+            for (int x = 0; x < w; ++x) {
+                // Topmost solid voxel in the column, scanned within the loaded vertical range.
+                int surfaceY = INT_MIN;
+                for (int y = maxY; y >= minY; --y)
+                    if (chunkManager->hasVoxelAt(glm::ivec3(minX + x, y, minZ + z))) { surfaceY = y; break; }
+                Phyxel::WaterSpan span;
+                bool isWet = false;
+                if (surfaceY != INT_MIN) {
+                    ++solidCols;
+                    isWet = Phyxel::buildOpenWaterSpan(surfaceY, sea, span);
+                }
+                float* px = &rgba[(static_cast<size_t>(z) * w + x) * 4];
+                px[0] = isWet ? span.topY : -1e30f;   // R: level / dry sentinel
+                px[1] = 1.0f;                          // G: wave energy (neutral)
+                px[2] = 0.0f;                          // B: turbidity (neutral)
+                px[3] = 1.0f;                          // A: roughness (neutral)
+                if (isWet) ++wet;
+            }
+
+        renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
+                                                   static_cast<float>(minX), static_cast<float>(minZ));
+        r = {{"success", true}, {"columns", (long long)w * d}, {"solid_columns", solidCols},
+             {"wet_columns", wet}, {"sea_level", sea},
+             {"bounds", {{"minX", minX}, {"maxX", maxX}, {"minZ", minZ}, {"maxZ", maxZ}}},
+             {"mode", "grounded (off-grid dry)"}};
+    });
+
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         waterManager->syncSolidsFromChunks();

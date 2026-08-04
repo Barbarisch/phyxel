@@ -1702,6 +1702,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_look",           waterEndpoint("water_look"));   // v4 W1 probe
     srv.Post("/api/debug/water_ssr",            waterEndpoint("water_ssr"));    // v4 W4 toggle
     srv.Post("/api/debug/water_span_scan",      waterEndpoint("water_span_scan"));  // occupancy §5.2
+    srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
     // Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4).

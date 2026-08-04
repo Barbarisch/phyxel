@@ -382,6 +382,23 @@ void RenderCoordinator::setWaterLook(bool active, float turbidity, float roughne
     m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
 }
 
+void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX,
+                                                int cellsZ, float originX, float originZ) {
+    if (!waterPipeline || !vulkanDevice || cellsX <= 0 || cellsZ <= 0) return;
+    if (rgba.size() < static_cast<size_t>(cellsX) * cellsZ * 4) return;   // short buffer: refuse
+    // Descriptor rewrite on a possibly in-flight set — same once-per-rebind idle the bake path
+    // takes. Grounded syncs are command-driven (world edit / explicit call), not per-frame.
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+    // cellSize -1: one voxel per cell, NEGATIVE = grounded mode (off-grid is dry; see the header).
+    waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), cellsX, cellsZ,
+                                         originX, originZ, -1.0f);
+    vulkanDevice->endSingleTimeCommands(oneShot);
+    // Pin the per-frame rebind guard to "null bake already uploaded" so the next frame does NOT
+    // overwrite this grid with the 1×1 dry sentinel (worlds using this path have hydro == null).
+    m_lastHydroUploaded = nullptr;
+}
+
 glm::vec3 RenderCoordinator::waterLook() const {
     return glm::vec3(m_waterLookActive ? 1.0f : 0.0f, m_waterLookTurbidity, m_waterLookRoughness);
 }
