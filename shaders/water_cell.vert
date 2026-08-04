@@ -1,6 +1,6 @@
 #version 450
 //
-// water_cell.vert — per-cell water surface + side skirts (Phase 2, see docs/WaterSystem.md).
+// water_cell.vert — per-cell water surface + side skirts (Phase 2, see docs/Water.md).
 //
 // Each instanced cell mesh is a sloped top quad plus four vertical side faces. The top
 // corners take per-corner world-Y (averaged by WaterManager into a shared grid → seamless

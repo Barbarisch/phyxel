@@ -1118,7 +1118,7 @@ TEST(WaterManagerTest, StreamedInTerrainDrainsTheWaterItDisplaced) {
         << "open sea next to the island should still be flooded";
 }
 
-// ─── Phase A STRESS (doc-required: docs/WaterSystemV2.md §Phase A "Stress") ───────────────────────
+// ─── Phase A STRESS (doc-required: docs/Water.md §Phase A "Stress") ───────────────────────
 // Walk the focus back and forth so the region recenters MANY times over a standing (walled) lake
 // that always stays in-window, asserting the invariant at EVERY recenter (not just at the end):
 //   volume — total mass exactly conserved;

@@ -386,7 +386,7 @@ void WorldGenerator::rebuildCoarseModel() {
              << " cells, seaLevel=" << seaLvl << ", maxAccum=" << m_flow->maxAccum()
              << " maxOrder=" << m_flow->maxOrder()
              << " drainageComplete=" << (m_flow->drainageComplete() ? 1 : 0));
-    // Loud misconfiguration guard (docs/WaterPhysicalFeelPlan.md §2e): terrain that never reaches
+    // Loud misconfiguration guard (docs/Water.md §2e): terrain that never reaches
     // sea level gives Priority-Flood no ocean outlet, so the whole region is one closed basin that
     // fills to its spill — lakes perch on hillsides and every downstream water diagnosis is chasing
     // a config error. Say so HERE, at bake time, instead of letting it surface as a "water bug".

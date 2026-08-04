@@ -355,7 +355,7 @@ public:
     // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
     void setWaterManager(Core::WaterManager* mgr) { m_waterManager = mgr; }
 
-    // Water (Phase 0: implicit sea-level surface — see docs/WaterSystem.md).
+    // Water (Phase 0: implicit sea-level surface — see docs/Water.md).
     // TODO: sea level + enabled should come from per-world config, not render state.
     void  setWaterEnabled(bool enabled) { m_waterEnabled = enabled; }
     bool  isWaterEnabled() const { return m_waterEnabled; }
@@ -374,7 +374,7 @@ public:
     void setWindSpeed(float metresPerSecond);
     float windSpeed() const;
 
-    // ── Water Appearance v4, W1 (docs/WaterAppearanceV4.md) ───────────────────────────────────
+    // ── Water Appearance v4, W1 (docs/Water.md) ───────────────────────────────────
     // Force a turbidity/roughness profile onto every wet column, bypassing per-body derivation.
     // THE POSITIVE CONTROL for the profile pipe: derivation is neutral in W1, so a measurable pixel
     // change under an override is what proves body → texture → shader → frame actually carries the
@@ -394,7 +394,7 @@ public:
     // v4 item with real per-fragment cost — measure in Release.
     void setWaterSsr(bool on) { m_waterSsrEnabled = on; }
 
-    // ── GROUNDED WATER GRID (docs/WaterAsWorldData.md) ────────────────────────────────────────
+    // ── GROUNDED WATER GRID (docs/Water.md) ────────────────────────────────────────
     // Upload a per-voxel-column water grid built from LIVE terrain, for worlds with NO hydrology
     // bake. rgba is the same packing as the bake path (R = level or the <-1e5 dry sentinel,
     // G = wave energy, B = turbidity, A = roughness), cellSize is 1 voxel, and it is passed to the

@@ -78,7 +78,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
 - **[DestructionSystem.md](DestructionSystem.md)** — voxel destruction design (bonds → coherent fragments; P1–P3 shipped); superseded/continued by **[DestructionSystemV2.md](DestructionSystemV2.md)** (active workstream — coherent fracture/topple, tool-driven impact, gatherable aftermath)
-- **[WaterSystem.md](WaterSystem.md)** — water design (Phase 0+ shipped on main); scaling to oceans/rivers/lakes continued in **[WaterSystemV2.md](WaterSystemV2.md)**
+- **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation

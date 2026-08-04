@@ -174,7 +174,7 @@ public:
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
 
-    // ── THE AUTHORITATIVE WATER QUERY (docs/WaterAsWorldData.md §5.2) ─────────────────────────
+    // ── THE AUTHORITATIVE WATER QUERY (docs/Water.md §5.2) ─────────────────────────
     // What water does the TERRAIN hold at this column? Returns false when the column is dry.
     //
     // This is the answer the whole water system should be built on, and it is cheap: the generator

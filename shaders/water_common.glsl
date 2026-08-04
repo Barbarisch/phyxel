@@ -466,7 +466,7 @@ struct WaterSurfaceInput {
     // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
     // level is whatever the sim says it is).
     float restLevelY;
-    // ── PER-BODY PROFILE (Water Appearance v4 W1; docs/WaterAppearanceV4.md) ──────────────────
+    // ── PER-BODY PROFILE (Water Appearance v4 W1; docs/Water.md) ──────────────────
     // Every optical/mechanical property of water used to be a global constant, which is why all
     // water looked like the same water. These two come from the hydrology texture's B/A channels,
     // fetched per pixel. THE NEUTRAL VALUES REPRODUCE TODAY'S LOOK EXACTLY — turbidity 0 and
@@ -604,7 +604,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // diagonal bands, and the reported quilt got a second layer. Noise at ~1.2 units is comparable
     // to the step, so the boundary dissolves into a stipple instead of acquiring new structure.
     //
-    // The REAL fix is a smooth shore field (docs/WaterPhysicalFeelPlan.md §2) whose distance
+    // The REAL fix is a smooth shore field (docs/Water.md §2) whose distance
     // transform is continuous by construction; this is the cheap stand-in until that exists.
     // Scaled to std 0.40 — a bit under half the 1.0 step, so the boundary dissolves without the
     // foam wandering far enough to leave the real shoreline. Divide by the measured std rather

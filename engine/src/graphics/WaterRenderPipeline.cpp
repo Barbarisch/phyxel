@@ -296,7 +296,7 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
     // Set 1 — the water pipeline's own samplers:
     //   0 = half-res scene colour copy (refraction)
     //   1 = scene depth (seabed distance → absorption thickness + soft shoreline)
-    //   2 = planar reflection (dormant; see docs/WaterSystemV3.md Phase 5)
+    //   2 = planar reflection (dormant; see docs/Water.md Phase 5)
     //   3 = the water-layer level grid (per-column basin levels; water-layer P1 — VERTEX too,
     //       because the level moves the surface GEOMETRY, not just the shading)
     std::array<VkDescriptorSetLayoutBinding, 4> binds{};

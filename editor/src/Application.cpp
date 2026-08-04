@@ -5746,7 +5746,7 @@ void Application::autoLoadGameDefinition() {
             return;
         }
 
-        // Per-world water surface config (see docs/WaterSystem.md). Default OFF so a
+        // Per-world water surface config (see docs/Water.md). Default OFF so a
         // world without a "water" block never floods; switching to such a world also
         // turns water back off. Top-level so the "world" erase below doesn't drop it.
         // Sea level is ALWAYS set (not only when the key exists) so a world switch can't
@@ -11504,7 +11504,7 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"removed", removed}, {"total_mass", waterManager->totalMass()},
              {"body_deltas", waterManager->bodyDeltaCount()}};
     });
-    // ── water_ground_sync (docs/WaterAsWorldData.md — grounded water for UN-BAKED worlds) ────
+    // ── water_ground_sync (docs/Water.md — grounded water for UN-BAKED worlds) ────
     // Builds a per-voxel-column water grid from the LIVE chunk terrain and binds it to the water
     // renderer, replacing the implicit flat sea. Per column: find the topmost solid voxel, then let
     // Phyxel::buildOpenWaterSpan decide wetness against the world's sea level — the SAME function
@@ -11604,7 +11604,7 @@ void Application::registerWaterCommands() {
         r = {{"success", true}, {"amplitude", now.x}, {"wavelength", now.y}, {"wind", now.z},
              {"speed", renderCoordinator->windSpeed()}};
     });
-    // Water Appearance v4 W1 (docs/WaterAppearanceV4.md): force a turbidity/roughness profile onto
+    // Water Appearance v4 W1 (docs/Water.md): force a turbidity/roughness profile onto
     // every wet column, bypassing per-body derivation.
     //
     // THIS IS THE POSITIVE CONTROL, not a look knob. W1's derivation is neutral by design, so the
@@ -11614,7 +11614,7 @@ void Application::registerWaterCommands() {
     //
     // Needs a hydrology bake — a flat-sea world has no water bodies and therefore no profiles.
     // `hydrology_bound` reports whether this world can show anything at all.
-    // ── water_span_scan (docs/WaterAsWorldData.md §5.2) ──────────────────────────────────────
+    // ── water_span_scan (docs/Water.md §5.2) ──────────────────────────────────────
     // Quantifies the gap between what the COARSE BAKE floods and what the TERRAIN actually holds,
     // over a world rect. Both answers come from the same bake; only the span query also consults
     // the real per-column surface height.
@@ -11963,7 +11963,7 @@ void Application::registerWaterCommands() {
         }
     });
 
-    // ── Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4) ──────────────
+    // ── Near-field probes (docs/Water.md small-scale Phase 0.4) ──────────────
     // Everything a shallow-water / creek / entity-coupling change needs to assert at L2 without
     // screenshots: per-cell sim state, waterfall lips, a rect confinement scan, and the bake's
     // sea-level configuration.

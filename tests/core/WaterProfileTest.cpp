@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-// Water Appearance v4, W1 — the per-body profile PIPE (docs/WaterAppearanceV4.md).
+// Water Appearance v4, W1 — the per-body profile PIPE (docs/Water.md).
 //
 // W1 is deliberately invisible: derivation returns the neutral profile, so these tests are contract
 // tests on the packing + a REGRESSION PIN on the one value that already shipped (wave energy). They

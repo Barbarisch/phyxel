@@ -5,7 +5,7 @@
 #include <cmath>
 #include <limits>
 
-// Water as occupancy (docs/WaterAsWorldData.md §5). The governing rule under test:
+// Water as occupancy (docs/Water.md §5). The governing rule under test:
 //   "water bodies should be defined by the terrain holding them, not the other way around"
 // so every assertion here is about the span being a CONSEQUENCE of the column's real terrain.
 //

@@ -9,7 +9,7 @@ namespace Graphics {
 
 class Camera;
 
-// Phase 0 water surface (see docs/WaterSystem.md).
+// Phase 0 water surface (see docs/Water.md).
 //
 // Draws a single large translucent quad locked to a world sea level and centered on
 // the camera in XZ — an "infinite ocean" plane. The scene depth buffer occludes it,

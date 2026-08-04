@@ -205,7 +205,7 @@ RenderCoordinator::RenderCoordinator(
         vulkanDevice->getSwapChainExtent()
     );
 
-    // Initialize Water surface pipeline (see docs/WaterSystem.md, docs/WaterSystemV3.md).
+    // Initialize Water surface pipeline (see docs/Water.md, docs/Water.md).
     // Built against the WATER render pass — water draws after the scene pass so it can sample
     // scene colour + depth (Phase 1).
     waterPipeline = std::make_unique<WaterRenderPipeline>();
@@ -1817,7 +1817,7 @@ void RenderCoordinator::drawFrame() {
     // Body-aware look: the upload is RGBA — R = level, G = per-body wave ENERGY from body size
     // (tangible-water F: ocean 1, lakes by log-area, floor 0.15, so a mountain tarn shows a ripple
     // where the ocean shows swell), B = turbidity and A = roughness (Water Appearance v4 W1 —
-    // NEUTRAL until W2/W3 derive them; docs/WaterAppearanceV4.md).
+    // NEUTRAL until W2/W3 derive them; docs/Water.md).
     //
     // The packing moved into Phyxel::buildHydroUpload so it is unit-testable: as an inline loop
     // here it could only ever be checked by looking at the screen.
@@ -2449,7 +2449,7 @@ void RenderCoordinator::drawFrame() {
     // Water is NO LONGER drawn here — it moved to its own pass after the scene pass
     // (renderWaterPass(), called from drawFrame) so it can sample the scene color + depth it is
     // blending over: refraction, depth-based absorption, soft shorelines. See
-    // docs/WaterSystemV3.md Phase 1.
+    // docs/Water.md Phase 1.
 
     // Mirror surface pass (inside scene render pass, after all opaque/entity geometry)
     if (hasMirrorVoxels && renderPipeline->getMirrorPipeline() != VK_NULL_HANDLE) {
@@ -2457,7 +2457,7 @@ void RenderCoordinator::drawFrame() {
     }
 
     // Game HUD / custom UI moved to the post-scene OVERLAY pass below, so water (which now
-    // also draws after the scene pass) cannot paint over it. See docs/WaterSystemV3.md Phase 1.
+    // also draws after the scene pass) cannot paint over it. See docs/Water.md Phase 1.
 
     // End Scene Render Pass
     } // End Scene Pass Scope

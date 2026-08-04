@@ -10,7 +10,7 @@ namespace Phyxel {
 namespace Core {
 
 // CPU prototype of the voxel water cellular automaton (Phase 2 — see
-// docs/WaterSystem.md). A dense grid of per-cell water "mass" in [0, MAX_MASS],
+// docs/Water.md). A dense grid of per-cell water "mass" in [0, MAX_MASS],
 // stepped by simple, mass-conserving flow rules:
 //   1. Gravity: a cell pushes mass straight down into the free capacity below.
 //   2. Horizontal: a cell donates a damped fraction of its excess to lower
@@ -44,14 +44,14 @@ public:
     //
     // RENDER-ONLY, deliberately: the CA's capacity is still a full unit per cell, so a floored cell
     // holds slightly more water than it physically should. Making capacity `1 - floor` is the
-    // volumetrically correct version and is a recorded future goal (docs/WaterSystemV3.md Phase 4A)
+    // volumetrically correct version and is a recorded future goal (docs/Water.md Phase 4A)
     // — it rewrites the gravity/compression split, which is the most load-bearing code here.
     void  setFloor(int x, int y, int z, float fraction);
     float floorAt(int x, int y, int z) const;
 
     // Channel cells (authored riverbeds) are exempt from evaporation, so water carried
     // along them doesn't fade — an authored river flows its full length. (A binary
-    // special case of a per-material flow-resistance scalar; see docs/WaterSystem.md.)
+    // special case of a per-material flow-resistance scalar; see docs/Water.md.)
     void  setChannel(int x, int y, int z, bool channel);
     bool  isChannel(int x, int y, int z) const;
 

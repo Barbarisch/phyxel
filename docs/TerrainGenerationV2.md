@@ -8,15 +8,15 @@
 >
 > It **supersedes the roadmap** in [`docs/TerrainGenerationBiomes.md`](TerrainGenerationBiomes.md)
 > (the v1 column-first pipeline) and folds in [`docs/WorldRecipeAndFlora.md`](WorldRecipeAndFlora.md)
-> and [`docs/WaterSystem.md`](WaterSystem.md). Those remain accurate for **what shipped**; this
+> and the retired water docs (now [`docs/Water.md`](Water.md)). Those remain accurate for **what shipped**; this
 > doc is **where we're going**. The v1 pipeline is not thrown away — it becomes **Layer 1**
 > (per-chunk detail) beneath a new **Layer 0** (coarse global model).
 >
-> **Water has a dedicated runtime companion:** [`docs/WaterSystemV2.md`](WaterSystemV2.md). This
+> **Water has a dedicated runtime companion:** [`docs/Water.md`](Water.md). This
 > doc owns *generation* (what the world bakes: sea level, per-basin lake levels, river graph);
-> WaterSystemV2 owns the *runtime* (how the CA sim receives and renders it). **§P2 here == Water
+> Water.md owns the *runtime* (how the CA sim receives and renders it). **§P2 here == Water
 > Phase C there** — the seam where the two meet. Keep the two docs reconciled; a change to the
-> baked hydrology contract in P2 must be mirrored in WaterSystemV2 Phase C, and vice-versa.
+> baked hydrology contract in P2 must be mirrored in docs/Water.md §2, and vice-versa.
 
 ---
 
@@ -308,7 +308,7 @@ ranges, sea level, cave dimensions) before shipping.
 > `channelHalfWidth·kValleyWidthMul`, `kValleyWidthMul=5.0` per Williams 1986 / Rosgen 1994). L3 test
 > `TerrainRiverTest` (carve-wired, 0.86 beds-in-valley, acyclic-downhill, deterministic; red-before-
 > green for both carve + valley shaping, solution-auditor PASS). Rivers are visible carved valleys at
-> L4; WATER FILL is WaterSystemV2's job.
+> L4; WATER FILL is the water runtime's job (docs/Water.md).
 >
 > **P2.3c SHIPPED (meandering rivers, 2026-07-10):** the D8 channels were straight/axis-aligned, so
 > the query coordinate is now domain-warped before every channel lookup (SAME warp for valley shaping
@@ -338,7 +338,7 @@ ranges, sea level, cave dimensions) before shipping.
 > re-anchored to seed-7's new order-4 near-origin river. Bake PERSISTENCE partly addressed by an
 > in-process memoization cache (commit 52935a9) — NOT world.db persistence. Next (P2 wrap):
 > riverbed-material grounding, world.db bake persistence, infinite-region partitioning (P5). Then
-> WaterSystemV2 renders water.
+> the water runtime renders water (docs/Water.md).
 >
 > **KNOWN COASTAL GAP (2026-07-10, recorded honestly — NOT implemented):** with big continents the
 > terrain now produces genuine coastlines (land crossing sea level into ocean basins), but there is
@@ -365,11 +365,11 @@ ranges, sea level, cave dimensions) before shipping.
 - **Water existence (HYBRID):** emit **static water voxels** to the baked level everywhere;
   generation **feeds the `WaterManager` CA** (springs at river heads, channels along riverbeds,
   sea level) so the sim can activate in a **player-region** for interactive flow — *generalize the
-  CA off its fixed 64×32×64 box* to a sparse player-follow region. (See `docs/WaterSystem.md` for
+  CA off its fixed 64×32×64 box* to a sparse player-follow region. (See `docs/Water.md` for
   the existing CA; this connects generation to it for the first time.)
   **The water-runtime work this requires — freeing the CA from its fixed box, active-set/sleep,
   per-region levels, sparse field persistence in `world.db`, and this generation→CA wiring — is
-  planned phase-by-phase in [`docs/WaterSystemV2.md`](WaterSystemV2.md) (Phases A–C). This P2 is
+  planned in [`docs/Water.md`](Water.md). This P2 is
   its Phase C.**
 - **Validation:** **L3** — this is usability-critical and silent-failure-prone. Assert every river
   is **continuously downhill to a lake or sea** (walk the graph), every lake surface is **flat and

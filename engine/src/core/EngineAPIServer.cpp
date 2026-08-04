@@ -1705,7 +1705,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
-    // Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4).
+    // Near-field probes (docs/Water.md small-scale Phase 0.4).
     srv.Post("/api/debug/water_probe",          waterEndpoint("water_probe"));
     srv.Post("/api/debug/water_waterfalls",     waterEndpoint("water_waterfalls"));
     srv.Post("/api/debug/water_footprint",      waterEndpoint("water_footprint"));

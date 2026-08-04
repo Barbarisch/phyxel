@@ -53,7 +53,7 @@ layout(push_constant) uniform PushConstants {
 // FALLBACKS ARE THE NEUTRAL PROFILE (turbidity 0, roughness 1) — flat-sea mode, outside the baked
 // region, and dry columns all take today's look exactly. A world with no hydrology bake has no
 // water bodies, so it has no per-body profile by construction; that is correct, not a gap.
-// ⚑`noWater` KILLS A PHANTOM SEA (docs/WaterAsWorldData.md). "Not wet" was collapsing to "return
+// ⚑`noWater` KILLS A PHANTOM SEA (docs/Water.md). "Not wet" was collapsing to "return
 // sea level", so a column the bake calls DRY still got a sheet drawn at y = seaLevel: an infinite,
 // edgeless, camera-following plane sitting UNDER the entire landscape, visible whenever you got
 // below the terrain or looked where terrain was not drawn. The only thing hiding it was the

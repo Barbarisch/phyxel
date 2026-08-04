@@ -312,7 +312,7 @@ void WaterCellRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout ub
     // Set 1: the post-scene taps. 0 = half-res scene colour (refraction), 1 = scene depth
     // (thickness → absorption + soft shoreline), 2 = the ripple heightfield (small-scale Phase 3
     // — VERTEX too: the vertex stage displaces the surface by it, the fragment stage tilts the
-    // normal). See docs/WaterSystemV3.md Phase 1 + docs/WaterPhysicalFeelPlan.md.
+    // normal). See docs/Water.md Phase 1 + docs/Water.md.
     std::array<VkDescriptorSetLayoutBinding, 3> binds{};
     binds[0].binding = 0;
     binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

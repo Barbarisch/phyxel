@@ -213,7 +213,7 @@ void WaterManager::rebuildSurface() {
     // feed colTop, so neighboring rendered water (splashes, lakes) closes its skirts against the
     // sea surface instead of dropping to the seabed. Lakes (level ≠ seaLevel) and any unpinned
     // water (splashes, spills) render per-cell as before. The REAL far/near LOD handoff is
-    // Phase B (docs/WaterSystemV2.md).
+    // Phase B (docs/Water.md).
     const int seaLocalY = static_cast<int>(std::floor(m_seaLevel)) - m_origin.y;
     const std::vector<float>& srcMask = m_sim.sourceMask();
     struct Cell { int x, y, z; float surfaceY, depth; };

@@ -5,7 +5,7 @@
 
 namespace Phyxel {
 
-// ── WATER AS OCCUPANCY (docs/WaterAsWorldData.md §5) ─────────────────────────────────────────
+// ── WATER AS OCCUPANCY (docs/Water.md §5) ─────────────────────────────────────────
 //
 // USER DIRECTIVE: *"water must exist on top of terrain. it should never be possible to create a body
 // of water that isnt tied to the physical boundaries of a terrain"* and *"water bodies should be
@@ -63,7 +63,7 @@ struct WaterSpan {
 // them rather than expressing them wrongly.
 bool buildOpenWaterSpan(int surfaceY, float bodyLevel, WaterSpan& out);
 
-// ── EXTENT: which columns a body actually reaches (docs/WaterAsWorldData.md §5.5) ────────────
+// ── EXTENT: which columns a body actually reaches (docs/Water.md §5.5) ────────────
 //
 // ⚑THIS IS THE DOMINANT DEFECT, and it is the opposite of the one buildOpenWaterSpan fixes.
 // Measured over one region: only **71 of 17,265** baked-wet columns (0.41%) have ground standing
@@ -92,7 +92,7 @@ struct ColumnTerrain {
     std::function<float(int, int)> bakedLevel;
 };
 
-// ── THE BASIN IS THE PRECONDITION (docs/WaterAsWorldData.md §5.0) ────────────────────────────
+// ── THE BASIN IS THE PRECONDITION (docs/Water.md §5.0) ────────────────────────────
 //
 // USER DIRECTIVE: *"It should be impossible to just add water without a basin to put it in."*
 //

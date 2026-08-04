@@ -7,7 +7,7 @@
 
 namespace Phyxel {
 
-// ── Per-body water APPEARANCE profile (Water Appearance v4 — docs/WaterAppearanceV4.md) ──────────
+// ── Per-body water APPEARANCE profile (Water Appearance v4 — docs/Water.md) ──────────
 //
 // Every optical and mechanical property of water in this engine used to be a GLOBAL CONSTANT, which
 // is why all water looked like the same water: one extinction vector, one scatter colour, one set of

@@ -75,7 +75,7 @@ These gate entire categories above and must be built in the engine, not authored
 | Feature | Unblocks | Priority | Status |
 |---|---|---|---|
 | **Wall-art / decal system** (place an image/decal on a face, with a frame) | all of §2 — signs, stained glass, banners, murals | **P1** | not started |
-| **Water / shoreline + harbour** | the entire `Maritime` group + waterfront districts + sea-temples | **P1** | PARTIAL — the engine-side water/shoreline system (`WaterManager`, oceans/lakes/rivers, shoreline snap) has since shipped (`docs/WaterSystemV2.md`), but settlement-side siting/integration (waterfront parcels, the `Maritime` building group) is still unbuilt per `docs/structure-generation/StructureGenerationPlacers.md` |
+| **Water / shoreline + harbour** | the entire `Maritime` group + waterfront districts + sea-temples | **P1** | PARTIAL — the engine-side water/shoreline system (`WaterManager`, oceans/lakes/rivers, shoreline snap) has since shipped (`docs/Water.md`), but settlement-side siting/integration (waterfront parcels, the `Maritime` building group) is still unbuilt per `docs/structure-generation/StructureGenerationPlacers.md` |
 | **Subterranean: terrain excavation + multi-level connectivity** | Part 5 basements, Part 8 sewers/crypts/dungeons, castle dungeons | **P1** | not started (the same gap behind the basement stub) |
 | **Style-overlay system** (gothic-horror, condition/decay) | the BG3 overlay buildings (vampire palace, haunted mansion) | P2 | thin/partial |
 | **Settlement waterfront sub-tier** (Part 7) | siting wharves/quays relative to water | P2 | not started |

@@ -1,6 +1,6 @@
 #version 450
 //
-// water_flow.comp — GPU port of the water cellular-automaton step (see docs/WaterSystem.md).
+// water_flow.comp — GPU port of the water cellular-automaton step (see docs/Water.md).
 //
 // One thread per cell, GATHER formulation (no atomics): a cell computes its new mass
 // from a snapshot of its neighbourhood. To CONSERVE mass (a cell must not donate more
