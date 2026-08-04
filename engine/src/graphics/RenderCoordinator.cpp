@@ -399,6 +399,108 @@ void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, 
     m_lastHydroUploaded = nullptr;
 }
 
+void RenderCoordinator::updateSpanWaterGrid() {
+    // ── THE SANE BASELINE (user order 2026-08-04): where there is water in the world, the engine
+    // renders water — and nothing else renders any. ONE placement rule at every distance: chunk
+    // spans over resident chunks, off-grid DRY (the grounded shader mode). Coverage follows chunk
+    // RESIDENCY — exactly the rule terrain itself obeys — so water is visible precisely where its
+    // ground is visible, and the CONTENT at any world position is span truth regardless of the
+    // viewer (the camera invariant: residency picks what is shown, never what exists).
+    // The coarse bake no longer places any water on screen; it remains generation's connectivity
+    // hint only. Streaming baked worlds only — authored worlds keep their existing paths
+    // (grounded via water_ground_sync, or the implicit flat sea).
+    if (!waterPipeline || !chunkManager || !vulkanDevice) return;
+    const WorldGenerator* gen = chunkManager->getStreamingGenerator();
+    const Phyxel::HydrologyMap* hydro = gen ? gen->hydrology() : nullptr;
+    if (!hydro) return;
+    if (chunkManager->chunkMap.empty()) return;
+
+    // Rebuild when chunks stream in/out, rate-limited (the fine-window lesson: a stride-only or
+    // build-once grid captures an empty post-teleport chunk map as "all dry" forever).
+    const size_t chunkCount = chunkManager->chunkMap.size();
+    if (m_spanGridCooldown > 0) --m_spanGridCooldown;
+    if (m_spanGridChunkCount == chunkCount) return;
+    if (m_spanGridCooldown > 0) return;
+
+    // Bounds of resident chunks, clamped to a hard cap. ⚑No silent caps: if residency outruns the
+    // cap the excess is logged — those chunks' terrain renders with dry water, which is exactly
+    // the defect class, so the log line is the tripwire.
+    glm::ivec3 lo(INT_MAX), hi(INT_MIN);
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        lo = glm::min(lo, cc); hi = glm::max(hi, cc);
+    }
+    constexpr int kMaxCells = 2048;                       // 2048² cols × 16 B = 64 MB ceiling
+    int minX = lo.x * 32, minZ = lo.z * 32;
+    int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
+    if (w > kMaxCells) {
+        const int cx = minX + w / 2;
+        LOG_WARN("RenderCoordinator", "span water grid clamped in X ({} > {}): outer chunks render dry water", w, kMaxCells);
+        minX = cx - kMaxCells / 2; w = kMaxCells;
+    }
+    if (d > kMaxCells) {
+        const int cz = minZ + d / 2;
+        LOG_WARN("RenderCoordinator", "span water grid clamped in Z ({} > {}): outer chunks render dry water", d, kMaxCells);
+        minZ = cz - kMaxCells / 2; d = kMaxCells;
+    }
+
+    // The per-BODY look survives: the bake's coarse RGBA (level+energy+turbidity+roughness) is
+    // built once and its G/B/A are copied per column, so W2/W3 appearance is unchanged — only
+    // PLACEMENT (R and wet/dry) comes from the spans.
+    std::vector<float> coarse;
+    {
+        Phyxel::WaterLookOverride ovr;
+        ovr.active = m_waterLookActive; ovr.turbidity = m_waterLookTurbidity; ovr.roughness = m_waterLookRoughness;
+        Phyxel::WaterWind wind;
+        wind.speedMs = waterPipeline->windSpeed(); wind.dirRadians = waterPipeline->windDirection();
+        Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, coarse, wind);
+    }
+    const float invCell = 1.0f / hydro->cellSize();
+    const int cw = hydro->cellsX(), ch = hydro->cellsZ();
+    const float cox = hydro->originX(), coz = hydro->originZ();
+
+    std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
+    for (size_t i = 0; i < rgba.size(); i += 4) {
+        rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
+    }
+    long wet = 0;
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        if (!chunk) continue;
+        const int bx = cc.x * 32, bz = cc.z * 32;
+        if (bx + 31 < minX || bx >= minX + w || bz + 31 < minZ || bz >= minZ + d) continue;
+        for (const auto& s : chunk->getWaterSpans()) {
+            const int gx = bx + s.x - minX, gz = bz + s.z - minZ;
+            if (gx < 0 || gx >= w || gz < 0 || gz >= d) continue;
+            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
+            const float top = static_cast<float>(cc.y) * 32.0f + s.top;
+            if (px[0] < -1e5f) {
+                ++wet;
+                // Look from the coarse body cell under this column (neutral where the bake is dry).
+                const int ccx = static_cast<int>((static_cast<float>(bx + s.x) + 0.5f - cox) * invCell);
+                const int ccz = static_cast<int>((static_cast<float>(bz + s.z) + 0.5f - coz) * invCell);
+                if (ccx >= 0 && ccx < cw && ccz >= 0 && ccz < ch) {
+                    const float* cp = &coarse[(static_cast<size_t>(ccz) * cw + ccx) * 4];
+                    if (cp[0] > -1e5f) { px[1] = cp[1]; px[2] = cp[2]; px[3] = cp[3]; }
+                }
+            }
+            if (top > px[0]) px[0] = top;              // topmost clip wins
+        }
+    }
+
+    // Same swap discipline as the grounded path: the image size can change between rebuilds
+    // (residency bounds move), which recreates the image + rewrites the descriptor — idle first.
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+    waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), w, d,
+                                         static_cast<float>(minX), static_cast<float>(minZ), -1.0f);
+    vulkanDevice->endSingleTimeCommands(oneShot);
+    // Pin the per-frame bake rebind guard so it never overwrites this grid.
+    m_lastHydroUploaded = hydro;
+    m_spanGridChunkCount = chunkCount;
+    m_spanGridCooldown = 30;
+    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} chunks",
+             w, d, minX, minZ, wet, chunkCount);
+}
+
 glm::vec3 RenderCoordinator::waterLook() const {
     return glm::vec3(m_waterLookActive ? 1.0f : 0.0f, m_waterLookTurbidity, m_waterLookRoughness);
 }
@@ -1851,6 +1953,10 @@ void RenderCoordinator::drawFrame() {
             m_lastHydroUploaded = hydro;
         }
     }
+
+    // THE SANE BASELINE: span-derived water placement for baked worlds (overrides the bake
+    // upload above once chunks are resident; see the function).
+    updateSpanWaterGrid();
 
     // Wait for previous frame
     vulkanDevice->waitForFence(currentFrame);

@@ -231,7 +231,21 @@ git history) and should be done fresh when needed rather than kept.
    its water at boot with no command (L4: boot log `1681 wet columns from chunk spans` +
    screenshot). **Streaming worlds still render from the coarse bake — rim_leaks 606 stands**;
    replacing that upload with a span-derived fine grid is the remaining half of this step.
-2b. **Render from spans (streaming) — ATTEMPTED AND REVERTED (`c1f36b9c` → `910cdbf5`,
+2b-DONE. **THE SANE BASELINE SHIPPED (user order, 2026-08-04): streaming baked worlds render
+   water from CHUNK SPANS — one placement rule, off-grid dry.**
+   `RenderCoordinator::updateSpanWaterGrid` builds the grounded grid from resident chunks'
+   spans (bounds-clamped 2048², logged when clamped), carries the per-body look (G/B/A) over
+   from the coarse bake so W2/W3 appearance survives, rebuilds on chunk arrivals
+   (rate-limited), and replaces the bake upload. Coverage = chunk residency, the same rule
+   terrain obeys: water is visible exactly where its ground is visible, content is span truth
+   from every vantage. The bake no longer places water on screen anywhere; cell rendering is
+   already gone in baked worlds. Evidence: the user's dry-band repro spot now shows water
+   conforming to terrain; near + elevated-far vantages agree on the waterline; span grid log
+   94,834 wet columns tracking residency. NOT covered: rivers (no spans — their carves render
+   dry; needs river spans or their own representation); horizon water beyond residency
+   (matches terrain's own limit; far-tiles remain the eventual fix); waitIdle per rebuild
+   unmeasured under heavy streaming; probe still manual.
+2b-HISTORY. **First attempt REVERTED (`c1f36b9c` → `910cdbf5`,
    2026-08-04).** The camera-following fine span window violated the CAMERA INVARIANT at its
    edge: inside = span truth, outside = the coarse bake, and the two DISAGREE on wet/dry, so
    the seam was a camera-following waterline (the third shipped violation; screenshot in

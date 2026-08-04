@@ -403,6 +403,12 @@ public:
     // for such worlds: with it bound, a column with no terrain under it cannot draw water.
     void uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX, int cellsZ,
                                  float originX, float originZ);
+
+    // THE SANE BASELINE (docs/Water.md, user order 2026-08-04): streaming baked worlds render
+    // water from CHUNK SPANS over resident chunks, off-grid dry — one placement rule, coverage
+    // identical to terrain residency, content viewer-independent. Replaces the bake as the
+    // placement source on screen. Called per frame; rebuilds on chunk arrivals, rate-limited.
+    void updateSpanWaterGrid();
     bool waterSsr() const { return m_waterSsrEnabled; }
 
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
@@ -616,6 +622,8 @@ private:
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
     const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    size_t m_spanGridChunkCount = 0;   // rebuild the span water grid when residency changes
+    int    m_spanGridCooldown = 0;
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
     bool  m_waterLookActive = false;
     float m_waterLookTurbidity = 0.0f;
