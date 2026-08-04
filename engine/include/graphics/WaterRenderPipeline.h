@@ -145,39 +145,6 @@ private:
     int            m_hydroCellsX = 0, m_hydroCellsZ = 0;
     bool           m_hydroBound = false;                 // no draw until binding 3 is valid
     glm::vec3      m_hydroParams{0.0f, 0.0f, 0.0f};      // originX, originZ, invCellSize (0 = flat)
-
-    // ── FINE SPAN LAYER (docs/Water.md §6 step 2b — render from chunk spans) ─────────────────
-    // Binding 4: a camera-following per-VOXEL-column water-level window built from the chunks'
-    // stored spans; binding 5: its window transform (a tiny host-visible UBO). Inside the window
-    // the shaders take THIS as the truth — including its dry sentinel — and only fall back to
-    // the coarse 128 m bake beyond it. That is what stops the near-field waterline being a
-    // 128 m-quantized fiction (the rim-leak defect class) while the far field keeps the bake.
-    // The image is a FIXED size, so re-uploads are staging copies — no descriptor rewrite and
-    // no device idle after the first bind.
-    void destroyFineResources();
-public:
-    static constexpr int kFineCells = 512;               // 512×512 voxels ≈ the near field
-private:
-    VkImage        m_fineImage = VK_NULL_HANDLE;
-    VkDeviceMemory m_fineImageMemory = VK_NULL_HANDLE;
-    VkImageView    m_fineView = VK_NULL_HANDLE;
-    VkBuffer       m_fineStaging = VK_NULL_HANDLE;       // persistently mapped; R32F levels
-    VkDeviceMemory m_fineStagingMemory = VK_NULL_HANDLE;
-    void*          m_fineStagingMapped = nullptr;
-    VkBuffer       m_fineParams = VK_NULL_HANDLE;        // UBO: originX, originZ, invCell, pad
-    VkDeviceMemory m_fineParamsMemory = VK_NULL_HANDLE;
-    void*          m_fineParamsMapped = nullptr;
-    bool           m_fineBound = false;
-
-public:
-    /// Upload a fine window (kFineCells² R32F levels, row-major z*kFineCells+x, dry = <-1e5)
-    /// and its origin. First call binds descriptors (call while the device is idle at init);
-    /// later calls are staging copies recorded into `cmd`. Pass levels == nullptr at init to
-    /// bind a disabled window (invCell 0) so the samplers are always valid.
-    void recordFineUpload(VkCommandBuffer cmd, const float* levels, float originX, float originZ);
-    bool fineBound() const { return m_fineBound; }
-
-private:
     float          m_waveRadius = 700.0f;      // world units; set from the render distance
     float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 

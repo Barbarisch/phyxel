@@ -34,10 +34,6 @@ layout(push_constant) uniform PushConstants {
 // hydrology stage — the sea at sea level, every lake at its own spill. NEAREST-sampled: basins
 // are piecewise-constant and filtering across a divide would tilt the surface.
 layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
-// FINE span window — kept in sync with water.frag by hand (see its comment). The vertex stage
-// needs it so the sheet GEOMETRY sits at the fine level too, not just the shading.
-layout(set = 1, binding = 4) uniform sampler2D fineLevelTex;
-layout(set = 1, binding = 5) uniform FineWindow { vec4 fw; } fineWin;
 
 // Per-column basin level + wave ENERGY at a world XZ (RG texture: R = level, G = energy from
 // body size — tangible-water F). Falls back to the flat sea level at full energy when no layer
@@ -50,17 +46,6 @@ layout(set = 1, binding = 5) uniform FineWindow { vec4 fw; } fineWin;
 float basinLevelAt(vec2 worldXZ, out float valid, out float energy) {
     valid = 0.0;
     energy = 1.0;
-    // Fine window first — same rule as the fragment stage: inside the window, chunk-span truth.
-    if (fineWin.fw.z > 0.0) {
-        vec2 fcell = (worldXZ - fineWin.fw.xy) * fineWin.fw.z;
-        ivec2 fsz = textureSize(fineLevelTex, 0);
-        if (fcell.x >= 0.0 && fcell.y >= 0.0 && fcell.x < float(fsz.x) && fcell.y < float(fsz.y)) {
-            float flevel = texelFetch(fineLevelTex, ivec2(fcell), 0).r;
-            if (flevel < -1e5) return pc.params.x;   // dry: position fallback, frag discards
-            valid = 1.0;
-            return flevel;
-        }
-    }
     float invCellRaw = pc.params3.w;
     if (invCellRaw == 0.0) return pc.params.x;
     float invCell = abs(invCellRaw);
