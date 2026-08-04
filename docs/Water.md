@@ -202,7 +202,20 @@ git history) and should be done fresh when needed rather than kept.
    its water at boot with no command (L4: boot log `1681 wet columns from chunk spans` +
    screenshot). **Streaming worlds still render from the coarse bake — rim_leaks 606 stands**;
    replacing that upload with a span-derived fine grid is the remaining half of this step.
-2b. **Render from spans (streaming)** — retires the coarse bake as a placement source, the implicit-sea
+2b. **Render from spans (streaming) — SHIPPED 2026-08-04.** A camera-following 512² per-voxel
+   FINE window (set-1 binding 4 + window UBO binding 5, R32F levels) built from chunk-resident
+   spans; inside it the shaders take span truth — including dry — and the coarse bake answers
+   only beyond it. Profile (turbidity/roughness) stays coarse per body. Rebuilds on 64 u stride
+   crossings AND on chunk arrivals (rate-limited ~1/30 frames — the stride-only first version
+   captured an empty post-teleport chunk map as "all dry" and erased the entire near ocean;
+   caught live, fixed same hour). Evidence, WaterTest beach camera (155,24,753): the red
+   dry-seabed frame vs water conforming to the stepped carved shoreline, both directions
+   (below-sea wet, above-sea dry); the red baseline's worst-leak column (59,767) now holds a
+   span at 16.0 and renders wet. ⚑`water_validate` measures BAKE-vs-terrain, so it is NOT the
+   gate for a renderer that no longer reads the bake for placement — the render gate is the
+   span layer itself (containment structural) + the same-camera A/B. Cost: one
+   vkDeviceWaitIdle per window rebuild (bounded by the cooldown) — measure if streaming
+   hitches worsen. — retires the coarse bake as a placement source, the implicit-sea
    special cases, and the camera-dependence. **Acceptance gate: `water_validate`
    `rim_leaks == 0`** (currently 606; two re-measure attempts were VOID — see §7 traps #1).
 3. **CA over spans** — seed from, write back to; state the finite/infinite policy per class.

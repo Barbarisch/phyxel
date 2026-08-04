@@ -403,6 +403,13 @@ public:
     // for such worlds: with it bound, a column with no terrain under it cannot draw water.
     void uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX, int cellsZ,
                                  float originX, float originZ);
+
+    // ── FINE SPAN WINDOW (docs/Water.md §6 step 2b — streaming worlds render from spans) ─────
+    // Camera-following per-voxel-column level window built from chunk-resident water spans and
+    // bound over the coarse bake. Called per frame from drawFrame; rebuilds only when the camera
+    // crosses a 64 u stride. Chunks are the only source — the near waterline conforms to the
+    // carved terrain instead of the 128 m bake contour (rim-leak class, 257/257 on WaterTest).
+    void updateFineWaterWindow();
     bool waterSsr() const { return m_waterSsrEnabled; }
 
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
@@ -616,6 +623,10 @@ private:
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
     const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    glm::ivec2 m_fineOrigin{0, 0};       // fine span window origin (world XZ); see updateFineWaterWindow
+    bool       m_fineWindowValid = false;
+    size_t     m_fineLastChunkCount = 0; // rebuild when chunks stream in/out, not just on motion
+    int        m_fineCooldown = 0;       // frames until the next chunk-driven rebuild is allowed
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
     bool  m_waterLookActive = false;
     float m_waterLookTurbidity = 0.0f;

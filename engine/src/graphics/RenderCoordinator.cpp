@@ -382,6 +382,70 @@ void RenderCoordinator::setWaterLook(bool active, float turbidity, float roughne
     m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
 }
 
+void RenderCoordinator::updateFineWaterWindow() {
+    // Streaming baked worlds only: editor/grounded worlds already render from spans via the
+    // grounded grid, and flat-sea worlds have no spans at all.
+    if (!waterPipeline || !chunkManager || !vulkanDevice) return;
+    const WorldGenerator* gen = chunkManager->getStreamingGenerator();
+    if (!gen || !gen->hydrology()) return;
+    if (!camera) return;
+
+    // Snap the window to a 64-unit stride so it only rebuilds when the camera has really moved.
+    constexpr int kFine = Graphics::WaterRenderPipeline::kFineCells;   // 512 voxels
+    constexpr int kStride = 64;
+    const glm::vec3 cam = camera->getPosition();
+    const int ox = (static_cast<int>(std::floor(cam.x / kStride)) * kStride) - kFine / 2;
+    const int oz = (static_cast<int>(std::floor(cam.z / kStride)) * kStride) - kFine / 2;
+
+    // ⚑REBUILD ON CHUNK ARRIVALS TOO, NOT JUST CAMERA MOTION. The first version rebuilt only on
+    // stride crossings — so a teleport rebuilt the window BEFORE the destination's chunks had
+    // streamed in, captured an empty chunk map as "everything dry", and then never rebuilt: the
+    // entire near-field ocean vanished (seen live on WaterTest, 2026-08-04). Chunk-count changes
+    // now also trigger a rebuild, rate-limited so the streaming burst after a teleport doesn't
+    // become a vkDeviceWaitIdle storm (one rebuild per ~30 frames while chunks pour in).
+    const size_t chunkCount = chunkManager->chunkMap.size();
+    const bool strideMoved  = !m_fineWindowValid || ox != m_fineOrigin.x || oz != m_fineOrigin.y;
+    const bool worldChanged = chunkCount != m_fineLastChunkCount;
+    if (m_fineCooldown > 0) --m_fineCooldown;
+    if (!strideMoved && !worldChanged) return;
+    if (!strideMoved && m_fineCooldown > 0) return;   // defer chunk-driven rebuilds briefly
+
+    // Build the window from what the chunks HOLD. Topmost clip wins per column (a clip at a
+    // chunk ceiling continues above). Columns with no loaded chunk stay DRY in the window —
+    // deliberately: an unloaded near column has no terrain drawn either, so "no data = no water"
+    // cannot draw water over rock, only briefly delay water where nothing is rendered anyway.
+    std::vector<float> levels(static_cast<size_t>(kFine) * kFine, -1e6f);
+    long wet = 0;
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        if (!chunk) continue;
+        const int bx = cc.x * 32, bz = cc.z * 32;
+        if (bx + 31 < ox || bx >= ox + kFine || bz + 31 < oz || bz >= oz + kFine) continue;
+        for (const auto& s : chunk->getWaterSpans()) {
+            const int gx = bx + s.x - ox, gz = bz + s.z - oz;
+            if (gx < 0 || gx >= kFine || gz < 0 || gz >= kFine) continue;
+            float& cell = levels[static_cast<size_t>(gz) * kFine + gx];
+            const float top = static_cast<float>(cc.y) * 32.0f + s.top;
+            if (cell < -1e5f) ++wet;
+            if (top > cell) cell = top;
+        }
+    }
+
+    // Descriptor-stable staging copy — but the previous frame may still be SAMPLING the image
+    // and the params UBO, so idle first. Recenters happen once per 64 u of travel; the chunk
+    // streamer does heavier work on the same movement.
+    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+    waterPipeline->recordFineUpload(oneShot, levels.data(),
+                                    static_cast<float>(ox), static_cast<float>(oz));
+    vulkanDevice->endSingleTimeCommands(oneShot);
+    m_fineOrigin = glm::ivec2(ox, oz);
+    m_fineWindowValid = true;
+    m_fineLastChunkCount = chunkCount;
+    m_fineCooldown = 30;
+    LOG_INFO("RenderCoordinator", "Fine water window rebuilt at ({}, {}): {} wet columns, {} chunks",
+             ox, oz, wet, chunkCount);
+}
+
 void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX,
                                                 int cellsZ, float originX, float originZ) {
     if (!waterPipeline || !vulkanDevice || cellsX <= 0 || cellsZ <= 0) return;
@@ -1847,10 +1911,18 @@ void RenderCoordinator::drawFrame() {
             } else {
                 waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
             }
+            // Fine span window: bind DISABLED here so every set-1 binding is valid from the
+            // first draw; updateFineWaterWindow() below takes over for streaming baked worlds.
+            if (!waterPipeline->fineBound())
+                waterPipeline->recordFineUpload(oneShot, nullptr, 0.0f, 0.0f);
             vulkanDevice->endSingleTimeCommands(oneShot);
             m_lastHydroUploaded = hydro;
         }
     }
+
+    // FINE SPAN WINDOW follow (docs/Water.md §6 step 2b): the near-field water surface renders
+    // from CHUNK SPANS — world data — with the coarse bake only beyond the window.
+    updateFineWaterWindow();
 
     // Wait for previous frame
     vulkanDevice->waitForFence(currentFrame);

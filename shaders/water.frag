@@ -33,6 +33,11 @@ layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 layout(set = 1, binding = 2) uniform sampler2D reflectionTex;
 // Water-layer per-column basin levels (water-layer P1) — see water.vert.
 layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
+// FINE span window (docs/Water.md §6 step 2b): per-VOXEL-column levels derived from the chunks'
+// stored water spans, following the camera. Inside its window it IS the truth — including its dry
+// sentinel — and the coarse bake only answers beyond it. R = level; profile stays coarse.
+layout(set = 1, binding = 4) uniform sampler2D fineLevelTex;
+layout(set = 1, binding = 5) uniform FineWindow { vec4 fw; } fineWin;   // x,y = origin XZ, z = invCell (0 = off)
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
@@ -75,6 +80,31 @@ float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out f
     turbidity = 0.0;
     roughness = 1.0;
     noWater   = 0.0;
+    // FINE WINDOW FIRST (chunk spans — world data). Where bound and covering this column, its
+    // answer is final: a dry fine texel means the terrain does not hold water here, whatever the
+    // coarse bake claims — this is what makes the near-field waterline conform to the real carved
+    // contour instead of the 128 m bake cell (the rim-leak defect class, measured 257/257 on the
+    // WaterTest shore before this path existed). Wet fine columns still read the per-BODY profile
+    // (turbidity/roughness) from the coarse texture below — bodies are far larger than voxels.
+    if (fineWin.fw.z > 0.0) {
+        vec2 fcell = (worldXZ - fineWin.fw.xy) * fineWin.fw.z;
+        ivec2 fsz = textureSize(fineLevelTex, 0);
+        if (fcell.x >= 0.0 && fcell.y >= 0.0 && fcell.x < float(fsz.x) && fcell.y < float(fsz.y)) {
+            float flevel = texelFetch(fineLevelTex, ivec2(fcell), 0).r;
+            if (flevel < -1e5) { noWater = 1.0; return pc.params.x; }
+            // Profile from the coarse body texture at the same position, if it has one here.
+            float invCellC = abs(pc.params3.w);
+            if (invCellC > 0.0) {
+                vec2 ccell = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCellC;
+                ivec2 csz = textureSize(hydroLevelTex, 0);
+                if (ccell.x >= 0.0 && ccell.y >= 0.0 && ccell.x < float(csz.x) && ccell.y < float(csz.y)) {
+                    vec4 ct = texelFetch(hydroLevelTex, ivec2(ccell), 0);
+                    if (ct.r > -1e5) { turbidity = ct.b; roughness = ct.a; }
+                }
+            }
+            return flevel;
+        }
+    }
     float invCellRaw = pc.params3.w;
     if (invCellRaw == 0.0) return pc.params.x;               // flat-sea mode: implicit sea
     float dryBeyond = invCellRaw < 0.0 ? 1.0 : 0.0;          // grounded grid: no implicit ocean

@@ -63,6 +63,7 @@ WaterRenderPipeline::~WaterRenderPipeline() { cleanup(); }
 void WaterRenderPipeline::cleanup() {
     if (m_device != VK_NULL_HANDLE) {
         destroyHydrologyResources();
+        destroyFineResources();
         vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
         vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
         if (m_indexBuffer != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
@@ -89,6 +90,158 @@ void WaterRenderPipeline::destroyHydrologyResources() {
     m_hydroStaging = VK_NULL_HANDLE; m_hydroStagingMemory = VK_NULL_HANDLE;
     m_hydroStagingMapped = nullptr; m_hydroStagingBytes = 0;
     m_hydroCellsX = m_hydroCellsZ = 0;
+}
+
+void WaterRenderPipeline::destroyFineResources() {
+    if (m_fineView != VK_NULL_HANDLE) vkDestroyImageView(m_device, m_fineView, nullptr);
+    if (m_fineImage != VK_NULL_HANDLE) vkDestroyImage(m_device, m_fineImage, nullptr);
+    if (m_fineImageMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_fineImageMemory, nullptr);
+    if (m_fineStagingMapped) vkUnmapMemory(m_device, m_fineStagingMemory);
+    if (m_fineStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_fineStaging, nullptr);
+    if (m_fineStagingMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_fineStagingMemory, nullptr);
+    if (m_fineParamsMapped) vkUnmapMemory(m_device, m_fineParamsMemory);
+    if (m_fineParams != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_fineParams, nullptr);
+    if (m_fineParamsMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, m_fineParamsMemory, nullptr);
+    m_fineView = VK_NULL_HANDLE; m_fineImage = VK_NULL_HANDLE; m_fineImageMemory = VK_NULL_HANDLE;
+    m_fineStaging = VK_NULL_HANDLE; m_fineStagingMemory = VK_NULL_HANDLE; m_fineStagingMapped = nullptr;
+    m_fineParams = VK_NULL_HANDLE; m_fineParamsMemory = VK_NULL_HANDLE; m_fineParamsMapped = nullptr;
+    m_fineBound = false;
+}
+
+void WaterRenderPipeline::recordFineUpload(VkCommandBuffer cmd, const float* levels,
+                                           float originX, float originZ) {
+    if (m_device == VK_NULL_HANDLE || m_descriptorSet == VK_NULL_HANDLE) return;
+    const uint32_t N = kFineCells;
+    const VkDeviceSize bytes = VkDeviceSize(N) * N * sizeof(float);   // R32F levels
+
+    // Lazy one-time creation. FIXED size, so every later call is a staging copy into the same
+    // image — no descriptor rewrite, no device-idle requirement after the first bind.
+    if (m_fineImage == VK_NULL_HANDLE) {
+        VkImageCreateInfo ii{};
+        ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        ii.imageType = VK_IMAGE_TYPE_2D;
+        ii.extent = { N, N, 1 };
+        ii.mipLevels = 1; ii.arrayLayers = 1;
+        // R32F: the fine window carries LEVELS only. The per-body profile (energy/turbidity/
+        // roughness) stays with the coarse texture — bodies are far larger than voxels, so the
+        // coarse per-body values are already the right resolution for the profile.
+        ii.format = VK_FORMAT_R32_SFLOAT;
+        ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+        ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        ii.samples = VK_SAMPLE_COUNT_1_BIT;
+        ii.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateImage(m_device, &ii, nullptr, &m_fineImage) != VK_SUCCESS)
+            throw std::runtime_error("failed to create fine water image!");
+        VkMemoryRequirements mr;
+        vkGetImageMemoryRequirements(m_device, m_fineImage, &mr);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = mr.size;
+        ai.memoryTypeIndex = findMemoryType(m_physicalDevice, mr.memoryTypeBits,
+                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (vkAllocateMemory(m_device, &ai, nullptr, &m_fineImageMemory) != VK_SUCCESS)
+            throw std::runtime_error("failed to allocate fine water memory!");
+        vkBindImageMemory(m_device, m_fineImage, m_fineImageMemory, 0);
+
+        VkImageViewCreateInfo vi{};
+        vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        vi.image = m_fineImage;
+        vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        vi.format = VK_FORMAT_R32_SFLOAT;
+        vi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        if (vkCreateImageView(m_device, &vi, nullptr, &m_fineView) != VK_SUCCESS)
+            throw std::runtime_error("failed to create fine water view!");
+
+        auto makeHostBuffer = [&](VkDeviceSize sz, VkBufferUsageFlags usage, VkBuffer& buf,
+                                  VkDeviceMemory& mem, void*& mapped) {
+            VkBufferCreateInfo bi{};
+            bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            bi.size = sz; bi.usage = usage; bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            if (vkCreateBuffer(m_device, &bi, nullptr, &buf) != VK_SUCCESS)
+                throw std::runtime_error("failed to create fine water buffer!");
+            VkMemoryRequirements bmr;
+            vkGetBufferMemoryRequirements(m_device, buf, &bmr);
+            VkMemoryAllocateInfo bai{};
+            bai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            bai.allocationSize = bmr.size;
+            bai.memoryTypeIndex = findMemoryType(m_physicalDevice, bmr.memoryTypeBits,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            if (vkAllocateMemory(m_device, &bai, nullptr, &mem) != VK_SUCCESS)
+                throw std::runtime_error("failed to allocate fine water buffer memory!");
+            vkBindBufferMemory(m_device, buf, mem, 0);
+            vkMapMemory(m_device, mem, 0, sz, 0, &mapped);
+        };
+        makeHostBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       m_fineStaging, m_fineStagingMemory, m_fineStagingMapped);
+        makeHostBuffer(sizeof(float) * 4, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                       m_fineParams, m_fineParamsMemory, m_fineParamsMapped);
+
+        // The image reuses the hydro sampler's settings via the shared NEAREST sampler when it
+        // exists; the hydro sampler is created lazily too, so make our own to be order-safe.
+        // (Two identical tiny samplers beat an initialization-order dependency.)
+        if (m_hydroSampler == VK_NULL_HANDLE) {
+            VkSamplerCreateInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            si.magFilter = VK_FILTER_NEAREST; si.minFilter = VK_FILTER_NEAREST;
+            si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            if (vkCreateSampler(m_device, &si, nullptr, &m_hydroSampler) != VK_SUCCESS)
+                throw std::runtime_error("failed to create fine water sampler!");
+        }
+
+        VkDescriptorImageInfo info{ m_hydroSampler, m_fineView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        VkDescriptorBufferInfo binfo{ m_fineParams, 0, sizeof(float) * 4 };
+        std::array<VkWriteDescriptorSet, 2> writes{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = m_descriptorSet; writes[0].dstBinding = 4; writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[0].pImageInfo = &info;
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = m_descriptorSet; writes[1].dstBinding = 5; writes[1].descriptorCount = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[1].pBufferInfo = &binfo;
+        vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
+
+    // Stage the window (a disabled bind still copies a fully-dry window so the image is in a
+    // sampleable layout from the first draw — same discipline as the hydro sentinel).
+    if (levels) {
+        memcpy(m_fineStagingMapped, levels, static_cast<size_t>(bytes));
+    } else {
+        float* dst = static_cast<float*>(m_fineStagingMapped);
+        for (uint32_t i = 0; i < N * N; ++i) dst[i] = -1e6f;
+    }
+    // Window transform: invCell 1 (one voxel per cell); 0 disables the fine path entirely.
+    float* prm = static_cast<float*>(m_fineParamsMapped);
+    prm[0] = originX; prm[1] = originZ; prm[2] = levels ? 1.0f : 0.0f; prm[3] = 0.0f;
+
+    VkImageMemoryBarrier b{};
+    b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    b.image = m_fineImage;
+    b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.srcAccessMask = 0;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &b);
+    VkBufferImageCopy region{};
+    region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.imageExtent = { N, N, 1 };
+    vkCmdCopyBufferToImage(cmd, m_fineStaging, m_fineImage,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &b);
+    m_fineBound = true;
 }
 
 void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float* levels,
@@ -299,7 +452,7 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
     //   2 = planar reflection (dormant; see docs/Water.md Phase 5)
     //   3 = the water-layer level grid (per-column basin levels; water-layer P1 — VERTEX too,
     //       because the level moves the surface GEOMETRY, not just the shading)
-    std::array<VkDescriptorSetLayoutBinding, 4> binds{};
+    std::array<VkDescriptorSetLayoutBinding, 6> binds{};
     binds[0].binding = 0;
     binds[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     binds[0].descriptorCount = 1;
@@ -308,6 +461,14 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
     binds[2] = binds[0]; binds[2].binding = 2;
     binds[3] = binds[0]; binds[3].binding = 3;
     binds[3].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    //   4 = FINE span-level window (per-VOXEL-column levels from chunk spans; docs/Water.md §6
+    //       step 2b — VERTEX too, same reason as binding 3)
+    //   5 = the fine window transform (UBO: originX, originZ, invCell 0=disabled, pad)
+    binds[4] = binds[3]; binds[4].binding = 4;
+    binds[5].binding = 5;
+    binds[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    binds[5].descriptorCount = 1;
+    binds[5].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -334,14 +495,16 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
 }
 
 void WaterRenderPipeline::createDescriptorPool() {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 4;   // refraction + scene depth + reflection + water-layer levels
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[0].descriptorCount = 5;   // refraction + depth + reflection + water-layer + FINE window
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[1].descriptorCount = 1;   // fine window transform
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 1;
     if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
         throw std::runtime_error("failed to create water descriptor pool!");
@@ -634,7 +797,8 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
     // The shaders sample every binding in set 1 unconditionally; don't draw until they all point
     // at real images. (Refraction/depth via setSceneTextures, reflection via setReflectionTexture,
     // the water-layer levels via recordHydrologyUpload — the sentinel form counts.)
-    if (!m_sceneBound || !m_reflectionBound || !m_hydroBound || uboSet == VK_NULL_HANDLE) return;
+    if (!m_sceneBound || !m_reflectionBound || !m_hydroBound || !m_fineBound ||
+        uboSet == VK_NULL_HANDLE) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
