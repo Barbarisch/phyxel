@@ -37,6 +37,18 @@ conserved bodies is an open decision (§9).
 
 ## 2. Architecture — three layers, one rule
 
+**⚑THE CAMERA INVARIANT — violated THREE TIMES, now a hard gate (user, 2026-08-04):**
+*"WHETHER water exists at a column must NEVER depend on camera position. Resolution may follow
+the camera; existence may not."* Violations to date, all shipped and all caught by the USER
+walking toward water: (1) the CA region rendering only simulated cells; (2) the grounded
+grid's off-window fallback; (3) the fine span window's edge against a disagreeing coarse bake
+(`c1f36b9c` — the seam was a camera-following waterline). The common failure: each design was
+verified against its data source ("reads from spans ✓") instead of against the observable.
+**Before ANY change to water placement or rendering ships: answer, in the commit message, "does
+wet/dry at any column change with camera position?" — and run the camera-walk probe (§8 #8b):
+capture water extent from two distant vantages and diff. Two sources may only be composed at a
+camera-relative boundary if they AGREE on wet/dry everywhere.**
+
 **The rule that governs everything: water that is DRAWN is not water that is SIMULATED.**
 Almost all water is at rest. World data says where water is; the simulation only adds motion
 where something is changing; the renderer reads world data and lets the sim perturb it. Every
@@ -285,6 +297,12 @@ everywhere; bulk water as particles (particles = splash/spray only).
 7. **Screenshot latency can miss transient effects** (a ripple ring lives 4–6 s — pump
    impulses while capturing); Σ|h| is not monotone for waves; multiplicative verlet damping
    needs `exp(−2k·dt)`.
+
+8b. **The camera-walk probe** (the user's manual detection of the camera invariant, encoded):
+   from a vantage far from a shoreline, record wet/dry for a fixed rect (`water_spans_stored`
+   is camera-independent; the RENDERED extent needs a screenshot or pixel probe); teleport
+   close; diff. Any column that changed is a camera-existence violation. Run it on every
+   placement/render change — three shipped bugs would each have failed it.
 
 **Operational traps:**
 8. `build_shaders.bat` does NOT track `#include` deps — after editing `water_common.glsl`,
