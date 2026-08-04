@@ -679,15 +679,21 @@ TEST(WaterManagerTest, BakedWaterTableFillsLakeAndSurvivesRecenter) {
     EXPECT_LT(wm.massAtWorld(glm::vec3(13.5f, 3.5f, 13.5f)), 1e-3f) << "water above the baked level";
     EXPECT_LT(wm.massAtWorld(glm::vec3(25.5f, 0.5f, 25.5f)), 1e-3f) << "dry column got water";
 
-    // ⚠ SPEC CHANGE (water-layer P1): a pinned, undisturbed lake surface is now drawn by the
-    // water-layer clipmap at its baked level — per-cell emission is SUPPRESSED, exactly like the
-    // sea has been since 2026-07-11 (the old assertion here demanded the opposite and was the
-    // red proof for this change). Disturbed water on the lake must still render per-cell.
+    // ⚠ SPEC CHANGE #2 (camera invariant, user order 2026-08-04 — supersedes the P1 spec below):
+    // in a BAKED world the cell surface is not built AT ALL — the sheet is the only water
+    // renderer, so no camera-following seam is constructible. Even DISTURBED water does not
+    // cell-render (the old contract here was the fourth recurrence's enabler: CA spill into
+    // bake-dry bands rendered per-cell with a travelling region edge). The A/B override
+    // (mode 1) restores cell rendering for diagnosis only.
     EXPECT_TRUE(wm.surfaceCells().empty())
-        << "pinned lake surface emitted per-cell quads — double-draws over the water layer";
+        << "baked world emitted per-cell water — the camera-invariant gate is broken";
     wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), 2.0f);   // a splash ABOVE the lake level
+    EXPECT_TRUE(wm.surfaceCells().empty())
+        << "disturbed water cell-rendered in a baked world — gate must not have exceptions";
+    wm.setCellRenderOverride(1);   // diagnosis mode: cells return
     EXPECT_FALSE(wm.surfaceCells().empty())
-        << "disturbed water above a lake must still render per-cell";
+        << "A/B override mode 1 must restore cell rendering";
+    wm.setCellRenderOverride(-1);
     // Drain the splash back out so the recenter checks below measure the undisturbed lake.
     wm.placeWater(glm::vec3(13.5f, 4.5f, 13.5f), -2.0f);
     wm.update(0.1f);
