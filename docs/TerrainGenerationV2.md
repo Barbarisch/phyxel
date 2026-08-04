@@ -7,7 +7,7 @@
 > continuously updated.
 >
 > It **supersedes the roadmap** in [`docs/TerrainGenerationBiomes.md`](TerrainGenerationBiomes.md)
-> (the v1 column-first pipeline) and folds in [`docs/WorldRecipeAndFlora.md`](WorldRecipeAndFlora.md)
+> (the v1 column-first pipeline) and folds in the retired `WorldRecipeAndFlora.md` (recipe/world semantics now: [`docs/WorldModel.md`](WorldModel.md))
 > and the retired water docs (now [`docs/Water.md`](Water.md)). Those remain accurate for **what shipped**; this
 > doc is **where we're going**. The v1 pipeline is not thrown away — it becomes **Layer 1**
 > (per-chunk detail) beneath a new **Layer 0** (coarse global model).

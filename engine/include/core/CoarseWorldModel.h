@@ -19,7 +19,7 @@ namespace Phyxel {
 // corner samples), order-independent, and thread-safe.
 //
 // NOT in P0: world.db persistence. The fields recompute deterministically from seed, so
-// per the "store what you can't recompute" rule (docs/WorldRecipeAndFlora.md) there is
+// per the "store what you can't recompute" rule (docs/WorldModel.md) there is
 // nothing to persist yet. Persistence lands when a non-recomputable bake exists — an
 // imported drawn map (P4) or the priority-flood hydrology (P2).
 //

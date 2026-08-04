@@ -162,7 +162,7 @@ public:
     const std::vector<Biome>& getBiomes() const { return m_biomes; }
     uint32_t getSeed() const { return seed; }
 
-    // Per-world recipe (docs/WorldRecipeAndFlora.md): snapshot the current generation tuning
+    // Per-world recipe (docs/WorldModel.md): snapshot the current generation tuning
     // into a recipe, or apply a stored one. applyRecipe overrides climateFrequency + per-biome
     // extremeness (heightScale) + flora (density/spacing/items) by biome name; biome category
     // fields (materials, climate ranges) stay from biomes.json.

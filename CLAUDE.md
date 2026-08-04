@@ -350,7 +350,7 @@ Height-based terrain (Perlin/Flat/Mountains/Caves) is **biome-aware** and gets *
 - **World recipe**: each world's generation tuning (seed, biome size, extremeness, flora) is
   persisted in `world.db` (`world_meta` table) on first load — the DB becomes the source of truth,
   so editing global `biomes.json` no longer changes existing worlds. Full design + remaining work:
-  `docs/WorldRecipeAndFlora.md`.
+  `docs/WorldModel.md`.
 
 ## Scene System (Multi-Level Games)
 
