@@ -2504,6 +2504,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     }
 #endif
 
+    // Water renders from what the chunks HOLD (docs/Water.md §6 step 2). The --project boot loads
+    // chunks in core WorldInitializer, which cannot reach the render coordinator — so the bind
+    // happens here, once everything exists. (applyProjectSelection covers the in-session
+    // project-open path with its own call.) A saved basin shows its water at boot, no command.
+    rebuildGroundedWaterFromSpans();
+
     return true;
 }
 
@@ -2553,6 +2559,46 @@ void Application::onLauncherResult(const LauncherResult& result) {
         default:
             break;
     }
+}
+
+long Application::rebuildGroundedWaterFromSpans() {
+    if (!chunkManager || !renderCoordinator) return 0;
+    const WorldGenerator* sg = chunkManager->getStreamingGenerator();
+    if (sg && sg->hydrology()) return 0;              // baked worlds render via the bake upload
+    if (chunkManager->chunkMap.empty()) return 0;
+
+    // Bounds of the loaded chunks, in columns.
+    glm::ivec3 lo(INT_MAX), hi(INT_MIN);
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        lo = glm::min(lo, cc); hi = glm::max(hi, cc);
+    }
+    const int minX = lo.x * 32, minZ = lo.z * 32;
+    const int w = (hi.x - lo.x + 1) * 32, d = (hi.z - lo.z + 1) * 32;
+    if (static_cast<long long>(w) * d > (1 << 21)) return 0;   // editor-scale worlds only
+
+    // Derive the per-column grid from what chunks HOLD. A column's surface is the topmost clip
+    // across its vertical chunk stack (clips at a chunk ceiling continue above, so the highest
+    // wet chunk owns the surface).
+    std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
+    for (size_t i = 0; i < rgba.size(); i += 4) {
+        rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
+    }
+    long wet = 0;
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        if (!chunk) continue;
+        for (const auto& s : chunk->getWaterSpans()) {
+            const int gx = cc.x * 32 + s.x - minX, gz = cc.z * 32 + s.z - minZ;
+            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
+            const float topWorld = static_cast<float>(cc.y) * 32.0f + s.top;
+            if (px[0] < -1e5f) ++wet;                  // first span for this column
+            if (topWorld > px[0]) px[0] = topWorld;    // topmost clip wins
+        }
+    }
+    renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
+                                               static_cast<float>(minX), static_cast<float>(minZ));
+    LOG_INFO("Application", "Grounded water bound from chunk spans: {} wet columns over {}x{}",
+             wet, w, d);
+    return wet;
 }
 
 void Application::applyProjectSelection(const std::string& projectPath) {
@@ -2622,6 +2668,9 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // occupancy grid so debris collides with DB-loaded terrain instead of
             // falling through it.
             chunkManager->rebuildOccupancyFromChunks();
+            // Water renders from what the chunks HOLD (docs/Water.md §6 step 2): a saved basin
+            // shows its water at boot with no command, or shows none if none was ever stored.
+            rebuildGroundedWaterFromSpans();
             LOG_INFO("Application", "Loaded {} chunk(s) from project world database", loaded.size());
         } else {
             LOG_INFO("Application", "Project world database is empty  --  world will be built from game.json");
@@ -11544,11 +11593,12 @@ void Application::registerWaterCommands() {
         }
 
         const float sea = waterManager ? waterManager->seaLevel() : static_cast<float>(Core::kSeaLevelY);
-        std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
-        // Spans grouped per chunk — this command is also the EDITOR-WORLD writer of chunk-resident
+        // Spans grouped per chunk — this command is the EDITOR-WORLD writer of chunk-resident
         // water (docs/Water.md §2 layer 1): un-baked worlds have no generation-time span pass, so
-        // the same scan that feeds the render grid persists its result into the chunks (and from
-        // there into the world DB via the normal blob save).
+        // the scan persists its result into the chunks (and from there into the world DB via the
+        // normal blob save). ⚑The RENDER upload happens at the END, derived FROM the chunks — the
+        // scan never feeds the renderer directly, so there is exactly one render derivation
+        // (rebuildGroundedWaterFromSpans) whether water arrives by boot-load or by this command.
         std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> chunkSpans;
         auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
         long wet = 0, solidCols = 0;
@@ -11564,11 +11614,6 @@ void Application::registerWaterCommands() {
                     ++solidCols;
                     isWet = Phyxel::buildOpenWaterSpan(surfaceY, sea, span);
                 }
-                float* px = &rgba[(static_cast<size_t>(z) * w + x) * 4];
-                px[0] = isWet ? span.topY : -1e30f;   // R: level / dry sentinel
-                px[1] = 1.0f;                          // G: wave energy (neutral)
-                px[2] = 0.0f;                          // B: turbidity (neutral)
-                px[3] = 1.0f;                          // A: roughness (neutral)
                 if (!isWet) continue;
                 ++wet;
                 // Clip the world-space span into every vertical chunk it crosses.
@@ -11606,13 +11651,13 @@ void Application::registerWaterCommands() {
             chunk->setWaterSpans(std::move(it->second));
         }
 
-        renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
-                                                   static_cast<float>(minX), static_cast<float>(minZ));
+        // Render THROUGH the chunks: the one derivation, shared with the boot-load path.
+        const long boundWet = rebuildGroundedWaterFromSpans();
         r = {{"success", true}, {"columns", (long long)w * d}, {"solid_columns", solidCols},
-             {"wet_columns", wet}, {"sea_level", sea},
+             {"wet_columns", wet}, {"wet_columns_bound", boundWet}, {"sea_level", sea},
              {"chunks_with_spans", spanChunks}, {"spans_stored", spansStored},
              {"bounds", {{"minX", minX}, {"maxX", maxX}, {"minZ", minZ}, {"maxZ", maxZ}}},
-             {"mode", "grounded (off-grid dry)"}};
+             {"mode", "grounded (off-grid dry), rendered from chunk spans"}};
     });
 
     // ── water_spans_stored — read back the CHUNK-RESIDENT spans (docs/Water.md §2 layer 1) ───

@@ -186,7 +186,13 @@ Reference baselines with recorded cameras live in `docs/water-refs/` — the A/B
 1. ~~**Spans in chunks** — storage + persistence~~ **DONE** (`b5906ad0`, 2026-08-04 — §2 layer 1).
    Still owed from it: streaming-world L4 (generation-time spans at scale + the added
    per-chunk-column flood cost measured on a real streaming boot).
-2. **Render from spans** — retires the coarse bake as a placement source, the implicit-sea
+2. **Render from spans** — EDITOR PATH DONE (2026-08-04): `rebuildGroundedWaterFromSpans()`
+   derives the grounded render grid from what chunks HOLD, called at boot (`--project` and
+   dialog paths) and by `water_ground_sync` — one derivation everywhere; a saved basin shows
+   its water at boot with no command (L4: boot log `1681 wet columns from chunk spans` +
+   screenshot). **Streaming worlds still render from the coarse bake — rim_leaks 606 stands**;
+   replacing that upload with a span-derived fine grid is the remaining half of this step.
+2b. **Render from spans (streaming)** — retires the coarse bake as a placement source, the implicit-sea
    special cases, and the camera-dependence. **Acceptance gate: `water_validate`
    `rim_leaks == 0`** (currently 606; two re-measure attempts were VOID — see §7 traps #1).
 3. **CA over spans** — seed from, write back to; state the finite/infinite policy per class.
