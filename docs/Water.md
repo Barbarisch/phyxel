@@ -231,6 +231,13 @@ git history) and should be done fresh when needed rather than kept.
    its water at boot with no command (L4: boot log `1681 wet columns from chunk spans` +
    screenshot). **Streaming worlds still render from the coarse bake — rim_leaks 606 stands**;
    replacing that upload with a span-derived fine grid is the remaining half of this step.
+2b-FIX (2026-08-04, same day): **kWaterExtentSteps 48 -> 256.** The 48-step budget truncated
+   basin fills mid-slope - the exposed cross-section rendered as a FREE-STANDING WALL of water
+   (user found it standing on span-dry seabed at (156,701)). A budget below the bake worst-case
+   shoreline error is a DIRECTIVE violation, not a tuning choice; 256 covers two full bake
+   cells. World regen required for old chunks (edits-win keeps stale spans). Verified at the
+   same column: 0 spans -> 1 span top 16.0; the wall is gone. Generation cost of the larger
+   margin NOT yet rigorously measured - owed.
 2b-DONE. **THE SANE BASELINE SHIPPED (user order, 2026-08-04): streaming baked worlds render
    water from CHUNK SPANS — one placement rule, off-grid dry.**
    `RenderCoordinator::updateSpanWaterGrid` builds the grounded grid from resident chunks'

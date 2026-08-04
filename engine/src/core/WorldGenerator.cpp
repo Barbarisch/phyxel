@@ -655,12 +655,17 @@ float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
     return reliefAt(generationType, seed, wx, wz, cont);
 }
 
-// How far the shoreline refinement may search for the body a column belongs to. ⚑A BUDGET, not a
-// physical constant: a global flood is ~1e9 columns over a 32 km world, so the search is bounded and
-// a column further than this from baked water keeps the bake's answer. 48 covers the 128 m bake
-// cell the true contour can hide inside, with margin. Each step costs a real terrain sample, so
-// raising it costs generation time — measure before increasing.
-static constexpr int kWaterExtentSteps = 48;
+// How far the shoreline refinement may search for the body a column belongs to.
+// ⚑THIS IS A CORRECTNESS BOUND, NOT A TUNING KNOB — set by the DIRECTIVE, not by cost. A budget
+// smaller than the bake's worst shoreline error TRUNCATES a basin's fill mid-slope, and the
+// exposed cross-section renders as a free-standing WALL of water — impossible-by-construction
+// water, the exact thing "water must be tied to the terrain holding it" forbids. That defect
+// SHIPPED at 48 ("covers the 128 m cell, with margin" — wrong: the fine contour can sit multiple
+// cells beyond the coarse boundary on gentle shelves; the user stood on span-dry seabed at
+// (156,701) facing the truncation wall, 2026-08-04). 256 covers TWO full bake cells including
+// diagonals. The cost is real (the sampling margin grows with this number) and is paid, measured,
+// and reported — not traded against the invariant.
+static constexpr int kWaterExtentSteps = 256;
 
 bool WorldGenerator::waterSpanAt(int worldX, int worldZ, WaterSpan& out) {
     // ⚑NO LONGER GATED ON THE BAKE. The bake used to decide both whether a column was wet and how
