@@ -11,6 +11,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <unistd.h>
 #endif
 #include "Application.h"
+#include <cmath>
 #include "graphics/FarTerrainManager.h"
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
@@ -11542,6 +11543,92 @@ void Application::registerWaterCommands() {
     //
     // Needs a hydrology bake — a flat-sea world has no water bodies and therefore no profiles.
     // `hydrology_bound` reports whether this world can show anything at all.
+    // ── water_span_scan (docs/WaterAsWorldData.md §5.2) ──────────────────────────────────────
+    // Quantifies the gap between what the COARSE BAKE floods and what the TERRAIN actually holds,
+    // over a world rect. Both answers come from the same bake; only the span query also consults
+    // the real per-column surface height.
+    //
+    // `bake_wet_terrain_dry` is THE number: columns the current renderer draws water on that have
+    // no water in them — the floating-water defect, counted. It is the acceptance metric for
+    // rendering from occupancy (target: the renderer stops drawing those columns).
+    reg.on("water_span_scan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!g) { r = {{"error", "no streaming generator (world.streaming must be true)"}}; return; }
+        if (!g->hydrology()) { r = {{"error", "no hydrology bake in this world"}}; return; }
+        const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
+        const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
+        const int lx = std::min(x1, x2), lz = std::min(z1, z2);
+        const int w = std::max(x1, x2) - lx + 1, d = std::max(z1, z2) - lz + 1;
+
+        // BATCH PATH — the one generation uses. Timed, because affordability is the whole point of
+        // it existing: the per-column form measured 3.4 ms/column, i.e. ~3.5 s per 32x32 chunk.
+        const auto t0 = std::chrono::steady_clock::now();
+        std::vector<Phyxel::WaterSpan> spans; std::vector<uint8_t> hasSpan;
+        g->waterSpansForBlock(lx, lz, w, d, spans, hasSpan);
+        const double elapsedMs =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+
+        long columns = 0, bakeWet = 0, spanWet = 0, bakeWetTerrainDry = 0;
+        double sumDepth = 0.0; float maxDepth = 0.0f;
+        float worstOverhang = 0.0f; int worstX = 0, worstZ = 0;
+        for (int z = 0; z < d; ++z)
+            for (int x = 0; x < w; ++x) {
+                const size_t i = static_cast<size_t>(z) * w + x;
+                const int wx = lx + x, wz = lz + z;
+                ++columns;
+                const float lvl = g->hydrology()->waterLevelAt(wx + 0.5f, wz + 0.5f);
+                const bool baked = lvl > Phyxel::HydrologyMap::NO_WATER * 0.5f;
+                if (baked) ++bakeWet;
+                if (hasSpan[i]) {
+                    ++spanWet; sumDepth += spans[i].depth();
+                    if (spans[i].depth() > maxDepth) maxDepth = spans[i].depth();
+                } else if (baked) {
+                    ++bakeWetTerrainDry;
+                    // How far the ground stands ABOVE the level the renderer would draw at.
+                    const float over = static_cast<float>(g->sampleSurface(wx, wz).surfaceY) + 1.0f - lvl;
+                    if (over > worstOverhang) { worstOverhang = over; worstX = wx; worstZ = wz; }
+                }
+            }
+
+        r = {{"columns", columns}, {"bake_wet", bakeWet}, {"span_wet", spanWet},
+             {"bake_wet_terrain_dry", bakeWetTerrainDry},
+             {"disagreement_pct", bakeWet ? (100.0 * bakeWetTerrainDry / bakeWet) : 0.0},
+             {"mean_depth", spanWet ? (sumDepth / spanWet) : 0.0}, {"max_depth", maxDepth},
+             {"worst_overhang", worstOverhang},
+             {"worst_overhang_at", {{"x", worstX}, {"z", worstZ}}},
+             {"batch_ms", elapsedMs},
+             {"us_per_column", columns ? (elapsedMs * 1000.0 / columns) : 0.0},
+             // What resolving one 32x32 chunk would cost at this rate — the number that decides
+             // whether generation can afford to do this at all.
+             {"projected_ms_per_chunk", columns ? (elapsedMs * 1024.0 / columns) : 0.0}};
+
+        // EQUIVALENCE CHECK, on request: the batch pass may only be trusted if it returns what the
+        // per-column query returns. Sampled (it is 3.4 ms a column) but on the REAL world rather
+        // than a unit-test fixture, because the failure mode being guarded against — a body whose
+        // seed sits outside the sampled margin — cannot be produced by a small fixture.
+        const int verify = cmd.params.value("verify", 0);
+        if (verify > 0 && columns > 0) {
+            const long stride = std::max(1L, columns / verify);
+            long checked = 0, mismatches = 0, wetChecked = 0; int firstX = 0, firstZ = 0;
+            for (long i = 0; i < columns; i += stride) {
+                const int x = static_cast<int>(i % w), z = static_cast<int>(i / w);
+                Phyxel::WaterSpan single;
+                const bool sWet = g->waterSpanAt(lx + x, lz + z, single);
+                const bool bWet = hasSpan[static_cast<size_t>(i)] != 0;
+                ++checked;
+                if (sWet) ++wetChecked;
+                if (sWet != bWet ||
+                    (sWet && std::abs(single.topY - spans[static_cast<size_t>(i)].topY) > 1e-3f)) {
+                    if (!mismatches) { firstX = lx + x; firstZ = lz + z; }
+                    ++mismatches;
+                }
+            }
+            r["verify"] = {{"checked", checked}, {"wet_checked", wetChecked},
+                           {"mismatches", mismatches},
+                           {"first_mismatch_at", {{"x", firstX}, {"z", firstZ}}}};
+        }
+    });
+
     // Screen-space reflection toggle (v4 W4). OFF = the pre-W4 procedural-sky-only reflection, so
     // this is the A/B control for "the reflection is what changed" AND the perf A/B.
     reg.on("water_ssr", [this](const Core::APICommand& cmd, nlohmann::json& r) {

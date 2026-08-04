@@ -172,6 +172,91 @@ per-basin rather than per-world, seeded from the coarse candidate. Whether a bou
 always find the true rim of a large basin without walking the whole thing is the open engineering
 question, and it is the one to spike first.
 
+#### ⚑SPIKED, AND THE ANSWER IS NO (2026-08-04)
+
+The question above was answered by measurement, and the answer kills the attractive version of this
+plan: **a bounded local flood cannot find a large basin's rim.**
+
+`fillBasinAt` (a local Priority-Flood on real per-column heights, no bake consulted, no level
+parameter — see `WaterOccupancy.h`) was wired into generation and measured against the bake over the
+inland lake at (4200..4500, −14950..−14600):
+
+| | bake | terrain-derived fill |
+|---|---|---|
+| wet columns | 1,079 | **14** |
+| mean depth | — | 1.07 voxels |
+
+**99.3% disagreement.** The cause is not that the bake is fictional there — it is that the lake is
+~512 units across and the budget is 48 steps, so the flood **walks its entire budget without ever
+leaving the lake bed**, escapes having crossed nothing but bed, and reports a spill of ~120 against a
+true rim of 148.9. Depth zero. It was finding puddles inside a lake. Raising the budget far enough to
+enclose a real basin is unaffordable: the per-column form measured **3.4 ms/column**.
+
+So the division of labour is now fixed, and it is not "the fine pass is authoritative about
+everything":
+
+- **the coarse bake owns global connectivity** — which body exists, and which columns belong to it.
+  That is exactly what a 32 km Priority-Flood is good at and what a bounded local search can never be;
+- **the fine pass owns the boundary** — which is local, and therefore cheap;
+- **`fillBasinAt` keeps its real job**: making "water without a basin" unrepresentable in the API. It
+  is simply not the right tool for identifying a continent's lakes.
+
+#### The cost fix: one flood per block, not one per column
+
+3.4 ms/column is ~1000× too slow for generation (a 32×32 chunk is 1,024 columns → ~3.5 s/chunk of
+flood alone). The waste is structural — 1,024 separate floods re-sample the same neighbourhood
+thousands of times — so the fix is structural: `floodBodiesOverGrid` samples each column's terrain
+**once**, then runs a **single multi-source BFS seeded from every baked-wet column at once**. Nearest
+body wins by BFS order, so the per-column rule is preserved.
+
+⚑**The step bound is a correctness requirement, not a tuning knob** — and this was a real defect
+caught by test, not a hypothetical. An unbounded flood spreads to whatever the sampled grid happens
+to contain, which makes a column's answer depend on **the size of the block it was computed in**.
+Chunk A and chunk B would then resolve their shared shoreline differently and **tear at the seam**.
+Bounding propagation to `maxSteps` makes the result a function of (terrain, bake, maxSteps) alone —
+the seam-freedom property this section demands. Pinned by
+`BatchFloodIsIndependentOfTheWindowItWasComputedIn`, which is shown red against the unbounded version.
+
+⚑**One definition of the answer, not two.** `waterSpanAt` (single column) now delegates to the batch
+pass rather than running its own flood. The first version had two implementations of one rule and the
+equivalence test immediately found them disagreeing — two implementations always drift, and the
+second one silently becomes the definition once generation calls it.
+
+#### Measured, 2026-08-04 (Release, `water_span_scan`, WaterTableTest, inland lake)
+
+**Cost — the claim this increment exists to make.** Sampling routes through the existing
+`columnsForChunk` memo, so neighbouring chunks reuse each other's margin columns:
+
+| block | batch_ms | µs/column | per-chunk equivalent |
+|---|---|---|---|
+| 32×32, cold | 100.9 | 98.6 | 100.9 ms |
+| 32×32, warm (re-run) | **0.39** | 0.38 | 0.4 ms |
+| 32×32, adjacent chunk | 20.4 | 19.9 | 20.4 ms |
+| 128×128 | 126.8 | 7.74 | **7.9 ms** |
+
+The 0.39 ms warm figure is the flood alone; everything above it is terrain sampling. Against the
+per-column path's projected **3,500 ms/chunk**, this is a 35–440× reduction depending on cache state.
+
+**Correctness on real terrain** (128×128 block at the lake, 16,384 columns):
+- `bake_wet_terrain_dry = 0` and `worst_overhang = 0` — not one column the bake calls wet is dry
+  ground. No floating water anywhere in the region.
+- `bake_wet 2,704 → span_wet 11,691` — the fine pass finds **4.3× more water** than the coarse bake,
+  which is the shoreline expanding from the 128 m cell grid to the true per-voxel contour. Mean depth
+  27.8 voxels, max 38.9.
+- Window-independence sampled on real terrain (1×1 block vs the enclosing block): **0 mismatches**
+  across 103 probed columns, 39 of them wet.
+
+⚑**WHAT THIS DOES NOT FIX, STATED PLAINLY.** The fine pass corrects *extent given a level* and
+*containment*. It does **not** correct a wrong level — if the bake says a basin's spill is 148.9 and
+the true rim is 126, every column below 148.9 within reach still floods. That is precisely the gap
+the `fillBasinAt` spike failed to close, and it remains open.
+
+⚑**`water_validate` rim_leaks is UNCHANGED at 606, by construction** — this increment touches only
+the generator-side query; nothing stores spans and nothing renders from them yet. Two attempts to
+re-measure it were **void, not passes**: at the lake the region reported `unloaded: 16384` (not
+streamed in), and near the camera the region contains no water at all, so `rim_leaks: 0` there is
+vacuous. Neither is evidence of anything.
+
 **An attractive alternative worth spiking against it:** use the CA itself as the generator — let
 physics settle water against real terrain once, then bake the settled state into spans. "Water is
 defined by the terrain holding it" is then true by execution rather than by construction. The known

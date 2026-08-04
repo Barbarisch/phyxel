@@ -53,17 +53,29 @@ layout(push_constant) uniform PushConstants {
 // FALLBACKS ARE THE NEUTRAL PROFILE (turbidity 0, roughness 1) — flat-sea mode, outside the baked
 // region, and dry columns all take today's look exactly. A world with no hydrology bake has no
 // water bodies, so it has no per-body profile by construction; that is correct, not a gap.
-float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness) {
+// ⚑`noWater` KILLS A PHANTOM SEA (docs/WaterAsWorldData.md). "Not wet" was collapsing to "return
+// sea level", so a column the bake calls DRY still got a sheet drawn at y = seaLevel: an infinite,
+// edgeless, camera-following plane sitting UNDER the entire landscape, visible whenever you got
+// below the terrain or looked where terrain was not drawn. The only thing hiding it was the
+// depth-buffer dry-land gate — and that gate cannot fire where there is no depth.
+//
+// "NOT WET" IS THREE DIFFERENT THINGS and only one of them means there is no water:
+//   * flat-sea mode (no bake at all) -> implicit sea; authored worlds depend on it.  KEEP.
+//   * outside the baked region       -> the open ocean beyond the grid's reach.      KEEP.
+//   * DRY COLUMN INSIDE THE BAKE     -> land. No water here at all.                  DISCARD.
+// Conflating the third case with the first two is what put an ocean under the world.
+float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater) {
     turbidity = 0.0;
     roughness = 1.0;
+    noWater   = 0.0;
     float invCell = pc.params3.w;
-    if (invCell <= 0.0) return pc.params.x;
+    if (invCell <= 0.0) return pc.params.x;                  // flat-sea mode: implicit sea
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
-        return pc.params.x;
+        return pc.params.x;                                  // off-grid: open ocean
     vec4 t = texelFetch(hydroLevelTex, ivec2(cellF), 0);
-    if (t.r < -1e5) return pc.params.x;   // dry column sentinel — keep the neutral profile
+    if (t.r < -1e5) { noWater = 1.0; return pc.params.x; }   // dry land inside the bake: NO water
     turbidity = t.b;
     roughness = t.a;
     return t.r;
@@ -107,7 +119,13 @@ void main() {
     // (not taken from the vertex) so the stretched wall quads at basin rims gate against their
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
-    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness);
+    float noWaterHere;
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness, noWaterHere);
+    // Dry land inside the baked region has NO water, so nothing is drawn — full stop, and without
+    // consulting the depth buffer. This is the terrain deciding, which is the whole governing rule:
+    // the bake says this column holds nothing, so nothing is rendered, whether or not any geometry
+    // happens to be in front of it this frame.
+    if (noWaterHere > 0.5) discard;
     // SSR (v4 W4). params2.z used to be `reflectionEnabled` for a PLANAR reflection branch that was
     // permanently dormant (RenderCoordinator hardcoded it off because the shared mirror pass is
     // broken). The flag is now the SSR toggle — same plumbing, a reflection that actually works on

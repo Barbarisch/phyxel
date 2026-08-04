@@ -599,6 +599,121 @@ float WorldGenerator::surfaceVariationFor(int wx, int wz, float cont) {
     return reliefAt(generationType, seed, wx, wz, cont);
 }
 
+// How far the shoreline refinement may search for the body a column belongs to. ⚑A BUDGET, not a
+// physical constant: a global flood is ~1e9 columns over a 32 km world, so the search is bounded and
+// a column further than this from baked water keeps the bake's answer. 48 covers the 128 m bake
+// cell the true contour can hide inside, with margin. Each step costs a real terrain sample, so
+// raising it costs generation time — measure before increasing.
+static constexpr int kWaterExtentSteps = 48;
+
+bool WorldGenerator::waterSpanAt(int worldX, int worldZ, WaterSpan& out) {
+    // ⚑NO LONGER GATED ON THE BAKE. The bake used to decide both whether a column was wet and how
+    // high the water stood; it now decides neither. Terrain shape plus the world's sea level are
+    // sufficient, which is what "water bodies are defined by the terrain holding them" means once
+    // it reaches code. Flat worlds are exempt: they are authored, not sculpted, and have no basins.
+    if (generationType == GenerationType::Flat) return false;
+
+    // ⚑THE LEVEL IS DERIVED FROM THE TERRAIN, NOT SUPPLIED. USER DIRECTIVE: "it should be impossible
+    // to just add water without a basin to put it in." So nothing here proposes a water height —
+    // fillBasinAt reports the SPILL, the cheapest way out of this column's container, and the rule
+    // below only chooses which kind of container it is. The coarse bake is not consulted for the
+    // level at all; it is a hint about where bodies exist, never the authority on their surface.
+    // ⚑A PURE TERRAIN-DERIVED FILL WAS TRIED HERE AND MEASURED FAILING. `fillBasinAt` alone —
+    // spill <= sea means ocean, spill > sea means an enclosed basin at its own rim — is correct in
+    // principle and unaffordable in practice. Measured over the inland lake at (4200..4500,
+    // -14950..-14600): the bake calls 1079 columns wet, the terrain-derived fill found **14**, a
+    // 99.3% disagreement, with a mean depth of 1.07 voxels. It was finding puddles, not a lake.
+    //
+    // Cause: that body's bbox is ~512 units across and the budget is 48 steps, so the flood walks
+    // its budget WITHOUT EVER LEAVING THE LAKE BED, escapes having crossed nothing but bed, and
+    // reports a spill of ~120 against a true rim of 148.9 — depth zero, no water. A bounded local
+    // flood cannot find a large basin's rim, and a budget big enough to try would be ruinous at
+    // 3.4 ms/column.
+    //
+    // So the division of labour is: the COARSE BAKE supplies global connectivity (which is exactly
+    // what a 32 km Priority-Flood is good at and what a local search can never be), and the fine
+    // pass refines only the BOUNDARY — which is local, and therefore cheap. fillBasinAt keeps its
+    // job as the API that makes "water without a basin" unrepresentable; it is just not the right
+    // tool for identifying a continent's lakes.
+    // ⚑ONE DEFINITION OF THE ANSWER, NOT TWO. This delegates to the batch pass over a 1x1 block
+    // rather than running its own flood. An earlier version had a separate per-column implementation
+    // (`connectedBodyLevel`) and the batch pass was written to "match" it — the equivalence test
+    // immediately found them disagreeing, because the batch flood had no step bound. Two
+    // implementations of one rule will always drift; the second one silently becomes the definition
+    // once generation calls it. So the batch IS the definition, and the single-column form is a
+    // view onto it. Costly per column (it samples the whole padded neighbourhood for one answer),
+    // which is correct for what this now is: a probe, not the generation path.
+    std::vector<WaterSpan> spans;
+    std::vector<uint8_t> hasSpan;
+    waterSpansForBlock(worldX, worldZ, 1, 1, spans, hasSpan);
+    if (spans.empty() || !hasSpan[0]) return false;
+    out = spans[0];
+    return true;
+}
+
+// Padding sampled around a requested block so its border columns can still see the bodies they
+// belong to, and so neighbouring blocks agree where they meet. Matches kWaterExtentSteps: the batch
+// pass must be able to reach exactly as far as the per-column query it replaces, or the two would
+// disagree at precisely the shoreline columns this whole exercise is about.
+static constexpr int kWaterBlockMargin = kWaterExtentSteps;
+
+void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
+                                        std::vector<WaterSpan>& spans, std::vector<uint8_t>& hasSpan) {
+    if (w <= 0 || d <= 0) { spans.clear(); hasSpan.clear(); return; }
+    spans.assign(static_cast<size_t>(w) * d, WaterSpan{});
+    hasSpan.assign(static_cast<size_t>(w) * d, 0);
+    if (generationType == GenerationType::Flat || !m_hydro) return;   // same exemptions as waterSpanAt
+
+    // Sample the padded area ONCE. This is the entire cost of the function and the reason it is
+    // affordable: (w + 2m) * (d + 2m) terrain samples total, versus w*d separate floods each
+    // re-sampling hundreds of columns.
+    const int pw = w + 2 * kWaterBlockMargin, pd = d + 2 * kWaterBlockMargin;
+    const int px = minX - kWaterBlockMargin, pz = minZ - kWaterBlockMargin;
+    const size_t pn = static_cast<size_t>(pw) * static_cast<size_t>(pd);
+
+    std::vector<float> ground(pn), baked(pn), level(pn);
+    std::vector<int>   surf(pn);
+
+    // ⚑SAMPLED THROUGH THE CHUNK COLUMN CACHE, NOT COLUMN-BY-COLUMN. The margin is a real tax —
+    // resolving one 32x32 chunk means sampling a 128x128 padded area, 16x more columns than the
+    // chunk itself contains. But neighbouring chunks' padded areas OVERLAP almost entirely, and
+    // `columnsForChunk` already memoizes a whole chunk's samples. Going through it means the margin
+    // is paid once per chunk-of-terrain across a streaming session instead of once per chunk-of-water,
+    // so the amortized cost collapses toward one sample per column. A padded area spans at most 5x5
+    // chunk columns, comfortably inside the 128-entry cache.
+    auto floorDiv = [](int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); };
+    const int c0x = floorDiv(px, 32), c1x = floorDiv(px + pw - 1, 32);
+    const int c0z = floorDiv(pz, 32), c1z = floorDiv(pz + pd - 1, 32);
+    for (int cz = c0z; cz <= c1z; ++cz)
+        for (int cx = c0x; cx <= c1x; ++cx) {
+            const auto cols = columnsForChunk(glm::ivec2(cx, cz));
+            for (int lx = 0; lx < 32; ++lx)
+                for (int lz = 0; lz < 32; ++lz) {
+                    const int gx = cx * 32 + lx - px, gz = cz * 32 + lz - pz;   // into the padded grid
+                    if (gx < 0 || gz < 0 || gx >= pw || gz >= pd) continue;
+                    const size_t i = static_cast<size_t>(gz) * pw + gx;
+                    surf[i]   = (*cols)[static_cast<size_t>(lx) * 32 + lz].surfaceY;  // x-major, z-minor
+                    ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
+                    baked[i]  = m_hydro->waterLevelAt(static_cast<float>(cx * 32 + lx) + 0.5f,
+                                                      static_cast<float>(cz * 32 + lz) + 0.5f);
+                }
+        }
+
+    floodBodiesOverGrid(pw, pd, ground.data(), baked.data(), level.data(), kWaterExtentSteps);
+
+    // Keep only the requested block; the margin's answers are under-resolved by construction.
+    for (int z = 0; z < d; ++z)
+        for (int x = 0; x < w; ++x) {
+            const size_t src = static_cast<size_t>(z + kWaterBlockMargin) * pw + (x + kWaterBlockMargin);
+            const size_t dst = static_cast<size_t>(z) * w + x;
+            if (level[src] <= kNoBody * 0.5f) continue;
+            // Containment is still decided by buildOpenWaterSpan against the column's REAL surface,
+            // exactly as in the single-column path. The batch pass changes how the LEVEL is found,
+            // never whether the terrain holds it.
+            if (buildOpenWaterSpan(surf[src], level[src], spans[dst])) hasSpan[dst] = 1;
+        }
+}
+
 WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
     ColumnSample col;
     // Low-frequency climate fields, decorrelated via distinct sample offsets, mapped to [0,1].

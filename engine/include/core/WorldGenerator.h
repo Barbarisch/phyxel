@@ -11,6 +11,7 @@
 #include "core/FlowField.h"
 #include "core/WaterBodyIndex.h"
 #include "core/Spline.h"
+#include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
 
 namespace Phyxel {
@@ -172,6 +173,45 @@ public:
     // Pure function of world (x,z) + seed/params, so it's seam-free and reusable by the
     // flora decoration pass (which lives outside WorldGenerator).
     ColumnSample sampleSurface(int worldX, int worldZ) { return sampleColumn(worldX, worldZ); }
+
+    // ── THE AUTHORITATIVE WATER QUERY (docs/WaterAsWorldData.md §5.2) ─────────────────────────
+    // What water does the TERRAIN hold at this column? Returns false when the column is dry.
+    //
+    // This is the answer the whole water system should be built on, and it is cheap: the generator
+    // already knows the column's REAL surface height, and the bake supplies a candidate level. The
+    // span is then built by Phyxel::buildOpenWaterSpan, which derives its bottom from that real
+    // surface — so a column whose ground stands above the level reports DRY, whatever the coarse
+    // bake claims.
+    //
+    // ⚑CONTRAST WITH WHAT SHIPS TODAY: the renderer draws a camera-following sheet at the bake's
+    // level with no per-column terrain check, which is why a lake sheet lay over a grass hillside
+    // and why the engine's own validator measured 606 of 606 rim columns leaking. Both consult the
+    // same bake; only this one consults the ground.
+    //
+    // ⚑Open-sky water only, inheriting buildOpenWaterSpan's scope: a cave lake beneath a surface
+    // lake needs the column's full solidity profile and is a later increment.
+    bool waterSpanAt(int worldX, int worldZ, WaterSpan& out);
+
+    // The same answer for a whole rectangular block of columns, in ONE pass — this is the form
+    // generation actually calls.
+    //
+    // ⚑WHY A BATCH FORM EXISTS AT ALL, MEASURED: `waterSpanAt` costs **3.4 ms per column**, because
+    // each call re-floods the same neighbourhood and re-samples the same terrain. A 32x32 chunk is
+    // 1,024 columns, so per-column resolution would cost ~3.5 s of flood PER CHUNK — generation
+    // would stall for minutes. The cost is structural, so the fix is structural: sample each
+    // column's terrain once, then run a single multi-source flood over the whole block.
+    //
+    // `spans` and `hasSpan` are sized w*d, row-major (index = z*w + x), relative to (minX, minZ).
+    // `hasSpan[i] == 0` means that column holds no water.
+    //
+    // ⚑THE MARGIN IS LOAD-BEARING, NOT A TUNING KNOB. The flood can only reach bodies whose baked
+    // seeds lie inside the sampled area, so columns near its border under-resolve. The block is
+    // therefore sampled with `kWaterBlockMargin` columns of padding on every side and the padding's
+    // answers are discarded. That padding is ALSO what keeps the result seam-free: two chunks that
+    // overlap in the padding region see the same terrain and the same seeds, so they agree on their
+    // shared shoreline. Shrink the margin and shorelines tear at chunk borders.
+    void waterSpansForBlock(int minX, int minZ, int w, int d,
+                            std::vector<WaterSpan>& spans, std::vector<uint8_t>& hasSpan);
 
     // Layer-0 from an imported drawn map (docs/TerrainGenerationV2.md P4): drive base
     // elevation from a heightmap instead of noise. Rebuilds the coarse model to sample the
