@@ -168,18 +168,28 @@ they cannot drift apart).
 
 ---
 
-## 5. Testbeds (small worlds for water; never demo water in a megaworld)
+## 5. Testbeds — ONE world (fresh 2026-08-04)
 
-| Project | What it is | Use for |
-|---|---|---|
-| **WaterBasinTest** | 16 flat chunks + carved basin, no bake, no streaming. **127 FPS vs 4.8** in the megaworld (its 187 ms shadow pass drowned every water measurement). | Grounded grid, containment, quick visual iteration. Camera-inside-rock is the regression test. |
-| **WaterLab** | Authored, flat-sea, `seaLevel 54` (measured against terrain 49–70). | Sea look, ripples, buoyancy, wading. |
-| **CreekLab** / **RiverLab** | Streaming + bake; creeks / order-5 gorge + 3,547 bodies, perched lake y≈325. Both drain to a real outlet (min terrain −23.5 / −14.1) — the perched lakes are LEGITIMATE basins at spill; do not "fix" them. | Rivers, bake-vs-terrain, far-field. |
-| **WaterTableTest** | The 32 km streaming world. | Bake-path work ONLY; useless for iteration. |
+**`PhyxelProjects/WaterTest`** — THE water test world, created fresh on the current engine
+(chunk-span blobs v2, terrain-v2 bake, W1-W4 look). Streaming Perlin, seed `20260804`,
+`water.enabled`, engine-default sea level 16. Facts (measured at creation):
+- Boot to API: 9 s cold, including the hydrology bake (256², outlet TRUE, drainage complete,
+  max river order 5, min terrain −24).
+- Spawn (32, 60, 80) is DRY highland — 65,536 columns around it, zero baked-wet. The nearest
+  water is the sea at **(165, 16, 890)**; camera preset for it is in this doc's history and the
+  world was SAVED with ~976 chunks streamed there.
+- **Streaming L4 of spans:** the shore rect (37,708)–(293,964) holds **62,965 chunk-resident
+  spans in 81 chunks**, every top at 16.0 — generation-time spans work under real streaming.
+- **The standing RED baseline** for render-from-spans (§6 step 2b), measured on this world at
+  that rect, 0 unloaded / 50,629 wet: **rim_leaks 257/257 (100%), worst 6 voxels at (59,767)**.
+  Gate: the same rect reads 0.
 
-Reference baselines with recorded cameras live in `docs/water-refs/` — the A/B anchors (§8).
-
----
+⚑Every earlier water testbed is DELETED (2026-08-04, user decision — they predated
+water-as-world-data and carried stale engine state): WaterTableTest, WaterBasinTest, WaterLab,
+CreekLab, RiverLab, RiverDemo. Numbers measured in them remain in this doc as history; the
+reference screenshots in `docs/water-refs/` are historical evidence. Recreating a small bounded
+basin world takes two commands (generate Flat 4×4 + carve — see the WaterBasinTest recipe in
+git history) and should be done fresh when needed rather than kept.
 
 ## 6. Open work, in order
 
