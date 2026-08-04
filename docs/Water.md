@@ -102,6 +102,15 @@ commit `e643a814`, 25 unit tests, mutation-checked):
 
 ### Layer 2 — MOTION (the CA is a motion layer, nothing more)
 
+**⚑CELL RENDERING IS DISABLED IN BAKED WORLDS (user order, 2026-08-04 — the camera invariant,
+enforced by deletion).** `WaterManager::rebuildSurface` builds NO cell surface when a baked table
+is bound: the sheet is the only water renderer there, so no camera-following seam is
+constructible. The sim still runs (buoyancy, wading, currents, all queries). Cost, accepted:
+splashes/pours/river ribbons/waterfall mist are INVISIBLE in baked worlds until the span/tile
+renderer exists. Authored worlds (no table) keep cell rendering. A/B: `water_cell_render
+{mode:-1|0|1}`. Verified at the user's own seam repro spot: `surface_cells 0` with sim mass
+present, one waterline on screen.
+
 `WaterManager` + `WaterSimulation`: mass-conserving CPU CA in a **64×32×64
 camera-following window**. The window is a *simulation* optimization and must never define
 where water exists or renders — that coupling caused water appearing/disappearing with camera

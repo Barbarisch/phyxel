@@ -198,6 +198,19 @@ void WaterManager::rebuildSurface() {
     ++m_surfaceRebuilds;
     m_surface.clear();
     m_waterfalls.clear();
+    // ⚑CELL RENDERING IS NOT A WATER-EXISTENCE SOURCE IN BAKED WORLDS (docs/Water.md, the CAMERA
+    // INVARIANT — user order 2026-08-04 after the FOURTH camera-boundary recurrence). The sim
+    // region follows the camera; anything it renders that the far sheet does not is, by
+    // construction, water whose visibility depends on where the viewer stands. The suppression
+    // rules below tried to hide only the agreeing cells — but CA spill into bake-dry shore bands
+    // is UNPINNED and off-level, no rule catches it, and its region edge is a travelling
+    // waterline. So in worlds with a baked table the cell surface is simply NOT BUILT: the sheet
+    // is the ONLY renderer of water there. The sim still runs (buoyancy, wading, currents,
+    // queries). Cost, accepted and stated: near-field splashes/pours/river ribbons/waterfall
+    // mist are invisible in baked worlds until the span/tile renderer replaces the sheet.
+    // Authored/editor worlds (no baked table) keep cell rendering — they have no second
+    // disagreeing source. Runtime A/B override: water_cell_render.
+    if (m_cellRenderOverride == 0 || (m_cellRenderOverride < 0 && m_tableFn)) return;
     const int sx = m_dims.x, sy = m_dims.y, sz = m_dims.z;
     auto colIdx = [sx](int x, int z) { return x + sx * z; };
 

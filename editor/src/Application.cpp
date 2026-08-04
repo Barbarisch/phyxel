@@ -11698,6 +11698,14 @@ void Application::registerWaterCommands() {
              {"source", "chunk-resident (world data, not a derivation)"}};
     });
 
+    // A/B toggle for the camera-invariant cell-render gate: {"mode": -1|0|1}.
+    reg.on("water_cell_render", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        waterManager->setCellRenderOverride(cmd.params.value("mode", -1));
+        r = {{"success", true}, {"mode", waterManager->cellRenderOverride()},
+             {"baked_table", waterManager->hasWaterTable()}};
+    });
+
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         waterManager->syncSolidsFromChunks();

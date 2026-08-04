@@ -113,6 +113,11 @@ public:
     void setImplicitSea(bool on) { m_implicitSea = on; }
     bool implicitSea() const { return m_implicitSea; }
 
+    // A/B override for cell rendering (see rebuildSurface's camera-invariant gate):
+    // -1 default rule, 0 force off, 1 force on. Rebuilds the surface on change.
+    void setCellRenderOverride(int mode) { m_cellRenderOverride = mode; rebuildSurface(); }
+    int  cellRenderOverride() const { return m_cellRenderOverride; }
+
     // Update one cell's solid state (world coords) — wired to voxel break/place so
     // water flows into newly-removed cells on the next step. Cheap; ignores cells
     // outside the region.
@@ -393,6 +398,9 @@ private:
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     bool                    m_implicitSea = false;   // implicit flat sea outside region/table (4.1)
+    // Cell-render tri-state: -1 = default rule (OFF in baked-table worlds — the CAMERA INVARIANT;
+    // ON in authored worlds), 0 = forced off, 1 = forced on (A/B only). See rebuildSurface.
+    int                     m_cellRenderOverride = -1;
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     struct Spring { glm::ivec3 cell; float mass; };
