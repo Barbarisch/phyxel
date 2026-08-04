@@ -49,6 +49,15 @@ float surface for fractional fill), persisted with the world. Full-3D occupancy 
 runs; cave lakes are later multi-run columns. A span's bottom is derived from the terrain
 surface — floating water is *unrepresentable*, not merely detected.
 
+**STORAGE + GENERATION + PERSISTENCE SHIPPED (2026-08-04, `b5906ad0`).**
+`Chunk::WaterSpanLocal` (chunk-local, clipped per vertical chunk, sorted-(x,z) contract);
+**ChunkBlobCodec v2** appends a water section — v1 blobs load unchanged, malformed data is
+rejected never clamped; generation writes spans via a memoized per-chunk-column flood
+(`waterSpansForChunkColumn`, one flood per column stack); `water_ground_sync` writes them for
+un-baked editor worlds (clearing gone-dry chunks); `water_spans_stored` reads back only what
+chunks hold. L4: 1,681 predicted spans in 4 chunks survived save → cold restart bit-identical
+from disk. **Nothing renders from spans yet** — that is step 2 in §6.
+
 **The occupancy API already exists and is tested** (`engine/include/core/WaterOccupancy.h`,
 commit `e643a814`, 25 unit tests, mutation-checked):
 
@@ -174,7 +183,9 @@ Reference baselines with recorded cameras live in `docs/water-refs/` — the A/B
 
 ## 6. Open work, in order
 
-1. **Spans in chunks** — storage + persistence (task #10). The load-bearing increment.
+1. ~~**Spans in chunks** — storage + persistence~~ **DONE** (`b5906ad0`, 2026-08-04 — §2 layer 1).
+   Still owed from it: streaming-world L4 (generation-time spans at scale + the added
+   per-chunk-column flood cost measured on a real streaming boot).
 2. **Render from spans** — retires the coarse bake as a placement source, the implicit-sea
    special cases, and the camera-dependence. **Acceptance gate: `water_validate`
    `rim_leaks == 0`** (currently 606; two re-measure attempts were VOID — see §7 traps #1).
@@ -279,7 +290,7 @@ water-vs-OIT ordering (untested).
 `shaders/`: `water.vert/.frag` · `water_cell.*` · `water_underwater.frag` ·
 **`water_common.glsl`** (the shared shading).
 Debug API: `water_stats` · `water_probe` · `water_footprint` · `water_validate` ·
-`water_span_scan` · `water_ground_sync` · `water_bake_info` · `water_bodies` ·
+`water_span_scan` · `water_ground_sync` · `water_spans_stored` · `water_bake_info` · `water_bodies` ·
 `water_find_river` · `water_look` · `water_ssr` · `water_waves` · `water_ripple` ·
 `water_table_level` · `water_scoop` · `water_ocean_boundary` · `water_gpu` · `water_save`.
 Tests: `WaterOccupancyTest` (25) · `WaterManagerTest` · `WaterProfileTest` · `SeaMeshTest` ·
