@@ -375,10 +375,27 @@ private:
     // direct getTerrainParams() mutation is NOT tracked — recipe flows go through
     // applyRecipe, which clears it.
     std::shared_ptr<const std::vector<ColumnSample>> columnsForChunk(const glm::ivec2& colChunk);
-    void clearColumnCache() { m_columnCache.clear(); m_columnCacheOrder.clear(); }
+
+    // Per-chunk-column water spans (docs/Water.md §2 layer 1), memoized like columnsForChunk and
+    // for the same reason: every vertical chunk of a column stack clips the SAME 32x32 span set,
+    // so the flood + margin sampling runs once per (x,z) chunk column, not once per chunk.
+    // 1024 dense entries, index = x*32 + z (matches ColumnSample order); has[i] == 0 -> dry.
+    struct ChunkColumnSpans {
+        std::vector<WaterSpan> spans;   // world-space Y
+        std::vector<uint8_t>   has;
+    };
+    std::shared_ptr<const ChunkColumnSpans> waterSpansForChunkColumn(const glm::ivec2& colChunk);
+
+    void clearColumnCache() {
+        m_columnCache.clear(); m_columnCacheOrder.clear();
+        // Spans derive from the same terrain + bake the column samples do — one lifetime.
+        m_waterSpanCache.clear(); m_waterSpanCacheOrder.clear();
+    }
     static constexpr size_t kColumnCacheMax = 128;   // ~1024 samples/entry; FIFO eviction
     std::unordered_map<uint64_t, std::shared_ptr<const std::vector<ColumnSample>>> m_columnCache;
     std::vector<uint64_t> m_columnCacheOrder;
+    std::unordered_map<uint64_t, std::shared_ptr<const ChunkColumnSpans>> m_waterSpanCache;
+    std::vector<uint64_t> m_waterSpanCacheOrder;
     // Layer-1 ridged mountain relief at a column. `continentalness` is passed in (the caller already
     // sampled the coarse model) so we don't re-sample it here — the slope pass calls this per-neighbor.
     float surfaceVariationFor(int worldX, int worldZ, float continentalness);

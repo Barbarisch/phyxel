@@ -52,7 +52,22 @@ namespace Physics {
  */
 class Chunk {
     friend class ChunkManager;  // Allow ChunkManager to access private members for cross-chunk culling
-    
+
+public:
+    // ── WATER SPAN TYPE — water as chunk-resident world data (docs/Water.md §2 layer 1) ──────
+    // Defined up top so the storage member below can use it; the accessors live with the other
+    // public API further down. One contiguous run of water in one of this chunk's columns,
+    // CLIPPED to this chunk's vertical range, in chunk-LOCAL coordinates (blobs stay
+    // position-independent, like the voxel sections). A span crossing a vertical chunk border
+    // is stored in BOTH chunks, each holding its clip (top == 32.0 = continues above).
+    // `top` is float on purpose: the CA's fractional surface fill round-trips without
+    // quantising (a lake at 148.9 stays 148.9).
+    struct WaterSpanLocal {
+        uint8_t x = 0, z = 0;      // local column, 0..31
+        float   bottom = 0.0f;     // local Y of the span's base (rests on terrain or chunk floor)
+        float   top = 0.0f;        // local Y of the surface / clip ceiling; valid iff top > bottom
+    };
+
 private:
     // CRITICAL: cubes vector is INDEXED by position, not a dynamic list!
     // Index formula: z + y*32 + x*32*32 (see localToIndex())
@@ -60,6 +75,7 @@ private:
     std::vector<std::unique_ptr<Cube>> cubes;                      // Pointers to cubes for efficient deletion (32x32x32)
     std::vector<std::unique_ptr<Subcube>> staticSubcubes;          // Static subcubes (part of chunk physics body)
     std::vector<std::unique_ptr<Microcube>> staticMicrocubes;      // Static microcubes (finest subdivision level)
+    std::vector<WaterSpanLocal> waterSpans;                        // Water as world data — see setWaterSpans
     glm::ivec3 worldOrigin = glm::ivec3(0);        // World-space origin of this chunk
     
     // Subsystem managers
@@ -101,6 +117,20 @@ public:
     const Physics::VoxelOccupancyGrid& getOccupancyGrid() const {
         return physicsManager.getOccupancyGrid();
     }
+
+    // ── WATER SPANS accessors (type defined at the top of the class) ─────────────────────────
+    //
+    // ⚑WHY CHUNK-RESIDENT: water placement used to be re-derived at draw time from whichever
+    // source the renderer had (implicit sea / coarse 128 m bake / camera-local sim cells), which
+    // is how water was drawn through hillsides (606/606 rim-leak columns) and inside solid rock.
+    // Spans make "where water is" WORLD DATA: written by generation, persisted with the chunk
+    // blob, read by everything else. The renderer's job becomes drawing what is there.
+    //
+    /// Replace this chunk's water spans. Callers pass spans sorted by (x,z); the setter asserts
+    /// order in debug rather than re-sorting, so an unsorted producer is a caught bug, not a cost.
+    void setWaterSpans(std::vector<WaterSpanLocal> spans);
+    const std::vector<WaterSpanLocal>& getWaterSpans() const { return waterSpans; }
+    void clearWaterSpans() { waterSpans.clear(); }
     
     // Destructor
     ~Chunk();

@@ -11545,6 +11545,12 @@ void Application::registerWaterCommands() {
 
         const float sea = waterManager ? waterManager->seaLevel() : static_cast<float>(Core::kSeaLevelY);
         std::vector<float> rgba(static_cast<size_t>(w) * d * 4);
+        // Spans grouped per chunk — this command is also the EDITOR-WORLD writer of chunk-resident
+        // water (docs/Water.md §2 layer 1): un-baked worlds have no generation-time span pass, so
+        // the same scan that feeds the render grid persists its result into the chunks (and from
+        // there into the world DB via the normal blob save).
+        std::unordered_map<glm::ivec3, std::vector<Chunk::WaterSpanLocal>, ChunkCoordHash> chunkSpans;
+        auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
         long wet = 0, solidCols = 0;
         for (int z = 0; z < d; ++z)
             for (int x = 0; x < w; ++x) {
@@ -11563,15 +11569,88 @@ void Application::registerWaterCommands() {
                 px[1] = 1.0f;                          // G: wave energy (neutral)
                 px[2] = 0.0f;                          // B: turbidity (neutral)
                 px[3] = 1.0f;                          // A: roughness (neutral)
-                if (isWet) ++wet;
+                if (!isWet) continue;
+                ++wet;
+                // Clip the world-space span into every vertical chunk it crosses.
+                const int wx = minX + x, wz = minZ + z;
+                const int cx = floorDiv32(wx), czc = floorDiv32(wz);
+                for (int cy = floorDiv32(span.bottomY);
+                     cy <= floorDiv32(static_cast<int>(std::ceil(span.topY)) - 1); ++cy) {
+                    const float bse = static_cast<float>(cy) * 32.0f;
+                    const float lo = std::max(static_cast<float>(span.bottomY), bse);
+                    const float hi = std::min(span.topY, bse + 32.0f);
+                    if (hi <= lo) continue;
+                    chunkSpans[glm::ivec3(cx, cy, czc)].push_back(
+                        {static_cast<uint8_t>(wx - cx * 32), static_cast<uint8_t>(wz - czc * 32),
+                         lo - bse, hi - bse});
+                }
             }
+
+        // Write-through: every loaded chunk in the scan gets the truth — including chunks whose
+        // spans just became EMPTY (a drained basin must not keep stale water in its blob).
+        long spanChunks = 0, spansStored = 0;
+        for (auto& [cc, chunk] : chunkManager->chunkMap) {
+            if (!chunk) continue;
+            auto it = chunkSpans.find(cc);
+            if (it == chunkSpans.end()) { chunk->clearWaterSpans(); continue; }
+            // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order — sort to the
+            // storage contract rather than weakening the contract.
+            std::sort(it->second.begin(), it->second.end(),
+                      [](const Chunk::WaterSpanLocal& a, const Chunk::WaterSpanLocal& b) {
+                          const uint32_t ka = (uint32_t(a.x) << 8) | a.z;
+                          const uint32_t kb = (uint32_t(b.x) << 8) | b.z;
+                          return ka != kb ? ka < kb : a.bottom < b.bottom;
+                      });
+            spansStored += static_cast<long>(it->second.size());
+            ++spanChunks;
+            chunk->setWaterSpans(std::move(it->second));
+        }
 
         renderCoordinator->uploadGroundedWaterGrid(rgba, w, d,
                                                    static_cast<float>(minX), static_cast<float>(minZ));
         r = {{"success", true}, {"columns", (long long)w * d}, {"solid_columns", solidCols},
              {"wet_columns", wet}, {"sea_level", sea},
+             {"chunks_with_spans", spanChunks}, {"spans_stored", spansStored},
              {"bounds", {{"minX", minX}, {"maxX", maxX}, {"minZ", minZ}, {"maxZ", maxZ}}},
              {"mode", "grounded (off-grid dry)"}};
+    });
+
+    // ── water_spans_stored — read back the CHUNK-RESIDENT spans (docs/Water.md §2 layer 1) ───
+    // Deliberately reads only what chunks HOLD, never the generator or the scan that wrote them —
+    // this is the independent check that water survived into world data (and, after save/reload,
+    // through the blob codec). Optional {x1,z1,x2,z2} world-rect filter.
+    reg.on("water_spans_stored", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
+        const bool hasRect = cmd.params.contains("x1");
+        const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
+        const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
+        const int lx = std::min(x1, x2), hx = std::max(x1, x2);
+        const int lz = std::min(z1, z2), hz = std::max(z1, z2);
+        long chunksLoaded = 0, chunksWithSpans = 0, spanCount = 0;
+        double sumDepth = 0.0;
+        float minTop = 1e30f, maxTop = -1e30f;
+        for (auto& [cc, chunk] : chunkManager->chunkMap) {
+            if (!chunk) continue;
+            if (hasRect && (cc.x * 32 > hx || cc.x * 32 + 31 < lx ||
+                            cc.z * 32 > hz || cc.z * 32 + 31 < lz)) continue;
+            ++chunksLoaded;
+            const auto& ws = chunk->getWaterSpans();
+            if (ws.empty()) continue;
+            ++chunksWithSpans;
+            for (const auto& s : ws) {
+                const int wx = cc.x * 32 + s.x, wz = cc.z * 32 + s.z;
+                if (hasRect && (wx < lx || wx > hx || wz < lz || wz > hz)) continue;
+                ++spanCount;
+                sumDepth += s.top - s.bottom;
+                const float topWorld = cc.y * 32.0f + s.top;
+                minTop = std::min(minTop, topWorld);
+                maxTop = std::max(maxTop, topWorld);
+            }
+        }
+        r = {{"chunks_loaded", chunksLoaded}, {"chunks_with_spans", chunksWithSpans},
+             {"spans", spanCount}, {"total_depth", sumDepth},
+             {"min_top", spanCount ? minTop : 0.0f}, {"max_top", spanCount ? maxTop : 0.0f},
+             {"source", "chunk-resident (world data, not a derivation)"}};
     });
 
     reg.on("water_sync", [this, noWater](const Core::APICommand&, nlohmann::json& r) {

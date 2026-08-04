@@ -525,6 +525,29 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
         }
     }
 
+    // ── WATER SPANS → CHUNK (docs/Water.md §2 layer 1) ───────────────────────────────────────
+    // Water becomes part of what generation PRODUCES, persisted with the chunk blob — not
+    // re-derived at draw time from the coarse bake (the 606-rim-leak class). The per-chunk-column
+    // span set is memoized (one flood per column stack); each vertical chunk stores its clip.
+    // The uniform-deep fast path above returns early WITHOUT spans, correctly: a chunk ≥4 below
+    // every surface cannot intersect open-sky water, which rests ON the surface.
+    if (m_hydro) {
+        const auto ws = waterSpansForChunkColumn(glm::ivec2(chunkCoord.x, chunkCoord.z));
+        const float base = static_cast<float>(chunkCoord.y * 32);
+        std::vector<Chunk::WaterSpanLocal> local;
+        for (int x = 0; x < 32; ++x)
+            for (int z = 0; z < 32; ++z) {
+                const size_t i = static_cast<size_t>(x) * 32 + z;
+                if (!ws->has[i]) continue;
+                const float lo = std::max(static_cast<float>(ws->spans[i].bottomY), base);
+                const float hi = std::min(ws->spans[i].topY, base + 32.0f);
+                if (hi <= lo) continue;   // the span lives in another vertical chunk
+                local.push_back({static_cast<uint8_t>(x), static_cast<uint8_t>(z),
+                                 lo - base, hi - base});
+            }
+        if (!local.empty()) chunk.setWaterSpans(std::move(local));
+    }
+
     LOG_TRACE_FMT("WorldGenerator", "[WORLD_GENERATOR] Generated chunk (" << chunkCoord.x << "," << chunkCoord.y << "," << chunkCoord.z
               << ") column-first, biome-aware");
 }
@@ -547,6 +570,39 @@ WorldGenerator::columnsForChunk(const glm::ivec2& colChunk) {
     }
     m_columnCache.emplace(key, fresh);
     m_columnCacheOrder.push_back(key);
+    return fresh;
+}
+
+std::shared_ptr<const WorldGenerator::ChunkColumnSpans>
+WorldGenerator::waterSpansForChunkColumn(const glm::ivec2& colChunk) {
+    const uint64_t key = (uint64_t(uint32_t(colChunk.x)) << 32) | uint64_t(uint32_t(colChunk.y));
+    auto it = m_waterSpanCache.find(key);
+    if (it != m_waterSpanCache.end()) return it->second;
+
+    auto fresh = std::make_shared<ChunkColumnSpans>();
+    std::vector<WaterSpan> blockSpans;
+    std::vector<uint8_t> blockHas;
+    waterSpansForBlock(colChunk.x * 32, colChunk.y * 32, 32, 32, blockSpans, blockHas);
+    fresh->spans.resize(32 * 32);
+    fresh->has.assign(32 * 32, 0);
+    // waterSpansForBlock is row-major (index = z*32 + x); re-index to the ColumnSample order
+    // (x*32 + z) so every per-column consumer walks the same layout.
+    for (int z = 0; z < 32; ++z)
+        for (int x = 0; x < 32; ++x) {
+            const size_t src = static_cast<size_t>(z) * 32 + x;
+            const size_t dst = static_cast<size_t>(x) * 32 + z;
+            if (src < blockHas.size() && blockHas[src]) {
+                fresh->spans[dst] = blockSpans[src];
+                fresh->has[dst] = 1;
+            }
+        }
+
+    if (m_waterSpanCache.size() >= kColumnCacheMax) {   // FIFO eviction, same policy as columns
+        m_waterSpanCache.erase(m_waterSpanCacheOrder.front());
+        m_waterSpanCacheOrder.erase(m_waterSpanCacheOrder.begin());
+    }
+    m_waterSpanCache.emplace(key, fresh);
+    m_waterSpanCacheOrder.push_back(key);
     return fresh;
 }
 

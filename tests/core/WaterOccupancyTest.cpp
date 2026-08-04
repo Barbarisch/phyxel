@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include "core/WaterOccupancy.h"
+#include "core/WorldGenerator.h"
+#include "core/Chunk.h"
 
 #include <cmath>
 #include <limits>
@@ -401,6 +403,105 @@ TEST(WaterOccupancyTest, BatchFloodLeavesADryWorldDry) {
     Grid g;
     g.build(0, 0, 16, 16, ground, baked);
     for (float v : g.level) EXPECT_FLOAT_EQ(v, kNoBody);
+}
+
+// ── GENERATION WRITES SPANS INTO CHUNKS (docs/Water.md §2 layer 1, task: spans-in-chunks) ────
+//
+// Water is part of what generation PRODUCES. These drive the REAL WorldGenerator over its real
+// bake and assert the generated CHUNK holds the water — not that some query could re-derive it.
+
+namespace {
+
+// First baked-wet column with a real span, scanned coarsely from the origin outward.
+bool findWetColumn(WorldGenerator& g, int& outX, int& outZ, WaterSpan& outSpan) {
+    for (int r = 0; r <= 3000; r += 100)
+        for (int x = -r; x <= r; x += 100)
+            for (int z = -r; z <= r; z += 100) {
+                if (std::abs(x) != r && std::abs(z) != r) continue;
+                if (g.waterSpanAt(x, z, outSpan)) { outX = x; outZ = z; return true; }
+            }
+    return false;
+}
+
+}  // namespace
+
+TEST(WaterOccupancyTest, GeneratedChunksHoldTheirWaterSpans) {
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    int wx = 0, wz = 0;
+    WaterSpan span;
+    ASSERT_TRUE(findWetColumn(g, wx, wz, span)) << "no wet column in the bake — fixture problem";
+
+    // Generate the chunk containing the span's SURFACE and assert the stored clip matches the
+    // query the renderer will replace: same column, same clipped top and bottom.
+    auto floorDiv = [](int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); };
+    const glm::ivec3 cc(floorDiv(wx, 32),
+                        floorDiv(static_cast<int>(span.topY), 32),
+                        floorDiv(wz, 32));
+    Chunk chunk(cc * 32);
+    chunk.initializeForLoading();
+    g.generateChunk(chunk, cc);
+
+    const auto& stored = chunk.getWaterSpans();
+    ASSERT_FALSE(stored.empty()) << "a chunk intersecting a wet column stored NO water";
+    const uint8_t lx = static_cast<uint8_t>(wx - cc.x * 32), lz = static_cast<uint8_t>(wz - cc.z * 32);
+    const float base = static_cast<float>(cc.y) * 32.0f;
+    bool foundCol = false;
+    for (const auto& s : stored)
+        if (s.x == lx && s.z == lz) {
+            foundCol = true;
+            EXPECT_FLOAT_EQ(base + s.top, span.topY) << "stored surface differs from the query";
+            EXPECT_FLOAT_EQ(base + s.bottom,
+                            std::max(static_cast<float>(span.bottomY), base))
+                << "stored bottom is not the span clipped to this chunk";
+        }
+    EXPECT_TRUE(foundCol) << "the wet column (" << int(lx) << "," << int(lz) << ") has no stored span";
+
+    // The chunk far BELOW the water (≥2 chunks under the span bottom) must store nothing — a
+    // buried chunk cannot hold open-sky water, and the uniform-deep path must not be corrupted.
+    const glm::ivec3 deep(cc.x, floorDiv(span.bottomY, 32) - 2, cc.z);
+    Chunk deepChunk(deep * 32);
+    deepChunk.initializeForLoading();
+    g.generateChunk(deepChunk, deep);
+    EXPECT_TRUE(deepChunk.getWaterSpans().empty()) << "water stored under the lake bed";
+}
+
+TEST(WaterOccupancyTest, StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk) {
+    // Not one column — the whole 32×32 chunk agrees with waterSpanAt, wet and dry alike. This is
+    // the chunk-resident restatement of window-independence: what generation stored IS the query.
+    WorldGenerator g(WorldGenerator::GenerationType::Mountains, 7u);
+    int wx = 0, wz = 0;
+    WaterSpan span;
+    ASSERT_TRUE(findWetColumn(g, wx, wz, span));
+    auto floorDiv = [](int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); };
+    const glm::ivec3 cc(floorDiv(wx, 32), floorDiv(static_cast<int>(span.topY), 32), floorDiv(wz, 32));
+    Chunk chunk(cc * 32);
+    chunk.initializeForLoading();
+    g.generateChunk(chunk, cc);
+
+    // Index the stored spans per column.
+    std::vector<const Chunk::WaterSpanLocal*> byCol(32 * 32, nullptr);
+    for (const auto& s : chunk.getWaterSpans())
+        byCol[static_cast<size_t>(s.x) * 32 + s.z] = &s;
+
+    int wetCols = 0, compared = 0;
+    const float base = static_cast<float>(cc.y) * 32.0f;
+    for (int x = 0; x < 32; ++x)
+        for (int z = 0; z < 32; ++z) {
+            WaterSpan q;
+            const bool qWet = g.waterSpanAt(cc.x * 32 + x, cc.z * 32 + z, q);
+            // Does the query's span actually intersect THIS chunk's y range?
+            const bool qHere = qWet && q.topY > base && static_cast<float>(q.bottomY) < base + 32.0f;
+            const auto* st = byCol[static_cast<size_t>(x) * 32 + z];
+            ASSERT_EQ(qHere, st != nullptr)
+                << "wet/dry disagreement at local (" << x << "," << z << ")";
+            if (st) {
+                EXPECT_FLOAT_EQ(base + st->top, std::min(q.topY, base + 32.0f));
+                ++wetCols;
+            }
+            ++compared;
+        }
+    EXPECT_EQ(compared, 1024);
+    EXPECT_GT(wetCols, 0) << "chunk chosen has no wet columns — the agreement above is vacuous";
 }
 
 TEST(WaterOccupancyTest, BatchFloodHandlesDegenerateGrids) {

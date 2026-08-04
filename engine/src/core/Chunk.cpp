@@ -33,6 +33,7 @@ Chunk::Chunk(Chunk&& other) noexcept
     : cubes(std::move(other.cubes))
     , staticSubcubes(std::move(other.staticSubcubes))
     , staticMicrocubes(std::move(other.staticMicrocubes))
+    , waterSpans(std::move(other.waterSpans))
     , worldOrigin(other.worldOrigin)
     , renderManager(std::move(other.renderManager))
     , physicsManager(std::move(other.physicsManager))
@@ -61,6 +62,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept {
         cubes = std::move(other.cubes);
         staticSubcubes = std::move(other.staticSubcubes);
         staticMicrocubes = std::move(other.staticMicrocubes);
+        waterSpans = std::move(other.waterSpans);
         worldOrigin = other.worldOrigin;
         renderManager = std::move(other.renderManager);
         physicsManager = std::move(other.physicsManager);
@@ -162,6 +164,23 @@ bool Chunk::addCube(const glm::ivec3& localPos) {
 bool Chunk::addCube(const glm::ivec3& localPos, const std::string& material, bool overwrite) {
     unsealForEdit();
     return voxelManager.addCube(localPos, material, overwrite);
+}
+
+void Chunk::setWaterSpans(std::vector<WaterSpanLocal> spans) {
+#ifndef NDEBUG
+    // Producers contract to (x,z)-sorted spans (ties broken by bottom for future multi-run
+    // columns). Asserting instead of sorting makes an unsorted producer a caught bug rather
+    // than a silent per-chunk sort cost on every generation.
+    for (size_t i = 1; i < spans.size(); ++i) {
+        const auto& a = spans[i - 1];
+        const auto& b = spans[i];
+        const uint32_t ka = (uint32_t(a.x) << 8) | a.z, kb = (uint32_t(b.x) << 8) | b.z;
+        assert(ka < kb || (ka == kb && a.bottom < b.bottom));
+    }
+    for (const auto& s : spans) assert(s.x < 32 && s.z < 32 && s.top > s.bottom &&
+                                       s.bottom >= 0.0f && s.top <= 32.0f);
+#endif
+    waterSpans = std::move(spans);
 }
 
 int Chunk::removeCubesBatch(const std::vector<glm::ivec3>& positions) {

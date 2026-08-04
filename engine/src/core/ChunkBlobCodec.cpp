@@ -4,6 +4,7 @@
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 
+#include <cstring>
 #include <string>
 #include <unordered_map>
 
@@ -85,7 +86,22 @@ struct Reader {
         p += n; remaining -= n;
         return true;
     }
+    float f32() {
+        // Bit-exact via the u32 path (little-endian, like every other field) — the fractional
+        // water surface must round-trip without quantising.
+        uint32_t bits = u32();
+        float v;
+        static_assert(sizeof(v) == sizeof(bits), "f32 codec assumes 32-bit float");
+        std::memcpy(&v, &bits, sizeof(v));
+        return v;
+    }
 };
+
+inline void writeF32(Writer& w, float v) {
+    uint32_t bits;
+    std::memcpy(&bits, &v, sizeof(bits));
+    w.u32(bits);
+}
 
 // Palette builder: entry 0 is always air (empty name).
 struct PaletteBuilder {
@@ -244,6 +260,16 @@ std::vector<uint8_t> ChunkBlobCodec::encode(const Chunk& chunk, Counts* outCount
         writeStateAndTint(w, e.state, e.tint);
     }
 
+    // --- water span section (v2; docs/Water.md §2 layer 1) ---
+    const auto& spans = chunk.getWaterSpans();
+    w.u32(static_cast<uint32_t>(spans.size()));
+    for (const auto& s : spans) {
+        w.u8(s.x);
+        w.u8(s.z);
+        writeF32(w, s.bottom);
+        writeF32(w, s.top);
+    }
+
     if (outCounts) {
         outCounts->cubes = cubeCount;
         outCounts->subcubes = static_cast<uint32_t>(subs.size());
@@ -258,7 +284,10 @@ bool ChunkBlobCodec::decode(const uint8_t* data, size_t size, Chunk& chunk,
     Reader r{data, size};
 
     if (r.u32() != kMagic) return false;
-    if (r.u8() != kCodecVersion) return false;
+    // v1 blobs (pre-water) load unchanged — spans simply stay empty. Anything newer than this
+    // build's version is refused: guessing at an unknown layout is how blobs get misread.
+    const uint8_t version = r.u8();
+    if (version < kMinDecodeVersion || version > kCodecVersion) return false;
     const uint8_t flags = r.u8();
     const bool wide = (flags & kFlagWideIndices) != 0;
     const uint32_t paletteCount = r.u16();
@@ -328,6 +357,42 @@ bool ChunkBlobCodec::decode(const uint8_t* data, size_t size, Chunk& chunk,
         glm::ivec3 subPos(subIdx % 3, (subIdx / 3) % 3, subIdx / 9);
         glm::ivec3 microPos(microIdx % 3, (microIdx / 3) % 3, microIdx / 9);
         chunk.addMicrocube(indexToLocal(cubeIdx), subPos, microPos, palette[idx], tint, state);
+    }
+
+    // --- water span section (v2 only; a v1 blob simply has none) ---
+    if (version >= 2) {
+        const uint32_t spanCount = r.u32();
+        if (!r.ok) return false;
+        // Cap before allocating: a corrupt count must not become a multi-GB reserve. A chunk has
+        // 1,024 columns; even a future multi-run-per-column format stays far under 8 per column.
+        if (spanCount > 32 * 32 * 8) return false;
+        std::vector<Chunk::WaterSpanLocal> spans;
+        spans.reserve(spanCount);
+        uint32_t prevKey = 0;
+        for (uint32_t i = 0; i < spanCount; ++i) {
+            Chunk::WaterSpanLocal s;
+            s.x = r.u8();
+            s.z = r.u8();
+            s.bottom = r.f32();
+            s.top = r.f32();
+            // Refuse malformed data outright — never clamp into something plausible. The bounds
+            // mirror setWaterSpans' debug asserts so a bad blob fails HERE, not as an assert
+            // deep in a release build. NaN fails these comparisons too (any NaN compare is
+            // false), so a poisoned float cannot enter world data.
+            if (!r.ok || s.x >= 32 || s.z >= 32 ||
+                !(s.bottom >= 0.0f) || !(s.top <= 32.0f) || !(s.top > s.bottom))
+                return false;
+            const uint32_t key = (static_cast<uint32_t>(s.x) << 8) | s.z;
+            // (x,z) order is part of the format; same-column runs must ascend by bottom (the
+            // future cave-lake case). Mirrors setWaterSpans' contract so a decoded chunk can
+            // never trip its debug assert.
+            if (i > 0 && (key < prevKey ||
+                          (key == prevKey && !(s.bottom > spans.back().bottom))))
+                return false;
+            prevKey = key;
+            spans.push_back(s);
+        }
+        chunk.setWaterSpans(std::move(spans));
     }
 
     if (outCounts) {

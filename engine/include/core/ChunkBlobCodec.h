@@ -38,7 +38,15 @@ class Chunk;
 class ChunkBlobCodec {
 public:
     static constexpr uint32_t kMagic = 0x32425850u; // "PXB2" little-endian
-    static constexpr uint8_t kCodecVersion = 1;
+    /// v2 (docs/Water.md §2 layer 1): appends a WATER SPAN section after the microcubes —
+    ///   u32 spanCount, then spanCount x (u8 localX, u8 localZ, f32 bottom, f32 top)
+    /// sorted by (x,z). Water becomes chunk-resident world data: written by generation,
+    /// persisted with the chunk, read by the renderer/CA instead of being re-derived at draw
+    /// time from a coarse bake (the 606-rim-leak defect class). decode() accepts v1 blobs
+    /// (no water section — spans empty), so existing worlds load unchanged; encode() always
+    /// writes v2. Older engines reject v2 blobs by version, which is the correct failure.
+    static constexpr uint8_t kCodecVersion = 2;
+    static constexpr uint8_t kMinDecodeVersion = 1;
 
     struct Counts {
         uint32_t cubes = 0;
