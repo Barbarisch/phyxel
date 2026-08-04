@@ -40,9 +40,17 @@ conserved bodies is an open decision (§9).
 **⚑THE CAMERA INVARIANT — violated THREE TIMES, now a hard gate (user, 2026-08-04):**
 *"WHETHER water exists at a column must NEVER depend on camera position. Resolution may follow
 the camera; existence may not."* Violations to date, all shipped and all caught by the USER
-walking toward water: (1) the CA region rendering only simulated cells; (2) the grounded
-grid's off-window fallback; (3) the fine span window's edge against a disagreeing coarse bake
-(`c1f36b9c` — the seam was a camera-following waterline). The common failure: each design was
+walking toward water: (1) the CA region rendering only simulated cells — **STILL LIVE, not
+fixed: the P1 suppression only hides cell water where sheet and sim AGREE; on broken shores
+(bake-dry bands) cell water renders and its 64×64 region edge is a camera-following water
+boundary — re-confirmed by the user 2026-08-04 at the WaterTest shore AFTER the revert, and
+AFTER a ledger revision had wrongly listed it as past**; (2) the grounded grid's off-window
+fallback; (3) the fine span window's edge against a disagreeing coarse bake (`c1f36b9c`).
+**A fourth failure of the same shape, process-level (2026-08-04): the revert was "verified"
+by checking only the changed source (the sheet) from three vantages — the sim-cell source,
+enumerated in this very ledger an hour earlier, was never checked. Conclusion, the user's:
+prose gates do not change outcomes. The §8b probe MUST exist as an automated tool that
+checks EVERY water-existence source, and no water rendering change ships before it runs.** The common failure: each design was
 verified against its data source ("reads from spans ✓") instead of against the observable.
 **Before ANY change to water placement or rendering ships: answer, in the commit message, "does
 wet/dry at any column change with camera position?" — and run the camera-walk probe (§8 #8b):
