@@ -214,9 +214,18 @@ git history) and should be done fresh when needed rather than kept.
    its water at boot with no command (L4: boot log `1681 wet columns from chunk spans` +
    screenshot). **Streaming worlds still render from the coarse bake — rim_leaks 606 stands**;
    replacing that upload with a span-derived fine grid is the remaining half of this step.
-2b. **Render from spans (streaming)** — retires the coarse bake as a placement source, the implicit-sea
-   special cases, and the camera-dependence. **Acceptance gate: `water_validate`
-   `rim_leaks == 0`** (currently 606; two re-measure attempts were VOID — see §7 traps #1).
+2b. **Render from spans (streaming) — ATTEMPTED AND REVERTED (`c1f36b9c` → `910cdbf5`,
+   2026-08-04).** The camera-following fine span window violated the CAMERA INVARIANT at its
+   edge: inside = span truth, outside = the coarse bake, and the two DISAGREE on wet/dry, so
+   the seam was a camera-following waterline (the third shipped violation; screenshot in
+   session). Reverted on the user's call — streaming worlds are back on the bake, wrong but
+   world-space-stable (dry sub-sea shore bands; the old rim-leak look).
+   **The next design must satisfy: one span-derived placement rule at EVERY distance, camera
+   choosing resolution only** — world-space far-water tiles (like far-terrain tiles), computed
+   asynchronously from the generator's span query, cached per region, identical regardless of
+   viewer; the near field then refines the SAME answer. Run the §8b camera-walk probe before
+   shipping. The old `rim_leaks == 0` gate applies to the tiles (they replace the bake as
+   placement), measured span-vs-terrain.
 3. **CA over spans** — seed from, write back to; state the finite/infinite policy per class.
 4. **Shoreline wave behavior** — the pull-away defect; piling/slop at walls. Open-water and
    water-vs-wall shading likely need genuinely different paths (user's instinct, 2026-08-03).
