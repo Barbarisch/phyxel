@@ -81,6 +81,19 @@ TEST(GrassDensityLod, DensityNeverIncreasesWithDistance) {
 TEST(GrassDensityLod, EveryCountIsAWholeNumberOfClumps) {
     // The torn-tuft invariant (contract 3). Swept across blade counts AND distances, asserting
     // per-step, because a single averaged pass would hide one bad tier.
+    //
+    // ⚑2026-08-05 — THE REASON FOR THIS CONTRACT IS GONE, THE CONTRACT IS KEPT ANYWAY.
+    // It existed because grass.vert assigned blades to TUFTS of 7 (`blade / BLADES_PER_CLUMP`), so
+    // a draw count that split a clump rendered a partial tuft — some blades of a hashed clump
+    // present, the rest missing — which read as a torn tuft rather than a sparser meadow. Blades
+    // are now placed one-per-cell on a progressive blue-noise lattice (shaders/grass_sites.glsl)
+    // with NO clumps at all, so any count is a legal, well-spread distribution and 1 is as valid
+    // as 7.
+    //
+    // Kept, deliberately, for two reasons: `bladesForDistance` still quantises to 7 (harmless, and
+    // it keeps draw counts tidy), and this test is the thing that would catch someone reintroducing
+    // clumping without thinking about the prefix property. If the quantum is ever removed, delete
+    // this test in the SAME commit and say so — do not let it rot into a mystery.
     for (uint32_t blades : {7u, 14u, 28u, 49u, 98u, 140u, 343u}) {
         for (float d = 0.0f; d <= kRadius; d += 1.0f) {
             const uint32_t n = GrassRenderPipeline::bladesForDistance(blades, d, kRadius);

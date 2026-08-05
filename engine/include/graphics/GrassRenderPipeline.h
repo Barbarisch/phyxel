@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics/WindSystem.h"
+#include "graphics/GrassSiteOrder.h"   // kGrassGrid / kGrassSiteOrder / kGrassSeqSep (generated)
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -52,10 +53,15 @@ public:
         float    bladeWidthScale = 1.0f;
         float    windStrength   = 0.13f;  ///< master wind amplitude (scaled by blade height in-shader)
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
-        /// 126 = 18 clumps/voxel. Raised from 70 (user: "grass should be far more dense"). The
-        /// continuous per-blade density falloff in grass.vert is what keeps this affordable —
-        /// only the near band ever pays the full count.
-        uint32_t bladesPerVoxel = 140;    ///< procedural blades/voxel, grouped into tufts (7/clump)
+        /// Blades on a FULLY grassy voxel. Dropped 140 -> 30 on 2026-08-05, together with the
+        /// non-overlap change: tufting meant most blades re-filled the same few spots while the
+        /// rest of the face stayed bare, so the count had to be high to make ground read as
+        /// covered. Now every blade owns its own lattice cell and contributes, so far fewer are
+        /// needed — and 18 verts/blade makes this a ~4.7x cut in grass vertex load.
+        /// Spacing at 30 is 0.130 u against a 0.040 u blade (3.2x), so the packing budget is
+        /// comfortable and the width clamp never engages.
+        /// NOT required to be a multiple of kBladesPerClump any more — there are no clumps.
+        uint32_t bladesPerVoxel = 30;     ///< procedural blades/voxel, one per lattice cell
         uint32_t bladeStyle     = 1;      ///< 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon
         float    pushStrength   = 0.55f;  ///< character-displacer bend amplitude (0 = interaction off)
         /// Shared wind-field state — overwritten every frame by RenderCoordinator from the
@@ -120,6 +126,42 @@ public:
     /// off and diff the pixels — instead of by eyeballing hairline features in a screenshot,
     /// which produced five wrong conclusions in a row on 2026-08-03.
     static bool s_castShadows;
+
+    // ── BLADE PLACEMENT — CPU mirror of grass.vert ────────────────────────────────────────────
+    // Pure + static so tests enumerate the REAL blade roots without a Vulkan device, per the
+    // GrassDensityLodTest convention (a test that re-derives the formula locally passes even when
+    // the feature is disabled entirely). tests/graphics/GrassBladePackingTest.cpp measures the
+    // non-overlap guarantee on these.
+
+    /// Voxel-local [0,1]^2 root of `blade` on the grass voxel at ABSOLUTE world cell (cx,cy,cz).
+    /// Absolute, not chunk-relative: grass.vert hashes `mod(absoluteCell, 2048)` precisely so a
+    /// blade does not re-roll as the camera moves, and so two voxels either side of a chunk border
+    /// agree. Passing a chunk-relative cell here would measure a different world than the shader
+    /// draws.
+    static glm::vec2 bladeRootLocal(int cx, int cy, int cz, uint32_t blade,
+                                    uint32_t bladesPerVoxel);
+
+    /// Blade width in WORLD UNITS as the shader computes it, including the density compensation
+    /// and the sub-pixel floor. Excludes shadowWidthScale: the guarantee is about visible blades
+    /// (shadow proxies may overlap; they union harmlessly in the depth buffer).
+    static float bladeWidthAt(float dist, float radius, uint32_t bladesPerVoxel,
+                              float widthScale, bool boxy);
+
+    /// Per-blade density fraction, mirroring grass.vert's `densityFrac`.
+    static float densityFracAt(float dist, float radius);
+
+    /// Jitter as a fraction of the guaranteed spacing, and the safety margin on the width
+    /// clamp. MUST MATCH kJitterFrac / kPackMargin in grass.vert — they define the packing
+    /// budget jointly: jitter takes 2*kJitterFrac of the spacing and the blade may occupy at
+    /// most kPackMargin of what is left. Deriving jitter from the width instead would be
+    /// circular (width <- distance <- root <- jitter).
+    static constexpr float kJitterFrac = 0.25f;
+    static constexpr float kPackMargin = 0.95f;
+
+    /// Guaranteed minimum spacing for `blades` blades — the CONTINUOUS envelope Cseq/sqrt(N).
+    /// Never use the per-N staircase: adjacent voxels can keep different N and the staircase
+    /// lets the sparser one assume a separation its neighbour does not honour.
+    static float sepGuaranteed(uint32_t blades);
 
     /// How much wider than the real blade the SHADOW proxy is drawn — 1.0 = identical width,
     /// 2.0 = double (POST /api/debug/grass {"shadowWidthScale": N}).

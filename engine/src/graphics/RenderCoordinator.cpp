@@ -1279,7 +1279,15 @@ void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float wi
     if (bladeHeight  >= 0.0f) p.bladeHeight   = bladeHeight;
     if (bladeWidthScale > 0.0f) p.bladeWidthScale = bladeWidthScale;
     if (windStrength >= 0.0f) p.windStrength  = windStrength;
-    if (bladesPerVoxel > 0)   p.bladesPerVoxel = static_cast<uint32_t>(bladesPerVoxel);
+    // ⚑CLAMPED TO THE LATTICE. Blades occupy one cell each of a 16x16 grid (grass_sites.glsl);
+    // grass.vert indexes it with `blade & 255`, so a 257th blade would WRAP and land exactly on
+    // top of blade 0 — silent, exact overlap, and the non-overlap guarantee gone with no error
+    // anywhere. Clamp rather than reject: this is a debug knob, and a silently-capped 256 is far
+    // easier to notice in a screenshot than a rejected request buried in a log.
+    if (bladesPerVoxel > 0) {
+        p.bladesPerVoxel = std::min(static_cast<uint32_t>(bladesPerVoxel),
+                                    Graphics::kGrassSiteCount);
+    }
     if (bladeStyle == 0 || bladeStyle == 1) p.bladeStyle = static_cast<uint32_t>(bladeStyle);
     if (pushStrength >= 0.0f) p.pushStrength  = pushStrength;
 }

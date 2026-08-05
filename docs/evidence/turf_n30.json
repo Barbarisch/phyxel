@@ -1,0 +1,53 @@
+{
+  "tag": "n30",
+  "pass2": {
+    "voxels": 841,
+    "camera": {
+      "mode": "free",
+      "position": {
+        "x": -26.0,
+        "y": 62.75,
+        "z": -6.0
+      },
+      "yaw": -125.0,
+      "pitch": -12.0
+    },
+    "rows": [
+      {
+        "blades": 20,
+        "sep": 0.1677,
+        "sep_over_w": 4.19,
+        "verts_per_voxel": 360,
+        "cover_pct": 28.11
+      },
+      {
+        "blades": 30,
+        "sep": 0.1369,
+        "sep_over_w": 3.42,
+        "verts_per_voxel": 540,
+        "cover_pct": 25.53
+      },
+      {
+        "blades": 56,
+        "sep": 0.1002,
+        "sep_over_w": 2.51,
+        "verts_per_voxel": 1008,
+        "cover_pct": 23.8
+      },
+      {
+        "blades": 90,
+        "sep": 0.0791,
+        "sep_over_w": 1.98,
+        "verts_per_voxel": 1620,
+        "cover_pct": 24.38
+      },
+      {
+        "blades": 140,
+        "sep": 0.0634,
+        "sep_over_w": 1.58,
+        "verts_per_voxel": 2520,
+        "cover_pct": 24.92
+      }
+    ]
+  }
+}

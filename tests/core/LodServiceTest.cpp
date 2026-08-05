@@ -257,9 +257,16 @@ TEST(LodCharacterizationTest, GrassAndFoliageDefaultsAreUnchanged) {
     EXPECT_TRUE(g.enabled);
     EXPECT_FLOAT_EQ(g.radius, 224.0f) << "affordable only via the continuous density falloff";
     EXPECT_FLOAT_EQ(g.fadeRange, 80.0f) << "deliberately a third of the radius — a short fade reads as a mowing line";
-    EXPECT_EQ(g.bladesPerVoxel, 140u);
-    // Whole clumps only — grass.vert derives a blade's clump as index / kBladesPerClump.
-    EXPECT_EQ(g.bladesPerVoxel % Phyxel::Graphics::GrassRenderPipeline::kBladesPerClump, 0u);
+    // UPDATED 2026-08-05: 140 -> 30, with the non-overlap change. Tufting made most blades
+    // re-fill the same few spots while the rest of the voxel face stayed bare, so the count had
+    // to be high for ground to read as covered; one-blade-per-lattice-cell means every blade
+    // contributes and far fewer are needed. ~4.7x less grass vertex load (18 verts/blade).
+    EXPECT_EQ(g.bladesPerVoxel, 30u);
+    // The old "whole clumps only" assertion is DELETED, not relaxed: grass.vert no longer groups
+    // blades into tufts (`blade / BLADES_PER_CLUMP` is gone), so there is no partial clump to
+    // render torn and no reason for the authored count to be a multiple of 7 — 30 is not.
+    // `bladesForDistance` still quantises the DRAWN count to 7 for tidy draws, and
+    // GrassDensityLodTest pins that separately.
 
     Phyxel::Graphics::FoliageRenderPipeline::Params f;
     EXPECT_TRUE(f.enabled);

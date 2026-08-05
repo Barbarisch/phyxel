@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""Generate the PROGRESSIVE BLUE-NOISE SITE ORDERING used to place grass blades.
+
+WHAT THIS IS FOR
+  Grass blades must never overlap. Blades live on a world-aligned 16x16 grid per voxel top face
+  (pitch 1/16 = 0.0625 u), one blade per cell, so separation is bounded below by the grid itself
+  and the ordering only has to decide WHICH cells fill first.
+
+  That ordering carries a second, load-bearing job. The grass LOD thins the field by drawing only
+  the first N blades (`bladesForDistance` shortens the vkCmdDraw; `lodKeep` fades the tail), and
+  `pc.bladesPerVoxel` is always pushed at the FULL authored count so survivors stay bit-identical.
+  So every PREFIX of this ordering is a real blade distribution that ships at some distance. A
+  prefix that clusters would look clumpy at distance AND would violate the packing guarantee,
+  because blade width grows as density falls.
+
+  Hence: PROGRESSIVE. Every prefix must be well-spread, not just the full set.
+
+THE ALGORITHM — greedy farthest-point (Mitchell) on a toroidal lattice
+  Repeatedly append the cell whose minimum toroidal distance to the already-chosen cells is
+  largest, ties broken by lowest index for determinism. This is the standard construction for a
+  progressive/adaptive sample sequence: it maximises the min-separation of every prefix as it goes.
+
+  TOROIDAL because the per-voxel tile repeats every world unit; a non-toroidal ordering would leave
+  a seam at each voxel border, which is precisely the class of defect this whole change exists to
+  remove.
+
+WHAT IT PRINTS
+  Cseq = min over N of ( minSep(prefix N) * sqrt(N) ).
+
+  This is the constant in the guarantee `sepGuaranteed(N) = Cseq/sqrt(N) - 2*jitter`. It MUST be
+  measured, not assumed: the packing budget at the shipped defaults is tight enough that the
+  difference between Cseq = 0.70 and 0.80 decides whether blade count or blade width has to move.
+
+  ⚑The guarantee uses the CONTINUOUS envelope Cseq/sqrt(N), never the exact per-N staircase.
+   Adjacent voxels keeping N=128 and N=129 sit at different points of the sequence; the staircase
+   would let the one with fewer blades believe in a separation its neighbour does not honour, and
+   they are adjacent in world space. Same bug class as the chunk seam.
+
+OUTPUTS
+  shaders/grass_sites.glsl                    (GLSL, byte-packed table + accessor)
+  engine/include/graphics/GrassSiteOrder.h    (C++, same table, for the unit test + CPU mirror)
+
+After running: `build_shaders.bat` (it does NOT track #include deps, so both grass shaders must be
+recompiled), then `tools/regen_grass_shadow.py` if grass.vert itself changed.
+"""
+import io
+import math
+import sys
+
+K = 16                 # cells per voxel axis
+N = K * K              # 256 sites
+PITCH = 1.0 / K
+
+
+def torus_d2(a, b):
+    """Squared distance on the unit torus (the per-voxel tile repeats every world unit)."""
+    dx = abs(a[0] - b[0]);  dx = min(dx, 1.0 - dx)
+    dy = abs(a[1] - b[1]);  dy = min(dy, 1.0 - dy)
+    return dx * dx + dy * dy
+
+
+def build_order():
+    centres = [(((i % K) + 0.5) * PITCH, ((i // K) + 0.5) * PITCH) for i in range(N)]
+    # Seed at cell 0. Any seed gives the same quality on a torus (it is homogeneous); fixing it
+    # keeps the table reproducible.
+    order = [0]
+    best = [torus_d2(centres[i], centres[0]) for i in range(N)]   # min d^2 to the chosen set
+    best[0] = -1.0
+    for _ in range(N - 1):
+        # farthest point: maximise the distance to the nearest already-chosen site
+        pick, pd = -1, -1.0
+        for i in range(N):
+            if best[i] > pd:
+                pick, pd = i, best[i]
+        order.append(pick)
+        best[pick] = -1.0
+        for i in range(N):
+            if best[i] >= 0.0:
+                d = torus_d2(centres[i], centres[pick])
+                if d < best[i]:
+                    best[i] = d
+    assert len(set(order)) == N, "ordering is not a bijection"
+    return order, centres
+
+
+def measure(order, centres):
+    """minSep for every prefix, and the resulting Cseq."""
+    seps, cseq, worst_n = [], float('inf'), 0
+    chosen = []
+    for n, s in enumerate(order, start=1):
+        chosen.append(centres[s])
+        if n == 1:
+            seps.append(float('inf'))
+            continue
+        m = min(torus_d2(chosen[-1], c) for c in chosen[:-1])
+        m = min(m, seps[-1] ** 2 if seps[-1] != float('inf') else float('inf'))
+        m = math.sqrt(m)
+        seps.append(m)
+        c = m * math.sqrt(n)
+        if c < cseq:
+            cseq, worst_n = c, n
+    return seps, cseq, worst_n
+
+
+def emit_glsl(order, cseq):
+    words = [sum(order[i * 4 + b] << (8 * b) for b in range(4)) for i in range(N // 4)]
+    rows = []
+    for i in range(0, len(words), 4):
+        rows.append("    uvec4(0x%08xu, 0x%08xu, 0x%08xu, 0x%08xu)"
+                    % (words[i], words[i + 1], words[i + 2], words[i + 3]))
+    body = ",\n".join(rows)
+    return f"""// GENERATED by tools/gen_grass_site_order.py — DO NOT EDIT BY HAND.
+//
+// Progressive blue-noise ordering of a {K}x{K} toroidal lattice ({N} sites, pitch {PITCH:g} u).
+// Blade `i` of a voxel occupies cell grassSiteOrder(i); one blade per cell, so blades cannot
+// share a position and the grid tiles across voxel AND chunk borders with no special casing.
+//
+// EVERY PREFIX is well-spread, which is what lets the LOD thin the field by simply drawing fewer
+// blades: survivors keep their cells, and the distribution stays even at any count.
+//
+//   MEASURED Cseq = {cseq:.4f}   (min over N of minSep(prefix N) * sqrt(N))
+//
+// Use the CONTINUOUS envelope Cseq/sqrt(N) for any spacing guarantee, never the per-N staircase —
+// adjacent voxels can keep different N, and the staircase lets the sparser one assume a separation
+// its neighbour does not honour.
+#ifndef GRASS_SITES_GLSL
+#define GRASS_SITES_GLSL
+
+const uint  kGrassGrid       = {K}u;
+const float kGrassPitch      = {PITCH:g};
+const float kGrassSeqSep     = {cseq:.4f};   // Cseq
+
+// {N} site indices packed 4-per-uint, 4 uints per uvec4.
+const uvec4 kGrassSiteWords[{N // 16}] = uvec4[{N // 16}](
+{body}
+);
+
+// Cell index for blade `i` (i must be < {N}).
+uint grassSiteOrder(uint i) {{
+    uint w    = i >> 2u;                              // which packed uint (0..{N // 4 - 1})
+    uint word = kGrassSiteWords[w >> 2u][w & 3u];
+    return (word >> ((i & 3u) * 8u)) & 0xFFu;
+}}
+
+// Lattice-cell centre, in [0,1]^2 voxel-local space, for blade `i`.
+vec2 grassSiteCentre(uint i) {{
+    uint s = grassSiteOrder(i);
+    return (vec2(float(s & (kGrassGrid - 1u)), float(s >> 4u)) + 0.5) * kGrassPitch;
+}}
+
+#endif // GRASS_SITES_GLSL
+"""
+
+
+def emit_header(order, cseq):
+    rows = []
+    for i in range(0, N, 16):
+        rows.append("    " + ", ".join("%3d" % v for v in order[i:i + 16]))
+    body = ",\n".join(rows)
+    return f"""// GENERATED by tools/gen_grass_site_order.py — DO NOT EDIT BY HAND.
+// C++ mirror of shaders/grass_sites.glsl. Same table, so the packing unit test measures the sites
+// the shader actually uses rather than a re-derivation of them.
+#pragma once
+
+#include <cstdint>
+
+namespace Phyxel {{
+namespace Graphics {{
+
+/// Cells per voxel axis; blades occupy distinct cells of this world-aligned lattice.
+inline constexpr uint32_t kGrassGrid = {K};
+inline constexpr uint32_t kGrassSiteCount = {N};
+inline constexpr float    kGrassPitch = {PITCH:g}f;
+
+/// Cseq in the spacing guarantee sepGuaranteed(N) = kGrassSeqSep/sqrt(N) - 2*jitter.
+/// MEASURED from the table below by the generator — do not hand-edit either independently.
+inline constexpr float    kGrassSeqSep = {cseq:.4f}f;
+
+/// Progressive blue-noise ordering: every prefix is well-spread, so thinning the field to N blades
+/// is just taking the first N entries.
+inline constexpr uint8_t kGrassSiteOrder[kGrassSiteCount] = {{
+{body}
+}};
+
+}} // namespace Graphics
+}} // namespace Phyxel
+"""
+
+
+def main():
+    order, centres = build_order()
+    seps, cseq, worst_n = measure(order, centres)
+
+    print(f"grid {K}x{K} = {N} sites, pitch {PITCH:g} u")
+    print(f"\n{'N':>5} {'minSep':>9} {'*sqrt(N)':>10}   (the constant is the MINIMUM of the last column)")
+    for n in (2, 4, 8, 16, 20, 30, 32, 56, 64, 90, 112, 128, 140, 200, 256):
+        print(f"{n:>5} {seps[n-1]:>9.4f} {seps[n-1]*math.sqrt(n):>10.4f}")
+    print(f"\nMEASURED Cseq = {cseq:.4f}   (worst at N={worst_n})")
+
+    # What the constant buys at the shipped default and at the counts under discussion.
+    print(f"\n{'blades':>7} {'sep=Cseq/sqrt(N)':>17} {'vs 0.040u blade':>16} {'jitter budget +/-':>18}")
+    for n in (20, 30, 56, 90, 140, 256):
+        sep = cseq / math.sqrt(n)
+        jit = (sep - 0.040 / 0.95) / 2.0          # kPackMargin 0.95
+        print(f"{n:>7} {sep:>17.4f} {sep/0.040:>15.2f}x {jit:>18.4f}")
+    print("\n(jitter budget < 0 means the count does not fit at 0.040u width and something must move)")
+
+    io.open('G:/Github/phyxel/shaders/grass_sites.glsl', 'w', encoding='utf-8').write(
+        emit_glsl(order, cseq))
+    io.open('G:/Github/phyxel/engine/include/graphics/GrassSiteOrder.h', 'w', encoding='utf-8').write(
+        emit_header(order, cseq))
+    print("\nwrote shaders/grass_sites.glsl and engine/include/graphics/GrassSiteOrder.h")
+    print("NOW RUN build_shaders.bat (it does not track #include deps)")
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,64 @@
+{
+  "tag": "before",
+  "camera": {
+    "mode": "free",
+    "position": {
+      "x": -1.4,
+      "y": 62.4,
+      "z": -1.4
+    },
+    "yaw": -135.0,
+    "pitch": -38.0
+  },
+  "control_px": 0,
+  "rows": [
+    {
+      "blades": 1,
+      "px": 1668,
+      "components": 1,
+      "ratio": 1.0
+    },
+    {
+      "blades": 2,
+      "px": 1668,
+      "components": 1,
+      "ratio": 0.5
+    },
+    {
+      "blades": 3,
+      "px": 3209,
+      "components": 3,
+      "ratio": 1.0
+    },
+    {
+      "blades": 7,
+      "px": 5275,
+      "components": 4,
+      "ratio": 0.571
+    },
+    {
+      "blades": 14,
+      "px": 9608,
+      "components": 6,
+      "ratio": 0.429
+    },
+    {
+      "blades": 28,
+      "px": 22339,
+      "components": 10,
+      "ratio": 0.357
+    },
+    {
+      "blades": 56,
+      "px": 30529,
+      "components": 8,
+      "ratio": 0.143
+    },
+    {
+      "blades": 112,
+      "px": 48976,
+      "components": 8,
+      "ratio": 0.071
+    }
+  ]
+}

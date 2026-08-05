@@ -11,6 +11,7 @@
 // ===========================================================================================
 #extension GL_GOOGLE_include_directive : require
 #include "wind.glsl"
+#include "grass_sites.glsl"   // progressive blue-noise lattice (tools/gen_grass_site_order.py)
 
 // Lightweight grass blades. ONE instance per grass-topped voxel (GrassInstanceData); this shader
 // procedurally fans it into `bladesPerVoxel` blades using gl_VertexIndex (6 verts/blade, no
@@ -143,12 +144,31 @@ void main() {
     int segIdx = rem / 6;
     int corner = rem - segIdx * 6;
 
-    // Group blades into a few tight TUFTS per voxel (clumps) rather than scattering them evenly —
-    // even spacing reads as isolated spikes; clustered blades read as grass. Each clump has a hashed
-    // center in the cell; blades jitter within a small radius of it.
-    const int BLADES_PER_CLUMP = 7;
-    int clumpId      = blade / BLADES_PER_CLUMP;
-    int bladeInClump = blade - clumpId * BLADES_PER_CLUMP;
+    // ── PLACEMENT: ONE BLADE PER LATTICE CELL, NEVER OVERLAPPING ──────────────────────────────
+    // Blades used to be grouped into tufts of 7 jittering inside a FIXED +/-0.08u box regardless of
+    // blade width, and each voxel clamped its roots into its own [0.005,0.995] independently. Both
+    // guaranteed overlap: 7 blades of width w in a 0.16 box collide for any w > ~0.023, and a root
+    // at 0.995 sits 0.01u from its neighbour's at 0.005 across the voxel border. Measured on the
+    // live engine: 28 blades resolved to 10 distinguishable regions, 112 blades to 8 — blade pixels
+    // grew 29x while visible structure saturated (docs/evidence/pack_before.json).
+    //
+    // Now each blade owns one cell of a WORLD-ALIGNED 16x16 lattice (grass_sites.glsl). Because the
+    // lattice is aligned to the voxel grid, cell centres tile continuously across voxel AND chunk
+    // borders — the cross-border case needs no special handling at all, which is what makes the
+    // guarantee total rather than per-voxel.
+    //
+    // ⚑The ordering is PROGRESSIVE (blue-noise): every prefix is well-spread. That is load-bearing,
+    //  not decoration — the LOD thins the field by drawing only the first N blades, so each prefix
+    //  is a distribution that actually ships at some distance. It also preserves the stability
+    //  contract for free: survivors keep their cells, so shortening the draw disturbs nothing.
+    //
+    // ⚑THE FORMER TUFTING IS DELETED ON PURPOSE. The comment that used to live here argued "even
+    //  spacing reads as isolated spikes; clustered blades read as grass". Overruled by direct
+    //  observation (user, 2026-08-05): tufting left the voxel face mostly bare with a few dense
+    //  bunches, and the call was "more spread out with less grouping should be the default". If
+    //  spread-out ever does read as spiky, the lever is MORE BLADES, not re-clustering them.
+    uint  siteIdx  = uint(blade) & (kGrassGrid * kGrassGrid - 1u);
+    vec2  cellCtr  = grassSiteCentre(siteIdx);
 
     // MEADOW field: one smooth low-frequency noise drives BOTH blade height and coverage, so tall
     // lush zones and shorter zones drift across the field while any few-meter neighborhood stays
@@ -164,31 +184,54 @@ void main() {
     // Coverage: dense EVERYWHERE. The meadow field must not punch holes — the look being chased is
     // a continuous field, so coverage stays above the highest clump threshold across the whole
     // meadow range and only the very shortest zones thin at all.
-    float coverage  = 0.88 + 0.22 * meadow;
-    int   numClumps = (int(pc.bladesPerVoxel) + BLADES_PER_CLUMP - 1) / BLADES_PER_CLUMP;
-    float clumpFrac = (float(clumpId) + 0.5) / float(max(numClumps, 1));
-    float keep      = step(0.18 + 0.42 * clumpFrac, coverage);
+    float coverage = 0.88 + 0.22 * meadow;
+    // RANK of this blade in the progressive ordering, 0..1. Replaces the old clumpFrac: the LOD
+    // now fades individual blades from the tail of the sequence rather than whole tufts, which is
+    // both smoother and exactly what the blue-noise prefix property is for.
+    float rankFrac = (float(blade) + 0.5) / float(max(pc.bladesPerVoxel, 1u));
+    float keep     = step(0.18 + 0.42 * rankFrac, coverage);
 
-    // Clump center spans the FULL [0,1]^2 top face. A center margin here (early versions used
-    // 0.18..0.82) starves every voxel edge of roots — each cube grows an isolated middle island
-    // and the voxel grid shows through as bare seam lines. Edge-to-edge centers let adjacent
-    // cells' tufts meet, so coverage reads as one continuous meadow.
-    vec2 cseed = vec2(cellHash.x * 3.17 + cellHash.z * 7.71 + float(clumpId) * 13.1,
-                      cellHash.z * 2.39 - cellHash.x * 5.11 + float(clumpId) * 7.31);
-    vec2 clumpCenter = vec2(0.02 + 0.96 * hash21(cseed),
-                            0.02 + 0.96 * hash21(cseed + 5.27));
-
-    // Per-blade hash (seeded on clump + blade-in-clump), used for jitter/height/yaw/stagger.
-    vec2 seed = cseed + float(bladeInClump) * 2.73;
+    // Per-blade hash, seeded on (cell, blade). Drives height/yaw/stagger/wind — and, in h4/h5,
+    // the jitter. Jitter gets its OWN slots so that shrinking the jitter radius does not also
+    // change per-blade colour (vUV reads h0/h1).
+    vec2 seed = vec2(cellHash.x * 3.17 + cellHash.z * 7.71 + float(blade) * 13.1,
+                     cellHash.z * 2.39 - cellHash.x * 5.11 + float(blade) * 7.31);
     float h0 = hash21(seed);
     float h1 = hash21(seed + 11.7);
     float h2 = hash21(seed + 23.3);
     float h3 = hash21(seed + 41.9);
+    float h4 = hash21(seed + 57.1);
+    float h5 = hash21(seed + 71.3);
 
-    // Blade root = clump center + small jitter (tight tuft radius). Clamp keeps roots ON this
-    // voxel's top face (an overhanging root floats in mid-air at a terrain step-down edge).
-    vec2 jitter = (vec2(h0, h1) - 0.5) * 0.16;
-    vec2 root2  = clamp(clumpCenter + jitter, vec2(0.005), vec2(0.995));
+    // JITTER, bounded so the non-overlap guarantee survives it. The lattice alone would be a
+    // visible grid; jitter breaks both the lattice and the 1-unit tiling repeat (every voxel uses
+    // the same 256-cell pattern). The budget is whatever spacing is left over after the blade's
+    // own width:
+    //     sepGuaranteed(N) = kGrassSeqSep/sqrt(N)      (CONTINUOUS envelope — see below)
+    //     jitterRadius     = (sepGuaranteed - width/kPack) / 2
+    // At the counts under consideration this is generous (+/-0.044u against a 0.0625u pitch at 30
+    // blades), so blades wander most of a cell and no lattice is visible.
+    //
+    // ⚑CONTINUOUS ENVELOPE, NEVER THE PER-N STAIRCASE. The real minSep is a staircase (it drops at
+    //  each refinement level of the sequence; measured worst point is N=129, right after 128). Two
+    //  ADJACENT voxels can keep different N — one at 128, one at 129 — and the staircase would let
+    //  the sparser one assume a separation its neighbour does not honour. They are neighbours in
+    //  world space, so that is an overlap. Same bug class as the chunk seam.
+    // Jitter is a FIXED FRACTION of the guaranteed spacing, not a function of blade width. Deriving
+    // it from the width would be circular — width depends on distance, distance on the root, the
+    // root on the jitter. Fixing the fraction here and CLAMPING THE WIDTH to whatever spacing is
+    // left (see kMaxPackWidth below) breaks the cycle and is provably safe: the two constants are
+    // the only inputs, and both are compile-time.
+    const float kPackMargin = 0.95;
+    const float kJitterFrac = 0.25;    // of sepGuard; leaves 0.475*sepGuard for the blade width
+    float sepGuard  = kGrassSeqSep * inversesqrt(float(max(pc.bladesPerVoxel, 1u)));
+    float jitterRad = kJitterFrac * sepGuard;
+    // Bound the jitter VECTOR, not each axis: a per-axis bound of r admits a diagonal of r*sqrt(2)
+    // and would silently spend more of the budget than it claims.
+    vec2  jitter    = (vec2(h4, h5) - 0.5) * (2.0 * jitterRad * 0.70710678);
+    // NO clamp to [0.005,0.995]: the lattice already keeps every root inside its own cell, and the
+    // clamp was itself the cross-voxel overlap mechanism (it pulled roots onto the shared border).
+    vec2 root2  = cellCtr + jitter;
     vec3 rootWorld = cellBase + vec3(root2.x, 0.0, root2.y);
 
     // Quad corners (2 tris): (u in {0,1}, v in {0,1} within THIS segment); v then maps to the
@@ -262,7 +305,7 @@ void main() {
     float densityFrac = max(1.0 / (1.0 + kFalloff * u * u), 1.0 / 18.0);
     // Soft edge: clumps near the threshold fade out over a band instead of popping. Without this
     // the seam is gone but a moving camera still sees clumps blink in and out.
-    float lodKeep     = 1.0 - smoothstep(densityFrac - 0.14, densityFrac, clumpFrac);
+    float lodKeep     = 1.0 - smoothstep(densityFrac - 0.14, densityFrac, rankFrac);
 
     // Distance fade at the radius edge. smoothstep, not linear: a linear collapse reads as a
     // visible circular "mowing line" tracking the camera. fadeRange is deliberately large so the
@@ -347,6 +390,28 @@ void main() {
     // reference 45-degree fovY / 900 px config; it is well below bladeWidth in the near field, so
     // max() leaves close-up grass exactly as authored.
     bladeWidth = max(bladeWidth, dist * 0.0011);
+
+    // ── THE PACKING CLAMP — what actually makes non-overlap unconditional ─────────────────────
+    // A blade may never be wider than the spacing left after jitter, or two blades whose roots are
+    // exactly sepGuard apart would touch. Everything above is a REQUEST; this is the bound.
+    //
+    // sepGuard - 2*jitterRad = sepGuard*(1 - 2*kJitterFrac) = 0.475*sepGuard at kJitterFrac 0.25.
+    //
+    // ⚑This is also the far-field guard, and it is the reason the guarantee survives distance at
+    //  all. The sub-pixel floor above is a SCREEN-space width: in world units it grows without
+    //  bound (0.246u at the 224u radius edge), so it eventually exceeds any fixed spacing. Density
+    //  falloff thins the field as distance grows, which RAISES sepGuard... but only until the 1/18
+    //  density floor stops it, at which point the floor keeps growing and would overrun the
+    //  spacing. Clamping here trims the blade instead of letting it overlap. Where density
+    //  compensation is active the two are exactly balanced (width ~ 1/sqrt(df), spacing ~
+    //  1/sqrt(N*df) — the df cancels), so this clamp is inert through the whole mid-field.
+    //
+    // The bound is scaled by shadowWidthScale in the shadow pass so the proxy stays its intended
+    // multiple of the (clamped) visible blade. The guarantee is a statement about VISIBLE blades:
+    // overlapping shadow casters union harmlessly in the depth buffer.
+    float maxPackWidth = kPackMargin * sepGuard * (1.0 - 2.0 * kJitterFrac);
+    bladeWidth = min(bladeWidth, maxPackWidth * mix(1.0, pc.shadowWidthScale, kShadowWidthGate));
+
     vec3 widthOffset = vec3(dir.x, 0.0, dir.y) * (uCentered * bladeWidth);
 
     // Shared procedural wind (wind.glsl): the blade bends downwind by the local gust-field

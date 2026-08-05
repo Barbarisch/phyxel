@@ -273,6 +273,89 @@ float GrassRenderPipeline::widthCompensation(uint32_t bladesDrawn, uint32_t blad
     return std::min(1.0f / std::sqrt(frac), 2.6f);
 }
 
+// ── BLADE PLACEMENT — CPU mirror of grass.vert ────────────────────────────────────────────────
+// These reproduce the shader's placement so tests can measure the real blade roots. They are NOT
+// bit-identical to the GPU: hash21 is a chain of fract(dot(...)) and MSVC/GLSL differ in FMA
+// contraction. That is fine for what they are used for — the packing guarantee is a statement
+// about SEPARATION, and the load-bearing test derives separation from the lattice, not the hash.
+namespace {
+
+/// hash21 from grass.vert (copy-pasted there in 6 shaders; no shared GLSL hash header exists).
+float hash21(glm::vec2 p) {
+    p = glm::fract(p * glm::vec2(127.1f, 311.7f));
+    p += glm::dot(p, p + 34.23f);
+    return glm::fract(p.x * p.y);
+}
+
+/// grass.vert wraps the ABSOLUTE world cell to a 2048 period before hashing: raw far coordinates
+/// destroy fract() precision, and camera-relative ones would re-roll every blade as you walk.
+glm::vec3 cellHashOf(int cx, int cy, int cz) {
+    auto wrap = [](int v) {
+        float m = std::fmod(static_cast<float>(v), 2048.0f);
+        return m < 0.0f ? m + 2048.0f : m;
+    };
+    return {wrap(cx), wrap(cy), wrap(cz)};
+}
+
+} // namespace
+
+float GrassRenderPipeline::sepGuaranteed(uint32_t blades) {
+    return kGrassSeqSep / std::sqrt(static_cast<float>(std::max(blades, 1u)));
+}
+
+glm::vec2 GrassRenderPipeline::bladeRootLocal(int cx, int cy, int cz, uint32_t blade,
+                                              uint32_t bladesPerVoxel) {
+    const glm::vec3 ch = cellHashOf(cx, cy, cz);
+
+    // ONE BLADE PER LATTICE CELL. `blade & 255` mirrors grass.vert exactly — and is why
+    // bladesPerVoxel is clamped to kGrassSiteCount in setGrassParams: a 257th blade would wrap
+    // onto cell 0 and land exactly on top of blade 0, silent and exact overlap.
+    const uint32_t site = kGrassSiteOrder[blade & (kGrassSiteCount - 1u)];
+    const glm::vec2 cellCtr = (glm::vec2(static_cast<float>(site % kGrassGrid),
+                                         static_cast<float>(site / kGrassGrid)) + 0.5f)
+                            * kGrassPitch;
+
+    const glm::vec2 seed{ch.x * 3.17f + ch.z * 7.71f + static_cast<float>(blade) * 13.1f,
+                         ch.z * 2.39f - ch.x * 5.11f + static_cast<float>(blade) * 7.31f};
+    const float h4 = hash21(seed + 57.1f);
+    const float h5 = hash21(seed + 71.3f);
+
+    // Jitter breaks both the lattice and the 1-unit tiling repeat. Bounded as a VECTOR: a
+    // per-axis bound of r admits a diagonal of r*sqrt(2) and would overspend the budget.
+    const float jitterRad = kJitterFrac * sepGuaranteed(bladesPerVoxel);
+    const glm::vec2 jitter = (glm::vec2(h4, h5) - 0.5f) * (2.0f * jitterRad * 0.70710678f);
+
+    // NO clamp to [0.005,0.995]: the lattice already keeps every root inside its own cell, and
+    // that clamp was itself the cross-voxel overlap mechanism (it pulled roots onto the border).
+    return cellCtr + jitter;
+}
+
+float GrassRenderPipeline::densityFracAt(float dist, float radius) {
+    const float r = (radius > 1e-3f) ? radius : 1e-3f;
+    const float t = std::min(1.0f, std::max(0.0f, dist / r));
+    const float u = std::max(0.0f, t - kDensityNearBand) / (1.0f - kDensityNearBand);
+    return std::max(1.0f / (1.0f + kDensityFalloff * u * u), 1.0f / 18.0f);
+}
+
+float GrassRenderPipeline::bladeWidthAt(float dist, float radius, uint32_t bladesPerVoxel,
+                                        float widthScale, bool boxy) {
+    const float df = densityFracAt(dist, radius);
+    float w = (boxy ? 0.040f : 0.036f)
+            * std::min(1.0f / std::sqrt(std::max(df, 0.02f)), 2.6f)
+            * std::max(widthScale, 0.001f);
+    // SUB-PIXEL FLOOR (grass.vert): holds a blade at ~1 screen pixel so far grass stops flickering.
+    // It is a SCREEN-space quantity, so in world units it grows without bound with distance — the
+    // one term that can defeat a fixed world-space spacing scheme.
+    w = std::max(w, dist * 0.0011f);
+
+    // THE PACKING CLAMP — everything above is a request, this is the bound. A blade may never be
+    // wider than the spacing left after jitter, or two blades exactly sepGuaranteed apart touch.
+    // This is also the far-field guard: it stops the sub-pixel floor from overrunning the spacing
+    // once the 1/18 density floor stops thinning the field (~212u at the shipped defaults).
+    const float maxPack = kPackMargin * sepGuaranteed(bladesPerVoxel) * (1.0f - 2.0f * kJitterFrac);
+    return std::min(w, maxPack);
+}
+
 bool GrassRenderPipeline::initializeShadow(VkRenderPass shadowRenderPass, VkExtent2D shadowExtent) {
     if (m_device == VK_NULL_HANDLE || m_pipelineLayout == VK_NULL_HANDLE) {
         LOG_ERROR("GrassRenderPipeline", "initializeShadow called before initialize()");
