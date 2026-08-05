@@ -54,12 +54,18 @@ struct EngineConfig {
 
     // -- AI / LLM ---------------------------------------------------------
     std::string aiProvider    = "anthropic";  // "anthropic", "openai", "ollama"
-    std::string aiModel       = "";           // e.g. "claude-sonnet-4-20250514", empty = provider default
+    std::string aiModel       = "";           // e.g. "claude-sonnet-5", empty = provider default
     std::string aiApiKey      = "";           // API key (prefer env var over config file)
     bool        aiAutoStart   = false;         // Start Goose server automatically on engine init
 
     // -- Rendering --------------------------------------------------------
-    float       maxChunkRenderDistance = 256.0f;
+    // maxChunkRenderDistance is ALSO the projection far plane
+    // (RenderCoordinator: getProjectionMatrix(aspect, 0.1f, maxChunkRenderDistance)), so it has
+    // to reach past the far tiers or they are clipped away and the horizon is invisible no matter
+    // what FarTerrainManager is configured to build. It bounds only what ALREADY-RESIDENT chunks
+    // are culled to; residency itself is ChunkManager::loadDistance, so raising this does not add
+    // near-field chunk cost.
+    float       maxChunkRenderDistance = 4096.0f;
     float       chunkInclusionDistance = 320.0f;
 
     // -- UI / Editor ------------------------------------------------------

@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/WaterCellRenderPipeline.h"
 #include "graphics/Camera.h"
 #include "core/AssetManager.h"
@@ -421,7 +422,7 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
 
     VkPipelineDepthStencilStateCreateInfo ds{};
     ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    ds.depthTestEnable = VK_TRUE; ds.depthWriteEnable = VK_FALSE; ds.depthCompareOp = VK_COMPARE_OP_LESS;
+    ds.depthTestEnable = VK_TRUE; ds.depthWriteEnable = VK_FALSE; ds.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
 
     VkPipelineColorBlendAttachmentState cba{};
     cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |

@@ -46,7 +46,7 @@ struct GooseConfig {
     std::string defaultProvider = "anthropic";
 
     /// Default model name
-    std::string defaultModel = "claude-sonnet-4-20250514";
+    std::string defaultModel = "claude-sonnet-5";   // sonnet-4-20250514 retired 2026-06-15 (404s)
 
     /// Max time to wait for bridge+goose to start (ms)
     uint32_t startupTimeoutMs = 45000;

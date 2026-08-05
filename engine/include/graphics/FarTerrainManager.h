@@ -40,10 +40,35 @@ class FarTerrainMesher;
 class FarTerrainManager {
 public:
     struct Params {
-        bool  enabled     = false;
-        float maxDistance = 2048.0f;        ///< outer far-terrain radius (world units)
-        std::vector<int> ringSteps{2, 4, 8};///< LOD step per ring; tileSize = 64*step
-        int   maxResidentTiles    = 512;    ///< LRU cap on resident tiles
+        /// DEFAULT ON (2026-08-01): this is the tier that makes a world render as a WORLD rather
+        /// than a disc of streamed chunks ending in sky. Terrain past the residency radius is
+        /// served from the generator's own heightmap at ring LOD instead of being loaded.
+        /// Measured on PhyxelProjects/LodTest (streaming Perlin, Release) at (16,140,180) with the
+        /// far plane actually raised: **57 tiles drawn / 71,630 triangles, terrain to the horizon,
+        /// 319 FPS.**
+        ///
+        /// ⚠️ IT IS USELESS WITHOUT A FAR PLANE THAT REACHES IT, and that is a SEPARATE knob —
+        /// `Application::maxChunkRenderDistance` (editor) / `EngineConfig` / `GameSettings`. At the
+        /// editor's old 192-unit default every tile past 192u was frustum-clipped, giving 9-14
+        /// tiles drawn and an empty horizon. On 2026-08-01 I misread exactly that as "far terrain
+        /// is regressed" and briefly reverted this flag. It was never regressed. If this tier looks
+        /// dead, CHECK THE FAR PLANE FIRST — `POST /api/debug/render_distance {"distance":4096}`.
+        ///
+        /// Known limitation (real, unchanged): this tier is 2.5-D. It knows only GENERATOR terrain,
+        /// so it cannot show overhangs, player edits or structures — those are the separate far-LOD
+        /// chunk path (C3.3, RenderCoordinator::s_farLodChunks).
+        ///
+        /// ⚠️ Also found and NOT fixed: a `maxDistance` change does not invalidate the wanted set,
+        /// so tiles stay FROZEN until the camera moves past kRefreshDistance. Same defect class C1
+        /// fixed for `viewScale` (m_lastRefreshViewScale); it silently returns byte-identical stats
+        /// and reads as "no effect". Force a camera move when A/B-ing this system.
+        bool  enabled     = true;
+        float maxDistance = 4096.0f;        ///< outer far-terrain radius (world units)
+        /// 4 rings for a 4096 horizon: bands 0-512-1024-2048-4096, tiles 128/256/512/1024u.
+        /// ⚠️ Ring 4's individual contribution has NOT been isolated — the 57-tile / 71.6k-triangle
+        /// measurement above is the composed result, not a per-ring breakdown.
+        std::vector<int> ringSteps{2, 4, 8, 16};///< LOD step per ring; tileSize = 64*step
+        int   maxResidentTiles    = 768;    ///< LRU cap on resident tiles
         /// C1 (docs/ContinuousLodPlan.md): screen-space correction applied to maxDistance
         /// and the per-ring band edges. 1.0 == the reference config (1600x900, fovY 45), so
         /// the default is an exact no-op; RenderCoordinator overwrites it each frame from
@@ -67,11 +92,25 @@ public:
     /// computeRings() delegates here.
     static std::vector<RingSpec> computeRingsFor(const Params& p);
 
-    /// A resident tile's draw data + cull AABB.
+    /// A resident tile's draw data + cull AABB. `treeBuffer`/`treeCount` carry the tile's
+    /// far-tree impostor instances (FarTreeInstance array; VK_NULL_HANDLE/0 when the tile is
+    /// beyond impostor range or treeless) — drawn by FarTreeRenderPipeline.
     struct TileDraw {
         FarTerrainRenderPipeline::TileDraw draw;
         glm::vec3 aabbMin{0.0f};
         glm::vec3 aabbMax{0.0f};
+        VkBuffer  treeBuffer = VK_NULL_HANDLE;
+        uint32_t  treeCount  = 0;
+        float     treeMaxHeight = 0.0f;   ///< tallest impostor (extends the cull AABB upward)
+        std::vector<TreeSpeciesRange> treeRanges;   ///< per-species runs (value copy — a
+                                                    ///< pointer into m_tiles would dangle
+                                                    ///< between eviction and rebuild)
+        /// Interior tile fully covered by real chunks: skip the TERRAIN draw (dug-hole
+        /// protection) but keep the tile resident and its TREES drawable. Interior tiles
+        /// used to be dropped from the wanted set entirely — then a zoom-out had NO tree
+        /// instances to fade in until the worker rebuilt the tile, exactly the "trees
+        /// fade out and nothing is there" gap (user-reported 2026-08-02).
+        bool terrainHidden = false;
     };
 
     /// Returns true when EVERY 32x32 world column in [minXZ, maxXZ] (world units,
@@ -111,6 +150,14 @@ public:
     /// Destroy all resident tiles immediately. Only safe when the GPU is idle.
     void clearTiles();
 
+    /// World-XZ rectangles (minX, minZ, maxX, maxZ) where far-tree instances must NOT be
+    /// planned — placed-structure footprints. planFlora is the PRISTINE generator plan;
+    /// settlement builds edit chunks (persisted in world.db) so the near field has no trees
+    /// there, but the far tier re-derived from the plan and grew phantom trees through
+    /// buildings (user-reported 2026-08-02). Retires all resident tiles so existing tree
+    /// buffers rebuild against the new zones (rare event: world load / structure build).
+    void setTreeExclusions(std::vector<glm::vec4> rects);
+
     const std::vector<TileDraw>& tileDraws() const { return m_draws; }
     size_t residentTiles() const { return m_tiles.size(); }
     size_t pendingTiles() const { return m_pending.size(); }
@@ -123,6 +170,11 @@ private:
         VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
         VkBuffer       indexBuffer  = VK_NULL_HANDLE;
         VkDeviceMemory indexMemory  = VK_NULL_HANDLE;
+        VkBuffer       treeBuffer   = VK_NULL_HANDLE;  ///< FarTreeInstance array (impostors)
+        VkDeviceMemory treeMemory   = VK_NULL_HANDLE;
+        uint32_t       treeCount    = 0;
+        float          treeMaxHeight = 0.0f;
+        std::vector<TreeSpeciesRange> treeRanges;      ///< per-species runs into treeBuffer
         uint32_t       indexCount   = 0;
         glm::vec2      origin{0.0f};
         glm::vec3      aabbMin{0.0f};
@@ -171,6 +223,8 @@ private:
     std::unordered_set<FarTileKey, FarTileKeyHash> m_wanted;   // current wanted set
     std::unordered_set<FarTileKey, FarTileKeyHash> m_keep;     // wanted + hysteresis margin
     std::unordered_set<FarTileKey, FarTileKeyHash> m_pending;  // requested, not yet resident
+    std::unordered_set<FarTileKey, FarTileKeyHash> m_terrainHidden; // resident, trees-only
+    std::vector<glm::vec4> m_treeExclusions;   // structure footprints (world XZ rects)
     std::vector<std::pair<int, GpuTile>> m_graveyard;          // frames-left, retired buffers
     std::vector<TileDraw> m_draws;
     glm::vec2 m_lastRefreshPos{0.0f};

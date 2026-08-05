@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/WaterRenderPipeline.h"
 #include "graphics/SeaMesh.h"
 #include "graphics/Camera.h"
@@ -489,7 +490,7 @@ void WaterRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D swa
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_FALSE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
 
     // Standard straight-alpha blending over the already-rendered opaque scene.
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};

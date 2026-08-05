@@ -7,8 +7,14 @@
         "density": 0.6,
         "spacing": 56,
         "items": [
-          { "animFile": "resources/animated_characters/quad_husky.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/quad_husky.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/quad_wolf.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "SnowGrass",
@@ -25,8 +31,8 @@
       "heightScale": 1.3,
       "heightOffset": 6.0,
       "flora": {
-        "density": 0.7,
-        "spacing": 6,
+        "density": 0.8,
+        "spacing": 5,
         "items": [
           {
             "template": "forge_spruce_m",
@@ -61,7 +67,27 @@
             "weight": 1
           }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.35,
+          "spacing": 4,
+          "items": [
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "forge_bush_s",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Desert",
@@ -69,7 +95,10 @@
         "density": 0.5,
         "spacing": 64,
         "items": [
-          { "animFile": "resources/animated_characters/donkey.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/donkey.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "Sand",
@@ -99,10 +128,26 @@
           },
           {
             "template": "forge_bush_s",
-            "weight": 2
+            "weight": 3
           }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.15,
+          "spacing": 8,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "forge_dead_s",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Savanna",
@@ -110,10 +155,22 @@
         "density": 0.7,
         "spacing": 40,
         "items": [
-          { "animFile": "resources/animated_characters/quad_horse.anim", "weight": 3 },
-          { "animFile": "resources/animated_characters/donkey.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/alpaca.anim", "weight": 1 },
-          { "animFile": "resources/animated_characters/bull.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/quad_horse.anim",
+            "weight": 3
+          },
+          {
+            "animFile": "resources/animated_characters/donkey.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/alpaca.anim",
+            "weight": 1
+          },
+          {
+            "animFile": "resources/animated_characters/bull.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "GrassSavanna",
@@ -132,8 +189,8 @@
       "surfaceAlt": "Dirt",
       "surfaceAltChance": 0.3,
       "flora": {
-        "density": 0.55,
-        "spacing": 9,
+        "density": 0.65,
+        "spacing": 6,
         "items": [
           {
             "template": "forge_acacia_m",
@@ -142,13 +199,29 @@
           {
             "template": "forge_acacia_l",
             "weight": 2
-          },
-          {
-            "template": "forge_bush_s",
-            "weight": 4
           }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.5,
+          "spacing": 4,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 3
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Forest",
@@ -156,10 +229,22 @@
         "density": 0.75,
         "spacing": 32,
         "items": [
-          { "animFile": "resources/animated_characters/deer.anim", "weight": 4 },
-          { "animFile": "resources/animated_characters/fox.anim", "weight": 3 },
-          { "animFile": "resources/animated_characters/stag.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/deer.anim",
+            "weight": 4
+          },
+          {
+            "animFile": "resources/animated_characters/fox.anim",
+            "weight": 3
+          },
+          {
+            "animFile": "resources/animated_characters/stag.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/quad_wolf.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "GrassForest",
@@ -178,8 +263,8 @@
       "surfaceAlt": "Dirt",
       "surfaceAltChance": 0.6,
       "flora": {
-        "density": 0.85,
-        "spacing": 6,
+        "density": 0.9,
+        "spacing": 4,
         "items": [
           {
             "template": "forge_oak_m",
@@ -204,21 +289,49 @@
           {
             "template": "forge_pine_l",
             "weight": 2
-          },
-          {
-            "template": "forge_bush_m",
-            "weight": 4
-          },
-          {
-            "template": "forge_bush_s",
-            "weight": 3
-          },
-          {
-            "template": "fern",
-            "weight": 3
           }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.7,
+          "spacing": 3,
+          "items": [
+            {
+              "template": "fern",
+              "weight": 4
+            },
+            {
+              "template": "bush_leafy_m",
+              "weight": 3
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 3
+            },
+            {
+              "template": "forge_bush_m",
+              "weight": 2
+            },
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "shrub_round",
+              "weight": 1
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Plains",
@@ -226,11 +339,26 @@
         "density": 0.75,
         "spacing": 36,
         "items": [
-          { "animFile": "resources/animated_characters/quad_horse.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/cow.anim", "weight": 3 },
-          { "animFile": "resources/animated_characters/bull.anim", "weight": 1 },
-          { "animFile": "resources/animated_characters/donkey.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/deer.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/quad_horse.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/cow.anim",
+            "weight": 3
+          },
+          {
+            "animFile": "resources/animated_characters/bull.anim",
+            "weight": 1
+          },
+          {
+            "animFile": "resources/animated_characters/donkey.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/deer.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "Grass",
@@ -247,8 +375,8 @@
       "heightScale": 0.6,
       "heightOffset": 0.0,
       "flora": {
-        "density": 0.35,
-        "spacing": 9,
+        "density": 0.6,
+        "spacing": 5,
         "items": [
           {
             "template": "forge_oak_sparse",
@@ -261,21 +389,37 @@
           {
             "template": "tree_apple",
             "weight": 2
-          },
-          {
-            "template": "bush_flower",
-            "weight": 4
-          },
-          {
-            "template": "forge_bush_s",
-            "weight": 3
-          },
-          {
-            "template": "fern",
-            "weight": 3
           }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.35,
+          "spacing": 4,
+          "items": [
+            {
+              "template": "bush_flower",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "fern",
+              "weight": 1
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "EnchantedForest",
@@ -283,9 +427,18 @@
         "density": 0.7,
         "spacing": 36,
         "items": [
-          { "animFile": "resources/animated_characters/deer.anim", "weight": 3 },
-          { "animFile": "resources/animated_characters/stag.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/fox.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/deer.anim",
+            "weight": 3
+          },
+          {
+            "animFile": "resources/animated_characters/stag.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/fox.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "GrassForest",
@@ -304,28 +457,40 @@
       "surfaceAlt": "Dirt",
       "surfaceAltChance": 0.4,
       "flora": {
-        "density": 0.9,
-        "spacing": 4,
+        "density": 0.97,
+        "spacing": 3,
         "items": [
           {
             "template": "forge_bush_glow_green",
-            "weight": 4
+            "weight": 1
           },
           {
             "template": "forge_bush_glow_blue",
-            "weight": 2
+            "weight": 1
           },
           {
             "template": "forge_bush_m",
-            "weight": 3
+            "weight": 1
           },
           {
             "template": "fern",
-            "weight": 3
+            "weight": 1
           },
           {
             "template": "forge_oak_m",
             "weight": 2
+          },
+          {
+            "template": "bush_leafy_m",
+            "weight": 1
+          },
+          {
+            "template": "bush_leafy_s",
+            "weight": 1
+          },
+          {
+            "template": "bush_round",
+            "weight": 1
           }
         ]
       },
@@ -357,29 +522,73 @@
         "density": 0.4,
         "spacing": 56,
         "items": [
-          { "animFile": "resources/animated_characters/fox.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/fox.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "GrassForest",
       "subsurface": "Dirt",
       "deep": "Stone",
-      "temp": [0.75, 1.0],
-      "moisture": [0.65, 1.0],
+      "temp": [
+        0.75,
+        1.0
+      ],
+      "moisture": [
+        0.65,
+        1.0
+      ],
       "heightScale": 1.0,
       "heightOffset": 1.0,
       "surfaceAlt": "Dirt",
       "surfaceAltChance": 0.3,
       "flora": {
-        "density": 0.9,
-        "spacing": 5,
+        "density": 0.97,
+        "spacing": 3,
         "items": [
-          {"template": "forge_jungle_l", "weight": 4},
-          {"template": "forge_jungle_m", "weight": 4},
-          {"template": "forge_palm_m", "weight": 2},
-          {"template": "fern", "weight": 4},
-          {"template": "forge_bush_m", "weight": 3}
+          {
+            "template": "forge_jungle_l",
+            "weight": 4
+          },
+          {
+            "template": "forge_jungle_m",
+            "weight": 4
+          },
+          {
+            "template": "forge_palm_m",
+            "weight": 2
+          }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.85,
+          "spacing": 3,
+          "items": [
+            {
+              "template": "fern",
+              "weight": 4
+            },
+            {
+              "template": "bush_leafy_m",
+              "weight": 3
+            },
+            {
+              "template": "forge_bush_m",
+              "weight": 2
+            },
+            {
+              "template": "bush_leafy_s",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "_note": "Tundra/polar treeless (Koppen ET). Bands computed from the shipped values: temp01 0.0-0.16 = MAT -5 to +0.6C via MAT=temp01*35-5 (the temperature field floors at -5C, so true colder tundra saturates here); moist01 0.0-0.18 = ~250-410 mm/yr polar-desert via precip=250*2^(4*moist01). Distinct from Snow (boreal conifers) by being treeless + Gravel; the lapse-rate rule snow-caps it where cold, which is physically correct.",
@@ -388,26 +597,67 @@
         "density": 0.6,
         "spacing": 44,
         "items": [
-          { "animFile": "resources/animated_characters/quad_wolf.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/fox.anim", "weight": 2 },
-          { "animFile": "resources/animated_characters/quad_husky.anim", "weight": 1 }
+          {
+            "animFile": "resources/animated_characters/quad_wolf.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/fox.anim",
+            "weight": 2
+          },
+          {
+            "animFile": "resources/animated_characters/quad_husky.anim",
+            "weight": 1
+          }
         ]
       },
       "surface": "Gravel",
       "subsurface": "Dirt",
       "deep": "Stone",
-      "temp": [0.0, 0.16],
-      "moisture": [0.0, 0.18],
+      "temp": [
+        0.0,
+        0.16
+      ],
+      "moisture": [
+        0.0,
+        0.18
+      ],
       "heightScale": 0.7,
       "heightOffset": 0.0,
       "flora": {
         "density": 0.15,
         "spacing": 12,
         "items": [
-          {"template": "forge_dead_s", "weight": 3},
-          {"template": "forge_bush_s", "weight": 2}
+          {
+            "template": "forge_dead_s",
+            "weight": 3
+          },
+          {
+            "template": "forge_bush_s",
+            "weight": 2
+          }
         ]
-      }
+      },
+      "floraLayers": [
+        {
+          "density": 0.2,
+          "spacing": 6,
+          "items": [
+            {
+              "template": "forge_bush_s",
+              "weight": 2
+            },
+            {
+              "template": "shrub_flat",
+              "weight": 2
+            },
+            {
+              "template": "bush_round",
+              "weight": 1
+            }
+          ]
+        }
+      ]
     }
   ]
 }

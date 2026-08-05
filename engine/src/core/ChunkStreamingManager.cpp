@@ -9,6 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <limits>
 #include <vector>
 #include <utility>
@@ -296,6 +297,11 @@ void ChunkStreamingManager::updateStreaming(const glm::vec3& playerPosition, flo
     }
 }
 
+void ChunkStreamingManager::pumpLanding(const glm::vec3& position, float unloadRadius) {
+    if (!worldStorage) return;
+    if (asyncGenerationActive()) drainGeneratedChunks(position, unloadRadius);
+}
+
 void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, float radius) {
     glm::ivec3 centerChunk = Utils::CoordinateUtils::worldToChunkCoord(glm::ivec3(position));
     int chunkRadius = static_cast<int>(std::ceil(radius / 32.0f));
@@ -304,27 +310,65 @@ void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, 
     // vertical bands, most of them fully-buried solid chunks (~200ms each to generate:
     // 32k per-cube heap fills) or empty sky. +-2 bands still covers terrain relief and
     // digging near the player (going deeper re-centers the sphere and streams further
-    // down on demand).
+    // down on demand). The SURFACE bands below cover what this clamp misses.
     int vRadius = std::min(chunkRadius, 2);
 
-    // Collect missing chunks within radius, paired with their distance to the player.
+    // View-cone priority: a chunk straight ahead sorts as if ~half its distance, one
+    // behind as ~1.8x — the ground the user is LOOKING AT resolves first, and refreshing
+    // this priority every pump makes camera movement dynamically reprioritize the fill.
+    const glm::vec3 viewDir = (glm::length(m_viewDir) > 0.01f)
+                                  ? glm::normalize(m_viewDir) : glm::vec3(0, 0, -1);
+    auto priority = [&](const glm::ivec3& chunkCoord) -> float {
+        const glm::vec3 center =
+            glm::vec3(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord)) + glm::vec3(16.0f);
+        const glm::vec3 to = center - position;
+        const float dist = glm::length(to);
+        if (dist < 1.0f) return 0.0f;
+        const float cosA = glm::dot(to / dist, viewDir);
+        return dist * (1.15f - 0.65f * cosA);
+    };
+
+    // Surface band per column, cached (terrain is static per world). INT_MIN = unknown.
+    auto surfaceBandAt = [&](int wx, int wz) -> int {
+        if (!m_surfaceBand) return INT_MIN;
+        const glm::ivec2 col(wx >> 5, wz >> 5);   // cache per chunk column
+        auto it = m_surfaceBandCache.find(col);
+        if (it != m_surfaceBandCache.end()) return it->second;
+        const int band = m_surfaceBand(wx, wz);
+        m_surfaceBandCache.emplace(col, band);
+        return band;
+    };
+
+    // Collect missing chunks within radius. Two vertical ranges per column: around the
+    // CAMERA band (walking/digging), and around the column's TERRAIN SURFACE band. The
+    // camera-only clamp meant an elevated camera (editor flight, zoom-in from altitude)
+    // hovered above its own +-2 bands and the ground in plain view NEVER streamed in
+    // (measured: 4 visible chunks, flat, for 72s at a y=150 hover over y~65 terrain).
     std::vector<std::pair<float, glm::ivec3>> missing;
     for (int dx = -chunkRadius; dx <= chunkRadius; ++dx) {
-        for (int dy = -vRadius; dy <= vRadius; ++dy) {
-            for (int dz = -chunkRadius; dz <= chunkRadius; ++dz) {
-                glm::ivec3 chunkCoord = centerChunk + glm::ivec3(dx, dy, dz);
-
-                glm::vec3 chunkCenter = glm::vec3(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord)) + glm::vec3(16.0f);
-                float distance = glm::length(chunkCenter - position);
-
-                if (distance <= radius && !getChunkAtCoord(chunkCoord)) {
-                    missing.emplace_back(distance, chunkCoord);
+        for (int dz = -chunkRadius; dz <= chunkRadius; ++dz) {
+            const int cx = centerChunk.x + dx, cz = centerChunk.z + dz;
+            int lo[2] = {centerChunk.y - vRadius, 0};
+            int hi[2] = {centerChunk.y + vRadius, -1};
+            const int sb = surfaceBandAt(cx * 32 + 16, cz * 32 + 16);
+            if (sb != INT_MIN) { lo[1] = sb - 1; hi[1] = sb + 1; }
+            for (int range = 0; range < 2; ++range) {
+                for (int cy = lo[range]; cy <= hi[range]; ++cy) {
+                    if (range == 1 && cy >= lo[0] && cy <= hi[0]) continue;   // dedupe
+                    const glm::ivec3 chunkCoord(cx, cy, cz);
+                    const glm::vec3 chunkCenter =
+                        glm::vec3(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord)) +
+                        glm::vec3(16.0f);
+                    if (glm::length(chunkCenter - position) <= radius &&
+                        !getChunkAtCoord(chunkCoord)) {
+                        missing.emplace_back(priority(chunkCoord), chunkCoord);
+                    }
                 }
             }
         }
     }
 
-    // Nearest first, so a capped update fills the area around the player before the edges.
+    // Best priority first, so a capped update fills what the camera cares about most.
     std::sort(missing.begin(), missing.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
 
@@ -338,8 +382,19 @@ void ChunkStreamingManager::loadChunksAroundPosition(const glm::vec3& position, 
         // the worker for most of each pump interval and capped inflow at ~8/pump.
         // Landing is separately bounded (m_maxChunksPerUpdate in drainGeneratedChunks)
         // so a full queue can't hitch the main thread.
-        constexpr int kMaxPendingAsync = 32;
-        for (const auto& [distance, chunkCoord] : missing) {
+        constexpr int kMaxPendingAsync = 48;
+        {
+            // Dynamic reprioritization: requests still QUEUED from earlier pumps were
+            // ordered for where the camera was then — re-sort them for where it is NOW
+            // (<= kMaxPendingAsync entries; trivial under the lock). Without this a fast
+            // pan keeps burning workers on chunks behind the camera.
+            std::lock_guard<std::mutex> lock(m_genRequestMutex);
+            std::sort(m_genRequests.begin(), m_genRequests.end(),
+                      [&](const glm::ivec3& a, const glm::ivec3& b) {
+                          return priority(a) < priority(b);
+                      });
+        }
+        for (const auto& [prio, chunkCoord] : missing) {
             if (m_genPending.count(chunkCoord)) continue;
             if (int(m_genPending.size()) >= kMaxPendingAsync) break;
             m_genPending.insert(chunkCoord);
@@ -426,6 +481,11 @@ void ChunkStreamingManager::unloadDistantChunks(const glm::vec3& position, float
                                  << cc.z << ") took " << oneSaveMs << "ms");
                 }
             }
+
+            // Last look at a chunk that may never have touched the DB: the far-LOD handoff
+            // (EvictedLodCache) builds its coarse representation here, while voxels and
+            // sub/microcubes are still intact.
+            if (m_onChunkEvicted) m_onChunkEvicted(**it);
 
             // Stop rendering/looking it up this frame, but defer the actual destruction
             // (Vulkan free + grid unregister) to next pump so no in-flight frame uses it.

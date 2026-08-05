@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/DebrisRenderPipeline.h"
 #include "graphics/Camera.h"
 #include "core/AssetManager.h"
@@ -315,7 +316,7 @@ void DebrisRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D sw
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
     

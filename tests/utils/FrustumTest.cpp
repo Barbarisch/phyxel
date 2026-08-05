@@ -92,7 +92,7 @@ TEST(FrustumTest, ExtractFromMatrix_PerspectiveProjection) {
     glm::mat4 viewProjection = projection * view;
     
     Frustum frustum;
-    frustum.extractFromMatrix(viewProjection);
+    frustum.extractFromMatrix(viewProjection, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // All planes should have normalized normals (length ~= 1.0)
     for (const auto& plane : frustum.planes) {
@@ -108,7 +108,7 @@ TEST(FrustumTest, ExtractFromMatrix_OrthographicProjection) {
     glm::mat4 viewProjection = projection * view;
     
     Frustum frustum;
-    frustum.extractFromMatrix(viewProjection);
+    frustum.extractFromMatrix(viewProjection, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // All planes should have normalized normals
     for (const auto& plane : frustum.planes) {
@@ -129,7 +129,7 @@ TEST(FrustumTest, Contains_PointInsideFrustum) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Point in front of camera (inside frustum)
     EXPECT_TRUE(frustum.contains(glm::vec3(0.0f, 0.0f, -10.0f)));
@@ -142,7 +142,7 @@ TEST(FrustumTest, Contains_PointBehindFrustum) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Point behind camera (outside frustum)
     EXPECT_FALSE(frustum.contains(glm::vec3(0.0f, 0.0f, 10.0f)));
@@ -155,7 +155,7 @@ TEST(FrustumTest, Contains_PointBeyondFarPlane) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Point beyond far plane
     EXPECT_FALSE(frustum.contains(glm::vec3(0.0f, 0.0f, -200.0f)));
@@ -172,7 +172,7 @@ TEST(FrustumTest, AABB_CompletelyInside) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Small AABB in front of camera
     AABB aabb(glm::vec3(-1.0f, -1.0f, -11.0f), glm::vec3(1.0f, 1.0f, -9.0f));
@@ -186,7 +186,7 @@ TEST(FrustumTest, AABB_CompletelyOutside) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // AABB behind camera
     AABB aabb(glm::vec3(-1.0f, -1.0f, 9.0f), glm::vec3(1.0f, 1.0f, 11.0f));
@@ -200,7 +200,7 @@ TEST(FrustumTest, AABB_PartiallyIntersecting) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Large AABB that crosses near plane
     AABB aabb(glm::vec3(-1.0f, -1.0f, -2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
@@ -214,7 +214,7 @@ TEST(FrustumTest, AABB_AtOrigin) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // AABB at world origin (camera looking at it)
     AABB aabb(glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 1.0f, 1.0f));
@@ -228,7 +228,7 @@ TEST(FrustumTest, AABB_OffToSide) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // AABB far off to the side (outside narrow FOV)
     AABB aabb(glm::vec3(100.0f, 0.0f, -10.0f), glm::vec3(102.0f, 2.0f, -8.0f));
@@ -246,7 +246,7 @@ TEST(FrustumTest, Sphere_CompletelyInside) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Small sphere in front of camera
     EXPECT_TRUE(frustum.intersects(glm::vec3(0.0f, 0.0f, -10.0f), 1.0f));
@@ -259,7 +259,7 @@ TEST(FrustumTest, Sphere_CompletelyOutside) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Sphere behind camera
     EXPECT_FALSE(frustum.intersects(glm::vec3(0.0f, 0.0f, 10.0f), 1.0f));
@@ -272,7 +272,7 @@ TEST(FrustumTest, Sphere_PartiallyIntersecting) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Large sphere that crosses near plane
     EXPECT_TRUE(frustum.intersects(glm::vec3(0.0f, 0.0f, -1.0f), 5.0f));
@@ -285,7 +285,7 @@ TEST(FrustumTest, Sphere_TouchingPlane) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Sphere just touching the near plane (center at near + radius)
     EXPECT_TRUE(frustum.intersects(glm::vec3(0.0f, 0.0f, -2.0f), 1.0f));
@@ -302,7 +302,7 @@ TEST(FrustumTest, AABB_ZeroSize) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Zero-size AABB (point) in front of camera
     glm::vec3 point(-1.0f, 0.0f, -10.0f);
@@ -317,7 +317,7 @@ TEST(FrustumTest, Sphere_ZeroRadius) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // Zero radius sphere (point) in front of camera
     EXPECT_TRUE(frustum.intersects(glm::vec3(0.0f, 0.0f, -10.0f), 0.0f));
@@ -331,7 +331,7 @@ TEST(FrustumTest, OrthographicFrustum_AABB) {
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     
     Frustum frustum;
-    frustum.extractFromMatrix(projection * view);
+    frustum.extractFromMatrix(projection * view, Frustum::ClipConvention::ForwardNegOneToOne);
     
     // AABB inside orthographic view volume
     AABB aabb(glm::vec3(-5.0f, -5.0f, -50.0f), glm::vec3(5.0f, 5.0f, -10.0f));

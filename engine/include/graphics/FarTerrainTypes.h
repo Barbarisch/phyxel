@@ -41,10 +41,47 @@ struct FarTileKeyHash {
     }
 };
 
+/// One far-tree impostor instance (world-look A1 rethink, 2026-08-02). Built on the
+/// far-terrain worker from the DETERMINISTIC flora plan (WorldGenerator::planFlora) — a pure
+/// function of the seed, so trees exist for tiles the camera has NEVER visited and no chunk
+/// data is involved. This replaces the rejected chunk-squash representation for far trees
+/// ("weird floating voxels"): each tree renders as a camera-facing procedural card.
+struct FarTreeInstance {
+    float localX = 0.0f;    ///< tile-local X (0..tileSize)
+    float worldY = 0.0f;    ///< ABSOLUTE trunk-base Y, anchored to the tile's QUANTIZED surface
+                            ///< (quantizeTop - bias) so trees sit ON the far mesh, never float
+    float localZ = 0.0f;    ///< tile-local Z (0..tileSize)
+    float height = 8.0f;    ///< world units
+    float canopyR = 2.5f;   ///< canopy half-width (world units)
+    /// bits 0-1: shape class (0 broadleaf, 1 conifer, 2 palm, 3 dead/bare)
+    /// bits 2-7: species id (index into TreeSpeciesTable — the instanced-mesh tier keys on it)
+    /// bits 8-15 / 16-23 / 24-31: canopy tint R/G/B
+    uint32_t packed = 0;
+    uint32_t _pad = 0;      ///< keep 4-float + 2-uint = 32B stride, GPU-friendly
+};
+
+inline uint32_t packFarTree(uint32_t shapeClass, uint32_t speciesId,
+                            uint8_t r, uint8_t g, uint8_t b) {
+    return (shapeClass & 0x3u) | ((speciesId & 0x3Fu) << 2) |
+           (uint32_t(r) << 8) | (uint32_t(g) << 16) | (uint32_t(b) << 24);
+}
+inline uint32_t farTreeSpecies(uint32_t packed) { return (packed >> 2) & 0x3Fu; }
+
+/// Contiguous run of one species inside a tile's tree-instance array (instances are sorted
+/// by species at build). Lets the instanced-mesh tier draw per (tile, species) with a plain
+/// firstInstance offset — no per-frame re-bucketing.
+struct TreeSpeciesRange {
+    uint16_t speciesId = 0;
+    uint32_t first = 0;
+    uint32_t count = 0;
+};
+
 /// CPU-side mesh for one far-terrain tile, ready for GPU upload.
 struct FarTileMesh {
     std::vector<FarVertex> vertices;
     std::vector<uint32_t>  indices;
+    std::vector<FarTreeInstance> trees;  ///< impostor instances, SORTED by species id
+    std::vector<TreeSpeciesRange> treeRanges;  ///< per-species runs into `trees`
     glm::ivec2 originXZ{0, 0};      ///< world-space min corner of the tile
     int   ring = 0;
     int   step = 0;                 ///< world units per column

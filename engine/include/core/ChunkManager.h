@@ -13,6 +13,7 @@
 #include "core/DirtyChunkTracker.h"
 #include "core/ChunkVoxelQuerySystem.h"
 #include "core/ChunkVoxelModificationSystem.h"
+#include "core/EvictedLodCache.h"
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -51,6 +52,12 @@ public:
     // has no persistent storage configured.
     WorldStorage* getWorldStorage() const { return m_streamingManager.getWorldStorage(); }
 
+    // Far-LOD geometry for chunks that were evicted without ever being saved (world-look
+    // A1/A2): populated by the streaming eviction callback, consumed by the renderer's
+    // far-LOD tier alongside the persisted pyramid.
+    Core::EvictedLodCache& getEvictedLodCache() { return m_evictedLodCache; }
+    const Core::EvictedLodCache& getEvictedLodCache() const { return m_evictedLodCache; }
+
     // Global dynamic subcube management (not tied to specific chunks)
     std::vector<std::unique_ptr<Subcube>> globalDynamicSubcubes;
     
@@ -76,6 +83,9 @@ public:
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
     ChunkStreamingManager m_streamingManager;
+
+    // In-memory LOD blobs for evicted-but-never-saved chunks (see getEvictedLodCache)
+    Core::EvictedLodCache m_evictedLodCache;
     
     // Dynamic object manager (handles global dynamic subcubes/cubes/microcubes)
     DynamicObjectManager m_dynamicObjectManager;
@@ -184,6 +194,8 @@ public:
 
     // Chunk streaming for infinite worlds
     void updateChunkStreaming(); // Call every frame to load/unload chunks based on player position
+    void pumpChunkLanding();     // Off-frame landing-only drain (see ChunkStreamingManager::pumpLanding)
+    void setStreamingViewDirection(const glm::vec3& dir); // view-cone load priority
     void loadChunksAroundPosition(const glm::vec3& position, float radius);
     void unloadDistantChunks(const glm::vec3& position, float radius);
     

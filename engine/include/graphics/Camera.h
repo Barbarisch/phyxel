@@ -1,7 +1,10 @@
 #pragma once
 
+#include "graphics/DepthConvention.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 #include <vector>
 
 namespace Phyxel {
@@ -83,22 +86,35 @@ public:
     // applied (so it matches the renderer's existing convention). Perspective
     // keeps the engine's fixed 45deg FOV; orthographic uses orthoHalfHeight as the
     // visible half-height in world units (width follows the aspect ratio).
+    /// REVERSE-Z (see graphics/DepthConvention.h for the full rationale and the scope limits).
+    ///
+    /// `farP` is IGNORED for the perspective path — the projection is infinite, which is the
+    /// point: there is no far plane to clip against, so render distance stops being a geometric
+    /// limit. Callers still pass it (it remains meaningful for the orthographic rigs, and callers
+    /// use the value for their own culling radii), so the parameter stays rather than silently
+    /// changing every call site's signature.
+    ///
+    /// This replaced `glm::perspective`, which — with no GLM_FORCE_DEPTH_ZERO_TO_ONE anywhere in
+    /// this build — emits OpenGL [-1,1] clip depth into a Vulkan [0,1] pipeline: Vulkan clipped
+    /// everything between the near plane and ~2x near, and half the depth buffer went unused.
     glm::mat4 getProjectionMatrix(float aspect, float nearP, float farP) const {
-        glm::mat4 proj;
         if (projectionMode == ProjectionMode::Orthographic) {
             const float h = orthoHalfHeight;
             const float w = h * aspect;
-            // _ZO = [0,1] depth (Vulkan). Plain glm::ortho gives OpenGL [-1,1];
-            // ortho depth is LINEAR, so with [-1,1] everything nearer than the
-            // mid-plane lands at z<0 and Vulkan clips it (the whole scene goes
-            // black). Perspective tolerates [-1,1] only because its depth is
-            // non-linear, so we keep glm::perspective for that path.
-            proj = glm::orthoRH_ZO(-w, w, -h, h, nearP, farP);
-        } else {
-            proj = glm::perspective(glm::radians(kFovYDegrees), aspect, nearP, farP);
+            // _ZO = [0,1] depth (Vulkan). Plain glm::ortho gives OpenGL [-1,1]; ortho depth is
+            // LINEAR, so with [-1,1] everything nearer than the mid-plane lands at z<0 and Vulkan
+            // clips it (the whole scene goes black).
+            // SWAPPED near/far reverses the linear mapping, so the orthographic rigs agree with the
+            // same GREATER depth test the perspective path needs. Ortho gains no precision from
+            // reverse-Z (its depth is linear) — this is purely so one compare op serves both.
+            glm::mat4 proj = DepthConvention::kReverseZ
+                                 ? glm::orthoRH_ZO(-w, w, -h, h, farP, nearP)
+                                 : glm::orthoRH_ZO(-w, w, -h, h, nearP, farP);
+            proj[1][1] *= -1;   // Vulkan flips Y vs OpenGL
+            return proj;
         }
-        proj[1][1] *= -1; // Vulkan flips Y vs OpenGL
-        return proj;
+        // Y-flip is already baked into infiniteReverseZPerspective.
+        return DepthConvention::infiniteReverseZPerspective(glm::radians(kFovYDegrees), aspect, nearP);
     }
 
     // Setters

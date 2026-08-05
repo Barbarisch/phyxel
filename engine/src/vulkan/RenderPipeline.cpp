@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "vulkan/RenderPipeline.h"
 #include "utils/FileUtils.h"
 #include "utils/Logger.h"
@@ -79,7 +80,7 @@ bool RenderPipeline::createGraphicsPipeline() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -257,7 +258,7 @@ bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -406,7 +407,7 @@ bool RenderPipeline::createCharacterPipeline() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -531,7 +532,7 @@ bool RenderPipeline::createDebugGraphicsPipeline() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -673,7 +674,7 @@ bool RenderPipeline::createDebugLinePipeline() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_FALSE;  // Don't write to depth buffer
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOpEqual();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -1100,7 +1101,7 @@ bool RenderPipeline::createOITPipeline(VkRenderPass oitRenderPass) {
     ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     ds.depthTestEnable  = VK_TRUE;
     ds.depthWriteEnable = VK_FALSE;
-    ds.depthCompareOp   = VK_COMPARE_OP_LESS_OR_EQUAL;
+    ds.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOpEqual();
 
     // Blend attachment 0 (accum): additive blending — src=ONE, dst=ONE
     VkPipelineColorBlendAttachmentState blendAccum{};
@@ -1439,7 +1440,7 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -1666,7 +1667,7 @@ bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {
     ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     ds.depthTestEnable  = VK_TRUE;
     ds.depthWriteEnable = VK_TRUE;
-    ds.depthCompareOp   = VK_COMPARE_OP_LESS;
+    ds.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
     // Opaque blend: no blending, replace with mirror color
     VkPipelineColorBlendAttachmentState blendAtt{};
@@ -1762,7 +1763,7 @@ bool RenderPipeline::createReflectionScenePipeline(VkRenderPass sceneRenderPass)
     ds.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     ds.depthTestEnable  = VK_TRUE;
     ds.depthWriteEnable = VK_TRUE;
-    ds.depthCompareOp   = VK_COMPARE_OP_LESS;
+    ds.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
     VkPipelineColorBlendAttachmentState blendAtt{};
     blendAtt.blendEnable    = VK_FALSE;

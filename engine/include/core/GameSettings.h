@@ -47,7 +47,8 @@ struct GameSettings {
     std::vector<Keybinding> keybindings;
 
     // -- Rendering --------------------------------------------------------
-    float       renderDistance    = 256.0f;
+    // Doubles as the projection far plane; must reach past the far tiers (see EngineConfig).
+    float       renderDistance    = 4096.0f;
 
     // -- AI ---------------------------------------------------------------
     std::string aiProvider        = "anthropic";  // "anthropic", "openai", "ollama"

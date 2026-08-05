@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 #include <glm/glm.hpp>
 #include <fstream>
 #include <filesystem>
@@ -80,6 +81,39 @@ TEST(FloraLayersTest, TwoLayersProduceSparseGiantsOverDenseUnderstory) {
     EXPECT_GT(understory, giants * 3)
         << "understory (" << understory << ") not dense relative to giants (" << giants
         << ") — layer spacings not independent";
+}
+
+// World-look C2: every pre-floraLayers world.db recipe (and every recipe synthesized before a
+// biome gained its undergrowth band) carries an EMPTY extraLayers for each biome. applyRecipe
+// unconditionally cleared b.extraFloraLayers before copying that empty list in — silently
+// stripping the biomes.json undergrowth band from every existing world on load. Layer 0 already
+// had the guard (`if (!bt.flora.empty())`); this pins the same semantics for the extra bands:
+// an ITEM-LESS tune means "no opinion, keep the library", never "delete".
+TEST(FloraLayersTest, RecipeWithoutLayersKeepsTheBiomesJsonLayers) {
+    TempDir td;
+    fs::path biomes = writeLayeredBiome(td.dir);
+
+    WorldGenerator gen(WorldGenerator::GenerationType::Flat, 7);
+    ASSERT_TRUE(gen.loadBiomes(biomes.string()));
+
+    // A stored recipe that predates floraLayers: tunes the biome but carries no bands.
+    WorldRecipe recipe;
+    WorldRecipe::BiomeTune bt;
+    bt.name = "Enchanted";
+    bt.heightScale = 0.0f;
+    bt.floraDensity = 0.9f;
+    bt.floraSpacing = 4;
+    recipe.biomes.push_back(bt);
+    gen.applyRecipe(recipe);
+
+    const int N = 256;
+    auto placements = gen.planFlora(0, 0, N - 1, N - 1, 0);
+    int giants = 0;
+    for (const auto& p : placements)
+        if (p.templateName == "giant_elder_oak") ++giants;
+    EXPECT_GT(giants, 0)
+        << "an item-less recipe clobbered the biomes.json floraLayers — every world whose "
+           "recipe predates the band loses its undergrowth/giants on load";
 }
 
 }  // namespace

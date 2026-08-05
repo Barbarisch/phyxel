@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/FarTerrainRenderPipeline.h"
 #include "graphics/FarTerrainTypes.h"
 #include "core/AssetManager.h"
@@ -150,7 +151,7 @@ void FarTerrainRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2
     depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable  = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
     VkPipelineColorBlendAttachmentState blendAttach{};
     blendAttach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |

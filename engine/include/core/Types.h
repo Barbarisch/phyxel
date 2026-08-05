@@ -105,7 +105,10 @@ struct GrassInstanceData {
     //         | 19-22 blockR | 23-26 blockG | 27-30 blockB (each 0-15)
     uint32_t packed = 0;
     // low 16 bits: grass top-face texture-array index (colour source, class bit 15 + layer).
-    // high 16 bits: reserved.
+    // bits 16-19: edge-ness — count (0-8) of horizontal neighbour columns that are also
+    //             grass-topped within a ±1 step, baked at mesh time (world-look C4). grass.vert
+    //             tapers blade height toward 0 neighbours so lawns end in a fringe, not a cliff.
+    // bits 20-31: reserved.
     uint32_t tex = 0;
     // Total: 8 bytes
 

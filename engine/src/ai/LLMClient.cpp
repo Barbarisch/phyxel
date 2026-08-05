@@ -23,7 +23,10 @@ namespace AI {
 // ============================================================================
 
 std::string LLMConfig::getDefaultModel(const std::string& provider) {
-    if (provider == "anthropic") return "claude-sonnet-4-20250514";
+    // claude-sonnet-4-20250514 was RETIRED 2026-06-15 and now 404s — it silently broke the AI
+    // end-to-end tests. claude-sonnet-5 is Anthropic's published drop-in replacement; it is an
+    // undated alias, so it will not rot the same way.
+    if (provider == "anthropic") return "claude-sonnet-5";
     if (provider == "openai")    return "gpt-4o";
     if (provider == "ollama")    return "llama3.2";
     return "";
@@ -110,7 +113,9 @@ LLMResponse LLMClient::callAnthropic(const std::vector<LLMMessage>& messages) {
     json body;
     body["model"] = model;
     body["max_tokens"] = m_config.maxTokens;
-    body["temperature"] = m_config.temperature;
+    // NO sampling parameters: Claude Sonnet 5 / Opus 4.7+ REJECT `temperature` with a 400
+    // ("`temperature` is deprecated for this model") — steering is prompt-side there. The
+    // configured temperature still applies to the OpenAI/Ollama paths below.
 
     json msgArray = json::array();
     for (const auto& msg : messages) {

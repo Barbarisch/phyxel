@@ -22,12 +22,18 @@ namespace Phyxel {
 namespace Phyxel {
 
 // Custom hash function for glm::ivec3 to use as key in unordered_map
+struct ChunkCoordHash2D {
+    std::size_t operator()(const glm::ivec2& coord) const {
+        return std::hash<int>()(coord.x) ^ (std::hash<int>()(coord.y) << 1);
+    }
+};
+
 struct ChunkCoordHash {
     std::size_t operator()(const glm::ivec3& coord) const {
         // Combine X, Y, Z coordinates into a single hash
         // Using prime numbers to reduce hash collisions
-        return std::hash<int>()(coord.x) ^ 
-               (std::hash<int>()(coord.y) << 1) ^ 
+        return std::hash<int>()(coord.x) ^
+               (std::hash<int>()(coord.y) << 1) ^
                (std::hash<int>()(coord.z) << 2);
     }
 };
@@ -90,6 +96,12 @@ public:
     /// path itself only creates the Vulkan buffer. If unset, no-op. Eviction teardown is
     /// automatic: the Chunk destructor unregisters its grid and frees its buffer.
     using OnChunkStreamedInFunc = std::function<void(Chunk& chunk)>;
+    /// Called for each chunk the moment it is evicted by unloadDistantChunks(), AFTER the
+    /// dirty-save but BEFORE the chunk leaves the map — voxels, sub/microcubes and physics
+    /// are all still intact. Main thread, bounded by the same per-pump eviction cap. This is
+    /// the ONLY moment an unsaved generated chunk's content can still be observed (pristine
+    /// chunks are never written to the DB), which is what the far-LOD handoff needs.
+    using OnChunkEvictedFunc = std::function<void(Chunk& chunk)>;
 
     // Out-of-line (cpp): members include unique_ptr<WorldGenerator>, which is only
     // forward-declared here — inline ctor/dtor would instantiate its deleter on an
@@ -110,6 +122,8 @@ public:
     void setGenerationCallback(GenerateChunkFunc cb) { m_generateChunk = std::move(cb); }
     /// Optional: how to finalize a chunk as it streams in (collision + faces). See above.
     void setOnChunkStreamedIn(OnChunkStreamedInFunc cb) { m_onChunkStreamedIn = std::move(cb); }
+    /// Optional: observe a chunk at the moment of eviction, while it is still alive. See above.
+    void setOnChunkEvicted(OnChunkEvictedFunc cb) { m_onChunkEvicted = std::move(cb); }
     /// When true, chunks are finalized (collision + faces) as they stream in at runtime.
     /// Leave OFF during the initial bulk DB load (buildAllChunkPhysics + rebuildAllChunkFaces
     /// handle that pass) so grids are not registered twice. Default off.
@@ -156,6 +170,26 @@ public:
     // Streaming update (call every frame)
     void updateStreaming(const glm::vec3& playerPosition, float loadDistance, float unloadDistance);
 
+    /// Landing-only pump: drain finished worker chunks (bounded by maxChunksPerUpdate)
+    /// without refreshing the wanted set or unloading. Cheap enough to run on the frames
+    /// BETWEEN full pumps — doubles landing throughput during a fast-camera refill
+    /// without touching the unload path's frame-deferred-deletion cadence contract.
+    void pumpLanding(const glm::vec3& position, float unloadRadius);
+
+    /// Surface chunk-band query for a world column (floor(surfaceY/32)); wired from the
+    /// streaming generator. When set, loadChunksAroundPosition also wants the chunks
+    /// around the TERRAIN SURFACE of each column — not just around the camera's own
+    /// band. Without it, an elevated camera (editor flight, zoom-out) hovers above the
+    /// ±2-band vertical clamp and the ground under it NEVER loads (measured: 4 visible
+    /// chunks, flat, for 72 s at a y=150 hover over y≈65 terrain).
+    using SurfaceBandFunc = std::function<int(int worldX, int worldZ)>;
+    void setSurfaceBandFn(SurfaceBandFunc fn) { m_surfaceBand = std::move(fn); }
+
+    /// Camera view direction for load prioritization: chunks in the view cone load
+    /// first, and the queued (not yet building) worker requests are RE-SORTED with the
+    /// fresh direction every pump — camera movement dynamically reprioritizes work.
+    void setViewDirection(const glm::vec3& dir) { m_viewDir = dir; }
+
     // Manual chunk operations
     void loadChunksAroundPosition(const glm::vec3& position, float radius);
     void unloadDistantChunks(const glm::vec3& position, float radius);
@@ -195,6 +229,7 @@ private:
     OnChunkLoadedFunc m_onChunkLoaded;
     GenerateChunkFunc m_generateChunk;
     OnChunkStreamedInFunc m_onChunkStreamedIn;
+    OnChunkEvictedFunc m_onChunkEvicted;
     bool m_perChunkPhysics = false;
     int m_maxChunksPerUpdate = 0;
 
@@ -228,6 +263,12 @@ private:
     std::mutex m_genRequestMutex;
     std::condition_variable m_genCv;
     std::deque<glm::ivec3> m_genRequests;               // guarded by m_genRequestMutex
+    SurfaceBandFunc m_surfaceBand;                      // null = camera-band-only (legacy)
+    glm::vec3 m_viewDir{0.0f, 0.0f, -1.0f};
+    // Surface band per column, cached forever (terrain is static per world): the band
+    // query runs per column per pump — uncached that is thousands of generator column
+    // samples per second on the main thread.
+    std::unordered_map<glm::ivec2, int, ChunkCoordHash2D> m_surfaceBandCache;
     std::mutex m_genResultMutex;
     std::vector<std::unique_ptr<Chunk>> m_genResults;   // guarded by m_genResultMutex
     std::unordered_set<glm::ivec3, ChunkCoordHash> m_genPending;  // main thread only

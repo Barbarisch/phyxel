@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/KinematicVoxelPipeline.h"
 #include "core/AssetManager.h"
 #include "utils/Logger.h"
@@ -326,7 +327,7 @@ void KinematicVoxelPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D 
     depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable  = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
     VkPipelineColorBlendAttachmentState blendAttach{};
     blendAttach.colorWriteMask =

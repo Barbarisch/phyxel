@@ -246,10 +246,20 @@ TEST(LodServiceTest, ViewScaleOfOneDisablesTheCorrection) {
 #include "graphics/FoliageRenderPipeline.h"
 
 TEST(LodCharacterizationTest, GrassAndFoliageDefaultsAreUnchanged) {
+    // UPDATED 2026-08-01 (twice — same day) for the grass retunes: first denser/skinnier/further
+    // (192u / 70 blades), then the continuous per-blade density falloff that made 224u / 140
+    // blades / an 80u fade affordable. This test did its job both times — it went red the moment
+    // the defaults moved, which is exactly why C1 added it. The values below are the NEW pinned
+    // baseline, not a relaxation of the check.
+    // Rationale + the vertex budget behind them: docs/VegetationWindPlan.md and the budget
+    // comment on GrassRenderPipeline::bladesForDistance.
     Phyxel::Graphics::GrassRenderPipeline::Params g;
     EXPECT_TRUE(g.enabled);
-    EXPECT_FLOAT_EQ(g.radius, 48.0f);
-    EXPECT_FLOAT_EQ(g.fadeRange, 14.0f);
+    EXPECT_FLOAT_EQ(g.radius, 224.0f) << "affordable only via the continuous density falloff";
+    EXPECT_FLOAT_EQ(g.fadeRange, 80.0f) << "deliberately a third of the radius — a short fade reads as a mowing line";
+    EXPECT_EQ(g.bladesPerVoxel, 140u);
+    // Whole clumps only — grass.vert derives a blade's clump as index / kBladesPerClump.
+    EXPECT_EQ(g.bladesPerVoxel % Phyxel::Graphics::GrassRenderPipeline::kBladesPerClump, 0u);
 
     Phyxel::Graphics::FoliageRenderPipeline::Params f;
     EXPECT_TRUE(f.enabled);
@@ -285,11 +295,16 @@ TEST(LodServiceTest, VegetationRadiiAreUnchangedAtReferenceConfigAndScaleElsewhe
 #include "graphics/FarTerrainManager.h"
 
 TEST(LodCharacterizationTest, FarTerrainDefaultsAreUnchanged) {
+    // UPDATED 2026-08-01: far terrain now ships ON with a 4096 horizon. The old assertion
+    // ("ships OFF; flipping it is a separate decision") was correct at the time and this test
+    // correctly went red when the decision was taken — see docs/ContinuousLodPlan.md for the
+    // measurement (57 tiles / 71,630 tris / horizon filled) and for the four-config far-plane
+    // trap that made an earlier attempt look like a far-terrain regression.
     Phyxel::Graphics::FarTerrainManager::Params p;
-    EXPECT_FALSE(p.enabled) << "far terrain ships OFF; flipping it is a separate decision";
-    EXPECT_FLOAT_EQ(p.maxDistance, 2048.0f);
-    EXPECT_EQ(p.ringSteps, std::vector<int>({2, 4, 8}));
-    EXPECT_EQ(p.maxResidentTiles, 512);
+    EXPECT_TRUE(p.enabled) << "far terrain ships ON as of 2026-08-01";
+    EXPECT_FLOAT_EQ(p.maxDistance, 4096.0f);
+    EXPECT_EQ(p.ringSteps, std::vector<int>({2, 4, 8, 16}));
+    EXPECT_EQ(p.maxResidentTiles, 768);
     EXPECT_FLOAT_EQ(p.viewScale, 1.0f) << "default must be an exact no-op";
 }
 
@@ -298,10 +313,14 @@ TEST(LodServiceTest, FarTerrainRingsAreUnchangedAtReferenceConfig) {
     FT::Params p;                       // viewScale defaults to 1.0
     const auto rings = FT::computeRingsFor(p);
     ASSERT_FALSE(rings.empty());
-    // Band edges double per ring (512, 1024) with the last ring pinned to maxDistance.
+    // Band edges double per ring (512, 1024, 2048) with the last ring pinned to maxDistance.
     EXPECT_FLOAT_EQ(rings.front().startR, 0.0f);
-    EXPECT_FLOAT_EQ(rings.back().endR, 2048.0f);
-    for (const auto& r : rings) EXPECT_LE(r.endR, 2048.0f);
+    EXPECT_FLOAT_EQ(rings.back().endR, 4096.0f);
+    for (const auto& r : rings) EXPECT_LE(r.endR, 4096.0f);
+    EXPECT_EQ(rings.size(), 4u) << "4 rings for a 4096 horizon";
+    // Rings must tile the radius with no gap: each ring starts where the previous ended.
+    for (size_t i = 1; i < rings.size(); ++i)
+        EXPECT_FLOAT_EQ(rings[i].startR, rings[i - 1].endR) << "gap before ring " << i;
 }
 
 TEST(LodServiceTest, FarTerrainHorizonScalesWithTheView) {

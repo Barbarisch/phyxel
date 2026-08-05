@@ -338,6 +338,28 @@ void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
         ++m_consecutiveFailedPaths;
         m_pathComputed = false;
 
+        // WANDER (world-look D1, "animals not always patrolling"): a wander NPC carries exactly
+        // ONE waypoint, so the retreat branch below can never fire — a failed find used to drop
+        // into the 2-second retry loop against the SAME random target at zero velocity, forever.
+        // Measured live on ProvingGrounds: 40k "findPath failed: startCell=NULL" in 10 minutes
+        // with every fauna NPC frozen, because FaunaSpawner follows the camera far outside the
+        // once-built ≤512² NavGrid region (which never grows into streamed chunks). Off-grid
+        // open terrain is exactly where straight-line steering works — pathfinder-less animals
+        // always roamed fine — so walk this leg DIRECT instead: mark the path computed with no
+        // nodes and the update loop's direct-line branch takes over; arrival re-rolls a fresh
+        // target as usual, and the stuck-recovery teleport stays as the backstop if the straight
+        // line meets a wall. Patrol routes (multi-waypoint, hand-authored) keep strict pathing.
+        // DEBUG, not WARN: this fires once per wander leg for every animal beyond the nav
+        // region — as a WARN it was the dominant line in the log (the TerrainIK lesson).
+        if (m_wander) {
+            m_pathComputed = true;
+            m_consecutiveFailedPaths = 0;
+            LOG_DEBUG("PatrolBehavior",
+                      "Wander path unavailable — walking leg direct: ({},{},{}) -> ({},{},{})",
+                      from.x, from.y, from.z, to.x, to.y, to.z);
+            return;
+        }
+
         if (m_consecutiveFailedPaths >= PATH_FAILURE_RETREAT && m_waypoints.size() > 1) {
             // Path is blocked — retreat to previous waypoint and wait before retrying
             size_t prevWP = (m_currentWaypoint + m_waypoints.size() - 1) % m_waypoints.size();

@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // shared ambient / shadow / aerial model
 
 // Leaf card fragment: cutout LEAF-CLUSTER silhouette alpha-tested from the leaf texture's alpha
 // channel (baked by tools/leaf_forge.py — chunky voxel-native masks; was a flat math ellipse).
@@ -32,6 +34,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float elapsedTime;
     mat4 viewProj;
     mat4 biasedLightSpace;
+    vec3 cameraWorld;
+    int  debugShadowMode;   // 1 = shadow-only debug view (see lighting.glsl phxShadowOnly)
+    float shadowDepthRange; // world-unit depth span of the light volume (bias normalization)
 } ubo;
 
 layout(location = 0) out vec4 outColor;
@@ -52,30 +57,14 @@ void main() {
     if (texel.a < 0.5) discard;
     vec3 col = texel.rgb;
 
-    // ---- Canopy volume lighting (Tier 2) ----------------------------------------------------
-    // Shadow RECEIVING: cards sample the shadow map (which now contains the cards themselves),
-    // so the sun side of a canopy is lit and the interior/far side falls into dappled shade —
-    // the tree lights like a volume instead of flat ambient. 4-tap PCF (cards are numerous);
-    // bias is larger than solid voxels' since cards sit IN the map with no back-face trick.
-    float shadowFactor = 1.0;
-    bool inMap = vShadowCoord.x >= 0.0 && vShadowCoord.x <= 1.0 &&
-                 vShadowCoord.y >= 0.0 && vShadowCoord.y <= 1.0;
-    if (inMap && vShadowCoord.z > -1.0 && vShadowCoord.z < 1.0 && vShadowCoord.w > 0.0) {
-        vec2 texel = 1.0 / textureSize(shadowMap, 0);
-        const float kBias = 0.002;
-        float s = 0.0;
-        s += (vShadowCoord.z - kBias > texture(shadowMap, vShadowCoord.xy + vec2(-0.7, -0.7) * texel).r) ? 1.0 : 0.0;
-        s += (vShadowCoord.z - kBias > texture(shadowMap, vShadowCoord.xy + vec2( 0.7, -0.7) * texel).r) ? 1.0 : 0.0;
-        s += (vShadowCoord.z - kBias > texture(shadowMap, vShadowCoord.xy + vec2(-0.7,  0.7) * texel).r) ? 1.0 : 0.0;
-        s += (vShadowCoord.z - kBias > texture(shadowMap, vShadowCoord.xy + vec2( 0.7,  0.7) * texel).r) ? 1.0 : 0.0;
-        shadowFactor = 1.0 - s * 0.25;
-    }
-
-    // Sky ambient = soft fill (gated by baked skylight so canopy interiors stay dim); the sun is
-    // the key light, gated by the shadow map + sky access like voxel.frag.
-    float skyGate  = vSky * vSky;
-    float fill     = clamp(vSky, 0.14, 1.0) * 0.5;
-    vec3  sunTerm  = ubo.sunColor * (0.7 * shadowFactor * skyGate);
+    // ---- Canopy volume lighting -------------------------------------------------------
+    // Shadow + ambient from the SHARED model (lighting.glsl): cards sample the shadow map
+    // (which contains the cards themselves), so the sun side of a canopy is lit and the
+    // interior falls into dappled shade — the tree lights like a volume, not flat ambient.
+    float shadowFactor = phxShadowFast(shadowMap, vShadowCoord, ubo.shadowDepthRange);
+    float skyGate = phxSkyGate(vSky);
+    vec3  fill    = phxAmbient(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientLight);
+    vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * skyGate);
 
     // Backlit TRANSMISSION: looking toward the sun through foliage, shadowed leaves glow —
     // light scattering through the blade. Strongest at the rim (partially occluded), damped
@@ -87,5 +76,6 @@ void main() {
 
     vec3 lit = (col * (fill + sunTerm) + col * trans * ubo.sunColor + col * vBlock * 0.5) * vShade;
 
+    if (ubo.debugShadowMode != 0) { outColor = phxShadowOnly(shadowFactor); return; }
     outColor = vec4(lit, 1.0);
 }

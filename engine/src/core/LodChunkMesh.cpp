@@ -40,6 +40,15 @@ LodVolume LodChunkMesh::volumeFromChunk(const Chunk& chunk, std::vector<std::str
         const glm::ivec3 cp(x, y, z);
         LodCell& cell = v.at(x, y, z);
 
+        // LEAVES ARE DELIBERATELY INCLUDED — do not add an isBillboarded exclusion here.
+        // Leaf voxels are billboarded: ChunkRenderManager omits their solid faces from the FINE
+        // mesh and draws cards instead, so a canopy has no fine geometry at all. Counting them
+        // here is what gives a distant canopy a solid-mass impostor; excluding them would make
+        // every forest evaporate into bare trunks the moment the cut engages.
+        // The necessary companion is RenderCoordinator::renderFoliage skipping chunks at
+        // lodLevel != 0 — cards below the cut, mass above it, never both. Pinned by
+        // LodChunkMeshTest.LeafCanopySurvivesTheCutAsSolidMass.
+
         // FULL CUBE: the whole 9^3 of microcubes.
         if (const Cube* c = mutableChunk.getCubeAt(cp)) {
             if (c->isVisible()) {

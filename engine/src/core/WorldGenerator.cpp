@@ -1153,12 +1153,19 @@ void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
                 b.flora.clear();
                 for (const auto& f : bt.flora) b.flora.emplace_back(f.templateName, f.weight);
             }
-            b.extraFloraLayers.clear();
-            for (const auto& lt : bt.extraLayers) {
-                FloraLayer L;
-                L.density = lt.density; L.spacing = lt.spacing; L.mode = lt.mode; L.fullness = lt.fullness;
-                for (const auto& f : lt.items) L.items.emplace_back(f.templateName, f.weight);
-                if (!L.items.empty()) b.extraFloraLayers.push_back(std::move(L));
+            // Mirror layer 0's guard above: an ITEM-LESS recipe keeps the biomes.json bands.
+            // The clear() used to be unconditional, and every recipe persisted before a biome
+            // gained its floraLayers carries an empty list — so loading any pre-existing world
+            // silently stripped the undergrowth/giant bands (world-look C2, pinned by
+            // FloraLayersTest.RecipeWithoutLayersKeepsTheBiomesJsonLayers).
+            if (!bt.extraLayers.empty()) {
+                b.extraFloraLayers.clear();
+                for (const auto& lt : bt.extraLayers) {
+                    FloraLayer L;
+                    L.density = lt.density; L.spacing = lt.spacing; L.mode = lt.mode; L.fullness = lt.fullness;
+                    for (const auto& f : lt.items) L.items.emplace_back(f.templateName, f.weight);
+                    if (!L.items.empty()) b.extraFloraLayers.push_back(std::move(L));
+                }
             }
             break;
         }

@@ -270,6 +270,28 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     // and persist it so future loads of this world are stable. Must run before generation +
     // streaming config so climateFrequency / biome tuning take effect.
     WorldRecipe recipe = generator.makeRecipe();
+    // Test-world flora override (game.json world.floraOverride): rewrite EVERY biome's flora
+    // tuning before the recipe is persisted, so lab worlds (e.g. TreeLodLab's lone-oak plain)
+    // are reproducible from their game definition alone — no hand-edited world.db. Keys:
+    //   spacing (int), density (float), template (string — replaces all items with one
+    //   template), keepLayers (bool, default false — extra vegetation bands dropped).
+    // Like every recipe field, a stored recipe WINS on later loads: changing the override
+    // requires regenerating the world (delete world.db), same contract as seaLevel.
+    if (worldDef.contains("floraOverride") && worldDef["floraOverride"].is_object()) {
+        const auto& fo = worldDef["floraOverride"];
+        for (auto& b : recipe.biomes) {
+            if (fo.contains("spacing")) b.floraSpacing = fo["spacing"].get<int>();
+            if (fo.contains("density")) b.floraDensity = fo["density"].get<float>();
+            if (fo.contains("template")) {
+                b.flora.clear();
+                b.flora.push_back({fo["template"].get<std::string>(), 1});
+                b.floraMode = "pool";
+            }
+            if (!fo.value("keepLayers", false)) b.extraLayers.clear();
+        }
+        LOG_INFO("GameDefinitionLoader", "World: floraOverride applied to " +
+                 std::to_string(recipe.biomes.size()) + " biome tunes (test-world knob)");
+    }
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
             recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));

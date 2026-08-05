@@ -38,12 +38,28 @@ public:
     enum PlaneIndex {
         LEFT = 0, RIGHT, BOTTOM, TOP, NEAR, FAR
     };
-    
+
+    /// Which clip-space convention the supplied matrix was built in. This is REQUIRED rather than
+    /// defaulted on purpose: this engine now uses THREE different conventions simultaneously, and
+    /// picking the wrong one silently swaps the near and far planes instead of failing loudly.
+    /// That is exactly how a hardcoded assumption here broke shadow-light culling (caught by
+    /// FrustumTest.OrthographicFrustum_AABB, 2026-08-01).
+    enum class ClipConvention {
+        /// Vulkan [0,1] REVERSE-Z — the scene camera. z_clip == w at the near plane, 0 at
+        /// infinity. See graphics/DepthConvention.h.
+        ReverseZeroToOne,
+        /// Vulkan [0,1] forward — `glm::orthoRH_ZO`, i.e. the SHADOW light matrix.
+        ForwardZeroToOne,
+        /// OpenGL [-1,1] — plain `glm::ortho` / `glm::perspective`. Still reachable from tests and
+        /// from `ShadowMap.cpp`'s own `glm::ortho` light projection.
+        ForwardNegOneToOne,
+    };
+
     std::array<Plane, 6> planes;
-    
-    // Extract frustum planes from view-projection matrix
-    void extractFromMatrix(const glm::mat4& viewProjectionMatrix);
-    
+
+    // Extract frustum planes from a view-projection matrix built in `convention`.
+    void extractFromMatrix(const glm::mat4& viewProjectionMatrix, ClipConvention convention);
+
     // Test if AABB is inside or intersecting frustum
     bool intersects(const AABB& aabb) const;
     

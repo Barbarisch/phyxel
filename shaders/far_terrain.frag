@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // shared ambient / shadow / aerial model
 
 // Far-terrain LOD tile shading: same texture atlas as near terrain (tiled once per
 // world unit via a planar world-space projection, so the material density matches the
@@ -19,7 +21,14 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
-    vec3 cameraPosition;
+    vec3 cameraPosition;    // NOT the live camera in the far passes (camera-relative
+                            // rendering) — use cameraWorld below for world-space math
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;
+    mat4 biasedLightSpace;
+    vec3 cameraWorld;       // TRUE world camera (haze bug: cameraPosition measured from
+                            // the ORIGIN here — LOD content washed white 1km+ out)
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
@@ -65,16 +74,14 @@ void main() {
     vec4 albedo = fb || cls == 0u ? texture(textureArray,   vec3(uv, L))
                                   : texture(textureArrayHi, vec3(uv, L));
 
-    // Lighting: mirror voxel.frag's open-sky path (skylight = 1 -> skyCurve = 1) with a
-    // plain Lambert sun instead of Cook-Torrance — the difference is invisible at range.
-    const float kAmbientFloor = 0.02;
-    const float kSkyFill = 0.35;
-    float skyAmbient = ubo.ambientLight * kSkyFill + kAmbientFloor;
-
+    // Lighting: the SHARED model (lighting.glsl). Far terrain is open to the sky by
+    // construction, so skylight = 1; no shadow map is bound in this pass.
     vec3 N = faceNormal(vFace);
     vec3 sunL = normalize(-ubo.sunDirection);
     float ndl = max(dot(N, sunL), 0.0);
-
-    vec3 color = skyAmbient * albedo.rgb + ndl * ubo.sunColor * albedo.rgb;
+    vec3 color = phxAmbient(N, 1.0, ubo.ambientLight) * albedo.rgb
+               + ndl * ubo.sunColor * albedo.rgb;
+    color = phxAerialPerspective(color, vWorldPos - ubo.cameraWorld,
+                                 ubo.sunDirection, ubo.sunColor);
     outColor = vec4(color, 1.0);
 }

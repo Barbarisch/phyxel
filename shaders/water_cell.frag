@@ -86,6 +86,7 @@ void main() {
     // Per-cell water has no single rest level — the sim decides where its surface is, per column —
     // so the dry-land gate does not apply here.
     inp.restLevelY   = -1e9;
+    inp.dryLand      = 0.0;   // per-cell water is real sim mass — the B1 layer gate never applies
 
     outColor = shadeWaterSurface(inp);
 }

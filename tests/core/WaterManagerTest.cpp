@@ -868,6 +868,47 @@ TEST(WaterManagerTest, CreekPinIsFractionalAndConfined) {
     EXPECT_NEAR(wm.totalMass(), before, 1e-3f) << "creek ribbon is not at rest";
 }
 
+// world-look B3 ("creeks have foam and mist but almost no water"): the pin above is DELIBERATELY
+// a sub-hold film — that invariant is what keeps creeks from sheeting — but the surface report
+// used to hand that same film to the renderer as the column depth, so water alpha was ~0 while
+// flow-keyed foam drew at full strength on a visibly dry bed. The report now floors a baked
+// channel's shading depth at its carve depth (KINEMATIC depth, the same philosophy as kinematic
+// flow: a visual truth over a hydrostatically static field). The sim is untouched:
+// CreekPinIsFractionalAndConfined keeps pinning the MASS invariants this test must not disturb.
+TEST(WaterManagerTest, CreekSurfaceReportsCarveDepthNotThePinnedFilm) {
+    WaterManager wm(nullptr, glm::ivec3(0, 0, 0), glm::ivec3(24, 8, 24));
+    for (int z = 0; z < 24; ++z)
+        for (int x = 0; x < 24; ++x)
+            wm.setSolidWorld(x, 2, z, true);
+    // Same order-2 creek as above: parabolic band, centreline carve 0.66.
+    wm.setRiverQuery([](float, float wz) {
+        const float d = std::fabs(wz - 12.5f);
+        if (d >= 1.5f) return 0.0f;
+        const float t = d / 1.5f;
+        return 0.66f * (1.0f - t * t);
+    });
+    wm.setRiverOrderQuery([](float, float) { return 2; });
+
+    for (int i = 0; i < 200; ++i) wm.update(0.2f);
+
+    // The mass stays a sub-hold film (the flood-safety invariant)...
+    const float hold = wm.sim().minHold();
+    ASSERT_LE(wm.massAtWorld(glm::vec3(8.5f, 3.5f, 12.5f)), hold + 1e-4f);
+
+    // ...but the RENDER report must carry the channel's carve depth, or the creek shades as a
+    // dry bed under full-strength foam.
+    int centreCells = 0;
+    for (const auto& cell : wm.surfaceCells()) {
+        if (std::fabs(cell.centerDepth.z - 12.5f) > 0.01f) continue;
+        ++centreCells;
+        EXPECT_GE(cell.centerDepth.w, 0.6f)
+            << "creek surface at x=" << cell.centerDepth.x
+            << " reports the pinned film (" << cell.centerDepth.w
+            << "), not the carve depth — foam-on-dry-bed";
+    }
+    EXPECT_GT(centreCells, 0) << "no creek surface cells were emitted at all";
+}
+
 // River columns whose terrain isn't loaded yet (no real solid below anywhere in the column) get
 // neither a channel tag nor an inflow pin — otherwise the river would pour into the void at the
 // region floor wherever chunks haven't streamed in yet.

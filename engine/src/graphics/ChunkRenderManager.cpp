@@ -55,6 +55,18 @@ void ChunkRenderManager::resetMeshTimingStats() {
 bool ChunkRenderManager::s_smoothLighting = true;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
+float ChunkRenderManager::s_foliageDensity = 0.25f;   // 0.5 still read as a solid mass
+
+namespace {
+/// Deterministic 0..1 from a world cell — stable across rebuilds, chunk boundaries and
+/// machines (no rand, no per-frame state), so canopy thinning never shimmers or re-rolls.
+inline float foliageCellHash01(int wx, int wy, int wz) {
+    uint32_t h = uint32_t(wx) * 0x8DA6B343u ^ uint32_t(wy) * 0xD8163841u ^
+                 uint32_t(wz) * 0xCB1AB31Fu;
+    h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+    return float(h & 0xFFFFFFu) / float(0x1000000u);
+}
+} // namespace
 // Shipped ON by default (2026-07-07): greedy-merging sub/microcube faces recovers ~5-8x FPS on
 // face-bound dense scenes (docs/RenderOptimization.md "Heavy-scene FPS validation"). The per-face
 // path stays reachable via POST /api/debug/fine_merge {"enabled":false} for A/B. Re-mesh cost of the
@@ -634,6 +646,13 @@ void ChunkRenderManager::rebuildCubeFaces(
             bool exposed = !neighborSolid(x + 1, y, z) || !neighborSolid(x - 1, y, z) ||
                            !neighborSolid(x, y + 1, z) || !neighborSolid(x, y - 1, z) ||
                            !neighborSolid(x, y, z + 1) || !neighborSolid(x, y, z - 1);
+            // Canopy thinning (s_foliageDensity): hashed on the ABSOLUTE world cell so the
+            // pattern is stable across rebuilds and continuous across chunk seams.
+            if (s_foliageDensity < 0.999f &&
+                foliageCellHash01(m_lightWorldOrigin.x + x, m_lightWorldOrigin.y + y,
+                                  m_lightWorldOrigin.z + z) >= s_foliageDensity) {
+                continue;
+            }
             if (exposed) {
                 uint8_t sky = skyLightAt(x, y + 1, z) & 0xF;  // sample air above the canopy cube
                 uint8_t br = 0, bg = 0, bb = 0;
@@ -657,6 +676,37 @@ void ChunkRenderManager::rebuildCubeFaces(
         uint8_t sky = skyLightAt(x, y + 1, z) & 0xF;
         uint8_t br = 0, bg = 0, bb = 0;
         blockLightAt(x, y + 1, z, br, bg, bb);
+
+        // EDGE-NESS (world-look C4): how many of the 8 horizontal neighbour columns are also
+        // grass-topped, within a ±1 voxel step (the tolerance walking terrain has — a terrace
+        // inside a meadow must not taper). Baked here because the shader has no neighbour
+        // knowledge; grass.vert consumes the count as a height multiplier so a lawn tapers into
+        // dirt/sand/drops instead of ending in a hard green cliff.
+        // CROSS-CHUNK neighbours count as GRASSY by construction: solidity is queryable across
+        // the border but MATERIAL is not, and a wrong "edge" there would draw a taper seam
+        // along every chunk boundary through open meadow — the exact per-chunk artifact class
+        // the grass density LOD just had to remove. A missing taper on a genuine cross-chunk
+        // edge is the cheap half of that trade.
+        auto grassyColumn = [&](int nx, int nz) -> bool {
+            if (nx < 0 || nx >= N || nz < 0 || nz >= N) return true;
+            for (int dy = 1; dy >= -1; --dy) {
+                const int yy = y + dy;
+                if (yy < 0 || yy >= N) continue;
+                if (!solidVis[cellIdx(nx, yy, nz)]) continue;
+                // Topmost solid in the band. Covered top = a wall face, not a meadow column.
+                if (neighborSolid(nx, yy + 1, nz)) return false;
+                const int nm = cellMat[cellIdx(nx, yy, nz)];
+                return nm >= 0 && matFaces[nm].isGrass;
+            }
+            return false;   // no solid within ±1: a drop — the meadow ends here
+        };
+        uint32_t grassy = 0;
+        for (int dx = -1; dx <= 1; ++dx)
+            for (int dz = -1; dz <= 1; ++dz) {
+                if (dx == 0 && dz == 0) continue;
+                if (grassyColumn(x + dx, z + dz)) ++grassy;
+            }
+
         GrassInstanceData gi;
         gi.packed = (static_cast<uint32_t>(x) & 0x1F)
                   | ((static_cast<uint32_t>(y) & 0x1F) << 5)
@@ -665,7 +715,8 @@ void ChunkRenderManager::rebuildCubeFaces(
                   | ((static_cast<uint32_t>(br) & 0xF) << 19)
                   | ((static_cast<uint32_t>(bg) & 0xF) << 23)
                   | ((static_cast<uint32_t>(bb) & 0xF) << 27);
-        gi.tex = matFaces[m].tex[4];  // +Y (top) grass texture — colour source
+        gi.tex = matFaces[m].tex[4]           // +Y (top) grass texture — colour source
+               | ((grassy & 0xFu) << 16);     // C4 edge-ness: grassy neighbour count 0-8
         m_grassInstances.push_back(gi);
     }
 
@@ -955,6 +1006,14 @@ void ChunkRenderManager::rebuildSubcubeFaces(
             if (md && md->billboarded) {
                 bool exposed = faceVisible[0] || faceVisible[1] || faceVisible[2] ||
                                faceVisible[3] || faceVisible[4] || faceVisible[5];
+                // Canopy thinning (see the cube path): hashed on the absolute SUBCUBE cell
+                // so neighbouring subcubes of one leaf voxel thin independently.
+                if (exposed && s_foliageDensity < 0.999f) {
+                    const int swx = (m_lightWorldOrigin.x + parentChunkPos.x) * 3 + localPos.x;
+                    const int swy = (m_lightWorldOrigin.y + parentChunkPos.y) * 3 + localPos.y;
+                    const int swz = (m_lightWorldOrigin.z + parentChunkPos.z) * 3 + localPos.z;
+                    if (foliageCellHash01(swx, swy, swz) >= s_foliageDensity) exposed = false;
+                }
                 if (exposed) {
                     // Baked light at the leaf's own (air) cell — canopy gets dappled sky/block light.
                     uint8_t skyV = skyLightAt(parentChunkPos.x, parentChunkPos.y, parentChunkPos.z) & 0xF;

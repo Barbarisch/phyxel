@@ -44,12 +44,36 @@ void FarTerrainManager::configure(const WorldGenerator& generator) {
     };
     m_mesher = std::make_unique<FarTerrainMesher>(std::move(gen), std::move(resolver));
 
+    m_mesher->setTreeExclusions(m_treeExclusions);   // zones wired before configure() apply
+
     m_hasRefreshed = false;  // force a wanted-set refresh on the next update()
     if (m_params.threaded) {
         m_stopWorker = false;
         m_worker = std::thread([this] { workerLoop(); });
     }
     LOG_INFO("FarTerrain", "Configured far-terrain mesher (threaded={})", m_params.threaded);
+}
+
+void FarTerrainManager::setTreeExclusions(std::vector<glm::vec4> rects) {
+    // No-op when unchanged: this is polled from the placed-object registry, and retiring
+    // every resident tile on every poll would rebuild the whole far field continuously.
+    if (rects == m_treeExclusions) return;
+    m_treeExclusions = std::move(rects);
+    if (m_mesher) m_mesher->setTreeExclusions(m_treeExclusions);
+
+    // Retire (frame-deferred, GPU-safe) every resident tile so tree buffers rebuild
+    // against the new zones. Rare: world load + structure builds.
+    for (auto& [key, tile] : m_tiles) retireTile(tile);
+    m_tiles.clear();
+    m_pending.clear();
+    {
+        std::lock_guard<std::mutex> lock(m_requestMutex);
+        m_requests.clear();
+    }
+    rebuildDrawList();
+    m_hasRefreshed = false;   // force a full wanted-set refresh next update()
+    LOG_INFO("FarTerrain", "Tree exclusion zones set ({} rects); far tiles queued for rebuild",
+             m_treeExclusions.size());
 }
 
 void FarTerrainManager::stopWorker() {
@@ -122,6 +146,7 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
     m_lastRefreshViewScale = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
     m_wanted.clear();
     m_keep.clear();
+    m_terrainHidden.clear();
 
     const glm::vec2 cam = m_lastRefreshPos;
     std::vector<TileRequest> missing;
@@ -150,14 +175,16 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
                 // Y-bias ordering already resolves which wins where both exist.
                 const float innerR = ring.ring > 1 ? ring.startR - T : ring.startR;
                 if (d < innerR || d >= ring.endR) continue;
-                // Skip tiles fully covered by loaded chunk columns — but ONLY well inside
-                // the near field. The suppression exists so a surface-only tile doesn't
-                // skin over player-dug holes/caves, which is an INTERIOR concern; at the
-                // streaming frontier "every column has a loaded chunk" routinely lies
-                // visually (chunks queued/unmeshed, vertical bands missing), and dropping
-                // the tile there opened SKY HOLES through saddles at the seam. Frontier
-                // tiles now always draw — the near field z-beats them wherever it really
-                // has geometry (quantize-down + push-down + depth bias).
+                // Interior tiles fully covered by loaded chunk columns HIDE their terrain
+                // draw — but stay RESIDENT (built, uploaded, trees intact). The terrain
+                // suppression exists so a surface-only tile doesn't skin over player-dug
+                // holes/caves (an INTERIOR concern; at the streaming frontier coverage
+                // routinely lies visually — chunks queued/unmeshed — and dropping tiles
+                // there opened SKY HOLES at the seam, so frontier tiles always draw).
+                // Dropping interior tiles from the wanted set ENTIRELY was the zoom-out
+                // handoff gap: real chunks unloaded on schedule while the LOD tree
+                // instances for that ground didn't exist yet (worker build lag). Now the
+                // tile is always resident and only its terrain submission is skipped.
                 if (m_chunkCoverage) {
                     const float tileFarDist = d + T * 0.7071f;  // farthest tile corner
                     const bool wellInterior =
@@ -165,7 +192,7 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
                     if (wellInterior) {
                         glm::ivec2 minXZ(tx * ring.tileSize, tz * ring.tileSize);
                         glm::ivec2 maxXZ(minXZ.x + ring.tileSize, minXZ.y + ring.tileSize);
-                        if (m_chunkCoverage(minXZ, maxXZ)) continue;
+                        if (m_chunkCoverage(minXZ, maxXZ)) m_terrainHidden.insert(key);
                     }
                 }
                 m_wanted.insert(key);
@@ -184,6 +211,10 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
         m_requests.assign(missing.begin(), missing.end());
     }
     m_requestCv.notify_all();
+
+    // terrainHidden flags may change with NO tile churn (chunk coverage shifts as the
+    // camera moves) — refresh the draw list so the flags reach the renderer.
+    rebuildDrawList();
 }
 
 void FarTerrainManager::drainResults() {
@@ -364,6 +395,22 @@ bool FarTerrainManager::uploadTile(const FarTileKey& key, const FarTileMesh& mes
         return false;
     }
 
+    // Far-tree impostor instances (optional — empty beyond impostor range / treeless tiles).
+    // A failed tree upload degrades to a treeless tile rather than dropping the terrain.
+    if (!mesh.trees.empty()) {
+        if (createHostBuffer(mesh.trees.size() * sizeof(FarTreeInstance),
+                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, mesh.trees.data(),
+                             tile.treeBuffer, tile.treeMemory)) {
+            tile.treeCount = uint32_t(mesh.trees.size());
+            tile.treeRanges = mesh.treeRanges;
+            for (const auto& t : mesh.trees)
+                tile.treeMaxHeight = std::max(tile.treeMaxHeight, t.height);
+        } else {
+            LOG_WARN("FarTerrain", "Tree instance buffer failed for tile ({},{}) — drawn bare",
+                     key.x, key.z);
+        }
+    }
+
     m_tiles.emplace(key, tile);
     return true;
 }
@@ -378,6 +425,8 @@ void FarTerrainManager::destroyTile(GpuTile& tile) {
     if (tile.vertexMemory != VK_NULL_HANDLE) vkFreeMemory(m_device, tile.vertexMemory, nullptr);
     if (tile.indexBuffer  != VK_NULL_HANDLE) vkDestroyBuffer(m_device, tile.indexBuffer, nullptr);
     if (tile.indexMemory  != VK_NULL_HANDLE) vkFreeMemory(m_device, tile.indexMemory, nullptr);
+    if (tile.treeBuffer   != VK_NULL_HANDLE) vkDestroyBuffer(m_device, tile.treeBuffer, nullptr);
+    if (tile.treeMemory   != VK_NULL_HANDLE) vkFreeMemory(m_device, tile.treeMemory, nullptr);
     tile = GpuTile{};
 }
 
@@ -398,6 +447,11 @@ void FarTerrainManager::rebuildDrawList() {
         d.draw.origin       = tile.origin;
         d.aabbMin           = tile.aabbMin;
         d.aabbMax           = tile.aabbMax;
+        d.treeBuffer        = tile.treeBuffer;
+        d.treeCount         = tile.treeCount;
+        d.treeMaxHeight     = tile.treeMaxHeight;
+        d.treeRanges        = tile.treeRanges;
+        d.terrainHidden     = m_terrainHidden.count(key) > 0;
         m_draws.push_back(d);
     }
 }

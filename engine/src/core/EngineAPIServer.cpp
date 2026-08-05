@@ -4309,6 +4309,23 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_distance_lod", params, 30000).dump(), "application/json");
     });
 
+    // POST /api/debug/shadow — shadow draw distance A/B. Body: { "distance": float }
+    // (empty body = report only). Reach vs texel density vs shadow-pass draw count.
+    srv.Post("/api/debug/shadow", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_shadow", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/flora_plan — the deterministic flora plan near {x,z,radius}: the SAME
+    // planFlora both near stamping and the far tree tiers consume. Tree-LOD harness support
+    // (tools/tree_lod_harness.py) — lets a probe aim at a REAL generator tree.
+    srv.Post("/api/debug/flora_plan", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("flora_plan", params, 30000).dump(), "application/json");
+    });
+
     // POST /api/debug/lod_level — C4 THE CUT. Body: { "level": int }. 0 = full detail.
     srv.Post("/api/debug/lod_level", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::parse(req.body, nullptr, false);

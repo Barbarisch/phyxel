@@ -1,0 +1,28 @@
+{
+  "name": "TreeLodLab",
+  "description": "Tree-LOD test bench: a FLAT streaming world whose only feature is biome flora, so one planned tree can be isolated and photographed at a ladder of view distances. Consumed by tools/tree_lod_harness.py, which asks /api/debug flora_plan for the deterministic tree plan (the SAME planFlora the near stamps and far tiers read), picks the most isolated tree, and walks the camera outward from it. Flat ground means the tree silhouette is never occluded and the camera math is trivial.",
+  "world": {
+    "type": "Flat",
+    "seed": 4242,
+    "_comment_streaming": "streaming:true is required — the far tree tiers (instanced meshes + cards) only exist for streamed worlds, and flora_plan reads the streaming generator.",
+    "streaming": true,
+    "_comment_radii": "Same residency as ProvingGrounds (224u/320u) so the near->LOD handoff bands under test match the showcase world exactly.",
+    "loadRadius": 7,
+    "unloadRadius": 10,
+    "_comment_flora": "ONE oak every 128u on bare flat ground — the whole point of the lab. Without this override the Flat world's forest biome planned 1208 trees in 256u and the target tree was unidentifiable in every shot. forge_oak_m is deliberately the SAME template the forge_oak species row meshes its LOD chain from, so near stamp and far instance derive from identical voxels. Stored recipe wins on reload: to change this, delete the project's worlds/default.db.",
+    "floraOverride": {
+      "spacing": 128,
+      "density": 1.0,
+      "template": "forge_oak_m"
+    }
+  },
+  "water": {
+    "enabled": false
+  },
+  "camera": {
+    "_comment": "Spawn looking across the flat plain from a low vantage; the harness repositions immediately.",
+    "position": { "x": 0, "y": 40, "z": 80 },
+    "yaw": -90,
+    "pitch": -12
+  }
+}

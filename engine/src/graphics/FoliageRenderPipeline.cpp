@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/FoliageRenderPipeline.h"
 #include "core/AssetManager.h"
 #include "core/Types.h"
@@ -150,7 +151,7 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
     depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable  = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;      // cutout: kept fragments write depth
-    depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
+    depthStencil.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
     VkPipelineColorBlendAttachmentState blendAttach{};
     blendAttach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -266,6 +267,11 @@ bool FoliageRenderPipeline::initializeShadow(VkRenderPass shadowRenderPass, VkEx
         depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable  = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
+        // The SHADOW pass is FORWARD-Z (ShadowMap clears depth to 1.0 and compares LESS) even
+        // though the SCENE pass is reverse-Z. This used to call sceneDepthCompareOp() —
+        // GREATER — against a 1.0 clear, so no foliage fragment could ever pass the depth
+        // test and canopies silently wrote NOTHING into the shadow map. Must match
+        // ShadowMap::createPipeline, not the scene convention.
         depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
 
         VkPipelineColorBlendStateCreateInfo colorBlend{};   // depth-only: no color attachments
@@ -463,7 +469,7 @@ bool FoliageRenderPipeline::initializeKinematic(VkRenderPass renderPass, VkExten
         depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencil.depthTestEnable  = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
+        depthStencil.depthCompareOp   = Graphics::DepthConvention::sceneDepthCompareOp();
 
         VkPipelineColorBlendAttachmentState blendAttach{};
         blendAttach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |

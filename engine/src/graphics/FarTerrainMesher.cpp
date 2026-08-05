@@ -1,4 +1,5 @@
 #include "graphics/FarTerrainMesher.h"
+#include "graphics/TreeSpeciesTable.h"
 #include "core/WorldGenerator.h"
 
 #include <algorithm>
@@ -301,7 +302,104 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
     mesh.minY += yBias;
     mesh.maxY += yBias;
 
+    // Far-tree impostors (world-look A1 rethink): ask the deterministic flora plan which
+    // trees live on this tile. After the bias so anchors share the mesh's final surface.
+    planTrees(mesh, yBias);
+
     return mesh;
+}
+
+namespace {
+
+/// Deterministic per-tree hash in [0,1). World-coordinate keyed, so subsampling and jitter
+/// are identical no matter which tile/ring evaluates the tree.
+float treeHash01(int wx, int wz, uint32_t salt) {
+    uint64_t h = (uint64_t(uint32_t(wx)) << 32) ^ uint64_t(uint32_t(wz)) ^ (uint64_t(salt) << 13);
+    h ^= h >> 33; h *= 0xff51afd7ed558ccdULL; h ^= h >> 33; h *= 0xc4ceb9fe1a85ec53ULL; h ^= h >> 33;
+    return float(h & 0xFFFFFFu) / float(0x1000000u);
+}
+
+} // namespace
+
+void FarTerrainMesher::setTreeExclusions(std::vector<glm::vec4> rects) {
+    std::lock_guard<std::mutex> lock(m_exclusionMutex);
+    m_treeExclusions = std::move(rects);
+}
+
+void FarTerrainMesher::planTrees(FarTileMesh& mesh, float yBias) {
+    if (mesh.step > kTreeMaxStep) return;
+
+    // Subsample by ring coarseness: total instances per band stay bounded as area grows.
+    // The kept set at a coarse step is a SUBSET of the fine step's set (same world-keyed
+    // hash), so a tile crossing rings thins rather than reshuffles.
+    const float keep = (mesh.step <= 2) ? 1.0f : (mesh.step <= 4 ? 0.55f : 0.30f);
+
+    // Structure footprints: the plan is pristine, the world is edited. Any tree the plan
+    // puts inside a placed structure's rect exists ONLY in the plan — the near field's
+    // chunks were rebuilt by the structure — so the far tier must drop it or it renders
+    // a phantom tree through a building (user-reported over the PG village).
+    std::vector<glm::vec4> exclusions;
+    {
+        std::lock_guard<std::mutex> lock(m_exclusionMutex);
+        exclusions = m_treeExclusions;
+    }
+    auto excluded = [&exclusions](int wx, int wz) {
+        for (const auto& r : exclusions)
+            if (float(wx) >= r.x && float(wx) <= r.z &&
+                float(wz) >= r.y && float(wz) <= r.w) return true;
+        return false;
+    };
+
+    const glm::ivec2 o = mesh.originXZ;
+    const auto placements = m_generator->planFlora(o.x, o.y,
+                                                   o.x + mesh.tileSize - 1,
+                                                   o.y + mesh.tileSize - 1,
+                                                   /*edgeInset=*/0);
+    size_t speciesCount = 0;
+    const TreeSpecies* species = treeSpeciesTable(speciesCount);
+
+    mesh.trees.reserve(placements.size() / 2);
+    for (const auto& p : placements) {
+        const int sid = treeSpeciesFor(p.templateName);
+        if (sid < 0) continue;
+        if (treeHash01(p.worldX, p.worldZ, 0xA11CE) >= keep) continue;
+        if (excluded(p.worldX, p.worldZ)) continue;
+        const TreeSpecies& a = species[size_t(sid)];
+
+        // Anchor on the tile's QUANTIZED, biased surface — the impostor stands on the far
+        // mesh exactly, never floating above it (the defect this representation replaces).
+        const float baseY = float(quantizeTop(p.surfaceY, mesh.step)) + yBias;
+
+        // NO size jitter, deliberately: flora stamps templates unscaled, so a jittered card
+        // or mesh is ±15% off the real tree it must dissolve into at the residency handoff
+        // (user-reported correspondence break, 2026-08-02). Variety comes from the species
+        // mix in the plan, not from lying about a tree's size.
+        FarTreeInstance t;
+        t.localX  = float(p.worldX - o.x) + 0.5f;
+        t.localZ  = float(p.worldZ - o.y) + 0.5f;
+        t.worldY  = baseY;
+        t.height  = a.height;
+        t.canopyR = a.canopyR;
+        t.packed  = packFarTree(a.shapeClass, uint32_t(sid), a.r, a.g, a.b);
+        mesh.trees.push_back(t);
+    }
+
+    // Sort by species (then deterministically by position) and record per-species runs —
+    // the instanced-mesh tier draws each run with a single firstInstance offset.
+    std::sort(mesh.trees.begin(), mesh.trees.end(),
+              [](const FarTreeInstance& a, const FarTreeInstance& b) {
+                  const uint32_t sa = farTreeSpecies(a.packed), sb = farTreeSpecies(b.packed);
+                  if (sa != sb) return sa < sb;
+                  if (a.localZ != b.localZ) return a.localZ < b.localZ;
+                  return a.localX < b.localX;
+              });
+    for (size_t i = 0; i < mesh.trees.size();) {
+        const uint32_t sid = farTreeSpecies(mesh.trees[i].packed);
+        size_t j = i;
+        while (j < mesh.trees.size() && farTreeSpecies(mesh.trees[j].packed) == sid) ++j;
+        mesh.treeRanges.push_back({uint16_t(sid), uint32_t(i), uint32_t(j - i)});
+        i = j;
+    }
 }
 
 } // namespace Graphics

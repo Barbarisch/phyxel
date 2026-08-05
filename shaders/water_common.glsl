@@ -292,6 +292,9 @@ struct WaterSurfaceInput {
     // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
     // level is whatever the sim says it is).
     float restLevelY;
+    // 1 = the hydrology bake explicitly marks this column DRY (the layer is drawing its
+    // seaLevel FALLBACK here, not baked water). 0 for baked-wet columns and for per-cell water.
+    float dryLand;
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -338,7 +341,19 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // buffer reads its cleared far value, and the reconstruction above collapses to ~0 depth — which
     // would paint the entire horizon as shoreline foam. Anything at the far plane has no bottom, so
     // it is open water by definition.
-    bool hasSeabed = sceneD < 0.9999;
+    // REVERSE-Z: the cleared "nothing here" depth is 0.0, not 1.0 (DepthConvention.h).
+    bool hasSeabed = sceneD > 0.0001;
+
+    // WORLD-LOOK B1 — THE ENDLESS OCEAN UNDER THE WORLD. A bake-DRY column drawing the layer's
+    // seaLevel fallback is only ever legitimate when real submerged terrain sits behind it (the
+    // near-field shoreline snap band: bake-dry columns whose ground lies below sea level — the
+    // depth gate at the bottom of this function then arbitrates per pixel). With NO seabed at
+    // all — nothing was drawn behind the sheet: under the world, unloaded regions, past the far
+    // tiers — every gate in this function silently skips, and the fallback rendered as an
+    // infinite phantom sea beneath everything. That combination has no honest interpretation:
+    // kill the fragment. (Baked-WET columns keep drawing against empty depth — the open ocean
+    // past the far tiers is exactly that case.)
+    if (inp.dryLand > 0.5 && !hasSeabed) discard;
 
     // --- Refraction: the scene behind the surface, displaced by the ripple normal ------------
     // The offset shrinks with distance so far water doesn't wobble absurdly.
@@ -347,7 +362,10 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // Reject samples that are IN FRONT of the water: without this, geometry standing out of the
     // water (a pier, a character's legs) smears across the surface — the classic refraction halo.
     float refrD = texture(sceneDepthTex, refractUV).r;
-    if (refrD < inp.fragDepthNdc) refractUV = uv;   // nearer than us → fall back to the straight view
+    // REVERSE-Z: nearer means a LARGER depth value, so the "sample is in front of the water" test
+    // flips. Left as `<` this would reject everything BEHIND the water instead of everything in
+    // front of it — i.e. exactly inverted refraction masking.
+    if (refrD > inp.fragDepthNdc) refractUV = uv;   // nearer than us → fall back to the straight view
     vec3 behind = texture(refractionTex, refractUV).rgb;
 
     // --- Absorption: tint what we see through the water by how far the light travelled -------

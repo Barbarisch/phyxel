@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "graphics/PostProcessor.h"
 #include "vulkan/VulkanDevice.h"
 #include "utils/FileUtils.h"
@@ -723,7 +724,7 @@ void PostProcessor::beginSceneRenderPass(VkCommandBuffer commandBuffer) {
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{m_skyColor.r, m_skyColor.g, m_skyColor.b, 1.0f}};  // sky background
-    clearValues[1].depthStencil = {1.0f, 0};
+    clearValues[1].depthStencil = {Graphics::DepthConvention::kSceneDepthClear, 0};
 
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
@@ -745,7 +746,7 @@ void PostProcessor::beginPostProcessRenderPass(VkCommandBuffer commandBuffer, Vk
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-    clearValues[1].depthStencil = {1.0f, 0};
+    clearValues[1].depthStencil = {Graphics::DepthConvention::kSceneDepthClear, 0};
 
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
@@ -1751,7 +1752,7 @@ void PostProcessor::beginOITRenderPass(VkCommandBuffer commandBuffer) {
     std::array<VkClearValue, 3> clearValues{};
     clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};  // accum: zero
     clearValues[1].color = {{ 1.0f, 0.0f, 0.0f, 0.0f }};  // reveal: 1.0 (nothing transparent yet)
-    clearValues[2].depthStencil = { 1.0f, 0 };              // depth (not cleared, but value required)
+    clearValues[2].depthStencil = {Graphics::DepthConvention::kSceneDepthClear, 0};              // depth (not cleared, but value required)
 
     VkRenderPassBeginInfo rpi{};
     rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1851,7 +1852,7 @@ void PostProcessor::cleanupReflectionResources() {
 void PostProcessor::beginReflectionRenderPass(VkCommandBuffer commandBuffer) {
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-    clearValues[1].depthStencil = { 1.0f, 0 };
+    clearValues[1].depthStencil = {Graphics::DepthConvention::kSceneDepthClear, 0};
 
     VkRenderPassBeginInfo rpi{};
     rpi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

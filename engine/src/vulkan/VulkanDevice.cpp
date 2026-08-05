@@ -1,3 +1,4 @@
+#include "graphics/DepthConvention.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/RenderPipeline.h"
 #include "core/MaterialRegistry.h"
@@ -958,7 +959,7 @@ void VulkanDevice::beginRenderPass(uint32_t frameIndex, uint32_t imageIndex, VkR
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-    clearValues[1].depthStencil = {1.0f, 0};
+    clearValues[1].depthStencil = {Graphics::DepthConvention::kSceneDepthClear, 0};
 
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
@@ -1653,6 +1654,8 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     // absolute-hash reconstruction in shaders.
     ubo.cameraPosition = glm::vec3(0.0f);
     ubo.cameraWorld = cameraPosition;
+    ubo.debugShadowMode = m_debugShadowMode;
+    ubo.shadowDepthRange = m_shadowDepthRange;
     ubo.elapsedTime = elapsedTime;
     ubo.viewProj = proj * view;
     ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;

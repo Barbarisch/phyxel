@@ -42,8 +42,10 @@ vec3 viewPosFromDepth(vec2 uv, float depth) {
 void main() {
     float depth = texture(depthTex, inUV).r;
 
-    // Background (far plane) → no occlusion
-    if (depth >= 0.9999) {
+    // Background → no occlusion. REVERSE-Z: the far/cleared value is 0.0, not 1.0
+    // (graphics/DepthConvention.h). Left as `>= 0.9999` this tested for geometry at the NEAR
+    // plane and let the whole sky through as occludable surface.
+    if (depth <= 0.0001) {
         outOcclusion = 1.0;
         return;
     }

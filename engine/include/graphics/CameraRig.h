@@ -28,8 +28,11 @@ public:
                         float yaw, float pitch, float dt) = 0;
 
     // Projection this rig implies. Base = perspective(fov); ortho rigs override.
+    // REVERSE-Z (graphics/DepthConvention.h): must match the scene pipelines' GREATER depth test,
+    // and the projection is infinite, so `farP` is ignored here.
     virtual glm::mat4 projection(float aspect, float nearP, float farP) const {
-        return glm::perspective(glm::radians(fov), aspect, nearP, farP);
+        (void)farP;
+        return DepthConvention::infiniteReverseZPerspective(glm::radians(fov), aspect, nearP);
     }
 
     // Common tweaks, no subclass required:

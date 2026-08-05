@@ -54,6 +54,14 @@ public:
     static bool s_foliageEnabled;
     static void setFoliageEnabled(bool on) { s_foliageEnabled = on; }
     static bool getFoliageEnabled()        { return s_foliageEnabled; }
+    /// Fraction of exposed leaf cells that emit a canopy card (1.0 = every one, the old
+    /// behaviour). Default 0.5: solid-looking canopies read as opaque blobs and swallow all
+    /// light; thinning them lets sky and sun break through, which is what makes a canopy
+    /// look like foliage rather than a green mass. Deterministic per world cell, so the
+    /// thinning is stable across rebuilds and identical on every client.
+    static float s_foliageDensity;
+    static void  setFoliageDensity(float d) { s_foliageDensity = d; }
+    static float getFoliageDensity()        { return s_foliageDensity; }
     // Fine (sub/microcube) greedy-merge toggle. OFF (default) = the per-face path, byte-identical
     // to the pre-merge engine. Increment 1 uses it to emit ONE hand-forged merged subcube quad
     // (the encoding spike that proves extents-in-light-word rendering); later increments gate the

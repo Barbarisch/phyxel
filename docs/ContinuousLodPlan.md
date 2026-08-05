@@ -1235,6 +1235,192 @@ fixed flight path stays under budget (§1.1 — an opinion about a screenshot is
 > greedy-merged fine mesh (54,066 vs 30,799 on LodStripe; 410,004 vs 250,845 on LodBench at level
 > 1). Greedy-merging the coarse mesher is the next correctness-adjacent perf item.
 
+---
+
+### DEFAULTS FLIPPED FOR LONG-RANGE VIEW (2026-08-01)
+
+Goal set by the user: *"rendering full worlds without a max render distance."* What actually
+delivers that is the two FAR tiers, not chunk coarsening — that distinction is the finding here.
+
+| Setting | Was | Now | Why |
+|---|---|---|---|
+| **`Application::maxChunkRenderDistance`** (editor — **the one that governs**) | **192** | **4096** | It IS the projection far plane. At 192 every far tier is clipped and invisible regardless of its own config. See the trap below |
+| `maxChunkRenderDistance` (the 3 non-governing configs) | 256 / 96 / 256 | **4096** | Consistency only — the editor path reads none of them |
+| `FarTerrainManager::Params::enabled` | false | **true** | Measured 57 tiles / 71,630 tris / horizon filled / 319 FPS once the far plane reached it |
+| `…::maxDistance` / `ringSteps` / `maxResidentTiles` | 2048, `{2,4,8}`, 512 | 4096, `{2,4,8,16}`, 768 | 4 rings: bands 0-512-1024-2048-4096. Ring 4's individual contribution not isolated |
+| `RenderCoordinator::s_farLodChunks` | false | **true** | The only tier carrying STRUCTURES/EDITS past residency; now storage-driven, so no reach cap. Has end-to-end runtime evidence incl. a falsification test (`lod_c3_3_far_draw_20260731.txt`), but its own commit records "no audit, no unit test for `getChunksWithLodBlobs`" — **not re-verified in this session** |
+| `s_lodMaxLevel` (new) | — | **3** | Bounds the fattening defect (level 5 = 288× on isolated thin detail) |
+
+### 🐞 THE FOUR-CONFIG RENDER-DISTANCE TRAP — and a wrong "regression" I published for an hour
+
+**Corrected 2026-08-01, same day.** An earlier version of this section reported that far terrain
+"DOES NOT FILL THE HORIZON" and called it a **suspected regression**, citing 217–236 tiles resident
+with only 9–14 drawn and ~13–17k triangles, and enabled-vs-disabled frames that looked identical.
+
+**That diagnosis was wrong, and the measurements were worthless.** Far terrain was never regressed.
+
+**Root cause: there are FOUR independent render-distance settings and I changed the three that
+don't matter.** `EngineConfig::maxChunkRenderDistance`, `WorldInitializer::maxChunkRenderDistance`
+and `GameSettings::renderDistance` all exist — and **none of them feed the editor.**
+`Application` owns its own `maxChunkRenderDistance` (`editor/include/Application.h:483`, then
+**192.0f**) and pushes that to RenderCoordinator at `Application.cpp:349`. Since
+`maxChunkRenderDistance` *is* the projection far plane, every far-terrain tile past **192 units**
+was frustum-clipped. The 9-drawn reading was the far plane, not the far tier.
+
+The same trap explains the July numbers I compared against: those evidence files all say
+"render distance 2048" because that session **manually POSTed it**. It was never a default.
+
+**With the far plane actually raised** (`POST /api/debug/render_distance {"distance":4096}`), same
+world, pose (16,140,180):
+
+| | far plane 192 | far plane 4096 |
+|---|--:|--:|
+| far tiles drawn | 9–14 | **57** |
+| far triangles | ~13–17k | **71,630** |
+| horizon | ends in sky | **terrain to the horizon** |
+| FPS | — | 319 |
+
+**Fix applied:** `Application::maxChunkRenderDistance` default 192 → **4096** (with a comment at the
+declaration naming the trap), and `FarTerrainManager::Params::enabled` is back to **true**.
+
+**Lessons worth keeping, because both nearly stuck:**
+1. **Before concluding a subsystem is broken, verify the thing that would clip it.** The frustum's
+   far plane is upstream of every far tier and is invisible in that tier's own stats.
+2. **A default that "exists" in a config struct is not the default that runs.** Grep for *every*
+   definition of a setting and find which one the running path actually reads.
+3. Comparing against archived numbers requires reproducing that run's **setup**, not just its world.
+
+⚠️ **Still true and still unfixed:** a `maxDistance` change does not invalidate the wanted set, so
+tiles stay frozen until the camera moves past `kRefreshDistance` — the same defect class C1 fixed
+for `viewScale` (`m_lastRefreshViewScale`). A stationary-camera A/B on this system returns
+byte-identical stats and reads as "no effect". It produced one invalid comparison here.
+
+---
+
+### ✅ REVERSE-Z — the far plane is gone (2026-08-01)
+
+`engine/include/graphics/DepthConvention.h` is the single source of truth;
+`tests/graphics/ReverseZDepthTest.cpp` (7 tests) pins it. The scene projection is now an
+**infinite** reverse-Z perspective: near → 1.0, infinity → 0.0, no far term anywhere in the matrix.
+Render distance stops being a geometric clip — `maxChunkRenderDistance` survives only as a culling
+radius.
+
+**Two defects removed, not one.** The old path was `glm::perspective`, and this build defines no
+`GLM_FORCE_DEPTH_ZERO_TO_ONE`, so it emitted **OpenGL [-1,1]** clip depth into a Vulkan **[0,1]**
+pipeline. Vulkan clips `z_clip < 0`, so everything between the near plane and ~2× near was being
+silently discarded and **half the depth buffer went unused**. `ForwardZClipsGeometryNearTheLens`
+pins that so a revert is visible.
+
+**The precision claim, measured** (float32, near 0.1, old far 4096) — smallest surface separation a
+32-bit depth buffer can still distinguish:
+
+| distance | reverse-Z | forward-Z | ratio |
+|--:|--:|--:|--:|
+| 100 | 0.000004 | 0.000707 | 172× |
+| 1000 | 0.000033 | **0.381** | 11,389× |
+| 4000 | 0.000127 | **3.757** | 29,540× |
+
+Forward-Z could not resolve **a third of a voxel at 1 km, or four voxels at 4 km** — that is the
+z-fighting budget distant geometry had. ⚠️ The first version of this measurement started its search
+step at 1e-4 and reported the two conventions as *equal at every distance*; the real 11,000× gap was
+hiding under the probe's own floor. If you re-measure, start well below the expected answer.
+
+**Scope — the shadow pass stays FORWARD-Z.** It renders to its own attachment with its own
+`orthoRH_ZO` light matrix, and `voxel.frag` compares shadow depth directly. `ShadowMap.cpp`'s two
+`VK_COMPARE_OP_LESS` and its `1.0f` clear are deliberate; so is its depth-bias tuning
+(constant 1.25 / slope 1.75, which is forward-Z tuning).
+
+**🐞 A SECOND four-configs trap, same shape as the render-distance one.** The projection was built
+in **five** places. `editor/src/Application.cpp:3955` hand-rolled its own `glm::perspective` +
+Y-flip — it feeds `updateCameraFrustum()`, so it would have kept assigning near/far frustum planes
+under the old convention while every pipeline moved to GREATER. Also found and converted:
+`RenderCoordinator`'s null-camera fallback and `CameraRig::projection()`. All now route through
+`Camera::getProjectionMatrix` / `DepthConvention`. (`VoxelRaycaster.cpp:495` still builds its own,
+but only to invert it for a ray *direction* and discards z — convention-independent, left alone.)
+
+**🐞 And a third one the test suite caught, not me.** `Utils::Frustum::extractFromMatrix` is shared
+by the reverse-Z scene camera, the **forward-Z ortho shadow light matrix**, and OpenGL matrices in
+tests. I hardcoded reverse-Z in it, which silently swapped the shadow frustum's near/far planes;
+`FrustumTest.OrthographicFrustum_AABB` went red. It now takes a **required `ClipConvention`
+argument** — no default, because picking the wrong one must not be silent. (Bonus: the original
+implementation used the OpenGL near-plane form in a Vulkan renderer, so its near plane had always
+been wrong — harmless only because a 0.1-unit near plane culls nothing.)
+
+**Verified at runtime:** LodTest horizon 373 FPS, near field + grass + trees + depth sorting correct
+at 127 FPS; WaterLab canonical vantage 487 FPS with swell, shoreline and depth-graded absorption
+intact — which specifically validates the `hasSeabed` flip, since an inverted test paints the whole
+horizon as shore foam. Full suite green.
+**NOT verified: the mirror/reflection pass** (needs a scene with a Mirror surface) and SSAO
+(`ssaoEnabled = false` by default). Both were converted; neither was exercised.
+
+---
+
+### 📋 WHAT THE CUT ACTUALLY COVERS — audited 2026-08-01
+
+Asked directly: does the scaling LOD support trees, structures, grass, and non-terrain content?
+**Mostly no.** The cut is static-voxel-only, exactly as §3 intended, but that has consequences worth
+stating plainly rather than leaving implied.
+
+**Covered**, because they are static voxels baked into chunks: terrain, structures, and tree
+trunks/branches. `volumeFromChunk` folds sub/microcube occupancy into `coverage`, so 1-microcube
+walls survive. Past residency: structures ride the far-LOD chunk tier (**only if saved**), terrain
+rides far terrain (2.5-D; structurally cannot show a building).
+
+**Not covered** — each has its own hardcoded radius, no coarsening, no shared representation:
+
+| Subsystem | Distance rule today | Coarsens? |
+|---|---|---|
+| Grass | radius 192 + bespoke per-chunk density LOD | Not on the DAG |
+| Foliage / leaf cards | flat radius 512, **binary in/out** | No |
+| Characters / NPCs | part decimation 35/80, cull 400 | Part LOD only |
+| Kinematic voxels (doors, furniture, fragments) | **no distance bound found** | No |
+| GPU debris particles | none | No — C6, unbuilt |
+| VFX | none found | No |
+| Water | player-following sim region | No — C6, unbuilt |
+
+C1 re-homed several of these radii onto the shared screen-space metric, but that only makes them
+*consistent under resolution/FOV changes* — it is unit hygiene, not level-of-detail.
+
+#### 🐞 Two latent defects found by the audit, both fixed here
+
+1. **Foliage had no coarsened-chunk gate** while grass does. Fixed: `renderFoliage` now skips
+   `getLodLevel() != 0`, mirroring `renderGrass`.
+2. **Leaf voxels were double-represented under the cut.** Leaf materials are `billboarded` —
+   `ChunkRenderManager` *omits their solid faces from the fine mesh* and emits cards instead, so a
+   canopy has **no fine geometry at all**. But `volumeFromChunk` counts every visible voxel with no
+   billboard exclusion, so from level 1 up a canopy becomes a solid mass of Leaf material — and
+   with foliage ungated, both drew at once.
+
+   **The resolution is a handoff, not an exclusion.** Keeping leaves in the coarse volume is
+   correct: the solid mass *is* the canopy's distant impostor (billboards near, mass far, as the
+   field does). Excluding them would make every forest evaporate into bare trunks the moment the
+   cut engages. So fix (1) is what makes the inclusion safe. Pinned by
+   `LodChunkMeshTest.LeafCanopySurvivesTheCutAsSolidMass` and `LeafCanopyCoarsensLikeAnyOtherMaterial`
+   (mutation-verified: excluding leaves turns both red with "distant forests would render as bare
+   trunks"), plus a do-not-add-an-exclusion comment at the site.
+
+Both were latent — they bite only when distance-driven chunk LOD is enabled, which is default-OFF.
+But #2 would have made forests wrong the moment the cut turned on, and forests are most of a Perlin
+world's surface.
+
+**`s_distanceDrivenLod` stays OFF, and the arithmetic is the reason.** It coarsens *resident*
+chunks only, and residency is `loadDistance` 256 / `unloadDistance` 352. At the reference config a
+1-cube cell hits `s_lodTargetPixels = 8` at **~136 units**, so its entire working window is
+~136–352u — beyond that there are no resident chunks to coarsen, and far terrain + far LOD own the
+distance. Against that small, C5-unmeasurable win sit the fattening defect and a **direct conflict
+with grass**: that band is exactly where the new 192u grass radius lives, and `renderGrass` must
+skip coarsened chunks (the OR-occupancy coarse surface sits at or above the fine one, burying the
+blades). Enabling it by default would trade visible grass for a face reduction C5's own A/B could
+not measure as a speedup. It remains the live A/B toggle it was built as.
+
+**Consequence worth stating plainly:** the horizon is now filled for *generated terrain* (far
+terrain, to 4096u and raisable) and for *saved structures/edits* (far LOD, uncapped). It is NOT
+filled for unsaved generated **detail** — streaming worlds never save plain terrain, so no pyramid
+exists for it (`lod_c3_3_far_draw_20260731.txt` FINDING 1), and far terrain represents it as a
+2.5-D heightmap with no overhangs, no caves and no structures. Closing that gap is the
+*generated coarse tier* (coarse straight from `CoarseWorldModel` rather than downsampled), which is
+unbuilt and is the real centrepiece of "no render distance".
+
 *(shadow work below is unstarted)*
 
 ### C5b — Shadows onto the cut

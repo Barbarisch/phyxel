@@ -95,7 +95,9 @@ private:
     
     // Configuration
     const EngineConfig* engineConfig = nullptr;
-    float maxChunkRenderDistance = 96.0f;
+    // Must reach past the far tiers — this value becomes the projection far plane. See the note
+    // on EngineConfig::maxChunkRenderDistance.
+    float maxChunkRenderDistance = 4096.0f;
     float chunkInclusionDistance = 128.0f;
 };
 

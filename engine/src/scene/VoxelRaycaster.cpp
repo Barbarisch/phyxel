@@ -491,11 +491,19 @@ glm::vec3 VoxelRaycaster::screenToWorldRay(
     // Create clip space coordinates - flip Y again for Vulkan coordinate system
     glm::vec4 rayClip = glm::vec4(x, -y, -1.0f, 1.0f);
     
-    // Convert to eye space
+    // Convert to eye space.
+    //
+    // DELIBERATELY NOT the reverse-Z projection (graphics/DepthConvention.h), and this is the one
+    // place in the engine where that is fine: the result is used only for a ray DIRECTION — the
+    // next line overwrites z and w outright — so nothing here depends on the depth mapping. The
+    // only terms that survive are m[0][0] and m[1][1], which are identical in both conventions.
+    // The near/far values below are therefore inert.
+    // If this is ever changed to reconstruct a DEPTH or a world-space POSITION, it must switch to
+    // Camera::getProjectionMatrix or it will be silently wrong.
     glm::mat4 proj = glm::perspective(
-        glm::radians(45.0f), 
-        (float)windowManager->getWidth() / (float)windowManager->getHeight(), 
-        0.1f, 
+        glm::radians(45.0f),
+        (float)windowManager->getWidth() / (float)windowManager->getHeight(),
+        0.1f,
         200.0f
     );
     proj[1][1] *= -1; // Flip Y for Vulkan

@@ -329,6 +329,7 @@ private:
     std::unique_ptr<Core::NPCManager> npcManager;
     Core::FaunaSpawner m_faunaSpawner;   // biome-driven wildlife population
     bool m_faunaConfigured = false;
+    float m_farTreeExclusionPoll = 0.0f;   ///< 1s cadence for far-tree structure exclusions
     std::unique_ptr<Core::InteractionManager> interactionManager;
     std::unique_ptr<Core::InteractionProfileManager> interactionProfileManager;
     std::unique_ptr<Core::InteractionHandlerRegistry> interactionHandlerRegistry;
@@ -479,9 +480,25 @@ private:
     
     // New chunk-level frustum culling
     Utils::Frustum cameraFrustum;
-    // Render distance configuration - two-tier system
-    float maxChunkRenderDistance = 192.0f; // Frustum culling distance (actual render distance; doubled from 96)
-    float chunkInclusionDistance = 288.0f; // Chunk loading distance (always >= maxChunkRenderDistance)
+    // Render distance configuration - two-tier system.
+    //
+    // ⚠️ THIS IS THE ONE THAT ACTUALLY GOVERNS IN THE EDITOR. EngineConfig::maxChunkRenderDistance,
+    // WorldInitializer::maxChunkRenderDistance and GameSettings::renderDistance all exist and none
+    // of them feed this path — Application owns its own copy and pushes it to RenderCoordinator at
+    // startup (Application.cpp:349). Changing those three and expecting the editor to follow is a
+    // trap; it cost a whole measurement session on 2026-08-01, where a 192-unit far plane clipped
+    // every far-terrain tile past 192u and the resulting "far terrain draws almost nothing" reading
+    // was misdiagnosed as a regression in far terrain itself. It was the far plane.
+    //
+    // maxChunkRenderDistance IS the projection far plane
+    // (RenderCoordinator: getProjectionMatrix(aspect, 0.1f, maxChunkRenderDistance)), so it must
+    // reach past the outermost far tier or that tier is invisible no matter how it is configured.
+    // It bounds only what ALREADY-RESIDENT chunks are culled to — residency is
+    // ChunkManager::loadDistance — so raising it does NOT add near-field chunk cost.
+    // Measured at 4096 on LodTest (Release): far terrain 9 -> 57 tiles drawn, 17k -> 71.6k
+    // triangles, terrain to the horizon, 319 FPS.
+    float maxChunkRenderDistance = 4096.0f; // Frustum culling distance == projection far plane
+    float chunkInclusionDistance = 6144.0f; // Chunk inclusion bound (kept at the 1.5x the setters use)
     void updateCameraFrustum(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
     std::vector<uint32_t> getVisibleChunks();
     std::vector<uint32_t> getVisibleChunksOptimized(); // Spatial query version for large worlds

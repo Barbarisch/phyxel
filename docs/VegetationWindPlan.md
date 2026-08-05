@@ -37,9 +37,96 @@ phase carries its own gate + explicit shelving criterion.
 |---|--------|-------|
 | 8 | **World-blind** — the player, NPCs, and debris move through grass and low foliage without disturbing a single blade. | — |
 
-Current budget baseline: `bladesPerVoxel = 20` × 6 verts = **120 verts per grass voxel**, radius
-48u, clumped ~7/tuft (`GrassRenderPipeline.h:35-43`). Foliage: `cardsPerVoxel` quads per exposed
-leaf subcube.
+Budget baseline (**superseded 2026-08-01** — see the density-LOD note below): `bladesPerVoxel = 20`
+× 6 verts = **120 verts per grass voxel**, radius 48u, clumped ~7/tuft. Foliage: `cardsPerVoxel`
+quads per exposed leaf subcube.
+
+### Density LOD — the current baseline (2026-08-01, corrected 2026-08-05)
+
+Defaults are `bladesPerVoxel = 140`, `radius = 224`, `fadeRange = 40`, `bladeHeight = 0.44`, blade
+width **0.040** (was 0.016 — widened 2.5× because at the old width a blade was ~0.6 screen px and
+leaned entirely on the sub-pixel floor to stay visible), and the meadow height field's dominant
+octave is ~72 voxels with per-blade jitter cut to ±6%, so stand height reads as varying across a
+*field* rather than per voxel.
+
+⚠️ **The five-band per-chunk falloff described here until 2026-08-05 no longer exists.** Deciding
+density per chunk made two adjacent chunks in different bands draw different densities, and the
+boundary showed as a hard seam through open field ("disjointed grass"). Density is now **per blade
+and continuous** in the blade's own world distance (`densityFrac = 1/(1 + 140·u²)`, floored at
+1/18, `grass.vert:250`), so it is identical either side of any voxel or chunk boundary by
+construction. `GrassRenderPipeline::bladesForDistance` survives only as a **conservative upper
+bound on the vertex count** — it must never be tighter than the shader's own test anywhere in the
+chunk, which is why the caller passes the chunk's *nearest* point, not its centre. **Nothing
+per-chunk may influence how a blade looks, or the seam comes straight back.**
+
+Two properties make draw-shortening safe, and both are pinned by
+`tests/graphics/GrassDensityLodTest.cpp`:
+
+- **Survivors are bit-identical across a tier change.** `pc.bladesPerVoxel` is pushed at the FULL
+  count regardless of tier, so every blade's clump, seed and height still derive from its own
+  `gl_VertexIndex` — shortening the draw omits the highest-indexed clumps and disturbs nothing
+  else. Re-deriving the hashes from a reduced count would re-roll every blade at each band edge.
+- **Counts are whole clumps.** grass.vert assigns clumps as `gl_VertexIndex / 7`; a count that
+  split a clump would draw a torn tuft, not a sparser meadow.
+
+`widthCompensation` widens the survivors by `1/sqrt(frac)` (capped 2.6×) so thinning doesn't read
+as the meadow disappearing, and a sub-pixel floor (`dist * 0.0011`, ~1 px at the reference config)
+holds far blades at about a pixel — aimed at the long-standing grass speckle
+(`RenderOptimization.md:513`), which is sub-pixel quads flickering across sample points.
+
+⚠️ **Recompute the vertex budget before touching `radius` or `bladesPerVoxel`** — the total is
+quadratic in the radius and eyeballing the curve fails badly. The worked figures are in the comment
+on `bladesForDistance`: a first cut at 98 blades / radius 320 with a *plausible-looking*
+100/55/30/15% falloff came to **143M verts/frame, 40× the old baseline**, with the outermost band
+alone costing 52M. The shipped config is 22.8M spread evenly across bands (3.3/3.9/4.7/4.6/6.4M);
+"no single band dominates" is the property to preserve.
+
+⚠️ **Grass is skipped entirely on chunks at LOD level != 0** (`RenderCoordinator::renderGrass`).
+Grass instances are emitted during the FINE rebuild at true surface positions and a LOD swap does
+not touch them, while the coarse mesh's OR-occupancy surface sits at or ABOVE the fine one — so
+blades on a coarsened chunk are buried inside it. This is why distance-driven chunk LOD stays
+default-OFF: its working window (~136–352u) is precisely the band the 192u grass radius occupies.
+
+### Grass blades cast shadows (2026-08-05)
+
+Blades render into the shadow map via a second pipeline (`GrassRenderPipeline::renderShadow`) using
+`grass_shadow.vert` — a **generated** sibling of `grass.vert` (`tools/regen_grass_shadow.py`;
+regenerate after every `grass.vert` edit, guarded by `tests/graphics/GrassShaderMirrorTest.cpp`).
+
+Blade shadows were dead for the feature's whole life, from **two independent bugs** that masked
+each other — which is why five successive single-cause diagnoses were all wrong:
+
+1. **The blade never rasterized.** A 0.04 u blade against a 0.125 u shadow texel at the default
+   420 u shadow distance covers no texel centre and writes nothing.
+2. **The bias was authored in normalized depth**, so its *physical* size scaled with the shadow
+   distance — 0.26 u at 40 u, but **0.85 u at 420 u**, taller than a grass blade. Even a blade that
+   did rasterize was rejected. Bias is now authored in **world units** and divided by
+   `ubo.shadowDepthRange` (`lighting.glsl`), so it is distance-invariant.
+
+Two shadow-pass-only behaviours, both gated by the single `kShadowWidthGate` constant so the
+visible blade is provably untouched:
+
+- **The blade turns broadside to the sun.** Blade yaw is a per-blade hash, so a blade pointing
+  along the light projects *zero* width and casts nothing regardless of bias or size — shadow
+  strength depended on the hash, not the blade. Facing the light gives every blade its full
+  projected width. It is a deliberate bias to compensate for the shadow map not resolving blades;
+  real edge-on blades genuinely cast almost nothing.
+- **Width × `shadowWidthScale`** (default 2.0, live via `/api/debug/grass`). This replaced a
+  shadow-*texel* clamp that sized the shadow to the shadow map rather than to the blade, so it grew
+  with shadow distance: 0.50 u of shadow for a ~0.10 u blade at 420 u — a smudge ~5× wider than its
+  caster. **Consequence, by design:** shadow width now tracks the blade, so a blade under one texel
+  stops casting rather than smearing. Fixing *that* needs a near cascade, not a wider blade.
+
+**Verified** on the single-blade rig (`tools/grass_shadow_verify.py`, project `GrassShadowLab`) at
+shadow distances 40/80/160/420 with a grass-removed control changing 0 px. **Not verified:** the
+shipped configuration — the rig runs at `bladesPerVoxel = 1`, where the density compensation sits
+at its 2.6× cap making the blade ~0.104 u, about **2.6× wider than a dense-field blade (~0.040 u)**.
+Thresholds measured on the rig are optimistic for real grass.
+
+⚠️ **Instrumenting the shadow pass:** do not write counters into `lastFrameStats` — `drawFrame()`
+clears it *after* the shadow pass, so the numbers read back as zero and look like "nothing was
+submitted" (`RenderCoordinator.cpp:1791`). This cost a wrong "0 grass casters" conclusion when 189
+were real.
 
 ## Reference techniques (grounded)
 

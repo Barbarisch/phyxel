@@ -394,6 +394,7 @@ public:
     VkBuffer getGrassBuffer() const { return renderManager.getGrassBuffer(); }
     uint32_t getGrassCount() const { return renderManager.getGrassCount(); }
     VkDeviceSize getGrassBindOffset() const { return renderManager.getGrassBindOffset(); }
+    const std::vector<GrassInstanceData>& getGrassInstances() const { return renderManager.getGrassInstances(); }
 
     // Foliage leaf-card layer: parallel per-chunk buffer + instance count.
     VkBuffer getFoliageBuffer() const { return renderManager.getFoliageBuffer(); }

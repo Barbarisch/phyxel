@@ -1,5 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // shared ambient / shadow / aerial-perspective model
 
 layout(location = 0) in flat uint textureIndex;  // from vertex shader
 layout(location = 1) in vec2 texCoord;           // from vertex shader
@@ -24,6 +25,13 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float ambientLight;
     float emissiveMultiplier;
     vec3 cameraPosition;
+    mat4 reflectedViewProj;
+    float elapsedTime;
+    mat4 viewProj;
+    mat4 biasedLightSpace;
+    vec3 cameraWorld;
+    int  debugShadowMode;   // 1 = shadow-only debug view (see lighting.glsl phxShadowOnly)
+    float shadowDepthRange; // world-unit depth span of the light volume (bias normalization)
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
@@ -187,26 +195,6 @@ float calcAttenuation(float d, float radius) {
     return atten * falloff;
 }
 
-// 16-sample Poisson disk for soft shadow PCF
-const vec2 poissonDisk[16] = vec2[](
-    vec2(-0.94201624,  -0.39906216),
-    vec2( 0.94558609,  -0.76890725),
-    vec2(-0.094184101, -0.92938870),
-    vec2( 0.34495938,   0.29387760),
-    vec2(-0.91588581,   0.45771432),
-    vec2(-0.81544232,  -0.87912464),
-    vec2(-0.38277543,   0.27676845),
-    vec2( 0.97484398,   0.75648379),
-    vec2( 0.44323325,  -0.97511554),
-    vec2( 0.53742981,  -0.47373420),
-    vec2(-0.26496911,  -0.41893023),
-    vec2( 0.79197514,   0.19090188),
-    vec2(-0.24188840,   0.99706507),
-    vec2(-0.81409955,   0.91437590),
-    vec2( 0.19984126,   0.78641367),
-    vec2( 0.14383161,  -0.14100790)
-);
-
 void main() {
     // Sample albedo + normal/roughness for this face (handles the mixed-res class split).
     vec4 textureColor;
@@ -283,25 +271,26 @@ void main() {
         rough = min(rough, 0.15);
     }
 
-    // Shadow — 16-sample Poisson disk PCF (uses the geometric normal's shadow coord).
-    // Only inside the shadow map's [0,1] UV footprint; outside it (beyond the fitted volume)
-    // there is no shadow data, so treat as lit rather than sampling the clamped edge (which would
-    // smear the border texel's occlusion across everything off to the side).
+    // Shadow — CONTACT-HARDENING soft shadows (PCSS). The old path was a fixed 1.5-texel
+    // Poisson PCF: razor-hard edges that showed every shadow-map stair-step, an identical
+    // sample pattern on every pixel (visible banding in the penumbra), and a hard cutoff at
+    // the map border. Three changes, in order of visual impact:
+    //   1. BLOCKER SEARCH -> variable penumbra. Real shadows are sharp where the occluder
+    //      touches the receiver and blur with separation; a constant-width filter is the
+    //      single most "CG" thing about a shadow. Penumbra scales with occluder distance.
+    //   2. PER-PIXEL ROTATION of the Poisson disk (interleaved gradient noise). A fixed disk
+    //      repeats its pattern across the screen and reads as banding once the filter is
+    //      wide enough to matter; rotating each pixel turns that into fine dither.
+    //   3. BORDER FADE. Beyond the fitted volume there is no shadow data, and snapping to
+    //      fully-lit drew a visible line across the ground at the shadow distance.
+    // Shadow: contact-hardening PCSS from the shared model (lighting.glsl). Bias,
+    // penumbra, per-pixel dither rotation and border fade all live there, so this pass
+    // cannot drift from grass/foliage the way five hand-synced copies did.
     float shadowFactor = 1.0;
-    bool inShadowMap = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 &&
-                       shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
-    if (!isEmissive && inShadowMap && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
-        float shadowSum = 0.0;
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        // Small constant bias: the shadow pass records occluder BACK faces (front-face culled),
-        // so receivers no longer self-shadow and this can be tiny — keeping shadows attached to
-        // bases (no peter-panning) instead of the old large 0.005 bias.
-        const float kShadowBias = 0.0006;
-        for (int i = 0; i < 16; i++) {
-            float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
-            if (shadowCoord.z - kShadowBias > pcfDepth) shadowSum += 1.0;
-        }
-        shadowFactor = 1.0 - (shadowSum / 16.0);
+    if (!isEmissive) {
+        float ndlForBias = dot(N, normalize(-ubo.sunDirection));
+        shadowFactor = phxShadowPCSS(shadowMap, shadowCoord, ndlForBias, gl_FragCoord.xy,
+                                     ubo.shadowDepthRange);
     }
 
     if (isEmissive) {
@@ -320,11 +309,10 @@ void main() {
     // fill level. A convex (gamma) curve on skylight makes partial sky fall off fast, so
     // interiors read dramatically dimmer than outdoors. kAmbientFloor keeps fully-sealed cells
     // from being pitch black before block lights (Phase 2) exist.
-    const float kAmbientFloor = 0.02;
-    const float kSkyFill = 0.35;                        // sky ambient as a fraction (fill, not key)
-    float skyCurve = vSkyLight * vSkyLight;             // gamma ~2 falloff
-    float skyAmbient = ubo.ambientLight * skyCurve * kSkyFill;
-    vec3 color = (skyAmbient + kAmbientFloor) * albedo;
+    // Sky ambient = soft FILL (never the key light), hemispherical and gated by baked
+    // skylight. Model + constants: lighting.glsl.
+    float skyCurve = phxSkyGate(vSkyLight);
+    vec3  color = phxAmbient(N, vSkyLight, ubo.ambientLight) * albedo;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by
     // sky access (curved) so surfaces with no sky exposure don't receive direct sun. This is
@@ -383,5 +371,10 @@ void main() {
         color += e * albedo * ubo.emissiveMultiplier;
     }
 
+    // Aerial perspective (shared curve - lighting.glsl). inWorldPos is ALREADY
+    // camera-relative in this pass, so it IS the camera->fragment vector.
+    color = phxAerialPerspective(color, inWorldPos, ubo.sunDirection, ubo.sunColor);
+
+    if (ubo.debugShadowMode != 0) { outColor = phxShadowOnly(shadowFactor); return; }
     outColor = vec4(color, textureColor.a);
 }

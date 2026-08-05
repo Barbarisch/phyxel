@@ -384,9 +384,26 @@ void WaterManager::rebuildSurface() {
                 strength = 0.55f;
             }
         }
+        // KINEMATIC DEPTH (world-look B3, "creeks have foam and mist but almost no water"):
+        // a creek's pin is DELIBERATELY a sub-hold film — that is the flood-safety invariant —
+        // but reporting that film as the column depth made water alpha ~0 while the flow-keyed
+        // foam below drew at full strength: foam and mist on a visibly dry bed. Floor the
+        // SHADING depth at the baked channel's carve depth, exactly the philosophy of the
+        // kinematic flow above: a visual truth over a hydrostatically static field. The sim's
+        // mass, the pin and the donor gate are untouched (CreekPinIsFractionalAndConfined),
+        // and the surface GEOMETRY (ref/floorY/skirts) keeps the honest depth — only what the
+        // shader is told about thickness changes.
+        float shadeDepth = c.depth;
+        if (m_riverFn) {
+            const float carve = m_riverFn(wX + 0.5f, wZ + 0.5f);
+            if (carve > 0.0f) shadeDepth = std::max(shadeDepth, std::min(carve, 1.0f));
+        }
+        out.centerDepth.w = shadeDepth;
         // Foam where the water is both moving and SHALLOW — that is where a real stream breaks
-        // white over its bed. Deep fast water (a river's middle) stays smooth.
-        const float shallow = 1.0f - std::min(c.depth / 2.0f, 1.0f);
+        // white over its bed. Deep fast water (a river's middle) stays smooth. Keyed on the
+        // kinematic depth so a creek foams like the sub-voxel stream it is shaded as, not like
+        // a near-dry bed (which maximised foam on exactly the cells with the least visible water).
+        const float shallow = 1.0f - std::min(shadeDepth / 2.0f, 1.0f);
         const float foam = std::min(strength * (0.35f + 0.65f * shallow), 1.0f);
         out.flow = glm::vec4(fdir.x, fdir.y, strength, foam);
         out.skirt = glm::vec4(edge(c.x + 1, c.z, std::min(cPN, cPP), wX + 1.0f, wZ + 0.5f),  // +x

@@ -1,0 +1,101 @@
+{
+  "name": "ProvingGrounds",
+  "description": "THE showcase/regression world: one streaming terrain-v2 world that exercises every distance-scaling system at once \u2014 mountains, hydrology-fed lakes, open grass fields, dense forests, flora, fauna, and an engine-generated village on rolling hills. Built to be MEASURED, not just looked at: see the 'testVantages' block and tools/proving_grounds_probe.py.",
+  "world": {
+    "type": "Perlin",
+    "seed": 80125,
+    "_comment_streaming": "streaming:true is NON-NEGOTIABLE here and is not a perf setting. It is the only path that (a) runs the hydrology bake, so lakes/ponds/rivers exist at all, (b) enables the biome fauna system, and (c) streams chunks at the REAL surface. Terrain-v2 puts the surface hundreds of voxels above kSeaLevelY=16, so a static from/to range would generate deep underground stone and render as a flat grey plane (CLAUDE.md, 'the surface is HIGH').",
+    "streaming": true,
+    "_comment_radii": "loadRadius 7 = 224u resident, unloadRadius 10 = 320u. Chosen to sit just past the 192u grass radius so the grass band is fully populated, while the far tiers (far terrain 4096u + far-LOD chunks) own everything beyond. Raising these is the R^2 residency wall \u2014 do that deliberately, not casually.",
+    "loadRadius": 7,
+    "unloadRadius": 10,
+    "params": {
+      "climateFrequency": 0.004,
+      "_comment": "climateFrequency is the BIOME SIZE knob (higher = smaller biomes). 0.004 gives ~250-unit biomes, tuned so ONE frame can contain both a dense forest and an open field. 0.0022 (~455u) was too coarse: a single biome filled the entire view, so the world read as endless plains with no forest anywhere near spawn."
+    }
+  },
+  "water": {
+    "_comment": "seaLevel is MEASURED, never assumed \u2014 see CLAUDE.md and WaterLab. It is written into the world recipe on FIRST boot and the stored recipe then WINS over this file (GameDefinitionLoader warns and keeps the recipe), so changing it later requires deleting worlds/default.db and regenerating. The value here was set from a get_terrain_height survey; if you regenerate with a new seed you MUST re-measure.",
+    "enabled": true,
+    "seaLevel": 16,
+    "oceanBoundary": true,
+    "evaporation": true
+  },
+  "camera": {
+    "_comment": "Spawn vantage. The reproducible measurement poses live in testVantages below \u2014 do not repurpose this one for probes.",
+    "position": {
+      "x": 0,
+      "y": 96,
+      "z": 96
+    },
+    "yaw": -90,
+    "pitch": -14
+  },
+  "player": {
+    "type": "animated",
+    "position": {
+      "x": 0,
+      "y": 90,
+      "z": 0
+    }
+  },
+  "testVantages": {
+    "_comment": "THE POINT OF THIS WORLD. Fixed, documented poses -- one per system under test -- so every run is comparable to the last. Consumed by tools/proving_grounds_probe.py --measure. Treat these like WaterLab's pinned camera: changing one silently invalidates every archived measurement taken from it. Coordinates were chosen against the REAL generated terrain (get_terrain_height + eyes on), not guessed.",
+    "vantages": [
+      {
+        "name": "village_street",
+        "x": -33,
+        "y": 53,
+        "z": 0,
+        "yaw": -90,
+        "pitch": -4,
+        "tests": "Near-field detail: generated structures at eye level, sub/microcube walls, villager NPCs, street paving, grass at full authored density."
+      },
+      {
+        "name": "village_overlook",
+        "x": -33,
+        "y": 92,
+        "z": 60,
+        "yaw": -90,
+        "pitch": -26,
+        "tests": "Whole settlement in frame over rolling hills, with the lake behind. The composition shot; also the densest single view of generated geometry."
+      },
+      {
+        "name": "grass_field",
+        "x": 60,
+        "y": 58,
+        "z": -40,
+        "yaw": -90,
+        "pitch": -5,
+        "tests": "Grass density LOD across all five bands + the 192u radius edge. Nearly grazing pitch so blade silhouette and the meadow height field read clearly."
+      },
+      {
+        "name": "lake_and_hills",
+        "x": 0,
+        "y": 190,
+        "z": 0,
+        "yaw": -135,
+        "pitch": -18,
+        "tests": "Water surface + shoreline + rolling hills + far terrain composed in one frame. The hydrology-fed lake is the small-water-body case."
+      },
+      {
+        "name": "horizon_far",
+        "x": 0,
+        "y": 150,
+        "z": 140,
+        "yaw": -90,
+        "pitch": -8,
+        "tests": "Far terrain to the 4096u horizon. Reverse-Z is load-bearing here: this pose was impossible without an infinite far plane."
+      },
+      {
+        "name": "village_from_afar",
+        "x": -33,
+        "y": 180,
+        "z": 700,
+        "yaw": -90,
+        "pitch": -12,
+        "tests": "THE FAR-LOD CHUNK TEST (C3.3). At 700u the village is far outside unloadRadius (320u), so it is NOT resident -- anything visible is drawn from the persisted LOD pyramids. far_chunks > 0 here is the whole point; if it reads 0 the tier is dead."
+      }
+    ]
+  }
+}

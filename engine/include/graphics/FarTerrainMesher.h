@@ -2,6 +2,8 @@
 
 #include "graphics/FarTerrainTypes.h"
 #include <memory>
+#include <mutex>
+#include <vector>
 
 namespace Phyxel { class WorldGenerator; }
 
@@ -40,9 +42,25 @@ public:
     /// (key.x, key.z) * tileSize. Deterministic for a given generator config.
     FarTileMesh buildTile(const FarTileKey& key, int step);
 
+    /// Impostor range: tree instances are planned for tiles with step <= this (rings whose
+    /// bands sit inside ~2 km). Beyond that a tree is sub-pixel and the cost is pure waste.
+    static constexpr int kTreeMaxStep = 8;
+
+    /// World-XZ rects (minX, minZ, maxX, maxZ) where planTrees must not place trees —
+    /// placed-structure footprints (the near field has none there either: structure builds
+    /// edited those chunks). Thread-safe: called from the main thread, read on the worker.
+    void setTreeExclusions(std::vector<glm::vec4> rects);
+
 private:
+    /// Fill mesh.trees from the deterministic flora plan (world-look A1 rethink): filter to
+    /// tree-class templates, subsample by ring coarseness, anchor to the tile's quantized
+    /// surface (never floating — the exact defect the chunk-squash representation had).
+    void planTrees(FarTileMesh& mesh, float yBias);
+
     std::unique_ptr<WorldGenerator> m_generator;
     FarMaterialResolver m_resolveTex;
+    std::vector<glm::vec4> m_treeExclusions;   // guarded by m_exclusionMutex
+    mutable std::mutex m_exclusionMutex;
 };
 
 } // namespace Graphics

@@ -42,16 +42,22 @@ layout(push_constant) uniform PushConstants {
     vec4 params3;    // x = core spacing, y = core half-extent, z = hydro originZ, w = hydro invCellSize (0 = flat)
 } pc;
 
-// Same lookup as water.vert (kept in sync by hand — 12 lines; the include is frag-only).
-float basinLevelAt(vec2 worldXZ) {
+// Same lookup as water.vert (kept in sync by hand — the include is frag-only). Unlike the vert
+// copy this one must DISTINGUISH the dry sentinel from real water: the fallback level looks
+// identical to open sea, and collapsing the two is what made the layer draw an endless phantom
+// ocean over geometry-free dry land (world-look B1 — the gate consuming dryLand lives in
+// water_common.glsl).
+float basinLevelAt(vec2 worldXZ, out float dryLand) {
+    dryLand = 0.0;
     float invCell = pc.params3.w;
-    if (invCell <= 0.0) return pc.params.x;
+    if (invCell <= 0.0) return pc.params.x;   // flat-sea mode: no bake bound at all
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
-        return pc.params.x;
+        return pc.params.x;                   // beyond the ±16 km bake: open ocean
     float l = texelFetch(hydroLevelTex, ivec2(cellF), 0).r;
-    return (l < -1e5) ? pc.params.x : l;
+    if (l < -1e5) { dryLand = 1.0; return pc.params.x; }
+    return l;
 }
 
 #include "water_common.glsl"
@@ -92,7 +98,9 @@ void main() {
     // (not taken from the vertex) so the stretched wall quads at basin rims gate against their
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
-    inp.restLevelY   = basinLevelAt(fragWorldPos.xz);
+    float dryLand;
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, dryLand);
+    inp.dryLand      = dryLand;
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at
     // different levels (lake rim, lake→dry falloff), the connecting quad is a vertical wall

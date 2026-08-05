@@ -4,6 +4,8 @@
 #include "scene/behaviors/PatrolBehavior.h"
 #include "core/NPCManager.h"
 #include "core/InteractionManager.h"
+#include "core/NavGrid.h"
+#include "core/AStarPathfinder.h"
 #include "core/EntityRegistry.h"
 #include "scene/Entity.h"
 #include <glm/glm.hpp>
@@ -79,6 +81,42 @@ protected:
     std::unique_ptr<StubEntity> entity;
     Scene::NPCContext ctx;
 };
+
+// World-look D1 ("animals not always patrolling"): a wander NPC has exactly ONE waypoint, so
+// PatrolBehavior's retreat branch (needs >1) can never fire, and a failed path put it in a
+// 2-second retry loop against the SAME random target at zero velocity — FOREVER. Measured live:
+// 40k "findPath failed: startCell=NULL" in 10 minutes with every fauna NPC frozen, because
+// FaunaSpawner follows the camera far outside the once-built ≤512² NavGrid region (which never
+// grows into streamed chunks). Off-grid open terrain is exactly where direct-line steering
+// works — pathfinder-less animals always roamed fine — so a failed wander path must fall back
+// to walking the leg directly, not freeze. RED before the fix: velocity stays zero forever.
+TEST_F(PatrolBehaviorTest, WanderOffTheNavGridWalksDirectInsteadOfFreezing) {
+    Core::NavGrid grid([](const glm::ivec3&) { return false; });  // no cells anywhere — off-grid
+    Core::AStarPathfinder pathfinder(&grid);
+
+    Scene::PatrolBehavior wander({}, 2.0f, 0.0f);
+    wander.setPathfinder(&pathfinder);
+    wander.setWanderMode(entity->getPosition(), 6.0f, 0.0f, 0.0f);
+
+    // Integrate the commanded velocity into position ourselves (the stub has no physics).
+    // The assertion is on TRAVELLED DISTANCE, not on "any nonzero velocity": the broken
+    // behaviour still emitted one moving frame per 2-second retry cycle (the failure frame
+    // falls through to the movement code before the retry timer engages next frame), which a
+    // weaker check mistakes for wandering. Live, that twitch was ~0.5u of drift in 10 minutes.
+    float travelled = 0.0f;
+    const float dt = 0.1f;
+    for (int i = 0; i < 200; ++i) {   // 20 simulated seconds — ten full retry cycles
+        wander.update(dt, ctx);
+        const glm::vec3 step = entity->lastMoveVelocity * dt;
+        travelled += glm::length(step);
+        entity->setPosition(entity->getPosition() + step);
+    }
+    // Walking legs at 2 u/s for even half the window is >= 20u; the retry-loop twitch
+    // manages ~2u. The threshold sits far from both so noise can't flip it.
+    EXPECT_GT(travelled, 10.0f)
+        << "wander NPC with an unpathable target is frozen in the retry loop (travelled "
+        << travelled << "u in 20s at speed 2)";
+}
 
 TEST_F(PatrolBehaviorTest, BehaviorName) {
     Scene::PatrolBehavior patrol({}, 2.0f, 1.0f);

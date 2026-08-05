@@ -12,6 +12,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "graphics/FarTerrainManager.h"
+#include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
@@ -349,6 +350,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     renderCoordinator->setEntities(&entities);
+    // WRv2 M2: give the instanced far-tree mesh tier its template source (templates loaded
+    // in STEP 4.5 above). Captured raw pointer outlives the render coordinator — both are
+    // application-lifetime.
+    renderCoordinator->setTreeTemplateProvider(
+        [tm = objectTemplateManager.get()](const std::string& name) {
+            return tm ? tm->getTemplate(name) : nullptr;
+        });
 
     // Initialize custom UI system (non-ImGui menus)
     renderCoordinator->initUISystem();
@@ -463,7 +471,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 break;
             }
         }
-        std::string model = engineConfig.aiModel.empty() ? "claude-sonnet-4-20250514" : engineConfig.aiModel;
+        std::string model = engineConfig.aiModel.empty() ? "claude-sonnet-5" : engineConfig.aiModel;
         std::string apiKey = engineConfig.aiApiKey;
         // Fallback: try reading env var directly (in case EngineConfig didn't pick it up)
         if (apiKey.empty()) {
@@ -3395,6 +3403,64 @@ void Application::update(float deltaTime) {
         npcManager->update(deltaTime);
     }
 
+    // Far-tree exclusion zones: placed-structure footprints where the deterministic flora
+    // plan must not grow far trees (the near chunks were EDITED by the structure build, so
+    // the plan's trees exist only in the plan — rendered as-is they poke through buildings
+    // at LOD range; user-reported over the PG village). Polled on a 1s cadence; the far
+    // manager no-ops when the rect set is unchanged, so steady state costs one comparison.
+    m_farTreeExclusionPoll += deltaTime;
+    if (m_farTreeExclusionPoll >= 1.0f && placedObjectManager && renderCoordinator) {
+        m_farTreeExclusionPoll = 0.0f;
+        if (auto* ft = renderCoordinator->getFarTerrainManager()) {
+            // One padded rect per structure CLUSTER, not per structure: a settlement edits
+            // far more ground than its buildings' AABBs — yards, fences, streets, the
+            // plaza — and the pristine flora plan claims trees on all of it (user repro:
+            // a LOD tree fading in over a house's backyard, gone once the real — edited,
+            // treeless — chunks stream in). Structures whose padded rects touch merge
+            // until stable, so a village becomes one exclusion blob covering the gaps
+            // between houses, while an isolated shed only claims its own small margin.
+            constexpr float kPad = 20.0f;   // yard/street reach beyond a structure's AABB
+            std::vector<glm::vec4> rects;
+            for (const auto& [id, obj] : placedObjectManager->getAllObjects()) {
+                if (obj.category != "structure") continue;   // furniture is sub-tree-scale
+                rects.push_back(glm::vec4(float(obj.boundingMin.x) - kPad,
+                                          float(obj.boundingMin.z) - kPad,
+                                          float(obj.boundingMax.x) + kPad,
+                                          float(obj.boundingMax.z) + kPad));
+            }
+            // Agglomerative merge to fixpoint (rect count is tiny; runs on a 1s cadence).
+            for (bool merged = true; merged;) {
+                merged = false;
+                for (size_t i = 0; i < rects.size() && !merged; ++i) {
+                    for (size_t j = i + 1; j < rects.size() && !merged; ++j) {
+                        const glm::vec4 &a = rects[i], &b = rects[j];
+                        if (a.x <= b.z && b.x <= a.z && a.y <= b.w && b.y <= a.w) {
+                            rects[i] = glm::vec4(std::min(a.x, b.x), std::min(a.y, b.y),
+                                                 std::max(a.z, b.z), std::max(a.w, b.w));
+                            rects.erase(rects.begin() + j);
+                            merged = true;
+                        }
+                    }
+                }
+            }
+            // Deterministic order so an unchanged set compares equal (map order isn't).
+            std::sort(rects.begin(), rects.end(), [](const glm::vec4& a, const glm::vec4& b) {
+                return std::tie(a.x, a.y, a.z, a.w) < std::tie(b.x, b.y, b.z, b.w);
+            });
+            ft->setTreeExclusions(std::move(rects));
+
+            // Structure LOD targets (WRv2 §8): same poll feeds the per-structure mesh tier
+            // so distant settlements degrade like trees instead of vanishing.
+            std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>> targets;
+            for (const auto& [id, obj] : placedObjectManager->getAllObjects()) {
+                if (obj.category != "structure") continue;
+                targets.emplace_back(obj.uuid.empty() ? id : obj.uuid,
+                                     obj.boundingMin, obj.boundingMax);
+            }
+            renderCoordinator->setStructureLodTargets(targets);
+        }
+    }
+
     // Biome-driven wildlife population: scatter/despawn wandering animals around the camera
     // as it moves through a streaming world. Only active when a streaming generator exists
     // (fixed-region worlds don't stream biomes); configured lazily once it's available.
@@ -3865,11 +3931,17 @@ void Application::update(float deltaTime) {
         // generation + face finalize is heavy; the per-update cap bounds it further.
         if (chunkManager->isStreamingGenerationEnabled()) {
             static int s_streamTick = 0;
+            // View-cone load priority: what the camera looks at streams first, refreshed
+            // every frame so panning dynamically reprioritizes the worker queue.
+            if (camera) chunkManager->setStreamingViewDirection(camera->getFront());
             // Pump every 2nd frame (was 6th): with the deeper worker queue + higher landing
             // cap (large-world throughput pass), the pump interval was the remaining inflow
             // bottleneck. Still >= frames-in-flight, preserving the frame-deferred-deletion
             // safety contract in unloadDistantChunks.
+            // Off frames drain LANDINGS only (no unload — its frame-deferred-deletion
+            // cadence contract is untouched): doubles finished-chunk inflow on refills.
             if (++s_streamTick >= 2) { s_streamTick = 0; chunkManager->updateChunkStreaming(); }
+            else chunkManager->pumpChunkLanding();
         }
         // Stream-in boot (Phase 2): land deferred DB chunks in the background.
         // No-op once the boot backlog has drained.
@@ -3952,14 +4024,18 @@ void Application::update(float deltaTime) {
     lastCameraPos = cameraPos;
 
     glm::mat4 view = camera->getViewMatrix();
-    glm::mat4 proj = glm::perspective(
-        glm::radians(45.0f), 
-        static_cast<float>(windowManager->getWidth()) / static_cast<float>(windowManager->getHeight()), 
-        0.1f, 
-        maxChunkRenderDistance  // Use configurable render distance
-    );
-    proj[1][1] *= -1; // Flip Y for Vulkan
-    
+    // MUST go through Camera::getProjectionMatrix — it owns the REVERSE-Z convention
+    // (graphics/DepthConvention.h). This used to hand-roll `glm::perspective` + a Y-flip, which is
+    // a SECOND definition of the projection: it silently stayed forward-Z while every scene
+    // pipeline moved to a GREATER depth test, and it also re-hardcoded the 45-degree FOV that
+    // Camera::kFovYDegrees exists to be the single source of for the LOD metric. The matrix feeds
+    // updateCameraFrustum(), so a stale convention here mis-assigns the near/far frustum planes.
+    // Same class of duplication as the four render-distance settings — do not reintroduce it.
+    glm::mat4 proj = camera->getProjectionMatrix(
+        static_cast<float>(windowManager->getWidth()) / static_cast<float>(windowManager->getHeight()),
+        0.1f,
+        maxChunkRenderDistance);
+
     // Store matrices for use in render functions
     cachedViewMatrix = view;
     cachedProjectionMatrix = proj;
@@ -8039,8 +8115,21 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("windStrength",    -1.0f),
                 cmd.params.value("bladesPerVoxel",  -1),
                 bladeStyle,
-                cmd.params.value("pushStrength",    -1.0f));   // character-interaction bend (0 = off)
-            response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()}};
+                cmd.params.value("pushStrength",    -1.0f),    // character-interaction bend (0 = off)
+                cmd.params.value("bladeWidth",      -1.0f));   // width multiplier (1.0 = authored)
+            // Shadow CASTING toggle — the A/B control for "do blades actually cast?".
+            if (cmd.params.contains("castShadows"))
+                Graphics::GrassRenderPipeline::s_castShadows =
+                    cmd.params["castShadows"].get<bool>();
+            // Shadow proxy width as a MULTIPLE of the real blade width (1.0 = identical,
+            // 2.0 = double). Sized to the blade, not to the shadow map, so the shadow stays
+            // proportional instead of growing with shadow distance.
+            if (cmd.params.contains("shadowWidthScale"))
+                Graphics::GrassRenderPipeline::s_shadowWidthScale =
+                    std::max(0.01f, cmd.params["shadowWidthScale"].get<float>());
+            response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()},
+                        {"cast_shadows", Graphics::GrassRenderPipeline::s_castShadows},
+                        {"shadow_width_scale", Graphics::GrassRenderPipeline::s_shadowWidthScale}};
         }
         return true;
 
@@ -8057,7 +8146,17 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 cmd.params.value("windStrength",   -1.0f),
                 cmd.params.value("cardsPerVoxel",  -1),
                 cmd.params.value("radius",         -1.0f));
-            response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()}};
+            // Canopy thinning: a MESH-time knob, so changing it must re-bake chunk meshes.
+            if (cmd.params.contains("density")) {
+                Graphics::ChunkRenderManager::setFoliageDensity(
+                    std::clamp(cmd.params["density"].get<float>(), 0.05f, 1.0f));
+                if (chunkManager) {
+                    for (const auto& ch : chunkManager->chunks)
+                        if (ch) chunkManager->markChunkForRemesh(ch.get());
+                }
+            }
+            response = {{"success", true}, {"foliage_enabled", renderCoordinator->isFoliageEnabled()},
+                        {"density", Graphics::ChunkRenderManager::getFoliageDensity()}};
         }
         return true;
 
@@ -8105,6 +8204,9 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         }
         if (cmd.params.contains("enabled")) ft->params().enabled = cmd.params.value("enabled", false);
         if (cmd.params.contains("maxDistance")) ft->params().maxDistance = cmd.params.value("maxDistance", 2048.0f);
+        // A/B attribution: far TREES (mesh + card tiers) without touching the terrain tiles.
+        if (cmd.params.contains("trees") && renderCoordinator)
+            renderCoordinator->setFarTreesEnabled(cmd.params.value("trees", true));
         response = {{"success", true}, {"enabled", ft->params().enabled}};
         if (cmd.params.value("debug_tile", false)) {
             if (!ft->isConfigured()) {
@@ -8128,12 +8230,22 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             const auto& s = renderCoordinator->getLastFrameStats();
             // T0: per-chunk mesh (rebuildAllFaces) cost — the op we're moving off-thread.
             const auto mt = Graphics::ChunkRenderManager::getMeshTimingStats();
+            // WRv2 M2 deadzone metric: tree instances per 50u annulus, per tier.
+            nlohmann::json meshAnnuli = nlohmann::json::array();
+            nlohmann::json cardAnnuli = nlohmann::json::array();
+            for (int i = 0; i < Graphics::RenderCoordinator::RenderStats::kTreeAnnuli; ++i) {
+                meshAnnuli.push_back(s.farTreeMeshAnnuli[i]);
+                cardAnnuli.push_back(s.farTreeCardAnnuli[i]);
+            }
             response = {
                 {"mirror_pass_ran",          s.mirrorPassRan},
                 {"reflection_draw_calls",    s.reflectionDrawCalls},
                 {"mirror_geom_draw_calls",   s.mirrorGeomDrawCalls},
                 {"visible_chunk_count",      s.visibleChunkCount},
                 {"total_visible_faces",      s.totalVisibleFaces},
+                {"far_trees",                s.farTrees},
+                {"far_tree_mesh_annuli",     meshAnnuli},
+                {"far_tree_card_annuli",     cardAnnuli},
                 // Character culling/batching (docs/CharacterPipelineScaling.md Tier 1).
                 {"characters", {
                     {"considered",    renderCoordinator->getCharacterRenderStats().considered},
@@ -12572,12 +12684,65 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("budget"))
             Graphics::RenderCoordinator::s_farLodBudgetPerFrame =
                 std::max(1, cmd.params["budget"].get<int>());
+        // Quarantined default-off (floating coarse-tree cells) — opt-in for look-fix iteration.
+        if (cmd.params.contains("eviction_cache"))
+            Core::EvictedLodCache::s_evictionFeedEnabled =
+                cmd.params["eviction_cache"].get<bool>();
         r = {{"success", true},
              {"far_lod", Graphics::RenderCoordinator::s_farLodChunks},
+             {"eviction_cache", Core::EvictedLodCache::s_evictionFeedEnabled},
              {"budget", Graphics::RenderCoordinator::s_farLodBudgetPerFrame}};
         if (renderCoordinator) {
             r["far_chunks"] = renderCoordinator->farLodChunkCount();
             r["far_instances"] = renderCoordinator->farLodInstanceCount();
+        }
+        if (chunkManager) {
+            // World-look A1/A2: the in-memory evicted-LOD source feeding the far tier.
+            r["evicted_cache_chunks"] = chunkManager->getEvictedLodCache().chunkCount();
+            r["evicted_cache_bytes"] = chunkManager->getEvictedLodCache().totalBytes();
+        }
+    });
+
+    // Tree-LOD harness support: the deterministic flora plan near a coordinate — the SAME
+    // planFlora both near stamping and the far tiers consume, so a harness can aim its
+    // camera ladder at a real tree instead of guessing from screenshots.
+    reg.on("flora_plan", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        auto* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        if (!gen) { r = {{"error", "no streaming generator (world.streaming required)"}}; return; }
+        const int cx = cmd.params.value("x", 0);
+        const int cz = cmd.params.value("z", 0);
+        const int radius = std::clamp(cmd.params.value("radius", 64), 8, 512);
+        auto plan = gen->planFlora(cx - radius, cz - radius, cx + radius, cz + radius, 0);
+        nlohmann::json trees = nlohmann::json::array();
+        for (const auto& p : plan) {
+            trees.push_back({{"template", p.templateName}, {"x", p.worldX},
+                             {"y", p.surfaceY}, {"z", p.worldZ},
+                             {"procedural", p.procedural}});
+        }
+        r = {{"success", true}, {"count", plan.size()}, {"trees", trees}};
+    });
+
+    // Shadow draw distance A/B knob (WRv2 §7d): reach vs texel density vs draw count.
+    reg.on("set_shadow", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("distance"))
+            Graphics::RenderCoordinator::s_shadowDistance =
+                std::clamp(cmd.params["distance"].get<float>(), 32.0f, 2048.0f);
+        // Shadow-only debug view: strips albedo/ambient so ONLY the shadow term shows
+        // (white = lit, black = shadowed). The standard way to judge thin casters — a grass
+        // blade's shadow is a hairline that texture detail completely hides.
+        if (cmd.params.contains("mode") && vulkanDevice)
+            vulkanDevice->setDebugShadowMode(cmd.params["mode"].get<int>() != 0 ? 1 : 0);
+        r = {{"success", true},
+             {"distance", Graphics::RenderCoordinator::s_shadowDistance},
+             {"mode", vulkanDevice ? vulkanDevice->getDebugShadowMode() : 0}};
+        if (renderCoordinator) {
+            const auto& fs = renderCoordinator->getLastFrameStats();
+            r["shadow_chunks_drawn"] = fs.shadowChunksDrawn;
+            r["shadow_instances_drawn"] = fs.shadowInstancesDrawn;
+            r["shadow_grass_chunks"] = fs.shadowGrassChunks;
+            r["shadow_foliage_chunks"] = fs.shadowFoliageChunks;
+            // World size of one shadow texel — drives the grass blade width clamp.
+            r["shadow_texel_world"] = renderCoordinator->getShadowTexelWorld();
         }
     });
 

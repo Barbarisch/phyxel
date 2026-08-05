@@ -25,9 +25,18 @@ PathResult AStarPathfinder::findPath(const glm::vec3& start, const glm::vec3& go
     const NavCell* goalCell = m_grid->findNearestWalkable(goal);
 
     if (!startCell || !goalCell) {
-        LOG_WARN("AStarPathfinder", "findPath failed: startCell={} goalCell={}, start=({},{},{}) goal=({},{},{})",
-                 startCell ? "found" : "NULL", goalCell ? "found" : "NULL",
-                 start.x, start.y, start.z, goal.x, goal.y, goal.z);
+        // BOTH cells null = the query is entirely OUTSIDE the built nav region — routine for
+        // wandering fauna beyond the once-built grid (world-look D1; the caller direct-lines),
+        // and as a WARN it was the dominant line in the log. One cell null with the other
+        // found is a genuine in-grid failure and stays loud.
+        if (!startCell && !goalCell) {
+            LOG_DEBUG("AStarPathfinder", "findPath off-grid: start=({},{},{}) goal=({},{},{})",
+                      start.x, start.y, start.z, goal.x, goal.y, goal.z);
+        } else {
+            LOG_WARN("AStarPathfinder", "findPath failed: startCell={} goalCell={}, start=({},{},{}) goal=({},{},{})",
+                     startCell ? "found" : "NULL", goalCell ? "found" : "NULL",
+                     start.x, start.y, start.z, goal.x, goal.y, goal.z);
+        }
         return result;
     }
 

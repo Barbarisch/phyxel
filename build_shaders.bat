@@ -724,6 +724,20 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling grass shadow vertex shader...
+%GLSLANG% -V -I. shaders\grass_shadow.vert -o shaders\grass_shadow.vert.spv
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Failed to compile grass_shadow.vert
+    exit /b 1
+)
+
+echo Compiling grass shadow fragment shader...
+%GLSLANG% -V -I. shaders\grass_shadow.frag -o shaders\grass_shadow.frag.spv
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Failed to compile grass_shadow.frag
+    exit /b 1
+)
+
 echo Compiling grass fragment shader...
 %GLSLANG% -V -I. shaders\grass.frag -o shaders\grass.frag.spv
 if %errorlevel% neq 0 (
@@ -782,6 +796,38 @@ echo Compiling far terrain fragment shader...
 %GLSLANG% -V -I. shaders\far_terrain.frag -o shaders\far_terrain.frag.spv
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile far_terrain.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling far tree vertex shader...
+%GLSLANG% -V -I. shaders\far_tree.vert -o shaders\far_tree.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_tree.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling far tree fragment shader...
+%GLSLANG% -V -I. shaders\far_tree.frag -o shaders\far_tree.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_tree.frag
+    pause
+    exit /b 1
+)
+
+echo Compiling far tree mesh vertex shader...
+%GLSLANG% -V -I. shaders\far_tree_mesh.vert -o shaders\far_tree_mesh.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_tree_mesh.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling far tree mesh fragment shader...
+%GLSLANG% -V -I. shaders\far_tree_mesh.frag -o shaders\far_tree_mesh.frag.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_tree_mesh.frag
     pause
     exit /b 1
 )

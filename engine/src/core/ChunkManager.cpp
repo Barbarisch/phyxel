@@ -1,5 +1,7 @@
 #include "core/ChunkManager.h"
 #include "core/Chunk.h"
+#include "core/WorldGenerator.h"
+#include <climits>
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include <chrono>
 #include "core/WorldStorage.h"
@@ -41,6 +43,15 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
     m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
         syncChunkToOccupancy(origin);
+    });
+    // Far-LOD handoff (world-look A1/A2): an evicted chunk's coarse LOD is stashed in memory
+    // while its voxels are still alive, so unsaved generated content (trees, structures)
+    // degrades at distance instead of vanishing. Pristine chunks never reach the DB, making
+    // this the only place their far representation can come from.
+    m_streamingManager.setOnChunkEvicted([this](Chunk& chunk) {
+        // Quarantined default-OFF: coarse-squashed trees look broken (floating canopy cells,
+        // fattened trunk towers) — see EvictedLodCache::s_evictionFeedEnabled.
+        if (Core::EvictedLodCache::s_evictionFeedEnabled) m_evictedLodCache.stash(chunk);
     });
     // Phase 1 — generation wire: streamed chunks are filled by the configured world
     // generator (when enabled) instead of the legacy random fill.
@@ -206,7 +217,10 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // UpdateChunkFunc: Update single chunk
         [this](size_t index) { updateChunk(index); },
         // GetChunkIndexFunc: Get chunk index from pointer
-        [this](Chunk* chunk) { return getChunkIndex(chunk); }
+        [this](Chunk* chunk) { return getChunkIndex(chunk); },
+        // GetChunkAtCoordFunc: coord -> live chunk (null after eviction) — the tracker
+        // queues by coord so streaming eviction can't retarget queued remeshes.
+        [this](const glm::ivec3& coord) { return getChunkAtCoord(coord); }
     );
     
     // Configure voxel query system callbacks
@@ -241,6 +255,8 @@ bool ChunkManager::initializeWorldStorage(const std::string& worldPath) {
 
 void ChunkManager::disconnectWorldStorage() {
     m_streamingManager.disconnectWorldStorage();
+    // A world switch invalidates every cached far-LOD blob — they describe the OLD world.
+    m_evictedLodCache.clear();
 }
 
 void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::GenerationType type, uint32_t seed) {
@@ -262,6 +278,20 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
     // slow-finalize path still warns per chunk at 60ms.
     m_streamingManager.setMaxChunksPerUpdate(enabled ? 8 : 0);
 
+    // Surface-band query for the vertical wanted-set fix (elevated cameras: the ground in
+    // view must stream even when the camera's own band is high above it). Runs on the MAIN
+    // thread against the live streaming generator — safe: workers use private copies, and
+    // the streaming manager caches per column so steady-state cost is a hash lookup.
+    if (enabled) {
+        m_streamingManager.setSurfaceBandFn([this](int wx, int wz) -> int {
+            if (!m_worldGenerator) return INT_MIN;
+            const int surfaceY = m_worldGenerator->sampleSurface(wx, wz).surfaceY;
+            return surfaceY >= 0 ? surfaceY / 32 : (surfaceY - 31) / 32;
+        });
+    } else {
+        m_streamingManager.setSurfaceBandFn(nullptr);
+    }
+
     // Async worker wiring (snapshot + finalize) is set once in setupCallbacks();
     // the snapshot lambda returns null while streaming generation is disabled.
     LOG_INFO_FMT("Chunk", "Streaming generation " << (enabled ? "ENABLED" : "disabled")
@@ -271,6 +301,14 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
 
 void ChunkManager::updateChunkStreaming() {
     m_streamingManager.updateStreaming(playerPosition, loadDistance, unloadDistance);
+}
+
+void ChunkManager::pumpChunkLanding() {
+    m_streamingManager.pumpLanding(playerPosition, unloadDistance);
+}
+
+void ChunkManager::setStreamingViewDirection(const glm::vec3& dir) {
+    m_streamingManager.setViewDirection(dir);
 }
 
 void ChunkManager::loadChunksAroundPosition(const glm::vec3& position, float radius) {

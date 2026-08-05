@@ -12,9 +12,14 @@
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
 #include "ui/HudDataContext.h"
+#include "graphics/TreeLodMeshRegistry.h"
+#include "graphics/TreeLodRenderPipeline.h"
+#include <functional>
+#include <future>
 #include <memory>
 #include <chrono>
 #include <climits>
+#include <tuple>
 #include <vector>
 #include <cstdint>
 #include <unordered_map>
@@ -37,6 +42,7 @@ namespace Phyxel {
         class PerformanceMonitor;
     }
     class ChunkManager;
+    class VoxelTemplate;
     class PerformanceProfiler;
     class RaycastVisualizer;
     class ScriptingSystem;
@@ -48,6 +54,9 @@ namespace Phyxel {
         class GrassRenderPipeline;
         class FoliageRenderPipeline;
         class FarTerrainRenderPipeline;
+        class FarTreeRenderPipeline;
+        class TreeLodRenderPipeline;
+        class TreeLodMeshRegistry;
         class FarTerrainManager;
         class VfxRenderPipeline;
         class WaterRenderPipeline;
@@ -147,11 +156,15 @@ public:
 
     /// C5 (docs/ContinuousLodPlan.md): DISTANCE-DRIVEN LOD. Joins C1's screen-space metric to
     /// C4's cut — each chunk is meshed at the level where its cells stop being worth their
-    /// pixels. DEFAULT OFF; every timing so far applied one level GLOBALLY, which puts huge
-    /// quads right in front of the camera and is exactly the wrong way to use LOD.
+    /// pixels. DEFAULT OFF — its working window is only ~136-352 units (residency bounds it), and
+    /// that band is exactly where grass lives. Long-range view distance comes from far terrain +
+    /// the far-LOD chunk path instead. Full reasoning at the definition in RenderCoordinator.cpp.
     static bool s_distanceDrivenLod;
     /// Target on-screen size (pixels) for one LOD cell. Larger = coarsen sooner/harder.
     static float s_lodTargetPixels;
+    /// Coarsest LOD level distance selection may choose. Bounded below the ladder's max because
+    /// of the fattening defect — see the definition in RenderCoordinator.cpp.
+    static int s_lodMaxLevel;
     /// Chunk re-meshes allowed per frame. A full re-mesh is ~40-50 ms, so an unbounded
     /// budget would turn camera motion into a stutter storm.
     static int s_lodRebuildBudgetPerFrame;
@@ -166,8 +179,13 @@ public:
     // docs/evidence/lod_residency_wall_20260730.txt: a far chunk costs its coarse face buffer
     // (~18.7 KB at lod 2) instead of ~1.28 MB of resident chunk.
     //
-    // Default OFF. It draws geometry the streaming system does not own, so it must be opt-in
-    // until it has runtime evidence behind it.
+    // Default ON. This is the only tier that carries STRUCTURES and player EDITS past the
+    // residency radius — far terrain is generator-only and structurally cannot show a building.
+    // Sources, tried in order per chunk: (1) the in-memory EvictedLodCache — coarse LODs built
+    // at EVICTION time, which is what lets unsaved generated content (trees, structures) keep a
+    // far representation (world-look A1/A2); (2) the persisted pyramid in chunk_lod_blobs
+    // (saved/edited chunks, and anything from previous sessions). Plain distant terrain remains
+    // far terrain's job — pure-cube chunks are cached by neither source.
     static bool s_farLodChunks;
     static int  s_farLodBudgetPerFrame;   // buffers created per frame; creation is the hitch
     // NOTE: there is deliberately no reach cap any more. The candidate set comes from
@@ -194,6 +212,11 @@ public:
 
     int getLodRebuiltLastFrame() const { return m_lodRebuiltLastFrame; }
 
+    /// WRv2 M2: wire the template source for instanced far-tree LOD meshes (called by the
+    /// application once its ObjectTemplateManager has loaded templates). Until wired, the
+    /// mid band stays on impostor cards.
+    void setTreeTemplateProvider(std::function<const VoxelTemplate*(const std::string&)> p);
+
     /// C2.1 guard, as a PURE function so it is testable without a Vulkan device.
     /// `vkCmdDrawIndexedIndirect`'s firstInstance addresses instances by STRIDE, so a chunk's
     /// arena span byte offset is only addressable when it is an exact multiple of the instance
@@ -215,6 +238,9 @@ public:
 
     /// Debug-only scale override. 0 = derive from the live view (normal operation).
     static float s_forcedViewScale;
+    /// Shadow draw distance in world units (POST /api/debug/shadow {"distance": N}).
+    /// Trades reach against texel density AND shadow-pass draw count — measure FPS.
+    static float s_shadowDistance;
 
     struct CharacterLodDefaults {
         float lod1Distance = 35.0f;
@@ -285,11 +311,21 @@ public:
         int    farTilesResident      = 0;   // far-terrain LOD tiles resident on GPU
         int    farTilesDrawn         = 0;   // far-terrain tiles drawn last frame (post frustum cull)
         int    farTriangles          = 0;   // triangles across drawn far tiles
+        int    farTrees              = 0;   // far-tree impostor instances drawn last frame
+        // WRv2 M2 acceptance metric — tree instances drawn per 50u camera-distance annulus
+        // (tile-center distance × range count; 20 buckets to 1000u), split by tier. THE
+        // deadzone detector: a bare ring shows as an annulus collapsing vs its neighbors,
+        // as a number instead of a squint (docs/WorldRenderV2Plan.md §6).
+        static constexpr int kTreeAnnuli = 40;      // 50u each → 0..2000u (full tree range)
+        int    farTreeMeshAnnuli[kTreeAnnuli] = {}; // instanced-mesh tier
+        int    farTreeCardAnnuli[kTreeAnnuli] = {}; // card tier
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;
         long long shadowInstancesDrawn = 0;   // face instances (each drawn with 36 indices)
         int shadowMultidrawCalls = 0;  ///< C2.1: vkCmdDrawIndexedIndirect calls (one per arena buffer)
+        int shadowGrassChunks    = 0;  ///< grass chunks submitted as shadow CASTERS
+        int shadowFoliageChunks  = 0;  ///< foliage chunks submitted as shadow CASTERS
         float  mirrorPlaneX = 0, mirrorPlaneY = 0, mirrorPlaneZ = 0;
         float  mirrorNormalX = 0, mirrorNormalY = 0, mirrorNormalZ = 0;
         float  reflCamX = 0, reflCamY = 0, reflCamZ = 0;
@@ -565,10 +601,17 @@ private:
     int m_shadowChunksDrawn = 0;
     long long m_shadowInstancesDrawn = 0;
     int m_shadowMultidrawCalls = 0;
+    // Vegetation shadow CASTER counts. Must live here, not written straight into
+    // lastFrameStats: drawFrame() clears lastFrameStats AFTER the shadow pass and
+    // repopulates it from these members (see the note in renderShadowPass).
+    float m_shadowTexelWorld = 0.0f;  ///< 2*fittedRadius/mapWidth — drives the grass shadow clamp
+    int m_shadowGrassChunks = 0;
+    int m_shadowFoliageChunks = 0;
     int m_lodRebuiltLastFrame = 0;   ///< C5: chunks re-meshed for LOD last frame   ///< C2: vkCmdDrawIndexedIndirect calls issued this frame
     glm::ivec3 m_farLodLastScanChunk{INT_MIN};   ///< C3.3: rescan only on a chunk crossing
     bool m_farLodScanIncomplete = false;          ///< budget was hit; more may remain
-    std::vector<glm::ivec3> m_farLodCandidates;   ///< chunks with persisted pyramids
+    uint64_t m_farLodCacheRevision = ~0ull;       ///< EvictedLodCache::revision at last scan (also rescan when it moves — a chunk can evict while the camera is stationary)
+    std::vector<glm::ivec3> m_farLodCandidates;   ///< chunks with persisted pyramids OR in-memory evicted LODs
     std::vector<std::unique_ptr<FarLodChunk>> m_farLod;   ///< C3.3: non-resident chunks served from the persisted pyramid
     UI::ImGuiRenderer* imguiRenderer;
     UI::WindowManager* windowManager;
@@ -669,16 +712,55 @@ private:
 
     // Far-terrain LOD tiles (blocky heightmap columns beyond the real-chunk radius).
     std::unique_ptr<FarTerrainRenderPipeline> farTerrainPipeline;
+    std::unique_ptr<FarTreeRenderPipeline> farTreePipeline;   ///< far-tree impostor cards (tail)
+    std::unique_ptr<TreeLodRenderPipeline> treeLodPipeline;   ///< instanced tree LOD meshes (mid band)
+    /// Per-tile smoothed residency for the LOD→real tree handoff (key: tile origin). Distance
+    /// alone can't drive the fade-out — streaming is async, so the fade band's chunks may not
+    /// exist yet when the camera arrives; this ramps each tile's fade only after its chunks do.
+    std::unordered_map<uint64_t, float> treeHandoffReadiness;
+
+    /// Structure LOD (WRv2 §8, rendering half): per placed structure, a shell-protected
+    /// TemplateLodChain mesh set drawn through the tree pipeline when its chunks are not
+    /// resident — distant settlements degrade like trees instead of vanishing.
+    struct StructureLod {
+        glm::ivec3 mn{0}, mx{0};                       ///< world AABB (voxel, inclusive)
+        int state = 0;                                 ///< 0 await-extract, 1 building, 2 ready, 3 dead
+        std::future<std::array<TreeLodMeshRegistry::CpuMesh, 4>> job;
+        std::array<TreeLodMeshRegistry::GpuLevel, 4> lv{};
+        VkBuffer inst = VK_NULL_HANDLE;
+        VkDeviceMemory instMem = VK_NULL_HANDLE;
+        float readiness = 1.0f;                        ///< smoothed chunk residency under it
+    };
+    std::unordered_map<std::string, StructureLod> structureLod;   // key: structure UUID
+public:
+    /// Wire from the Application's placed-object poll (uuid, aabbMin, aabbMax).
+    void setStructureLodTargets(
+        const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets);
+private:
+    void tickStructureLod(std::vector<TreeLodRenderPipeline::MeshDraw>& meshDraws,
+                          const glm::vec3& cameraPos);
+    std::unique_ptr<TreeLodMeshRegistry> treeLodMeshes;       ///< per-species LOD mesh sets
     std::unique_ptr<FarTerrainManager> farTerrainManager;
     void renderFarTerrain();  // draws frustum-visible far tiles (after static geometry)
 public:
     /// Far-terrain manager (debug tile building, params). Null if init failed.
     FarTerrainManager* getFarTerrainManager() { return farTerrainManager.get(); }
+    /// A/B attribution knob (set_far_terrain {"trees": bool}): disables BOTH far-tree tiers
+    /// (instanced meshes + cards) without touching the terrain tiles, so an artifact can be
+    /// pinned to trees vs tile geometry in two screenshots.
+    void setFarTreesEnabled(bool on);
+
+    /// World size of one shadow-map texel this frame (2*fittedRadius / mapWidth). Diagnostic:
+    /// this is what the grass shadow pass clamps blade width against, so if blades stop
+    /// casting at some shadow distance, check this value FIRST.
+    float getShadowTexelWorld() const { return m_shadowTexelWorld; }
     // Runtime grass knobs (see /api/debug/grass). Negative/absent values leave a field unchanged.
     // bladeStyle: 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon.
     void setGrassEnabled(bool on);
+    /// bladeWidthScale <= 0 leaves the width unchanged (same sentinel convention as the rest).
     void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
-                        int bladeStyle = -1, float pushStrength = -1.0f);
+                        int bladeStyle = -1, float pushStrength = -1.0f,
+                        float bladeWidthScale = -1.0f);
     bool isGrassEnabled() const;
     // Runtime foliage knobs (see /api/debug/foliage). Negative/absent values leave a field unchanged.
     void setFoliageEnabled(bool on);

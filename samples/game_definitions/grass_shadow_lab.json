@@ -1,0 +1,21 @@
+{
+  "name": "GrassShadowLab",
+  "description": "SINGLE-BLADE shadow rig. A Stone plane spawns NO grass blades (blades are emitted only for grass-topped voxels), so placing exactly ONE Grass voxel with bladesPerVoxel=1 yields literally one blade in the entire world. Nothing else can cast: no flora, no trees, no terrain relief, no streaming. Built after repeatedly mis-testing grass shadows in the full forest world, where 'bladesPerVoxel=1' actually meant ~10^5 blades and every reading was confounded. Driven by tools/grass_shadow_lab.py.",
+  "world": {
+    "type": "Flat",
+    "seed": 7,
+    "_comment_streaming": "streaming MUST stay false: a streaming world would page in fresh grass-topped chunks around the camera and silently reintroduce thousands of extra casters mid-test.",
+    "streaming": false,
+    "_comment_flora": "flora:false disables the decoration pass entirely — no trees or bushes anywhere, so the only shadow caster in the world is the one blade under test.",
+    "flora": false,
+    "from": { "x": -3, "y": 0, "z": -3 },
+    "to":   { "x":  3, "y": 2, "z":  3 }
+  },
+  "water": { "enabled": false },
+  "camera": {
+    "_comment": "Overwritten by the harness; the rig pins its own pose so runs are comparable.",
+    "position": { "x": -6, "y": 46, "z": -6 },
+    "yaw": 45,
+    "pitch": -55
+  }
+}

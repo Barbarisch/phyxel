@@ -14,6 +14,7 @@
 
 layout(location = 0) in uint inPacked;   // bits: 0-4 x |5-9 y |10-14 z |15-18 sky |19-22 R |23-26 G |27-30 B
 layout(location = 1) in uint inTex;      // low16 = grass top-face texture index (colour source)
+                                         // bits 16-19 = edge-ness: grassy-neighbour count 0-8 (C4 taper)
 
 // Full set-0 UBO (must match UniformBufferObject in vulkan/VulkanDevice.h). We only read view/proj,
 // cameraPosition and the trailing elapsedTime, but the layout up to them must be declared.
@@ -32,6 +33,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 viewProj;          // proj*view, precombined once per frame on CPU
     mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
     vec3 cameraWorld;       // true camera world position (camera-relative rendering)
+    int  debugShadowMode;   // shadow-only debug view
+    float shadowDepthRange; // world-unit light-volume depth span
     // Grass interaction displacers (VegetationWindPlan Phase 4 v1): characters within the
     // grass radius, uploaded per frame by RenderCoordinator via VulkanDevice::setGrassDisplacers.
     // xyz = CAMERA-RELATIVE feet position (same space as rootWorld below), w = push radius.
@@ -63,6 +66,12 @@ layout(push_constant) uniform PushConstants {
     float absBaseY;
     float absBaseZ;
     float pushStrength;      // displacer bend amplitude (0 disables interaction response)
+    // Density LOD (GrassRenderPipeline::widthCompensation): distant chunks draw fewer blades by
+    // SHORTENING the draw, so the survivors widen to hold ground coverage. 1.0 in the near field.
+    float widthScale;
+    // How much wider than the real blade the SHADOW proxy is drawn (1.0 = same width).
+    // Only the SHADOW variant reads it; the visible pass gates it to 1.0.
+    float shadowWidthScale;
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -71,6 +80,7 @@ layout(location = 2) out float vGrad;      // 0 at blade base .. 1 at tip (silho
 layout(location = 3) out float vSide;      // -1..1 across blade width (silhouette taper)
 layout(location = 4) out float vSky;       // baked skylight 0..1
 layout(location = 5) out vec3  vBlock;     // baked block light 0..1/channel
+layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -130,20 +140,24 @@ void main() {
     int clumpId      = blade / BLADES_PER_CLUMP;
     int bladeInClump = blade - clumpId * BLADES_PER_CLUMP;
 
-    // MEADOW field: one smooth low-frequency noise (wavelength ~26 voxels, 2 octaves) drives
-    // BOTH blade height and coverage, so tall lush zones and shorter sparser zones drift over
-    // large distances while any few-meter neighborhood stays uniform and dense. (The old
-    // per-5-voxel/per-2-voxel hash patches made short-scale holes + per-blade height chaos —
-    // the exact opposite of the wanted look.)
-    float meadow = vnoise2(cellHash.xz * (1.0 / 26.0)) * 0.72
-                 + vnoise2(cellHash.xz * (1.0 / 9.0) + 41.7) * 0.28;
+    // MEADOW field: one smooth low-frequency noise drives BOTH blade height and coverage, so tall
+    // lush zones and shorter zones drift across the field while any few-meter neighborhood stays
+    // uniform and dense. (The old per-5-voxel/per-2-voxel hash patches made short-scale holes +
+    // per-blade height chaos — the exact opposite of the wanted look.)
+    // The DOMINANT octave is deliberately long (~72 voxels): the point is height varying across
+    // a FIELD, read while walking over it, not per-voxel roughness. The 26-voxel octave only
+    // keeps the gradient from looking like a rendered gradient; anything shorter than that reads
+    // as noise and undoes the smoothness.
+    float meadow = vnoise2(cellHash.xz * (1.0 / 72.0)) * 0.70
+                 + vnoise2(cellHash.xz * (1.0 / 26.0) + 41.7) * 0.30;
 
-    // Coverage: dense everywhere — the meadow field only thins the shortest zones slightly
-    // (~25% fewer clumps at the low end), never bald patches at tuft scale.
-    float coverage  = 0.78 + 0.30 * meadow;
+    // Coverage: dense EVERYWHERE. The meadow field must not punch holes — the look being chased is
+    // a continuous field, so coverage stays above the highest clump threshold across the whole
+    // meadow range and only the very shortest zones thin at all.
+    float coverage  = 0.88 + 0.22 * meadow;
     int   numClumps = (int(pc.bladesPerVoxel) + BLADES_PER_CLUMP - 1) / BLADES_PER_CLUMP;
     float clumpFrac = (float(clumpId) + 0.5) / float(max(numClumps, 1));
-    float keep      = step(0.25 + 0.55 * clumpFrac, coverage);
+    float keep      = step(0.18 + 0.42 * clumpFrac, coverage);
 
     // Clump center spans the FULL [0,1]^2 top face. A center margin here (early versions used
     // 0.18..0.82) starves every voxel edge of roots — each cube grows an isolated middle island
@@ -180,13 +194,26 @@ void main() {
     // frag taper discard); smooth = ribbon tapering to a point.
     vSide = boxy ? 0.0 : uCentered * 2.0;
 
-    // Blade height: the smooth meadow field sets the LOCAL stand height (0.55x in short zones
-    // up to 1.5x in lush zones, drifting over ~26 voxels); per-blade jitter is deliberately
-    // small (±10%) so neighboring blades read as one even stand, not random spikes. Boxy
-    // blades still quantize the REST height to whole 1/9-voxel microcube steps — a STATIC
-    // voxel-grid trait; motion below stays smooth.
-    float heightMul = mix(0.55, 1.5, smoothstep(0.08, 0.92, meadow));
-    float H = pc.bladeHeight * heightMul * (0.90 + 0.20 * h2);
+    // Blade height: the smooth meadow field sets the LOCAL stand height (0.45x in cropped zones
+    // up to 1.85x in lush zones, drifting over ~72 voxels); per-blade jitter is deliberately
+    // TINY (±6%) so neighboring blades read as one even stand whose height changes with the
+    // field, not as random spikes. Widening the field range while keeping per-blade jitter small
+    // is what makes the variation read as terrain-scale rather than as noise. Boxy blades still
+    // quantize the REST height to whole 1/9-voxel microcube steps — a STATIC voxel-grid trait;
+    // motion below stays smooth.
+    float heightMul = mix(0.45, 1.85, smoothstep(0.06, 0.94, meadow));
+
+    // EDGE TAPER (world-look C4): the mesher bakes each voxel's count of grass-topped
+    // horizontal neighbours (0-8) into inTex bits 16-19; interior voxels (8/8) keep full
+    // height and boundary voxels shorten, so a lawn ends in a low fringe against dirt, sand,
+    // stone or a drop instead of a hard green cliff. Cross-chunk neighbours are baked as
+    // grassy, so this can NEVER differ across a chunk boundary in open meadow (no seams —
+    // the per-chunk-artifact lesson of the density LOD). The floor is deliberately well
+    // above 0: bare edge voxels should read as short grass, not as missing grass.
+    float edgeFrac  = float((inTex >> 16) & 0xFu) / 8.0;
+    float edgeTaper = mix(0.40, 1.0, smoothstep(0.10, 0.90, edgeFrac));
+
+    float H = pc.bladeHeight * heightMul * edgeTaper * (0.94 + 0.12 * h2);
     if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;
 
     // Sprout-in growth: staggered start per blade, then held at full height.
@@ -194,10 +221,45 @@ void main() {
     float grow  = clamp((ubo.elapsedTime - plant) / max(pc.growDuration, 0.001), 0.0, 1.0);
     H *= grow;
 
-    // Distance fade: shrink height to 0 approaching the radius edge (blade collapses, invisible).
     float dist = length(ubo.cameraPosition - rootWorld);
-    float fade = 1.0 - clamp((dist - (pc.radius - pc.fadeRange)) / max(pc.fadeRange, 0.001), 0.0, 1.0);
-    H *= fade * keep;   // keep = patch-coverage gate (0 collapses the blade)
+
+    // ── DENSITY LOD, PER BLADE AND CONTINUOUS ──────────────────────────────────────────────────
+    // This USED to be decided per-chunk on the CPU (bladesForDistance picked a band from the chunk
+    // CENTRE). That is what made the meadow look disjointed: two adjacent chunks whose centres fell
+    // in different bands drew different densities, so the chunk boundary showed as a hard seam
+    // running through open field. Density now depends ONLY on this blade's own world distance, so
+    // it is identical either side of any voxel or chunk boundary by construction — there is no
+    // per-chunk quantity left to disagree about.
+    //
+    // The CPU still shortens the draw, but only as a CONSERVATIVE upper bound computed from the
+    // chunk's NEAREST corner, so it can never drop a clump this test would have kept.
+    // THE CURVE IS 1/(1 + k*t^2), NOT a smoothstep, and the shape is a cost constraint rather than
+    // an aesthetic one. Grass instances grow with the AREA of the disc, so blades-per-band grows
+    // linearly with r; holding total vertex cost bounded needs density to fall about as 1/r^2.
+    // A smoothstep ramp looks gentler but is far too flat in the mid-field: measured at 126 blades
+    // / 224u it came to 117M verts/frame against a 22.8M predecessor. k=60 lands at ~29.9M while
+    // keeping ~54 blades at 34u, which is what "much denser" has to mean up close.
+    // Recompute the budget before touching k, radius or bladesPerVoxel — see bladesForDistance.
+    // Shape: FULL density out to t0, then 1/(1 + k*u^2) where u is the remapped remainder.
+    // The flat near band exists because a bare 1/(1+k t^2) was already 32% down by 20 units, which
+    // reads as "dense at my feet, thinner just ahead" — the opposite of a field. Past t0 the
+    // 1/r^2-ish falloff is a COST constraint: blades-per-band grows linearly with r, so anything
+    // gentler makes the total unbounded (a smoothstep ramp measured 117M verts/frame here).
+    const float kNearBand = 0.15;    // full density inside this fraction of the radius
+    const float kFalloff  = 140.0;
+    float tNorm       = clamp(dist / max(pc.radius, 0.001), 0.0, 1.0);
+    float u           = max(0.0, tNorm - kNearBand) / (1.0 - kNearBand);
+    float densityFrac = max(1.0 / (1.0 + kFalloff * u * u), 1.0 / 18.0);
+    // Soft edge: clumps near the threshold fade out over a band instead of popping. Without this
+    // the seam is gone but a moving camera still sees clumps blink in and out.
+    float lodKeep     = 1.0 - smoothstep(densityFrac - 0.14, densityFrac, clumpFrac);
+
+    // Distance fade at the radius edge. smoothstep, not linear: a linear collapse reads as a
+    // visible circular "mowing line" tracking the camera. fadeRange is deliberately large so the
+    // meadow thins out gradually rather than ending.
+    float fade = 1.0 - smoothstep(pc.radius - pc.fadeRange, pc.radius, dist);
+
+    H *= fade * keep * lodKeep;
 
     // Interaction (VegetationWindPlan Phase 4 v1): characters push nearby blades radially
     // outward with a squared falloff, and trodden blades flatten (height squash) instead of
@@ -230,11 +292,51 @@ void main() {
         H      *= 1.0 - 0.30 * tread;   // trodden grass flattens toward the ground
     }
 
-    // Horizontal blade orientation (yaw), width offset across the blade. Thin blades so a dense
-    // tuft reads as many strands rather than a solid blob.
+    // Horizontal blade orientation (yaw), width offset across the blade. Blades are SKINNY so a
+    // dense tuft reads as many separate strands rather than one solid blob — at this density a
+    // wide blade just occludes its neighbours and the whole stand flattens into a mat.
+    // SHADOW-PASS GATE. The generated grass_shadow.vert rewrites this to 1.0; the visible pass
+    // keeps 0.0, so nothing below can alter the blade you actually see.
+    const float kShadowWidthGate = 0.0;
+
     float yaw = h3 * 6.2831853;
     vec2 dir = vec2(cos(yaw), sin(yaw));
-    float bladeWidth = boxy ? 0.045 : 0.042;
+    // SHADOW PASS: turn the blade BROADSIDE to the sun. Blade yaw is a per-blade hash, so a blade
+    // that happens to point along the light projects ZERO width and casts nothing at all — how
+    // much shadow a blade threw depended on its hash rather than its size, which also made the
+    // single-blade rig measure a different thing every time the blade moved. Facing the light
+    // gives every blade its full projected width: consistent, and the largest honest footprint.
+    // Degenerate when the sun is straight overhead (xz vanishes) — keep the hashed yaw there.
+    vec2 sunH = ubo.sunDirection.xz;
+    if (kShadowWidthGate > 0.5 && dot(sunH, sunH) > 1e-6) {
+        vec2 s = normalize(sunH);
+        dir = vec2(-s.y, s.x);   // width axis perpendicular to the light => flat face to the sun
+    }
+    // Width compensation is now driven by the PER-BLADE densityFrac, not the per-chunk push
+    // constant — same reason as the density itself: anything per-chunk reintroduces the seam.
+    // (pc.widthScale is left in the block for the CPU-side conservative path and A/B work.)
+    // Blades widened 2.5x (was 0.016/0.014): at the old width a blade was ~0.6 screen px and
+    // leaned entirely on the sub-pixel floor below to stay visible at all.
+    // pc.widthScale is the RUNTIME width knob (Params::bladeWidthScale, default 1.0 = as
+    // authored). Width is the variable that decides whether a blade exceeds a shadow-map
+    // texel, so it must be sweepable — POST /api/debug/grass {"bladeWidth": N}.
+    float bladeWidth = (boxy ? 0.040 : 0.036) * min(inversesqrt(max(densityFrac, 0.02)), 2.6)
+                     * max(pc.widthScale, 0.001);
+    // SHADOW PASS: cast a slightly WIDER shadow than the blade — a multiple of the blade's real
+    // width, NOT a shadow-texel clamp. The clamp it replaces stamped a blade 3.5 texels wide,
+    // which at a 420u shadow distance is 0.50u against a ~0.10u blade: a shadow ~5x wider than
+    // its caster, which read as a fat mushy smudge rather than as a blade.
+    // Consequence: shadow width now tracks the blade, so once a blade falls under one shadow-map
+    // texel it stops casting rather than smearing. Fixing THAT needs a near cascade (finer texels
+    // close to the camera), not a wider blade.
+    bladeWidth *= mix(1.0, pc.shadowWidthScale, kShadowWidthGate);
+    // SUB-PIXEL FLOOR. A 0.016-unit blade is far under a pixel by ~100 units out, and a sub-pixel
+    // quad doesn't get quieter with distance — it flickers as it drifts on and off sample points
+    // (the known grass speckle, RenderOptimization.md:513). Holding blades at roughly a pixel
+    // trades a hair of far-field accuracy for a stable horizon. The constant is ~1 px at the
+    // reference 45-degree fovY / 900 px config; it is well below bladeWidth in the near field, so
+    // max() leaves close-up grass exactly as authored.
+    bladeWidth = max(bladeWidth, dist * 0.0011);
     vec3 widthOffset = vec3(dir.x, 0.0, dir.y) * (uCentered * bladeWidth);
 
     // Shared procedural wind (wind.glsl): the blade bends downwind by the local gust-field
@@ -245,25 +347,39 @@ void main() {
     // "randomish" shimmer this system exists to kill.
     vec2 wd = vec2(pc.windDirX, pc.windDirZ);
     float stiffness = h2;
-    float response  = mix(1.2, 0.8, stiffness);   // soft blades respond a touch more
-    float lag       = stiffness * 0.06;           // tight spread — wide lag desyncs neighbors into shimmer
+    // ⚑ ANTI-JITTER (user: "wind movement is far far too jittery", 2026-08-01). Everything that
+    // varies PER BLADE desynchronises neighbours, and desynchronised neighbours read as shimmer
+    // rather than as wind. A field moves as a FIELD: the coherent travelling gust supplies the
+    // motion, and per-blade variation exists only to stop it looking like a rigid sheet.
+    // response spread 1.2-0.8 -> 1.08-0.94, lag 0.06 -> 0.02.
+    float response  = mix(1.08, 0.94, stiffness);
+    float lag       = stiffness * 0.02;
     // Trodden blades are pinned underfoot — they stop waving instead of thrashing while flat.
     float windDamp = 1.0 - 0.6 * tread;
     // INERTIA: grass doesn't snap to the instantaneous gust — low-pass the field with three
     // time-lagged taps (~0.5 s box filter) so fronts arrive as smooth swells, not jitter.
     // Travelling-front realism survives (the taps scroll with the same field); high-frequency
     // content is what gets removed.
+    // Widened from a ~0.5 s to a ~1.0 s box filter (4 taps): the longer the low-pass, the more of
+    // the gust field's high-frequency content is removed, and high-frequency content IS the jitter.
     vec2  gp = cellHash.xz + root2;
     float tg = ubo.elapsedTime - lag;
     float gust = (windGustAt(gp, tg,        wd, pc.gustScale, pc.gustSpeed)
-                + windGustAt(gp, tg - 0.25, wd, pc.gustScale, pc.gustSpeed)
-                + windGustAt(gp, tg - 0.50, wd, pc.gustScale, pc.gustSpeed)) * (1.0 / 3.0);
+                + windGustAt(gp, tg - 0.33, wd, pc.gustScale, pc.gustSpeed)
+                + windGustAt(gp, tg - 0.66, wd, pc.gustScale, pc.gustSpeed)
+                + windGustAt(gp, tg - 1.00, wd, pc.gustScale, pc.gustSpeed)) * 0.25;
     float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength * windDamp;
 
     // Gentle slow flutter perpendicular to the wind, amplitude ∝ local gust strength — calm air
     // means calm grass (windBase+gustAmp are both 0 at speed 0, so everything below is exactly 0).
-    float phase   = (cellHash.x + root2.x) * 2.9 + (cellHash.z + root2.y) * 2.3 + h3 * 6.2831853;
-    float flutter = sin(ubo.elapsedTime * 1.9 + phase) * 0.055
+    // Flutter is the single worst jitter source and is now much gentler. The per-blade random
+    // phase (h3 * 2pi) is what made adjacent blades flutter in opposite directions — the classic
+    // "boiling grass" look. The phase is now DOMINANTLY SPATIAL and low-frequency, so neighbours
+    // agree and the flutter reads as a slow ripple crossing the field. Frequency 1.9 -> 0.6 Hz,
+    // amplitude 0.055 -> 0.018, per-blade phase contribution cut to a fifth.
+    float phase   = (cellHash.x + root2.x) * 0.55 + (cellHash.z + root2.y) * 0.43
+                  + h3 * 1.2566371;   // 0.2 * 2pi
+    float flutter = sin(ubo.elapsedTime * 0.6 + phase) * 0.018
                   * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength * windDamp;
     // Bend profile: base stays planted, tip displaces most. bendExp is the per-blade FLEX —
     // soft blades (low h2) yield along their whole length, stiff blades hold their base and
@@ -287,6 +403,12 @@ void main() {
     // Colour-sample UV: a stable per-blade point in the grass tile (subtle per-blade variation).
     // Hash-domain coords again — fract() of a raw far coord is quantized.
     vUV = fract(vec2(cellHash.x + root2.x, cellHash.z + root2.y) * 0.5 + vec2(h0, h1) * 0.3);
+
+    // Shadow RECEIVING (location 6): grass was lit by baked ambient ONLY — no sun term and no
+    // shadow lookup — so it stayed uniformly bright inside every shadow and read as a flat
+    // carpet under trees. worldPos is camera-relative here, which is the space
+    // biasedLightSpace expects (same as static_voxel.vert).
+    vShadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
 
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

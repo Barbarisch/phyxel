@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <mutex>
 
+#include <glm/glm.hpp>
+
 namespace Phyxel {
 
 // Forward declaration
@@ -28,17 +30,19 @@ public:
     using ChunkVectorAccessFunc = std::function<std::vector<std::unique_ptr<Chunk>>&()>;
     using UpdateChunkFunc = std::function<void(size_t)>;
     using GetChunkIndexFunc = std::function<size_t(Chunk*)>;
-    
+    using GetChunkAtCoordFunc = std::function<Chunk*(const glm::ivec3&)>;
+
     DirtyChunkTracker() = default;
     ~DirtyChunkTracker() = default;
-    
+
     /**
      * @brief Configure callbacks for accessing ChunkManager state
      */
     void setCallbacks(
         ChunkVectorAccessFunc getChunksFunc,
         UpdateChunkFunc updateChunkFunc,
-        GetChunkIndexFunc getChunkIndexFunc
+        GetChunkIndexFunc getChunkIndexFunc,
+        GetChunkAtCoordFunc getChunkAtCoordFunc
     );
     
     /**
@@ -116,18 +120,25 @@ public:
     /**
      * @brief Get count of dirty chunks
      */
-    size_t getDirtyCount() const { return m_dirtyChunkIndices.size(); }
-    
+    size_t getDirtyCount() const { return m_dirtyChunkCoords.size(); }
+
 private:
     // Callbacks for ChunkManager state access
     ChunkVectorAccessFunc m_getChunks;
     UpdateChunkFunc m_updateChunk;
     GetChunkIndexFunc m_getChunkIndex;
-    
-    // Dirty chunk tracking state
-    std::mutex m_dirtyMutex;  // Protects dirty indices from concurrent markDirty calls
-    std::vector<size_t> m_dirtyChunkIndices;
-    std::vector<size_t> m_idleChunkIndices;   // low-priority tier (guarded by m_dirtyMutex)
+    GetChunkAtCoordFunc m_getChunkAtCoord;
+
+    // Dirty chunk tracking state. Queues are keyed by CHUNK COORDINATE, deliberately NOT
+    // by index into the chunks vector: streaming eviction erases from that vector and
+    // shifts every later index, so a queued index silently retargeted to a DIFFERENT
+    // chunk — the marked chunk then never meshed and sat resident-but-invisible until
+    // the next edit re-marked it (user repro 2026-08-02: a whole settlement area "stuck
+    // in low poly", actually an unmeshed hole papered over by a far-terrain tile).
+    // Coords are stable identity; an evicted coord resolves to null and drops out.
+    std::mutex m_dirtyMutex;  // Protects dirty queues from concurrent markDirty calls
+    std::vector<glm::ivec3> m_dirtyChunkCoords;
+    std::vector<glm::ivec3> m_idleChunkCoords;   // low-priority tier (guarded by m_dirtyMutex)
     bool m_hasDirtyChunks = false;
     // Adaptive backoff (see updateDirtyChunks): frames to skip after a call whose
     // single-chunk minimum blew far past the budget, so a churn backlog amortizes

@@ -586,3 +586,49 @@ TEST(LodQuadFootprintTest, BothOrRulesAgreeOnRealChunksBecauseNoOpeningsAreAutho
             EXPECT_EQ(a[i].packedData, b[i].packedData) << "level " << level << " face " << i;
     }
 }
+
+// ---------------------------------------------------------------------------
+// LEAF CANOPIES AND THE CUT (2026-08-01)
+//
+// Leaf materials are "billboarded": ChunkRenderManager deliberately OMITS their solid faces from
+// the fine mesh and emits foliage cards instead, so at level 0 a canopy has NO chunk geometry at
+// all. That makes the coarse path the ONLY thing that can represent a distant canopy -- which is
+// why volumeFromChunk must keep counting leaf voxels, and why RenderCoordinator::renderFoliage
+// must skip chunks at lodLevel != 0, or a coarsened canopy draws as a solid mass WITH cards
+// layered over it. Cards below the cut, mass above it, never both.
+//
+// These pin the halves of that contract testable without a Vulkan device.
+// ---------------------------------------------------------------------------
+
+TEST(LodChunkMeshTest, LeafCanopySurvivesTheCutAsSolidMass) {
+    // A canopy of leaf cubes and nothing else. If anyone adds an isBillboarded exclusion to
+    // volumeFromChunk, this drops to zero and distant forests become bare trunks.
+    auto c = boxChunk(8, 8, 8, 15, 15, 15, "Leaf");
+
+    for (int level = 1; level <= 5; ++level) {
+        std::vector<InstanceData> faces;
+        LodChunkMesh::buildForLevel(*c, level, SquashConfig{}, faces);
+        ASSERT_FALSE(faces.empty())
+            << "leaf canopy vanished from the coarse mesh at level " << level
+            << " -- distant forests would render as bare trunks";
+    }
+}
+
+TEST(LodChunkMeshTest, LeafCanopyCoarsensLikeAnyOtherMaterial) {
+    // It must COLLAPSE with level, not merely survive: a distant canopy holding its full face
+    // count would be a solid mass costing more than the cards it replaced.
+    auto leaf  = boxChunk(8, 8, 8, 15, 15, 15, "Leaf");
+    auto stone = boxChunk(8, 8, 8, 15, 15, 15, "Stone");
+
+    std::vector<InstanceData> l1, l3, s1, s3;
+    LodChunkMesh::buildForLevel(*leaf,  1, SquashConfig{}, l1);
+    LodChunkMesh::buildForLevel(*leaf,  3, SquashConfig{}, l3);
+    LodChunkMesh::buildForLevel(*stone, 1, SquashConfig{}, s1);
+    LodChunkMesh::buildForLevel(*stone, 3, SquashConfig{}, s3);
+
+    EXPECT_LT(l3.size(), l1.size()) << "leaf canopy must get cheaper as the cut coarsens";
+    // Billboarding is a RENDER-time trait, not a geometry one: the cut must treat leaf and stone
+    // volumes identically. If it ever special-cases leaves, these diverge.
+    EXPECT_EQ(l1.size(), s1.size());
+    EXPECT_EQ(l3.size(), s3.size());
+}

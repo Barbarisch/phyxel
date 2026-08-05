@@ -126,6 +126,19 @@ struct UniformBufferObject {
     // harmless to floor()-to-voxel hashes. Appended LAST: GLSL blocks are std140 prefixes,
     // so existing truncated declarations stay valid.
     alignas(16) glm::vec3 cameraWorld;
+    // SHADOW DEBUG VIEW (0 = off, 1 = shadow-only). Deliberately packed into cameraWorld's
+    // std140 tail padding (vec3 = 16-byte slot, 12 bytes used), so it costs no space and
+    // shifts NO following offsets — every existing truncated GLSL declaration stays valid.
+    // Strips albedo/ambient so only the shadow term is visible: white = lit, black = shadowed.
+    // Thin casters (grass blades) are invisible against textured ground; this is the standard
+    // way engines make them readable (cf. Unreal's Lighting Only view mode).
+    int debugShadowMode = 0;
+    /// Depth span of the fitted light volume in WORLD units (2*radius + 2*casterBack). Shadow
+    /// bias is authored in world units and divided by this, so a bias means the same physical
+    /// distance at every shadow distance. Previously the bias was a raw normalized-depth
+    /// constant, so it silently scaled with the volume: 0.26 u at a 40 u shadow distance but
+    /// 0.85 u at 420 — larger than a grass blade is tall, which rejected every blade shadow.
+    float shadowDepthRange = 1.0f;
     // Grass interaction displacers (docs/VegetationWindPlan.md Phase 4 v1) — characters near the
     // camera that bend grass aside. xyz = CAMERA-RELATIVE position (world - camera, matching every
     // other GPU position), w = push radius. Only grass.vert declares these (std140 prefix rule keeps
@@ -182,6 +195,14 @@ public:
     bool createDescriptorPool();
     bool createDescriptorSets();
     void updateUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj, const glm::mat4& lightSpaceMatrix, const glm::vec3& sunDirection, const glm::vec3& sunColor, uint32_t numInstances, float ambientLight = 1.0f, float emissiveMultiplier = 2.0f, const glm::vec3& cameraPosition = glm::vec3(0.0f), float elapsedTime = 0.0f);
+
+    /// Shadow-only debug view (0 = off, 1 = on). Uploaded with the per-frame UBO, so every
+    /// pass that declares `debugShadowMode` honours it in the same frame.
+    void setDebugShadowMode(int mode) { m_debugShadowMode = mode; }
+    int  getDebugShadowMode() const   { return m_debugShadowMode; }
+
+    /// World-unit depth span of the fitted light volume (see UniformBufferObject::shadowDepthRange).
+    void setShadowDepthRange(float r) { m_shadowDepthRange = (r > 1e-3f) ? r : 1.0f; }
     void setReflectedViewProj(uint32_t frameIndex, const glm::mat4& reflectedVP);
     /// Patch the grass displacer arrays in this frame's UBO (call AFTER updateUniformBuffer,
     /// which zero-fills them). displacers: xyz = camera-relative position, w = push radius;
@@ -495,6 +516,8 @@ private:
     
     // Window resize handling
     bool framebufferResized = false;
+    int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)
+    float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 
     // Helper methods for swapchain
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
