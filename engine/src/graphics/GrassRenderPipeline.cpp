@@ -43,8 +43,20 @@ struct GrassPush {
     // 0.04u blade writes NOTHING at a 0.024u texel while 0.08u casts, and the required width
     // scales with shadow distance — so a constant widening is wrong at every distance but one.
     float     shadowWidthScale;   // shadow proxy width / real blade width (1.0 = identical)
+    // Meadow height field + edge taper (Params mirrors these; see the header for units).
+    float     meadowScale;
+    float     meadowDetailScale;
+    float     meadowDetailWeight;
+    float     heightMin;
+    float     heightMax;
+    float     edgeTaperFloor;
+    float     edgeTaperCurve;
 };
-static_assert(sizeof(GrassPush) == 88, "GrassPush must match the grass.vert push-constant block");
+// 116 bytes. Vulkan guarantees only 128 bytes of push-constant space, so there are 12 bytes of
+// headroom left — the NEXT addition should move this block to a trailing UBO field instead of
+// growing it further. (Appending after grassDisplacerMeta touches only the two grass shaders.)
+static_assert(sizeof(GrassPush) == 116, "GrassPush must match the grass.vert push-constant block");
+static_assert(sizeof(GrassPush) <= 128, "GrassPush exceeds the guaranteed push-constant budget");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -488,6 +500,15 @@ void GrassRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboS
     pc.bladeStyle     = m_params.bladeStyle;
     pc.pushStrength   = m_params.pushStrength;
     pc.shadowWidthScale = s_shadowWidthScale;   // shadow pass widens the proxy only
+    // Meadow height field + edge taper. Straight from Params: these are per-WORLD look
+    // knobs, not per-chunk decisions, so every draw gets the same values.
+    pc.meadowScale        = m_params.meadowScale;
+    pc.meadowDetailScale  = m_params.meadowDetailScale;
+    pc.meadowDetailWeight = m_params.meadowDetailWeight;
+    pc.heightMin          = m_params.heightMin;
+    pc.heightMax          = m_params.heightMax;
+    pc.edgeTaperFloor     = m_params.edgeTaperFloor;
+    pc.edgeTaperCurve     = m_params.edgeTaperCurve;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
@@ -538,6 +559,15 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.bladeStyle     = m_params.bladeStyle;
     pc.pushStrength   = m_params.pushStrength;
     pc.shadowWidthScale = s_shadowWidthScale;   // shadow pass widens the proxy only
+    // Meadow height field + edge taper. Straight from Params: these are per-WORLD look
+    // knobs, not per-chunk decisions, so every draw gets the same values.
+    pc.meadowScale        = m_params.meadowScale;
+    pc.meadowDetailScale  = m_params.meadowDetailScale;
+    pc.meadowDetailWeight = m_params.meadowDetailWeight;
+    pc.heightMin          = m_params.heightMin;
+    pc.heightMax          = m_params.heightMax;
+    pc.edgeTaperFloor     = m_params.edgeTaperFloor;
+    pc.edgeTaperCurve     = m_params.edgeTaperCurve;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;

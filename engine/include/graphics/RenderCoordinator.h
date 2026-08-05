@@ -811,6 +811,34 @@ public:
     void setGrassParams(float radius, float bladeHeight, float windStrength, int bladesPerVoxel,
                         int bladeStyle = -1, float pushStrength = -1.0f,
                         float bladeWidthScale = -1.0f);
+    /// Meadow height field (the plain-scale height modifier) + edge taper. Negative = unchanged.
+    /// Scales are WORLD UNITS; meadowScale decides how large a "plain" reads as. The field is
+    /// evaluated in absolute world space, so it is identical either side of any chunk boundary —
+    /// appearance must never depend on which chunk a voxel sits in (docs/FeatureDesignKeys.md).
+    void setGrassMeadowParams(float meadowScale, float meadowDetailScale, float meadowDetailWeight,
+                              float heightMin, float heightMax, float edgeTaperFloor,
+                              float edgeTaperCurve);
+    /// Snapshot of the grass knobs for API read-back, so a caller can assert a setting actually
+    /// took effect rather than trusting it (a knob silently doing nothing against a stale binary
+    /// has cost real debugging time here).
+    /// A plain struct rather than GrassRenderPipeline::Params on purpose: this header is included
+    /// widely and forward-declares its pipelines, so pulling GrassRenderPipeline.h in would cost
+    /// compile time across the engine.
+    struct GrassParamSnapshot {
+        bool     enabled            = false;
+        uint32_t bladesPerVoxel     = 0;
+        float    bladeHeight        = 0.0f;
+        float    bladeWidthScale    = 0.0f;
+        float    radius             = 0.0f;
+        float    meadowScale        = 0.0f;   ///< world units — how large a "plain" reads as
+        float    meadowDetailScale  = 0.0f;
+        float    meadowDetailWeight = 0.0f;
+        float    heightMin          = 0.0f;
+        float    heightMax          = 0.0f;
+        float    edgeTaperFloor     = 0.0f;
+        float    edgeTaperCurve     = 0.0f;
+    };
+    GrassParamSnapshot grassParams() const;
     bool isGrassEnabled() const;
     // Runtime foliage knobs (see /api/debug/foliage). Negative/absent values leave a field unchanged.
     void setFoliageEnabled(bool on);

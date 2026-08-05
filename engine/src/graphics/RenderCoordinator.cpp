@@ -1292,6 +1292,46 @@ void RenderCoordinator::setGrassParams(float radius, float bladeHeight, float wi
     if (pushStrength >= 0.0f) p.pushStrength  = pushStrength;
 }
 
+void RenderCoordinator::setGrassMeadowParams(float meadowScale, float meadowDetailScale,
+                                             float meadowDetailWeight, float heightMin,
+                                             float heightMax, float edgeTaperFloor,
+                                             float edgeTaperCurve) {
+    if (!grassPipeline) return;
+    auto& p = grassPipeline->params();
+    // Negative = leave unchanged (same convention as setGrassParams). Periods are WORLD UNITS and
+    // must stay above 1 or the noise degenerates to a constant; the shader guards this too, but
+    // clamping here means the value read back over the API is the value actually in use.
+    if (meadowScale       > 0.0f) p.meadowScale        = std::max(meadowScale, 1.0f);
+    if (meadowDetailScale > 0.0f) p.meadowDetailScale  = std::max(meadowDetailScale, 1.0f);
+    if (meadowDetailWeight >= 0.0f) p.meadowDetailWeight = std::min(meadowDetailWeight, 1.0f);
+    if (heightMin >= 0.0f) p.heightMin = heightMin;
+    if (heightMax >= 0.0f) p.heightMax = heightMax;
+    // A caller that inverts the range would otherwise get lush zones SHORTER than cropped ones,
+    // which reads as a bug rather than as a setting. Order them instead of rejecting.
+    if (p.heightMax < p.heightMin) std::swap(p.heightMin, p.heightMax);
+    if (edgeTaperFloor >= 0.0f) p.edgeTaperFloor = std::min(edgeTaperFloor, 1.0f);
+    if (edgeTaperCurve  > 0.0f) p.edgeTaperCurve = edgeTaperCurve;
+}
+
+RenderCoordinator::GrassParamSnapshot RenderCoordinator::grassParams() const {
+    GrassParamSnapshot s{};
+    if (!grassPipeline) return s;   // all-zero: "no grass pipeline", distinguishable from real values
+    const auto& p = grassPipeline->params();
+    s.enabled            = p.enabled;
+    s.bladesPerVoxel     = p.bladesPerVoxel;
+    s.bladeHeight        = p.bladeHeight;
+    s.bladeWidthScale    = p.bladeWidthScale;
+    s.radius             = p.radius;
+    s.meadowScale        = p.meadowScale;
+    s.meadowDetailScale  = p.meadowDetailScale;
+    s.meadowDetailWeight = p.meadowDetailWeight;
+    s.heightMin          = p.heightMin;
+    s.heightMax          = p.heightMax;
+    s.edgeTaperFloor     = p.edgeTaperFloor;
+    s.edgeTaperCurve     = p.edgeTaperCurve;
+    return s;
+}
+
 bool RenderCoordinator::isGrassEnabled() const {
     return grassPipeline && grassPipeline->params().enabled;
 }

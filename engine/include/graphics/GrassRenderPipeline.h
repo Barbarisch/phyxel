@@ -64,6 +64,27 @@ public:
         uint32_t bladesPerVoxel = 30;     ///< procedural blades/voxel, one per lattice cell
         uint32_t bladeStyle     = 1;      ///< 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon
         float    pushStrength   = 0.55f;  ///< character-displacer bend amplitude (0 = interaction off)
+
+        // ── MEADOW HEIGHT FIELD — the plain-scale height modifier ─────────────────────────
+        // Two octaves of value noise in ABSOLUTE world space, so the field is identical either
+        // side of any voxel or chunk boundary by construction (appearance is a pure function of
+        // world position — docs/FeatureDesignKeys.md). Periods are WORLD UNITS.
+        /// Dominant octave period. This is the knob that decides how large a "plain" reads as:
+        /// the point is height varying across a FIELD you walk over, not per-voxel roughness.
+        /// Anything shorter than the detail octave reads as noise and undoes the smoothness.
+        float    meadowScale        = 72.0f;
+        float    meadowDetailScale  = 26.0f;   ///< detail octave period, world units
+        float    meadowDetailWeight = 0.30f;   ///< 0..1; dominant octave takes the remainder
+        float    heightMin          = 0.45f;   ///< height multiplier in cropped zones
+        float    heightMax          = 1.85f;   ///< height multiplier in lush zones
+
+        // ── EDGE TAPER — grass shortens toward the edge of a plain ────────────────────────
+        /// Height multiplier at a fully-exposed edge. Deliberately well above 0: a bare edge
+        /// voxel should read as SHORT grass, not as missing grass.
+        float    edgeTaperFloor     = 0.40f;
+        /// Reshapes the ramp without moving its endpoints. >1 holds full height further in then
+        /// falls fast; <1 starts falling early and eases out. 1.0 = the original linear ramp.
+        float    edgeTaperCurve     = 1.0f;
         /// Shared wind-field state — overwritten every frame by RenderCoordinator from the
         /// single WindSystem (grass and foliage always see identical wind). Not user-tunable
         /// here; tune via /api/debug/wind.

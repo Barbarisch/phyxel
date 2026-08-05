@@ -83,6 +83,18 @@ layout(push_constant) uniform PushConstants {
     // How much wider than the real blade the SHADOW proxy is drawn (1.0 = same width).
     // Only the SHADOW variant reads it; the visible pass gates it to 1.0.
     float shadowWidthScale;
+    // ── MEADOW HEIGHT FIELD (POST /api/debug/grass) ────────────────────────────────────────
+    // The plain-scale height modifier: a two-octave value noise in ABSOLUTE world space, so it
+    // is identical either side of any voxel or chunk boundary by construction. Periods are in
+    // world units — meadowScale is the one that decides how large a "plain" reads as.
+    float meadowScale;         // dominant octave period, world units (bigger = broader zones)
+    float meadowDetailScale;   // detail octave period, world units
+    float meadowDetailWeight;  // 0..1 blend of the detail octave (dominant takes the remainder)
+    float heightMin;           // height multiplier in the most cropped zones
+    float heightMax;           // height multiplier in the lushest zones
+    // ── EDGE TAPER ────────────────────────────────────────────────────────────────────────
+    float edgeTaperFloor;      // height multiplier at a fully-exposed edge (0 = bald, 1 = off)
+    float edgeTaperCurve;      // >1 keeps full height further in then falls fast; <1 eases out
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -178,8 +190,13 @@ void main() {
     // a FIELD, read while walking over it, not per-voxel roughness. The 26-voxel octave only
     // keeps the gradient from looking like a rendered gradient; anything shorter than that reads
     // as noise and undoes the smoothness.
-    float meadow = vnoise2(cellHash.xz * (1.0 / 72.0)) * 0.70
-                 + vnoise2(cellHash.xz * (1.0 / 26.0) + 41.7) * 0.30;
+    // Periods are world units; guard against a zero/negative scale from the API turning the
+    // whole field into a constant (or a NaN).
+    float mScale  = max(pc.meadowScale, 1.0);
+    float mDetail = max(pc.meadowDetailScale, 1.0);
+    float mW      = clamp(pc.meadowDetailWeight, 0.0, 1.0);
+    float meadow = vnoise2(cellHash.xz / mScale)  * (1.0 - mW)
+                 + vnoise2(cellHash.xz / mDetail + 41.7) * mW;
 
     // Coverage: dense EVERYWHERE. The meadow field must not punch holes — the look being chased is
     // a continuous field, so coverage stays above the highest clump threshold across the whole
@@ -254,7 +271,7 @@ void main() {
     // is what makes the variation read as terrain-scale rather than as noise. Boxy blades still
     // quantize the REST height to whole 1/9-voxel microcube steps — a STATIC voxel-grid trait;
     // motion below stays smooth.
-    float heightMul = mix(0.45, 1.85, smoothstep(0.06, 0.94, meadow));
+    float heightMul = mix(pc.heightMin, pc.heightMax, smoothstep(0.06, 0.94, meadow));
 
     // EDGE TAPER (world-look C4): the mesher bakes each voxel's count of grass-topped
     // horizontal neighbours (0-8) into inTex bits 16-19; interior voxels (8/8) keep full
@@ -264,7 +281,10 @@ void main() {
     // the per-chunk-artifact lesson of the density LOD). The floor is deliberately well
     // above 0: bare edge voxels should read as short grass, not as missing grass.
     float edgeFrac  = float((inTex >> 16) & 0xFu) / 8.0;
-    float edgeTaper = mix(0.40, 1.0, smoothstep(0.10, 0.90, edgeFrac));
+    // edgeTaperCurve reshapes the ramp without moving its endpoints: >1 holds full height further
+    // toward the edge then drops sharply, <1 starts falling early and eases out.
+    float edgeRamp  = pow(smoothstep(0.10, 0.90, edgeFrac), max(pc.edgeTaperCurve, 0.01));
+    float edgeTaper = mix(clamp(pc.edgeTaperFloor, 0.0, 1.0), 1.0, edgeRamp);
 
     float H = pc.bladeHeight * heightMul * edgeTaper * (0.94 + 0.12 * h2);
     if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;

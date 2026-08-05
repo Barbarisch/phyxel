@@ -8169,6 +8169,24 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 bladeStyle,
                 cmd.params.value("pushStrength",    -1.0f),    // character-interaction bend (0 = off)
                 cmd.params.value("bladeWidth",      -1.0f));   // width multiplier (1.0 = authored)
+
+            // ── MEADOW HEIGHT FIELD + EDGE TAPER ──────────────────────────────────────────
+            // The plain-scale look knobs. Sentinel is -1 = leave unchanged, matching the block
+            // above; these are all legitimately positive, so a negative can never be a real value.
+            // meadowScale is the one that decides how large a "plain" reads as (world units).
+            // edgeTaperFloor is allowed to be 0 (a bald edge), so it is gated on presence, not
+            // on sign — a 0 passed through a `>= 0` test would be indistinguishable from "unset"
+            // under the -1 convention only if the convention were `> 0`. Keep them explicit.
+            renderCoordinator->setGrassMeadowParams(
+                cmd.params.value("meadowScale",        -1.0f),
+                cmd.params.value("meadowDetailScale",  -1.0f),
+                cmd.params.contains("meadowDetailWeight")
+                    ? cmd.params["meadowDetailWeight"].get<float>() : -1.0f,
+                cmd.params.value("heightMin",          -1.0f),
+                cmd.params.value("heightMax",          -1.0f),
+                cmd.params.contains("edgeTaperFloor")
+                    ? cmd.params["edgeTaperFloor"].get<float>() : -1.0f,
+                cmd.params.value("edgeTaperCurve",     -1.0f));
             // Shadow CASTING toggle — the A/B control for "do blades actually cast?".
             if (cmd.params.contains("castShadows"))
                 Graphics::GrassRenderPipeline::s_castShadows =
@@ -8179,9 +8197,24 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             if (cmd.params.contains("shadowWidthScale"))
                 Graphics::GrassRenderPipeline::s_shadowWidthScale =
                     std::max(0.01f, cmd.params["shadowWidthScale"].get<float>());
+            // Echo the RESULTING state back, not the request: a caller must be able to assert a
+            // knob actually took effect. A tuning knob that silently does nothing against a stale
+            // binary has cost real debugging time here before.
+            const auto gp = renderCoordinator->grassParams();
             response = {{"success", true}, {"grass_enabled", renderCoordinator->isGrassEnabled()},
                         {"cast_shadows", Graphics::GrassRenderPipeline::s_castShadows},
-                        {"shadow_width_scale", Graphics::GrassRenderPipeline::s_shadowWidthScale}};
+                        {"shadow_width_scale", Graphics::GrassRenderPipeline::s_shadowWidthScale},
+                        {"blades_per_voxel", gp.bladesPerVoxel},
+                        {"blade_height", gp.bladeHeight},
+                        {"blade_width_scale", gp.bladeWidthScale},
+                        {"radius", gp.radius},
+                        {"meadow_scale", gp.meadowScale},
+                        {"meadow_detail_scale", gp.meadowDetailScale},
+                        {"meadow_detail_weight", gp.meadowDetailWeight},
+                        {"height_min", gp.heightMin},
+                        {"height_max", gp.heightMax},
+                        {"edge_taper_floor", gp.edgeTaperFloor},
+                        {"edge_taper_curve", gp.edgeTaperCurve}};
         }
         return true;
 
