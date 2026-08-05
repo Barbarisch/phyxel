@@ -67,6 +67,35 @@ dimension (grounding-auditor); red-before-green + solution-auditor on every "wor
 > screenshot is never evidence on its own; cite the command run + its raw result. Presenting hand-work
 > as generator output is a fabrication, same as a fake test pass.
 
+## 🚦 BEFORE ADDING ANY FEATURE — read [`docs/FeatureDesignKeys.md`](docs/FeatureDesignKeys.md)
+
+Standing gate. These must be answered **in the plan**, not discovered during implementation.
+
+**Design keys.** Voxel-based engine — new features must match the voxel aesthetic. Aiming well above
+Minecraft on detail (smaller voxels), lighting, and physics. Voxels are static or dynamic; static
+ones come in cubes, subcubes (1/3), microcubes (1/9), and are stored/rendered via **chunks**, which
+exist for optimization. Dynamic voxels are physics bodies and must behave physically.
+
+**Before you continue?**
+- Does this fit a **procedural generation pipeline**? If so put it there, and check it does not
+  disturb other stages.
+- Is it exposed over an **API**? Is that interface robust and thought through?
+- Does the plan include **how it will be visually tested**?
+- Does the test plan include an appropriately **small, simplified test world**?
+
+⚠️ **Chunks must not be visible.** Appearance is a pure function of world position + persistent
+world state; per-chunk quantities may only bound **cost**, never looks. `bladesForDistance` is the
+model (conservative bound from the chunk's nearest corner). Reaching for cross-chunk lookups to
+patch a chunk-local dependency is usually wrong — derive it from world position or from the
+generator instead. Pin it with a chunked-vs-whole-region equality test (`FloraMarginTest`,
+`FaunaPlanTest`). Known live violation: grass/foliage are skipped entirely at chunk LOD ≠ 0, which
+is why distance-driven chunk LOD stays default-OFF.
+
+⚠️ **Test rigs:** small, inside ONE chunk, one variable, a written-down prediction, and a control.
+Verify the world, not the API response (`/api/world/fill` is async and returns no placed count).
+State how rig settings differ from shipped defaults. Never trust a test run started before your
+edits.
+
 ## Auto-Context on Startup
 
 When starting a new conversation in the engine terminal, **proactively check engine state** before the user asks. Call `engine_status` — if the engine is running, gather world context by running `/context` (or manually calling the same MCP tools). This saves the user from having to explain what's loaded. If the engine is not running, skip and wait for instructions.
