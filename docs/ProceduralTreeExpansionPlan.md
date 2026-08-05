@@ -34,7 +34,7 @@ rather than pinned to a single silvics figure._
 
 _C++ `ProceduralTree` parity for pine/fir: DEFERRED (no biome uses procedural mode — `"pool"` default
 stamps the .voxel templates). Owner track: flora/world-gen. Prereq: `tools/gen_tree.py`,
-`engine/src/core/ProceduralTree.cpp`, `docs/WorldRecipeAndFlora.md`._
+`engine/src/core/ProceduralTree.cpp`, `docs/WorldModel.md`._
 
 ## Goal
 

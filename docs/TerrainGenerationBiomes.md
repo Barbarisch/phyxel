@@ -7,11 +7,11 @@
 > the `"pool"`-mode template AUTHORING tool is now `tools/tree_forge.py` — `gen_tree.py` was marked
 > DEPRECATED 2026-07-05 and superseded, `resources/biomes.json` pool items are all `forge_*`
 > templates now) all landed. Per-world generation tuning is persisted via
-> `Core::WorldRecipe` (`world.db` `world_meta`). See **`docs/WorldRecipeAndFlora.md`** for the
+> `Core::WorldRecipe` (`world.db` `world_meta`). See **`docs/WorldModel.md`** (which absorbed the recipe doc) for the
 > flora + world-recipe design and remaining work. **Update (verified against source):** the
 > streaming worker thread (Phase 1c) has SHIPPED (`ChunkStreamingManager`'s async generation
 > worker pool, `kGenWorkerCount`), and water integration is now a large active workstream
-> (`docs/WaterSystemV2.md`, `docs/TerrainGenerationV2.md` §P2) — neither is still deferred.
+> (`docs/Water.md`, `docs/TerrainGenerationV2.md` §P2) — neither is still deferred.
 > Genuinely still **TODO**: caves/ore carving (`docs/TerrainGenerationV2.md` §P3, not started).
 > The sections below remain the authoritative design rationale for the v1 pipeline.
 
@@ -206,6 +206,6 @@ fall-through, confirm the memory ceiling holds) **before** layering biomes on to
 
 ## Related
 
-- `docs/WaterSystemV2.md` — underground water table / sea level interplay (supersedes WaterSystem.md).
+- `docs/Water.md` — water table / sea level interplay (the consolidated water doc).
 - Memory: `reference_collision_occupancy` (the fall-through rule), `project_biome_flora`
   (the flora generators), `reference_empty_world` (current project-load regen behavior).

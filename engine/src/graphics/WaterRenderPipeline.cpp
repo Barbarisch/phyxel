@@ -100,7 +100,10 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // The "no layer" sentinel: a 1×1 dry texel, per-column lookup disabled — the shaders take
     // the flat-sea path (pixel-identical to pre-P1), but binding 3 is VALID from the first draw.
     const float kNoWater = -1e6f;
-    static const float sentinel[2] = {kNoWater, 0.0f};   // RG: dry level + zero energy
+    // RGBA: dry level + zero energy + NEUTRAL profile (turbidity 0, roughness 1). The neutral
+    // values matter even here: a world with no bake still samples this texel on any code path that
+    // reads the profile, and neutral is defined as "exactly today's look" (v4 W1).
+    static const float sentinel[4] = {kNoWater, 0.0f, 0.0f, 1.0f};
     if (!levels) { levels = sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; }
 
     // (Re)create the image when the grid size changes. The caller guarantees device idleness when
@@ -114,7 +117,11 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
         ii.imageType = VK_IMAGE_TYPE_2D;
         ii.extent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
         ii.mipLevels = 1; ii.arrayLayers = 1;
-        ii.format = VK_FORMAT_R32G32_SFLOAT;   // R = level, G = body wave energy (tangible-water F)
+        // R = level (water-layer P1), G = body wave energy (tangible-water F),
+        // B = turbidity, A = roughness (Water Appearance v4 W1). Widened from RG32F because the
+        // sea shader's push block is EXACTLY full at 128 B — the texture is the only vehicle left
+        // for per-column data. 256² × 16 B = 1 MB, uploaded once per world.
+        ii.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         ii.tiling = VK_IMAGE_TILING_OPTIMAL;
         ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -137,7 +144,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
         vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         vi.image = m_hydroImage;
         vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        vi.format = VK_FORMAT_R32G32_SFLOAT;
+        vi.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         vi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
         if (vkCreateImageView(m_device, &vi, nullptr, &m_hydroView) != VK_SUCCESS)
             throw std::runtime_error("failed to create water-layer level view!");
@@ -166,7 +173,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // Stage + record the copy into the caller's one-shot command buffer. The staging buffer is
     // transient: freed by the caller's queue-idle boundary… we cannot free it here safely, so use
     // a small persistent member sized to the largest grid seen.
-    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * 2 * sizeof(float);   // RG
+    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * 4 * sizeof(float);   // RGBA
     if (bytes > m_hydroStagingBytes) {
         if (m_hydroStagingMapped) vkUnmapMemory(m_device, m_hydroStagingMemory);
         if (m_hydroStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_hydroStaging, nullptr);
@@ -218,10 +225,15 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 0, nullptr, 0, nullptr, 1, &b);
 
-    m_hydroParams = glm::vec3(originX, originZ, cellSize > 0.0f ? 1.0f / cellSize : 0.0f);
+    // The SIGN of cellSize carries through 1/cellSize into the shaders as a mode flag:
+    // positive = baked-world grid (off-grid falls back to open ocean), NEGATIVE = a GROUNDED grid
+    // built from live terrain (off-grid is DRY — a bounded world has no implicit ocean beyond its
+    // edges). 0 stays flat-sea mode. The old `> 0` test silently mapped negative to flat-sea,
+    // which would have re-created the infinite phantom sheet the grounded mode exists to kill.
+    m_hydroParams = glm::vec3(originX, originZ, cellSize != 0.0f ? 1.0f / cellSize : 0.0f);
     m_hydroBound = true;
     LOG_INFO("WaterPipeline", "Water-layer levels bound: {}x{} cells, origin ({}, {}), cell {} "
-             "(invCell 0 = flat-sea mode)", cellsX, cellsZ, originX, originZ, cellSize);
+             "(invCell 0 = flat-sea; negative = grounded/off-grid-dry)", cellsX, cellsZ, originX, originZ, cellSize);
 }
 
 void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,
@@ -285,7 +297,7 @@ void WaterRenderPipeline::createDescriptorSetLayout(VkDescriptorSetLayout uboLay
     // Set 1 — the water pipeline's own samplers:
     //   0 = half-res scene colour copy (refraction)
     //   1 = scene depth (seabed distance → absorption thickness + soft shoreline)
-    //   2 = planar reflection (dormant; see docs/WaterSystemV3.md Phase 5)
+    //   2 = planar reflection (dormant; see docs/Water.md Phase 5)
     //   3 = the water-layer level grid (per-column basin levels; water-layer P1 — VERTEX too,
     //       because the level moves the surface GEOMETRY, not just the shading)
     std::array<VkDescriptorSetLayoutBinding, 4> binds{};
@@ -662,7 +674,7 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
 void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                                            const Camera& camera, const glm::mat4& projectionMatrix,
                                            float submergence, float depthBelow,
-                                           VkExtent2D screenExtent) {
+                                           VkExtent2D screenExtent, float turbidity) {
     if (!m_sceneBound || !m_reflectionBound || uboSet == VK_NULL_HANDLE) return;
     if (m_underwaterPipeline == VK_NULL_HANDLE || submergence <= 0.0f) return;
 
@@ -676,8 +688,12 @@ void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDesc
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
     pc.params     = glm::vec4(0.0f, 0.0f, submergence, depthBelow);
+    // params2.w was the one free slot in this 128-byte block (v4 W2): the turbidity of the body the
+    // camera is INSIDE. The surface samples its profile per pixel from the hydrology texture, but a
+    // fullscreen overlay has no per-pixel body — without this the same lake reads murky from above
+    // and clear from below, and breaking the surface pops.
     pc.params2    = glm::vec4(static_cast<float>(screenExtent.width),
-                              static_cast<float>(screenExtent.height), 0.0f, 0.0f);
+                              static_cast<float>(screenExtent.height), 0.0f, turbidity);
     vkCmdPushConstants(commandBuffer, m_pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(WaterPushConstants), &pc);

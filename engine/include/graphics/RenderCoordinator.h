@@ -391,7 +391,7 @@ public:
     // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
     void setWaterManager(Core::WaterManager* mgr) { m_waterManager = mgr; }
 
-    // Water (Phase 0: implicit sea-level surface — see docs/WaterSystem.md).
+    // Water (Phase 0: implicit sea-level surface — see docs/Water.md).
     // TODO: sea level + enabled should come from per-world config, not render state.
     void  setWaterEnabled(bool enabled) { m_waterEnabled = enabled; }
     bool  isWaterEnabled() const { return m_waterEnabled; }
@@ -403,6 +403,49 @@ public:
     void setWaves(float amplitude, float wavelength, float windDirectionRadians);
     // Current swell settings as {amplitude, wavelength, windDirection}; zeroes if no pipeline.
     glm::vec3 waveSettings() const;
+
+    // Wind SPEED in m/s (v4 W3). Drives the per-body profile: fetch-limited wave energy (SMB/CERC)
+    // and Cox-Munk ripple roughness. Setting it rebuilds the hydrology texture, since both are
+    // baked per column there. Default 6.7 = Beaufort 4 mid-point = today's look.
+    void setWindSpeed(float metresPerSecond);
+    float windSpeed() const;
+
+    // ── Water Appearance v4, W1 (docs/Water.md) ───────────────────────────────────
+    // Force a turbidity/roughness profile onto every wet column, bypassing per-body derivation.
+    // THE POSITIVE CONTROL for the profile pipe: derivation is neutral in W1, so a measurable pixel
+    // change under an override is what proves body → texture → shader → frame actually carries the
+    // value. Deliberately routed through the REAL production path (it re-uploads the hydrology
+    // texture) rather than a side channel, so it cannot pass while the shipped path is broken.
+    // `active = false` restores derivation. Only affects worlds with a hydrology bake — a flat-sea
+    // world has no bodies and therefore no profiles, by construction.
+    void setWaterLook(bool active, float turbidity, float roughness);
+    // {active ? 1 : 0, turbidity, roughness}.
+    glm::vec3 waterLook() const;
+
+    // ── Screen-space reflection on water (v4 W4) ──────────────────────────────────────────────
+    // Marches the scene depth buffer the water pass already binds, falling back to the procedural
+    // sky wherever the ray leaves the screen or finds nothing. OFF reproduces the pre-W4 look
+    // exactly (sky reflection only), which makes it the A/B control for before/after captures and
+    // the escape hatch if it misbehaves. Water can cover the whole screen, so this is the one
+    // v4 item with real per-fragment cost — measure in Release.
+    void setWaterSsr(bool on) { m_waterSsrEnabled = on; }
+
+    // ── GROUNDED WATER GRID (docs/Water.md) ────────────────────────────────────────
+    // Upload a per-voxel-column water grid built from LIVE terrain, for worlds with NO hydrology
+    // bake. rgba is the same packing as the bake path (R = level or the <-1e5 dry sentinel,
+    // G = wave energy, B = turbidity, A = roughness), cellSize is 1 voxel, and it is passed to the
+    // pipeline NEGATIVE — the sign tells the shaders that off-grid columns are DRY, because a
+    // bounded world has no implicit ocean beyond its edges. This replaces the implicit flat sea
+    // for such worlds: with it bound, a column with no terrain under it cannot draw water.
+    void uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX, int cellsZ,
+                                 float originX, float originZ);
+
+    // THE SANE BASELINE (docs/Water.md, user order 2026-08-04): streaming baked worlds render
+    // water from CHUNK SPANS over resident chunks, off-grid dry — one placement rule, coverage
+    // identical to terrain residency, content viewer-independent. Replaces the bake as the
+    // placement source on screen. Called per frame; rebuilds on chunk arrivals, rate-limited.
+    void updateSpanWaterGrid();
+    bool waterSsr() const { return m_waterSsrEnabled; }
 
     // Is the camera under water, and how far? Returns 0 above the surface, 1 fully submerged, and
     // fades across a short band so breaking the surface doesn't pop. `depthBelow` receives how far
@@ -622,6 +665,13 @@ private:
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
     const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    size_t m_spanGridChunkCount = 0;   // rebuild the span water grid when residency changes
+    int    m_spanGridCooldown = 0;
+    // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
+    bool  m_waterLookActive = false;
+    float m_waterLookTurbidity = 0.0f;
+    float m_waterLookRoughness = 1.0f;
+    bool  m_waterSsrEnabled = true;   // v4 W4; POST /api/debug/water_ssr toggles it
     Utils::PerformanceMonitor* performanceMonitor;
     PerformanceProfiler* performanceProfiler;
     RaycastVisualizer* raycastVisualizer;

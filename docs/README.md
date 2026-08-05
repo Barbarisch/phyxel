@@ -39,7 +39,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[structure-generation/](structure-generation/README.md)** — the **structure generator** (buildings/settlements): design, the grounded `StructureBrief` intake, placers, room/archetype data sheets, known issues, and the standing validation discipline. **Start at its README** — the canonical entry point for all structure-gen work.
 - **[structure-generation/DimensionReference.md](structure-generation/DimensionReference.md)** — generated, grounded dimension canon (every furniture/typology size + its citation).
 - **[TerrainGenerationBiomes.md](TerrainGenerationBiomes.md)** — terrain/biome world generation (the sibling pipeline).
-- **[WorldRecipeAndFlora.md](WorldRecipeAndFlora.md)** — per-world generation recipe + flora.
+- **[WorldModel.md](WorldModel.md)** — world semantics: one kind of world (recipe + DB overlay), streaming-flag retirement plan, the world recipe (absorbed WorldRecipeAndFlora).
 
 ## Engine architecture
 
@@ -63,7 +63,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Terrain, structures & assets
 
 - **[TerrainGenerationBiomes.md](TerrainGenerationBiomes.md)** — streaming + data-driven biomes (implemented on main)
-- **[WorldRecipeAndFlora.md](WorldRecipeAndFlora.md)** — per-world generation recipe + flora decoration
+- **[WorldModel.md](WorldModel.md)** — world semantics + the per-world recipe (flora decoration details: TerrainGenerationBiomes.md)
 - **[structure-generation/StructureGenerationPipeline.md](structure-generation/StructureGenerationPipeline.md)** — LLM-architect → deterministic C++ realizer for buildings
 - **[StructurePipelineGaps.md](StructurePipelineGaps.md)** — running log of pipeline gaps to implement
 - **[AssetPipeline.md](AssetPipeline.md)** — importing 3D models / animations into voxel templates
@@ -78,7 +78,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
 - **[DestructionSystem.md](DestructionSystem.md)** — voxel destruction design (bonds → coherent fragments; P1–P3 shipped); superseded/continued by **[DestructionSystemV2.md](DestructionSystemV2.md)** (active workstream — coherent fracture/topple, tool-driven impact, gatherable aftermath)
-- **[WaterSystem.md](WaterSystem.md)** — water design (Phase 0+ shipped on main); scaling to oceans/rivers/lakes continued in **[WaterSystemV2.md](WaterSystemV2.md)**
+- **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation

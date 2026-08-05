@@ -201,5 +201,77 @@ TEST_F(ChunkBlobCodecTest, DecodeRejectsWrongVersion) {
     EXPECT_FALSE(ChunkBlobCodec::decode(blob.data(), blob.size(), *dst));
 }
 
+// --- Water spans (docs/Water.md §2 layer 1 — water as chunk-resident world data) ---
+
+TEST_F(ChunkBlobCodecTest, WaterSpansRoundTrip) {
+    auto src = makeChunk();
+    src->addCube(glm::ivec3(4, 0, 9), "Stone");   // spans coexist with voxel sections
+    src->setWaterSpans({
+        {4, 9, 1.0f, 6.0f},        // resting on the stone at (4,0,9)
+        {4, 10, 0.0f, 6.0f},       // bottom at the chunk floor (continues below)
+        {20, 3, 12.0f, 32.0f},     // clipped at the chunk ceiling (continues above)
+    });
+
+    auto dst = roundTrip(*src);
+    const auto& spans = dst->getWaterSpans();
+    ASSERT_EQ(spans.size(), 3u) << "water spans must survive the blob round trip";
+    EXPECT_EQ(spans[0].x, 4);  EXPECT_EQ(spans[0].z, 9);
+    EXPECT_FLOAT_EQ(spans[0].bottom, 1.0f);
+    EXPECT_FLOAT_EQ(spans[0].top, 6.0f);
+    EXPECT_EQ(spans[1].x, 4);  EXPECT_EQ(spans[1].z, 10);
+    EXPECT_EQ(spans[2].x, 20); EXPECT_EQ(spans[2].z, 3);
+    // The fractional surface is the reason `top` is float — it must not quantise.
+    src->setWaterSpans({{7, 7, 2.0f, 28.9f}});
+    auto dst2 = roundTrip(*src);
+    ASSERT_EQ(dst2->getWaterSpans().size(), 1u);
+    EXPECT_FLOAT_EQ(dst2->getWaterSpans()[0].top, 28.9f);
+}
+
+TEST_F(ChunkBlobCodecTest, ChunkWithoutWaterRoundTripsEmptySpans) {
+    auto src = makeChunk();
+    src->addCube(glm::ivec3(1, 2, 3), "Stone");
+    auto dst = roundTrip(*src);
+    EXPECT_TRUE(dst->getWaterSpans().empty());
+}
+
+TEST_F(ChunkBlobCodecTest, TruncatedWaterSectionIsRejectedNotMisread) {
+    auto src = makeChunk();
+    src->setWaterSpans({{4, 9, 1.0f, 6.0f}, {5, 9, 1.0f, 6.0f}});
+    auto blob = ChunkBlobCodec::encode(*src);
+    // Cut inside the water section: every truncation length must fail loudly, never decode
+    // into a chunk with garbage or partial water.
+    for (size_t cut = 1; cut <= 9; ++cut) {
+        auto dst = makeChunk();
+        EXPECT_FALSE(ChunkBlobCodec::decode(blob.data(), blob.size() - cut, *dst))
+            << "truncated by " << cut << " bytes decoded anyway";
+    }
+}
+
+TEST_F(ChunkBlobCodecTest, V1BlobsWithoutAWaterSectionStillLoad) {
+    // Existing worlds are full of v1 blobs. A v2 blob with zero spans differs from a v1 blob by
+    // exactly the version byte and the trailing u32 count — strip both and it IS a v1 blob.
+    auto src = makeChunk();
+    src->addCube(glm::ivec3(3, 4, 5), "Stone");
+    auto blob = ChunkBlobCodec::encode(*src);
+    blob[4] = 1;                                  // version byte back to v1
+    blob.resize(blob.size() - 4);                 // drop the water spanCount
+    auto dst = makeChunk();
+    ASSERT_TRUE(ChunkBlobCodec::decode(blob.data(), blob.size(), *dst))
+        << "a pre-water blob must load unchanged";
+    ASSERT_NE(dst->getCubeAt(glm::ivec3(3, 4, 5)), nullptr);
+    EXPECT_TRUE(dst->getWaterSpans().empty());
+}
+
+TEST_F(ChunkBlobCodecTest, MalformedWaterSpanFieldsAreRejected) {
+    auto src = makeChunk();
+    src->setWaterSpans({{4, 9, 1.0f, 6.0f}});
+    auto blob = ChunkBlobCodec::encode(*src);
+    // The span's x byte lives 6 bytes from the end (x,z,f32,f32 = 10B; count precedes it).
+    // Corrupt it to an out-of-range column: decode must refuse, not clamp or alias.
+    blob[blob.size() - 10] = 77;   // x = 77 > 31
+    auto dst = makeChunk();
+    EXPECT_FALSE(ChunkBlobCodec::decode(blob.data(), blob.size(), *dst));
+}
+
 } // namespace Testing
 } // namespace Phyxel

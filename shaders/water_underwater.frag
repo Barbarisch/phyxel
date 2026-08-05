@@ -38,7 +38,7 @@ layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
     vec4 params;     // x = seaLevel, y = quad size, z = submergence 0..1, w = depth below surface
-    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w unused
+    vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w = turbidity
 } pc;
 
 // Same derivation as water_common.glsl: linear distance along the camera's forward axis from a
@@ -57,10 +57,27 @@ void main() {
     // saturates the fog rather than producing inf/NaN.
     dist = clamp(dist, 0.0, 400.0);
 
-    // Underwater visibility. ⚑GROUND: ~22 m to near-total extinction is the clear-coastal-water
-    // range a diver actually sees; murkier than open ocean (~50 m), far clearer than a silty lake
-    // (~3 m). Tuned for gameplay legibility rather than a specific water type.
-    const float VISIBILITY = 22.0;
+    // Underwater visibility, now PER BODY (v4 W2). It used to be one constant, so diving into a
+    // murky pond looked exactly like diving into open ocean — and once the SURFACE varies by body,
+    // a fixed underwater fog makes breaking the surface pop.
+    //
+    // VIS_CLEAR is the shipped 22.0, UNCHANGED — turbidity 0 must keep today's look exactly. It was
+    // always a legibility-tuned figure rather than a measured one, and it stays that way.
+    //
+    // ⚑VIS_TURBID is derived from the clear value by a GROUNDED RATIO rather than picked by eye, so
+    // the absolute scale inherits the existing legibility tuning while the relative change is real:
+    //   * clear coastal water Z_SD ~ 20 m, Kd ~ 1.7/Z_SD = 0.085 /m
+    //     (Poole, H.H. & Atkins, W.R.G. 1929, J. Mar. Biol. Assoc. UK 16(1):297-324)
+    //   * eutrophic lake Z_SD ~ 1.5 m (Carlson 1977 TSI, Limnol. Oceanogr. 22(2):361-368),
+    //     Kd ~ 1.4/Z_SD = 0.93 /m (Holmes 1970 — the turbid-estuary form of the same relation)
+    //   => turbid water attenuates ~11x faster, so 22.0 / 11 = 2.0.
+    // An earlier 3.0 here was a guess; this replaces it. (Note VISIBILITY is a 1/e fog distance, NOT
+    // a Secchi depth — only the RATIO transfers between the two quantities, which is why the ratio
+    // is what is used.)
+    const float VIS_CLEAR  = 22.0;
+    const float VIS_TURBID = 2.0;
+    float turbidity = clamp(pc.params2.w, 0.0, 1.0);
+    float VISIBILITY = mix(VIS_CLEAR, VIS_TURBID, turbidity);
     float fog = 1.0 - exp(-dist / VISIBILITY);
 
     // Depth below the surface darkens and blues the water — sunlight is absorbed on the way down.

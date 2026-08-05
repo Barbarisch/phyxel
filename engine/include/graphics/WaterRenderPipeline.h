@@ -9,7 +9,7 @@ namespace Graphics {
 
 class Camera;
 
-// Phase 0 water surface (see docs/WaterSystem.md).
+// Phase 0 water surface (see docs/Water.md).
 //
 // Draws a single large translucent quad locked to a world sea level and centered on
 // the camera in XZ — an "infinite ocean" plane. The scene depth buffer occludes it,
@@ -55,9 +55,14 @@ public:
     //   submergence — 0 = at/above the surface (draw skipped), 1 = fully under. The caller fades
     //                 this over a short band so breaking the surface doesn't pop.
     //   depthBelow  — how far under the surface the camera is (world units); darkens/blues the fog.
+    //   turbidity   — the profile of the body the camera is INSIDE (v4 W2). The surface reads its
+    //                 profile per pixel from the hydrology texture; this fullscreen pass has no
+    //                 per-pixel body, so it must be told which water it is in or a murky lake will
+    //                 read clear from below and breaking the surface will pop. 0 = clear.
     void renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                           const Camera& camera, const glm::mat4& projectionMatrix,
-                          float submergence, float depthBelow, VkExtent2D screenExtent);
+                          float submergence, float depthBelow, VkExtent2D screenExtent,
+                          float turbidity = 0.0f);
 
     // Gerstner swell controls (WaterSystemV3 Phase 2). amplitude 0 disables the displacement
     // entirely, which restores the pre-Phase-2 flat sheet — that is the A/B used to prove the
@@ -69,6 +74,13 @@ public:
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 
+    // WIND SPEED (v4 W3). Not used by this pipeline's own shading — it drives the CPU-side per-body
+    // profile (fetch-limited wave energy + Cox-Munk ripple roughness), which reaches the shader
+    // through the hydrology texture. Kept here because this is where the rest of the sea state
+    // already lives, so "the wind" is one object rather than two that can disagree.
+    void  setWindSpeed(float metresPerSecond) { m_windSpeed = metresPerSecond; }
+    float windSpeed() const { return m_windSpeed; }
+
     // Size the wave zone so its taper falls OUTSIDE the far plane. If the zone ends within view,
     // its edge is a ring of flattening water centred on the camera that follows the viewer around —
     // seen from above as a vortex, and read from any angle as "the waves come from where I stand".
@@ -77,6 +89,10 @@ public:
     float waveRadius() const { return m_waveRadius; }
 
     // ── WATER LAYER (terrain-gen stage output; water-layer P1) ────────────────────────────────
+    // `levels` is RGBA, 4 floats per cell, row-major (Phyxel::buildHydroUpload packs it):
+    // R = basin level, G = wave energy, B = turbidity, A = roughness. Widened from RG in
+    // Water Appearance v4 W1 — B/A are inert until W2/W3 derive them.
+    //
     // Record the per-column basin-level grid upload into `cmd` (one-shot command buffer, outside
     // any render pass) and point set-1 binding 3 at it. The clipmap then draws EVERY basin in
     // view at its own level — sea at sea level, each lake at its spill — with the dry-land gate
@@ -144,6 +160,10 @@ private:
     float m_waveAmplitude = 0.45f;
     float m_waveLength = 14.0f;
     float m_windDirection = 0.6f;   // radians; the dominant swell heading
+    // ⚑GROUND: 6.7 m/s = the mid-point of Beaufort force 4 (11-16 kn), which is the sea state the
+    // amplitude/wavelength above were authored to describe. Defaulting here means the derived
+    // profile reproduces today's look exactly (Cox-Munk roughness comes out at exactly 1.0).
+    float m_windSpeed = 6.7f;
 
     std::chrono::high_resolution_clock::time_point m_startTime;
 };

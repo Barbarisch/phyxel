@@ -354,7 +354,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     until raised via `POST /api/debug/render_distance`.
 - **TERRAIN rivers + WATER runtime (2026-07-10) — branch `terrain-gen-v2-p0` (LOCAL,
   not pushed).** Full design: [`docs/TerrainGenerationV2.md`](TerrainGenerationV2.md) §P2 +
-  [`docs/WaterSystemV2.md`](WaterSystemV2.md). This session shipped the whole procedural-river pipeline
+  [`docs/Water.md`](Water.md). This session shipped the whole procedural-river pipeline
   and started the water-runtime scaling. Every commit below is on `terrain-gen-v2-p0`, each with
   runnable tests (`build/tests/Debug/phyxel_tests.exe --gtest_filter='Terrain*:Water*'`) + a
   solution-auditor VERDICT — verify with `git show <hash>`.
@@ -1021,7 +1021,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       pause/credits/victory "Main Menu" should `transition_scene` back to the menu scene rather than the
       `ScreenState::MainMenu` fallback overlay.
 - **Water system — FULL FEATURE MERGED TO `main`** (commit `80f9998`, 2026-06-06). Design:
-  `docs/WaterSystem.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
+  `docs/Water.md`. Default **OFF** (per-world `"water":{"enabled","seaLevel",...}` block
   in game.json, applied in `Application::autoLoadGameDefinition`), so it's inert for projects
   that don't opt in. **Architecture:**
   - **Sim** = a mass-conserving **cellular automaton** in `WaterSimulation` (pure CPU,
@@ -1042,7 +1042,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     waterfalls()`), with `VfxBurstParams.posJitter` for an even cloud.
   - **Debug HTTP** (`/api/debug/`): `place_water`, `water_sync`, `water_stats`, `set_sea_level`
     (moves the sim AND the sea-plane renderer together), `add_ocean_seed`, `clear_ocean`,
-    `water_ocean_boundary` (seed the sea from the region frontier — WaterSystemV2 A2b),
+    `water_ocean_boundary` (seed the sea from the region frontier — water docs, consolidated in docs/Water.md),
     `water_table_level` {x,z} (probe the baked hydrology water level at any world column — Phase C),
     `place_spring`, `clear_springs`, `set_channel_region`, `water_gpu`, `water_save`.
     **GOTCHA:** a CommandRegistry handler is NOT reachable over HTTP until it also gets an explicit

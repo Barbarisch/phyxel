@@ -563,6 +563,13 @@ private:
     void onLauncherResult(const LauncherResult& result);
     void applyProjectSelection(const std::string& projectPath);
 
+    // Rebuild the grounded water render grid FROM CHUNK-RESIDENT SPANS (docs/Water.md §6 step 2,
+    // editor path). Chunks are the only source — the renderer draws what the world data holds, so
+    // saved water appears at boot with no command, and every writer (generation, ground_sync)
+    // renders through one derivation. No-op on baked/streaming worlds (their layer is the
+    // hydrology upload) and when no chunks are loaded. Returns the number of wet columns bound.
+    long rebuildGroundedWaterFromSpans();
+
     // Main menu bar
     void renderMainMenuBar();
     void renderStatusBar();

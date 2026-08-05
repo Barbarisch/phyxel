@@ -10,6 +10,11 @@
 > [`RenderOptimization.md`](RenderOptimization.md) (greedy-mesh campaign, shipped),
 > [`ChunkUpdateHitchPlan.md`](ChunkUpdateHitchPlan.md), `AgentContext.md` (far-terrain LOD +
 > async streaming arc, occlusion BFS, Phase-C downsample post-mortem).
+>
+> **Scope note (2026-08-04):** this doc owns *performance and scale* (storage, boot, culling,
+> RAM, horizon). **World SEMANTICS — what a world is, streaming-vs-bounded, the recipe, the
+> plan to retire the `world.streaming` flag — live in [`WorldModel.md`](WorldModel.md).** Where
+> this doc says "streaming world," read it as historical shorthand for "unbounded world."
 
 ## 0. Ground truth (surveyed 2026-07-11, working tree)
 

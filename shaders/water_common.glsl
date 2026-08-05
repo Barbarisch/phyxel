@@ -126,7 +126,14 @@ const float WATER_FBM_STD = 0.142;
 // killed coarse and fine detail together (so distant water went dead flat instead of keeping its
 // large-scale shape), and being a fixed radius around the camera it was a visible ring that
 // travelled with the viewer.
-vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
+//
+// `roughness` (Water Appearance v4 W1) scales every octave's amplitude. 1.0 = the shipped detail,
+// exactly. Toward 0 the micro-chop disappears and the surface becomes a MIRROR — that is the whole
+// mechanism behind "a still lake is glassy", and it is why roughness scales AMPLITUDE rather than,
+// say, fading octaves out: the slope each octave contributes (a*f) is what tilts the normal, so a
+// uniform amplitude scale is a uniform slope scale. At 0 the sum is exactly 0 and the normal is
+// exactly +Y (normalize(vec3(0,1,0)) — no NaN).
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld, float roughness) {
     vec2 d1 = normalize(vec2( 1.0,  0.4));
     vec2 d2 = normalize(vec2(-0.6,  1.0));
     vec2 d3 = normalize(vec2( 0.8, -0.7));
@@ -139,7 +146,8 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     // corduroy of micro-ridges over every wave face that looked worse than having no detail at all.
     // These sum to ~0.048: the same gentle sheen as before, but spread across four fine scales
     // instead of sitting at the swell's own scale.
-    float a1 = 0.0100, a2 = 0.0055, a3 = 0.0028, a4 = 0.0014;
+    float a1 = 0.0100 * roughness, a2 = 0.0055 * roughness,
+          a3 = 0.0028 * roughness, a4 = 0.0014 * roughness;
     float s1 = 1.10, s2 = 1.70, s3 = 2.40, s4 = 3.30;
 
     // Per-octave visibility: full while the wavelength covers >~7 px, gone under ~2.5 px. Coarse
@@ -167,6 +175,12 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
+// Shipped-detail overload (roughness 1). Keeps existing call sites — notably water.frag's dormant
+// planar-reflection branch — working unchanged.
+vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
+    return waterRippleNormal(p, t, pixelWorld, 1.0);
+}
+
 // FLOWING ripple normal (WaterSystemV3 Phase 3). Same wave pair, but the sample point is ADVECTED
 // along the flow direction over time and COMPRESSED across it — so ripples visibly travel
 // downstream and stretch into streaks, which is what separates a river from a pond. With
@@ -183,7 +197,8 @@ vec3 waterRippleNormal(vec2 p, float t, float pixelWorld) {
 //      even with smoothing, because the distortion grows with |p| — far from the origin, a tiny
 //      direction difference becomes a large coordinate difference.
 // Amplitude/choppiness scaling is safe: it does not move the sample point.
-vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld) {
+vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelWorld,
+                     float roughness) {
     // ⚑GROUND: 2.5 world-units/sec at full strength. Fast enough to read as a current at a glance,
     // slow enough that the wave pattern doesn't alias into a strobe at 60 fps.
     const float ADVECT_SPEED = 2.5;
@@ -201,8 +216,8 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelW
     float ph0 = fract(t / PERIOD);
     float ph1 = fract(t / PERIOD + 0.5);
     float k = ADVECT_SPEED * strength * PERIOD;
-    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld);
-    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld);
+    vec3 n0 = waterRippleNormal(p - flowDir * (ph0 * k), t, pixelWorld, roughness);
+    vec3 n1 = waterRippleNormal(p - flowDir * (ph1 * k), t, pixelWorld, roughness);
     // Weight each sample by how far it is from its own wrap point, so the crossfade hides the reset.
     vec3 n = normalize(mix(n0, n1, abs(2.0 * ph0 - 1.0)));
     // Moving water is choppier: exaggerate the normal's tilt with speed (safe — no coord change).
@@ -243,20 +258,179 @@ vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient) {
 // The surface
 // ---------------------------------------------------------------------------------------------
 
-// Beer-Lambert extinction per world unit (≈1 m per voxel). ⚑GROUND: the SHAPE is real — clear
-// water absorbs red roughly an order of magnitude faster than blue (Pope & Fry 1997 measure
-// ~0.42 /m at 650 nm, ~0.05 /m at 550 nm, ~0.014 /m at 450 nm). Blue is nudged UP from the
-// physical value because a voxel world's water bodies are metres deep, not tens of metres, and
-// the true blue coefficient would show no gradient at all over a 5-voxel pond.
+// Beer-Lambert extinction per world unit (≈1 m per voxel), CLEAR-water endpoint (turbidity 0).
+//
+// ⚑GROUND — Pope, R.M. & Fry, E.S. (1997), "Absorption spectrum (380-700 nm) of pure water. II.
+// Integrating cavity measurements," Applied Optics 36(33):8710-8723. The authors' own tabulated
+// data (omlc.org/spectra/water/data/pope97.txt), converted to 1/m, are NAPIERIAN — i.e. already the
+// right units for exp(-a*z), no 2.303 conversion:
+//        650 nm (R) 0.340      550 nm (G) 0.0565      450 nm (B) 0.00922
+//
+// ⚑THE SHIPPED VALUES DEVIATE, AND THE OLD COMMENT MISREPORTED BY HOW MUCH (grounding-auditor,
+// 2026-08-03). It said "blue is nudged up" and quoted 0.42/0.05/0.014. In fact ALL THREE are raised
+// and the quoted figures were themselves wrong. Stated per channel, real number first:
+//    R  real 0.340   shipped 0.42    (1.24x)
+//    G  real 0.0565  shipped 0.09    (1.59x)  <- the old comment claimed to ship 0.05; it ships 0.09
+//    B  real 0.00922 shipped 0.045   (4.88x)  <- old comment claimed the real value was 0.014 (1.5x high)
+// The deviation is DELIBERATE and kept: a voxel world's water is metres deep, not tens of metres, so
+// the true coefficients show almost no gradient over a 5-voxel pond. It is an artistic exaggeration
+// of a real spectrum, not a measurement — do not cite these three numbers as physical.
 const vec3 WATER_EXTINCTION = vec3(0.42, 0.09, 0.045);
+// Fully-turbid endpoint (turbidity 1) — a eutrophic / sediment-laden inland water body.
+//
+// ⚑THE PREVIOUS PLACEHOLDER HAD THE SPECTRAL ORDER BACKWARDS. It was vec3(1.20, 0.90, 0.75):
+// R > G > B, i.e. blue transmitting BEST, on the assumption that turbidity just "flattens" the
+// clear-water spectrum toward grey. That is wrong, and citably so — Akkaynak, D. & Treibitz, T.
+// (2017), "What Is the Space of Attenuation Coefficients in Underwater Computer Vision?" (CVPR),
+// derives RGB attenuation from the Jerlov dataset and finds the familiar "red dies first" rule is
+// an OCEANIC-water phenomenon only: in very turbid coastal water BLUE attenuates fastest, because
+// suspended sediment and CDOM (gelbstoff) preferentially absorb and scatter blue-green, leaving a
+// green-yellow (~520-570 nm) transmission window. That is why real muddy water reads OLIVE/BROWN
+// rather than grey. The order here is therefore B > R > G.
+//
+// ⚑MAGNITUDE, grounded by construction rather than read off a table:
+//   * Carlson, R.E. (1977), "A Trophic State Index for Lakes," Limnol. Oceanogr. 22(2):361-368 —
+//     a eutrophic lake has Secchi depth Z_SD = 0.9-2.3 m; take the mid-range 1.5 m.
+//   * Holmes, R.W. (1970) gives Kd ~ 1.4/Z_SD for TURBID estuarine water (the turbid-end
+//     counterpart of Poole & Atkins' 1.7 for clear water).
+//   => broadband Kd ~ 1.4 / 1.5 = 0.93 /m, and these three channels average 0.933.
+//
+// ⚑WHAT IS *NOT* MEASURED: the per-channel SPLIT about that mean. The magnitude and the ordering
+// are each sourced; the exact spread between them is an artistic distribution consistent with both
+// constraints. Jerlov's own Kd(lambda) table for a named coastal type (5C-9C) would replace it —
+// see Solonenko & Mobley (2015), Applied Optics 54(17):5392-5401, or Jerlov (1976) Marine Optics
+// Table XXXI. Both are paywalled and could not be obtained; this is the honest stand-in.
+//
+// NOTE the mix() between the endpoints CROSSES OVER: clear water is R-dominated (0.42 vs 0.045),
+// turbid water is B-dominated (1.20 vs 0.95). That crossover is the physically described behaviour,
+// not an artifact — water shifts from blue-absorbing-least to blue-absorbing-most as it silts up.
+const vec3 WATER_EXTINCTION_TURBID = vec3(0.95, 0.65, 1.20);
 
 // In-scattered colour — what the water body itself glows with as the transmitted scene fades out.
+// ⚑UNSOURCED (flagged by the grounding-auditor 2026-08-03): this shipped long before v4 and carries
+// no citation. It is an artistic clear-water colour. Left AS IS deliberately — changing it would
+// alter every existing world's water, which is a visual decision, not a grounding fix.
 const vec3 WATER_SCATTER = vec3(0.04, 0.18, 0.24);
+// Turbid in-scatter. ⚑THE DIRECTION IS GROUNDED; THE MAGNITUDE IS NOT — keep it labelled.
+// Turbid water in-scatters MORE (suspended particles bounce light back, so murky water is BRIGHTER
+// at shallow depth even as it becomes less transparent; without this it just goes black, which is
+// the classic wrong-looking result). Measured support: Lobo, F.L. et al. (2014), "Light
+// backscattering in turbid freshwater: a laboratory investigation," J. Appl. Remote Sens.
+// 8(1):083611 — particle backscatter rises monotonically with turbidity, bb ~ 0.018-0.030 x NTU.
+// ⚑That grounds the SIGN and rough family, NOT this RGB triple: converting a backscattering
+// coefficient into an in-scattered colour in a Beer-Lambert compositing model needs a
+// radiative-transfer step (single-scattering albedo + source-function integration) nobody has done
+// here. Skewed green to match the transmission window named above. Artistic magnitude — do not cite.
+const vec3 WATER_SCATTER_TURBID = vec3(0.20, 0.26, 0.18);
 
 // Path length (world units) over which a shoreline fades from invisible to fully water.
 // ⚑GROUND: 0.4 voxel ≈ 40 cm of water — about where a real shore stops reading as wet ground and
 // starts reading as water.
 const float SHORE_FADE = 0.4;
+
+// ---------------------------------------------------------------------------------------------
+// SCREEN-SPACE REFLECTION (Water Appearance v4 W4)
+// ---------------------------------------------------------------------------------------------
+//
+// WHY: until now water reflected a PROCEDURAL SKY and nothing else — `waterSkyReflection` is a
+// gradient plus a sun disc. A mirror-flat lake could not show the mountain behind it, which is the
+// single most obvious "this is not water" tell on calm water. Planar reflection was the other
+// option and is rejected: it assumes a flat mirror plane, and this sea is Gerstner-DISPLACED, plus
+// the engine's shared mirror pass is known-broken (wrong winding/projection, RenderCoordinator).
+//
+// The inputs cost nothing new — the water pass ALREADY binds the half-res scene-colour copy
+// (refractionTex, captured before water draws, so it contains terrain + sky and no water) and the
+// scene depth buffer. SSR is a march over data already resident.
+//
+// ⚑ROUGHNESS COUPLING IS AUTOMATIC, BY DESIGN. There is deliberately no explicit "blur by
+// roughness" term here: the reflected direction is built from N, and N already carries the ripple
+// detail scaled by the per-body `roughness`. A choppy surface therefore scatters its reflection
+// rays and the mirror breaks up on its own; when W3 derives a low roughness for a calm lake, N
+// flattens and the same code returns a coherent mirror. One parameter, both behaviours — adding a
+// second blur knob would let the two disagree.
+//
+// ⚑PROJECTION: this marches in ABSOLUTE world space and projects with the water's OWN viewProj.
+// It must not use ubo.viewProj — the scene UBO's matrix is camera-RELATIVE while water geometry is
+// authored in absolute world space (see the Phase 1 note at the top of this file). Depth, however,
+// is compared as a LINEAR DISTANCE ALONG THE CAMERA FORWARD AXIS, which is convention-independent:
+// a translation of the view origin does not change how far a point is from the camera.
+
+// Project a world point to screen UV. Returns false when it lands outside the frustum/screen.
+bool waterProjectToUV(vec3 worldP, mat4 viewProj, out vec2 uv) {
+    vec4 clip = viewProj * vec4(worldP, 1.0);
+    if (clip.w <= 1e-5) return false;              // behind the eye
+    vec2 ndc = clip.xy / clip.w;
+    uv = ndc * 0.5 + 0.5;
+    return all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
+}
+
+// March the reflected ray against the depth buffer. Returns true on a hit, with the reflected
+// colour and a confidence in [0,1] that fades the result out rather than popping it.
+bool waterSsrTrace(vec3 origin, vec3 dir, mat4 viewProj, vec3 camPos, vec3 fwd,
+                   float jitter, out vec3 hitColor, out float confidence) {
+    hitColor = vec3(0.0);
+    confidence = 0.0;
+
+    // ⚑BUDGET, stated because this is the one part of v4 with real perf risk: 24 steps over 120
+    // world units (5 u per step) then a 5-iteration binary refine. Water can cover the whole
+    // screen, so this is the cost that must be MEASURED in Release, not estimated.
+    const int   STEPS      = 24;
+    const int   REFINE     = 5;
+    const float MAX_DIST   = 120.0;
+    // A hit must be *just* behind the surface it hit. Without this, the ray passing far behind a
+    // foreground object registers as a reflection of it — the classic SSR smear.
+    const float THICKNESS  = 6.0;
+
+    float stepLen = MAX_DIST / float(STEPS);
+    float prevT = 0.0;
+    // Jitter the first step so the fixed stride does not produce banded reflections; the ripple
+    // normal already varies per pixel, but the STEP pattern would otherwise be coherent.
+    float t = stepLen * (0.5 + 0.5 * jitter);
+
+    for (int i = 0; i < STEPS; ++i) {
+        vec3 P = origin + dir * t;
+        vec2 uv;
+        if (!waterProjectToUV(P, viewProj, uv)) return false;   // left the screen -> sky fallback
+
+        float sceneD = texture(sceneDepthTex, uv).r;
+        if (sceneD >= 0.9999) { prevT = t; t += stepLen; continue; }   // sky: nothing to reflect
+
+        float sceneDist = waterLinearDepth(sceneD, ubo.proj);
+        float rayDist   = dot(P - camPos, fwd);
+        float diff      = rayDist - sceneDist;
+
+        if (diff > 0.0 && diff < THICKNESS) {
+            // Binary refine between the last miss and this hit so the reflection lands on the
+            // silhouette rather than a step-quantised approximation of it.
+            float lo = prevT, hi = t;
+            for (int r = 0; r < REFINE; ++r) {
+                float mid = 0.5 * (lo + hi);
+                vec3  Pm  = origin + dir * mid;
+                vec2  uvm;
+                if (!waterProjectToUV(Pm, viewProj, uvm)) { hi = mid; continue; }
+                float sd = texture(sceneDepthTex, uvm).r;
+                if (sd >= 0.9999) { lo = mid; continue; }
+                if (dot(Pm - camPos, fwd) - waterLinearDepth(sd, ubo.proj) > 0.0) hi = mid;
+                else                                                              lo = mid;
+            }
+            vec3 Pf = origin + dir * hi;
+            vec2 uvf;
+            if (!waterProjectToUV(Pf, viewProj, uvf)) return false;
+
+            hitColor = texture(refractionTex, uvf).rgb;
+            // Confidence: fade out at the screen edge (where the data simply runs out — the
+            // characteristic SSR artifact is a hard cut there) and with distance travelled.
+            vec2 edge = min(uvf, 1.0 - uvf);
+            float edgeFade = smoothstep(0.0, 0.12, min(edge.x, edge.y));
+            float distFade = 1.0 - smoothstep(0.6 * MAX_DIST, MAX_DIST, hi);
+            confidence = edgeFade * distFade;
+            return confidence > 0.001;
+        }
+        prevT = t;
+        t += stepLen;
+    }
+    return false;
+}
 
 // A/B probe. Screen-space metrics cannot separate world-aligned voxel terraces from the foam
 // noise's own cells whenever the camera is yawed, so attribute artifacts by switching foam OFF
@@ -292,9 +466,20 @@ struct WaterSurfaceInput {
     // high a wave crest happens to rise over it. Set to -1e9 to disable (per-cell water, whose
     // level is whatever the sim says it is).
     float restLevelY;
-    // 1 = the hydrology bake explicitly marks this column DRY (the layer is drawing its
-    // seaLevel FALLBACK here, not baked water). 0 for baked-wet columns and for per-cell water.
-    float dryLand;
+    // ── PER-BODY PROFILE (Water Appearance v4 W1; docs/Water.md) ──────────────────
+    // Every optical/mechanical property of water used to be a global constant, which is why all
+    // water looked like the same water. These two come from the hydrology texture's B/A channels,
+    // fetched per pixel. THE NEUTRAL VALUES REPRODUCE TODAY'S LOOK EXACTLY — turbidity 0 and
+    // roughness 1 are not "sensible defaults", they are an identity that W1 asserts against a
+    // pre-change capture.
+    float turbidity;   // 0 = clear (Pope & Fry constants), 1 = fully turbid
+    float roughness;   // multiplier on the fine ripple slope; 1 = shipped detail, 0 = mirror
+    // ── SCREEN-SPACE REFLECTION (v4 W4) ───────────────────────────────────────────────────────
+    // The water's OWN absolute-world-space viewProj. NOT ubo.viewProj, which is camera-relative
+    // (see the SSR block above) — passing it explicitly keeps this file independent of each
+    // includer's push-constant layout.
+    mat4  viewProj;
+    float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -308,7 +493,8 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // is what lets each octave retire on its own terms AND removes the camera-centred ring.
     float viewDist = length(inp.worldPos - inp.camPos);
     float pixelWorld = viewDist * (0.828427 / max(inp.screenSize.y, 1.0));
-    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength, pixelWorld);
+    vec3 detail = waterFlowNormal(inp.worldPos.xz, inp.time, inp.flowDir, inp.flowStrength,
+                                  pixelWorld, inp.roughness);
     // Perturb the macro normal by the ripple detail's tilt (detail is around +Y, so its xz IS the
     // tilt). Keeping the two separate is what lets a swell read as a swell at distance while still
     // sparkling up close.
@@ -344,16 +530,9 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // REVERSE-Z: the cleared "nothing here" depth is 0.0, not 1.0 (DepthConvention.h).
     bool hasSeabed = sceneD > 0.0001;
 
-    // WORLD-LOOK B1 — THE ENDLESS OCEAN UNDER THE WORLD. A bake-DRY column drawing the layer's
-    // seaLevel fallback is only ever legitimate when real submerged terrain sits behind it (the
-    // near-field shoreline snap band: bake-dry columns whose ground lies below sea level — the
-    // depth gate at the bottom of this function then arbitrates per pixel). With NO seabed at
-    // all — nothing was drawn behind the sheet: under the world, unloaded regions, past the far
-    // tiers — every gate in this function silently skips, and the fallback rendered as an
-    // infinite phantom sea beneath everything. That combination has no honest interpretation:
-    // kill the fragment. (Baked-WET columns keep drawing against empty depth — the open ocean
-    // past the far tiers is exactly that case.)
-    if (inp.dryLand > 0.5 && !hasSeabed) discard;
+    // (The B1 "endless ocean under the world" gate that used to sit here is gone: origin's
+    // `noWater` discard in water.frag kills a bake-dry column outright, before the depth buffer is
+    // consulted at all, which strictly supersedes the old `dryLand && !hasSeabed` test.)
 
     // --- Refraction: the scene behind the surface, displaced by the ripple normal ------------
     // The offset shrinks with distance so far water doesn't wobble absurdly.
@@ -369,14 +548,33 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     vec3 behind = texture(refractionTex, refractUV).rgb;
 
     // --- Absorption: tint what we see through the water by how far the light travelled -------
-    vec3 transmit = exp(-WATER_EXTINCTION * thickness);
-    vec3 body = behind * transmit + WATER_SCATTER * (1.0 - transmit);
+    // Per-body optics (v4 W1). mix(x, y, 0.0) is exactly x, so turbidity 0 is bit-identical to the
+    // single-constant version this replaces — which is what the W1 no-regression capture asserts.
+    vec3 extinction = mix(WATER_EXTINCTION, WATER_EXTINCTION_TURBID, inp.turbidity);
+    vec3 scatter    = mix(WATER_SCATTER,    WATER_SCATTER_TURBID,    inp.turbidity);
+    vec3 transmit = exp(-extinction * thickness);
+    vec3 body = behind * transmit + scatter * (1.0 - transmit);
 
     // --- Reflection ------------------------------------------------------------------------
     float ndv  = clamp(dot(V, N), 0.0, 1.0);
     float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
     vec3  R    = reflect(-V, N);
     vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight);
+
+    // SCREEN-SPACE REFLECTION (v4 W4). The sky stays the FALLBACK, never the loser: where the ray
+    // leaves the screen, finds no geometry, or lands on a surface too far behind, the water keeps
+    // the procedural sky it always had. That is what makes this additive rather than a regression —
+    // ssr = 0 is bit-identical to the pre-W4 look.
+    if (inp.ssr > 0.5) {
+        // Offset the ray origin along the normal before marching, or the very first sample sits on
+        // the water surface itself and self-intersects.
+        vec3 ssrColor; float ssrConf;
+        float jitter = fract(waterSimplex(inp.fragCoord * 0.37) * 7.0);
+        if (waterSsrTrace(inp.worldPos + N * 0.05, R, inp.viewProj, inp.camPos, fwd,
+                          jitter, ssrColor, ssrConf)) {
+            refl = mix(refl, ssrColor, ssrConf);
+        }
+    }
 
     vec3 color = mix(body, refl, fres);
 
@@ -414,7 +612,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // diagonal bands, and the reported quilt got a second layer. Noise at ~1.2 units is comparable
     // to the step, so the boundary dissolves into a stipple instead of acquiring new structure.
     //
-    // The REAL fix is a smooth shore field (docs/WaterPhysicalFeelPlan.md §2) whose distance
+    // The REAL fix is a smooth shore field (docs/Water.md §2) whose distance
     // transform is continuous by construction; this is the cheap stand-in until that exists.
     // Scaled to std 0.40 — a bit under half the 1.0 step, so the boundary dissolves without the
     // foam wandering far enough to leave the real shoreline. Divide by the measured std rather

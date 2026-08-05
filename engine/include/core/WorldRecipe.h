@@ -13,7 +13,7 @@ namespace Phyxel {
 /// Captures the per-world TUNING — seed, biome size, extremeness, flora — that overrides
 /// the shared biome *category* library (resources/biomes.json). Once written, the DB is the
 /// runtime source of truth for a world (reproducible, immune to global config edits).
-/// See docs/WorldRecipeAndFlora.md. Header-only so the engine glob needs no reconfigure.
+/// See docs/WorldModel.md. Header-only so the engine glob needs no reconfigure.
 struct WorldRecipe {
     struct FloraItem {
         std::string templateName;

@@ -1699,9 +1699,15 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_ocean_boundary", waterEndpoint("water_ocean_boundary"));
     srv.Post("/api/debug/water_table_level",    waterEndpoint("water_table_level"));
     srv.Post("/api/debug/water_waves",          waterEndpoint("water_waves"));
+    srv.Post("/api/debug/water_look",           waterEndpoint("water_look"));   // v4 W1 probe
+    srv.Post("/api/debug/water_ssr",            waterEndpoint("water_ssr"));    // v4 W4 toggle
+    srv.Post("/api/debug/water_span_scan",      waterEndpoint("water_span_scan"));  // occupancy §5.2
+    srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
+    srv.Post("/api/debug/water_spans_stored",   waterEndpoint("water_spans_stored")); // chunk-resident span readback
+    srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
-    // Near-field probes (docs/WaterPhysicalFeelPlan.md small-scale Phase 0.4).
+    // Near-field probes (docs/Water.md small-scale Phase 0.4).
     srv.Post("/api/debug/water_probe",          waterEndpoint("water_probe"));
     srv.Post("/api/debug/water_waterfalls",     waterEndpoint("water_waterfalls"));
     srv.Post("/api/debug/water_footprint",      waterEndpoint("water_footprint"));

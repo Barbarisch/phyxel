@@ -10,7 +10,7 @@ namespace Phyxel {
 // Samples a coarse base-height function into a cellsX×cellsZ grid, runs Priority-Flood with a
 // sea-level outlet, and stores the flat WATER-SURFACE level at each cell: the ocean at/below sea
 // level, inland lakes above it (each filled to its spill, flat, with a free rim). This is the
-// terrain-side hydrology DATA — the water runtime (docs/WaterSystemV2.md) renders/simulates it;
+// terrain-side hydrology DATA — the water runtime (docs/Water.md) renders/simulates it;
 // generation reads it to know where water sits. Built once (a "bounded backing" per §1); pure +
 // deterministic.
 //
@@ -49,7 +49,7 @@ public:
     // had no ocean outlet anywhere — the whole region is one closed basin filling to its spill,
     // which puts lakes on hillsides. That is a world/sea-level CONFIGURATION problem, not a bake
     // defect; expose the fact so callers can warn loudly instead of someone diagnosing the
-    // symptom downstream (docs/WaterPhysicalFeelPlan.md §2e).
+    // symptom downstream (docs/Water.md §2e).
     float minTerrain() const { return m_minTerrain; }
     bool hasOutlet() const { return m_minTerrain <= m_seaLevel; }
 

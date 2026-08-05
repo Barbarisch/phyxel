@@ -264,7 +264,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     // so the recipe snapshot below carries it and the bake floods against the right outlet.
     generator.getTerrainParams().seaLevelY = bakeSeaLevelY;
 
-    // Per-world recipe (docs/WorldRecipeAndFlora.md): the world DB is the source of truth for
+    // Per-world recipe (docs/WorldModel.md): the world DB is the source of truth for
     // generation tuning. If a recipe is stored, apply it (reproducible, immune to global
     // biomes.json edits); otherwise snapshot the current config (biomes.json + game.json params)
     // and persist it so future loads of this world are stable. Must run before generation +

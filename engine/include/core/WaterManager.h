@@ -33,7 +33,7 @@ struct WaterSurfaceCell {
 // Runs the CPU water cellular automaton (WaterSimulation) over a fixed axis-aligned
 // region of the live world. Solidity is read from the chunk terrain; the sim is
 // stepped at a fixed rate independent of frame rate. This is the CPU integration that
-// precedes the GPU compute port + per-cell rendering (see docs/WaterSystem.md).
+// precedes the GPU compute port + per-cell rendering (see docs/Water.md).
 class WaterManager {
 public:
     WaterManager(ChunkManager* chunkManager, const glm::ivec3& origin, const glm::ivec3& dims);
@@ -113,6 +113,11 @@ public:
     void setImplicitSea(bool on) { m_implicitSea = on; }
     bool implicitSea() const { return m_implicitSea; }
 
+    // A/B override for cell rendering (see rebuildSurface's camera-invariant gate):
+    // -1 default rule, 0 force off, 1 force on. Rebuilds the surface on change.
+    void setCellRenderOverride(int mode) { m_cellRenderOverride = mode; rebuildSurface(); }
+    int  cellRenderOverride() const { return m_cellRenderOverride; }
+
     // Update one cell's solid state (world coords) — wired to voxel break/place so
     // water flows into newly-removed cells on the next step. Cheap; ignores cells
     // outside the region.
@@ -126,7 +131,7 @@ public:
     // --- Ocean seam (infinite reservoir at sea level) ---
     // Open cells at/below `seaLevel` that are connected to an ocean seed become an
     // infinite reservoir: they hold sea level, refill when dug, and flood through
-    // breaches; sealed sub-sea cavities stay dry. (See docs/WaterSystem.md.)
+    // breaches; sealed sub-sea cavities stay dry. (See docs/Water.md.)
     void  setSeaLevel(float worldY);
     float seaLevel() const { return m_seaLevel; }
     void  addOceanSeed(const glm::vec3& worldPos); // a point the ocean floods out from
@@ -214,11 +219,11 @@ public:
     //
     // STATE THIS PLAINLY: that is a VISUAL flow over a hydrostatically static field. The water is
     // not advecting; it is being shaded as though it were. Real advection needs CA momentum
-    // (docs/WaterSystemV3.md Phase 4). Bind nullptr to disable.
+    // (docs/Water.md Phase 4). Bind nullptr to disable.
     void setRiverFlowQuery(std::function<glm::vec2(float worldX, float worldZ)> dirAt);
     bool hasRiverFlowQuery() const { return static_cast<bool>(m_riverDirFn); }
 
-    // --- L3 bake-vs-terrain validation (docs/WaterSystemV2.md Phase C) ---
+    // --- L3 bake-vs-terrain validation (docs/Water.md Phase C) ---
     // The bake decides WHERE water sits (per-column levels); the carved terrain decides whether it
     // is CONTAINED. Where they disagree at a water body's rim — a baked-DRY column whose carved
     // surface sits BELOW an adjacent wet column's level — the CA legitimately levels water into it
@@ -307,7 +312,7 @@ public:
 
     // --- GPU backend ---
     // Run the per-tick flow step on a compute shader instead of the CPU. Behaviour is
-    // close (gather-formulated, see docs/WaterSystem.md), not bit-identical. Masks
+    // close (gather-formulated, see docs/Water.md), not bit-identical. Masks
     // (solid/source/channel) and the field round-trip CPU<->GPU each step, so all CPU
     // authoring (ocean flood, springs, place/edit) and rendering keep working unchanged.
     void enableGpu(Vulkan::VulkanDevice* device); // create GPU resources (once)
@@ -393,6 +398,9 @@ private:
     bool                    m_oceanDirty = false;
     bool                    m_oceanBoundary = false; // seed the ocean from the region edges (Phase A2b)
     bool                    m_implicitSea = false;   // implicit flat sea outside region/table (4.1)
+    // Cell-render tri-state: -1 = default rule (OFF in baked-table worlds — the CAMERA INVARIANT;
+    // ON in authored worlds), 0 = forced off, 1 = forced on (A/B only). See rebuildSurface.
+    int                     m_cellRenderOverride = -1;
     std::vector<glm::ivec3> m_oceanSeeds; // world-space flood seeds
 
     struct Spring { glm::ivec3 cell; float mass; };

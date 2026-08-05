@@ -6,7 +6,7 @@ hand-placing voxels. New session, or picking this up on another machine? Read th
 follow the reading order below. **The approach is uniform and enforced — see "Standing rules".**
 
 > Scope: buildings & settlements. The *terrain/world* generator (biomes, flora, world recipe) is a
-> sibling pipeline and lives at `docs/TerrainGenerationBiomes.md` / `docs/WorldRecipeAndFlora.md`,
+> sibling pipeline and lives at `docs/TerrainGenerationBiomes.md` / `docs/WorldModel.md` (absorbed WorldRecipeAndFlora),
 > not here. The cross-session game-dev **feedback** inbox (`docs/feedback/`) is unrelated.
 
 ## The pipeline, one line

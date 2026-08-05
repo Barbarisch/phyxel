@@ -12,7 +12,7 @@ namespace Graphics {
 
 class Camera;
 
-// Per-cell water surface renderer (Phase 2, see docs/WaterSystem.md). Draws one
+// Per-cell water surface renderer (Phase 2, see docs/Water.md). Draws one
 // instanced translucent 1x1 quad per simulated surface cell at its fill height,
 // visualizing the actual water field (flow, pools, bodies at any height) rather than
 // a single flat sea plane. Modeled on VfxRenderPipeline: own quad vertex buffer +

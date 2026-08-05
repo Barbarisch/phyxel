@@ -39,11 +39,16 @@ layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
 // body size — tangible-water F). Falls back to the flat sea level at full energy when no layer
 // is bound (invCellSize 0), outside the baked region (the open ocean beyond ±16 km), or on dry
 // columns (sentinel) — the dry-land gate in the fragment stage removes the sheet over dry land.
+// NEGATIVE invCellSize = a GROUNDED grid (built from live terrain, WaterAsWorldData): same lookup,
+// but off-grid columns are DRY, not open ocean. The vertex stage only needs |invCell| — every
+// fallback here still returns a position, and the fragment stage's per-pixel gate (which does
+// honour the sign) discards those pixels, so a grounded world draws nothing beyond its grid.
 float basinLevelAt(vec2 worldXZ, out float valid, out float energy) {
     valid = 0.0;
     energy = 1.0;
-    float invCell = pc.params3.w;
-    if (invCell <= 0.0) return pc.params.x;
+    float invCellRaw = pc.params3.w;
+    if (invCellRaw == 0.0) return pc.params.x;
+    float invCell = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))

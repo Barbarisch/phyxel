@@ -1,6 +1,6 @@
 {
   "name": "WaterTest",
-  "description": "Deterministic water look/flow test bed (docs/WaterSystemV3.md). A Perlin coastline straddling sea level 16 — shallow shore, deep basin and dry land in one frame — plus a raised stone tub for above-sea-level water (the per-cell renderer; the flat sea plane is suppressed at sea level). Fixed camera so before/after captures and pixel probes are comparable across builds.",
+  "description": "Deterministic water look/flow test bed (docs/Water.md). A Perlin coastline straddling sea level 16 — shallow shore, deep basin and dry land in one frame — plus a raised stone tub for above-sea-level water (the per-cell renderer; the flat sea plane is suppressed at sea level). Fixed camera so before/after captures and pixel probes are comparable across builds.",
   "version": "1.0",
   "world": {
     "type": "Perlin",
@@ -24,7 +24,7 @@
     "position": { "x": 34, "y": 62, "z": 34 },
     "yaw": -135,
     "pitch": -22,
-    "_comment": "Fixed vantage looking down-left across the coastline. DO NOT change casually: the L2 pixel probes in docs/WaterSystemV3.md compare crops from this exact camera."
+    "_comment": "Fixed vantage looking down-left across the coastline. DO NOT change casually: the L2 pixel probes in docs/Water.md compare crops from this exact camera."
   },
   "structures": [
     {
