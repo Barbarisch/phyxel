@@ -122,6 +122,10 @@ public:
      */
     size_t getDirtyCount() const { return m_dirtyChunkCoords.size(); }
 
+    /// Low-priority (idle-tier) remesh backlog — cosmetic neighbour re-culls/light ripples.
+    /// Part of the /api/debug/load_state readiness verdict.
+    size_t getIdleCount() const { return m_idleChunkCoords.size(); }
+
 private:
     // Callbacks for ChunkManager state access
     ChunkVectorAccessFunc m_getChunks;

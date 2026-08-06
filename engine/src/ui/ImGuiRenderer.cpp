@@ -775,14 +775,9 @@ void ImGuiRenderer::renderLightingControls(
         ImGui::Text("Emissive Glow");
         ImGui::SliderFloat("Multiplier", &emissiveMultiplier, 1.0f, 10.0f);
 
-        if (shadowMap) {
-            ImGui::Separator();
-            ImGui::Text("Shadows");
-            float shadowRange = shadowMap->getShadowRange();
-            if (ImGui::SliderFloat("Shadow Range", &shadowRange, 30.0f, 400.0f)) {
-                shadowMap->setShadowRange(shadowRange);
-            }
-        }
+        // (The old "Shadow Range" slider was removed 2026-08-05: it wrote ShadowMap's dead
+        // m_shadowRange, which nothing in the render path read. The live knob is
+        // RenderCoordinator::s_shadowDistance via POST /api/debug/shadow.)
 
         if (lightManager) {
             ImGui::Separator();

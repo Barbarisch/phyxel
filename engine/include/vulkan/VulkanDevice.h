@@ -147,6 +147,31 @@ struct UniformBufferObject {
     alignas(16) glm::vec4 grassDisplacers[16];
     alignas(16) glm::vec4 grassDisplacersAux[16];  // x = strength envelope 0..1 (eased on CPU), yzw reserved
     alignas(16) glm::ivec4 grassDisplacerMeta;  // x = active count, yzw unused
+    // ---- Near shadow cascade (docs/NearShadowCascade.md; 2026-08-05) ------------------------
+    // A second, tight shadow map over the near field: one map fitted to 420 u gives a
+    // 0.1125 u texel, and a grass blade's 0.080 u shadow proxy is 0.71 texel — sub-texel
+    // casters rasterize as unstructured noise (measured: 40.1% of the view as blobs).
+    // The near map fits ~40 u at 4096² = 0.0195 u/texel, where the same blade spans 4 texels.
+    // Appended AFTER grassDisplacerMeta per the trailing-field rule: every existing truncated
+    // GLSL declaration stays valid; only shaders that read these declare this far.
+    alignas(16) glm::mat4 biasedLightSpaceNear;  // clip->UV bias * near-cascade light matrix
+    // x = near cascade range end (world u; 0 = cascade OFF — shaders must fall back to the
+    // mid map), y = near depthRange (world u, for world-unit bias), z = blend band half-width
+    // (world u) across the split, w reserved.
+    alignas(16) glm::vec4 shadowCascadeNear{0.0f, 1.0f, 6.0f, 0.0f};
+    // RAW (unbiased) near-cascade light matrix — the near CASTER pass's grass shadow vert
+    // projects with this (grass casts ONLY into the near map; its proxy is sub-texel in the
+    // mid map and rasterizes as noise there).
+    alignas(16) glm::mat4 lightSpaceMatrixNear;
+    // ---- FAR shadow cascade (2026-08-06): shadows for the LOD band. The mid map ends at
+    // 420 u; everything beyond (far terrain tiles, far-tree meshes, structure proxies)
+    // rendered UNSHADOWED — distant forests looked flat-lit. The far map fits ~1600 u
+    // (the tree-mesh band) at 4096² ≈ 0.9 u/texel: coarse, but a tree is small at 1 km.
+    // Far receivers min-compose it exactly like near receivers do the near map.
+    alignas(16) glm::mat4 biasedLightSpaceFar;
+    // x = far cascade range end (0 = OFF), y = far depthRange, z/w reserved.
+    alignas(16) glm::vec4 shadowCascadeFar{0.0f, 1.0f, 0.0f, 0.0f};
+    alignas(16) glm::mat4 lightSpaceMatrixFar;   // raw matrix for the far CASTER passes
 };
 
 class VulkanDevice {
@@ -309,6 +334,29 @@ public:
         shadowMapImageView = imageView;
         shadowMapSampler = sampler;
     }
+    /// Near-cascade shadow map (binding 9). Absent -> the descriptor falls back to the mid
+    /// map and shadowCascadeNear.x stays 0 so shaders never select the near cascade.
+    void setShadowMapNearResources(VkImageView imageView, VkSampler sampler) {
+        shadowMapNearImageView = imageView;
+        shadowMapNearSampler = sampler;
+    }
+    /// Per-frame near-cascade state (pre-bias light matrix; rangeEnd 0 disables).
+    void setNearShadowCascade(const glm::mat4& lightSpace, float rangeEnd, float depthRange) {
+        m_nearLightSpace = lightSpace;
+        m_nearCascadeRangeEnd = rangeEnd;
+        m_nearCascadeDepthRange = depthRange;
+    }
+    /// Far-cascade shadow map (binding 10); same fallback contract as the near map.
+    void setShadowMapFarResources(VkImageView imageView, VkSampler sampler) {
+        shadowMapFarImageView = imageView;
+        shadowMapFarSampler = sampler;
+    }
+    /// Per-frame far-cascade state (rangeEnd 0 disables).
+    void setFarShadowCascade(const glm::mat4& lightSpace, float rangeEnd, float depthRange) {
+        m_farLightSpace = lightSpace;
+        m_farCascadeRangeEnd = rangeEnd;
+        m_farCascadeDepthRange = depthRange;
+    }
         
         // Command buffer operations
         void waitForFence(uint32_t frameIndex);
@@ -334,9 +382,11 @@ public:
         // indices, but the shader collapses them onto the instance's single face quad → ~12
         // triangles/face (6× the 2 a quad needs). s_quadDraw ON draws only the first 6 indices
         // (the +Z front quad {4,6,5,6,7,5}), which the shader repositions per faceID → one quad/face.
-        // MAIN OPAQUE PASS ONLY (back-culled): pixel-identical there. The SHADOW pass FRONT-culls
-        // closed casters (ShadowMap.cpp:429) and needs BOTH windings → it stays 36-index; likewise
-        // reflection/OIT/mirror keep 36 (mirrored/transparent winding unverified). See renderShadowPass.
+        // MAIN OPAQUE PASS ONLY (back-culled): pixel-identical there. The SHADOW pass also
+        // back-culls (ShadowMap.cpp:392 — the front-cull claim recorded here before was WRONG),
+        // yet D1 measured a ~1.1% pixel break applying the quad to all passes; cause unknown, so
+        // the shadow pass stays 36-index until M5 re-derives it (docs/ContinuousLodPlan.md §7b);
+        // likewise reflection/OIT/mirror keep 36 (winding unverified). See renderShadowPass.
         static bool s_quadDraw;
         static uint32_t chunkIndexCount() { return s_quadDraw ? 6u : 36u; }
 
@@ -500,6 +550,16 @@ private:
 
     // Shadow map resources
     VkImageView shadowMapImageView = VK_NULL_HANDLE;
+    VkImageView shadowMapNearImageView = VK_NULL_HANDLE;   // near cascade (binding 9)
+    VkSampler   shadowMapNearSampler = VK_NULL_HANDLE;
+    glm::mat4   m_nearLightSpace{1.0f};
+    float       m_nearCascadeRangeEnd = 0.0f;   // 0 = near cascade off
+    float       m_nearCascadeDepthRange = 1.0f;
+    VkImageView shadowMapFarImageView = VK_NULL_HANDLE;    // far cascade (binding 10)
+    VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;
+    glm::mat4   m_farLightSpace{1.0f};
+    float       m_farCascadeRangeEnd = 0.0f;    // 0 = far cascade off
+    float       m_farCascadeDepthRange = 1.0f;
     VkSampler shadowMapSampler = VK_NULL_HANDLE;
 
     // Light SSBO resources

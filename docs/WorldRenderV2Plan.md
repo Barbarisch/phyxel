@@ -91,6 +91,10 @@ code decompiled):
 
 ## 1. Where we actually are (honest audit, 2026-08-02)
 
+> **2026-08-05:** the per-tier inventory (levels, thresholds, transitions, invalidation paths) is
+> now maintained in [`LodTierLedger.md`](LodTierLedger.md) — cite and update it rather than
+> re-deriving the tier list here.
+
 | Band | Representation today | Verdict |
 |---|---|---|
 | 0–320 u (residency) | Full voxel chunks + leaf-card foliage + grass blades | Good. This is the look the far field must *degrade from continuously* |
@@ -454,6 +458,29 @@ refactor (same oak arc).
    budget contest over buried interior cells, sharpening silhouettes at coarse levels.
    Needs the ladder harness re-run to judge (and the annuli/FPS check — shell protection
    adds cells at coarse levels).
+
+**§8b — the rendering half SHIPPED, then its gate FIXED (2026-08-05).** The structure-LOD
+rendering path (extraction → off-thread chain → TreeLodRenderPipeline draws) went live before
+this session; this session found and fixed its residency gate, which was the user-reported
+"low poly structures stay in place after the high detail object spawned" bug:
+- `tickStructureLod`'s probe was a single mid-Y plane where every column voted — a structure
+  wider than the residency radius (or a tower with an air mid-chunk) pinned `minFade = 1.0`
+  and rendered the proxy FULLY SOLID over the real building forever. The same defect class the
+  tree gate (`tileHandoffMinFade`) was fixed for twice.
+- Fix: the pure `structureGateProbe` (out-of-band columns don't vote; zero votes releases to
+  distance fade; full-Y-span probing), red→green in `StructureLodGateTest` (3 tests shown
+  failing against a verbatim extraction of the old logic first).
+- Lifecycle: `setStructureLodTargets` now RECONCILES — removed/moved structures retire their
+  GPU buffers through a frame-deferred graveyard (in-flight async chain builds land in a
+  retiring list first; a running `std::future` must never be destroyed on the main thread).
+  Live-verified: build tavern → proxy dissolves at close range (readiness 1, minFade 0) →
+  teleport 700u → L2 proxy visible → teleport back → gate holds proxy solid ~10s while chunks
+  stream, then dissolves in place → remove structure → entry gone.
+- Ladder densified {3,9,18,27} → **{3,6,9,13,18,27}** with L0 (⅓-voxel) selected at the
+  handoff band; selection ladder `kStructureLevelDist` {360,500,700,900,1200}.
+- Observability: `GET /api/debug/lod_report` (per-entry state/readiness/minFade/level +
+  `solid_proxies_in_band` — THE regression detector), `POST /api/debug/lod_probe`,
+  `tools/lod_ladder_probe.py` (measured switch distances; see `docs/LodTierLedger.md`).
 
 **Open defects surfaced by the ladder (not tree-tier):**
 - Thin dark diagonal **sliver artifacts** at far grazing angles — persist with trees OFF →

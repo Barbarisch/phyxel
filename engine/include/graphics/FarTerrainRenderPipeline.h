@@ -44,6 +44,14 @@ public:
     /// render(). Tile origins are double-subtracted against it for clip space.
     void setCameraWorld(const glm::dvec3& cw) { m_cameraWorld = cw; }
 
+    /// FAR-CASCADE shadow caster variant (depth-only, far_terrain_shadow.vert): far hills
+    /// shade their own valleys past the mid map's reach. Create against the FAR shadow
+    /// map's render pass/extent (static-viewport rule — see NearShadowCascade.md).
+    bool initializeShadow(VkRenderPass shadowRenderPass, VkExtent2D shadowExtent,
+                          VkDescriptorSetLayout uboLayout);
+    void renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboSet,
+                      const std::vector<TileDraw>& tiles);
+
 private:
     void createPipeline(VkRenderPass renderPass, VkExtent2D extent, VkDescriptorSetLayout uboLayout);
 
@@ -51,6 +59,8 @@ private:
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline       m_pipeline       = VK_NULL_HANDLE;
+    VkPipelineLayout m_shadowPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline       m_shadowPipeline = VK_NULL_HANDLE;
     glm::dvec3       m_cameraWorld    = glm::dvec3(0.0);  // camera-relative rendering
 };
 

@@ -41,14 +41,15 @@ of this entry claimed:
 (~30%), light-frustum cull (no effect). The residue is **~17 ms of per-draw overhead across ~131
 draws**, so the remaining fixes are structural: batch the shadow draws, update cadence, cascades.
 Carried by [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) (C2 → C5).
-⚠️ **Shadow cull-mode: the record has been wrong TWICE — do not trust either version.**
-`RenderCoordinator.cpp:1241` claims the shadow pipeline front-culls. An earlier fix here said it is
-`VK_CULL_MODE_NONE`; that named the WRONG pipeline (`buildDepthOnlyPipelineState`, used only by
-character/kinematic/dynamic shadows). The **main chunk shadow pipeline** (`createPipeline`) sets
-**`VK_CULL_MODE_BACK_BIT`** at `ShadowMap.cpp:388` — same winding rules as the main pass. So the
-recorded reason the shadow pass needs a 36-index draw is still unexplained, and the ~1.1% pixel
-break D1 measured when applying the 6-index quad to all passes has an unknown cause. Re-derive it
-empirically (M5); do not guess a fourth time.
+⚠️ **Shadow cull-mode (settled 2026-08-05):** the main chunk shadow pipeline **back-culls**
+(`VK_CULL_MODE_BACK_BIT`, `ShadowMap.cpp` `createPipeline`); the `CULL_NONE` block belongs to
+`buildDepthOnlyPipelineState` (character/kinematic/dynamic only). The stale front-cull comments in
+code were corrected 2026-08-05. Still open: the ~1.1% pixel break D1 measured when applying the
+6-index quad to all passes has an unknown cause — the shadow pass stays 36-index until M5
+re-derives it empirically; do not guess a fourth time.
+**LOD/distance tiers: [`docs/LodTierLedger.md`](docs/LodTierLedger.md) is the maintained inventory
+of all 8 distance-tiered render systems** (levels, thresholds, transitions, invalidation paths +
+the standing rules for touching any tier). Update it with every tier change.
 Open visual defects: T-junction cracks at greedy-merge borders, character/grass sub-pixel speckle
 (`docs/RenderOptimization.md:489,513`).
 

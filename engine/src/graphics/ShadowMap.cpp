@@ -483,14 +483,6 @@ void ShadowMap::endRenderPass(VkCommandBuffer commandBuffer) {
     vkCmdEndRenderPass(commandBuffer);
 }
 
-glm::mat4 ShadowMap::getLightSpaceMatrix(const glm::vec3& lightDir, const glm::vec3& center, float range) {
-    // Place the "sun" camera opposite to the light direction (up in the sky)
-    glm::mat4 lightView = glm::lookAt(center - lightDir * range, center, glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 lightProj = glm::ortho(-range, range, -range, range, 1.0f, range * 2.0f);
-    lightProj[1][1] *= -1; // Vulkan Y flip
-    return lightProj * lightView;
-}
-
 // ---------------------------------------------------------------------------
 // Helper: build the shared depth-only pipeline state (no vertex input yet)
 // ---------------------------------------------------------------------------
@@ -520,6 +512,10 @@ static bool buildDepthOnlyPipelineState(
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
+    // ⚠️ SCOPE: this state is used ONLY by the character/kinematic/dynamic shadow pipelines.
+    // The MAIN CHUNK shadow pipeline is createPipeline() above, which BACK-culls (line ~392).
+    // This block has repeatedly been mis-attributed to the chunk pass in docs — it does not
+    // apply there.
     // CULL_NONE: record EVERY face of occluders into the shadow map. The previous
     // front-face culling assumed "voxel geometry is closed" — it is NOT: mesh-time
     // face culling strips all buried faces, so a solid hill has no underside. With

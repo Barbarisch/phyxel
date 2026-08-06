@@ -4354,6 +4354,30 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_screen_space_lod", params).dump(), "application/json");
     });
 
+    // GET /api/debug/lod_report — LOD observability (docs/LodTierLedger.md): live per-tier
+    // thresholds (as the running frame uses them) + active-level histograms + per-structure
+    // proxy state. THE instrument for measuring where LOD kicks in.
+    srv.Get("/api/debug/lod_report", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_content(queueAndWait("lod_report", json::object(), 30000).dump(),
+                        "application/json");
+    });
+
+    // GET /api/debug/load_state — every loading pipeline's queue depth (chunk generation,
+    // remesh backlog, far tiles, tree species meshes, structure proxies) + one `settled`
+    // verdict: true when the world has finished loading in around the current camera.
+    srv.Get("/api/debug/load_state", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_content(queueAndWait("load_state", json::object(), 30000).dump(),
+                        "application/json");
+    });
+
+    // POST /api/debug/lod_probe — Body: { "x": f, "y": f, "z": f }. For that world position:
+    // each tier's selected level at the current camera + bracketing thresholds.
+    srv.Post("/api/debug/lod_probe", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("lod_probe", params, 30000).dump(), "application/json");
+    });
+
     // POST /api/debug/shadow_cull — D1c shadow light-frustum cull toggle. Body: { "enabled": bool }
     srv.Post("/api/debug/shadow_cull", [this](const httplib::Request& req, httplib::Response& res) {
         json params = json::parse(req.body, nullptr, false);

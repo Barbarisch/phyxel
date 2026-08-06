@@ -29,10 +29,21 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 biasedLightSpace;
     vec3 cameraWorld;       // TRUE world camera (haze bug: cameraPosition measured from
                             // the ORIGIN here — LOD content washed white 1km+ out)
+    int  debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];      // declared only to reach the far-cascade fields below
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4 biasedLightSpaceNear;
+    vec4 shadowCascadeNear;
+    mat4 lightSpaceMatrixNear;
+    mat4 biasedLightSpaceFar;       // FAR shadow cascade: the LOD band finally receives
+    vec4 shadowCascadeFar;          // x = range end (0 = off), y = far depthRange
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
 layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px
+layout(set = 0, binding = 10) uniform sampler2D shadowMapFar;         // far shadow cascade
 
 // Must match the AtlasUVBuffer declaration in voxel.frag (same set-0 descriptor set).
 layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
@@ -75,12 +86,21 @@ void main() {
                                   : texture(textureArrayHi, vec3(uv, L));
 
     // Lighting: the SHARED model (lighting.glsl). Far terrain is open to the sky by
-    // construction, so skylight = 1; no shadow map is bound in this pass.
+    // construction, so skylight = 1. FAR shadow cascade (2026-08-06): distant hills shade
+    // their own valleys and distant forests darken the ground under them — before this the
+    // whole LOD band rendered flat-lit past the mid map's 420 u.
     vec3 N = faceNormal(vFace);
     vec3 sunL = normalize(-ubo.sunDirection);
     float ndl = max(dot(N, sunL), 0.0);
+    float shadowF = 1.0;
+    if (ubo.shadowCascadeFar.x > 0.0)
+        shadowF = phxShadowFast(shadowMapFar,
+                                ubo.biasedLightSpaceFar *
+                                    vec4(vWorldPos - ubo.cameraWorld, 1.0),
+                                ubo.shadowCascadeFar.y);
     vec3 color = phxAmbient(N, 1.0, ubo.ambientLight) * albedo.rgb
-               + ndl * ubo.sunColor * albedo.rgb;
+               + ndl * shadowF * ubo.sunColor * albedo.rgb;
+    if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowF); return; }
     color = phxAerialPerspective(color, vWorldPos - ubo.cameraWorld,
                                  ubo.sunDirection, ubo.sunColor);
     outColor = vec4(color, 1.0);

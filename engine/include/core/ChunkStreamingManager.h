@@ -160,6 +160,11 @@ public:
         m_generatorSnapshot = std::move(snapshotFn);
         m_finalizeGenerated = std::move(finalizeFn);
     }
+    /// Loading observability (/api/debug/load_state): chunks requested from the async
+    /// generation/load worker that have not landed on the main thread yet. Main thread only
+    /// (m_genPending is a main-thread set). 0 = the streaming inflow is caught up.
+    size_t pendingGenerationCount() const { return m_genPending.size(); }
+
     /// Join the worker and drop queued/finished work (world switch, shutdown).
     void stopAsyncGeneration();
 

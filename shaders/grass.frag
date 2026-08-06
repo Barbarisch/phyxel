@@ -14,6 +14,7 @@ layout(location = 4) in float vSky;        // baked skylight 0..1
 layout(location = 5) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
+layout(location = 8) in vec4  vShadowCoordNear; // near-cascade coord (fine texels)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -32,10 +33,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraWorld;
     int  debugShadowMode;   // 1 = shadow-only debug view (see lighting.glsl phxShadowOnly)
     float shadowDepthRange; // world-unit depth span of the light volume (bias normalization)
+    vec4  grassDisplacers[16];      // declared only to reach the cascade fields below
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4 biasedLightSpaceNear;      // near shadow cascade (docs/NearShadowCascade.md)
+    vec4 shadowCascadeNear;         // x = range end (0 = off), y = near depthRange
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;    // 512px albedo class
 layout(set = 0, binding = 2) uniform sampler2D      shadowMap;       // sun shadows on grass
+layout(set = 0, binding = 9) uniform sampler2D      shadowMapNear;   // near cascade
 layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;  // 1024px albedo class
 
 layout(location = 0) out vec4 outColor;
@@ -67,6 +74,12 @@ void main() {
     // direction, so the fill uses an up normal and the sun a flat wrap rather than a hard
     // per-blade N-dot-L, which would just make the field sparkle.
     float shadowFactor = phxShadowFast(shadowMap, vShadowCoord, ubo.shadowDepthRange);
+    // Near cascade: min-compose (union of shadows). This is where blade-on-blade and
+    // object-on-blade shadows actually resolve — the mid map's texel is 1.4 blades wide.
+    if (ubo.shadowCascadeNear.x > 0.0)
+        shadowFactor = min(shadowFactor,
+                           phxShadowFast(shadowMapNear, vShadowCoordNear,
+                                         ubo.shadowCascadeNear.y));
     vec3  ambient = phxAmbient(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientLight);
     vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(vSky));
     vec3  lit = col * ao * (ambient + sunTerm) + col * vBlock * 0.5;

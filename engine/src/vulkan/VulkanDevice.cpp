@@ -1477,7 +1477,25 @@ bool VulkanDevice::createDescriptorSetLayout() {
     charBoneBinding.pImmutableSamplers = nullptr;
     charBoneBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 9> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding};
+    // Near-cascade shadow map sampler (binding 9) — docs/NearShadowCascade.md. Appended at
+    // the END so every existing binding index stays untouched (the set-0 layout is shared by
+    // every scene shader; renumbering would break them all).
+    VkDescriptorSetLayoutBinding shadowNearBinding{};
+    shadowNearBinding.binding = 9;
+    shadowNearBinding.descriptorCount = 1;
+    shadowNearBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadowNearBinding.pImmutableSamplers = nullptr;
+    shadowNearBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // Far-cascade shadow map sampler (binding 10) — shadows for the LOD band (>420 u).
+    VkDescriptorSetLayoutBinding shadowFarBinding{};
+    shadowFarBinding.binding = 10;
+    shadowFarBinding.descriptorCount = 1;
+    shadowFarBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadowFarBinding.pImmutableSamplers = nullptr;
+    shadowFarBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 11> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding, shadowNearBinding, shadowFarBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1496,7 +1514,7 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 5; // albedo 512/1024 + normal 512/1024 + Shadow
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 7; // albedo 512/1024 + normal 512/1024 + shadow mid/near/far
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // Light + Atlas UV + character bones
 
@@ -1659,6 +1677,16 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.elapsedTime = elapsedTime;
     ubo.viewProj = proj * view;
     ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;
+    // Near shadow cascade (docs/NearShadowCascade.md): rangeEnd 0 = cascade OFF — shaders
+    // fall back to the mid map, keeping the binding-9 fallback descriptor inert, not wrong.
+    ubo.biasedLightSpaceNear = kShadowBiasMat * m_nearLightSpace;
+    ubo.shadowCascadeNear =
+        glm::vec4(m_nearCascadeRangeEnd, m_nearCascadeDepthRange, 6.0f, 0.0f);
+    ubo.lightSpaceMatrixNear = m_nearLightSpace;
+    ubo.biasedLightSpaceFar = kShadowBiasMat * m_farLightSpace;
+    ubo.shadowCascadeFar =
+        glm::vec4(m_farCascadeRangeEnd, m_farCascadeDepthRange, 0.0f, 0.0f);
+    ubo.lightSpaceMatrixFar = m_farLightSpace;
 
     // Debug: Log matrix data for the first few frames
     static int debugFrameCount = 0;
@@ -1717,14 +1745,18 @@ bool VulkanDevice::createReflectionBuffers() {
             reflectionUniformBuffers[i], reflectionUniformBuffersMemory[i]);
     }
 
-    // Separate descriptor pool for reflection sets (avoids resizing existing pool)
+    // Separate descriptor pool for reflection sets (avoids resizing existing pool).
+    // Sized for the FULL shared layout, not just the bindings written: spec-wise a pool must
+    // cover every descriptor the layout declares, and this pool being 2 samplers short of the
+    // 5-sampler layout was the long-standing "undersized reflection descriptor pool" error in
+    // the log. Fixed 2026-08-05 while appending binding 9 (near shadow cascade).
     std::array<VkDescriptorPoolSize, 3> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // atlas + shadow
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 6; // bindings 1,2,5,6,7,9
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 2; // lights + atlas UVs
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // bindings 3,4,8
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2801,7 +2833,25 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
                                    (textureArrayHiImageView ? textureArrayHiImageView : textureAtlasImageView);
         normal1024Info.sampler = textureAtlasSampler;
 
-        std::array<VkWriteDescriptorSet, 8> descriptorWrites{};
+        // Near-cascade shadow map (binding 9): falls back to the MID shadow map so the
+        // binding is always valid — with shadowCascadeNear.x = 0 shaders never select the
+        // near cascade, making the fallback inert rather than wrong.
+        VkDescriptorImageInfo shadowNearInfo{};
+        shadowNearInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        shadowNearInfo.imageView = shadowMapNearImageView ? shadowMapNearImageView
+                                   : (shadowMapImageView ? shadowMapImageView : textureAtlasImageView);
+        shadowNearInfo.sampler = shadowMapNearSampler ? shadowMapNearSampler
+                                 : (shadowMapSampler ? shadowMapSampler : textureAtlasSampler);
+
+        // Far-cascade shadow map (binding 10): same fallback contract as binding 9.
+        VkDescriptorImageInfo shadowFarInfo{};
+        shadowFarInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        shadowFarInfo.imageView = shadowMapFarImageView ? shadowMapFarImageView
+                                  : (shadowMapImageView ? shadowMapImageView : textureAtlasImageView);
+        shadowFarInfo.sampler = shadowMapFarSampler ? shadowMapFarSampler
+                                : (shadowMapSampler ? shadowMapSampler : textureAtlasSampler);
+
+        std::array<VkWriteDescriptorSet, 10> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2873,6 +2923,24 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[7].descriptorCount = 1;
         descriptorWrites[7].pImageInfo = &normal1024Info;
+
+        // Near-cascade shadow map write (binding 9)
+        descriptorWrites[8].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[8].dstSet = descriptorSets[i];
+        descriptorWrites[8].dstBinding = 9;
+        descriptorWrites[8].dstArrayElement = 0;
+        descriptorWrites[8].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[8].descriptorCount = 1;
+        descriptorWrites[8].pImageInfo = &shadowNearInfo;
+
+        // Far-cascade shadow map write (binding 10)
+        descriptorWrites[9].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[9].dstSet = descriptorSets[i];
+        descriptorWrites[9].dstBinding = 10;
+        descriptorWrites[9].dstArrayElement = 0;
+        descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[9].descriptorCount = 1;
+        descriptorWrites[9].pImageInfo = &shadowFarInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }

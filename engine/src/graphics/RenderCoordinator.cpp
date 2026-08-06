@@ -114,11 +114,35 @@ RenderCoordinator::RenderCoordinator(
     // shadow pass's dominant cost is per-DRAW submission, not fill (RenderDensityPlan §2d).
     shadowMap = std::make_unique<ShadowMap>(vulkanDevice, 8192, 8192);
     shadowMap->initialize();
-    
+
     // Pass shadow map resources to VulkanDevice for descriptor updates
     vulkanDevice->setShadowMapResources(shadowMap->getDepthImageView(), shadowMap->getSampler());
-    
-    // Trigger descriptor set update to bind the shadow map
+
+    // Near shadow cascade (docs/NearShadowCascade.md): 4096² fitted to ~40 u = 0.0195 u/texel,
+    // where a grass blade's 0.080 u shadow proxy spans 4 texels and resolves as a blade —
+    // against the mid map's 0.1125 u texel it is 0.71 texel and rasterizes as random noise
+    // (measured: toggling grass castShadows changed 40.1% of the view as unstructured blobs).
+    shadowMapNear = std::make_unique<ShadowMap>(vulkanDevice, 4096, 4096);
+    if (shadowMapNear->initialize()) {
+        vulkanDevice->setShadowMapNearResources(shadowMapNear->getDepthImageView(),
+                                                shadowMapNear->getSampler());
+    } else {
+        LOG_ERROR("RenderCoordinator", "Near shadow cascade init failed — running mid-map only");
+        shadowMapNear.reset();
+    }
+
+    // Far shadow cascade: 4096² over ~1600 u so the LOD band (far tiles + tree meshes +
+    // structure proxies) stops rendering unshadowed past the mid map's 420 u.
+    shadowMapFar = std::make_unique<ShadowMap>(vulkanDevice, 4096, 4096);
+    if (shadowMapFar->initialize()) {
+        vulkanDevice->setShadowMapFarResources(shadowMapFar->getDepthImageView(),
+                                               shadowMapFar->getSampler());
+    } else {
+        LOG_ERROR("RenderCoordinator", "Far shadow cascade init failed — LOD band unshadowed");
+        shadowMapFar.reset();
+    }
+
+    // Trigger descriptor set update to bind the shadow map(s)
     vulkanDevice->updateDescriptorSetsWithTexture();
 
     // Initialize PostProcessor
@@ -289,9 +313,14 @@ RenderCoordinator::RenderCoordinator(
         // Shadow-caster variant: grass darkens the ground it stands on. Same procedural
         // blade cutout as the visible pass, so a depth-only pass can't stamp solid
         // rectangles into the map.
+        // Built against the NEAR cascade map (docs/NearShadowCascade.md): grass casts ONLY
+        // there, and this pipeline bakes a STATIC viewport — built against the 8192 mid map
+        // but drawn into the 4096 near framebuffer, blade depth landed at 2x the intended
+        // UVs (the first post-cascade sweep measured NO SHADOW at every width because of it).
+        ShadowMap* grassCasterMap = shadowMapNear ? shadowMapNear.get() : shadowMap.get();
         grassPipeline->initializeShadow(
-            shadowMap->getRenderPass(),
-            VkExtent2D{shadowMap->getWidth(), shadowMap->getHeight()});
+            grassCasterMap->getRenderPass(),
+            VkExtent2D{grassCasterMap->getWidth(), grassCasterMap->getHeight()});
     }
 
     // Leaf foliage card layer (cutout leaf cards replacing solid leaf voxels; opaque scene pass).
@@ -330,6 +359,13 @@ RenderCoordinator::RenderCoordinator(
         LOG_ERROR("RenderCoordinator", "Failed to initialize FarTerrainRenderPipeline");
         farTerrainPipeline.reset();
     }
+    // Far-cascade caster variant — against the FAR map's render pass/extent (static-viewport rule).
+    if (farTerrainPipeline && shadowMapFar) {
+        farTerrainPipeline->initializeShadow(
+            shadowMapFar->getRenderPass(),
+            VkExtent2D{shadowMapFar->getWidth(), shadowMapFar->getHeight()},
+            vulkanDevice->getDescriptorSetLayout());
+    }
     farTerrainManager = std::make_unique<FarTerrainManager>(
         vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
 
@@ -358,6 +394,12 @@ RenderCoordinator::RenderCoordinator(
         LOG_ERROR("RenderCoordinator", "Failed to initialize TreeLodRenderPipeline");
         treeLodPipeline.reset();
     }
+    if (treeLodPipeline && shadowMapFar) {
+        treeLodPipeline->initializeShadow(
+            shadowMapFar->getRenderPass(),
+            VkExtent2D{shadowMapFar->getWidth(), shadowMapFar->getHeight()},
+            vulkanDevice->getDescriptorSetLayout());
+    }
     treeLodMeshes = std::make_unique<TreeLodMeshRegistry>(
         vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice());
     treeLodMeshes->setMaterialResolver([](const std::string& material, int faceID) -> uint16_t {
@@ -377,18 +419,112 @@ void RenderCoordinator::setFarTreesEnabled(bool on) {
 
 void RenderCoordinator::setStructureLodTargets(
     const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets) {
+    // RECONCILING, not insert-only (the original insert-only version kept a demolished or
+    // moved structure's proxy rendering forever — half of the 2026-08-05 stale-proxy bug).
+    std::unordered_set<std::string> incoming;
+    incoming.reserve(targets.size());
     for (const auto& [uuid, mn, mx] : targets) {
-        if (structureLod.count(uuid)) continue;
+        incoming.insert(uuid);
+        auto it = structureLod.find(uuid);
+        if (it != structureLod.end()) {
+            if (it->second.mn == mn && it->second.mx == mx) continue;
+            // Moved/rotated (AABB changed): the snapshot is stale — rebuild from scratch.
+            structureLodRetiring.push_back(std::move(it->second));
+            structureLod.erase(it);
+        }
         StructureLod e;
         e.mn = mn;
         e.mx = mx;
         structureLod.emplace(uuid, std::move(e));
     }
+    for (auto it = structureLod.begin(); it != structureLod.end();) {
+        if (!incoming.count(it->first)) {
+            structureLodRetiring.push_back(std::move(it->second));
+            it = structureLod.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void RenderCoordinator::retireStructureLodEntry(StructureLod& e) {
+    StructureLodGrave g;
+    for (auto& gl : e.lv) {
+        if (gl.vertexBuffer != VK_NULL_HANDLE) g.bufs.push_back({gl.vertexBuffer, gl.vertexMemory});
+        if (gl.indexBuffer != VK_NULL_HANDLE) g.bufs.push_back({gl.indexBuffer, gl.indexMemory});
+        gl = {};
+    }
+    if (e.inst != VK_NULL_HANDLE) {
+        g.bufs.push_back({e.inst, e.instMem});
+        e.inst = VK_NULL_HANDLE;
+        e.instMem = VK_NULL_HANDLE;
+    }
+    if (!g.bufs.empty()) structureLodGraveyard.push_back(std::move(g));
+}
+
+void RenderCoordinator::tickStructureLodGraveyard() {
+    // Land retiring entries whose async build finished (a running future must not be
+    // destroyed — its dtor blocks), then age out the buffer graveyard.
+    for (auto it = structureLodRetiring.begin(); it != structureLodRetiring.end();) {
+        if (it->job.valid() &&
+            it->job.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            ++it;
+            continue;
+        }
+        if (it->job.valid()) it->job.get();   // discard the CPU meshes
+        retireStructureLodEntry(*it);
+        it = structureLodRetiring.erase(it);
+    }
+    for (auto it = structureLodGraveyard.begin(); it != structureLodGraveyard.end();) {
+        if (--it->framesLeft <= 0) {
+            if (treeLodMeshes)
+                for (auto& [b, m] : it->bufs) treeLodMeshes->destroyBuffer(b, m);
+            it = structureLodGraveyard.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+RenderCoordinator::StructureGateResult RenderCoordinator::structureGateProbe(
+    const glm::ivec3& mn, const glm::ivec3& mx, const glm::vec3& cameraPos,
+    float fadeGateEnd,
+    const std::function<bool(const glm::ivec3&)>& hasRenderedGeometryAt) {
+    // The tree tile gate's escapes, ported (tileHandoffMinFade in renderFarTerrain — the
+    // gate that earned them twice). The original structure gate had NONE of them: a single
+    // mid-Y plane where every column voted. Consequences, each red-proven in
+    // StructureLodGateTest before this implementation:
+    //   - a settlement wider than the residency radius had permanent out-of-range columns
+    //     → readiness pinned 0 → minFade 1 → the low-poly proxy rendered SOLID on top of
+    //     the real buildings at point-blank range, forever (the 2026-08-05 user bug);
+    //   - a tall tower's mid-Y chunk is often pure air (renders no instances) → same veto;
+    //   - a structure entirely beyond the band still "voted", overriding the distance fade.
+    StructureGateResult res;
+    const float midY = (float(mn.y) + float(mx.y)) * 0.5f;
+    for (int x = mn.x; x <= mx.x && res.ready; x += 31) {
+        for (int z = mn.z; z <= mx.z && res.ready; z += 31) {
+            // Columns beyond the fade band don't vote: the per-vertex distance fade already
+            // keeps far portions solid, and out-of-residency columns must not veto the part
+            // the player is standing in.
+            if (glm::length(glm::vec3(float(x), midY, float(z)) - cameraPos) > fadeGateEnd)
+                continue;
+            ++res.votes;
+            // Full Y-span probe (32u chunk stride, one band of slack each way — tree-gate
+            // parity): "rendered" means ANY chunk in the column's span has geometry; a
+            // mid-plane-only probe reads air chunks on tall structures.
+            bool any = false;
+            for (int y = mn.y - 32; y <= mx.y + 31 && !any; y += 32)
+                any = hasRenderedGeometryAt(glm::ivec3(x, y, z));
+            res.ready = any;
+        }
+    }
+    return res;
 }
 
 void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::MeshDraw>& meshDraws,
                                          const glm::vec3& cameraPos) {
     if (!chunkManager || !treeLodMeshes) return;
+    tickStructureLodGraveyard();
 
     bool extractedThisFrame = false;   // extraction is main-thread: at most one per frame
     for (auto& [uuid, e] : structureLod) {
@@ -439,7 +575,8 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                 e.job = std::async(std::launch::async, [soup = std::move(soup)]() {
                     const auto levels = Core::TemplateLodChain::buildFromSoup(
                         soup, Core::TemplateLodChain::structureConfig());
-                    std::array<TreeLodMeshRegistry::CpuMesh, 4> out;
+                    std::array<TreeLodMeshRegistry::CpuMesh,
+                               Core::TemplateLodChain::kLevelCount> out;
                     const auto resolve = [](const std::string& mat, int face) -> uint16_t {
                         return Core::MaterialRegistry::instance().getTextureIndex(mat, face);
                     };
@@ -468,28 +605,106 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                           ? 2 : 3;
         }
         // ---- 3. Draw: same fades + residency gate as trees. ----------------------------
+        e.lastDist = -1.0f;
+        e.lastLevel = -1;
+        e.lastMinFade = 0.0f;
         if (e.state != 2) continue;
         const glm::vec3 center = (glm::vec3(e.mn) + glm::vec3(e.mx)) * 0.5f;
         const float dist = glm::length(center - cameraPos);
+        e.lastDist = dist;
         if (dist > (treeLodPipeline ? treeLodPipeline->params().bandEnd : 1600.0f)) continue;
         // Residency gate (inverse handoff): while the structure's real chunks are resident
         // the distance fade dissolves the LOD; when they evict, readiness drops and
-        // minFade holds it solid — the settlement never just vanishes.
-        bool ready = true;
-        for (int x = e.mn.x; x <= e.mx.x && ready; x += 31)
-            for (int z = e.mn.z; z <= e.mx.z && ready; z += 31) {
-                const Chunk* c = chunkManager->getChunkAtFast(
-                    glm::ivec3(x, (e.mn.y + e.mx.y) / 2, z));
-                ready = c && c->getNumInstances() > 0;
-            }
-        e.readiness += ((ready ? 1.0f : 0.0f) - e.readiness) * 0.06f;
-        const int li = (dist < 500.0f) ? 1 : (dist < 900.0f) ? 2 : 3;
-        const auto& gl = e.lv[size_t(li)].indexCount ? e.lv[size_t(li)] : e.lv[1];
+        // minFade holds it solid — the settlement never just vanishes. The probe itself is
+        // the pure structureGateProbe (test-pinned): out-of-band columns must not vote and
+        // zero votes must release the proxy, or a structure wider than the load radius pins
+        // minFade at 1.0 and renders SOLID on top of the real building forever (the
+        // 2026-08-05 stale-proxy bug — same defect class the tree gate fixed twice).
+        const float fadeGateEnd =
+            treeLodPipeline ? treeLodPipeline->params().fadeNear1 : 260.0f;
+        const auto gate = structureGateProbe(
+            e.mn, e.mx, cameraPos, fadeGateEnd, [this](const glm::ivec3& wp) {
+                const auto* c = chunkManager->getChunkAtFast(wp);
+                return c && c->getNumInstances() > 0;
+            });
+        const float target = (gate.votes == 0 || gate.ready) ? 1.0f : 0.0f;
+        e.readiness += (target - e.readiness) * 0.06f;
+        // Full 6-level chain, 0-based: L0 (⅓-voxel cells) owns the band right past the
+        // handoff, L5 (3-voxel) the tail. Fall back to the nearest coarser built level,
+        // then the nearest finer, if the requested one is empty (tiny structures can
+        // produce empty coarse levels).
+        constexpr int kStructLevels = int(Core::TemplateLodChain::kLevelCount);
+        int li = int(std::size(kStructureLevelDist));
+        for (int i = 0; i < int(std::size(kStructureLevelDist)); ++i)
+            if (dist < kStructureLevelDist[i]) { li = i; break; }
+        int chosen = -1;
+        for (int c = li; c < kStructLevels && chosen < 0; ++c)
+            if (e.lv[size_t(c)].indexCount) chosen = c;
+        for (int c = li - 1; c >= 0 && chosen < 0; --c)
+            if (e.lv[size_t(c)].indexCount) chosen = c;
+        if (chosen < 0) continue;
+        const auto& gl = e.lv[size_t(chosen)];
         if (gl.vertexBuffer == VK_NULL_HANDLE) continue;
+        e.lastLevel = chosen;
+        e.lastMinFade = 1.0f - e.readiness;
         meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
                              glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,
-                             1.0f - e.readiness});
+                             e.lastMinFade});
+        // Far-cascade caster: this structure at its coarsest BUILT level (single instance,
+        // cheap) so distant settlements shade the terrain around them.
+        for (int c = kStructLevels - 1; c >= 0; --c) {
+            if (e.lv[size_t(c)].indexCount &&
+                e.lv[size_t(c)].vertexBuffer != VK_NULL_HANDLE) {
+                m_cachedTreeMeshDraws.push_back(
+                    {e.lv[size_t(c)].vertexBuffer, e.lv[size_t(c)].indexBuffer,
+                     e.lv[size_t(c)].indexCount, e.inst, 0, 1,
+                     glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f, 0.0f});
+                break;
+            }
+        }
     }
+}
+
+std::vector<RenderCoordinator::StructureLodInfo> RenderCoordinator::structureLodReport() const {
+    std::vector<StructureLodInfo> out;
+    out.reserve(structureLod.size());
+    for (const auto& [uuid, e] : structureLod) {
+        StructureLodInfo info;
+        info.uuid = uuid;
+        info.mn = e.mn;
+        info.mx = e.mx;
+        info.state = e.state;
+        info.readiness = e.readiness;
+        info.lastDist = e.lastDist;
+        info.lastLevel = e.lastLevel;
+        info.lastMinFade = e.lastMinFade;
+        out.push_back(std::move(info));
+    }
+    return out;
+}
+
+size_t RenderCoordinator::farTilesPending() const {
+    return farTerrainManager ? farTerrainManager->pendingTiles() : 0;
+}
+
+RenderCoordinator::LodTierThresholds RenderCoordinator::lodTierThresholds() const {
+    LodTierThresholds t;
+    if (treeLodPipeline) {
+        t.treeFadeNear0 = treeLodPipeline->params().fadeNear0;
+        t.treeFadeNear1 = treeLodPipeline->params().fadeNear1;
+        t.treeBandEnd   = treeLodPipeline->params().bandEnd;
+    }
+    if (farTreePipeline) {
+        t.cardFadeFar0 = farTreePipeline->params().fadeFar0;
+        t.cardFadeFar1 = farTreePipeline->params().fadeFar1;
+    }
+    if (grassPipeline) {
+        t.grassRadius    = grassPipeline->params().radius;
+        t.grassFadeRange = grassPipeline->params().fadeRange;
+    }
+    if (foliagePipeline) t.foliageRadius = foliagePipeline->params().radius;
+    t.shadowDistance = s_shadowDistance;
+    return t;
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
@@ -1029,11 +1244,18 @@ void RenderCoordinator::renderFarTerrain() {
     std::vector<FarTreeRenderPipeline::TreeDraw> treeDraws;
     std::vector<TreeLodRenderPipeline::MeshDraw> meshDraws;
     draws.reserve(tiles.size());
+    // Far-cascade caster list rebuilt per frame — at COARSEST chain level only. A shadow
+    // caster at 0.9 u/texel needs blob-shape depth, not L1 detail; replaying the visible
+    // draws as casters made every cadence frame's shadow pass spike ~+10 ms (measured).
+    m_cachedTreeMeshDraws.clear();
     lastFrameStats.farTrees = 0;
     std::fill(std::begin(lastFrameStats.farTreeMeshAnnuli),
               std::end(lastFrameStats.farTreeMeshAnnuli), 0);
     std::fill(std::begin(lastFrameStats.farTreeCardAnnuli),
               std::end(lastFrameStats.farTreeCardAnnuli), 0);
+    std::fill(std::begin(lastFrameStats.farTreeMeshDrawsByLevel),
+              std::end(lastFrameStats.farTreeMeshDrawsByLevel), 0);
+    lastFrameStats.farTreeCardDraws = 0;
     // Residency-gated handoff (user: "lower detail trees fade out before the detailed trees
     // render... for a bit of time there is nothing there"). The distance fade assumes chunks
     // at fade range are loaded, but streaming is ASYNC — flying in, the LOD tree dissolved on
@@ -1141,35 +1363,73 @@ void RenderCoordinator::renderFarTerrain() {
         const float tileDMax = glm::length(farPt - camXZ);
         const float minFade = tileHandoffMinFade(t, tileDMin);
         if (meshTier && tileDist < meshBandEnd && !t.treeRanges.empty()) {
-            // Chain level by tile distance — the FULL ladder, stretched long and stepped
-            // gently (user: "the drop off... would continue out for a lot longer and be
-            // more gradual"). L1 ≈ 1301 cells on the oak is near-indistinguishable from
-            // the real tree at 300u+, down to L5 ≈ 21 cells at 1.6 km, cards beyond.
-            const int li = (tileDist < 360.0f)  ? 1
-                         : (tileDist < 560.0f)  ? 2
-                         : (tileDist < 820.0f)  ? 3
-                         : (tileDist < 1150.0f) ? 4 : 5;
-            for (const auto& range : t.treeRanges) {
-                const auto* gl = treeLodMeshes->level(int(range.speciesId), li);
-                if (gl) {
-                    meshDraws.push_back({gl->vertexBuffer, gl->indexBuffer, gl->indexCount,
-                                         t.treeBuffer, range.first, range.count,
-                                         t.draw.origin,
-                                         speciesRows[range.speciesId % speciesN].height,
-                                         minFade});
-                    spreadAnnuli(lastFrameStats.farTreeMeshAnnuli, range.count,
-                                 tileDMin, tileDMax);
-                } else {
-                    // No mesh set for this species (missing template) — cards keep covering.
-                    treeDraws.push_back({t.treeBuffer, range.count, t.draw.origin, range.first,
-                                         minFade});
-                    spreadAnnuli(lastFrameStats.farTreeCardAnnuli, range.count,
-                                 tileDMin, tileDMax);
+            // Chain level by PER-INSTANCE distance (2026-08-05, was tile-centre): the tile's
+            // distance span [tileDMin, tileDMax] picks the bracketing chain levels, one draw
+            // per level in range, and the shader partitions instances between adjacent-level
+            // draws with complementary dithers (levelBand). A ladder boundary is now crossed
+            // one TREE at a time (crossfade), never one 128-512u TILE at a time (pop).
+            // The FULL ladder, stretched long and stepped gently (user: "the drop off...
+            // would continue out for a lot longer and be more gradual").
+            auto levelForDist = [](float d) {
+                for (int i = 0; i < 4; ++i)
+                    if (d < kTreeMeshLevelDist[i]) return i + 1;
+                return 5;
+            };
+            // A/B: with per-instance levels OFF, both brackets collapse to the tile-centre
+            // level — one draw per (tile, species), tile-pop boundaries, no straddle cost.
+            // DISTANCE-GATED (2026-08-06): the split pays ~2 ms of double vertex work at
+            // dense poses (measured, straddle A/B), and past ~700 u a tree subtends so few
+            // pixels that a level pop is invisible under haze — so the crossfade runs only
+            // where it can be seen. Look-safe: the near boundaries (360/560) keep
+            // per-instance dissolves; 820/1150 revert to per-tile.
+            const float kSplitGateDist = 700.0f;
+            const bool split = s_treePerInstanceLevels && tileDist < kSplitGateDist;
+            const int liNear = split ? levelForDist(tileDMin) : levelForDist(tileDist);
+            const int liFar  = split ? levelForDist(tileDMax) : liNear;
+            for (int li = liNear; li <= liFar; ++li) {
+                const glm::vec2 band(li <= 1 ? 0.0f : kTreeMeshLevelDist[li - 2],
+                                     li >= 5 ? 3.0e8f : kTreeMeshLevelDist[li - 1]);
+                for (const auto& range : t.treeRanges) {
+                    const auto* gl = treeLodMeshes->level(int(range.speciesId), li);
+                    if (gl) {
+                        meshDraws.push_back({gl->vertexBuffer, gl->indexBuffer, gl->indexCount,
+                                             t.treeBuffer, range.first, range.count,
+                                             t.draw.origin,
+                                             speciesRows[range.speciesId % speciesN].height,
+                                             minFade, band});
+                        ++lastFrameStats.farTreeMeshDrawsByLevel[li];
+                        // Far-cascade caster: same instances at the COARSEST level, once per
+                        // range (guarded so split tiles don't duplicate their casters).
+                        if (li == liNear) {
+                            if (const auto* gl5 =
+                                    treeLodMeshes->level(int(range.speciesId), 5)) {
+                                m_cachedTreeMeshDraws.push_back(
+                                    {gl5->vertexBuffer, gl5->indexBuffer, gl5->indexCount,
+                                     t.treeBuffer, range.first, range.count, t.draw.origin,
+                                     speciesRows[range.speciesId % speciesN].height, 0.0f});
+                            }
+                        }
+                    } else if (li == liNear) {
+                        // No mesh set for this species (missing template) — cards cover.
+                        // Once per tile (cards have no level partition).
+                        treeDraws.push_back({t.treeBuffer, range.count, t.draw.origin,
+                                             range.first, minFade});
+                        spreadAnnuli(lastFrameStats.farTreeCardAnnuli, range.count,
+                                     tileDMin, tileDMax);
+                        ++lastFrameStats.farTreeCardDraws;
+                    }
                 }
             }
+            // Annuli count instances once per tile (draw splitting must not double-count
+            // the deadzone metric).
+            for (const auto& range : t.treeRanges)
+                if (treeLodMeshes->level(int(range.speciesId), liNear))
+                    spreadAnnuli(lastFrameStats.farTreeMeshAnnuli, range.count,
+                                 tileDMin, tileDMax);
         } else {
             treeDraws.push_back({t.treeBuffer, t.treeCount, t.draw.origin, 0, minFade});
             spreadAnnuli(lastFrameStats.farTreeCardAnnuli, t.treeCount, tileDMin, tileDMax);
+            ++lastFrameStats.farTreeCardDraws;
         }
     }
     // NO early-out on empty terrain draws: hidden interior tiles may still have tree draws
@@ -1185,6 +1445,12 @@ void RenderCoordinator::renderFarTerrain() {
 
     // Structure LOD (WRv2 §8): distant settlements join the same instanced-mesh draw list.
     tickStructureLod(meshDraws, cameraPos);
+
+    // Cache this frame's far-tile draws for the FAR shadow cascade's caster pass (which
+    // records BEFORE this function runs — one frame of staleness is sub-texel out there).
+    // Tree casters were collected during the tile loop above at the coarsest chain level;
+    // structure proxies appended their own coarse casters in tickStructureLod.
+    m_cachedFarTileDraws = draws;
 
     // Instanced tree LOD meshes first (mid band), then the card tail — both depth-write, so
     // the z-buffer composites them against terrain and each other.
@@ -1802,9 +2068,15 @@ bool RenderCoordinator::s_faceDirCull = true;
 // fovY 45) that the 35/80/400 numbers were tuned at, and a correction elsewhere.
 bool RenderCoordinator::s_screenSpaceLod = true;
 // C2.1 (docs/ContinuousLodPlan.md): one multidraw per arena block for the SHADOW pass, replacing
-// one draw per chunk. DEFAULT OFF -- it changes the primary submission path, so it ships behind a
-// live A/B toggle (POST /api/debug/gpu_driven_shadow) exactly like s_quadDraw and s_fineGreedyMerge.
-bool RenderCoordinator::s_gpuDrivenShadow = false;
+// one draw per chunk. DEFAULT ON since 2026-08-06: with the 768-byte arena alignment the guard
+// stopped firing and the path finally ran with REAL data — measured at the DenseForestPerf
+// ground pose (727 resident chunks): shadow pass 11.1 -> 5.1 ms (8 interleaved pairs, every ON
+// below every OFF), and pixel-verified below the scene's own noise floor (105 px vs the 120 px
+// off-vs-off control, vegetation-off method). The historical "no effect" null was taken at a
+// 3.4 ms operating point with nothing to recover. The stride guard (spanIsStrideAddressable)
+// still protects the path; live A/B: POST /api/debug/gpu_driven_shadow.
+// Evidence: docs/evidence/dense_forest_perf_20260806.txt.
+bool RenderCoordinator::s_gpuDrivenShadow = true;
 // C5 distance-driven LOD. DEFAULT OFF -- and the reason is arithmetic worth writing down, because
 // "turn on LOD to get render distance" is the obvious wrong move here.
 //
@@ -1828,6 +2100,7 @@ bool  RenderCoordinator::s_distanceDrivenLod = false;
 // scan, so there is no reach cap and the cost is proportional to what actually exists.
 bool  RenderCoordinator::s_farLodChunks = true;
 int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
+bool  RenderCoordinator::s_treePerInstanceLevels = true;
 float RenderCoordinator::s_lodTargetPixels = 8.0f;
 // Coarsest level distance LOD may select. Held at 3 (8-cube cells) rather than the ladder's 5,
 // because of the MEASURED unbounded-fattening defect (ContinuousLodPlan C5): LodCell::solid() is
@@ -1845,10 +2118,116 @@ float RenderCoordinator::s_forcedViewScale = 0.0f;  // 0 = derive from the live 
 // trades shadow reach against both texel density AND shadow-pass draw count (the cull
 // sphere grows with it), so tune it with FPS in view, not by feel.
 float RenderCoordinator::s_shadowDistance = 420.0f;
+// Near shadow cascade (docs/NearShadowCascade.md): 40 u at 4096² = 0.0195 u/texel — the
+// density where a grass blade's shadow resolves as a blade instead of scatter noise.
+bool  RenderCoordinator::s_nearShadowEnabled  = true;
+float RenderCoordinator::s_nearShadowDistance = 40.0f;
+// Far shadow cascade: the LOD band's shadows (docs/NearShadowCascade.md status block).
+// 1600 u = the tree-mesh band end; cadence 4 = the caster pass records every 4th frame
+// (a 0.9 u texel a kilometre out cannot show quarter-second staleness).
+bool  RenderCoordinator::s_farShadowEnabled  = true;
+float RenderCoordinator::s_farShadowDistance = 1600.0f;
+int   RenderCoordinator::s_farShadowCadence  = 4;
 
-void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
-                                         const glm::vec3& cullCenter, float cullRadius) {
-    if (!shadowMap) return;
+// Fit one shadow volume to the camera's view frustum, capped at maxShadowDist. Bounding-SPHERE
+// fit (rotation-invariant → no shadow-edge shimmer as the camera turns), caster margin +
+// caster-back pull so off-screen casters still write depth, world-anchored texel snapping
+// (anti-crawl), and the non-finite guard. Extracted verbatim from drawFrame 2026-08-05 so the
+// near cascade reuses the identical math — the corner build stays ANALYTICAL (camera basis +
+// FOV): unprojecting through inverse(proj*view) went NaN under reverse-Z + infinite far plane
+// (the 2026-08-02 no-shadows regression) and must not return.
+RenderCoordinator::ShadowFit RenderCoordinator::fitShadowVolume(
+    float maxShadowDist, float mapSize, const glm::dvec3& camWorld,
+    const glm::vec3& sunDirection) const {
+    ShadowFit fit;
+    const float kNear = 0.5f;
+    float a00 = cachedProjectionMatrix[0][0];
+    float a11 = cachedProjectionMatrix[1][1];
+    float aspect = (std::abs(a00) > 1e-6f) ? std::abs(a11 / a00) : (16.0f / 9.0f);
+
+    const float fovY = glm::radians(camera->getFovYDegrees());
+    const glm::vec3 fwd = camera->getFront();
+    const glm::vec3 rgt = camera->getRight();
+    const glm::vec3 upv = camera->getUp();
+    glm::vec3 corners[8];
+    int ci = 0;
+    for (int zi = 0; zi < 2; ++zi) {
+        const float d = zi ? maxShadowDist : kNear;
+        const float halfH = std::tan(fovY * 0.5f) * d;
+        const float halfW = halfH * aspect;
+        const glm::vec3 c = fwd * d;                 // camera sits at the origin here
+        for (int x = 0; x < 2; ++x)
+            for (int y = 0; y < 2; ++y)
+                corners[ci++] = c + rgt * (x ? halfW : -halfW) + upv * (y ? halfH : -halfH);
+    }
+
+    // With the relative view, corners (and center) come out CAMERA-RELATIVE.
+    glm::vec3 center(0.0f);
+    for (auto& c : corners) center += c;
+    center /= 8.0f;
+    float radius = 0.0f;
+    for (auto& c : corners) radius = std::max(radius, glm::length(c - center));
+    // Casters JUST outside the view must still be recorded (edge casters sliced in/out of
+    // shadow as the camera moved without this margin).
+    const float kCasterMargin = 48.0f;
+    radius = std::ceil(radius) + kCasterMargin;
+
+    fit.cullCenterAbs = glm::vec3(glm::dvec3(center) + camWorld);
+    fit.cullRadius = radius;
+
+    glm::vec3 lightDir = glm::normalize(sunDirection);
+    glm::vec3 up = (std::abs(lightDir.y) > 0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+    // Pull the light back past the sphere so casters between the sun and the frustum still
+    // register in the depth map.
+    const float kCasterBack = 120.0f;
+
+    // World-anchored texel snapping (anti shadow-crawl): quantize the center's light-space XY
+    // to whole map texels in the ABSOLUTE world frame, through doubles so floor() is exact.
+    const float texelSize = (2.0f * radius) / std::max(mapSize, 1.0f);
+    glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), lightDir, up);
+    {
+        const glm::dmat4 lightRotD(lightRot);
+        glm::dvec3 centerAbs = glm::dvec3(center) + camWorld;
+        glm::dvec3 centerLS = glm::dvec3(lightRotD * glm::dvec4(centerAbs, 1.0));
+        centerLS.x = std::floor(centerLS.x / double(texelSize)) * double(texelSize);
+        centerLS.y = std::floor(centerLS.y / double(texelSize)) * double(texelSize);
+        centerAbs = glm::dvec3(glm::inverse(lightRotD) * glm::dvec4(centerLS, 1.0));
+        center = glm::vec3(centerAbs - camWorld);          // back to camera-relative
+        fit.cullCenterAbs = glm::vec3(centerAbs);          // cull stays absolute
+    }
+
+    fit.texelWorld = (2.0f * radius) / std::max(mapSize, 1.0f);
+    fit.depthRange = 2.0f * radius + 2.0f * kCasterBack;
+
+    glm::vec3 lightPos = center - lightDir * (radius + kCasterBack);
+    glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+    // orthoRH_ZO → Vulkan [0,1] clip depth, matching the D32 shadow buffer and the [0,1]
+    // shadowCoord.z compare. Plain glm::ortho gives OpenGL [-1,1], which half-clips the scene.
+    glm::mat4 lightProj = glm::orthoRH_ZO(-radius, radius, -radius, radius,
+                                          0.0f, fit.depthRange);
+    lightProj[1][1] *= -1;  // Vulkan Y flip
+    fit.lightSpaceMatrix = lightProj * lightView;
+
+    // Guard: a non-finite center means the corner math degenerated. NaN propagates into every
+    // shadowCoord and NaN compares FALSE, silently skipping shadows — fail loudly instead.
+    if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
+        !std::isfinite(radius) || radius <= 0.0f) {
+        static bool s_warned = false;
+        if (!s_warned) {
+            s_warned = true;
+            LOG_ERROR("Shadow", "Shadow volume fit produced a non-finite center/radius — "
+                      "shadows disabled this frame. Check the frustum-corner math against "
+                      "the current depth convention (docs: reverse-Z).");
+        }
+        fit.lightSpaceMatrix = glm::mat4(1.0f);
+    }
+    return fit;
+}
+
+void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMap& map,
+                                         const glm::mat4& lightSpaceMatrix,
+                                         const glm::vec3& cullCenter, float cullRadius,
+                                         int cascade) {
 
     // NOTE (Phase 3): face-direction bucketing is NOT applicable to the shadow pass.
     // The 36-index draw makes every instance rasterize BOTH windings on its plane, so
@@ -1857,7 +2236,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // shadows (clean A/B pixel diff 0.33% >8/255); the main pass is where the
     // bucketing win lives (single-winding 6-index quads → the skip is exact).
 
-    shadowMap->beginRenderPass(commandBuffer);
+    map.beginRenderPass(commandBuffer);
 
     // Cull chunks to the fitted shadow volume (the view-frustum bounding sphere computed in
     // drawFrame). Pad by a chunk radius + caster margin so tall/edge casters aren't dropped.
@@ -1881,22 +2260,23 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // C2.1: the shadow pipeline layout now declares set 0 (per-draw chunk origins). Bind it
     // unconditionally -- the legacy path ignores its contents (push-constant flag 0), but a
     // declared set must still be bound.
-    if (shadowMap->getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
-        VkDescriptorSet set = shadowMap->getChunkDataSet(currentFrame);
+    if (map.getChunkDataSet(currentFrame) != VK_NULL_HANDLE) {
+        VkDescriptorSet set = map.getChunkDataSet(currentFrame);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                shadowMap->getPipelineLayout(), 0, 1, &set, 0, nullptr);
+                                map.getPipelineLayout(), 0, 1, &set, 0, nullptr);
     }
 
-    gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+    if (cascade == kCascadeMid)
+        gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
 
     // ---- C2.1 GPU-DRIVEN PATH: one multidraw per arena buffer ----------------------------
     // Chunks sharing an arena VkBuffer are in the same allocator block, so they can be
     // submitted together: bind that buffer once, then issue ONE vkCmdDrawIndexedIndirect whose
     // commands select each chunk's slice via firstInstance. The per-chunk origin comes from the
     // SSBO indexed by gl_DrawIDARB, which is why this needs shaderDrawParameters (C2.0b) and
-    // drawIndirectFirstInstance (C2.0).
-    if (s_gpuDrivenShadow && chunkManager && !chunkManager->chunks.empty() &&
-        vulkanDevice->supportsGpuDrivenSubmission() && shadowMap->getIndirectMapped(currentFrame)) {
+    // drawIndirectFirstInstance (C2.0). MID cascade only (the near pass's caster set is tiny).
+    if (cascade == kCascadeMid && s_gpuDrivenShadow && chunkManager && !chunkManager->chunks.empty() &&
+        vulkanDevice->supportsGpuDrivenSubmission() && map.getIndirectMapped(currentFrame)) {
         Utils::Frustum lightFrustumG;
         if (s_shadowFrustumCull) lightFrustumG.extractFromMatrix(lightSpaceMatrix, Utils::Frustum::ClipConvention::ForwardZeroToOne);
 
@@ -1911,7 +2291,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             byBuffer[chunk->getInstanceBuffer()].push_back(chunk.get());
         }
 
-        auto* cmds = static_cast<VkDrawIndexedIndirectCommand*>(shadowMap->getIndirectMapped(currentFrame));
+        auto* cmds = static_cast<VkDrawIndexedIndirectCommand*>(map.getIndirectMapped(currentFrame));
         std::vector<glm::vec4> origins;
         origins.reserve(ShadowMap::kMaxChunkDataEntries);
         uint32_t cmdCursor = 0;
@@ -1969,7 +2349,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             }
             if (n) batches.push_back({kv.first, firstCmd, n});
         }
-        shadowMap->uploadChunkOrigins(currentFrame, origins.data(), static_cast<uint32_t>(origins.size()));
+        map.uploadChunkOrigins(currentFrame, origins.data(), static_cast<uint32_t>(origins.size()));
 
         struct ShadowPushConstsG {
             glm::mat4 lightSpaceMatrix;
@@ -1986,30 +2366,57 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
             // where its slice of `origins` begins. Push constants may be re-recorded between
             // draws (unlike vertex bindings), which is what makes this legal.
             pcG.drawIndexBase = b.first;
-            vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(),
+            vkCmdPushConstants(commandBuffer, map.getPipelineLayout(),
                                VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pcG), &pcG);
             VkBuffer bufs[] = { b.buf };
             VkDeviceSize offs[] = { 0 };   // firstInstance selects the span, not the bind offset
             vkCmdBindVertexBuffers(commandBuffer, 1, 1, bufs, offs);
-            vkCmdDrawIndexedIndirect(commandBuffer, shadowMap->getIndirectBuffer(currentFrame),
+            vkCmdDrawIndexedIndirect(commandBuffer, map.getIndirectBuffer(currentFrame),
                                      b.first * sizeof(VkDrawIndexedIndirectCommand),
                                      b.count, sizeof(VkDrawIndexedIndirectCommand));
             ++gpuDraws;
         }
-        gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
-        // Write the MEMBERS, not lastFrameStats: drawFrame() does `lastFrameStats = {}` after
-        // the shadow pass and repopulates from these, so direct writes here were discarded and
-        // the API reported stale legacy counts (which is why shadow_multidraw_calls read 0 even
-        // though this path was executing).
-        m_shadowChunksDrawn = static_cast<int>(cmdCursor);
-        m_shadowInstancesDrawn = gpuInstances;
-        m_shadowMultidrawCalls = gpuDraws;
-        shadowMap->endRenderPass(commandBuffer);
+        if (cascade == kCascadeMid) {
+            gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+            // Write the MEMBERS, not lastFrameStats: drawFrame() does `lastFrameStats = {}`
+            // after the shadow pass and repopulates from these, so direct writes here were
+            // discarded and the API reported stale legacy counts (which is why
+            // shadow_multidraw_calls read 0 even though this path was executing).
+            m_shadowChunksDrawn = static_cast<int>(cmdCursor);
+            m_shadowInstancesDrawn = gpuInstances;
+            m_shadowMultidrawCalls = gpuDraws;
+        }
+        // FAR cascade via the multidraw path still needs its far-field casters drawn.
+        if (cascade == kCascadeFar) {
+            m_farShadowChunksDrawn = static_cast<int>(cmdCursor);
+            m_farShadowTileCasters = int(m_cachedFarTileDraws.size());
+            m_farShadowTreeCasters = int(m_cachedTreeMeshDraws.size());
+            if (farTerrainPipeline)
+                farTerrainPipeline->renderShadow(commandBuffer,
+                                                 vulkanDevice->getDescriptorSet(currentFrame),
+                                                 m_cachedFarTileDraws);
+            if (treeLodPipeline)
+                treeLodPipeline->renderShadow(commandBuffer,
+                                              vulkanDevice->getDescriptorSet(currentFrame),
+                                              m_cachedTreeMeshDraws);
+        }
+        map.endRenderPass(commandBuffer);
         return;
       }   // !strideMisaligned
     }
 
-    if (chunkManager && !chunkManager->chunks.empty()) {
+    // Caster margin beyond the fitted sphere: the MID pass needs generous reach (tall
+    // casters far outside the view can still shadow into it); the NEAR pass covers ~40 u
+    // and tree-height casters are its tallest concern — a 160 u margin there admitted
+    // essentially every resident chunk into a map that clips them all (measured: the
+    // dense-meadow near pass cost +5.5 ms, most of it clipped vertex work).
+    const float kCasterMargin = (cascade == kCascadeNear) ? 48.0f : 160.0f;
+    // FAR cascade: NO chunk casters (2026-08-06). Far-terrain tiles UNDERLAP the resident
+    // chunks (their quantized surface sits just below the real one), so tile depth already
+    // approximates the terrain that chunks would write — while drawing ~900 chunks made
+    // every 4th (cadence) frame's shadow pass spike to ~20 ms (measured: visible judder).
+    // The far map's casters are the far field itself: tiles + tree/structure meshes below.
+    if (cascade != kCascadeFar && chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
              if (chunk->getNumInstances() == 0) continue;
 
@@ -2017,7 +2424,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              glm::vec3 minBounds = chunk->getMinBounds();
              glm::vec3 maxBounds = chunk->getMaxBounds();
              glm::vec3 chunkCenter = (minBounds + maxBounds) * 0.5f;
-             if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue; // fitted sphere + chunk radius + caster margin
+             if (glm::length(chunkCenter - cullCenter) > cullRadius + kCasterMargin) continue; // fitted sphere + chunk radius + caster margin
 
              // D1c: tight light-frustum cull (skip chunks that can't project into the shadow map)
              if (s_shadowFrustumCull && !lightFrustum.intersects(Utils::AABB(minBounds, maxBounds))) continue;
@@ -2041,29 +2448,40 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
              glm::ivec3 worldOrigin = chunk->getWorldOrigin();
              pushConsts.chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative
 
-             vkCmdPushConstants(commandBuffer, shadowMap->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
+             vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
 
              // Draw
-             // 36-index cube REQUIRED here: the shadow pipeline front-culls (ShadowMap.cpp:429,
-             // renders back faces of closed casters). A 6-index quad has ONE winding → front-culled →
-             // the face casts no shadow. Do NOT use chunkIndexCount() in the shadow pass.
+             // 36-index cube kept here PENDING M5 (docs/ContinuousLodPlan.md §7b). The old
+             // justification ("the shadow pipeline front-culls") is FALSE: the chunk shadow
+             // pipeline back-culls exactly like the main pass (rasterizer.cullMode =
+             // VK_CULL_MODE_BACK_BIT, ShadowMap.cpp:392 — the CULL_NONE block lives in
+             // buildDepthOnlyPipelineState, used only by character/kinematic/dynamic shadows).
+             // Yet D1 measured a ~1.1% pixel break when the 6-index quad was applied to all
+             // passes, cause UNKNOWN. Re-derive empirically (M5) before switching to
+             // chunkIndexCount() here; do not guess a fourth time.
              // (And do NOT direction-bucket here — see the note at the top of this function.)
              vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
              ++shadowChunks;
              shadowInstances += chunk->getNumInstances();
         }
     }
-    gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
-    // Stash in members — lastFrameStats is reset AFTER the shadow pass in drawFrame, so copy these
-    // into lastFrameStats there (see the visibleChunkCount block).
-    m_shadowChunksDrawn = shadowChunks;
-    m_shadowMultidrawCalls = 0;   // legacy path issues no indirect calls
-    m_shadowInstancesDrawn = shadowInstances;
+    if (cascade == kCascadeMid) {
+        gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+        // Stash in members — lastFrameStats is reset AFTER the shadow pass in drawFrame, so
+        // copy these into lastFrameStats there (see the visibleChunkCount block).
+        m_shadowChunksDrawn = shadowChunks;
+        m_shadowMultidrawCalls = 0;   // legacy path issues no indirect calls
+        m_shadowInstancesDrawn = shadowInstances;
+    } else if (cascade == kCascadeNear) {
+        m_nearShadowChunksDrawn = shadowChunks;
+        m_nearShadowInstancesDrawn = shadowInstances;
+    }
 
     // -------------------------------------------------------------------------
     // Character shadow pass (AnimatedVoxelCharacter / NPC ragdolls)
     // -------------------------------------------------------------------------
-    if (shadowMap->getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()
+    if (cascade != kCascadeFar &&
+        map.getCharacterShadowPipeline() != VK_NULL_HANDLE && !m_charBatches.empty()
         && m_shadowCharactersEnabled) {
         // Batches + the instance upload come from buildCharacterFrameData(), which ran
         // once before this pass. This used to re-walk every character in the world and
@@ -2071,7 +2489,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
         // that is NOT the camera subset: an off-screen character can cast into view.
         GPU_PROFILE_SCOPE(gpuProfiler.get(), commandBuffer, "Character Shadows");
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          shadowMap->getCharacterShadowPipeline());
+                          map.getCharacterShadowPipeline());
         vulkanDevice->bindCharacterInstanceBuffer(commandBuffer);
 
         struct CharShadowPC { glm::mat4 model; glm::mat4 lightSpaceMatrix; } charPC;
@@ -2079,7 +2497,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
         for (const auto& batch : m_charBatches) {
             if (batch.charIndex < 0 || !m_charVisibleShadow[batch.charIndex]) continue;
             charPC.model = batch.model;
-            vkCmdPushConstants(commandBuffer, shadowMap->getCharacterShadowLayout(),
+            vkCmdPushConstants(commandBuffer, map.getCharacterShadowLayout(),
                                VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(charPC), &charPC);
             vkCmdDraw(commandBuffer, 36, batch.instanceCount, 0, batch.firstInstance);
         }
@@ -2088,13 +2506,14 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // -------------------------------------------------------------------------
     // Kinematic voxel shadow pass (doors, rotating platforms, etc.)
     // -------------------------------------------------------------------------
-    if (shadowMap->getKinematicShadowPipeline() != VK_NULL_HANDLE &&
+    if (cascade != kCascadeFar &&
+        map.getKinematicShadowPipeline() != VK_NULL_HANDLE &&
         kinematicPipeline && m_kinematicObjects &&
         !m_kinematicObjects->getObjects().empty())
     {
         VkBuffer kinBuf = kinematicPipeline->getInstanceBuffer();
         if (kinBuf != VK_NULL_HANDLE) {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getKinematicShadowPipeline());
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getKinematicShadowPipeline());
 
             struct KinShadowPC { glm::mat4 modelMatrix; glm::mat4 lightSpaceMatrix; } kinPC;
             kinPC.lightSpaceMatrix = lightSpaceMatrix;
@@ -2105,7 +2524,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
                 // camera-relative: translation column -> (world - camera), double subtract
                 kinPC.modelMatrix[3] = glm::vec4(
                     glm::vec3(glm::dvec3(glm::vec3(kinPC.modelMatrix[3])) - glm::dvec3(camera->getPosition())), 1.0f);
-                vkCmdPushConstants(commandBuffer, shadowMap->getKinematicShadowLayout(),
+                vkCmdPushConstants(commandBuffer, map.getKinematicShadowLayout(),
                                    VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(kinPC), &kinPC);
                 VkDeviceSize offset = range.startFace * sizeof(Core::KinematicFaceData);
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, &kinBuf, &offset);
@@ -2117,15 +2536,16 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // -------------------------------------------------------------------------
     // Dynamic GPU particle shadow pass
     // -------------------------------------------------------------------------
-    if (shadowMap->getDynamicShadowPipeline() != VK_NULL_HANDLE &&
+    if (cascade != kCascadeFar &&
+        map.getDynamicShadowPipeline() != VK_NULL_HANDLE &&
         m_gpuParticles && m_gpuParticles->isInitialized() && m_gpuParticles->getActiveParticleCount() > 0)
     {
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowMap->getDynamicShadowPipeline());
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, map.getDynamicShadowPipeline());
         // camera-relative: shader subtracts cameraWorld from the absolute GPU-buffer positions
         struct DynShadowPC { glm::mat4 lightSpaceMatrix; glm::vec4 cameraWorld; } dynPC;
         dynPC.lightSpaceMatrix = lightSpaceMatrix;
         dynPC.cameraWorld = glm::vec4(camera->getPosition(), 0.0f);
-        vkCmdPushConstants(commandBuffer, shadowMap->getDynamicShadowLayout(),
+        vkCmdPushConstants(commandBuffer, map.getDynamicShadowLayout(),
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(dynPC), &dynPC);
         // Binding 0: vertex ID buffer (shared), binding 1: GPU face buffer
         vulkanDevice->bindVertexBuffers(currentFrame);
@@ -2140,7 +2560,10 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // cards; the vert projects with ubo.lightSpaceMatrix, which drawFrame updates every frame).
     // Same shadow-sphere culling as the static chunks above.
     // -------------------------------------------------------------------------
-    if (foliagePipeline && foliagePipeline->params().enabled && chunkManager) {
+    if (cascade == kCascadeMid && foliagePipeline && foliagePipeline->params().enabled && chunkManager) {
+        // MID cascade only: foliage_shadow.vert projects with ubo.lightSpaceMatrix (the mid
+        // matrix). Near receivers still get canopy shadows because they take
+        // min(nearFactor, midFactor) — a mid-only caster can never vanish up close.
         // Shadow casters clip to the SAME foliage radius as the visible pass (a card
         // that is distance-culled from view shouldn't cast either), on top of the
         // shadow-sphere cull.
@@ -2168,15 +2591,24 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
     // grass radius as the visible pass (a blade culled from view must not cast either) and
     // driven by the SAME per-chunk density LOD, so shadows track the blades exactly.
     // -------------------------------------------------------------------------
-    if (grassPipeline && grassPipeline->params().enabled && chunkManager) {
+    if (cascade == kCascadeNear && grassPipeline && grassPipeline->params().enabled && chunkManager) {
+        // NEAR cascade ONLY (docs/NearShadowCascade.md): a blade's 0.080 u shadow proxy is
+        // 0.71 of a mid-map texel — sub-texel casters rasterize sporadically and the result
+        // was a random scatter of blobs changing 40.1% of the view (strictly worse than
+        // casting nothing). In the near map the same proxy spans 4.1 texels and resolves.
+        // grass_shadow.vert projects with ubo.lightSpaceMatrixNear to match.
         const glm::vec3 camPos = camera ? camera->getPosition() : cullCenter;
-        const float grassRadius = grassPipeline->params().radius;
+        // Blades are ~1 u tall: a chunk outside the near volume by more than a few units
+        // cannot write a single blade texel — drawing it is pure clipped vertex work. In a
+        // 0.95-density meadow the old full-grass-radius cull cost ~5 ms of the near pass.
+        const float grassRadius =
+            std::min(grassPipeline->params().radius, cullRadius + 8.0f);
         const float grassRadiusSq = grassRadius * grassRadius;
         std::vector<GrassRenderPipeline::ChunkDraw> grassDraws;
         for (const auto& chunk : chunkManager->chunks) {
             if (!chunk || chunk->getGrassCount() == 0) continue;
             glm::vec3 chunkCenter = (chunk->getMinBounds() + chunk->getMaxBounds()) * 0.5f;
-            if (glm::length(chunkCenter - cullCenter) > cullRadius + 160.0f) continue;
+            if (glm::length(chunkCenter - cullCenter) > cullRadius + 8.0f) continue;
             const float dSq = glm::dot(chunkCenter - camPos, chunkCenter - camPos);
             if (dSq > grassRadiusSq) continue;
             glm::ivec3 origin = chunk->getWorldOrigin();
@@ -2189,7 +2621,26 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, const gl
                                     vulkanDevice->getDescriptorSet(currentFrame), grassDraws);
     }
 
-    shadowMap->endRenderPass(commandBuffer);
+    // -------------------------------------------------------------------------
+    // FAR cascade: the LOD band's own content casts — far terrain tiles + far-tree/structure
+    // LOD meshes (last frame's assembled lists; 1 frame of staleness is sub-texel out there).
+    // Their shadow verts project with ubo.lightSpaceMatrixFar.
+    // -------------------------------------------------------------------------
+    if (cascade == kCascadeFar) {
+        m_farShadowChunksDrawn = shadowChunks;
+        m_farShadowTileCasters = int(m_cachedFarTileDraws.size());
+        m_farShadowTreeCasters = int(m_cachedTreeMeshDraws.size());
+        if (farTerrainPipeline)
+            farTerrainPipeline->renderShadow(commandBuffer,
+                                             vulkanDevice->getDescriptorSet(currentFrame),
+                                             m_cachedFarTileDraws);
+        if (treeLodPipeline)
+            treeLodPipeline->renderShadow(commandBuffer,
+                                          vulkanDevice->getDescriptorSet(currentFrame),
+                                          m_cachedTreeMeshDraws);
+    }
+
+    map.endRenderPass(commandBuffer);
 }
 
 
@@ -2655,129 +3106,55 @@ void RenderCoordinator::drawFrame() {
     glm::vec3 shadowCullCenter = cameraPos;
     float shadowCullRadius = 1.0f;
     if (shadowMap) {
-        // Shadow draw distance — how far shadows render (must be <= view distance; full view-
-        // distance shadows at this quality would need cascades). Capped INDEPENDENTLY of the
-        // render distance: raising the view distance (e.g. 2048 with far-terrain LOD) must not
-        // stretch the single shadow map over a huge volume — at the old 400-unit cap shadows
-        // degraded to smeared low-res blobs with acne. 160 + 4096² keeps ~0.05 units/texel,
-        // close to the density everything was visually tuned at (96-unit render distance).
+        // Shadow draw distance — how far the MID cascade renders (must be <= view distance).
+        // Capped INDEPENDENTLY of the render distance: raising the view distance must not
+        // stretch one map over a huge volume. The fit itself lives in fitShadowVolume()
+        // (extracted 2026-08-05 so the near cascade reuses the identical math).
         const float kMaxShadowDist = std::min(maxChunkRenderDistance, s_shadowDistance);
-        const float kNear = 0.5f;
-        float a00 = cachedProjectionMatrix[0][0];
-        float a11 = cachedProjectionMatrix[1][1];
-        float aspect = (std::abs(a00) > 1e-6f) ? std::abs(a11 / a00) : (16.0f / 9.0f);
+        const ShadowFit fit = fitShadowVolume(
+            kMaxShadowDist, float(shadowMap->getWidth() > 0 ? shadowMap->getWidth() : 8192),
+            camWorld, sunDirection);
+        lightSpaceMatrix = fit.lightSpaceMatrix;
+        shadowCullCenter = fit.cullCenterAbs;
+        shadowCullRadius = fit.cullRadius;
+        m_shadowTexelWorld = fit.texelWorld;
+        vulkanDevice->setShadowDepthRange(fit.depthRange);
 
-        // Camera-relative corners of the (distance-capped) view frustum, built ANALYTICALLY
-        // from the camera basis + FOV.
-        //
-        // This used to unproject clip-space corners through inverse(proj*view) with depth
-        // 0 = near, 1 = far. That silently became DIVISION BY ZERO when the scene pass moved
-        // to REVERSE-Z with an INFINITE far plane (2026-08-01, docs + DepthConvention.h):
-        // under reverse-Z depth 0 is the far plane, and an infinite far plane puts it at
-        // w = 0, so `c / c.w` produced NaN. center/radius went NaN, lightSpaceMatrix went
-        // NaN, every shadowCoord went NaN — and because NaN compares false, the receiver's
-        // `shadowCoord.z > -1.0` guard skipped the shadow test entirely and the whole world
-        // rendered unshadowed (user: "the tree is casting no shadows"). Building the corners
-        // from the camera basis is convention-agnostic, so a future depth-convention change
-        // cannot silently break the shadow fit again.
-        const float fovY = glm::radians(camera->getFovYDegrees());
-        const glm::vec3 fwd = camera->getFront();
-        const glm::vec3 rgt = camera->getRight();
-        const glm::vec3 upv = camera->getUp();
-        glm::vec3 corners[8];
-        int ci = 0;
-        for (int zi = 0; zi < 2; ++zi) {
-            const float d = zi ? kMaxShadowDist : kNear;
-            const float halfH = std::tan(fovY * 0.5f) * d;
-            const float halfW = halfH * aspect;
-            const glm::vec3 c = fwd * d;                 // camera sits at the origin here
-            for (int x = 0; x < 2; ++x)
-                for (int y = 0; y < 2; ++y)
-                    corners[ci++] = c + rgt * (x ? halfW : -halfW) + upv * (y ? halfH : -halfH);
+        // Near cascade: same fit, tight distance, its own map (docs/NearShadowCascade.md).
+        if (shadowMapNear && s_nearShadowEnabled) {
+            const float nearDist = std::min(s_nearShadowDistance, kMaxShadowDist);
+            const ShadowFit fitN = fitShadowVolume(
+                nearDist,
+                float(shadowMapNear->getWidth() > 0 ? shadowMapNear->getWidth() : 4096),
+                camWorld, sunDirection);
+            m_nearLightSpaceMatrix = fitN.lightSpaceMatrix;
+            m_nearShadowCullCenter = fitN.cullCenterAbs;
+            m_nearShadowCullRadius = fitN.cullRadius;
+            m_nearShadowTexelWorld = fitN.texelWorld;
+            vulkanDevice->setNearShadowCascade(m_nearLightSpaceMatrix, nearDist,
+                                               fitN.depthRange);
+        } else {
+            vulkanDevice->setNearShadowCascade(glm::mat4(1.0f), 0.0f, 1.0f);
         }
 
-        // With the relative view, corners (and center) come out CAMERA-RELATIVE.
-        glm::vec3 center(0.0f);
-        for (auto& c : corners) center += c;
-        center /= 8.0f;
-        float radius = 0.0f;
-        for (auto& c : corners) radius = std::max(radius, glm::length(c - center));
-        // Expand beyond the tight frustum sphere so casters JUST outside the view (off-screen at
-        // the edges, or a tall caster whose top pokes above the frustum) are still recorded and
-        // cast shadows INTO the view. Without this, edge casters slice in/out as the camera moves
-        // (one pillar shadowed, one half, one none). kCasterMargin ~ max caster reach.
-        const float kCasterMargin = 48.0f;
-        radius = std::ceil(radius) + kCasterMargin;
-
-        shadowCullCenter = glm::vec3(glm::dvec3(center) + camWorld);   // cull in ABSOLUTE world
-        shadowCullRadius = radius;
-
-        glm::vec3 lightDir = glm::normalize(sunDirection);
-        glm::vec3 up = (std::abs(lightDir.y) > 0.99f) ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
-        // Pull the light back past the sphere so casters between the sun and the frustum (e.g. a
-        // tall pillar just off-screen toward the sun) still register in the depth map.
-        const float kCasterBack = 120.0f;
-
-        // Texel snapping (anti shadow-crawl, user-reported jitter while moving): the
-        // sphere center follows the camera CONTINUOUSLY, so the shadow volume — and
-        // every shadow edge — shifts by sub-texel amounts each frame and shimmers.
-        // Quantize the center's light-space XY to whole shadow-map texels so camera
-        // translation moves the volume in exact texel steps (edges stay put). The
-        // sphere fit already handles rotation invariance; this handles translation.
-        // The snap frame must be WORLD-ANCHORED (rotation-only, origin at the world
-        // origin): snapping in a frame built around the center itself is a no-op,
-        // because the center always maps to the same local point in its own frame.
-        const float kShadowMapSize = 4096.0f;  // matches the ShadowMap resolution in the ctor
-        const float texelSize = (2.0f * radius) / kShadowMapSize;
-        glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), lightDir, up);
-        // CAMERA-RELATIVE CAVEAT: `center` is camera-relative here, but the snap MUST quantize
-        // in the ABSOLUTE world frame — snapping relative coords re-anchors the grid to the
-        // moving camera and the crawl returns. Re-anchor through doubles: absolute center,
-        // snap in the light-rotation frame (values ~60k but texel 0.05-0.1 >> the 4 mm float
-        // ULP there — use doubles anyway so the floor() is exact), back to relative.
-        {
-            const glm::dmat4 lightRotD(lightRot);
-            glm::dvec3 centerAbs = glm::dvec3(center) + camWorld;
-            glm::dvec3 centerLS = glm::dvec3(lightRotD * glm::dvec4(centerAbs, 1.0));
-            centerLS.x = std::floor(centerLS.x / double(texelSize)) * double(texelSize);
-            centerLS.y = std::floor(centerLS.y / double(texelSize)) * double(texelSize);
-            centerAbs = glm::dvec3(glm::inverse(lightRotD) * glm::dvec4(centerLS, 1.0));
-            center = glm::vec3(centerAbs - camWorld);          // back to camera-relative
-            shadowCullCenter = glm::vec3(centerAbs);           // cull stays absolute
-        }
-
-        // World size of one shadow-map texel — the grass shadow pass clamps blade width to a
-        // few of these so blades rasterize at ANY shadow distance (see setShadowTexelWorld).
-        m_shadowTexelWorld = (2.0f * radius) /
-                             float(shadowMap->getWidth() > 0 ? shadowMap->getWidth() : 8192);
-        // Must match the ortho far plane built below, so a world-unit bias converts exactly.
-        vulkanDevice->setShadowDepthRange(2.0f * radius + 2.0f * kCasterBack);
-
-        glm::vec3 lightPos = center - lightDir * (radius + kCasterBack);
-        glm::mat4 lightView = glm::lookAt(lightPos, center, up);
-        // orthoRH_ZO → Vulkan [0,1] clip depth, matching the D32 shadow buffer and the [0,1]
-        // shadowCoord.z used in voxel.frag. Plain glm::ortho gives OpenGL [-1,1], which half-clips
-        // the scene and breaks the depth compare (GLM_FORCE_DEPTH_ZERO_TO_ONE is NOT set here).
-        glm::mat4 lightProj = glm::orthoRH_ZO(-radius, radius, -radius, radius,
-                                              0.0f, 2.0f * radius + 2.0f * kCasterBack);
-        lightProj[1][1] *= -1;  // Vulkan Y flip
-        lightSpaceMatrix = lightProj * lightView;
-
-        // Guard the fit: a non-finite center means the frustum-corner math degenerated
-        // (this is exactly how the reverse-Z regression above went unnoticed — NaN
-        // propagated into every shadowCoord, and NaN compares false, so the receiver
-        // silently skipped shadowing instead of failing loudly). Fall back to an
-        // unshadowed-but-valid matrix and say so once.
-        if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
-            !std::isfinite(radius) || radius <= 0.0f) {
-            static bool s_warned = false;
-            if (!s_warned) {
-                s_warned = true;
-                LOG_ERROR("Shadow", "Shadow volume fit produced a non-finite center/radius — "
-                          "shadows disabled this frame. Check the frustum-corner math against "
-                          "the current depth convention (docs: reverse-Z).");
-            }
-            lightSpaceMatrix = glm::mat4(1.0f);
+        // Far cascade fit — EVERY frame (microseconds); only the caster PASS is cadenced
+        // (renderShadowPass call site). This is safe with a persistent map because the fit
+        // is texel-snapped in the WORLD-anchored light frame: a given world point keeps its
+        // light-space UV across frames, so 1-3 frame old depth sampled through a fresh
+        // matrix is off by at most the camera's travel quantized to 0.9 u texels —
+        // invisible at LOD-band distances.
+        if (shadowMapFar && s_farShadowEnabled) {
+            const float farDist = std::min(s_farShadowDistance, maxChunkRenderDistance);
+            const ShadowFit fitF = fitShadowVolume(
+                farDist,
+                float(shadowMapFar->getWidth() > 0 ? shadowMapFar->getWidth() : 4096),
+                camWorld, sunDirection);
+            m_farLightSpaceMatrix = fitF.lightSpaceMatrix;
+            m_farShadowCullCenter = fitF.cullCenterAbs;
+            m_farShadowCullRadius = fitF.cullRadius;
+            vulkanDevice->setFarShadowCascade(m_farLightSpaceMatrix, farDist, fitF.depthRange);
+        } else {
+            vulkanDevice->setFarShadowCascade(glm::mat4(1.0f), 0.0f, 1.0f);
         }
     }
     
@@ -2798,7 +3175,13 @@ void RenderCoordinator::drawFrame() {
     // Camera-relative rendering: hand the true camera position to pipelines that push their
     // own world transforms, BEFORE any pass records draws this frame.
     if (kinematicPipeline) kinematicPipeline->setCameraWorld(cameraPos);
-    if (grassPipeline)     grassPipeline->setShadowTexelWorld(m_shadowTexelWorld);
+    // Grass casts into the NEAR cascade now, so its blade-width shadow clamp must use the
+    // NEAR map's texel (0.0195 u) — clamping against the mid texel (0.1125 u) is what forced
+    // the fat mushy blade smudge.
+    if (grassPipeline)
+        grassPipeline->setShadowTexelWorld(
+            (shadowMapNear && s_nearShadowEnabled) ? m_nearShadowTexelWorld
+                                                   : m_shadowTexelWorld);
     if (grassPipeline)     grassPipeline->setCameraWorld(cameraPos);
     if (foliagePipeline)   foliagePipeline->setCameraWorld(cameraPos);
 
@@ -2897,8 +3280,20 @@ void RenderCoordinator::drawFrame() {
 
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
-        // Render Shadow Pass
-        renderShadowPass(cmd, lightSpaceMatrix, shadowCullCenter, shadowCullRadius);
+        // Mid cascade (the original single map), then the near cascade (tight map whose
+        // texels resolve blade-scale casters — docs/NearShadowCascade.md).
+        renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,
+                         shadowCullRadius, kCascadeMid);
+        if (shadowMapNear && s_nearShadowEnabled)
+            renderShadowPass(cmd, *shadowMapNear, m_nearLightSpaceMatrix,
+                             m_nearShadowCullCenter, m_nearShadowCullRadius, kCascadeNear);
+        // FAR cascade on a cadence: skipping a frame skips the CLEAR too, so the map
+        // simply persists — coarse texels a kilometre out cannot show the staleness.
+        if (shadowMapFar && s_farShadowEnabled && --m_farShadowFrameCounter <= 0) {
+            m_farShadowFrameCounter = std::max(1, s_farShadowCadence);
+            renderShadowPass(cmd, *shadowMapFar, m_farLightSpaceMatrix,
+                             m_farShadowCullCenter, m_farShadowCullRadius, kCascadeFar);
+        }
     }
 
     // GPU particle physics compute (integrate → collide → expand)

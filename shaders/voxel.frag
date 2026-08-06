@@ -32,10 +32,19 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraWorld;
     int  debugShadowMode;   // 1 = shadow-only debug view (see lighting.glsl phxShadowOnly)
     float shadowDepthRange; // world-unit depth span of the light volume (bias normalization)
+    vec4  grassDisplacers[16];      // declared only to reach the cascade fields below
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    // Near shadow cascade (docs/NearShadowCascade.md): tight map whose 0.0195 u texel
+    // resolves blade-scale casters. Receivers take min(near, mid) — the near map's 12%
+    // border fade IS the cascade blend, and mid-only casters can never vanish up close.
+    mat4 biasedLightSpaceNear;
+    vec4 shadowCascadeNear;   // x = range end (0 = off), y = near depthRange, z = blend halfwidth
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
-layout(set = 0, binding = 2) uniform sampler2D shadowMap;             // shadow map sampler
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;             // mid-cascade shadow map
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;         // near cascade (fine texels)
 layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px
 layout(set = 0, binding = 6) uniform sampler2DArray textureNormal;    // class 0 normal+rough: 512px
 layout(set = 0, binding = 7) uniform sampler2DArray textureNormalHi;  // class 1 normal+rough: 1024px
@@ -291,6 +300,19 @@ void main() {
         float ndlForBias = dot(N, normalize(-ubo.sunDirection));
         shadowFactor = phxShadowPCSS(shadowMap, shadowCoord, ndlForBias, gl_FragCoord.xy,
                                      ubo.shadowDepthRange);
+        // Near cascade: min-compose with the fine map inside its range. min() = union of
+        // shadows, so casters recorded only in one map (grass = near-only; foliage =
+        // mid-only) still shade correctly, and the near map's border fade blends the split.
+        if (ubo.shadowCascadeNear.x > 0.0 &&
+            dot(inWorldPos, inWorldPos) <
+                ubo.shadowCascadeNear.x * ubo.shadowCascadeNear.x) {
+            const float kNearNormalOffset = 0.05;   // finer texels need less receiver offset
+            vec4 nearCoord = ubo.biasedLightSpaceNear *
+                             vec4(inWorldPos + N * kNearNormalOffset, 1.0);
+            shadowFactor = min(shadowFactor,
+                               phxShadowPCSS(shadowMapNear, nearCoord, ndlForBias,
+                                             gl_FragCoord.xy, ubo.shadowCascadeNear.y));
+        }
     }
 
     if (isEmissive) {

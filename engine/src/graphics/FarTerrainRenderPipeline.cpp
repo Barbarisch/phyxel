@@ -37,9 +37,146 @@ void FarTerrainRenderPipeline::cleanup() {
     if (m_device == VK_NULL_HANDLE) return;
     if (m_pipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_pipeline, nullptr);
     if (m_pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    if (m_shadowPipeline       != VK_NULL_HANDLE) vkDestroyPipeline(m_device, m_shadowPipeline, nullptr);
+    if (m_shadowPipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(m_device, m_shadowPipelineLayout, nullptr);
     m_pipeline       = VK_NULL_HANDLE;
     m_pipelineLayout = VK_NULL_HANDLE;
+    m_shadowPipeline       = VK_NULL_HANDLE;
+    m_shadowPipelineLayout = VK_NULL_HANDLE;
     m_device         = VK_NULL_HANDLE;
+}
+
+bool FarTerrainRenderPipeline::initializeShadow(VkRenderPass shadowRenderPass,
+                                                VkExtent2D shadowExtent,
+                                                VkDescriptorSetLayout uboLayout) {
+    if (m_device == VK_NULL_HANDLE) return false;
+    try {
+        auto vertCode = readShaderFile(
+            Core::AssetManager::instance().resolveShader("far_terrain_shadow.vert.spv"));
+        VkShaderModule vertModule;
+        VkShaderModuleCreateInfo smInfo{};
+        smInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        smInfo.codeSize = vertCode.size();
+        smInfo.pCode    = reinterpret_cast<const uint32_t*>(vertCode.data());
+        vkCreateShaderModule(m_device, &smInfo, nullptr, &vertModule);
+
+        VkPipelineShaderStageCreateInfo stage{};
+        stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stage.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+        stage.module = vertModule;
+        stage.pName  = "main";
+
+        VkVertexInputBindingDescription binding{};
+        binding.binding   = 0;
+        binding.stride    = sizeof(FarVertex);
+        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        std::array<VkVertexInputAttributeDescription, 2> attrs{};
+        attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(FarVertex, pos)};
+        attrs[1] = {1, 0, VK_FORMAT_R32_UINT, offsetof(FarVertex, packed)};
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInput.vertexBindingDescriptionCount   = 1;
+        vertexInput.pVertexBindingDescriptions      = &binding;
+        vertexInput.vertexAttributeDescriptionCount = uint32_t(attrs.size());
+        vertexInput.pVertexAttributeDescriptions    = attrs.data();
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkViewport viewport{0.0f, 0.0f, float(shadowExtent.width), float(shadowExtent.height),
+                            0.0f, 1.0f};
+        VkRect2D scissor{{0, 0}, shadowExtent};
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.pViewports    = &viewport;
+        viewportState.scissorCount  = 1;
+        viewportState.pScissors     = &scissor;
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth   = 1.0f;
+        rasterizer.cullMode    = VK_CULL_MODE_NONE;
+        rasterizer.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_TRUE;
+        rasterizer.depthBiasConstantFactor = 1.25f;
+        rasterizer.depthBiasSlopeFactor = 1.75f;
+
+        VkPipelineMultisampleStateCreateInfo multisample{};
+        multisample.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        // Shadow passes are FORWARD-Z: LESS, never the scene's reverse-Z compare op.
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable  = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
+
+        VkPipelineColorBlendStateCreateInfo colorBlend{};
+        colorBlend.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlend.attachmentCount = 0;   // depth-only render pass
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        pushRange.offset     = 0;
+        pushRange.size       = sizeof(FarTerrainPush);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount         = 1;
+        layoutInfo.pSetLayouts            = &uboLayout;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges    = &pushRange;
+        if (vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &m_shadowPipelineLayout) != VK_SUCCESS)
+            throw std::runtime_error("FarTerrain shadow pipeline layout");
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount          = 1;   // vertex only
+        pipelineInfo.pStages             = &stage;
+        pipelineInfo.pVertexInputState   = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState      = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState   = &multisample;
+        pipelineInfo.pDepthStencilState  = &depthStencil;
+        pipelineInfo.pColorBlendState    = &colorBlend;
+        pipelineInfo.layout              = m_shadowPipelineLayout;
+        pipelineInfo.renderPass          = shadowRenderPass;
+        pipelineInfo.subpass             = 0;
+        if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                      &m_shadowPipeline) != VK_SUCCESS)
+            throw std::runtime_error("FarTerrain shadow pipeline");
+        vkDestroyShaderModule(m_device, vertModule, nullptr);
+    } catch (const std::exception& e) {
+        LOG_ERROR("FarTerrainRenderPipeline", "Shadow variant init failed: {}", e.what());
+        return false;
+    }
+    LOG_INFO("FarTerrainRenderPipeline", "Far-cascade shadow caster variant initialized");
+    return true;
+}
+
+void FarTerrainRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboSet,
+                                            const std::vector<TileDraw>& tiles) {
+    if (m_shadowPipeline == VK_NULL_HANDLE || tiles.empty()) return;
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipelineLayout, 0, 1,
+                            &uboSet, 0, nullptr);
+    for (const auto& t : tiles) {
+        if (t.vertexBuffer == VK_NULL_HANDLE || t.indexCount == 0) continue;
+        FarTerrainPush pc{
+            glm::vec2(glm::dvec2(t.origin) - glm::dvec2(m_cameraWorld.x, m_cameraWorld.z)),
+            t.origin};
+        vkCmdPushConstants(cmd, m_shadowPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                           sizeof(FarTerrainPush), &pc);
+        VkDeviceSize off = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &t.vertexBuffer, &off);
+        vkCmdBindIndexBuffer(cmd, t.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, t.indexCount, 1, 0, 0, 0);
+    }
 }
 
 bool FarTerrainRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,

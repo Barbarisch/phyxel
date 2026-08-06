@@ -37,6 +37,16 @@ TemplateLodChain::MicroSoup wallWithWindow() {
     return soup;
 }
 
+/// The level whose cell edge is exactly one voxel (9 micros) — robust against ladder
+/// densification (the 2026-08-05 ladder {3,6,9,13,18,27} moved it from index 1 to 2).
+const TemplateLodChain::Level& voxelLevelOf(
+    const std::vector<TemplateLodChain::Level>& levels) {
+    for (const auto& l : levels)
+        if (l.cellSizeMicros == 9) return l;
+    static TemplateLodChain::Level empty;
+    return empty;
+}
+
 } // namespace
 
 // THE POINT: a 1-voxel-thick wall must survive EVERY level as a connected, hole-free
@@ -45,7 +55,7 @@ TEST(StructureLodChainTest, ThinWallSurvivesEveryLevel) {
     auto soup = wallWithWindow();
     const auto levels =
         TemplateLodChain::buildFromSoup(soup, TemplateLodChain::structureConfig());
-    ASSERT_EQ(levels.size(), 4u);
+    ASSERT_EQ(levels.size(), 6u);   // densified 2026-08-05: {3,6,9,13,18,27} micros
 
     for (const auto& level : levels) {
         ASSERT_FALSE(level.cells.empty()) << "wall vanished at cell size "
@@ -95,7 +105,7 @@ TEST(StructureLodChainTest, InteriorIsHollowedOut) {
         TemplateLodChain::buildFromSoup(soup, TemplateLodChain::structureConfig());
     // At voxel resolution (cell = 9 micros): solid would be 9^3 = 729 cells; the shell is
     // 9^3 - 7^3 = 386. Hollowing must reach the shell count exactly.
-    const auto& voxelLevel = levels[1];
+    const auto& voxelLevel = voxelLevelOf(levels);
     ASSERT_EQ(voxelLevel.cellSizeMicros, 9);
     EXPECT_EQ(voxelLevel.cells.size(), 386u)
         << "interior cells survived hollowing (or shell cells were lost)";
@@ -113,7 +123,7 @@ TEST(StructureLodChainTest, GlassPaneKeepsItsMaterial) {
 
     const auto levels =
         TemplateLodChain::buildFromSoup(soup, TemplateLodChain::structureConfig());
-    const auto& voxelLevel = levels[1];   // cell = 9 micros = 1 voxel
+    const auto& voxelLevel = voxelLevelOf(levels);   // cell = 9 micros = 1 voxel
     ASSERT_EQ(voxelLevel.cellSizeMicros, 9);
     size_t glass = 0;
     for (const auto& cell : voxelLevel.cells)
@@ -131,7 +141,7 @@ TEST(StructureLodChainTest, DetachedFencePostsSurvive) {
 
     const auto levels =
         TemplateLodChain::buildFromSoup(soup, TemplateLodChain::structureConfig());
-    const auto& voxelLevel = levels[1];
+    const auto& voxelLevel = voxelLevelOf(levels);
     bool postSurvives = false;
     for (const auto& cell : voxelLevel.cells)
         if (cell.pos.x == 20) { postSurvives = true; break; }

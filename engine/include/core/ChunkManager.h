@@ -178,6 +178,11 @@ public:
     // Exposed so callers can tune TerrainParams; null when streaming generation is off.
     WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
 
+    // Loading observability (/api/debug/load_state — docs/LodTierLedger.md): the queue
+    // depths that decide "still loading" vs "settled". Read on the main thread.
+    const DirtyChunkTracker& dirtyTracker() const { return m_dirtyChunkTracker; }
+    const ChunkStreamingManager& streamingManagerRO() const { return m_streamingManager; }
+
     // Flora decoration for streamed chunks. Wired by the editor (which owns the template
     // manager); invoked after a newly generated chunk's terrain is filled, before faces/physics.
     void setFloraDecorator(std::function<void(Chunk&, const glm::ivec3&)> cb) {

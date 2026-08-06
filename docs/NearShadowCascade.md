@@ -1,6 +1,75 @@
-# Near shadow cascade
+# Shadow cascades (near + mid + far)
 
-**Status: planned, not started.** Save point before this work: `ed00bbb6`.
+**Status: ALL THREE CASCADES SHIPPED + VERIFIED 2026-08-06.** This doc began as the
+near-cascade plan; it now records the full 3-cascade system.
+
+| Cascade | Fit | Res | Texel | Casters | Notes |
+|---|---|---|---|---|---|
+| Near | 40 u | 4096² | 0.0195 u | chunks (48 u margin) + characters + kinematic + dynamic + **grass (only here)** | blade shadows resolve; receivers min-compose with mid |
+| Mid | 420 u | 8192² | 0.1125 u | chunks (GPU-driven multidraw, default ON) + characters + kinematic + dynamic + foliage | the original map; D1 stats live here |
+| Far | 1600 u | 4096² | ~0.9 u | chunks (multidraw) + **far terrain tiles + far-tree/structure LOD meshes** (depth-only variants, cached last-frame draw lists) | recorded every `s_farShadowCadence`=4 frames (skip = no clear = map persists); far_terrain.frag + far_tree_mesh.frag receive |
+
+**Far cascade verification (2026-08-06):** shadow-only view = every LOD tree to the horizon
+casts a directional shadow; lit view = grounded shadows across the whole band, 56 FPS at the
+elevated dense-forest pose. `docs/evidence/far_cascade_{shadowonly,lit}_green.png`.
+
+⚠️ **Lessons the far cascade cost a debugging round to learn:**
+- **`build_shaders.bat` is an EXPLICIT list** — every new shader must be added to it, and a
+  missing .spv fails pipeline init LOUDLY in phyxel.log ("Shadow variant init failed:
+  cannot open shader"). Grep the log before debugging shader logic.
+- A probe that modulates only the sun term is invisible through aerial haze at range —
+  debug probes must output flat colors.
+- Shadow-caster pipelines bake a STATIC viewport: create them against the map they will
+  render into (this is now the third time this rule earned its keep).
+
+Knobs: `POST /api/debug/shadow {"near_enabled","near_distance","far_enabled",
+"far_distance","far_cadence","distance","mode"}`. Debug counters:
+`lod_report.far_shadow` (chunks/tile/tree caster counts; -1 = far pass never recorded).
+
+---
+
+*(Original near-cascade record follows.)*
+
+**Near cascade: SHIPPED + VERIFIED 2026-08-06 (red→green on the single-blade rig).** Save
+point before this work: `ed00bbb6`.
+
+**The green measurement** (tools/grass_shadow_width_sweep.py, same rig + method as the red):
+- RED (pre-cascade, on record below): blade casters changed 40.1% of the view as unstructured
+  blobs, mean 77/255 — "strictly worse than casting nothing".
+- GREEN (post-cascade): the single blade casts a real, structured shadow at EVERY width
+  (area grows with the width multiplier, peak saturates at 199/255 — the tool's own signature
+  for a genuine shadow), and the numbers are **byte-identical at shadowDistance 80 and 420**:
+  blade shadows now live in the near map and are fully decoupled from the mid distance.
+  Control (grass removed): area 0, PASS. Shadow-only view: individual blade shadows read as
+  ALIGNED DIRECTIONAL STREAKS (`docs/evidence/near_cascade_blade_streaks_shadowonly.png`).
+- **Bug found by the first (all-NO-SHADOW) sweep run:** the grass shadow pipeline bakes a
+  STATIC viewport and was built against the 8192 mid map — drawn into the 4096 near
+  framebuffer, blade depth landed at 2× the intended UVs. It is now built against the near
+  map's render pass/extent. ⚠️ Any pipeline recorded into a shadow map MUST be created
+  against THAT map's extent (or use dynamic viewport).
+
+Implementation notes vs the original plan below:
+
+- **Both maps, min-composed.** Receivers (voxel/grass/foliage frags) take
+  `min(nearFactor, midFactor)` instead of a hard cascade select + blend band. min() is the
+  union of shadows, so a caster recorded in only ONE map still shades every receiver — which
+  is what lets grass cast ONLY into the near map (its proxy is sub-texel in the mid map =
+  noise) and foliage stay mid-only (its shadow vert projects with the mid matrix) without
+  either vanishing anywhere. The near map's existing 12% border fade IS the split blend.
+- **Plumbing:** UBO gains `biasedLightSpaceNear` + `shadowCascadeNear` (x=rangeEnd 0=off,
+  y=nearDepthRange, z=blend halfwidth) + raw `lightSpaceMatrixNear` (grass caster
+  projection), appended after `grassDisplacerMeta` per the trailing-field rule. Descriptor
+  set-0 gains binding 9 (near map sampler, appended at the END), with a fallback to the mid
+  map so the binding is always valid; the near-cascade-off state makes the fallback inert.
+  The long-undersized reflection descriptor pool was fixed to cover the full layout.
+- **Fit:** `RenderCoordinator::fitShadowVolume()` — the mid map's exact fit (sphere fit,
+  caster margin, world-anchored texel snap, NaN guard) extracted verbatim and called twice.
+  Near: 4096² fitted to `s_nearShadowDistance` 40 u ⇒ 0.0195 u texel.
+- **Caster pass:** `renderShadowPass(map, matrix, cull, nearPass)` records twice. Near pass =
+  chunks (tight cull) + characters + kinematic + dynamic + GRASS (moved here from mid);
+  GPU-driven multidraw + pipeline-stats stay mid-only. Grass's blade-width shadow clamp now
+  uses the NEAR texel.
+- Knobs: `POST /api/debug/shadow {"near_enabled": bool, "near_distance": N}`.
 
 ## Why
 

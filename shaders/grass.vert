@@ -42,6 +42,10 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  grassDisplacers[16];
     vec4  grassDisplacersAux[16];   // x = strength envelope 0..1 (eased attack/release on CPU)
     ivec4 grassDisplacerMeta;   // x = active displacer count (0 = feature entirely inert)
+    // Near shadow cascade (docs/NearShadowCascade.md) — receivers min-compose both maps.
+    mat4 biasedLightSpaceNear;
+    vec4 shadowCascadeNear;     // x = range end (0 = off), y = near depthRange
+    mat4 lightSpaceMatrixNear;  // raw near matrix (caster pass only)
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -104,6 +108,7 @@ layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow
 // always (a few bytes of interpolant) rather than behind a compile flag, because the whole point
 // is to answer "is the wind actually doing anything" without a rebuild.
 layout(location = 7) out float vWindLean;
+layout(location = 8) out vec4 vShadowCoordNear;   // near-cascade receiving coord
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -537,6 +542,9 @@ void main() {
     // carpet under trees. worldPos is camera-relative here, which is the space
     // biasedLightSpace expects (same as static_voxel.vert).
     vShadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
+    // Near-cascade coord (location 8): the fine map that actually resolves blade-on-blade
+    // shadows. Out-of-volume coords fail phxShadowCoordValid in the frag → min() no-op.
+    vShadowCoordNear = ubo.biasedLightSpaceNear * vec4(worldPos, 1.0);
 
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

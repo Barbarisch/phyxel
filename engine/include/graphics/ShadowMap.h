@@ -37,9 +37,6 @@ public:
     VkPipeline getDynamicShadowPipeline() const { return dynamicPipeline; }
     VkPipelineLayout getDynamicShadowLayout() const { return dynamicPipelineLayout; }
 
-    // Light matrix calculation
-    glm::mat4 getLightSpaceMatrix(const glm::vec3& lightDir, const glm::vec3& center, float range);
-
     // ---- C2.1 (docs/ContinuousLodPlan.md): per-draw chunk data for multidraw ----
     /// One multidraw per arena BLOCK needs the per-chunk origin out of push constants,
     /// because an indirect draw cannot vary them. Origins live in this SSBO, indexed by
@@ -61,10 +58,6 @@ public:
     VkBuffer getIndirectBuffer(uint32_t frame) const { return indirectBuffer[frame % kFrames]; }
     void* getIndirectMapped(uint32_t frame) const { return indirectMapped[frame % kFrames]; }
     static constexpr uint32_t kMaxIndirectCommands = 16384;
-
-    // Configurable shadow quality
-    void setShadowRange(float range) { m_shadowRange = range; }
-    float getShadowRange() const { return m_shadowRange; }
 
 private:
     Vulkan::VulkanDevice* device;
@@ -91,12 +84,9 @@ private:
     VkPipelineLayout dynamicPipelineLayout = VK_NULL_HANDLE;
     VkPipeline dynamicPipeline = VK_NULL_HANDLE;
 
-    // Shadow pass cost scales with caster area (~range²): the pass renders every
-    // chunk within this range of the camera into the shadow map. 110 keeps good
-    // coverage while cutting caster area ~46% vs 150, and sharpens near shadows
-    // (smaller ortho frustum over the same 2048² map). Runtime-tunable via the
-    // lighting UI slider (setShadowRange). (History: hard-coded 100 → 150 → 110.)
-    float m_shadowRange = 120.0f; // covers the view; frustum is centred ahead of the camera (see RenderCoordinator)
+    // (The old m_shadowRange member + UI slider were DEAD — nothing in the render path read
+    // them; the live reach knob is RenderCoordinator::s_shadowDistance, POST /api/debug/shadow.
+    // Removed 2026-08-05.)
 
     // C2.1 per-draw chunk data + indirect commands
     static constexpr uint32_t kFrames = 2;   // must match VulkanDevice::MAX_FRAMES_IN_FLIGHT

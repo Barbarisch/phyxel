@@ -144,6 +144,7 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
     m_lastRefreshPos = glm::vec2(cameraPos.x, cameraPos.z);
     m_hasRefreshed = true;
     m_lastRefreshViewScale = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
+    m_lastRefreshMaxDistance = m_params.maxDistance;
     m_wanted.clear();
     m_keep.clear();
     m_terrainHidden.clear();
@@ -215,6 +216,36 @@ void FarTerrainManager::refreshWantedSet(const glm::vec3& cameraPos) {
     // terrainHidden flags may change with NO tile churn (chunk coverage shifts as the
     // camera moves) — refresh the draw list so the flags reach the renderer.
     rebuildDrawList();
+}
+
+void FarTerrainManager::recheckTerrainHidden(const glm::vec3& cameraPos) {
+    if (!m_chunkCoverage || m_nearFieldRadius <= 0.0f) return;
+    const glm::vec2 cam(cameraPos.x, cameraPos.z);
+    bool changed = false;
+    for (const auto& [key, tile] : m_tiles) {
+        if (!m_wanted.count(key)) continue;
+        if (key.ring < 1 || key.ring > int(m_params.ringSteps.size())) continue;
+        const int tileSize = FarTerrainMesher::kColumns *
+                             std::max(1, m_params.ringSteps[size_t(key.ring - 1)]);
+        const float T = float(tileSize);
+        const glm::vec2 center((key.x + 0.5f) * T, (key.z + 0.5f) * T);
+        const float d = glm::length(center - cam);
+        const float tileFarDist = d + T * 0.7071f;
+        const bool wellInterior = tileFarDist < m_nearFieldRadius - 32.0f;
+        bool nowHidden = false;
+        if (wellInterior) {
+            const glm::ivec2 minXZ(key.x * tileSize, key.z * tileSize);
+            const glm::ivec2 maxXZ(minXZ.x + tileSize, minXZ.y + tileSize);
+            nowHidden = m_chunkCoverage(minXZ, maxXZ);
+        }
+        const bool wasHidden = m_terrainHidden.count(key) > 0;
+        if (nowHidden != wasHidden) {
+            if (nowHidden) m_terrainHidden.insert(key);
+            else m_terrainHidden.erase(key);
+            changed = true;
+        }
+    }
+    if (changed) rebuildDrawList();
 }
 
 void FarTerrainManager::drainResults() {
@@ -316,10 +347,18 @@ void FarTerrainManager::update(const glm::vec3& cameraPos) {
     const glm::vec2 camXZ(cameraPos.x, cameraPos.z);
     const float vsNow = m_params.viewScale > 0.0f ? m_params.viewScale : 1.0f;
     const bool viewScaleChanged = std::abs(vsNow - m_lastRefreshViewScale) > 1e-4f;
-    if (!m_hasRefreshed || viewScaleChanged ||
+    const bool maxDistanceChanged =
+        std::abs(m_params.maxDistance - m_lastRefreshMaxDistance) > 1e-3f;
+    if (!m_hasRefreshed || viewScaleChanged || maxDistanceChanged ||
         glm::length(camXZ - m_lastRefreshPos) > kRefreshDistance) {
         refreshWantedSet(cameraPos);
         evictTiles(cameraPos);
+    } else if (--m_coverageRecheckCountdown <= 0) {
+        // No full refresh this frame: keep terrainHidden honest while the camera is still —
+        // chunks stream + mesh in without any camera movement (world load, teleports, mesh
+        // backlog draining) and the tile must stop drawing over them promptly.
+        m_coverageRecheckCountdown = 15;   // ~4 Hz at 60 FPS; predicate runs on interior tiles only
+        recheckTerrainHidden(cameraPos);
     }
 
     if (!m_params.threaded) {

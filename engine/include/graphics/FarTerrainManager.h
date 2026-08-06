@@ -58,10 +58,9 @@ public:
         /// so it cannot show overhangs, player edits or structures — those are the separate far-LOD
         /// chunk path (C3.3, RenderCoordinator::s_farLodChunks).
         ///
-        /// ⚠️ Also found and NOT fixed: a `maxDistance` change does not invalidate the wanted set,
-        /// so tiles stay FROZEN until the camera moves past kRefreshDistance. Same defect class C1
-        /// fixed for `viewScale` (m_lastRefreshViewScale); it silently returns byte-identical stats
-        /// and reads as "no effect". Force a camera move when A/B-ing this system.
+        /// (FIXED 2026-08-05: a `maxDistance` change now invalidates the wanted set, mirroring
+        /// the C1 viewScale fix — m_lastRefreshMaxDistance. Stationary-camera A/Bs of maxDistance
+        /// are now valid.)
         bool  enabled     = true;
         float maxDistance = 4096.0f;        ///< outer far-terrain radius (world units)
         /// 4 rings for a 4096 horizon: bands 0-512-1024-2048-4096, tiles 128/256/512/1024u.
@@ -188,6 +187,13 @@ private:
 
     std::vector<RingSpec> computeRings() const;
     void refreshWantedSet(const glm::vec3& cameraPos);
+    /// Re-evaluate terrainHidden for wanted interior tiles WITHOUT a full wanted-set refresh.
+    /// The full refresh only runs after 64u of camera travel, but chunk residency/meshing
+    /// changes while the camera is still — freshly-meshed chunks were papered over by the
+    /// tile until the player walked away (H3 of the 2026-08-05 stale-proxy arc). Cheap: only
+    /// tiles wholly inside the near field run the coverage predicate. Rebuilds the draw list
+    /// when any flag flips.
+    void recheckTerrainHidden(const glm::vec3& cameraPos);
     void drainResults();
     void evictTiles(const glm::vec3& cameraPos);
     void tickGraveyard();
@@ -234,6 +240,11 @@ private:
     /// nothing (found by a live force_scale sweep: far-tile counts were byte-identical at
     /// 0.5/1.0/2.0 because refreshWantedSet never re-ran).
     float m_lastRefreshViewScale = -1.0f;
+    /// Same defect class as viewScale, fixed 2026-08-05: a maxDistance change must invalidate
+    /// the wanted set or a stationary-camera A/B silently reads byte-identical stats.
+    float m_lastRefreshMaxDistance = -1.0f;
+    /// Frames until the next stationary-camera terrainHidden recheck (see recheckTerrainHidden).
+    int   m_coverageRecheckCountdown = 0;
     bool      m_hasRefreshed = false;
     bool      m_wasEnabled   = false;
 };

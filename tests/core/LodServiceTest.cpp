@@ -387,3 +387,74 @@ TEST(LodServiceTest, C21GuardRejectsStrideMisalignedArenaSpans) {
     // Degenerate stride must not divide by zero.
     EXPECT_FALSE(RC::spanIsStrideAddressable(256, 0));
 }
+
+// ---------------------------------------------------------------------------
+// STRUCTURE-LOD RESIDENCY GATE — the 2026-08-05 stale-proxy bug.
+// A structure proxy's fade floor (minFade = 1 - readiness) must be able to
+// reach 0, or the low-poly proxy renders FULLY SOLID on top of the real
+// building forever. The tree tile gate (tileHandoffMinFade) earned three
+// escapes for exactly this defect class; these tests pin the same escapes on
+// the structure gate's pure probe. Written RED against the verbatim
+// extraction of the shipped logic (single mid-Y plane, every column votes).
+// ---------------------------------------------------------------------------
+
+namespace {
+using GateRC = Phyxel::Graphics::RenderCoordinator;
+
+/// Chunk-residency stub: rendered geometry exists only within `radius` of `center` (XZ).
+auto residentWithin(glm::vec3 center, float radius) {
+    return [center, radius](const glm::ivec3& wp) {
+        const glm::vec2 d(float(wp.x) - center.x, float(wp.z) - center.z);
+        return glm::length(d) <= radius;
+    };
+}
+}  // namespace
+
+// A settlement WIDER than the residency radius: the camera stands at one end,
+// chunks near the camera are resident+meshed, the far end is legitimately not
+// loaded. Columns beyond the fade band must NOT vote — under the old rule they
+// veto readiness forever and the proxy stays solid at point-blank range.
+TEST(StructureLodGateTest, OutOfBandColumnsDoNotVote) {
+    const glm::ivec3 mn(0, 40, 0), mx(500, 60, 40);       // 500u-wide settlement
+    const glm::vec3 camera(10.0f, 50.0f, 20.0f);          // standing at the west end
+    const float fadeGateEnd = 346.0f;                     // load+90 band edge (live default)
+    // Everything within the 352u unload radius is resident and meshed; the east half is not.
+    // (fadeGateEnd is capped at unload-6 in the renderer, so voting columns are always
+    // inside the streamed field when streaming is caught up — the realistic ordering.)
+    const auto gate = GateRC::structureGateProbe(
+        mn, mx, camera, fadeGateEnd, residentWithin(glm::vec3(camera), 352.0f));
+    EXPECT_TRUE(gate.ready)
+        << "columns beyond fadeGateEnd vetoed readiness — the proxy would render solid "
+           "on top of the resident, meshed half the player is standing in";
+    EXPECT_GT(gate.votes, 0) << "in-band columns must still vote";
+}
+
+// A structure ENTIRELY beyond the fade band: nothing is close enough to vote,
+// so distance fade must govern (votes == 0 => caller releases the proxy).
+// Under the old rule every column voted, readiness pinned to 0, and minFade
+// stayed 1 even where the distance fade alone should own the transition.
+TEST(StructureLodGateTest, ZeroVotesReleasesTheProxyToDistanceFade) {
+    const glm::ivec3 mn(1000, 40, 1000), mx(1040, 60, 1040);
+    const glm::vec3 camera(0.0f, 50.0f, 0.0f);            // ~1.4 km away
+    const auto gate = GateRC::structureGateProbe(
+        mn, mx, camera, 346.0f, [](const glm::ivec3&) { return false; });
+    EXPECT_EQ(gate.votes, 0)
+        << "no probe column is inside the fade band, so none may vote";
+}
+
+// A TALL tower whose mid-height chunk is pure air (renders zero instances)
+// while its base is resident and meshed. The probe must scan the AABB's full
+// Y-span like the tree gate does — the old single mid-plane probe reads the
+// air chunk, vetoes readiness, and pins the proxy solid over the real tower.
+TEST(StructureLodGateTest, ProbesFullYSpanNotOneMidPlane) {
+    const glm::ivec3 mn(0, 0, 0), mx(20, 300, 20);        // 300u tower AABB
+    const glm::vec3 camera(30.0f, 10.0f, 30.0f);
+    // Rendered geometry exists only below y=64 (the tower's meshed base band).
+    const auto gate = GateRC::structureGateProbe(
+        mn, mx, camera, 346.0f,
+        [](const glm::ivec3& wp) { return wp.y < 64; });
+    EXPECT_TRUE(gate.ready)
+        << "mid-plane-only probing hit the air chunk at y=150 and vetoed readiness "
+           "even though the tower's base is resident and rendered";
+    EXPECT_GT(gate.votes, 0);
+}

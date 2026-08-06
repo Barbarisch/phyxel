@@ -97,6 +97,21 @@ public:
     /// Call once per frame.
     void tick();
 
+    /// Loading observability (/api/debug/load_state): species chain/mesh builds queued or
+    /// finished-but-not-yet-uploaded. 0 = every requested species mesh set is live on GPU.
+    size_t pendingBuilds() {
+        size_t n = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_queueMutex);
+            n += m_buildQueue.size();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_doneMutex);
+            n += m_done.size();
+        }
+        return n;
+    }
+
     /// Public upload helpers for the structure-LOD tier (RenderCoordinator): same
     /// host-visible buffer path the species meshes use.
     bool uploadLevel(const CpuMesh& cpu, GpuLevel& out);

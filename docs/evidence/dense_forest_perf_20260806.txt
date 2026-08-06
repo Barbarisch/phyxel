@@ -1,0 +1,61 @@
+Dense-forest perf + LOD census 2026-08-06 — DenseForestPerf project (NEW; replaces the deleted
+ProvingGrounds per user). Streaming Perlin seed 88842, flora spacing 3 / density 0.95,
+loadRadius 7 / unloadRadius 10. Release build. Settling detected via the NEW
+GET /api/debug/load_state (settled=True gate — no more hand-rolled polling).
+
+LOD LEVEL CENSUS (answering "how many LOD levels were represented"):
+  LodTest elevated (16,140,180): tree mesh draws by chain level [0,36,50,4,9,7] = levels
+  L1..L5 ALL active simultaneously + 30 card draws (6 far-tree representations at once,
+  1526 instances); 178 resident chunks all fine-L0; 63 far tiles across 4 ring resolutions.
+  LodTest ground (16,61.7,180): same far spread; 526 resident chunks (ground camera pulls a
+  full sphere) -> shadow pass 5.9-6.3 ms vs 1.7-2.8 ms elevated.
+
+DENSE MEADOW GROUND POSE (45,55,45), settled:
+  BEFORE near-pass cull fix: Shadow Pass 14.3-14.7 ms; near-cascade A/B (6 pairs):
+    nearOFF 8.7-9.8 / nearON 14.3-15.8  => near cascade +5.5 ms
+  ROOT CAUSE: near grass caster loop drew EVERY grass chunk within the 224u grass radius
+  into a 40u map (clipped vertex work); near chunk loop used the mid pass's +160u caster
+  margin. FIX: near-pass grass cull = nearCullRadius+8 (blades ~1u tall), near chunk margin
+  160 -> 48.
+  AFTER fix: nearOFF 8.9-9.8 / nearON 10.8-11.4  => near cascade +1.9 ms (3.6 ms recovered).
+  Dense-forest pose FPS: 43 (status bar), shadow pass ~11 ms of the frame; scene 1.4-2.6 ms,
+  grass visible 0.3-1.3 ms, far terrain ~0.5 ms.
+
+HEADLINE NUMBERS (Release, settled, defaults):
+  sparse horizon (LodTest elevated, 4096u view):  188 FPS
+  sparse ground  (LodTest eye level):             shadow 6 ms regime
+  dense forest ground (0.95 flora density):        43 FPS — shadow pass dominates (~11 ms:
+    ~9 ms mid cascade over 727 resident chunks + dense foliage cards = THE Phase 3 target;
+    +1.9 ms near cascade after the cull fix)
+
+/api/debug/load_state SHIPPED (user ask): chunk generation/remesh/idle queues, far tile
+pending, tree species builds, structure proxy states + settled / settled_strict verdicts.
+Dogfooded on this world's first boot: farPend 170->0, gen rode the 48-slot in-flight cap
+then drained 48->3->0, settled=True at t+149s (727 chunks).
+
+GPU-DRIVEN SHADOW MULTIDRAW — UNBLOCKED, VERIFIED, DEFAULT ON (2026-08-06):
+  Arena kAlignment was ALREADY 768 (a prior session applied it; the "inert" doc note was
+  stale). First-ever run with real data: 420 chunk draws -> 8 multidraw calls.
+  Interleaved A/B (8 pairs, dense pose): legacy 10.5-11.8 ms / multidraw 4.7-6.0 ms
+  => shadow pass 11.1 -> 5.1 ms (2.2x). Pixel-verified (vegetation-off method):
+  off-vs-on diff 105 px < off-vs-off control 120 px. s_gpuDrivenShadow default ON.
+  Dense ground pose FPS: 43 -> 54.
+
+TOP OPEN COST DISCOVERED — FAR-TREE MESH TIER AT DENSE GROUND POSES:
+  471 tree mesh draws ([0,55,91,112,121,92] by level) + 20 card draws, 5,467 instances.
+  A/B far_terrain {"trees":false}: Far Terrain scope 1.0 -> 11-13 ms => far trees are
+  ~10-12 ms — the DOMINANT frame cost in dense worlds (bigger than the post-multidraw
+  shadow pass). Causes: 0.95 density x the 1600u band x the per-instance level crossfade
+  paying VERTEX cost twice on straddling tiles (the partition discard is per-fragment).
+  Next levers (M5/M6): per-(species,level) cross-tile instance batching; density-aware
+  per-tile instance caps; vertex-stage early-out for out-of-band instances (emit a
+  degenerate triangle instead of relying on fragment discard).
+
+  VERTEX EARLY-OUT SHIPPED + MEASURED (same day): out-of-band split-draw instances now
+  collapse to a clipped degenerate in far_tree_mesh.vert. Result: FT ~10.4 ms (was ~11.7)
+  — ~1 ms, inside noise. CONFIRMS the cost is VERTEX VOLUME (5.5k full-mesh instances),
+  which no raster-side trick reaches. THE fix is M6 compute binning: consolidate tile
+  instances, compute pass bins each instance to exactly one (species,level), indirect
+  draws — kills both the 471-draw submission and the straddle double-vertex. That is the
+  designed next arc; measure against this file. Look verified intact after the early-out
+  (no band-edge tree gaps, 53 FPS at the dense pose).

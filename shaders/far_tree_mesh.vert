@@ -39,12 +39,19 @@ layout(push_constant) uniform PushConstants {
     float baseHeight;     // species card height (mesh is UNSCALED; kept for layout stability)
     float minFade;        // residency handoff floor: 1 = real chunks under this tile are NOT
                           // resident yet, stay fully solid regardless of distance
+    vec2 levelBand;       // [lo, hi) camera-distance window THIS DRAW'S chain level owns.
+                          // Per-instance level selection (2026-08-05): a tile straddling a
+                          // ladder boundary is drawn once per bracketing level, and each
+                          // instance dithers to exactly ONE of them — level changes stop
+                          // popping tile-at-a-time. {0, 3e8} = no partition (single level).
 } pc;
 
 layout(location = 0) out vec3 vWorldPos;
 layout(location = 1) out flat uint vTex;
 layout(location = 2) out flat uint vFace;
 layout(location = 3) out flat float vFade;
+layout(location = 4) out flat float vLvlLo;  // smoothstep over levelBand.x (1 = past lo)
+layout(location = 5) out flat float vLvlHi;  // smoothstep over levelBand.y (0 = below hi)
 
 void main() {
     // NO scale jitter and NO yaw hash, DELIBERATELY (user: "the lower detail trees dont seem
@@ -72,6 +79,26 @@ void main() {
     // gap opens where neither tier draws (user-reported: "lower detail trees fade out
     // before the detailed trees render... for a bit of time there is nothing there").
     vFade = max(smoothstep(pc.fadeIn.x, pc.fadeIn.y, dist), pc.minFade);
+
+    // Per-instance level partition: adjacent-level draws use COMPLEMENTARY dither tests over
+    // the same Bayer threshold (frag keeps iff  b < vLvlLo && b >= vLvlHi), so at a ladder
+    // boundary each instance-pixel belongs to exactly one level — a crossfade, never a
+    // double-draw or a gap. Half-width 25u; instance distance is per-instance so each TREE
+    // crosses individually instead of the whole tile flipping at once.
+    const float kLvlW = 25.0;
+    vLvlLo = smoothstep(pc.levelBand.x - kLvlW, pc.levelBand.x + kLvlW, dist);
+    vLvlHi = smoothstep(pc.levelBand.y - kLvlW, pc.levelBand.y + kLvlW, dist);
+
+    // Split-draw early-out: an instance entirely OUTSIDE this draw's level window (possible
+    // only on level-straddling tiles, which submit two draws over the same instance range)
+    // would have every fragment killed by the partition test anyway — collapse it to a
+    // clipped degenerate instead so it never reaches triangle setup. (Vertex cost remains;
+    // the real fix for that is M6 compute binning — docs/evidence/dense_forest_perf_20260806.txt.)
+    if (dist < pc.levelBand.x - kLvlW || dist > pc.levelBand.y + kLvlW) {
+        gl_Position = vec4(0.0, 0.0, -1.0e6, 1.0);   // z < 0 in Vulkan clip: always clipped
+        vFade = 0.0;
+        return;
+    }
 
     vec3 rp = base + rp3;
     vWorldPos = vec3(pc.tileOriginAbs.x + inInstPosH.x, inInstPosH.y, pc.tileOriginAbs.y + inInstPosH.z) + rp3;

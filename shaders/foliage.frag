@@ -15,6 +15,7 @@ layout(location = 4) in float vShade;      // per-card brightness variation
 layout(location = 5) in flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) in vec3  vWorldPos;    // for view-dependent backlit transmission
+layout(location = 8) in float vFade;        // radius-edge dither fade (1 = solid)
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;    // 512px albedo class
 layout(set = 0, binding = 2) uniform sampler2D      shadowMap;       // canopy self-shadowing
@@ -37,11 +38,31 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 cameraWorld;
     int  debugShadowMode;   // 1 = shadow-only debug view (see lighting.glsl phxShadowOnly)
     float shadowDepthRange; // world-unit depth span of the light volume (bias normalization)
+    vec4  grassDisplacers[16];      // declared only to reach the cascade fields below
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4 biasedLightSpaceNear;      // near shadow cascade (docs/NearShadowCascade.md)
+    vec4 shadowCascadeNear;         // x = range end (0 = off), y = near depthRange
 } ubo;
+
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // near cascade
 
 layout(location = 0) out vec4 outColor;
 
+// 4x4 ordered Bayer dither (same pattern as far_tree_mesh.frag): stable per-pixel
+// threshold, no temporal shimmer.
+float bayer4(vec2 p) {
+    const float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+                                  3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+    ivec2 ip = ivec2(mod(p, 4.0));
+    return (m[ip.x + ip.y * 4] + 0.5) / 16.0;
+}
+
 void main() {
+    // Radius-edge dissolve (2026-08-06): cards dither out over the last 10% of the foliage
+    // radius instead of the old whole-chunk pop at the cutoff.
+    if (vFade < bayer4(gl_FragCoord.xy)) discard;
+
     // Per-card mask orientation: flip/swap the UV so one baked mask yields 8 variants.
     vec2 uv = vCard * 0.5 + 0.5;
     if ((vMaskV & 1u) != 0u) uv.x = 1.0 - uv.x;
@@ -62,6 +83,14 @@ void main() {
     // (which contains the cards themselves), so the sun side of a canopy is lit and the
     // interior falls into dappled shade — the tree lights like a volume, not flat ambient.
     float shadowFactor = phxShadowFast(shadowMap, vShadowCoord, ubo.shadowDepthRange);
+    // Near cascade min-compose: fine blade/prop shadows onto near canopies; out-of-volume
+    // coords fail phxShadowCoordValid → no-op. vWorldPos is camera-relative, the space the
+    // biased matrices expect.
+    if (ubo.shadowCascadeNear.x > 0.0)
+        shadowFactor = min(shadowFactor,
+                           phxShadowFast(shadowMapNear,
+                                         ubo.biasedLightSpaceNear * vec4(vWorldPos, 1.0),
+                                         ubo.shadowCascadeNear.y));
     float skyGate = phxSkyGate(vSky);
     vec3  fill    = phxAmbient(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientLight);
     vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * skyGate);

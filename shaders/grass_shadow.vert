@@ -52,6 +52,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  grassDisplacers[16];
     vec4  grassDisplacersAux[16];   // x = strength envelope 0..1 (eased attack/release on CPU)
     ivec4 grassDisplacerMeta;   // x = active displacer count (0 = feature entirely inert)
+    // Near shadow cascade (docs/NearShadowCascade.md): grass casts ONLY into the near map —
+    // its shadow proxy is sub-texel in the mid map and rasterizes as noise there.
+    mat4 biasedLightSpaceNear;
+    vec4 shadowCascadeNear;     // x = range end (0 = cascade off), y = near depthRange
+    mat4 lightSpaceMatrixNear;  // RAW near light matrix — THE projection for this pass
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -548,5 +553,9 @@ void main() {
     // biasedLightSpace expects (same as static_voxel.vert).
     vShadowCoord = ubo.biasedLightSpace * vec4(worldPos, 1.0);
 
-    gl_Position = ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
+    // NEAR cascade projection (2026-08-05): grass draws only in the near shadow pass, whose
+    // 0.0195 u texel resolves a blade. With the cascade disabled the near matrix is identity
+    // and camera-relative positions land outside clip space — blades simply cast nothing,
+    // which measured strictly better than the mid-map noise they used to cast.
+    gl_Position = ubo.lightSpaceMatrixNear * vec4(worldPos, 1.0);
 }

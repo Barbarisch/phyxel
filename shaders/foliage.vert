@@ -58,6 +58,7 @@ layout(location = 4) out float vShade;      // per-card shading (hashed, for lea
 layout(location = 5) out flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) out vec3  vWorldPos;    // for view-dependent backlit transmission
+layout(location = 8) out float vFade;        // radius-edge dither fade (1 = solid)
 
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
@@ -136,9 +137,12 @@ void main() {
     vec2 q = quad[corner];
     vCard = q;
 
-    // Safety distance cull: collapse the card to a point beyond radius (keeps far trees cheap if a
-    // small radius is ever set; default radius is large so trees keep leaves).
+    // Radius edge (2026-08-06, LodTierLedger no-pop rule): cards DISSOLVE via Bayer dither
+    // in the frag over the last 10% of the radius instead of popping out whole-chunk at the
+    // cutoff. Geometry never scales; the collapse below survives only as the beyond-radius
+    // safety cull (zero-area = no fragments at all).
     float dist = length(ubo.cameraPosition - center);
+    vFade = 1.0 - smoothstep(pc.radius * 0.9, pc.radius, dist);
     float scale = pc.cardSize * (0.8 + 0.4 * h2) * (dist > pc.radius ? 0.0 : 1.0);
 
     vec3 worldPos = center + (q.x * rightW + q.y * upW) * scale;

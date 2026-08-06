@@ -10,6 +10,8 @@ layout(location = 0) in vec3 vWorldPos;
 layout(location = 1) in flat uint vTex;
 layout(location = 2) in flat uint vFace;
 layout(location = 3) in flat float vFade;   // 0 = fully dissolved, 1 = solid
+layout(location = 4) in flat float vLvlLo;  // level partition (see far_tree_mesh.vert)
+layout(location = 5) in flat float vLvlHi;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -26,10 +28,21 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 viewProj;
     mat4 biasedLightSpace;
     vec3 cameraWorld;
+    int  debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];      // declared only to reach the far-cascade fields below
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4 biasedLightSpaceNear;
+    vec4 shadowCascadeNear;
+    mat4 lightSpaceMatrixNear;
+    mat4 biasedLightSpaceFar;       // FAR shadow cascade
+    vec4 shadowCascadeFar;          // x = range end (0 = off), y = far depthRange
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;
+layout(set = 0, binding = 10) uniform sampler2D shadowMapFar;   // far shadow cascade
 
 layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
     uint count512;
@@ -65,7 +78,11 @@ float bayer4(vec2 p) {
 }
 
 void main() {
-    if (vFade < bayer4(gl_FragCoord.xy)) discard;   // screen-door fade — size never changes
+    float b = bayer4(gl_FragCoord.xy);
+    if (vFade < b) discard;               // screen-door fade — size never changes
+    // Level partition (complementary across adjacent-level draws — see far_tree_mesh.vert):
+    // keep iff this pixel's threshold falls inside this draw's level window.
+    if (b >= vLvlLo || b < vLvlHi) discard;
 
     uint cls   = (vTex >> 15) & 1u;
     uint layer = vTex & 0x7FFFu;
@@ -82,8 +99,17 @@ void main() {
     vec3 N = faceNormal(vFace);
     vec3 sunL = normalize(-ubo.sunDirection);
     float ndl = max(dot(N, sunL), 0.0);
+    // FAR shadow cascade: LOD trees shade each other and receive terrain shadows — the
+    // sun side of a distant forest reads lit, its interior falls into shade.
+    float shadowF = 1.0;
+    if (ubo.shadowCascadeFar.x > 0.0)
+        shadowF = phxShadowFast(shadowMapFar,
+                                ubo.biasedLightSpaceFar *
+                                    vec4(vWorldPos - ubo.cameraWorld, 1.0),
+                                ubo.shadowCascadeFar.y);
     vec3 color = phxAmbient(N, 1.0, ubo.ambientLight) * albedo.rgb
-               + ndl * ubo.sunColor * albedo.rgb;
+               + ndl * shadowF * ubo.sunColor * albedo.rgb;
+    if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowF); return; }
     color = phxAerialPerspective(color, vWorldPos - ubo.cameraWorld,
                                  ubo.sunDirection, ubo.sunColor);
     outColor = vec4(color, 1.0);

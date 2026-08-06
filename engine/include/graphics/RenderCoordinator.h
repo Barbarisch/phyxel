@@ -14,6 +14,7 @@
 #include "ui/HudDataContext.h"
 #include "graphics/TreeLodMeshRegistry.h"
 #include "graphics/TreeLodRenderPipeline.h"
+#include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
 #include <functional>
 #include <future>
 #include <memory>
@@ -188,6 +189,12 @@ public:
     // far terrain's job — pure-cube chunks are cached by neither source.
     static bool s_farLodChunks;
     static int  s_farLodBudgetPerFrame;   // buffers created per frame; creation is the hitch
+    /// Per-instance tree level crossfade (2026-08-05). OFF = per-tile-centre level selection
+    /// (single draw per (tile, species) — the pre-crossfade behavior, with visible tile pops
+    /// at ladder boundaries). A/B knob to MEASURE the straddle double-vertex cost before
+    /// committing to the M6 binning build (POST /api/debug/far_terrain
+    /// {"per_instance_levels": bool}).
+    static bool s_treePerInstanceLevels;
     // NOTE: there is deliberately no reach cap any more. The candidate set comes from
     // storage (chunks that actually HAVE pyramids), so coverage is bounded by the world's
     // real contents rather than by a constant somebody guessed.
@@ -241,6 +248,19 @@ public:
     /// Shadow draw distance in world units (POST /api/debug/shadow {"distance": N}).
     /// Trades reach against texel density AND shadow-pass draw count — measure FPS.
     static float s_shadowDistance;
+    /// Near shadow cascade (docs/NearShadowCascade.md): a second, tight map over the near
+    /// field so sub-texel casters (grass blades: 0.080 u proxy vs the mid map's 0.1125 u
+    /// texel) resolve instead of rasterizing as noise. POST /api/debug/shadow
+    /// {"near_enabled": bool, "near_distance": N}.
+    static bool  s_nearShadowEnabled;
+    static float s_nearShadowDistance;
+    /// Far shadow cascade: shadows for the LOD band (mid ends at 420 u; beyond it the far
+    /// tiers rendered UNSHADOWED). 4096² fitted to ~1600 u; updated every
+    /// s_farShadowCadence frames (coarse + distant = staleness invisible).
+    /// POST /api/debug/shadow {"far_enabled", "far_distance", "far_cadence"}.
+    static bool  s_farShadowEnabled;
+    static float s_farShadowDistance;
+    static int   s_farShadowCadence;
 
     struct CharacterLodDefaults {
         float lod1Distance = 35.0f;
@@ -319,6 +339,12 @@ public:
         static constexpr int kTreeAnnuli = 40;      // 50u each → 0..2000u (full tree range)
         int    farTreeMeshAnnuli[kTreeAnnuli] = {}; // instanced-mesh tier
         int    farTreeCardAnnuli[kTreeAnnuli] = {}; // card tier
+        // LOD observability (/api/debug/lod_report): which chain level the tree mesh tier
+        // actually drew this frame, and how many card draws covered instead. Index = chain
+        // level (0 unused today, 1..5 live). Reset with the annuli above in renderFarTerrain.
+        static constexpr int kTreeChainLevels = 6;
+        int    farTreeMeshDrawsByLevel[kTreeChainLevels] = {};
+        int    farTreeCardDraws       = 0;
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;
@@ -524,8 +550,20 @@ private:
     // per-frame batch list built ONCE by buildCharacterFrameData() — see that method.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
                                    VkPipeline pipeline, CharacterPassVisibility visibility);
-    void renderShadowPass(VkCommandBuffer commandBuffer, const glm::mat4& lightSpaceMatrix,
-                          const glm::vec3& cullCenter, float cullRadius);
+    /// One cascade's caster pass. `map` = which shadow map to render into; `cascade`
+    /// selects the caster policy: 0 = MID (chunks + characters + kinematic + dynamic +
+    /// foliage; GPU-driven multidraw; D1 stats), 1 = NEAR (tight margin; grass casts ONLY
+    /// here), 2 = FAR (chunks via multidraw + the cached far-tile and tree-mesh caster
+    /// lists; recorded on a cadence — see the drawFrame call site).
+    static constexpr int kCascadeMid = 0, kCascadeNear = 1, kCascadeFar = 2;
+    void renderShadowPass(VkCommandBuffer commandBuffer, ShadowMap& map,
+                          const glm::mat4& lightSpaceMatrix,
+                          const glm::vec3& cullCenter, float cullRadius, int cascade);
+    /// Last frame's assembled far-field draw lists, replayed by the far cascade's caster
+    /// pass (the shadow pass records BEFORE renderFarTerrain assembles this frame's lists;
+    /// one frame of staleness is invisible at 0.9 u/texel).
+    std::vector<FarTerrainRenderPipeline::TileDraw> m_cachedFarTileDraws;
+    std::vector<TreeLodRenderPipeline::MeshDraw>    m_cachedTreeMeshDraws;
 
     // ---- Character batching (docs/CharacterPipelineScaling.md Tier 1) --------------
     // Cull, sort and batch every character ONCE per frame, before the shadow pass.
@@ -637,6 +675,31 @@ private:
     Vulkan::RenderPipeline* renderPipeline;
     Vulkan::RenderPipeline* dynamicRenderPipeline;
     std::unique_ptr<ShadowMap> shadowMap;
+    /// Near shadow cascade map (4096² over ~40 u — 0.0195 u/texel). Same ShadowMap class,
+    /// second instance; its light matrix is fitted per frame alongside the mid map's.
+    std::unique_ptr<ShadowMap> shadowMapNear;
+    /// One fitted shadow volume (the fit used to live inline in drawFrame; extracted so the
+    /// near cascade reuses the identical math — sphere fit, caster margin, texel snap, guard).
+    struct ShadowFit {
+        glm::mat4 lightSpaceMatrix{1.0f};
+        glm::vec3 cullCenterAbs{0.0f};   ///< absolute world (chunk culling)
+        float     cullRadius = 1.0f;
+        float     depthRange = 1.0f;     ///< ortho depth span (world-unit bias conversion)
+        float     texelWorld = 0.0f;     ///< world size of one map texel
+    };
+    ShadowFit fitShadowVolume(float maxShadowDist, float mapSize, const glm::dvec3& camWorld,
+                              const glm::vec3& sunDirection) const;
+    glm::mat4 m_nearLightSpaceMatrix{1.0f};
+    glm::vec3 m_nearShadowCullCenter{0.0f};
+    float     m_nearShadowCullRadius = 1.0f;
+    float     m_nearShadowTexelWorld = 0.0f;
+    /// Far cascade map + per-frame state. The caster pass records only every
+    /// s_farShadowCadence frames (m_farShadowFrameCounter); the map persists between.
+    std::unique_ptr<ShadowMap> shadowMapFar;
+    glm::mat4 m_farLightSpaceMatrix{1.0f};
+    glm::vec3 m_farShadowCullCenter{0.0f};
+    float     m_farShadowCullRadius = 1.0f;
+    int       m_farShadowFrameCounter = 0;
     std::unique_ptr<PostProcessor> postProcessor;
     std::unique_ptr<GpuProfiler> gpuProfiler;
     // D1 shadow-pass diagnosis: chunks/instances drawn by the shadow pass this frame (stashed here
@@ -644,6 +707,15 @@ private:
     int m_shadowChunksDrawn = 0;
     long long m_shadowInstancesDrawn = 0;
     int m_shadowMultidrawCalls = 0;
+    // Near-cascade caster counts (docs/NearShadowCascade.md) — kept separate so the mid
+    // cascade's D1 diagnostics stay comparable with their historical record.
+    int m_nearShadowChunksDrawn = 0;
+    long long m_nearShadowInstancesDrawn = 0;
+    // Far-cascade debug counters (/api/debug/lod_report far_shadow block): -1 = the far
+    // pass has never recorded. Written on recording frames only (cadence).
+    int m_farShadowChunksDrawn = -1;
+    int m_farShadowTileCasters = -1;
+    int m_farShadowTreeCasters = -1;
     // Vegetation shadow CASTER counts. Must live here, not written straight into
     // lastFrameStats: drawFrame() clears lastFrameStats AFTER the shadow pass and
     // repopulates it from these members (see the note in renderShadowPass).
@@ -775,17 +847,94 @@ private:
     struct StructureLod {
         glm::ivec3 mn{0}, mx{0};                       ///< world AABB (voxel, inclusive)
         int state = 0;                                 ///< 0 await-extract, 1 building, 2 ready, 3 dead
-        std::future<std::array<TreeLodMeshRegistry::CpuMesh, 4>> job;
-        std::array<TreeLodMeshRegistry::GpuLevel, 4> lv{};
+        std::future<std::array<TreeLodMeshRegistry::CpuMesh,
+                               Core::TemplateLodChain::kLevelCount>> job;
+        std::array<TreeLodMeshRegistry::GpuLevel, Core::TemplateLodChain::kLevelCount> lv{};
         VkBuffer inst = VK_NULL_HANDLE;
         VkDeviceMemory instMem = VK_NULL_HANDLE;
         float readiness = 1.0f;                        ///< smoothed chunk residency under it
+        // Observability (/api/debug/lod_report) — written by tickStructureLod every frame.
+        float lastDist    = -1.0f;  ///< camera distance last frame (-1 = beyond bandEnd/not ticked)
+        int   lastLevel   = -1;     ///< chain level drawn last frame (-1 = not drawn)
+        float lastMinFade = 0.0f;   ///< residency floor pushed to the shader last frame
     };
     std::unordered_map<std::string, StructureLod> structureLod;   // key: structure UUID
+    /// Frame-deferred GPU destruction for removed/edited structure entries (a buffer may be
+    /// referenced by a command buffer still in flight — same discipline as FarTerrainManager's
+    /// tile graveyard).
+    struct StructureLodGrave {
+        int framesLeft = 4;
+        std::vector<std::pair<VkBuffer, VkDeviceMemory>> bufs;
+    };
+    std::vector<StructureLodGrave> structureLodGraveyard;
+    /// Removed/replaced entries whose async chain build may still be running: erasing them
+    /// outright would destroy a std::async future mid-flight and BLOCK the main thread in its
+    /// destructor. They wait here until the job lands, then their GPU buffers join the
+    /// graveyard.
+    std::vector<StructureLod> structureLodRetiring;
+    void retireStructureLodEntry(StructureLod& e);   ///< move the entry's GPU buffers to the graveyard
+    void tickStructureLodGraveyard();                ///< called once per frame from tickStructureLod
 public:
     /// Wire from the Application's placed-object poll (uuid, aabbMin, aabbMax).
     void setStructureLodTargets(
         const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets);
+
+    // ---- LOD observability (/api/debug/lod_report + lod_probe) --------------------------
+    /// Distance ladders as data, not magic numbers, so the selection code and the debug
+    /// report cannot disagree — and densifying a ladder is a one-line change here.
+    /// Tree mesh tier: chain level i+1 is used below kTreeMeshLevelDist[i]; L5 beyond the
+    /// last entry, cards past bandEnd. Structures: chain level i (0-based — L0's ⅓-voxel
+    /// cells ARE selected, right at the handoff) below kStructureLevelDist[i]; L5 beyond.
+    /// Densified 2026-08-05 with the full 6-level structure chain (was 3 levels of 4).
+    static constexpr float kTreeMeshLevelDist[4]  = {360.0f, 560.0f, 820.0f, 1150.0f};
+    static constexpr float kStructureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+
+    /// Pure residency-gate probe for a structure proxy — decides whether the REAL chunks own
+    /// this structure's ground (ready → the proxy may dissolve) and how many probe columns
+    /// were close enough to vote. Mirrors the tree tile gate's escapes (tileHandoffMinFade):
+    /// out-of-band columns don't vote; zero votes ⇒ distance fade governs; each voting column
+    /// probes the AABB's FULL Y-span, not a single mid plane. Static + callback-injected so
+    /// tests exercise the shipped rule headlessly (LodServiceTest pattern).
+    struct StructureGateResult {
+        bool ready = true;   ///< every voting column has rendered geometry
+        int  votes = 0;      ///< columns close enough to the camera to vote
+    };
+    static StructureGateResult structureGateProbe(
+        const glm::ivec3& mn, const glm::ivec3& mx, const glm::vec3& cameraPos,
+        float fadeGateEnd,
+        const std::function<bool(const glm::ivec3&)>& hasRenderedGeometryAt);
+
+    /// Plain-struct snapshot of one structure-LOD entry (no Vulkan/future members).
+    struct StructureLodInfo {
+        std::string uuid;
+        glm::ivec3 mn{0}, mx{0};
+        int   state = 0;
+        float readiness = 1.0f;
+        float lastDist = -1.0f;
+        int   lastLevel = -1;
+        float lastMinFade = 0.0f;
+    };
+    std::vector<StructureLodInfo> structureLodReport() const;
+
+    /// Loading observability (/api/debug/load_state): far-tree species mesh builds still
+    /// queued/landing, and far-terrain tiles wanted but not yet resident.
+    size_t treeLodPendingBuilds() { return treeLodMeshes ? treeLodMeshes->pendingBuilds() : 0; }
+    size_t farTilesPending() const;   // body in .cpp (FarTerrainManager is fwd-declared here)
+    /// Far-cascade debug counters (-1 = the far pass never recorded).
+    int farShadowChunksDrawn() const { return m_farShadowChunksDrawn; }
+    int farShadowTileCasters() const { return m_farShadowTileCasters; }
+    int farShadowTreeCasters() const { return m_farShadowTreeCasters; }
+
+    /// Live distance thresholds of the pipeline-owned tiers (values the running frame uses —
+    /// several are overwritten per frame from streaming config, so header defaults lie).
+    struct LodTierThresholds {
+        float treeFadeNear0 = 0, treeFadeNear1 = 0, treeBandEnd = 0;
+        float cardFadeFar0 = 0, cardFadeFar1 = 0;
+        float grassRadius = 0, grassFadeRange = 0;
+        float foliageRadius = 0;
+        float shadowDistance = 0;
+    };
+    LodTierThresholds lodTierThresholds() const;
 private:
     void tickStructureLod(std::vector<TreeLodRenderPipeline::MeshDraw>& meshDraws,
                           const glm::vec3& cameraPos);

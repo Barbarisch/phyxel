@@ -8319,7 +8319,13 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         // A/B attribution: far TREES (mesh + card tiers) without touching the terrain tiles.
         if (cmd.params.contains("trees") && renderCoordinator)
             renderCoordinator->setFarTreesEnabled(cmd.params.value("trees", true));
-        response = {{"success", true}, {"enabled", ft->params().enabled}};
+        // A/B: per-instance level crossfade vs per-tile-centre selection (straddle-cost probe).
+        if (cmd.params.contains("per_instance_levels"))
+            Graphics::RenderCoordinator::s_treePerInstanceLevels =
+                cmd.params.value("per_instance_levels", true);
+        response = {{"success", true}, {"enabled", ft->params().enabled},
+                    {"per_instance_levels",
+                     Graphics::RenderCoordinator::s_treePerInstanceLevels}};
         if (cmd.params.value("debug_tile", false)) {
             if (!ft->isConfigured()) {
                 WorldGenerator* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -13144,6 +13150,23 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("distance"))
             Graphics::RenderCoordinator::s_shadowDistance =
                 std::clamp(cmd.params["distance"].get<float>(), 32.0f, 2048.0f);
+        // Near shadow cascade knobs (docs/NearShadowCascade.md).
+        if (cmd.params.contains("near_enabled"))
+            Graphics::RenderCoordinator::s_nearShadowEnabled =
+                cmd.params["near_enabled"].get<bool>();
+        if (cmd.params.contains("near_distance"))
+            Graphics::RenderCoordinator::s_nearShadowDistance =
+                std::clamp(cmd.params["near_distance"].get<float>(), 8.0f, 160.0f);
+        // Far shadow cascade knobs (shadows for the LOD band past 420u).
+        if (cmd.params.contains("far_enabled"))
+            Graphics::RenderCoordinator::s_farShadowEnabled =
+                cmd.params["far_enabled"].get<bool>();
+        if (cmd.params.contains("far_distance"))
+            Graphics::RenderCoordinator::s_farShadowDistance =
+                std::clamp(cmd.params["far_distance"].get<float>(), 420.0f, 4096.0f);
+        if (cmd.params.contains("far_cadence"))
+            Graphics::RenderCoordinator::s_farShadowCadence =
+                std::clamp(cmd.params["far_cadence"].get<int>(), 1, 60);
         // DEBUG VIEW SELECTOR (the field is named debugShadowMode for historical reasons; it now
         // selects among several albedo-stripped views):
         //   0 = off
@@ -13159,6 +13182,11 @@ void Application::registerEffectsCommands() {
             vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 2));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
+             {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},
+             {"near_distance", Graphics::RenderCoordinator::s_nearShadowDistance},
+             {"far_enabled", Graphics::RenderCoordinator::s_farShadowEnabled},
+             {"far_distance", Graphics::RenderCoordinator::s_farShadowDistance},
+             {"far_cadence", Graphics::RenderCoordinator::s_farShadowCadence},
              {"mode", vulkanDevice ? vulkanDevice->getDebugShadowMode() : 0}};
         if (renderCoordinator) {
             const auto& fs = renderCoordinator->getLastFrameStats();
@@ -13220,6 +13248,213 @@ void Application::registerEffectsCommands() {
              {"screen_space_lod", Graphics::RenderCoordinator::s_screenSpaceLod},
              {"forced_view_scale", Graphics::RenderCoordinator::s_forcedViewScale},
              {"lod_view_scale", renderCoordinator ? renderCoordinator->lodViewScale() : 1.0f}};
+    });
+
+    // LOD observability (docs/LodTierLedger.md): the thresholds every tier is ACTUALLY using
+    // this frame plus histograms of the levels being drawn. Header defaults lie for several of
+    // these (tree fade bands are overwritten per frame from streaming config), so harnesses
+    // must read this route, never the source constants.
+    reg.on("lod_report", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        (void)cmd;
+        nlohmann::json out = {{"success", true}};
+        if (camera) {
+            const glm::vec3 cp = camera->getPosition();
+            out["camera"] = {{"x", cp.x}, {"y", cp.y}, {"z", cp.z}};
+        }
+        if (chunkManager) {
+            out["residency"] = {{"load_distance", chunkManager->loadDistance},
+                                {"unload_distance", chunkManager->unloadDistance}};
+            std::map<int, int> byLevel;
+            for (const auto& c : chunkManager->chunks)
+                if (c) ++byLevel[c->getLodLevel()];
+            nlohmann::json lv = nlohmann::json::object();
+            for (const auto& [l, n] : byLevel) lv[std::to_string(l)] = n;
+            out["chunk_lod"] = {
+                {"enabled", Graphics::RenderCoordinator::s_distanceDrivenLod},
+                {"target_pixels", Graphics::RenderCoordinator::s_lodTargetPixels},
+                {"max_level", Graphics::RenderCoordinator::s_lodMaxLevel},
+                {"resident_by_level", lv}};
+        }
+        if (renderCoordinator) {
+            out["lod_view_scale"] = renderCoordinator->lodViewScale();
+            const auto th = renderCoordinator->lodTierThresholds();
+            const auto& fs = renderCoordinator->getLastFrameStats();
+            out["far_lod_chunks"] = {
+                {"enabled", Graphics::RenderCoordinator::s_farLodChunks},
+                {"chunks", renderCoordinator->farLodChunkCount()},
+                {"instances", renderCoordinator->farLodInstanceCount()}};
+            if (auto* ftm = renderCoordinator->getFarTerrainManager()) {
+                const auto& p = ftm->params();
+                nlohmann::json steps = nlohmann::json::array();
+                for (int s : p.ringSteps) steps.push_back(s);
+                out["far_terrain"] = {{"enabled", p.enabled},
+                                      {"max_distance", p.maxDistance},
+                                      {"ring_steps", steps},
+                                      {"tiles_resident", fs.farTilesResident},
+                                      {"tiles_drawn", fs.farTilesDrawn}};
+            }
+            nlohmann::json meshByLevel = nlohmann::json::array();
+            for (int n : fs.farTreeMeshDrawsByLevel) meshByLevel.push_back(n);
+            nlohmann::json treeLadder = nlohmann::json::array();
+            for (float d : Graphics::RenderCoordinator::kTreeMeshLevelDist)
+                treeLadder.push_back(d);
+            out["far_trees"] = {{"fade_near", {th.treeFadeNear0, th.treeFadeNear1}},
+                                {"band_end", th.treeBandEnd},
+                                {"mesh_level_dist", treeLadder},
+                                {"mesh_draws_by_level", meshByLevel},
+                                {"card_draws", fs.farTreeCardDraws},
+                                {"card_fade_far", {th.cardFadeFar0, th.cardFadeFar1}},
+                                {"instances", fs.farTrees}};
+            nlohmann::json structLadder = nlohmann::json::array();
+            for (float d : Graphics::RenderCoordinator::kStructureLevelDist)
+                structLadder.push_back(d);
+            nlohmann::json structures = nlohmann::json::array();
+            // THE stale-proxy red detector: a proxy DRAWN essentially solid (minFade ≈ 1)
+            // inside the fade band, where resident chunks should own the view. Nonzero here
+            // at close range = the "low poly building stays" bug.
+            int solidInBand = 0;
+            for (const auto& s : renderCoordinator->structureLodReport()) {
+                if (s.lastLevel >= 0 && s.lastMinFade > 0.97f &&
+                    s.lastDist >= 0.0f && s.lastDist < th.treeFadeNear1)
+                    ++solidInBand;
+                structures.push_back({{"uuid", s.uuid}, {"state", s.state},
+                                      {"readiness", s.readiness},
+                                      {"last_dist", s.lastDist},
+                                      {"last_level", s.lastLevel},
+                                      {"last_min_fade", s.lastMinFade},
+                                      {"min", {s.mn.x, s.mn.y, s.mn.z}},
+                                      {"max", {s.mx.x, s.mx.y, s.mx.z}}});
+            }
+            out["structures"] = {{"level_dist", structLadder},
+                                 {"entries", structures},
+                                 {"solid_proxies_in_band", solidInBand}};
+            out["grass"] = {{"radius", th.grassRadius}, {"fade_range", th.grassFadeRange}};
+            out["foliage"] = {{"radius", th.foliageRadius}};
+            out["characters"] = {{"lod1", renderCoordinator->getCharacterLod1Distance()},
+                                 {"lod2", renderCoordinator->getCharacterLod2Distance()},
+                                 {"cull", renderCoordinator->getCharacterCullDistance()}};
+            out["shadow"] = {{"distance", th.shadowDistance},
+                             {"chunks_drawn", fs.shadowChunksDrawn}};
+            // Far-cascade debug: which caster stage is live (-1 = pass never recorded).
+            out["far_shadow"] = {
+                {"enabled", Graphics::RenderCoordinator::s_farShadowEnabled},
+                {"chunks_drawn", renderCoordinator->farShadowChunksDrawn()},
+                {"tile_casters", renderCoordinator->farShadowTileCasters()},
+                {"tree_casters", renderCoordinator->farShadowTreeCasters()}};
+        }
+        r = out;
+    });
+
+    // Loading observability (user ask 2026-08-06: "know when we are ready and fully loaded
+    // vs currently loading"): every loading pipeline's queue depth + ONE overall verdict.
+    // `settled` means every queue that converges on its own is empty. Structure proxies in
+    // state 0 (awaiting chunk residency) are reported but do NOT block settling — a distant
+    // structure legitimately waits forever; state 1 (chain building) does block.
+    reg.on("load_state", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        (void)cmd;
+        nlohmann::json out = {{"success", true}};
+        size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0;
+        if (chunkManager) {
+            genPending = chunkManager->streamingManagerRO().pendingGenerationCount();
+            dirty = chunkManager->dirtyTracker().getDirtyCount();
+            idle = chunkManager->dirtyTracker().getIdleCount();
+            for (const auto& c : chunkManager->chunks) {
+                if (!c) continue;
+                ++resident;
+                if (c->getNumInstances() == 0) ++unmeshed;   // air OR not-yet-meshed
+            }
+        }
+        out["chunks"] = {{"resident", resident},
+                         {"generation_pending", genPending},
+                         {"remesh_pending", dirty},
+                         {"remesh_idle_pending", idle},
+                         {"unmeshed_or_air", unmeshed}};
+        size_t farPending = 0, treeBuilds = 0;
+        int structsWaiting = 0, structsBuilding = 0, structsReady = 0;
+        if (renderCoordinator) {
+            farPending = renderCoordinator->farTilesPending();
+            treeBuilds = renderCoordinator->treeLodPendingBuilds();
+            const auto& fs = renderCoordinator->getLastFrameStats();
+            out["far_terrain"] = {{"tiles_resident", fs.farTilesResident},
+                                  {"tiles_pending", farPending}};
+            out["tree_meshes"] = {{"species_builds_pending", treeBuilds}};
+            for (const auto& s : renderCoordinator->structureLodReport()) {
+                if (s.state == 0) ++structsWaiting;
+                else if (s.state == 1) ++structsBuilding;
+                else if (s.state == 2) ++structsReady;
+            }
+            out["structures"] = {{"awaiting_residency", structsWaiting},
+                                 {"building", structsBuilding},
+                                 {"ready", structsReady}};
+        }
+        // Settled = every self-converging queue is drained. The idle remesh tier is
+        // cosmetic-only; report it, and include it in `settled_strict` but not `settled`.
+        const bool settled =
+            genPending == 0 && dirty == 0 && farPending == 0 && treeBuilds == 0 &&
+            structsBuilding == 0;
+        out["settled"] = settled;
+        out["settled_strict"] = settled && idle == 0;
+        r = out;
+    });
+
+    // Position probe: for a world position, what level each tier selects at the CURRENT
+    // camera, with the thresholds bracketing it. The ladder harness walks the camera and
+    // reads this to find measured switch distances.
+    reg.on("lod_probe", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!camera) { r = {{"error", "no camera"}}; return; }
+        const glm::vec3 p(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                          cmd.params.value("z", 0.0f));
+        const glm::vec3 cp = camera->getPosition();
+        const float dist = glm::length(p - cp);
+        nlohmann::json out = {{"success", true}, {"distance", dist}};
+
+        const auto view = Core::LodService::makeView(
+            vulkanDevice ? float(vulkanDevice->getSwapChainExtent().height) : 900.0f,
+            camera->getFovYDegrees());
+        out["chunk_lod_level"] = Core::LodService::levelForDistance(
+            1.0f, dist, Graphics::RenderCoordinator::s_lodTargetPixels, view,
+            Graphics::RenderCoordinator::s_lodMaxLevel);
+
+        if (renderCoordinator) {
+            const auto th = renderCoordinator->lodTierThresholds();
+            int treeLevel = 5;
+            for (int i = 0; i < 4; ++i)
+                if (dist < Graphics::RenderCoordinator::kTreeMeshLevelDist[i]) {
+                    treeLevel = i + 1;
+                    break;
+                }
+            std::string rep = dist < th.treeFadeNear0 ? "resident"
+                            : dist < th.treeBandEnd   ? "mesh"
+                            : dist < th.cardFadeFar1  ? "card" : "none";
+            out["tree_tier"] = {{"representation", rep},
+                                {"mesh_level", treeLevel},
+                                {"in_fade_band",
+                                 dist >= th.treeFadeNear0 && dist < th.treeFadeNear1}};
+            int structLevel =
+                int(std::size(Graphics::RenderCoordinator::kStructureLevelDist));
+            for (size_t i = 0;
+                 i < std::size(Graphics::RenderCoordinator::kStructureLevelDist); ++i)
+                if (dist < Graphics::RenderCoordinator::kStructureLevelDist[i]) {
+                    structLevel = int(i);
+                    break;
+                }
+            out["structure_level"] = structLevel;
+            out["grass_active"] = th.grassRadius > 0.0f && dist < th.grassRadius;
+            out["foliage_active"] = th.foliageRadius > 0.0f && dist < th.foliageRadius;
+            out["character_lod"] = Core::LodService::characterLodLevel(
+                dist * dist, renderCoordinator->getCharacterLod1Distance(),
+                renderCoordinator->getCharacterLod2Distance(),
+                Graphics::RenderCoordinator::s_screenSpaceLod
+                    ? renderCoordinator->lodViewScale() : 1.0f);
+            out["shadow_reach"] = dist < th.shadowDistance;
+        }
+        if (chunkManager) {
+            const auto* c = chunkManager->getChunkAtFast(glm::ivec3(glm::floor(p)));
+            out["resident_chunk"] = {{"exists", c != nullptr},
+                                     {"meshed", c && c->getNumInstances() > 0},
+                                     {"lod_level", c ? c->getLodLevel() : -1}};
+        }
+        r = out;
     });
 }
 

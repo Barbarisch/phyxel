@@ -832,5 +832,21 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Compiling far terrain shadow vertex shader...
+%GLSLANG% -V -I. shaders\far_terrain_shadow.vert -o shaders\far_terrain_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_terrain_shadow.vert
+    pause
+    exit /b 1
+)
+
+echo Compiling far tree mesh shadow vertex shader...
+%GLSLANG% -V -I. shaders\far_tree_mesh_shadow.vert -o shaders\far_tree_mesh_shadow.vert.spv
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to compile far_tree_mesh_shadow.vert
+    pause
+    exit /b 1
+)
+
 echo All shaders compiled successfully!
 REM pause

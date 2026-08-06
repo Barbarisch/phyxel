@@ -239,10 +239,12 @@ TemplateLodChain::Config TemplateLodChain::treeConfig() {
 
 TemplateLodChain::Config TemplateLodChain::structureConfig() {
     Config cfg;
-    // Finer, shorter ladder than trees: structures start at SUBCUBE resolution (trim and
-    // roof courses stay readable at the handoff) and stop at 3-voxel cells — a house at
-    // 2 km is a card/far-tile concern, not a mesh one.
-    cfg.cellSizesMicros = {3, 9, 18, 27};
+    // Full 6-level ladder (~1.4-1.5x per step), starting at SUBCUBE resolution so trim and
+    // roof courses stay readable at the handoff and stopping at 3-voxel cells — a house at
+    // 2 km is a card/far-tile concern, not a mesh one. Densified from {3,9,18,27} on
+    // 2026-08-05 (user: "way more than 3 levels of LOD") — the old 4-level ladder skipped
+    // 3x cell-volume jumps that read as visible pops even under the dither.
+    cfg.cellSizesMicros = {3, 6, 9, 13, 18, 27};
     cfg.coverageFloor      = 0.10f;
     cfg.volumeBudgetFactor = 1.30f;
     cfg.protectTrunk        = false;   // no stems in buildings

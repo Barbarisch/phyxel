@@ -1,0 +1,26 @@
+Release perf baseline 2026-08-06 — LodTest, archived horizon pose (16,140,180) yaw -135
+pitch -20, render distance 4096 (shipped defaults, no manual tuning), streaming settled
+(tiles_resident stable at 192 before sampling).
+
+Presented FPS (status bar): 188
+far_tiles_drawn = 57  (matches the 2026-08-01 archived record EXACTLY — same pose, same count)
+far_tiles_resident = 192
+
+GPU scopes (15 samples, /api/debug/gpu_scopes):
+  Shadow Pass   2.4 - 4.1 ms   (BOTH cascades: mid 8192^2/420u + near 4096^2/40u)
+  Scene Pass    1.8 - 2.9 ms
+  Far Terrain   0.6 - 1.8 ms
+  Grass         0.1 - 0.8 ms
+  Foliage       0.05 - 1.1 ms
+  everything else sub-0.1 ms
+
+Near-cascade cost, interleaved A/B (8 pairs, Shadow Pass gpu_ms):
+  OFF: 2.182 2.464 2.036 1.903 1.885 1.921 1.873 1.885   (median ~1.9)
+  ON:  4.547 4.371 3.331 2.979 4.092 3.312 3.312 2.960   (median ~3.3)
+  => near cascade ~ +1.5 ms shadow-pass GPU at this pose; every ON sample above every OFF.
+
+Context for comparing against the 2026-08-01 record (319-401 FPS at this pose): that build
+predates M3 lighting (hemisphere ambient + aerial perspective), PCSS, the 8192^2 mid map at
+420u (was 4096^2/160u), grass+foliage shadow casting, the instanced tree LOD mesh tier,
+per-instance level crossfades, and the near cascade. 188 FPS carries all of that quality.
+Historical 24-26 ms shadow wall: NOT present on this build at this pose (2.4-4.1 ms).
