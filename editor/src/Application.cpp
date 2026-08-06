@@ -13167,6 +13167,9 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("far_cadence"))
             Graphics::RenderCoordinator::s_farShadowCadence =
                 std::clamp(cmd.params["far_cadence"].get<int>(), 1, 60);
+        // M5: 6-index quad in the shadow chunk draws (A/B — pixel-derive, don't guess).
+        if (cmd.params.contains("quad"))
+            Graphics::RenderCoordinator::s_shadowQuadDraw = cmd.params["quad"].get<bool>();
         // DEBUG VIEW SELECTOR (the field is named debugShadowMode for historical reasons; it now
         // selects among several albedo-stripped views):
         //   0 = off

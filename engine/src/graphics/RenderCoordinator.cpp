@@ -2128,6 +2128,7 @@ float RenderCoordinator::s_nearShadowDistance = 40.0f;
 bool  RenderCoordinator::s_farShadowEnabled  = true;
 float RenderCoordinator::s_farShadowDistance = 1600.0f;
 int   RenderCoordinator::s_farShadowCadence  = 4;
+bool  RenderCoordinator::s_shadowQuadDraw    = false;   // M5 A/B — OFF until pixel-derived
 
 // Fit one shadow volume to the camera's view frustum, capped at maxShadowDist. Bounding-SPHERE
 // fit (rotation-invariant → no shadow-edge shimmer as the camera turns), caster margin +
@@ -2268,6 +2269,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
 
     if (cascade == kCascadeMid)
         gpuProfiler->beginPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
+    bool chunksDrawnViaMultidraw = false;
 
     // ---- C2.1 GPU-DRIVEN PATH: one multidraw per arena buffer ----------------------------
     // Chunks sharing an arena VkBuffer are in the same allocator block, so they can be
@@ -2336,7 +2338,7 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
                 if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
                     origins.size() >= ShadowMap::kMaxChunkDataEntries) break;
                 VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
-                c.indexCount    = 36;   // 36-index cube REQUIRED here (see the note above)
+                c.indexCount    = s_shadowQuadDraw ? 6u : 36u;   // M5 A/B (see the note above)
                 c.instanceCount = ch->getNumInstances();
                 c.firstIndex    = 0;
                 c.vertexOffset  = 0;
@@ -2386,22 +2388,15 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             m_shadowInstancesDrawn = gpuInstances;
             m_shadowMultidrawCalls = gpuDraws;
         }
-        // FAR cascade via the multidraw path still needs its far-field casters drawn.
-        if (cascade == kCascadeFar) {
+        if (cascade == kCascadeFar)
             m_farShadowChunksDrawn = static_cast<int>(cmdCursor);
-            m_farShadowTileCasters = int(m_cachedFarTileDraws.size());
-            m_farShadowTreeCasters = int(m_cachedTreeMeshDraws.size());
-            if (farTerrainPipeline)
-                farTerrainPipeline->renderShadow(commandBuffer,
-                                                 vulkanDevice->getDescriptorSet(currentFrame),
-                                                 m_cachedFarTileDraws);
-            if (treeLodPipeline)
-                treeLodPipeline->renderShadow(commandBuffer,
-                                              vulkanDevice->getDescriptorSet(currentFrame),
-                                              m_cachedTreeMeshDraws);
-        }
-        map.endRenderPass(commandBuffer);
-        return;
+        // 🐞 NO early return here (fixed 2026-08-06). The original C2.1 A/B block ended with
+        // endRenderPass+return, silently skipping the character/kinematic/dynamic/foliage
+        // caster sections below — invisible while the toggle was OFF-by-default and its
+        // pixel diffs ran vegetation-off, but a REAL regression (canopy dapple + character
+        // shadows gone from the mid map) the moment multidraw became the default. Fall
+        // through; the flag below skips only the legacy CHUNK loop.
+        chunksDrawnViaMultidraw = true;
       }   // !strideMisaligned
     }
 
@@ -2416,7 +2411,8 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
     // approximates the terrain that chunks would write — while drawing ~900 chunks made
     // every 4th (cadence) frame's shadow pass spike to ~20 ms (measured: visible judder).
     // The far map's casters are the far field itself: tiles + tree/structure meshes below.
-    if (cascade != kCascadeFar && chunkManager && !chunkManager->chunks.empty()) {
+    if (!chunksDrawnViaMultidraw && cascade != kCascadeFar &&
+        chunkManager && !chunkManager->chunks.empty()) {
         for (const auto& chunk : chunkManager->chunks) {
              if (chunk->getNumInstances() == 0) continue;
 
@@ -2451,21 +2447,22 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
              vkCmdPushConstants(commandBuffer, map.getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConsts), &pushConsts);
 
              // Draw
-             // 36-index cube kept here PENDING M5 (docs/ContinuousLodPlan.md §7b). The old
-             // justification ("the shadow pipeline front-culls") is FALSE: the chunk shadow
-             // pipeline back-culls exactly like the main pass (rasterizer.cullMode =
-             // VK_CULL_MODE_BACK_BIT, ShadowMap.cpp:392 — the CULL_NONE block lives in
-             // buildDepthOnlyPipelineState, used only by character/kinematic/dynamic shadows).
-             // Yet D1 measured a ~1.1% pixel break when the 6-index quad was applied to all
-             // passes, cause UNKNOWN. Re-derive empirically (M5) before switching to
-             // chunkIndexCount() here; do not guess a fourth time.
+             // M5 SETTLED EMPIRICALLY (2026-08-06, docs/evidence/m5_quad.png): the 6-index
+             // quad breaks the shadow pass — 4.785% of pixels differ vs a 0.022% control
+             // (dense pose, sun paused, vegetation off). MECHANISM: face quads are wound for
+             // the CAMERA-facing convention; the 36-index cube rasterizes both windings so
+             // light-back-facing quads survive this pipeline's VK_CULL_MODE_BACK_BIT, while
+             // a single-winding quad drops them from the depth map (missing casters = light
+             // leaks). 36 stays REQUIRED under back-cull. Possible future experiment: 6-index
+             // + CULL_NONE pipeline (would need its own acne/bias re-tune + pixel gate).
              // (And do NOT direction-bucket here — see the note at the top of this function.)
-             vkCmdDrawIndexed(commandBuffer, 36, chunk->getNumInstances(), 0, 0, 0);
+             vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u,
+                              chunk->getNumInstances(), 0, 0, 0);
              ++shadowChunks;
              shadowInstances += chunk->getNumInstances();
         }
     }
-    if (cascade == kCascadeMid) {
+    if (cascade == kCascadeMid && !chunksDrawnViaMultidraw) {
         gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_SHADOW);
         // Stash in members — lastFrameStats is reset AFTER the shadow pass in drawFrame, so
         // copy these into lastFrameStats there (see the visibleChunkCount block).

@@ -261,6 +261,11 @@ public:
     static bool  s_farShadowEnabled;
     static float s_farShadowDistance;
     static int   s_farShadowCadence;
+    /// M5 (docs/ContinuousLodPlan.md §7b): draw shadow chunks with the 6-index quad instead
+    /// of the 36-index cube. The recorded front-cull justification for 36 was FALSE (the
+    /// chunk shadow pipeline back-culls); D1's ~1.1% pixel break had an unknown cause. This
+    /// toggle re-derives it empirically. POST /api/debug/shadow {"quad": bool}.
+    static bool  s_shadowQuadDraw;
 
     struct CharacterLodDefaults {
         float lod1Distance = 35.0f;

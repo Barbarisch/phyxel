@@ -33,7 +33,20 @@ pending, tree species builds, structure proxy states + settled / settled_strict 
 Dogfooded on this world's first boot: farPend 170->0, gen rode the 48-slot in-flight cap
 then drained 48->3->0, settled=True at t+149s (727 chunks).
 
-GPU-DRIVEN SHADOW MULTIDRAW — UNBLOCKED, VERIFIED, DEFAULT ON (2026-08-06):
+🚨 CORRECTION (2026-08-06 later): the "11.1 -> 5.1 ms" multidraw win below was WRONG — the
+C2.1 gpu-driven block ended with an EARLY RETURN that silently skipped the character/
+kinematic/dynamic/FOLIAGE caster sections, so the ON side simply drew less (canopy dapple
+was missing from the mid map the whole time multidraw was default-on). With the fall-through
+fixed and 230 foliage chunks casting again, the HONEST interleaved A/B reads:
+  legacy 10.63-12.16 / multidraw 10.28-11.34 — overlapping, NO measurable batching win.
+The original C2 null verdict stands even at the ~11 ms operating point: mid-cascade shadow
+cost is VEGETATION CASTER VOLUME (foliage cards ~5-6 ms of it), not chunk submission.
+Multidraw stays default-ON (pixel-correct, no cost, fewer CPU calls) but must not be sold
+as a perf win. True honest dense-ground FPS with ALL casters: ~47.
+Evidence: mid_cascade_canopy_dapple_restored.png. Next shadow-perf frontier: foliage caster
+density/LOD in the shadow pass.
+
+GPU-DRIVEN SHADOW MULTIDRAW — original (OVERSTATED) record, kept for provenance:
   Arena kAlignment was ALREADY 768 (a prior session applied it; the "inert" doc note was
   stale). First-ever run with real data: 420 chunk draws -> 8 multidraw calls.
   Interleaved A/B (8 pairs, dense pose): legacy 10.5-11.8 ms / multidraw 4.7-6.0 ms
