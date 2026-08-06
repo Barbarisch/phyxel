@@ -36,11 +36,17 @@ of this entry claimed:
   engine's own generator, measure `total_visible_faces` + FPS at a fixed verified pose on a Release
   build. Queued as M4 in [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) §7b.
 
-**Separately, the measured #1 render cost today is the SHADOW PASS: 24–26 ms of a 34.8 ms frame
-(~75%)** (`docs/RenderDensityPlan.md` §2d). Three levers are exhausted — primitives, resolution
-(~30%), light-frustum cull (no effect). The residue is **~17 ms of per-draw overhead across ~131
-draws**, so the remaining fixes are structural: batch the shadow draws, update cadence, cascades.
-Carried by [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) (C2 → C5).
+**SHADOW STORY RESOLVED (2026-08-06, supersedes the 24–26 ms narrative):** the engine now runs
+**three shadow cascades** — near 40 u (blade-resolving), mid 420 u, far 1600 u (the LOD band
+casts+receives, on a cadence with coarsest-level casters) — see
+[`docs/NearShadowCascade.md`](docs/NearShadowCascade.md). Measured on the dense-forest world
+(Release, settled): shadow pass ~5 ms typical / ≤7.4 ms on far-recording frames. **The
+"per-draw overhead" theory is DEAD**: draw batching (GPU-driven multidraw, default ON) shows
+no measurable win at any operating point — the honest cost is VEGETATION CASTER VOLUME
+(foliage cards ~5–6 ms at dense poses; that is the next shadow-perf lever). **M5 settled
+empirically**: the 6-index quad breaks the shadow pass (4.785% px vs 0.022% control) because
+face quads are camera-convention wound and only the 36-index both-windings draw survives
+BACK_BIT relative to the LIGHT — 36 stays required.
 ⚠️ **Shadow cull-mode (settled 2026-08-05):** the main chunk shadow pipeline **back-culls**
 (`VK_CULL_MODE_BACK_BIT`, `ShadowMap.cpp` `createPipeline`); the `CULL_NONE` block belongs to
 `buildDepthOnlyPipelineState` (character/kinematic/dynamic only). The stale front-cull comments in
