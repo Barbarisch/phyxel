@@ -64,6 +64,11 @@ run"** (`RenderOptimization.md:352,376-380`). So:
 
 ### 0.3 Where the cost actually is today
 
+> **⏩ 2026-08-06: this section is now HISTORICAL — see the C5b supersession box (§5) and
+> `docs/RenderDensityPlan.md`'s banner.** The shadow wall is resolved (3 cascades, ~5 ms);
+> the per-draw-overhead attribution was disproven at every operating point; the ten-plus
+> hardcoded distance systems are now inventoried and ruled in `docs/LodTierLedger.md`.
+
 - **The shadow pass is the measured wall — and its recorded next step is this plan's C2.**
   ⚠️ *Corrected 2026-07-29: an earlier draft of this doc called this a "HYPOTHESIS (unmeasured)".
   It is measured, in detail, in `RenderDensityPlan.md` §2d + D1a–D1c, which I had not read far

@@ -1,6 +1,22 @@
 # Render-Density FPS — Diagnosis & Fix Plan
 
-> **Status: D0/D1/D1b/D1c DONE — the wall is CHARACTERIZED and the remaining fixes are STRUCTURAL.**
+> ## 🏁 SUPERSEDED 2026-08-06 — the shadow wall is RESOLVED; do not plan against this doc's
+> ## shadow conclusions.
+> The 2026-08-05/06 cascade campaign (docs/NearShadowCascade.md + docs/LodTierLedger.md +
+> docs/evidence/dense_forest_perf_20260806.txt) settled what this doc left open:
+> - Shadows now run as THREE cascades; the measured pass is ~5 ms typical / ≤7.4 ms on
+>   far-cascade recording frames at a DENSE-forest pose — the 24–26 ms wall no longer exists
+>   on current code.
+> - **The "~17 ms per-draw overhead" attribution below is DEAD**: GPU-driven multidraw
+>   (420 draws → 8) shows no measurable win at ANY operating point. The honest cost was and
+>   is vegetation caster VOLUME (foliage cards ~5–6 ms at dense poses).
+> - **The 36-index shadow question is settled empirically** (M5): the 6-index quad breaks
+>   the pass (4.785% px vs 0.022% control) because face quads are wound for the CAMERA
+>   convention and only both-windings survive BACK_BIT relative to the LIGHT — note the
+>   "front-culling" phrasing below was wrong, the mechanism is winding-vs-light.
+> This doc remains valuable as the D0/D1 measurement-method record.
+
+> **(historical) Status: D0/D1/D1b/D1c DONE — the wall is CHARACTERIZED and the remaining fixes are STRUCTURAL.**
 > (Header corrected 2026-07-29; the body below was already current — only this status line and the
 > §2 hypothesis block lagged.) Summary of what measurement established, so nobody re-plans against
 > the original hypothesis:

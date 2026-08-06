@@ -126,7 +126,50 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **★ CURRENT FOCUS (2026-07-21→23): PLAYABLE TOWNS — residents living in generated
+- **★ CURRENT FOCUS (2026-08-05→06): LARGE CONTINUOUS WORLDS — LOD unification + shadow
+  cascades. CAMPAIGN COMPLETE**, committed as `12b52315`/`efecd42b`/`9da9c84a`/`f33c4447`.
+  **[`docs/LodTierLedger.md`](LodTierLedger.md) is now THE maintained inventory of all 8
+  distance-tiered render systems** (levels, live thresholds, transitions, invalidation,
+  standing rules) — read it before touching ANY tier. Shipped + runtime-verified:
+  1. **Stale-structure-proxy bug FIXED** (low-poly building stayed solid over the real one):
+     `structureGateProbe` pure gate with the tree path's three escapes, red→green
+     `StructureLodGateTest`; reconciling proxy lifecycle + frame-deferred GPU graveyard;
+     far-terrain `maxDistance` invalidation + stationary `terrainHidden` recheck.
+  2. **Observability (user mandate "measure where LOD kicks in")**: `GET /api/debug/lod_report`
+     (live thresholds + per-tier level histograms + `solid_proxies_in_band` regression
+     detector), `POST /api/debug/lod_probe {x,y,z}`, **`GET /api/debug/load_state`** (all
+     loading-queue depths + `settled` verdict — gate every measurement on it), and
+     `tools/lod_ladder_probe.py` (measured switch distances → docs/evidence/lod_ladder/).
+  3. **Ladders densified**: structures = full 6-level chain incl. ⅓-voxel L0 (live L0..L5);
+     trees select levels PER-INSTANCE (complementary Bayer partitions, `levelBand`),
+     distance-gated <700 u (straddle measured ~2 ms); ladder now RUNTIME-tunable:
+     `POST /api/debug/far_terrain {"tree_ladder":[d1..d4]}`.
+  4. **THREE SHADOW CASCADES** (`docs/NearShadowCascade.md` = the canonical record): near
+     40u/4096² (grass casts ONLY here — blade shadows resolve), mid 420u/8192², far
+     1600u/4096² (the whole LOD band casts+receives; 4-frame cadence; COARSEST-level
+     casters; recording frame ≤7.4 ms). Receivers min-compose adjacent maps.
+  5. **Honest perf verdicts (docs/evidence/dense_forest_perf_20260806.txt)**: shadow
+     draw-batching has NO win at any operating point (the celebrated 11→5 ms was a
+     regression silently dropping foliage casters — fixed; multidraw stays ON as
+     correctness-neutral); **M5 settled** (6-index quad breaks the pass 4.785% vs 0.022%
+     control — camera-convention winding vs light-relative BACK_BIT; 36 required); mid
+     shadow cost = vegetation caster volume (~5-6 ms foliage) = next lever; far-tree tier
+     ~8 ms = raw vertex volume = LOOK tradeoff (sweep the runtime ladder by eye).
+     Baselines: dense-forest ground **~47 FPS** (all casters), sparse horizon **188 FPS**
+     (`PhyxelProjects/DenseForestPerf`, streaming Perlin seed 88842, flora 0.95;
+     **ProvingGrounds was DELETED** — old pose references are dead).
+  6. Foliage 512u hard pop → Bayer dissolve (last 10% of radius). Remaining pops: only the
+     far-LOD saved-chunk tier (needs chunk-pipeline fade plumbing + a saved-chunk world).
+  OPEN follow-ups (scoped, with numbers): foliage caster density/LOD in the shadow pass;
+  rigorous n≥15 tree-ladder sweep; M6 compute binning (~2-3 ms + GPU-culling architecture);
+  6-index + CULL_NONE shadow pipeline experiment; multi-pose Release perf-ladder stamp.
+  ⚑ Traps this campaign paid for: `build_shaders.bat` is an EXPLICIT list (new shaders must
+  be added; "cannot open shader" init errors are loud in phyxel.log — grep BEFORE debugging
+  shader logic); shadow pipelines bake a STATIC viewport (create against the map they render
+  into); debug probes must be flat colors (haze masks term modulation); when a toggle's ON
+  path draws LESS its "win" is a bug — compare caster counters both sides.
+
+- **PRIOR FOCUS (2026-07-21→23): PLAYABLE TOWNS — residents living in generated
   settlements** (continues Settlement Morphology v2; standing user directive: towns must be
   **walkable BY CONSTRUCTION** — fix the generator, don't just make NPC pathing cope).
   Shipped across three sessions (each auditor-PASSed unless noted):
