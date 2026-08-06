@@ -262,6 +262,10 @@ TEST(LodCharacterizationTest, GrassAndFoliageDefaultsAreUnchanged) {
     // to be high for ground to read as covered; one-blade-per-lattice-cell means every blade
     // contributes and far fewer are needed. ~4.7x less grass vertex load (18 verts/blade).
     EXPECT_EQ(g.bladesPerVoxel, 30u);
+    // Tuned by eye against the wind debug view on 2026-08-05 and signed off. Pinned because it is
+    // the difference between grass that reads as windblown and grass that looks static: at the
+    // previous 0.13 the peak lean was ~11% of the cap.
+    EXPECT_FLOAT_EQ(g.windStrength, 0.50f);
     // The old "whole clumps only" assertion is DELETED, not relaxed: grass.vert no longer groups
     // blades into tufts (`blade / BLADES_PER_CLUMP` is gone), so there is no partial clump to
     // render torn and no reason for the authored count to be a multiple of 7 — 30 is not.
