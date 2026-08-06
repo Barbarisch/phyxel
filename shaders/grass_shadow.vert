@@ -68,7 +68,8 @@ layout(push_constant) uniform PushConstants {
     float windBase;          // steady bend strength
     float gustAmp;           // gust amplitude on top of base
     float gustScale;         // gust spatial frequency (1/world units)
-    float gustSpeed;         // gust front travel speed (world units/s)
+    float windScrollX;       // CPU-integrated gust-field offset (NOT dir*gustSpeed*time)
+    float windScrollZ;
     uint  bladeStyle;        // 0 = smooth tapered ribbon, 1 = boxy rectangle (default)
     // Camera-relative rendering: chunkBaseOffset above is (world - camera); these carry the
     // exact ABSOLUTE chunk origin for the hash/clump/wind-phase seeds (must never be relative
@@ -95,6 +96,10 @@ layout(push_constant) uniform PushConstants {
     // ── EDGE TAPER ────────────────────────────────────────────────────────────────────────
     float edgeTaperFloor;      // height multiplier at a fully-exposed edge (0 = bald, 1 = off)
     float edgeTaperCurve;      // >1 keeps full height further in then falls fast; <1 eases out
+    // Gust-front anisotropy: how many times longer a front is CROSSWIND than along-wind.
+    // 1 = isotropic blobs (the old field); higher = bands sweeping across the field.
+    float windAniso;
+    float flutterFreq;       // local blade quiver, Hz (NOT the gust travel speed)
 } pc;
 
 layout(location = 0) out flat uint vTex;   // grass texture index
@@ -104,6 +109,11 @@ layout(location = 3) out float vSide;      // -1..1 across blade width (silhouet
 layout(location = 4) out float vSky;       // baked skylight 0..1
 layout(location = 5) out vec3  vBlock;     // baked block light 0..1/channel
 layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
+// WIND DEBUG (ubo.debugShadowMode == 2): how far the wind is pushing THIS vertex, as a fraction
+// of its own arc length — i.e. sin(lean angle), 0 = upright, 0.9 = at the lean cap. Published
+// always (a few bytes of interpolant) rather than behind a compile flag, because the whole point
+// is to answer "is the wind actually doing anything" without a rebuild.
+layout(location = 7) out float vWindLean;
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -451,18 +461,20 @@ void main() {
     float lag       = stiffness * 0.02;
     // Trodden blades are pinned underfoot — they stop waving instead of thrashing while flat.
     float windDamp = 1.0 - 0.6 * tread;
-    // INERTIA: grass doesn't snap to the instantaneous gust — low-pass the field with three
-    // time-lagged taps (~0.5 s box filter) so fronts arrive as smooth swells, not jitter.
-    // Travelling-front realism survives (the taps scroll with the same field); high-frequency
-    // content is what gets removed.
-    // Widened from a ~0.5 s to a ~1.0 s box filter (4 taps): the longer the low-pass, the more of
-    // the gust field's high-frequency content is removed, and high-frequency content IS the jitter.
+    // ⚑THE 4-TAP BOX LOW-PASS THAT USED TO BE HERE IS GONE — IT WAS DOING NOTHING.
+    // It averaged the field at t, t-0.33, t-0.66 and t-1.00 to "remove jitter", at 4x the gust
+    // evaluations (8 value-noise calls per vertex, on every grass AND foliage vertex).
+    // MEASURED with tools/wind_field_probe.py, which evaluates windGustAt exactly on the CPU:
+    // the temporal signal at a fixed point carries only 0.2% of its energy above 0.5 Hz BEFORE
+    // filtering. There was no high-frequency content to remove; the filter cost 75% of the wind
+    // ALU and changed peak-to-peak by 0.02. Whatever fixed the original "far too jittery" report,
+    // it was the flutter and response-spread reductions made at the same time, not this.
+    // The jitter was SPATIAL, not temporal — small isotropic blobs (12u across) rather than
+    // field-scale fronts. That is fixed in windGustAt by anisotropy, where it actually lives.
     vec2  gp = cellHash.xz + root2;
     float tg = ubo.elapsedTime - lag;
-    float gust = (windGustAt(gp, tg,        wd, pc.gustScale, pc.gustSpeed)
-                + windGustAt(gp, tg - 0.33, wd, pc.gustScale, pc.gustSpeed)
-                + windGustAt(gp, tg - 0.66, wd, pc.gustScale, pc.gustSpeed)
-                + windGustAt(gp, tg - 1.00, wd, pc.gustScale, pc.gustSpeed)) * 0.25;
+    float gust = windGustAt(gp, vec2(pc.windScrollX, pc.windScrollZ), wd,
+                            pc.gustScale, pc.windAniso);
     float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength * windDamp;
 
     // Gentle slow flutter perpendicular to the wind, amplitude ∝ local gust strength — calm air
@@ -474,7 +486,7 @@ void main() {
     // amplitude 0.055 -> 0.018, per-blade phase contribution cut to a fifth.
     float phase   = (cellHash.x + root2.x) * 0.55 + (cellHash.z + root2.y) * 0.43
                   + h3 * 1.2566371;   // 0.2 * 2pi
-    float flutter = sin(ubo.elapsedTime * 0.6 + phase) * 0.018
+    float flutter = sin(ubo.elapsedTime * max(pc.flutterFreq, 0.0) * 6.2831853 + phase) * 0.018
                   * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength * windDamp;
     // Bend profile: base stays planted, tip displaces most. bendExp is the per-blade FLEX —
     // soft blades (low h2) yield along their whole length, stiff blades hold their base and
@@ -488,12 +500,43 @@ void main() {
     if (swayMag > 1.4) swayDir *= 1.4 / swayMag;   // total-bend clamp (wind + push composed)
     vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (profile * H * 2.0);
 
-    vec3 worldPos = rootWorld + widthOffset + windOffset;
-    worldPos.y   += v * H;
-    // Approximate length preservation: drop the tip as it displaces laterally so strong gusts
-    // read as the blade BENDING over, not stretching sideways.
-    float lat = length(windOffset.xz);
-    worldPos.y -= 0.4 * lat * lat / max(H, 0.001);
+    // ── LENGTH PRESERVATION: EXACT CHORD GEOMETRY, NOT A QUADRATIC FUDGE ─────────────────────
+    // A point at arc length L = v*H along the blade, displaced `lat` from the vertical axis, sits
+    // at height sqrt(L^2 - lat^2). Bounded by construction: the tip can NEVER drop below its own
+    // root, however hard the wind blows.
+    //
+    // ⚑WHAT THIS REPLACES, AND WHY IT MATTERS: `worldPos.y -= 0.4 * lat*lat / H` was unbounded
+    //  and grew quadratically. The sway clamp above allows |swayDir| up to 1.4, and windOffset
+    //  scales it by profile*H*2.0, so lat reaches 2.8*H — giving a drop of 0.4*(2.8H)^2/H = 3.14H
+    //  against a blade only H tall. The tip finished 2.1*H BELOW its own root: grass sinking
+    //  through the ground and out the underside of the slab under strong wind (user, 2026-08-05).
+    //  Invisible at the shipped windStrength 0.13 (drop ~0.03u); it appeared the moment wind was
+    //  turned up. A bound that only holds at one setting is not a bound.
+    // MAXIMUM LEAN. Not just "don't stretch" (lat <= armLen) — that permits lat == armLen, which
+    // puts the tip at height ZERO, i.e. the blade lying flat IN the ground plane it grows from.
+    // Coplanar with the surface reads as grass pointing into the ground, which is what the old
+    // unbounded drop looked like even after it stopped going below the root.
+    //
+    // The underlying problem is that the bend magnitude was never physical: the sway clamp allows
+    // |swayDir| <= 1.4 and windOffset scales it by profile*H*2.0, so lateral displacement could
+    // reach 2.8x the blade's own arc length. Nothing bends 2.8 times its own length.
+    //
+    // 0.90 * armLen is a 64-degree lean from vertical, leaving the tip at sqrt(1-0.81) = 43% of
+    // its height: bent right over in a hard gust, but never flat and never coplanar. Real grass
+    // flattened by a storm still rests ON the surface, not in it.
+    const float kMaxLeanSin = 0.90;
+    float armLen = v * H;                     // arc length from the root to this vertex
+    float maxLat = kMaxLeanSin * armLen;
+    vec2  latXZ  = windOffset.xz;
+    float lat    = length(latXZ);
+    if (lat > maxLat) { latXZ *= maxLat / max(lat, 1e-6); lat = maxLat; }
+
+    vec3 worldPos = rootWorld + widthOffset + vec3(latXZ.x, 0.0, latXZ.y);
+    worldPos.y   += sqrt(max(armLen * armLen - lat * lat, 0.0));
+
+    // Lean fraction for the wind debug view: 0 upright .. kMaxLeanSin at the cap. Taken AFTER the
+    // clamp so it shows what the blade actually does, not what was requested.
+    vWindLean = (armLen > 1e-5) ? lat / armLen : 0.0;
 
     // Colour-sample UV: a stable per-blade point in the grass tile (subtle per-blade variation).
     // Hash-domain coords again — fract() of a raw far coord is quantized.

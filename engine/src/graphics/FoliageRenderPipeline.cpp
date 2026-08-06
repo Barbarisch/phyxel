@@ -26,13 +26,18 @@ struct FoliagePush {
     float     windBase;
     float     gustAmp;
     float     gustScale;
-    float     gustSpeed;
+    float     windScrollX;
+    float     windScrollZ;
     // ABSOLUTE chunk origin, float-exact — hash/wind-phase seeds must not be camera-relative.
     float     absBaseX;
     float     absBaseY;
     float     absBaseZ;
+    // Gust-front anisotropy. Foliage MUST see the same wind field as grass - the whole
+    // point of the shared WindSystem is that a front crossing the meadow also moves the
+    // trees. Omitting it here would give bands in the grass and blobs in the canopy.
+    float     windAniso;
 };
-static_assert(sizeof(FoliagePush) == 64, "FoliagePush must match the foliage.vert push-constant block");
+static_assert(sizeof(FoliagePush) == 72, "FoliagePush must match the foliage.vert push-constant block");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -328,7 +333,9 @@ void FoliageRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet ub
     pc.windBase      = m_params.wind.base;
     pc.gustAmp       = m_params.wind.gustAmp;
     pc.gustScale     = m_params.wind.gustScale;
-    pc.gustSpeed     = m_params.wind.gustSpeed;
+    pc.windScrollX   = m_params.wind.scroll.x;
+    pc.windScrollZ   = m_params.wind.scroll.y;
+    pc.windAniso     = m_params.wind.aniso;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
@@ -364,7 +371,9 @@ void FoliageRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.windBase      = m_params.wind.base;
     pc.gustAmp       = m_params.wind.gustAmp;
     pc.gustScale     = m_params.wind.gustScale;
-    pc.gustSpeed     = m_params.wind.gustSpeed;
+    pc.windScrollX   = m_params.wind.scroll.x;
+    pc.windScrollZ   = m_params.wind.scroll.y;
+    pc.windAniso     = m_params.wind.aniso;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;

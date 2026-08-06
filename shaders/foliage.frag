@@ -76,6 +76,9 @@ void main() {
 
     vec3 lit = (col * (fill + sunTerm) + col * trans * ubo.sunColor + col * vBlock * 0.5) * vShade;
 
-    if (ubo.debugShadowMode != 0) { outColor = phxShadowOnly(shadowFactor); return; }
+    // Debug view 2 is the GRASS WIND ramp. Everything that is not grass must go flat and
+    // dark, or the shadow-only view underneath drowns the signal it exists to show.
+    if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
+    if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
     outColor = vec4(lit, 1.0);
 }

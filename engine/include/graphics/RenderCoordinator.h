@@ -848,6 +848,11 @@ public:
     // per-frame derived field the shaders consume (read-only, useful for round-trip checks).
     WindSystem::Settings&    windSettings()      { return windSystem.settings(); }
     const WindSystem::State& windState() const   { return windSystem.state(); }
+    /// Mutable wind state, for the /api/debug/wind probe knobs (aniso / gustScale / gustSpeed).
+    /// ⚑gustScale and gustSpeed are DERIVED from speed+gustiness on every WindSystem update, so
+    /// writing them here is sticky only until the next update — they are tuning probes, not
+    /// settings. `aniso` is NOT derived, so it persists.
+    WindSystem::State& windState()               { return windSystem.mutableState(); }
 private:
     // Global procedural wind — ticked once per drawFrame, then copied into BOTH vegetation
     // pipelines' params so grass and foliage can never see diverging wind.

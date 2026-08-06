@@ -8255,12 +8255,39 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             if (cmd.params.contains("dirDegrees")) ws.dirDegrees = cmd.params.value("dirDegrees", ws.dirDegrees);
             if (cmd.params.contains("speed"))      ws.speed      = std::max(0.0f, cmd.params.value("speed", ws.speed));
             if (cmd.params.contains("gustiness"))  ws.gustiness  = std::clamp(cmd.params.value("gustiness", ws.gustiness), 0.0f, 1.0f);
+            // ── GUST-FRONT SHAPE ──────────────────────────────────────────────────────────
+            // aniso is how many times longer a front is CROSSWIND than along-wind. 1 = the old
+            // isotropic field (scrolled blobs, which never read as wind crossing a field).
+            // gustScale/gustSpeed are normally DERIVED from speed+gustiness every update, so an
+            // override here is sticky only until the next derivation — it is a probe knob for
+            // tuning against tools/wind_field_probe.py, not a setting.
+            if (cmd.params.contains("aniso"))
+                renderCoordinator->windState().aniso =
+                    std::max(1.0f, cmd.params.value("aniso", 5.0f));
+            // Local blade quiver in Hz — distinct from gustSpeed (front travel). Persists: it is
+            // not re-derived from speed/gustiness.
+            if (cmd.params.contains("flutterFreq"))
+                renderCoordinator->windState().flutterFreq =
+                    std::max(0.0f, cmd.params.value("flutterFreq", 0.6f));
+            // These go into SETTINGS, not State: State is re-derived from speed+gustiness every
+            // update(), so a value written there survives exactly one frame — long enough to look
+            // like it worked. Negative clears the override and returns to the derived value.
+            if (cmd.params.contains("gustScale"))
+                ws.gustScaleOverride = cmd.params.value("gustScale", -1.0f);
+            if (cmd.params.contains("gustSpeed"))
+                ws.gustSpeedOverride = cmd.params.value("gustSpeed", -1.0f);
             const auto& st = renderCoordinator->windState();
             response = {{"success", true},
                         {"dirDegrees", ws.dirDegrees}, {"speed", ws.speed}, {"gustiness", ws.gustiness},
                         {"state", {{"dirX", st.dir.x}, {"dirZ", st.dir.y}, {"base", st.base},
                                    {"gustAmp", st.gustAmp}, {"gustScale", st.gustScale},
-                                   {"gustSpeed", st.gustSpeed}}}};
+                                   {"gustSpeed", st.gustSpeed}, {"aniso", st.aniso},
+                                   {"flutterFreq", st.flutterFreq},
+                                   // scroll is the field's POSITION. Report it so "is the wind
+                                   // actually moving?" is answerable from the API instead of by
+                                   // watching pixels — asking that question without this field
+                                   // produced a confident wrong answer on 2026-08-05.
+                                   {"scrollX", st.scroll.x}, {"scrollZ", st.scroll.y}}}};
         }
         return true;
 
@@ -13117,11 +13144,19 @@ void Application::registerEffectsCommands() {
         if (cmd.params.contains("distance"))
             Graphics::RenderCoordinator::s_shadowDistance =
                 std::clamp(cmd.params["distance"].get<float>(), 32.0f, 2048.0f);
-        // Shadow-only debug view: strips albedo/ambient so ONLY the shadow term shows
-        // (white = lit, black = shadowed). The standard way to judge thin casters — a grass
-        // blade's shadow is a hairline that texture detail completely hides.
+        // DEBUG VIEW SELECTOR (the field is named debugShadowMode for historical reasons; it now
+        // selects among several albedo-stripped views):
+        //   0 = off
+        //   1 = shadow-only — white = lit, black = shadowed. The standard way to judge thin
+        //       casters, since a grass blade's shadow is a hairline that texture detail hides.
+        //   2 = GRASS WIND — each blade coloured by how far the wind is pushing it right now
+        //       (near-black upright, blue slight, green moderate, yellow/red at the lean cap), so
+        //       a passing gust reads as a coloured band crossing the field. Added because
+        //       "is the wind actually moving?" was costing whole rounds to answer by eye.
+        // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
+        //  selected the shadow view — the request appeared to work and showed the wrong thing.
         if (cmd.params.contains("mode") && vulkanDevice)
-            vulkanDevice->setDebugShadowMode(cmd.params["mode"].get<int>() != 0 ? 1 : 0);
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 2));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"mode", vulkanDevice ? vulkanDevice->getDebugShadowMode() : 0}};

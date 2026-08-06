@@ -171,6 +171,66 @@ clears it *after* the shadow pass, so the numbers read back as zero and look lik
 submitted" (`RenderCoordinator.cpp:1791`). This cost a wrong "0 grass casters" conclusion when 189
 were real.
 
+### Wind debug view — `POST /api/debug/shadow {"mode":2}` (2026-08-05)
+
+**Use this before arguing about wind by eye.** Every blade is coloured by how far the wind is
+pushing it *right now*, as a fraction of its own arc length, so a passing gust reads as a coloured
+band crossing the field and a dead field reads as uniformly dark. All non-grass geometry goes flat
+dark in this mode — an earlier version left terrain rendering the shadow-only view underneath and
+the shadows completely drowned the signal ("is the black and white the movement or shadows?").
+
+```
+near-black → blue → green → yellow → red     (upright → at the 64° lean cap)
+```
+
+The ramp is `sqrt`-scaled: linear against the cap put the entire still-to-peak range of ordinary
+wind inside the first segment, so everything read as one flat blue — true, but useless.
+
+Debug view selector (the UBO field is still named `debugShadowMode` historically):
+`0` off · `1` shadow-only · `2` grass wind.
+⚠️ The handler used to collapse every non-zero value to `1`, so `mode: 2` silently selected the
+shadow view and *appeared to work*. It now clamps to the valid range instead.
+
+**What it found in one sitting**, none of which was visible by staring at the grass:
+- Blades were leaning **11% of the available range** — motion too small for any frequency to rescue.
+  `windStrength` had been 0.13 since blades were a third of their current height.
+- Roughly **two thirds of the lean was constant**, not moving: a steady `base` of 0.55·speed plus
+  the gust field's own DC term (raw value noise averages 0.5). Cutting `base` to 0.10·speed and
+  squaring the gust flipped the constant:varying ratio from ~3:1 to ~1:1.
+- The anisotropic bands exist and are correct — they simply could not be seen until amplitude
+  allowed them.
+
+Also expose `scrollX`/`scrollZ` on `/api/debug/wind`: that is the gust field's *position*, so
+"is the wind actually moving?" is answerable from the API. Without it the question cost a whole
+debugging round and produced a confidently wrong answer.
+
+### Shipped wind defaults (approved 2026-08-05)
+
+Tuned live against the debug view and signed off by eye. The derivations in `WindSystem::tick` are
+**calibrated so these Settings land on these numbers** — change one and the other must move.
+
+| knob | default | meaning |
+|---|---|---|
+| `speed` | 0.35 | drives `base`, `gustAmp`, `gustSpeed` together |
+| `gustiness` | 0.45 | swell vs steady lean; also sets front size |
+| `windStrength` (grass) | **0.50** | master amplitude; was 0.13 → ~11% of the lean cap |
+| `flutterFreq` | **1.8 Hz** | local blade quiver — NOT the front travel rate |
+| `aniso` | 5.0 | crosswind stretch; 1.0 = the old isotropic blobs |
+| derived `gustSpeed` | 2.5 u/s | front travel |
+| derived `gustScale` | 0.045 | fronts ~22 u deep, ~110 u crosswind |
+
+⚑ **Two frequencies, easily confused.** `gustSpeed` is how fast a *front crosses the field*;
+`flutterFreq` is how fast a *blade quivers in place*. Slow fronts with no flutter read as static
+grass that occasionally leans.
+
+⚑ **A varying direction must never enter a transform scaled by position or time.** This bug class
+appeared twice in one session: the scroll was `dir × gustSpeed × elapsedTime` (a heading change
+displaced the field proportionally to uptime — 0.05 noise cells/s at 10 s, 3.2 at 10 min), and the
+anisotropy rotated the sample point about the world origin (~3 cells per *degree* at the far end of
+the 2048 hash domain). Both read as "smooth for a while, then springs rapidly." Integrate the
+direction, or hold it constant — `State::dir` is now static and the wander survives only inside the
+integrated `scroll`, which is never published to a shader.
+
 ## Reference techniques (grounded)
 
 - **Ghost of Tsushima — "Procedural Grass" (GDC 2021)**: unified 2D-Perlin wind field sampled by

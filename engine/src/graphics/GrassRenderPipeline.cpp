@@ -28,7 +28,8 @@ struct GrassPush {
     float     windBase;
     float     gustAmp;
     float     gustScale;
-    float     gustSpeed;
+    float     windScrollX;
+    float     windScrollZ;
     uint32_t  bladeStyle;
     // ABSOLUTE chunk origin, float-exact (integers < 2^24) — the hash/clump/wind-phase seeds
     // must NOT be camera-relative or blades re-roll as the camera moves. Scalar floats so the
@@ -51,11 +52,20 @@ struct GrassPush {
     float     heightMax;
     float     edgeTaperFloor;
     float     edgeTaperCurve;
+    // Gust-front crosswind stretch. Shared with foliage via WindSystem::State so a front
+    // crossing the meadow also moves the trees.
+    float     windAniso;
+    float     flutterFreq;
 };
 // 116 bytes. Vulkan guarantees only 128 bytes of push-constant space, so there are 12 bytes of
 // headroom left — the NEXT addition should move this block to a trailing UBO field instead of
 // growing it further. (Appending after grassDisplacerMeta touches only the two grass shaders.)
-static_assert(sizeof(GrassPush) == 116, "GrassPush must match the grass.vert push-constant block");
+// 128 bytes — EXACTLY the Vulkan guaranteed minimum (maxPushConstantsSize). THE BLOCK IS FULL.
+// The next field added here must instead go in a trailing UBO slot (appending after
+// grassDisplacerMeta touches only the two grass shaders); growing this further will fail on any
+// device that offers only the guaranteed 128.
+static_assert(sizeof(GrassPush) == 128, "GrassPush must match the grass.vert push-constant block");
+static_assert(sizeof(GrassPush) <= 128, "GrassPush exceeds the guaranteed push-constant budget");
 static_assert(sizeof(GrassPush) <= 128, "GrassPush exceeds the guaranteed push-constant budget");
 
 static std::vector<char> readShaderFile(const std::string& path) {
@@ -496,7 +506,8 @@ void GrassRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboS
     pc.windBase       = m_params.wind.base;
     pc.gustAmp        = m_params.wind.gustAmp;
     pc.gustScale      = m_params.wind.gustScale;
-    pc.gustSpeed      = m_params.wind.gustSpeed;
+    pc.windScrollX    = m_params.wind.scroll.x;
+    pc.windScrollZ    = m_params.wind.scroll.y;
     pc.bladeStyle     = m_params.bladeStyle;
     pc.pushStrength   = m_params.pushStrength;
     pc.shadowWidthScale = s_shadowWidthScale;   // shadow pass widens the proxy only
@@ -509,6 +520,8 @@ void GrassRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboS
     pc.heightMax          = m_params.heightMax;
     pc.edgeTaperFloor     = m_params.edgeTaperFloor;
     pc.edgeTaperCurve     = m_params.edgeTaperCurve;
+    pc.windAniso          = m_params.wind.aniso;
+    pc.flutterFreq        = m_params.wind.flutterFreq;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;
@@ -555,7 +568,8 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.windBase       = m_params.wind.base;
     pc.gustAmp        = m_params.wind.gustAmp;
     pc.gustScale      = m_params.wind.gustScale;
-    pc.gustSpeed      = m_params.wind.gustSpeed;
+    pc.windScrollX    = m_params.wind.scroll.x;
+    pc.windScrollZ    = m_params.wind.scroll.y;
     pc.bladeStyle     = m_params.bladeStyle;
     pc.pushStrength   = m_params.pushStrength;
     pc.shadowWidthScale = s_shadowWidthScale;   // shadow pass widens the proxy only
@@ -568,6 +582,8 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     pc.heightMax          = m_params.heightMax;
     pc.edgeTaperFloor     = m_params.edgeTaperFloor;
     pc.edgeTaperCurve     = m_params.edgeTaperCurve;
+    pc.windAniso          = m_params.wind.aniso;
+    pc.flutterFreq        = m_params.wind.flutterFreq;
 
     for (const auto& c : chunks) {
         if (c.buffer == VK_NULL_HANDLE || c.count == 0) continue;

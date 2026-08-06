@@ -51,7 +51,11 @@ public:
         /// shadow casting at all. Rides the previously-unused `widthScale` push constant, so
         /// no push-constant layout change. POST /api/debug/grass {"bladeWidth": N}.
         float    bladeWidthScale = 1.0f;
-        float    windStrength   = 0.13f;  ///< master wind amplitude (scaled by blade height in-shader)
+        /// Master wind amplitude. Raised 0.13 -> 0.50 on 2026-08-05: 0.13 dated from blades
+        /// 0.016u wide and 0.32u tall, and against today's taller blades it produced a peak lean
+        /// of only ~11% of the hard lean cap — motion so small no frequency could make it read.
+        /// Measured in the wind debug view; the lean cap (64 degrees) makes raising this safe.
+        float    windStrength   = 0.50f;  ///< master wind amplitude (scaled by blade height in-shader)
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
         /// Blades on a FULLY grassy voxel. Dropped 140 -> 30 on 2026-08-05, together with the
         /// non-overlap change: tufting meant most blades re-filled the same few spots while the

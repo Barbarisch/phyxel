@@ -7428,6 +7428,21 @@ async def _launch_engine(args: dict) -> dict:
         return {"error": f"Failed to launch engine: {e}"}
 
 
+def _looks_like_busy(err: str) -> bool:
+    """Does this api_get error mean 'could not reach the game loop' rather than a real answer?
+
+    api_get flattens every failure to {"error": str(e)}, so transport failures and genuine engine
+    replies arrive in the same shape. Anything here means the request never got an answer, so the
+    caller must report UNKNOWN instead of inventing a state.
+    """
+    e = err.lower()
+    return any(k in e for k in (
+        "timeout", "timed out", "readtimeout", "connecttimeout", "pooltimeout",
+        "waiting for game loop", "read error", "remoteprotocolerror", "connection reset",
+        "server disconnected", "incomplete", "temporarily unavailable",
+    ))
+
+
 async def _check_engine_running() -> dict:
     """Check if the engine is running and responsive."""
     global _engine_process
@@ -7446,22 +7461,37 @@ async def _check_engine_running() -> dict:
         "pid": _engine_process.pid if process_alive else None,
     }
 
-    # Check if a project is loaded
+    # Check if a project is loaded.
+    #
+    # ⚑DO NOT COLLAPSE "REQUEST FAILED" INTO "NO PROJECT". /api/status is served off the HTTP
+    # thread and answers even while the engine is busy, but /api/project/info needs the GAME LOOP.
+    # During a long job (a 64-chunk generate, a big remesh, a world load) that request times out —
+    # and this used to report, confidently, that the engine was "showing the project-selector
+    # screen". It sent a session off fixing a project that was loaded and fine the whole time.
+    #
+    # A measurement that cannot reach its subject must report UNKNOWN, not a specific value.
     if api_ok:
-        try:
-            project = await api_get("/api/project/info")
-            if "error" not in project:
-                info["project_loaded"] = True
-                info["project_dir"] = project.get("project_dir", "")
-            else:
-                info["project_loaded"] = False
-                info["project_warning"] = (
-                    "Engine is running but NO PROJECT is loaded. "
-                    "The engine is showing the project-selector screen. "
-                    "Launch with --project <dir> or use 'open_project' to load a project."
-                )
-        except Exception:
-            pass
+        project = await api_get("/api/project/info")
+        err = str(project.get("error", "")) if isinstance(project, dict) else ""
+        if not err:
+            info["project_loaded"] = True
+            info["project_dir"] = project.get("project_dir", "")
+        elif _looks_like_busy(err):
+            # Engine alive, game loop not answering -> state genuinely unknown.
+            info["project_loaded"] = None
+            info["engine_busy"] = True
+            info["project_warning"] = (
+                "COULD NOT DETERMINE project state: the engine is alive (/api/status answered) "
+                "but the GAME LOOP did not respond in time. That means the engine is BUSY — a "
+                "world generation, chunk remesh or load is in progress. It does NOT mean no "
+                f"project is loaded. Wait for the job to finish and re-check. (detail: {err})"
+            )
+        else:
+            info["project_loaded"] = False
+            info["project_warning"] = (
+                "Engine is running but NO PROJECT is loaded (the engine answered and said so). "
+                "Launch with --project <dir> or use 'open_project' to load a project."
+            )
 
     return info
 

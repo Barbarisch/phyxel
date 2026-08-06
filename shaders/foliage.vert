@@ -40,12 +40,14 @@ layout(push_constant) uniform PushConstants {
     float windBase;          // steady bend strength
     float gustAmp;           // gust amplitude on top of base
     float gustScale;         // gust spatial frequency (1/world units)
-    float gustSpeed;         // gust front travel speed (world units/s)
+    float windScrollX;   // CPU-integrated gust-field offset (see WindSystem::State::scroll)
+    float windScrollZ;         // gust front travel speed (world units/s)
     // Camera-relative rendering: chunkBaseOffset above is (world - camera); exact ABSOLUTE
     // chunk origin for hash/phase seeds (never relative, or cards re-roll as the camera moves).
     float absBaseX;
     float absBaseY;
     float absBaseZ;
+    float windAniso;   // gust-front crosswind stretch; must match grass (one wind field)
 } pc;
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
@@ -115,7 +117,7 @@ void main() {
     // sprig-to-sprig variation comes from the travelling gust field, not desynchronized noise
     // (the Crysis main/detail split; the old `+ float(card)` phase read as jitter).
     vec2 wd = vec2(pc.windDirX, pc.windDirZ);
-    float gust = windGustAt(scHash.xz, ubo.elapsedTime, wd, pc.gustScale, pc.gustSpeed);
+    float gust = windGustAt(scHash.xz, vec2(pc.windScrollX, pc.windScrollZ), wd, pc.gustScale, pc.windAniso);
     float bend = (pc.windBase + pc.gustAmp * gust) * pc.windStrength;
 
     // DETAIL flutter: oscillate the card basis a few degrees around nrm — leaves glint in

@@ -13,6 +13,7 @@ layout(location = 3) in float vSide;       // -1..1 across blade width
 layout(location = 4) in float vSky;        // baked skylight 0..1
 layout(location = 5) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
+layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -70,6 +71,26 @@ void main() {
     vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(vSky));
     vec3  lit = col * ao * (ambient + sunTerm) + col * vBlock * 0.5;
 
-    if (ubo.debugShadowMode != 0) { outColor = phxShadowOnly(shadowFactor); return; }
+    // ── WIND DEBUG VIEW (POST /api/debug/shadow {"mode":2}) ─────────────────────────────────
+    // Colours every blade by how hard the wind is pushing it RIGHT NOW, so a passing gust reads as
+    // a coloured band sweeping the field and a dead field reads as uniformly dark. Added because
+    // "is the wind moving?" was costing whole debugging rounds to answer by staring at pixels —
+    // and once produced a confidently wrong answer.
+    //   near-black = upright/still · blue = slight · green = moderate · yellow/red = at the cap
+    // Ramp is on the LEAN FRACTION (sin of the lean angle), so it is comparable between blades of
+    // different heights rather than being dominated by tall ones.
+    if (ubo.debugShadowMode == 2) {
+        // sqrt expands the LOW end. Linear against the 0.9 cap put the entire still-to-peak
+        // range of ordinary wind inside the first ramp segment, so everything read as one flat
+        // blue — true, but useless. sqrt keeps the cap meaningful while making gentle wind legible.
+        float x = sqrt(clamp(vWindLean / 0.9, 0.0, 1.0));
+        vec3 c = mix(vec3(0.02, 0.02, 0.06), vec3(0.0, 0.35, 1.0), smoothstep(0.00, 0.25, x));
+        c = mix(c, vec3(0.0, 1.0, 0.25), smoothstep(0.25, 0.55, x));
+        c = mix(c, vec3(1.0, 0.95, 0.0), smoothstep(0.55, 0.80, x));
+        c = mix(c, vec3(1.0, 0.10, 0.0), smoothstep(0.80, 1.00, x));
+        outColor = vec4(c, 1.0);
+        return;
+    }
+    if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
     outColor = vec4(lit, 1.0);
 }
