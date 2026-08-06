@@ -10,8 +10,12 @@
 #include "utils/Logger.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <filesystem>
 #include <limits>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -37,7 +41,101 @@ KinematicSurface surfaceFromTemplate(const VoxelTemplate& tmpl) {
 }
 }  // namespace
 
+namespace {
+// Greedy box decomposition of a fine-grid template (finer-than-microcube item
+// class). Cells merge along X, then Y, then Z — a fixed scan order, so output
+// is deterministic — when they share (material, tint, state, part). Boxes
+// never cross a cube boundary: the kinematic sub-tile UV mapping expresses a
+// face as a rectangle of its parent cube's texture, so an extent within one
+// cube keeps every UV in [0,1] (a multi-cube box would need texture tiling
+// the 48-byte KinematicFaceData cannot express).
+std::vector<KinematicVoxel> mergeFineVoxels(const VoxelTemplate& tmpl) {
+    const int N = tmpl.fineGridResolution;
+    const float cell = 1.0f / static_cast<float>(N);
+
+    // Appearance key per cell index; cells sorted for scan-order determinism.
+    struct Cell { glm::ivec3 p; const TemplateFineVoxel* fv; };
+    std::vector<Cell> cells;
+    cells.reserve(tmpl.fineVoxels.size());
+    for (const auto& fv : tmpl.fineVoxels) cells.push_back({fv.pos, &fv});
+    std::sort(cells.begin(), cells.end(), [](const Cell& a, const Cell& b) {
+        return std::tie(a.p.x, a.p.y, a.p.z) < std::tie(b.p.x, b.p.y, b.p.z);
+    });
+
+    auto key = [](const glm::ivec3& p) -> int64_t {
+        return (int64_t(p.x) & 0xFFFFF) | ((int64_t(p.y) & 0xFFFFF) << 20)
+             | ((int64_t(p.z) & 0xFFFFF) << 40);
+    };
+    std::unordered_map<int64_t, const TemplateFineVoxel*> occ;
+    occ.reserve(cells.size() * 2);
+    for (const auto& c : cells) occ[key(c.p)] = c.fv;
+
+    auto same = [](const TemplateFineVoxel* a, const TemplateFineVoxel* b) {
+        return a && b && a->material == b->material && a->tint == b->tint
+            && a->state == b->state && a->partId == b->partId;
+    };
+    auto cubeOf = [N](int c) { return c >= 0 ? c / N : (c - N + 1) / N; };
+
+    std::unordered_set<int64_t> used;
+    used.reserve(cells.size() * 2);
+    std::vector<KinematicVoxel> out;
+
+    for (const auto& c : cells) {
+        if (used.count(key(c.p))) continue;
+        const TemplateFineVoxel* ref = c.fv;
+        glm::ivec3 base = c.p, span(1);
+
+        // Extend +X while the next cell matches, is unused, and stays in-cube.
+        while (true) {
+            glm::ivec3 n(base.x + span.x, base.y, base.z);
+            auto it = occ.find(key(n));
+            if (it == occ.end() || !same(it->second, ref) || used.count(key(n))
+                || cubeOf(n.x) != cubeOf(base.x)) break;
+            ++span.x;
+        }
+        // Extend +Y a full X-run at a time.
+        auto rowOk = [&](int y, int z) {
+            if (cubeOf(y) != cubeOf(base.y) || cubeOf(z) != cubeOf(base.z)) return false;
+            for (int x = 0; x < span.x; ++x) {
+                glm::ivec3 n(base.x + x, y, z);
+                auto it = occ.find(key(n));
+                if (it == occ.end() || !same(it->second, ref) || used.count(key(n)))
+                    return false;
+            }
+            return true;
+        };
+        while (rowOk(base.y + span.y, base.z)) ++span.y;
+        // Extend +Z a full XY-slab at a time.
+        auto slabOk = [&](int z) {
+            for (int y = 0; y < span.y; ++y)
+                if (!rowOk(base.y + y, z)) return false;
+            return true;
+        };
+        while (slabOk(base.z + span.z)) ++span.z;
+
+        for (int x = 0; x < span.x; ++x)
+            for (int y = 0; y < span.y; ++y)
+                for (int z = 0; z < span.z; ++z)
+                    used.insert(key(base + glm::ivec3(x, y, z)));
+
+        KinematicVoxel v;
+        v.scale    = glm::vec3(span) * cell;
+        v.localPos = glm::vec3(base) * cell + v.scale * 0.5f;
+        // Position within the parent cube [0,1) for sub-tile UV mapping.
+        v.parentFrac = glm::vec3(base.x % N, base.y % N, base.z % N) * cell;
+        v.materialName = ref->material;
+        v.tint = ref->tint;
+        out.push_back(v);
+    }
+    return out;
+}
+}  // namespace
+
 std::vector<KinematicVoxel> ItemPropManager::voxelsFromTemplate(const VoxelTemplate& tmpl) {
+    // Fine-grid templates hold ALL geometry in the fine tier (parse contract);
+    // greedy-merge it into arbitrary-scale boxes the renderer draws directly.
+    if (tmpl.isFineGrid()) return mergeFineVoxels(tmpl);
+
     std::vector<KinematicVoxel> voxels;
     voxels.reserve(tmpl.cubes.size() + tmpl.subcubes.size() + tmpl.microcubes.size());
 

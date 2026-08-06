@@ -66,10 +66,23 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
         parseLine(line, *tmpl);
     }
 
-    LOG_INFO_FMT("ObjectTemplateManager", "Loaded template: " << tmpl->name << " with " 
-                 << tmpl->cubes.size() << " cubes, " 
-                 << tmpl->subcubes.size() << " subcubes, " 
+    // Reject the WHOLE template on a format-contract violation (fine-grid
+    // rules) — a half-loaded file registering silently is exactly the class
+    // of bug the fine tier's parse contract exists to prevent.
+    if (tmpl->parseError) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "REJECTED template '" << tmpl->name
+                      << "': " << tmpl->parseErrorReason << " (" << filePath << ")");
+        return false;
+    }
+
+    LOG_INFO_FMT("ObjectTemplateManager", "Loaded template: " << tmpl->name << " with "
+                 << tmpl->cubes.size() << " cubes, "
+                 << tmpl->subcubes.size() << " subcubes, "
                  << tmpl->microcubes.size() << " microcubes, "
+                 << tmpl->fineVoxels.size() << " fine voxels"
+                 << (tmpl->isFineGrid()
+                         ? " (grid " + std::to_string(tmpl->fineGridResolution) + ", kinematic-only), "
+                         : ", ")
                  << tmpl->interactionPoints.size() << " interaction points, "
                  << tmpl->parts.size() << " parts");
 
@@ -104,6 +117,13 @@ int ObjectTemplateManager::templateFootprintRadius(const VoxelTemplate& t) {
     return std::max(overX, overZ);
 }
 
+bool ObjectTemplateManager::canBakeStatic(const VoxelTemplate& tmpl) {
+    // Fine-grid templates are kinematic-only: the chunk store bottoms out at
+    // the 9-per-cube micro grid, which cannot represent 1/27 or 1/81 cells.
+    // Refuse loudly — never silently downsample (spawn as a prop instead).
+    return !tmpl.isFineGrid();
+}
+
 float ObjectTemplateManager::getTemplateFacingYaw(const std::string& name) const {
     auto it = m_templates.find(name);
     if (it == m_templates.end()) return 0.0f;
@@ -113,8 +133,39 @@ float ObjectTemplateManager::getTemplateFacingYaw(const std::string& name) const
 void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tmpl) {
     if (line.empty()) return;
 
+    // Records a fine-grid format-contract violation; loadTemplate() rejects the
+    // whole file so a broken template can't half-load silently.
+    auto formatError = [&tmpl](const std::string& reason) {
+        if (!tmpl.parseError) {  // keep the FIRST violation as the reason
+            tmpl.parseError = true;
+            tmpl.parseErrorReason = reason;
+        }
+    };
+
     // Parse metadata headers
     if (line[0] == '#') {
+        // Fine-grid tier declaration: "# grid: N" (N = cells per cube edge,
+        // 27 or 81 — 9*3^k so every fine scale stays an exact multiple of the
+        // voxel ladder and of the kinematic culling lattice). Must precede all
+        // geometry; V lines are only legal after it; C/S/M become illegal.
+        const std::string gridKey = "# grid:";
+        if (line.compare(0, gridKey.size(), gridKey) == 0) {
+            int n = 0;
+            try { n = std::stoi(line.substr(gridKey.size())); } catch (...) {}
+            if (n != 27 && n != 81) {
+                // Invalid lattice: anything not 9*3^k would not divide 1/9 and
+                // would corrupt adjacency culling (span-rounding failure).
+                formatError("invalid # grid value " + std::to_string(n) +
+                            " (allowed: 27, 81)");
+            } else if (!tmpl.cubes.empty() || !tmpl.subcubes.empty() ||
+                       !tmpl.microcubes.empty() || !tmpl.fineVoxels.empty()) {
+                formatError("# grid must precede all geometry lines");
+            } else {
+                tmpl.fineGridResolution = n;
+            }
+            return;
+        }
+
         // Check for "# facing_yaw: X.XXX"
         const std::string facingKey = "# facing_yaw:";
         if (line.compare(0, facingKey.size(), facingKey) == 0) {
@@ -354,6 +405,15 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
     };
 
     uint32_t tint; uint8_t state;
+    if (type == 'C' || type == 'S' || type == 'M') {
+        // One lattice per file: legacy tiers are illegal once # grid declared
+        // (mixed lattices would break the exact-cell culling + merge contract).
+        if (tmpl.isFineGrid()) {
+            formatError(std::string("legacy '") + type +
+                        "' line in a fine-grid (# grid) template");
+            return;
+        }
+    }
     if (type == 'C') {
         int x, y, z;
         std::string mat;
@@ -372,6 +432,22 @@ void ObjectTemplateManager::parseLine(const std::string& line, VoxelTemplate& tm
         ss >> px >> py >> pz >> sx >> sy >> sz >> mx >> my >> mz >> mat;
         parseExtras(ss, tint, state);
         tmpl.addMicrocube({px, py, pz}, {sx, sy, sz}, {mx, my, mz}, mat, tint, state);
+    } else if (type == 'V') {
+        // Fine-grid voxel: "V x y z Material [tint=...] [state=...]" — integer
+        // min-corner cell coords on the declared # grid lattice (cells >= 0).
+        if (!tmpl.isFineGrid()) {
+            formatError("V line before # grid header (fine scale undefined)");
+            return;
+        }
+        int x, y, z;
+        std::string mat;
+        ss >> x >> y >> z >> mat;
+        if (ss.fail() || mat.empty()) {
+            formatError("malformed V line: " + line);
+            return;
+        }
+        parseExtras(ss, tint, state);
+        tmpl.addFineVoxel({x, y, z}, mat, tint, state);
     }
 }
 
@@ -504,6 +580,16 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {
         LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
+        return false;
+    }
+    if (!canBakeStatic(*tmpl)) {
+        // Fine-grid templates are kinematic-only. Both branches below walk the
+        // C/S/M tiers, so a fine template would place NOTHING — refuse loudly
+        // instead of silently spawning an empty object.
+        LOG_ERROR_FMT("ObjectTemplateManager", "Template '" << name
+                      << "' is fine-grid (# grid " << tmpl->fineGridResolution
+                      << ") and kinematic-only — spawn it as an item prop "
+                      << "(ItemPropManager / spawn_item), not via spawnTemplate");
         return false;
     }
 
@@ -813,6 +899,13 @@ bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const gl
         LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
         return false;
     }
+    if (!canBakeStatic(*tmpl)) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Template '" << name
+                      << "' is fine-grid and kinematic-only — the micro chunk bake "
+                      << "cannot represent 1/" << tmpl->fineGridResolution
+                      << " cells; spawn it as an item prop instead");
+        return false;
+    }
     if (!m_chunkManager) return false;
 
     const int rotSteps = ((rotation % 360) + 360) % 360 / 90;
@@ -891,6 +984,12 @@ void ObjectTemplateManager::spawnTemplateSequentially(const std::string& name, c
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {
         LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
+        return;
+    }
+    if (!canBakeStatic(*tmpl)) {
+        LOG_ERROR_FMT("ObjectTemplateManager", "Template '" << name
+                      << "' is fine-grid and kinematic-only — progressive spawn walks "
+                      << "C/S/M tiers and would place nothing; spawn as an item prop");
         return;
     }
 

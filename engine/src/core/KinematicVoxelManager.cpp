@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <climits>
 #include <cfloat>
+#include <numeric>
 #include <unordered_set>
 
 namespace Phyxel {
@@ -161,29 +162,55 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
     const std::vector<KinematicVoxel>& voxels,
     const KinematicSurface& surface)
 {
-    // Adjacency culling at MICRO resolution (1/9 cell — every voxel scale in the
-    // engine is an exact multiple of it). Each voxel stamps the micro cells it
-    // covers; a face is culled when EVERY micro cell across it is occupied. This
+    // Adjacency culling on a PER-OBJECT lattice. Each voxel stamps the cells it
+    // covers; a face is culled when EVERY cell across it is occupied. This
     // handles MIXED-scale sets — a felled tree is cubes + subcubes + micros, and
     // the old same-scale-only path culled NOTHING for those (6 faces per voxel,
     // e.g. 3910 wood voxels → 23460 faces → over the render cap → invisible).
-    constexpr float kMicro = 1.0f / 9.0f;
+    //
+    // The lattice is the GCD of every voxel extent in units of the engine's
+    // finest cell (1/81): cube = 81, subcube = 27, microcube = 9, fine-grid
+    // items 3 or 1. Legacy objects therefore resolve to the historical 1/9
+    // lattice (gcd(81,27,9) = 9) — behavior-identical and cheap — while
+    // fine-grid item objects resolve to their own grid cell, which the old
+    // hardcoded 1/9 lattice collapsed (distinct 1/27 voxels rounded onto one
+    // cell -> over- AND mis-culling). GCD rather than min-scale because a fine
+    // object whose thinnest box spans 2 cells may also hold 3-cell extents —
+    // there is no 2-cell lattice that stamps both exactly. Spans are per-axis:
+    // merged fine boxes are non-cubic, and the old scale.x-only span mis-
+    // stamped slabs. NOTE: the parse contract (no mixing V with C/S/M) is what
+    // keeps this cheap — a full cube in a 1/81-lattice object would stamp 81^3
+    // cells, but no such object can exist.
+    constexpr int kFinePerCube = 81;
+    int g = 0;
+    for (const auto& v : voxels) {
+        for (int a = 0; a < 3; ++a) {
+            const int units = std::max(1, static_cast<int>(std::round(v.scale[a] * kFinePerCube)));
+            g = g ? std::gcd(g, units) : units;
+        }
+    }
+    if (g <= 0) g = 9;
+    const float cell = static_cast<float>(g) / static_cast<float>(kFinePerCube);
+
     std::unordered_set<int64_t> occupied;
     auto posKey = [](glm::ivec3 p) -> int64_t {
         return (int64_t(p.x) & 0xFFFFF) | ((int64_t(p.y) & 0xFFFFF) << 20) | ((int64_t(p.z) & 0xFFFFF) << 40);
     };
-    auto microBase = [&](const KinematicVoxel& v) -> glm::ivec3 {
-        return glm::ivec3(glm::round((v.localPos - v.scale * 0.5f) / kMicro));
+    auto cellBase = [&](const KinematicVoxel& v) -> glm::ivec3 {
+        return glm::ivec3(glm::round((v.localPos - v.scale * 0.5f) / cell));
     };
-    auto microSpan = [](const KinematicVoxel& v) -> int {
-        return std::max(1, static_cast<int>(std::round(v.scale.x * 9.0f)));
+    auto cellSpan = [&](const KinematicVoxel& v) -> glm::ivec3 {
+        return glm::ivec3(
+            std::max(1, static_cast<int>(std::round(v.scale.x / cell))),
+            std::max(1, static_cast<int>(std::round(v.scale.y / cell))),
+            std::max(1, static_cast<int>(std::round(v.scale.z / cell))));
     };
     for (const auto& v : voxels) {
-        const glm::ivec3 base = microBase(v);
-        const int n = microSpan(v);
-        for (int x = 0; x < n; ++x)
-            for (int y = 0; y < n; ++y)
-                for (int z = 0; z < n; ++z)
+        const glm::ivec3 base = cellBase(v);
+        const glm::ivec3 n = cellSpan(v);
+        for (int x = 0; x < n.x; ++x)
+            for (int y = 0; y < n.y; ++y)
+                for (int z = 0; z < n.z; ++z)
                     occupied.insert(posKey(base + glm::ivec3(x, y, z)));
     }
 
@@ -209,27 +236,28 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
     // Which world axis each face's normal lies along (0=X,1=Y,2=Z).
     static const int faceNormalAxis[6] = {2, 2, 0, 0, 1, 1};
 
-    // A face is covered when the full n×n micro layer just outside it is occupied.
-    auto faceCovered = [&](const glm::ivec3& base, int n, uint32_t faceId) {
+    // A face is covered when the full in-plane cell layer just outside it is
+    // occupied (per-axis spans — merged fine boxes are non-cubic).
+    auto faceCovered = [&](const glm::ivec3& base, const glm::ivec3& n, uint32_t faceId) {
         const glm::ivec3 d = faceDir[faceId];
         glm::ivec3 start = base;
-        if (d.x > 0) start.x += n; else if (d.x < 0) start.x -= 1;
-        if (d.y > 0) start.y += n; else if (d.y < 0) start.y -= 1;
-        if (d.z > 0) start.z += n; else if (d.z < 0) start.z -= 1;
-        for (int a = 0; a < n; ++a)
-            for (int b = 0; b < n; ++b) {
+        if (d.x > 0) start.x += n.x; else if (d.x < 0) start.x -= 1;
+        if (d.y > 0) start.y += n.y; else if (d.y < 0) start.y -= 1;
+        if (d.z > 0) start.z += n.z; else if (d.z < 0) start.z -= 1;
+        const int axisA = (d.x != 0) ? 1 : 0;   // first in-plane axis
+        const int axisB = (d.z != 0) ? 1 : 2;   // second in-plane axis
+        for (int a = 0; a < n[axisA]; ++a)
+            for (int b = 0; b < n[axisB]; ++b) {
                 glm::ivec3 p = start;
-                if (d.x != 0)      { p.y += a; p.z += b; }
-                else if (d.y != 0) { p.x += a; p.z += b; }
-                else               { p.x += a; p.y += b; }
+                p[axisA] += a; p[axisB] += b;
                 if (!occupied.count(posKey(p))) return false;
             }
         return true;
     };
 
     for (const auto& v : voxels) {
-        const glm::ivec3 base = microBase(v);
-        const int n = microSpan(v);
+        const glm::ivec3 base = cellBase(v);
+        const glm::ivec3 n = cellSpan(v);
 
         for (uint32_t faceId = 0; faceId < 6; ++faceId) {
             if (faceCovered(base, n, faceId)) continue;
@@ -273,25 +301,27 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
                 f.textureIndex = surface.textureIndex;
             } else {
                 // Per-cube sub-tile texture mapping (matches static_voxel.vert).
-                float uvScale = v.scale.x;  // 1.0, 1/3, or 1/9
-                float maxFrac = 1.0f - uvScale;  // for flipping: e.g. 8/9 for microcubes
+                // Per-AXIS uv extents: cubic voxels (all legacy content) behave
+                // exactly as the old scalar path; non-cubic merged fine boxes
+                // get each face's true in-plane rectangle of the cube texture.
+                const glm::vec3 s = glm::min(v.scale, glm::vec3(1.0f));
+                const glm::vec3 mf = glm::vec3(1.0f) - s;  // per-axis flip pivot
 
                 glm::vec3 pf = v.parentFrac;
                 switch (faceId) {
                     case 0: // +Z (Front): U=X, V=flip(Y)
-                        f.uvOffset = glm::vec2(pf.x, maxFrac - pf.y); break;
+                        f.uvOffset = glm::vec2(pf.x, mf.y - pf.y);        f.uvScale = glm::vec2(s.x, s.y); break;
                     case 1: // -Z (Back): U=X, V=Y
-                        f.uvOffset = glm::vec2(pf.x, pf.y); break;
+                        f.uvOffset = glm::vec2(pf.x, pf.y);               f.uvScale = glm::vec2(s.x, s.y); break;
                     case 2: // +X (Right): U=flip(Z), V=flip(Y)
-                        f.uvOffset = glm::vec2(maxFrac - pf.z, maxFrac - pf.y); break;
+                        f.uvOffset = glm::vec2(mf.z - pf.z, mf.y - pf.y); f.uvScale = glm::vec2(s.z, s.y); break;
                     case 3: // -X (Left): U=Z, V=flip(Y)
-                        f.uvOffset = glm::vec2(pf.z, maxFrac - pf.y); break;
+                        f.uvOffset = glm::vec2(pf.z, mf.y - pf.y);        f.uvScale = glm::vec2(s.z, s.y); break;
                     case 4: // +Y (Top): U=flip(X), V=flip(Z)
-                        f.uvOffset = glm::vec2(maxFrac - pf.x, maxFrac - pf.z); break;
+                        f.uvOffset = glm::vec2(mf.x - pf.x, mf.z - pf.z); f.uvScale = glm::vec2(s.x, s.z); break;
                     case 5: // -Y (Bottom): U=X, V=flip(Z)
-                        f.uvOffset = glm::vec2(pf.x, maxFrac - pf.z); break;
+                        f.uvOffset = glm::vec2(pf.x, mf.z - pf.z);        f.uvScale = glm::vec2(s.x, s.z); break;
                 }
-                f.uvScale = glm::vec2(uvScale);
             }
 
             faces.push_back(f);

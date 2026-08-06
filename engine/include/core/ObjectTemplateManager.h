@@ -47,6 +47,13 @@ public:
     // Get a template by name
     const VoxelTemplate* getTemplate(const std::string& name) const;
 
+    /// True when the template may be baked into static chunk geometry.
+    /// Fine-grid templates (finer than microcube) are kinematic-only: the
+    /// chunk store's 9-per-cube micro grid cannot represent their cells, so
+    /// every static-bake entry point must consult this and refuse loudly
+    /// rather than silently downsampling.
+    static bool canBakeStatic(const VoxelTemplate& tmpl);
+
     // Get all loaded template names
     std::vector<std::string> getTemplateNames() const;
 

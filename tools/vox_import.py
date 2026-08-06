@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 """
-vox_import.py — Convert Barony-style .vox voxel models into Phyxel .voxel templates.
+vox_import.py — Convert .vox voxel models (MagicaVoxel or Barony) into Phyxel
+.voxel templates.
+
+TWO unrelated formats share the .vox extension; this tool auto-detects:
+
+MagicaVoxel (the CC0-asset-pack standard) is a RIFF container: 4-byte magic
+"VOX ", int32 version, then a MAIN chunk whose children include SIZE (model
+dims), XYZI (sparse voxels: x y z colorIndex), and RGBA (256-entry palette;
+color index i maps to RGBA entry i-1). Multi-model files carry several
+SIZE/XYZI pairs — pick one with --model. MagicaVoxel is Z-up (pointing UP).
 
 Barony (an open-source voxel roguelike) stores models in a dead-simple format:
   - 12-byte header: 3x int32  (width, height, depth)
   - then width*height*depth bytes, one palette index per voxel (0xFF = empty)
   - then a trailing 256-entry RGB palette (768 bytes, 6-bit VGA values 0..63)
 The shared models/palette.dat is only a grayscale fallback; real colors are
-per-model and live at the end of each .vox.
+per-model and live at the end of each .vox. Barony is Z-up pointing DOWN.
 
 This tool parses that grid, maps each palette color to the nearest Phyxel material
 (by materials.json colorTint), and emits a Phyxel .voxel template. By default each
@@ -25,14 +34,17 @@ Usage:
 Options:
   --palette PATH     palette.dat (default: alongside INPUT, or models/palette.dat)
   --materials PATH   Phyxel materials.json (default: resources/materials.json)
-  --scale {cube,sub,micro}  output primitive: micro (9/cube, default) keeps fine
-                     Barony detail; sub (3/cube); cube (1/cube).
-  --downsample N     merge N^3 source voxels per output cell (default 2). Barony art
-                     is ~16-18 voxels/"meter", so micro+downsample 2 (=18 src vox per
-                     Phyxel cube) lands a humanoid near the ~1.75-cube character. Use 1
-                     for full source resolution (4x larger).
-  --up {x,y,z}       which source axis is vertical/up -> Phyxel +Y (default: z).
-                     Barony is z-up-pointing-DOWN; the z branch flips it upright.
+  --scale {cube,sub,micro,fine}  output primitive: micro (9/cube) keeps fine
+                     Barony detail; fine emits the `# grid: N` + V-line format
+                     (finer than microcube — the item asset class; kinematic-only).
+  --grid N           fine mode only: cells per cube (27 or 81, default 81).
+  --downsample N     merge N^3 source voxels per output cell (default 2 for Barony,
+                     1 for MagicaVoxel). Barony art is ~16-18 voxels/"meter", so
+                     micro+downsample 2 lands a humanoid near the ~1.75-cube character.
+  --model N          MagicaVoxel multi-model files: which model to convert (default 0).
+  --up {x,y,z,z+}    which source axis is vertical -> Phyxel +Y. Default: z
+                     (z-up-DOWN, Barony) for Barony files, z+ (z-up-UP) for
+                     MagicaVoxel files.
   --name NAME        template name in metadata (default: input stem)
   --map A=Mat,...    force palette-index or hex-color overrides, e.g. 12=Wood,#ff0000=Bricks
   --only MATS        comma list: keep only these mapped materials (drop others)
@@ -101,7 +113,8 @@ def nearest_material(rgb, mat_table):
 
 
 def parse_vox(path, palette_override=None):
-    """Return (w, h, d, grid_bytes, palette[256] as 0..255 RGB).
+    """Barony flat format. Return (w, h, d, grid, palette[256] as 0..255 RGB)
+    where grid is a list of per-cell palette indices, -1 = empty.
 
     The real palette is the trailing 768 bytes of the file (6-bit VGA, 0..63),
     scaled up to 8-bit. palette_override (from palette.dat) is used only if asked.
@@ -112,9 +125,10 @@ def parse_vox(path, palette_override=None):
     if min(w, h, d) <= 0 or max(w, h, d) > 4096:
         raise ValueError(f"implausible dims {w}x{h}x{d} in {path}")
     need = w * h * d
-    grid = data[12:12 + need]
-    if len(grid) < need:
-        raise ValueError(f"{path}: {len(grid)} voxel bytes, expected {need}")
+    raw = data[12:12 + need]
+    if len(raw) < need:
+        raise ValueError(f"{path}: {len(raw)} voxel bytes, expected {need}")
+    grid = [(-1 if b == 0xFF else b) for b in raw]
     if palette_override is not None:
         palette = palette_override
     else:
@@ -127,6 +141,90 @@ def parse_vox(path, palette_override=None):
         else:
             raise ValueError(f"{path}: no embedded palette (tail {len(tail)}B); pass --palette")
     return w, h, d, grid, palette
+
+
+def magica_default_palette():
+    """The MagicaVoxel spec default palette (used when a file has no RGBA chunk).
+
+    Color indices 1..216 are a 6-level RGB cube (channels 255,204,153,102,51,0;
+    R fastest), 217..255 are 10-step pure R/G/B ramps plus a 9-step gray ramp —
+    this reproduces the default_palette table in ephtracy's .vox spec.
+    """
+    levels = [255, 204, 153, 102, 51, 0]
+    pal = [(0, 0, 0)]  # index 0: unused
+    for b in levels:
+        for g in levels:
+            for r in levels:
+                pal.append((r, g, b))
+    pal = pal[:217]
+    ramp = [238, 221, 187, 170, 136, 119, 85, 68, 34, 17]
+    for v in ramp:
+        pal.append((v, 0, 0))
+    for v in ramp:
+        pal.append((0, v, 0))
+    for v in ramp:
+        pal.append((0, 0, v))
+    for v in ramp[:9]:
+        pal.append((v, v, v))
+    assert len(pal) == 256
+    return pal
+
+
+def parse_magica(path, model_index=0):
+    """MagicaVoxel RIFF format. Return (w, h, d, grid, palette[256], n_models)
+    with the same grid convention as parse_vox: index x*h*d + y*d + z, -1 empty.
+
+    Walks MAIN's children collecting every SIZE/XYZI pair (multi-model files);
+    the scene graph (nTRN/nGRP/nSHP) is ignored — models are converted
+    individually via --model. RGBA entry j holds color index j+1 (spec quirk).
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:4] != b"VOX ":
+        raise ValueError(f"{path}: not a MagicaVoxel file")
+    pos = 8  # magic + version
+
+    models = []  # list of (dims, xyzi_bytes)
+    pending_size = None
+    palette = None
+
+    def walk(start, end):
+        nonlocal pending_size, palette
+        pos = start
+        while pos + 12 <= end:
+            cid = data[pos:pos + 4]
+            n_content, n_children = struct.unpack_from("<ii", data, pos + 4)
+            content = data[pos + 12: pos + 12 + n_content]
+            if cid == b"SIZE":
+                pending_size = struct.unpack_from("<iii", content, 0)
+            elif cid == b"XYZI":
+                if pending_size is None:
+                    raise ValueError(f"{path}: XYZI before SIZE")
+                models.append((pending_size, content))
+                pending_size = None
+            elif cid == b"RGBA":
+                palette = [(0, 0, 0)] + [
+                    (content[i * 4], content[i * 4 + 1], content[i * 4 + 2])
+                    for i in range(255)
+                ]
+            child_start = pos + 12 + n_content
+            walk(child_start, child_start + n_children)
+            pos = child_start + n_children
+
+    walk(8, len(data))
+    if not models:
+        raise ValueError(f"{path}: no SIZE/XYZI model chunks found")
+    if not (0 <= model_index < len(models)):
+        raise ValueError(f"{path}: --model {model_index} out of range "
+                         f"(file has {len(models)} models)")
+    (w, h, d), xyzi = models[model_index]
+    n = struct.unpack_from("<i", xyzi, 0)[0]
+    grid = [-1] * (w * h * d)
+    for i in range(n):
+        x, y, z, ci = xyzi[4 + i * 4: 8 + i * 4]
+        if x < w and y < h and z < d:
+            grid[x * h * d + y * d + z] = ci
+    return w, h, d, grid, (palette or magica_default_palette()), len(models)
 
 
 def remap_axes(x, y, z, dims, up):
@@ -143,6 +241,8 @@ def remap_axes(x, y, z, dims, up):
     """
     if up == "z":   # source +Z is vertical (Barony: pointing DOWN) -> rotate -90deg about X
         return x, -z, y, None
+    if up == "z+":  # source +Z is vertical pointing UP (MagicaVoxel) -> rotate +90deg about X
+        return x, z, -y, None
     if up == "y":   # source already Y-up -> identity
         return x, y, z, None
     if up == "x":   # source +X is vertical -> rotate +90deg about Z
@@ -162,7 +262,24 @@ def convert(args):
     else:
         mat_table = load_materials(args.materials,
                                   prefix="vox_" if args.matset == "vox" else None)
-    w, h, d, grid, palette = parse_vox(args.input, palette_override)
+
+    # Auto-detect format by magic; each has its own vertical convention and
+    # native scale, so unset options resolve per-format.
+    with open(args.input, "rb") as f:
+        is_magica = f.read(4) == b"VOX "
+    n_models = 1
+    if is_magica:
+        w, h, d, grid, palette, n_models = parse_magica(args.input, args.model)
+        if args.up is None:
+            args.up = "z+"     # MagicaVoxel: Z-up pointing UP
+        if args.downsample is None:
+            args.downsample = 1  # pack art is already at asset scale
+    else:
+        w, h, d, grid, palette = parse_vox(args.input, palette_override)
+        if args.up is None:
+            args.up = "z"      # Barony: Z-up pointing DOWN
+        if args.downsample is None:
+            args.downsample = 2
 
     # Build per-palette-index -> material, honoring overrides.
     index_override = {}   # palette index -> material
@@ -222,7 +339,7 @@ def convert(args):
                 for y in range(h):
                     for z in range(d):
                         pidx = grid[x * h * d + y * d + z]
-                        if pidx == 0xFF or idx_to_state[pidx] in COMBUSTION_STATES:
+                        if pidx < 0 or idx_to_state[pidx] in COMBUSTION_STATES:
                             continue
                         substance[idx_to_mat[pidx]] += 1
             if substance:
@@ -239,7 +356,7 @@ def convert(args):
         for y in range(h):
             for z in range(d):
                 pidx = grid[x * h * d + y * d + z]
-                if pidx == 0xFF:
+                if pidx < 0:
                     continue
                 mat = idx_to_mat[pidx]
                 if keep and mat not in keep:
@@ -270,8 +387,9 @@ def convert(args):
     else:
         cells = raw
 
-    # Emit at the chosen primitive resolution (cube=1, sub=3, micro=9 cells/cube).
-    res = {"cube": 1, "sub": 3, "micro": 9}[args.scale]
+    # Emit at the chosen primitive resolution (cube=1, sub=3, micro=9 cells/cube;
+    # fine = the `# grid: N` V-line item format, N cells/cube, kinematic-only).
+    res = {"cube": 1, "sub": 3, "micro": 9, "fine": args.grid}[args.scale]
 
     def appearance(m, t, s):
         out = m
@@ -282,7 +400,9 @@ def convert(args):
     lines = []
     for (x, y, z, m, t, s) in sorted(cells, key=lambda c: (c[0], c[1], c[2])):
         cx, cy, cz = x // res, y // res, z // res
-        if res == 1:
+        if args.scale == "fine":
+            lines.append(f"V {x} {y} {z} {appearance(m, t, s)}")
+        elif res == 1:
             lines.append(f"C {cx} {cy} {cz}  {appearance(m, t, s)}")
         elif res == 3:
             lines.append(f"S {cx} {cy} {cz}  {x % 3} {y % 3} {z % 3}  {appearance(m, t, s)}")
@@ -298,19 +418,25 @@ def convert(args):
 
     name = args.name or os.path.splitext(os.path.basename(args.input))[0]
     mats_used = sorted({c[3] for c in cells})
+    src_kind = "MagicaVoxel" if is_magica else "Barony"
+    prim_kind = ("V" if args.scale == "fine" else
+                 "C" if res == 1 else "S" if res == 3 else "M")
     header = [
         "# ==========================================================",
         "# ASSET METADATA",
         f"# name:         {name}",
-        f"# description:  Imported from Barony .vox ({os.path.basename(args.input)})",
+        f"# description:  Imported from {src_kind} .vox ({os.path.basename(args.input)})",
         "# category:     imported",
         f"# materials:    {', '.join(mats_used)}",
         f"# bounds:       {bx}W x {by}H x {bz}D cubes  (scale={args.scale}, up={args.up})",
-        f"# primitives:   {len(lines)} {'C' if res == 1 else 'S' if res == 3 else 'M'} (downsample={f})",
-        "# author:       vox_import.py (source asset (c) Turning Wheel LLC — local use only)",
+        f"# primitives:   {len(lines)} {prim_kind} (downsample={f})",
+        f"# author:       vox_import.py"
+        + ("" if is_magica else " (source asset (c) Turning Wheel LLC — local use only)"),
         "# ==========================================================",
-        "",
     ]
+    if args.scale == "fine":
+        header.append(f"# grid: {args.grid}")
+    header.append("")
     out = "\n".join(header + lines) + "\n"
 
     if args.report:
@@ -340,12 +466,20 @@ def main():
     ap.add_argument("--matset", choices=["vox", "all"], default="vox",
                     help="(palette mode only) vox = map to flat vox_* palette; "
                          "all = nearest among every material incl. textured")
-    ap.add_argument("--scale", choices=["cube", "sub", "micro"], default="micro",
-                    help="output primitive: cube (1/cube), sub (3/cube), micro (9/cube, default)")
-    ap.add_argument("--downsample", type=int, default=2,
-                    help="merge N^3 source voxels per output cell (default 2; "
-                         "micro+2 ~= Barony scale). Use 1 for full source resolution.")
-    ap.add_argument("--up", choices=["x", "y", "z"], default="z")
+    ap.add_argument("--scale", choices=["cube", "sub", "micro", "fine"], default="micro",
+                    help="output primitive: cube (1/cube), sub (3/cube), micro (9/cube, "
+                         "default), fine (V lines on a # grid lattice — item class, "
+                         "kinematic-only)")
+    ap.add_argument("--grid", type=int, default=81, choices=[27, 81],
+                    help="fine mode: cells per cube (default 81, ~1.23 cm/cell)")
+    ap.add_argument("--downsample", type=int, default=None,
+                    help="merge N^3 source voxels per output cell (default: 2 for "
+                         "Barony, 1 for MagicaVoxel). Use 1 for full source resolution.")
+    ap.add_argument("--model", type=int, default=0,
+                    help="MagicaVoxel multi-model files: model index (default 0)")
+    ap.add_argument("--up", choices=["x", "y", "z", "z+"], default=None,
+                    help="source vertical axis (default: z for Barony [z-up-DOWN], "
+                         "z+ for MagicaVoxel [z-up-UP])")
     ap.add_argument("--name")
     ap.add_argument("--map")
     ap.add_argument("--state-map", dest="state_map",

@@ -2,13 +2,29 @@
 
 This guide explains how to convert 3D models and animations into formats supported by the Phyxel engine.
 
+## 0. Items & Small Props — the Fine-Voxel Class (preferred for handheld detail)
+
+Weapons, tools, books, and small props use the **fine-voxel item format** (`# grid: 81` +
+`V x y z Material [tint=]` lines, 1 cell ≈ 1.23 cm, kinematic-only) — see
+[`FineVoxelItems.md`](FineVoxelItems.md). Author them with:
+
+*   **`tools/gen_items.py`** — the deterministic item library generator (18 assets:
+    swords, axes, spear, mace, maul, warhammer, school staffs, wand, tome, scroll,
+    candlestick, potion). Writes templates, `items_manifest.json` (grip points for
+    `items.json`), and registers `template_catalog.json`.
+*   **`tools/vox_import.py`** — imports `.vox` files. **Auto-detects MagicaVoxel RIFF**
+    (the CC0 asset-pack standard) and Barony's flat format; `--scale fine --grid 81`
+    emits the fine item format with per-voxel `tint=`; `--scale micro` (default) emits
+    legacy C/S/M. `--model N` selects within multi-model MagicaVoxel files.
+
 ## 1. Static Mesh Import (Voxel Templates)
 
 The engine uses a custom voxel template format (`.voxel`) to define static objects and physics props. The asset pipeline includes tools to convert standard 3D formats (`.obj`, `.bbmodel`) into these templates.
 
 ### Supported Formats
-*   **Wavefront OBJ (`.obj`)**: Standard 3D mesh format.
+*   **Wavefront OBJ (`.obj`)**: Standard 3D mesh format (trimesh also loads `.glb`/`.gltf`/`.stl`/`.ply` through the same tool).
 *   **Blockbench (`.bbmodel`)**: Native format for Blockbench, popular for voxel art.
+*   **MagicaVoxel / Barony (`.vox`)**: via `tools/vox_import.py` (see §0).
 
 ### Tools
 

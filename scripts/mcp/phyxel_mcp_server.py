@@ -6809,11 +6809,37 @@ async def _inspect_template(args: dict) -> list:
                 elif s.startswith("M "):
                     meta.setdefault("primitive_counts", {}).setdefault("microcubes", 0)
                     meta["primitive_counts"]["microcubes"] += 1
+                elif s.startswith("V "):
+                    meta.setdefault("primitive_counts", {}).setdefault("fine_voxels", 0)
+                    meta["primitive_counts"]["fine_voxels"] += 1
+                elif s.startswith("# grid:"):
+                    try:
+                        meta["fine_grid"] = int(s.split(":", 1)[1].strip())
+                    except ValueError:
+                        pass
+
+    # Fine-grid tier (`# grid: N` + V lines) may be missed by the blocksmith
+    # parser — recount directly so a fine template never reads as empty.
+    if abs_voxel.exists() and "fine_voxels" not in meta.get("primitive_counts", {}):
+        _fine = 0
+        for line in abs_voxel.read_text().splitlines():
+            s = line.strip()
+            if s.startswith("V "):
+                _fine += 1
+            elif s.startswith("# grid:"):
+                try:
+                    meta["fine_grid"] = int(s.split(":", 1)[1].strip())
+                except ValueError:
+                    pass
+        if _fine:
+            meta.setdefault("primitive_counts", {})["fine_voxels"] = _fine
 
     counts = meta.get("primitive_counts", {})
     cubes      = counts.get("cubes", 0)
     subcubes   = counts.get("subcubes", 0)
     microcubes = counts.get("microcubes", 0)
+    fine_voxels = counts.get("fine_voxels", 0)
+    fine_grid  = meta.get("fine_grid")
     bounds     = meta.get("bounds", {})
     facing_yaw = meta.get("facing_yaw", None)
     ipoints    = meta.get("interaction_points", [])
@@ -6822,6 +6848,14 @@ async def _inspect_template(args: dict) -> list:
         f"Template: {abs_voxel.name}",
         f"Primitives: {cubes}C + {subcubes}S + {microcubes}M = {cubes + subcubes + microcubes} total",
     ]
+    if fine_voxels:
+        summary_lines[-1] = (
+            f"Primitives: {cubes}C + {subcubes}S + {microcubes}M + {fine_voxels}V "
+            f"= {cubes + subcubes + microcubes + fine_voxels} total"
+        )
+    if fine_grid:
+        summary_lines.append(
+            f"Fine grid: {fine_grid} cells/cube (1 cell = {1.0/fine_grid:.4f} u) — kinematic-only")
     if bounds:
         summary_lines.append(f"Bounds: {bounds.get('w',0)}W × {bounds.get('h',0)}H × {bounds.get('d',0)}D cubes")
     if facing_yaw is not None:

@@ -509,6 +509,42 @@
       "resolution": 1024
     },
     {
+      "name": "Steel",
+      "category": "material",
+      "description": "Polished bright steel — blades and weapon heads (fine-voxel item class; Metal's albedo is too dark for a sword to read as steel)",
+      "physics": {
+        "mass": 4.0,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.05,
+        "angularDamping": 0.1,
+        "breakForceMultiplier": 1.5,
+        "bondStrength": 0.95,
+        "angularVelocityScale": 0.6,
+        "colorTint": [
+          0.84,
+          0.86,
+          0.9
+        ],
+        "metallic": 0.85,
+        "roughness": 0.35
+      },
+      "break": {
+        "toughness": 220.0,
+        "brittleS1": 4.5,
+        "brittleS2": 11.0,
+        "absorption": 1.2
+      },
+      "textures": {
+        "top": "steel.png",
+        "bottom": "steel.png",
+        "side_n": "steel.png",
+        "side_s": "steel.png",
+        "side_e": "steel.png",
+        "side_w": "steel.png"
+      }
+    },
+    {
       "name": "Gold",
       "category": "material",
       "description": "Dense gold block with high metallic luster",

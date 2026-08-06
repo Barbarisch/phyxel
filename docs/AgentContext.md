@@ -1503,10 +1503,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   things (weapons, torches, cups) with a three-state lifecycle: WORLD PROP ⇄ INVENTORY ⇄ HELD.
   - **Data:** `ItemDefinition` gains `holdable` + `held{gripBone, gripOffset, gripEulerDeg,
     scale, light{color,intensity,radius}}` (items.json-authored grip — tune by edit+restart).
-    Item models are **microcube templates** (`weapons/sword_fine.voxel`, `items/torch.voxel`) —
-    full-cube templates scaled down look like bricks; the user requires skinny item geometry.
-    NOTE: `KinematicVoxel.scale` is an arbitrary vec3, so a finer-than-microcube item voxel
-    class later is only a template-format extension (props never bake into chunks).
+    Item models: **the fine-voxel item class SHIPPED 2026-08-06**
+    ([`docs/FineVoxelItems.md`](FineVoxelItems.md)) — `# grid: 81` + `V x y z Mat [tint=]`
+    templates (1 cell ≈ 1.23 cm, 3× finer than microcube/axis; kinematic-only, loader
+    greedy-merges cells → arbitrary-scale boxes, culler lattice = per-object GCD). The
+    old "finer class is only a template-format extension" note came TRUE. 18-asset library
+    via `tools/gen_items.py` (+ grip manifest → items.json); CC0 MagicaVoxel packs via
+    `vox_import.py --scale fine`. Legacy microcube items (`sword_fine.voxel`) still load;
+    iron_sword/iron_axe now point at the fine models. ⚠️ steel tints near-white (tint ×
+    dark Metal albedo); ⚠️ fine templates REFUSED by static bake — spawn via `spawn_item`.
   - **World props:** `Core::ItemPropManager` — spawn from item def via kinematic voxel group
     (NEVER chunk-baked), registered as category="item" PlacedObject (metadata.itemId) with a
     synthetic "pickup" interaction point; `PlacedObjectManager::registerItemProp` +

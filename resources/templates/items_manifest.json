@@ -1,0 +1,252 @@
+{
+  "axe_battle": {
+    "cells": 1438,
+    "dims_units": [
+      0.4321,
+      1.4444,
+      0.037
+    ],
+    "file": "weapons/axe_battle.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.216,
+      0.1543,
+      0.0185
+    ]
+  },
+  "axe_hand": {
+    "cells": 492,
+    "dims_units": [
+      0.2099,
+      0.5926,
+      0.037
+    ],
+    "file": "weapons/axe_hand.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0309,
+      0.0926,
+      0.0185
+    ]
+  },
+  "candlestick": {
+    "cells": 146,
+    "dims_units": [
+      0.1358,
+      0.2099,
+      0.1111
+    ],
+    "file": "items/candlestick.voxel",
+    "grid": 81
+  },
+  "dagger": {
+    "cells": 234,
+    "dims_units": [
+      0.1111,
+      0.4198,
+      0.037
+    ],
+    "file": "weapons/dagger.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0556,
+      0.0679,
+      0.0185
+    ]
+  },
+  "mace": {
+    "cells": 536,
+    "dims_units": [
+      0.1852,
+      0.7284,
+      0.1852
+    ],
+    "file": "weapons/mace.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0926,
+      0.1049,
+      0.0926
+    ]
+  },
+  "maul": {
+    "cells": 4102,
+    "dims_units": [
+      0.3086,
+      1.3457,
+      0.1358
+    ],
+    "file": "weapons/maul.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1543,
+      0.179,
+      0.0679
+    ]
+  },
+  "potion": {
+    "cells": 134,
+    "dims_units": [
+      0.0864,
+      0.1235,
+      0.0864
+    ],
+    "file": "items/potion.voxel",
+    "grid": 81
+  },
+  "scroll": {
+    "cells": 254,
+    "dims_units": [
+      0.2716,
+      0.0617,
+      0.0617
+    ],
+    "file": "items/scroll.voxel",
+    "grid": 81
+  },
+  "spear": {
+    "cells": 637,
+    "dims_units": [
+      0.0864,
+      1.9136,
+      0.0247
+    ],
+    "file": "weapons/spear.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0432,
+      0.8704,
+      0.0062
+    ]
+  },
+  "staff_arcane": {
+    "cells": 589,
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
+    "file": "weapons/staff_arcane.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ]
+  },
+  "staff_fire": {
+    "cells": 589,
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
+    "file": "weapons/staff_fire.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ]
+  },
+  "staff_frost": {
+    "cells": 589,
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
+    "file": "weapons/staff_frost.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ]
+  },
+  "staff_nature": {
+    "cells": 589,
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
+    "file": "weapons/staff_nature.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ]
+  },
+  "sword_long": {
+    "cells": 931,
+    "dims_units": [
+      0.2099,
+      1.2222,
+      0.0617
+    ],
+    "file": "weapons/sword_long.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1049,
+      0.1173,
+      0.0309
+    ]
+  },
+  "sword_short": {
+    "cells": 567,
+    "dims_units": [
+      0.1605,
+      0.7531,
+      0.0617
+    ],
+    "file": "weapons/sword_short.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0802,
+      0.0926,
+      0.0309
+    ]
+  },
+  "tome": {
+    "cells": 2530,
+    "dims_units": [
+      0.2346,
+      0.0741,
+      0.2963
+    ],
+    "file": "items/tome.voxel",
+    "grid": 81
+  },
+  "wand": {
+    "cells": 52,
+    "dims_units": [
+      0.0247,
+      0.3457,
+      0.0247
+    ],
+    "file": "weapons/wand.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0062,
+      0.0556,
+      0.0062
+    ]
+  },
+  "warhammer": {
+    "cells": 1239,
+    "dims_units": [
+      0.2716,
+      0.716,
+      0.0864
+    ],
+    "file": "weapons/warhammer.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.142,
+      0.1173,
+      0.0432
+    ]
+  }
+}

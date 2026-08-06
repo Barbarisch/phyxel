@@ -406,17 +406,20 @@ Multi-scene game definitions use a `"scenes"` array instead of a top-level `"wor
 
 Files in `resources/templates/` — spawnable via **T** (static) / **Shift+T** (dynamic physics) or MCP `spawn_template`.
 
-> **HARD RULE — detail assets use sub-voxel resolution, NEVER full cubes.** The engine has
-> three voxel sizes: cube (1 unit), subcube (1/3), microcube (1/9). Full cubes are for coarse
-> mass only. **Any small/detailed object — especially a handtool held in the fist (axe, sword,
-> pickaxe, dagger…) — MUST be authored in microcubes** (`M px py pz sx sy sz mx my mz Mat`),
-> skinny (≈1 microcube thick), sized at true scale so the item's `held.scale` is ~1.0. The
-> canonical example is `resources/templates/weapons/sword_fine.voxel`; copy its convention.
+> **HARD RULE — detail assets use sub-voxel resolution, NEVER full cubes.** Chunk voxels
+> come in three sizes: cube (1 unit), subcube (1/3), microcube (1/9); full cubes are for
+> coarse mass only. **Items (weapons/tools/small props) now have a FINER tier — the
+> fine-voxel item class (SHIPPED 2026-08-06, [`docs/FineVoxelItems.md`](docs/FineVoxelItems.md)):**
+> `# grid: 81` + `V x y z Mat [tint=]` lines (1 cell ≈ 1.23 cm, kinematic-only, loader
+> greedy-merges to arbitrary-scale boxes — detail is nearly free). **Author new items with
+> `tools/gen_items.py`** (18-asset library: swords/axes/spear/mace/maul/warhammer/staffs/
+> wand/tome/scroll/candlestick/potion + grip manifest for items.json), or import CC0
+> MagicaVoxel packs via `tools/vox_import.py --scale fine`. Items are sized at TRUE scale
+> (`held.scale` ~1.0). Fine templates never static-bake (refused loudly — spawn via
+> `spawn_item`). ⚠️ Steel tints run near-white — tint multiplies dark Metal albedo.
 > A handtool built from `C` (full-cube) lines is a **defect** — it renders as an oversized
-> blocky plank in the hand. **Verify every new/edited asset visually** (spawn it, screenshot
-> in-hand at scale) before calling it done — a full-cube-only detail asset must never ship.
-> (The crude `axe.voxel`/`pickaxe.voxel`/`sword.voxel` are the anti-pattern; `sword_fine.voxel`
-> and the remodeled `axe.voxel` are the pattern.)
+> blocky plank in the hand (`lint_voxel_detail.py` enforces). **Verify every new/edited
+> asset visually** (spawn it, screenshot in-hand at scale) before calling it done.
 
 ### BlockSmith AI Model Generation
 

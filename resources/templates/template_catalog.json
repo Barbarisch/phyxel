@@ -1,910 +1,58 @@
 {
-  "simple_table": {
-    "display_name": "Simple Table",
-    "description": "A simple wooden dining table.",
-    "prompt": "a simple wooden dining table",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 0,
-    "microcubes": 263,
-    "total": 263,
-    "cost": null,
-    "created": "2026-04-01T02:28:52.486557+00:00",
-    "category": "furniture",
-    "subcategory": "table",
-    "tags": [
-      "table",
-      "dining",
-      "tavern",
-      "house",
-      "common"
-    ]
-  },
-  "tavern_table": {
-    "display_name": "Tavern Table",
-    "description": "A small rectangular wooden tavern table with four legs.",
-    "prompt": "a small rectangular wooden tavern table with four legs",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 0,
-    "microcubes": 159,
-    "total": 159,
-    "cost": null,
-    "created": "2026-04-01T02:38:53.256860+00:00",
-    "category": "furniture",
-    "subcategory": "table",
-    "tags": [
-      "table",
-      "tavern",
-      "common"
-    ]
-  },
-  "tavern_bar": {
-    "display_name": "Tavern Bar Counter",
-    "description": "A long wooden bar counter, rectangular and waist height.",
-    "prompt": "a long wooden bar counter for a tavern, rectangular and waist height",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "size": 4.0,
-    "cubes": 3,
-    "subcubes": 18,
-    "microcubes": 1562,
-    "total": 1583,
-    "cost": null,
-    "created": "2026-04-01T02:39:18.642804+00:00",
-    "category": "furniture",
-    "subcategory": "counter",
-    "tags": [
-      "bar",
-      "counter",
-      "tavern"
-    ]
-  },
-  "test_chair": {
-    "display_name": "Wooden Chair",
-    "description": "A simple wooden chair with a sit interaction point.",
-    "prompt": "a simple wooden chair",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "size": 1.2,
-    "category": "furniture",
-    "subcategory": "seating",
-    "tags": [
-      "chair",
-      "seat",
-      "house",
-      "tavern",
-      "common"
-    ],
-    "interactions": [
-      {
-        "id": "seat_0",
-        "type": "seat",
-        "local_offset": {
-          "x": 0.33,
-          "y": 0.42,
-          "z": 0.33
-        },
-        "facing_yaw": 0.0,
-        "approach_offset": {
-          "x": 0.33,
-          "y": 0.0,
-          "z": -0.7
-        }
-      }
-    ]
-  },
-  "wooden_throne": {
-    "display_name": "Wooden Throne",
-    "description": "Medieval king's wooden throne with a tall backrest, side armrests, and a gold crown cap. Hand-authored.",
-    "prompt": "a wooden throne for a medieval king",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 3 rounds)",
-    "material": "Wood",
-    "materials": [
-      "Wood",
-      "Gold"
-    ],
-    "size": 3.0,
-    "cubes": 0,
-    "subcubes": 187,
-    "microcubes": 0,
-    "total": 187,
-    "cost": null,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "seating",
-    "tags": [
-      "throne",
-      "seat",
-      "royalty",
-      "medieval",
-      "castle",
-      "palace",
-      "king"
-    ],
-    "facing": "+Z",
+  "altar": {
     "bounds": {
-      "w": 4,
-      "h": 4,
-      "d": 2
-    },
-    "seat_height": 0.667,
-    "version": 3
-  },
-  "bed_single": {
-    "display_name": "Single Bed",
-    "description": "A medieval single bed with wooden frame, mattress, and pillow. Headboard at back (+Z), footboard at front.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Sand"
-    ],
-    "cubes": 0,
-    "subcubes": 47,
-    "microcubes": 0,
-    "total": 47,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "bed",
-    "tags": [
-      "bed",
-      "sleep",
-      "rest",
-      "bedroom",
-      "inn",
-      "house",
-      "common"
-    ],
-    "facing": "+Z (foot of bed faces viewer)",
-    "bounds": {
-      "w": 1,
+      "d": 1,
       "h": 2,
-      "d": 2
+      "w": 1
     },
-    "seat_height": 0.667,
-    "version": 1
-  },
-  "chest_closed": {
-    "display_name": "Chest (Closed)",
-    "description": "A wooden storage chest with metal clasp, lid closed. Clasp faces front (+Z).",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 0,
-    "subcubes": 26,
-    "microcubes": 0,
-    "total": 26,
-    "created": "2026-05-16T00:00:00.000000+00:00",
     "category": "furniture",
-    "subcategory": "container",
-    "tags": [
-      "chest",
-      "loot",
-      "storage",
-      "dungeon",
-      "house",
-      "treasure",
-      "common"
-    ],
-    "facing": "+Z (clasp faces viewer)",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "barrel": {
-    "display_name": "Wooden Barrel",
-    "description": "A wooden storage barrel with a metal hoop band at the belly. Rounded silhouette via cross-shaped top/bottom caps.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 3 rounds)",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 0,
-    "subcubes": 19,
-    "microcubes": 0,
-    "total": 19,
     "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "container",
-    "tags": [
-      "barrel",
-      "storage",
-      "tavern",
-      "cellar",
-      "dungeon",
-      "house",
-      "common"
-    ],
+    "cubes": 0,
+    "description": "A stone altar with a wide base, four corner uprights, a flat top surface, and a glowing offering above.",
+    "display_name": "Stone Altar",
     "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 3
-  },
-  "crate_wood": {
-    "display_name": "Wooden Crate",
-    "description": "A solid wooden shipping crate. Wood plank texture reads as slatted sides.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 1,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 1,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "container",
-    "tags": [
-      "crate",
-      "box",
-      "storage",
-      "shipping",
-      "dungeon",
-      "warehouse",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "campfire": {
-    "display_name": "Campfire",
-    "description": "A campfire with a stone ring, crossed logs, and glowing embers with rising flame.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Stone",
-      "Wood",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 11,
-    "microcubes": 0,
-    "total": 11,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "environment",
-    "subcategory": "light_source",
-    "tags": [
-      "campfire",
-      "fire",
-      "light",
-      "rest",
-      "wilderness",
-      "camp",
-      "outdoor"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "bench_wood": {
-    "display_name": "Wooden Bench",
-    "description": "A simple wooden bench, 2 cubes wide with no backrest and four corner legs.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 26,
-    "microcubes": 0,
-    "total": 26,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "seating",
-    "tags": [
-      "bench",
-      "seat",
-      "tavern",
-      "park",
-      "house",
-      "inn",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 2,
-      "h": 1,
-      "d": 1
-    },
-    "seat_height": 0.667,
-    "version": 1
-  },
-  "bookshelf": {
-    "display_name": "Bookshelf",
-    "description": "A tall wooden bookshelf, 2 cubes high, with three rows of books visible from the front.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Bricks",
-      "Sand"
-    ],
-    "cubes": 0,
-    "subcubes": 45,
-    "microcubes": 0,
-    "total": 45,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "storage",
-    "tags": [
-      "bookshelf",
-      "books",
-      "library",
-      "study",
-      "house",
-      "inn",
-      "common"
-    ],
-    "facing": "+Z (spine of books faces viewer)",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "fireplace": {
-    "display_name": "Stone Fireplace",
-    "description": "A stone fireplace with two pillars, a stone mantelpiece, hearth floor, and glowing fire inside.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
     "materials": [
       "Stone",
       "glow"
     ],
-    "cubes": 5,
-    "subcubes": 19,
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 24,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "hearth",
+    "model": "claude-sonnet-4-6",
+    "subcategory": "ritual",
+    "subcubes": 23,
     "tags": [
-      "fireplace",
-      "fire",
-      "heat",
-      "light",
+      "altar",
       "stone",
-      "castle",
-      "inn",
-      "house",
-      "tavern"
-    ],
-    "facing": "+Z (opening faces viewer)",
-    "bounds": {
-      "w": 3,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "workbench": {
-    "display_name": "Workbench",
-    "description": "A sturdy wooden workbench with a metal vise at the front corner and a lower center shelf.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 0,
-    "subcubes": 18,
-    "microcubes": 0,
-    "total": 18,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "work_surface",
-    "tags": [
-      "workbench",
-      "crafting",
-      "tools",
-      "workshop",
-      "blacksmith",
-      "carpenter",
-      "house"
-    ],
-    "facing": "+Z (front face with vise faces viewer)",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "candle_holder": {
-    "display_name": "Candle Holder",
-    "description": "A metal candle holder with a cross-shaped base, a sand candle, and a glowing flame.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Metal",
-      "Sand",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 7,
-    "microcubes": 0,
-    "total": 7,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "light_source",
-    "tags": [
-      "candle",
-      "light",
-      "holder",
-      "decoration",
+      "temple",
+      "church",
       "dungeon",
-      "house",
-      "inn",
-      "tavern",
-      "common"
+      "ritual",
+      "magic",
+      "rpg"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tavern_test": {
-    "display_name": "Tavern Building",
-    "description": "A medieval stone-walled tavern, 14\u00d718 footprint, 1 story with wood floor and roof.",
-    "prompt": "a medieval tavern building",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Stone",
-    "materials": [
-      "Stone",
-      "Wood"
-    ],
-    "size": 18.0,
-    "cubes": 1168,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 1168,
-    "cost": null,
-    "created": "2026-04-01T15:36:35.268770+00:00",
-    "category": "building",
-    "subcategory": "tavern",
-    "tags": [
-      "building",
-      "tavern",
-      "inn",
-      "medieval",
-      "exterior"
-    ],
-    "building": {
-      "type": "tavern",
-      "style": "medieval",
-      "width": 14,
-      "depth": 18,
-      "height": 5,
-      "stories": 1,
-      "door_facing": "front",
-      "windows": 2
-    }
-  },
-  "shrub_round": {
-    "display_name": "Round Shrub",
-    "description": "A round leafy shrub, low to the ground, roughly spherical foliage with a short trunk.",
-    "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Wood"
-    ],
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 62,
-    "microcubes": 877,
-    "total": 939,
-    "cost": null,
-    "created": "2026-04-13T19:36:04.630473+00:00",
-    "category": "nature",
-    "subcategory": "vegetation",
-    "tags": [
-      "shrub",
-      "bush",
-      "nature",
-      "exterior",
-      "garden"
-    ]
-  },
-  "shrub_flat": {
-    "display_name": "Flat Shrub",
-    "description": "A small dense bush, low and wide, flat-topped with thick leafy foliage.",
-    "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
-    "model": "anthropic/claude-sonnet-4-20250514",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Wood"
-    ],
-    "size": 2.0,
-    "cubes": 0,
-    "subcubes": 25,
-    "microcubes": 583,
-    "total": 608,
-    "cost": null,
-    "created": "2026-04-13T19:36:22.429693+00:00",
-    "category": "nature",
-    "subcategory": "vegetation",
-    "tags": [
-      "shrub",
-      "bush",
-      "nature",
-      "exterior",
-      "garden"
-    ]
-  },
-  "tree_pine": {
-    "display_name": "Pine Tree",
-    "description": "A three-cube-tall pine tree with a Log trunk and three narrowing tiers of Leaf branches forming a triangular silhouette.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Log",
-      "Leaf"
-    ],
-    "cubes": 0,
-    "subcubes": 27,
-    "microcubes": 0,
-    "total": 27,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "pine",
-      "evergreen",
-      "nature",
-      "exterior",
-      "forest",
-      "christmas"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 3,
-      "d": 1
-    },
-    "version": 1
-  },
-  "door_wood": {
-    "display_name": "Wooden Door",
-    "description": "A standard single wooden door, 1 wide \u00d7 2 tall. Hinge at X=0.",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 2,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 2,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "architecture",
-    "subcategory": "door",
-    "tags": [
-      "door",
-      "wood",
-      "entrance",
-      "interior",
-      "exterior",
-      "common"
-    ],
-    "facing": "+X (door swings along X)",
-    "interactions": [
-      {
-        "id": "handle_0",
-        "type": "door_handle",
-        "local_offset": {
-          "x": 0.5,
-          "y": 1.0,
-          "z": 1.0
-        },
-        "swing_yaw": 90.0
-      }
-    ]
-  },
-  "door_metal": {
-    "display_name": "Metal Door",
-    "description": "A single metal door, 1 wide \u00d7 2 tall. Hinge at X=0.",
-    "material": "Metal",
-    "materials": [
-      "Metal"
-    ],
-    "cubes": 2,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 2,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "architecture",
-    "subcategory": "door",
-    "tags": [
-      "door",
-      "metal",
-      "dungeon",
-      "castle",
-      "entrance"
-    ],
-    "facing": "+X (door swings along X)",
-    "interactions": [
-      {
-        "id": "handle_0",
-        "type": "door_handle",
-        "local_offset": {
-          "x": 0.5,
-          "y": 1.0,
-          "z": 1.0
-        },
-        "swing_yaw": 90.0
-      }
-    ]
-  },
-  "door_wood_wide": {
-    "display_name": "Wide Wooden Door",
-    "description": "A double wooden door, 2 wide \u00d7 2 tall. Hinge at X=0.",
-    "material": "Wood",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 4,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 4,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "architecture",
-    "subcategory": "door",
-    "tags": [
-      "door",
-      "wood",
-      "wide",
-      "double",
-      "entrance",
-      "tavern",
-      "common"
-    ],
-    "facing": "+X (door swings along X)",
-    "interactions": [
-      {
-        "id": "handle_0",
-        "type": "door_handle",
-        "local_offset": {
-          "x": 1.5,
-          "y": 1.0,
-          "z": 1.0
-        },
-        "swing_yaw": 90.0
-      }
-    ]
-  },
-  "sword": {
-    "display_name": "Sword",
-    "description": "A simple sword \u2014 wood handle, metal blade, 1\u00d75\u00d71 cubes.",
-    "material": "Metal",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 5,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 5,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "weapon",
-    "subcategory": "melee",
-    "tags": [
-      "sword",
-      "blade",
-      "weapon",
-      "combat",
-      "one-handed"
-    ],
-    "file": "weapons/sword.voxel"
-  },
-  "axe": {
-    "display_name": "Axe",
-    "description": "A simple axe \u2014 wood handle with a metal head, 2\u00d74\u00d71 cubes.",
-    "material": "Metal",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 5,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 5,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "weapon",
-    "subcategory": "melee",
-    "tags": [
-      "axe",
-      "weapon",
-      "combat",
-      "one-handed"
-    ],
-    "file": "weapons/axe.voxel"
-  },
-  "pickaxe": {
-    "display_name": "Pickaxe",
-    "description": "A T-shaped pickaxe \u2014 wood handle with a metal crosshead.",
-    "material": "Metal",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
-    "cubes": 6,
-    "subcubes": 0,
-    "microcubes": 0,
-    "total": 6,
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "category": "tool",
-    "subcategory": "mining",
-    "tags": [
-      "pickaxe",
-      "tool",
-      "mining",
-      "weapon"
-    ],
-    "file": "weapons/pickaxe.voxel"
-  },
-  "stool": {
-    "display_name": "Wooden Stool",
-    "description": "A simple wooden stool with a full round seat and three legs (tripod). Bar stool style.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 15,
-    "microcubes": 0,
-    "total": 15,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "seating",
-    "tags": [
-      "stool",
-      "seat",
-      "bar",
-      "tavern",
-      "house",
-      "inn",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "seat_height": 0.667,
-    "version": 1
-  },
-  "torch_wall": {
-    "display_name": "Wall Torch",
-    "description": "A wall-mounted torch with a metal bracket at the back, a wooden shaft, and a glowing flame.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Metal",
-      "Wood",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 5,
-    "microcubes": 0,
-    "total": 5,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "light_source",
-    "tags": [
-      "torch",
-      "light",
-      "wall",
-      "dungeon",
-      "castle",
-      "inn",
-      "tavern",
-      "house",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "pot_iron": {
-    "display_name": "Iron Cauldron",
-    "description": "A round iron cauldron with a rounded belly, open rim, and glowing brew inside.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Metal",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 19,
-    "microcubes": 0,
-    "total": 19,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "container",
-    "tags": [
-      "cauldron",
-      "pot",
-      "cooking",
-      "iron",
-      "witch",
-      "dungeon",
-      "tavern",
-      "kitchen",
-      "alchemy"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 23,
     "version": 1
   },
   "anvil": {
-    "display_name": "Anvil",
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
     "description": "A blacksmith's iron anvil with a wide base, narrow waist, flat working face, and front horn.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+    "display_name": "Anvil",
+    "facing": "+Z",
     "materials": [
       "Metal"
     ],
-    "cubes": 0,
-    "subcubes": 19,
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 19,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
+    "model": "claude-sonnet-4-6",
     "subcategory": "work_surface",
+    "subcubes": 19,
     "tags": [
       "anvil",
       "blacksmith",
@@ -915,264 +63,231 @@
       "crafting",
       "dungeon"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 19,
     "version": 1
   },
-  "chest_open": {
-    "display_name": "Chest (Open)",
-    "description": "A wooden storage chest with the lid open, revealing a glowing interior. Companion to chest_closed.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+  "axe": {
+    "category": "weapon",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 5,
+    "description": "A simple axe \u2014 wood handle with a metal head, 2\u00d74\u00d71 cubes.",
+    "display_name": "Axe",
+    "file": "weapons/axe.voxel",
+    "material": "Metal",
     "materials": [
       "Wood",
-      "Metal",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 21,
-    "microcubes": 0,
-    "total": 21,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "container",
-    "tags": [
-      "chest",
-      "loot",
-      "storage",
-      "dungeon",
-      "house",
-      "treasure",
-      "open",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "chair_wood": {
-    "display_name": "Wooden Chair",
-    "description": "A simple wooden chair with a full seat, four corner legs, and a three-plank backrest.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 24,
-    "microcubes": 0,
-    "total": 24,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "seating",
-    "tags": [
-      "chair",
-      "seat",
-      "dining",
-      "tavern",
-      "house",
-      "inn",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "seat_height": 0.667,
-    "version": 1
-  },
-  "table_wood": {
-    "display_name": "Wooden Table",
-    "description": "A simple square wooden dining table with a full top slab and four corner legs.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 17,
-    "microcubes": 0,
-    "total": 17,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "surface",
-    "tags": [
-      "table",
-      "dining",
-      "tavern",
-      "house",
-      "inn",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "well": {
-    "display_name": "Stone Well",
-    "description": "A stone well with three ring layers and a wooden crossbeam at the top.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Stone",
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 27,
-    "microcubes": 0,
-    "total": 27,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "environment",
-    "subcategory": "exterior",
-    "tags": [
-      "well",
-      "water",
-      "stone",
-      "outdoor",
-      "village",
-      "town",
-      "farm",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "lantern": {
-    "display_name": "Lantern",
-    "description": "A small hanging lantern with four corner metal posts, a top hook, and a glowing interior.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Metal",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 10,
-    "microcubes": 0,
-    "total": 10,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "light_source",
-    "tags": [
-      "lantern",
-      "light",
-      "hanging",
-      "dungeon",
-      "tavern",
-      "inn",
-      "house",
-      "castle",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "ladder": {
-    "display_name": "Wooden Ladder",
-    "description": "A two-cube-tall wooden ladder with left and right rails and two rungs.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 14,
-    "microcubes": 0,
-    "total": 14,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "utility",
-    "tags": [
-      "ladder",
-      "climb",
-      "wood",
-      "dungeon",
-      "warehouse",
-      "house",
-      "barn",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "iron_bars": {
-    "display_name": "Iron Bars",
-    "description": "A wall section of vertical iron bars, two cubes tall. Use to build prison cells and dungeon cages.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
       "Metal"
     ],
-    "cubes": 0,
-    "subcubes": 12,
     "microcubes": 0,
-    "total": 12,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "architecture",
-    "subcategory": "barrier",
+    "subcategory": "melee",
+    "subcubes": 0,
     "tags": [
-      "bars",
-      "iron",
-      "prison",
+      "axe",
+      "weapon",
+      "combat",
+      "one-handed"
+    ],
+    "total": 5
+  },
+  "axe_battle": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A two-handed twin-bladed battle axe.",
+    "display_name": "Battle Axe",
+    "file": "weapons/axe_battle.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1438,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.4444,
+    "subcategory": "axe",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "axe",
+      "melee",
+      "two-handed"
+    ],
+    "total": 1438,
+    "version": 1
+  },
+  "axe_hand": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A one-handed bearded axe.",
+    "display_name": "Hand Axe",
+    "file": "weapons/axe_hand.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 492,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.5926,
+    "subcategory": "axe",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "axe",
+      "tool",
+      "melee"
+    ],
+    "total": 492,
+    "version": 1
+  },
+  "barrel": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wooden storage barrel with a metal hoop band at the belly. Rounded silhouette via cross-shaped top/bottom caps.",
+    "display_name": "Wooden Barrel",
+    "facing": "+Z",
+    "materials": [
+      "Wood",
+      "Metal"
+    ],
+    "method": "hand-authored (/model skill, 3 rounds)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "container",
+    "subcubes": 19,
+    "tags": [
+      "barrel",
+      "storage",
+      "tavern",
+      "cellar",
       "dungeon",
-      "cell",
-      "cage",
-      "castle",
+      "house",
       "common"
     ],
-    "facing": "+Z",
+    "total": 19,
+    "version": 3
+  },
+  "bed_single": {
     "bounds": {
-      "w": 1,
+      "d": 2,
       "h": 2,
-      "d": 1
+      "w": 1
     },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A medieval single bed with wooden frame, mattress, and pillow. Headboard at back (+Z), footboard at front.",
+    "display_name": "Single Bed",
+    "facing": "+Z (foot of bed faces viewer)",
+    "materials": [
+      "Wood",
+      "Sand"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "seat_height": 0.667,
+    "subcategory": "bed",
+    "subcubes": 47,
+    "tags": [
+      "bed",
+      "sleep",
+      "rest",
+      "bedroom",
+      "inn",
+      "house",
+      "common"
+    ],
+    "total": 47,
+    "version": 1
+  },
+  "bench_wood": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 2
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A simple wooden bench, 2 cubes wide with no backrest and four corner legs.",
+    "display_name": "Wooden Bench",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "seat_height": 0.667,
+    "subcategory": "seating",
+    "subcubes": 26,
+    "tags": [
+      "bench",
+      "seat",
+      "tavern",
+      "park",
+      "house",
+      "inn",
+      "common"
+    ],
+    "total": 26,
+    "version": 1
+  },
+  "bookshelf": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A tall wooden bookshelf, 2 cubes high, with three rows of books visible from the front.",
+    "display_name": "Bookshelf",
+    "facing": "+Z (spine of books faces viewer)",
+    "materials": [
+      "Wood",
+      "Bricks",
+      "Sand"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "storage",
+    "subcubes": 45,
+    "tags": [
+      "bookshelf",
+      "books",
+      "library",
+      "study",
+      "house",
+      "inn",
+      "common"
+    ],
+    "total": 45,
     "version": 1
   },
   "brazier": {
-    "display_name": "Brazier",
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
     "description": "A standing metal fire brazier with four corner legs, a bowl rim, and glowing fire inside.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+    "display_name": "Brazier",
+    "facing": "+Z",
     "materials": [
       "Metal",
       "glow"
     ],
-    "cubes": 0,
-    "subcubes": 13,
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 13,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
+    "model": "claude-sonnet-4-6",
     "subcategory": "light_source",
+    "subcubes": 13,
     "tags": [
       "brazier",
       "fire",
@@ -1184,327 +299,30 @@
       "guard",
       "common"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 13,
     "version": 1
-  },
-  "altar": {
-    "display_name": "Stone Altar",
-    "description": "A stone altar with a wide base, four corner uprights, a flat top surface, and a glowing offering above.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Stone",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 23,
-    "microcubes": 0,
-    "total": 23,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "furniture",
-    "subcategory": "ritual",
-    "tags": [
-      "altar",
-      "stone",
-      "temple",
-      "church",
-      "dungeon",
-      "ritual",
-      "magic",
-      "rpg"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "mushroom": {
-    "display_name": "Giant Mushroom",
-    "description": "A large dungeon mushroom with a thin wooden stem, a flared cap underside, and a wide sandy cap top.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Sand"
-    ],
-    "cubes": 0,
-    "subcubes": 16,
-    "microcubes": 0,
-    "total": 16,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "vegetation",
-    "tags": [
-      "mushroom",
-      "fungus",
-      "dungeon",
-      "cave",
-      "forest",
-      "nature",
-      "fantasy"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "pillar_stone": {
-    "display_name": "Stone Pillar",
-    "description": "A classical stone pillar with a wide base, narrow cross-section shaft, and wide capital, all in one cube.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Stone"
-    ],
-    "cubes": 0,
-    "subcubes": 23,
-    "microcubes": 0,
-    "total": 23,
-    "created": "2026-05-16T00:00:00.000000+00:00",
-    "category": "architecture",
-    "subcategory": "structural",
-    "tags": [
-      "pillar",
-      "column",
-      "stone",
-      "dungeon",
-      "castle",
-      "temple",
-      "architecture",
-      "classical"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tree_oak": {
-    "display_name": "Oak Tree",
-    "description": "A two-cube-tall oak tree with a Log trunk, flaring branch stubs, and a wide round Leaf canopy dome.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Log",
-      "Leaf"
-    ],
-    "cubes": 0,
-    "subcubes": 22,
-    "microcubes": 0,
-    "total": 22,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "oak",
-      "leaf",
-      "forest",
-      "nature",
-      "outdoor",
-      "village",
-      "common"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tree_birch": {
-    "display_name": "Birch Tree",
-    "description": "A two-cube-tall birch tree with a pale Wood trunk running full height and an oval Leaf canopy.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood",
-      "Leaf"
-    ],
-    "cubes": 0,
-    "subcubes": 22,
-    "microcubes": 0,
-    "total": 22,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "birch",
-      "leaf",
-      "forest",
-      "nature",
-      "outdoor",
-      "village",
-      "pale"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tree_dead": {
-    "display_name": "Dead Tree",
-    "description": "A two-cube-tall bare dead tree with a Wood trunk and six gnarled branch stubs at two heights \u2014 no leaves.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Wood"
-    ],
-    "cubes": 0,
-    "subcubes": 12,
-    "microcubes": 0,
-    "total": 12,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "dead",
-      "bare",
-      "winter",
-      "dungeon",
-      "spooky",
-      "halloween",
-      "forest",
-      "nature"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tree_palm": {
-    "display_name": "Palm Tree",
-    "description": "A two-cube-tall palm tree with a Log trunk, four drooping frond tips at mid height, and a crown of horizontal fronds.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Log",
-      "Leaf"
-    ],
-    "cubes": 0,
-    "subcubes": 12,
-    "microcubes": 0,
-    "total": 12,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "palm",
-      "tropical",
-      "desert",
-      "beach",
-      "island",
-      "nature",
-      "outdoor"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "tree_apple": {
-    "display_name": "Apple Tree",
-    "description": "A two-cube-tall apple tree with a Log trunk, wide Leaf canopy, and three glow apple subcubes nestled in the foliage.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
-    "materials": [
-      "Log",
-      "Leaf",
-      "glow"
-    ],
-    "cubes": 0,
-    "subcubes": 22,
-    "microcubes": 0,
-    "total": 22,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "tree",
-    "tags": [
-      "tree",
-      "apple",
-      "fruit",
-      "orchard",
-      "farm",
-      "village",
-      "nature",
-      "outdoor"
-    ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 2,
-      "d": 1
-    },
-    "version": 1
-  },
-  "bush_round": {
-    "display_name": "Round Bush",
-    "description": "Procedural bush tree, height 2, fullness 0.85, seed 30.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf"
-    ],
-    "size": 2.0,
-    "cubes": 8,
-    "subcubes": 506,
-    "microcubes": 0,
-    "total": 514,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.954945+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
   },
   "bush_flower": {
-    "display_name": "Flowering Bush",
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
     "description": "A decorative flowering bush with leaf foliage and glowing flower blooms at the corners.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+    "display_name": "Flowering Bush",
+    "facing": "+Z",
     "materials": [
       "Leaf",
       "glow"
     ],
-    "cubes": 0,
-    "subcubes": 18,
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 18,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
+    "model": "claude-sonnet-4-6",
     "subcategory": "shrubs",
+    "subcubes": 18,
     "tags": [
       "bush",
       "shrub",
@@ -1516,63 +334,515 @@
       "village",
       "nature"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 18,
     "version": 1
   },
-  "hedge_section": {
-    "display_name": "Hedge Section",
-    "description": "A dense trimmed hedge wall section \u2014 a solid cube of leaves. Tile these to build garden walls.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+  "bush_glow_blue": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:21:27.824107+00:00",
+    "cubes": 3,
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 62.",
+    "display_name": "Glowing Bush (Blue)",
+    "material": "glow_blue",
+    "materials": [
+      "glow_blue"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 2.0,
+    "subcategory": "trees",
+    "subcubes": 366,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 369
+  },
+  "bush_glow_green": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:21:27.812056+00:00",
+    "cubes": 1,
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 61.",
+    "display_name": "Glowing Bush (Green)",
+    "material": "glow_green",
+    "materials": [
+      "glow_green"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 2.0,
+    "subcategory": "trees",
+    "subcubes": 494,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 495
+  },
+  "bush_leafy_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.944504+00:00",
+    "cubes": 21,
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 22.",
+    "display_name": "Leafy Bush (Medium)",
+    "material": "Leaf",
     "materials": [
       "Leaf"
     ],
-    "cubes": 1,
-    "subcubes": 0,
     "microcubes": 0,
-    "total": 1,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
-    "subcategory": "shrubs",
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 2.0,
+    "subcategory": "trees",
+    "subcubes": 788,
     "tags": [
-      "hedge",
-      "wall",
-      "garden",
-      "maze",
-      "topiary",
-      "estate",
-      "outdoor",
-      "park",
-      "barrier"
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
     ],
-    "facing": "+Z",
+    "total": 809
+  },
+  "bush_leafy_s": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.928322+00:00",
+    "cubes": 9,
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 21.",
+    "display_name": "Leafy Bush (Small)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 2.0,
+    "subcategory": "trees",
+    "subcubes": 634,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 643
+  },
+  "bush_round": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.954945+00:00",
+    "cubes": 8,
+    "description": "Procedural bush tree, height 2, fullness 0.85, seed 30.",
+    "display_name": "Round Bush",
+    "material": "Leaf",
+    "materials": [
+      "Leaf"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 2.0,
+    "subcategory": "trees",
+    "subcubes": 506,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 514
+  },
+  "campfire": {
     "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
+      "d": 1,
+      "h": 2,
+      "w": 1
     },
+    "category": "environment",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A campfire with a stone ring, crossed logs, and glowing embers with rising flame.",
+    "display_name": "Campfire",
+    "facing": "+Z",
+    "materials": [
+      "Stone",
+      "Wood",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "light_source",
+    "subcubes": 11,
+    "tags": [
+      "campfire",
+      "fire",
+      "light",
+      "rest",
+      "wilderness",
+      "camp",
+      "outdoor"
+    ],
+    "total": 11,
     "version": 1
+  },
+  "candle_holder": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A metal candle holder with a cross-shaped base, a sand candle, and a glowing flame.",
+    "display_name": "Candle Holder",
+    "facing": "+Z",
+    "materials": [
+      "Metal",
+      "Sand",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "light_source",
+    "subcubes": 7,
+    "tags": [
+      "candle",
+      "light",
+      "holder",
+      "decoration",
+      "dungeon",
+      "house",
+      "inn",
+      "tavern",
+      "common"
+    ],
+    "total": 7,
+    "version": 1
+  },
+  "candlestick": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A brass chamberstick with a lit candle.",
+    "display_name": "Candlestick",
+    "file": "items/candlestick.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 146,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2099,
+    "subcategory": "light",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "candle",
+      "light",
+      "tavern",
+      "house"
+    ],
+    "total": 146,
+    "version": 1
+  },
+  "chair_wood": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A simple wooden chair with a full seat, four corner legs, and a three-plank backrest.",
+    "display_name": "Wooden Chair",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "seat_height": 0.667,
+    "subcategory": "seating",
+    "subcubes": 24,
+    "tags": [
+      "chair",
+      "seat",
+      "dining",
+      "tavern",
+      "house",
+      "inn",
+      "common"
+    ],
+    "total": 24,
+    "version": 1
+  },
+  "chest_closed": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wooden storage chest with metal clasp, lid closed. Clasp faces front (+Z).",
+    "display_name": "Chest (Closed)",
+    "facing": "+Z (clasp faces viewer)",
+    "materials": [
+      "Wood",
+      "Metal"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "container",
+    "subcubes": 26,
+    "tags": [
+      "chest",
+      "loot",
+      "storage",
+      "dungeon",
+      "house",
+      "treasure",
+      "common"
+    ],
+    "total": 26,
+    "version": 1
+  },
+  "chest_open": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wooden storage chest with the lid open, revealing a glowing interior. Companion to chest_closed.",
+    "display_name": "Chest (Open)",
+    "facing": "+Z",
+    "materials": [
+      "Wood",
+      "Metal",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "container",
+    "subcubes": 21,
+    "tags": [
+      "chest",
+      "loot",
+      "storage",
+      "dungeon",
+      "house",
+      "treasure",
+      "open",
+      "common"
+    ],
+    "total": 21,
+    "version": 1
+  },
+  "crate_wood": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 1,
+    "description": "A solid wooden shipping crate. Wood plank texture reads as slatted sides.",
+    "display_name": "Wooden Crate",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "container",
+    "subcubes": 0,
+    "tags": [
+      "crate",
+      "box",
+      "storage",
+      "shipping",
+      "dungeon",
+      "warehouse",
+      "common"
+    ],
+    "total": 1,
+    "version": 1
+  },
+  "dagger": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A slim thrusting dagger.",
+    "display_name": "Dagger",
+    "file": "weapons/dagger.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 234,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.4198,
+    "subcategory": "dagger",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "dagger",
+      "blade",
+      "melee"
+    ],
+    "total": 234,
+    "version": 1
+  },
+  "door_metal": {
+    "category": "architecture",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 2,
+    "description": "A single metal door, 1 wide \u00d7 2 tall. Hinge at X=0.",
+    "display_name": "Metal Door",
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "local_offset": {
+          "x": 0.5,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "swing_yaw": 90.0,
+        "type": "door_handle"
+      }
+    ],
+    "material": "Metal",
+    "materials": [
+      "Metal"
+    ],
+    "microcubes": 0,
+    "subcategory": "door",
+    "subcubes": 0,
+    "tags": [
+      "door",
+      "metal",
+      "dungeon",
+      "castle",
+      "entrance"
+    ],
+    "total": 2
+  },
+  "door_wood": {
+    "category": "architecture",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 2,
+    "description": "A standard single wooden door, 1 wide \u00d7 2 tall. Hinge at X=0.",
+    "display_name": "Wooden Door",
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "local_offset": {
+          "x": 0.5,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "swing_yaw": 90.0,
+        "type": "door_handle"
+      }
+    ],
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 0,
+    "subcategory": "door",
+    "subcubes": 0,
+    "tags": [
+      "door",
+      "wood",
+      "entrance",
+      "interior",
+      "exterior",
+      "common"
+    ],
+    "total": 2
+  },
+  "door_wood_wide": {
+    "category": "architecture",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 4,
+    "description": "A double wooden door, 2 wide \u00d7 2 tall. Hinge at X=0.",
+    "display_name": "Wide Wooden Door",
+    "facing": "+X (door swings along X)",
+    "interactions": [
+      {
+        "id": "handle_0",
+        "local_offset": {
+          "x": 1.5,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "swing_yaw": 90.0,
+        "type": "door_handle"
+      }
+    ],
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 0,
+    "subcategory": "door",
+    "subcubes": 0,
+    "tags": [
+      "door",
+      "wood",
+      "wide",
+      "double",
+      "entrance",
+      "tavern",
+      "common"
+    ],
+    "total": 4
   },
   "fern": {
-    "display_name": "Fern",
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
     "description": "A low spreading fern with wide ground-level fronds and a rising central frond.",
-    "model": "claude-sonnet-4-6",
-    "method": "hand-authored (/model skill, 1 round)",
+    "display_name": "Fern",
+    "facing": "+Z",
     "materials": [
       "Leaf"
     ],
-    "cubes": 0,
-    "subcubes": 11,
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 11,
-    "created": "2026-05-17T00:00:00.000000+00:00",
-    "category": "nature",
+    "model": "claude-sonnet-4-6",
     "subcategory": "ground_cover",
+    "subcubes": 11,
     "tags": [
       "fern",
       "plant",
@@ -1584,29 +854,1953 @@
       "nature",
       "undergrowth"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 11,
     "version": 1
   },
-  "tree_stump": {
-    "display_name": "Tree Stump",
-    "description": "A wide cut tree stump with a full Log base and a slightly narrower cross-section top suggesting a flat cut surface.",
-    "model": "claude-sonnet-4-6",
+  "fireplace": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 3
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 5,
+    "description": "A stone fireplace with two pillars, a stone mantelpiece, hearth floor, and glowing fire inside.",
+    "display_name": "Stone Fireplace",
+    "facing": "+Z (opening faces viewer)",
+    "materials": [
+      "Stone",
+      "glow"
+    ],
     "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "hearth",
+    "subcubes": 19,
+    "tags": [
+      "fireplace",
+      "fire",
+      "heat",
+      "light",
+      "stone",
+      "castle",
+      "inn",
+      "house",
+      "tavern"
+    ],
+    "total": 24,
+    "version": 1
+  },
+  "hedge_section": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 1,
+    "description": "A dense trimmed hedge wall section \u2014 a solid cube of leaves. Tile these to build garden walls.",
+    "display_name": "Hedge Section",
+    "facing": "+Z",
+    "materials": [
+      "Leaf"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "shrubs",
+    "subcubes": 0,
+    "tags": [
+      "hedge",
+      "wall",
+      "garden",
+      "maze",
+      "topiary",
+      "estate",
+      "outdoor",
+      "park",
+      "barrier"
+    ],
+    "total": 1,
+    "version": 1
+  },
+  "iron_bars": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "architecture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wall section of vertical iron bars, two cubes tall. Use to build prison cells and dungeon cages.",
+    "display_name": "Iron Bars",
+    "facing": "+Z",
+    "materials": [
+      "Metal"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "barrier",
+    "subcubes": 12,
+    "tags": [
+      "bars",
+      "iron",
+      "prison",
+      "dungeon",
+      "cell",
+      "cage",
+      "castle",
+      "common"
+    ],
+    "total": 12,
+    "version": 1
+  },
+  "ladder": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall wooden ladder with left and right rails and two rungs.",
+    "display_name": "Wooden Ladder",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "utility",
+    "subcubes": 14,
+    "tags": [
+      "ladder",
+      "climb",
+      "wood",
+      "dungeon",
+      "warehouse",
+      "house",
+      "barn",
+      "common"
+    ],
+    "total": 14,
+    "version": 1
+  },
+  "lantern": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A small hanging lantern with four corner metal posts, a top hook, and a glowing interior.",
+    "display_name": "Lantern",
+    "facing": "+Z",
+    "materials": [
+      "Metal",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "light_source",
+    "subcubes": 10,
+    "tags": [
+      "lantern",
+      "light",
+      "hanging",
+      "dungeon",
+      "tavern",
+      "inn",
+      "house",
+      "castle",
+      "common"
+    ],
+    "total": 10,
+    "version": 1
+  },
+  "mace": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A steel mace with four crushing flanges.",
+    "display_name": "Flanged Mace",
+    "file": "weapons/mace.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 536,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.7284,
+    "subcategory": "mace",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "mace",
+      "blunt",
+      "melee"
+    ],
+    "total": 536,
+    "version": 1
+  },
+  "maul": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A massive two-handed iron-headed maul.",
+    "display_name": "Maul",
+    "file": "weapons/maul.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 4102,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.3457,
+    "subcategory": "hammer",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "maul",
+      "hammer",
+      "blunt",
+      "two-handed"
+    ],
+    "total": 4102,
+    "version": 1
+  },
+  "mushroom": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A large dungeon mushroom with a thin wooden stem, a flared cap underside, and a wide sandy cap top.",
+    "display_name": "Giant Mushroom",
+    "facing": "+Z",
+    "materials": [
+      "Wood",
+      "Sand"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "vegetation",
+    "subcubes": 16,
+    "tags": [
+      "mushroom",
+      "fungus",
+      "dungeon",
+      "cave",
+      "forest",
+      "nature",
+      "fantasy"
+    ],
+    "total": 16,
+    "version": 1
+  },
+  "pickaxe": {
+    "category": "tool",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 6,
+    "description": "A T-shaped pickaxe \u2014 wood handle with a metal crosshead.",
+    "display_name": "Pickaxe",
+    "file": "weapons/pickaxe.voxel",
+    "material": "Metal",
+    "materials": [
+      "Wood",
+      "Metal"
+    ],
+    "microcubes": 0,
+    "subcategory": "mining",
+    "subcubes": 0,
+    "tags": [
+      "pickaxe",
+      "tool",
+      "mining",
+      "weapon"
+    ],
+    "total": 6
+  },
+  "pillar_stone": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "architecture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A classical stone pillar with a wide base, narrow cross-section shaft, and wide capital, all in one cube.",
+    "display_name": "Stone Pillar",
+    "facing": "+Z",
+    "materials": [
+      "Stone"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "structural",
+    "subcubes": 23,
+    "tags": [
+      "pillar",
+      "column",
+      "stone",
+      "dungeon",
+      "castle",
+      "temple",
+      "architecture",
+      "classical"
+    ],
+    "total": 23,
+    "version": 1
+  },
+  "pot_iron": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A round iron cauldron with a rounded belly, open rim, and glowing brew inside.",
+    "display_name": "Iron Cauldron",
+    "facing": "+Z",
+    "materials": [
+      "Metal",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "container",
+    "subcubes": 19,
+    "tags": [
+      "cauldron",
+      "pot",
+      "cooking",
+      "iron",
+      "witch",
+      "dungeon",
+      "tavern",
+      "kitchen",
+      "alchemy"
+    ],
+    "total": 19,
+    "version": 1
+  },
+  "potion": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A round-bellied glass potion flask.",
+    "display_name": "Potion Flask",
+    "file": "items/potion.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 134,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.1235,
+    "subcategory": "potion",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "potion",
+      "flask",
+      "alchemy"
+    ],
+    "total": 134,
+    "version": 1
+  },
+  "scroll": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A rolled parchment scroll with a ribbon.",
+    "display_name": "Scroll",
+    "file": "items/scroll.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 254,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2716,
+    "subcategory": "scroll",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "scroll",
+      "parchment",
+      "study"
+    ],
+    "total": 254,
+    "version": 1
+  },
+  "shrub_flat": {
+    "category": "nature",
+    "cost": null,
+    "created": "2026-04-13T19:36:22.429693+00:00",
+    "cubes": 0,
+    "description": "A small dense bush, low and wide, flat-topped with thick leafy foliage.",
+    "display_name": "Flat Shrub",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Wood"
+    ],
+    "microcubes": 583,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
+    "size": 2.0,
+    "subcategory": "vegetation",
+    "subcubes": 25,
+    "tags": [
+      "shrub",
+      "bush",
+      "nature",
+      "exterior",
+      "garden"
+    ],
+    "total": 608
+  },
+  "shrub_round": {
+    "category": "nature",
+    "cost": null,
+    "created": "2026-04-13T19:36:04.630473+00:00",
+    "cubes": 0,
+    "description": "A round leafy shrub, low to the ground, roughly spherical foliage with a short trunk.",
+    "display_name": "Round Shrub",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Wood"
+    ],
+    "microcubes": 877,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
+    "size": 2.0,
+    "subcategory": "vegetation",
+    "subcubes": 62,
+    "tags": [
+      "shrub",
+      "bush",
+      "nature",
+      "exterior",
+      "garden"
+    ],
+    "total": 939
+  },
+  "simple_table": {
+    "category": "furniture",
+    "cost": null,
+    "created": "2026-04-01T02:28:52.486557+00:00",
+    "cubes": 0,
+    "description": "A simple wooden dining table.",
+    "display_name": "Simple Table",
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 263,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a simple wooden dining table",
+    "size": 2.0,
+    "subcategory": "table",
+    "subcubes": 0,
+    "tags": [
+      "table",
+      "dining",
+      "tavern",
+      "house",
+      "common"
+    ],
+    "total": 263
+  },
+  "spear": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A long ash spear with a leaf-shaped head.",
+    "display_name": "Spear",
+    "file": "weapons/spear.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 637,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.9136,
+    "subcategory": "spear",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "spear",
+      "polearm",
+      "melee"
+    ],
+    "total": 637,
+    "version": 1
+  },
+  "staff_arcane": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A gold-chased staff with a violet crystal.",
+    "display_name": "Staff of the Arcanum",
+    "file": "weapons/staff_arcane.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 589,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.6296,
+    "subcategory": "staff",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "staff",
+      "magic",
+      "arcane"
+    ],
+    "total": 589,
+    "version": 1
+  },
+  "staff_fire": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A fire-mage's staff with a caged ember orb.",
+    "display_name": "Staff of Embers",
+    "file": "weapons/staff_fire.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 589,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.6296,
+    "subcategory": "staff",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "staff",
+      "magic",
+      "fire"
+    ],
+    "total": 589,
+    "version": 1
+  },
+  "staff_frost": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A frost-mage's staff with a pale blue orb.",
+    "display_name": "Staff of Rime",
+    "file": "weapons/staff_frost.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 589,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.6296,
+    "subcategory": "staff",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "staff",
+      "magic",
+      "frost"
+    ],
+    "total": 589,
+    "version": 1
+  },
+  "staff_nature": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A living staff cradling a verdant orb.",
+    "display_name": "Staff of the Grove",
+    "file": "weapons/staff_nature.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 589,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.6296,
+    "subcategory": "staff",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "staff",
+      "magic",
+      "nature"
+    ],
+    "total": 589,
+    "version": 1
+  },
+  "stool": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A simple wooden stool with a full round seat and three legs (tripod). Bar stool style.",
+    "display_name": "Wooden Stool",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "seat_height": 0.667,
+    "subcategory": "seating",
+    "subcubes": 15,
+    "tags": [
+      "stool",
+      "seat",
+      "bar",
+      "tavern",
+      "house",
+      "inn",
+      "common"
+    ],
+    "total": 15,
+    "version": 1
+  },
+  "sword": {
+    "category": "weapon",
+    "created": "2026-04-21T00:00:00.000000+00:00",
+    "cubes": 5,
+    "description": "A simple sword \u2014 wood handle, metal blade, 1\u00d75\u00d71 cubes.",
+    "display_name": "Sword",
+    "file": "weapons/sword.voxel",
+    "material": "Metal",
+    "materials": [
+      "Wood",
+      "Metal"
+    ],
+    "microcubes": 0,
+    "subcategory": "melee",
+    "subcubes": 0,
+    "tags": [
+      "sword",
+      "blade",
+      "weapon",
+      "combat",
+      "one-handed"
+    ],
+    "total": 5
+  },
+  "sword_long": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A hand-and-a-half longsword with a leather-wrapped grip.",
+    "display_name": "Longsword",
+    "file": "weapons/sword_long.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 931,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.2222,
+    "subcategory": "sword",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "sword",
+      "blade",
+      "melee"
+    ],
+    "total": 931,
+    "version": 1
+  },
+  "sword_short": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A broad one-handed short sword.",
+    "display_name": "Short Sword",
+    "file": "weapons/sword_short.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 567,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.7531,
+    "subcategory": "sword",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "sword",
+      "blade",
+      "melee"
+    ],
+    "total": 567,
+    "version": 1
+  },
+  "table_wood": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A simple square wooden dining table with a full top slab and four corner legs.",
+    "display_name": "Wooden Table",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "surface",
+    "subcubes": 17,
+    "tags": [
+      "table",
+      "dining",
+      "tavern",
+      "house",
+      "inn",
+      "common"
+    ],
+    "total": 17,
+    "version": 1
+  },
+  "tavern_bar": {
+    "category": "furniture",
+    "cost": null,
+    "created": "2026-04-01T02:39:18.642804+00:00",
+    "cubes": 3,
+    "description": "A long wooden bar counter, rectangular and waist height.",
+    "display_name": "Tavern Bar Counter",
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 1562,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a long wooden bar counter for a tavern, rectangular and waist height",
+    "size": 4.0,
+    "subcategory": "counter",
+    "subcubes": 18,
+    "tags": [
+      "bar",
+      "counter",
+      "tavern"
+    ],
+    "total": 1583
+  },
+  "tavern_table": {
+    "category": "furniture",
+    "cost": null,
+    "created": "2026-04-01T02:38:53.256860+00:00",
+    "cubes": 0,
+    "description": "A small rectangular wooden tavern table with four legs.",
+    "display_name": "Tavern Table",
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 159,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a small rectangular wooden tavern table with four legs",
+    "size": 2.0,
+    "subcategory": "table",
+    "subcubes": 0,
+    "tags": [
+      "table",
+      "tavern",
+      "common"
+    ],
+    "total": 159
+  },
+  "tavern_test": {
+    "building": {
+      "depth": 18,
+      "door_facing": "front",
+      "height": 5,
+      "stories": 1,
+      "style": "medieval",
+      "type": "tavern",
+      "width": 14,
+      "windows": 2
+    },
+    "category": "building",
+    "cost": null,
+    "created": "2026-04-01T15:36:35.268770+00:00",
+    "cubes": 1168,
+    "description": "A medieval stone-walled tavern, 14\u00d718 footprint, 1 story with wood floor and roof.",
+    "display_name": "Tavern Building",
+    "material": "Stone",
+    "materials": [
+      "Stone",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "prompt": "a medieval tavern building",
+    "size": 18.0,
+    "subcategory": "tavern",
+    "subcubes": 0,
+    "tags": [
+      "building",
+      "tavern",
+      "inn",
+      "medieval",
+      "exterior"
+    ],
+    "total": 1168
+  },
+  "test_chair": {
+    "category": "furniture",
+    "description": "A simple wooden chair with a sit interaction point.",
+    "display_name": "Wooden Chair",
+    "interactions": [
+      {
+        "approach_offset": {
+          "x": 0.33,
+          "y": 0.0,
+          "z": -0.7
+        },
+        "facing_yaw": 0.0,
+        "id": "seat_0",
+        "local_offset": {
+          "x": 0.33,
+          "y": 0.42,
+          "z": 0.33
+        },
+        "type": "seat"
+      }
+    ],
+    "material": "Wood",
+    "materials": [
+      "Wood"
+    ],
+    "prompt": "a simple wooden chair",
+    "size": 1.2,
+    "subcategory": "seating",
+    "tags": [
+      "chair",
+      "seat",
+      "house",
+      "tavern",
+      "common"
+    ]
+  },
+  "tome": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A gilt-cornered leather tome with a clasp.",
+    "display_name": "Leather Tome",
+    "file": "items/tome.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 2530,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2963,
+    "subcategory": "book",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "book",
+      "tome",
+      "library",
+      "study"
+    ],
+    "total": 2530,
+    "version": 1
+  },
+  "torch_wall": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wall-mounted torch with a metal bracket at the back, a wooden shaft, and a glowing flame.",
+    "display_name": "Wall Torch",
+    "facing": "+Z",
+    "materials": [
+      "Metal",
+      "Wood",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "light_source",
+    "subcubes": 5,
+    "tags": [
+      "torch",
+      "light",
+      "wall",
+      "dungeon",
+      "castle",
+      "inn",
+      "tavern",
+      "house",
+      "common"
+    ],
+    "total": 5,
+    "version": 1
+  },
+  "tree_acacia_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.858157+00:00",
+    "cubes": 0,
+    "description": "Procedural acacia tree, height 8, fullness 0.85, seed 15.",
+    "display_name": "Acacia Tree (Large)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 4,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 8.0,
+    "subcategory": "trees",
+    "subcubes": 3149,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 3153
+  },
+  "tree_acacia_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.832624+00:00",
+    "cubes": 0,
+    "description": "Procedural acacia tree, height 6, fullness 0.85, seed 14.",
+    "display_name": "Acacia Tree (Medium)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 2,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 6.0,
+    "subcategory": "trees",
+    "subcubes": 1475,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1477
+  },
+  "tree_apple": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall apple tree with a Log trunk, wide Leaf canopy, and three glow apple subcubes nestled in the foliage.",
+    "display_name": "Apple Tree",
+    "facing": "+Z",
+    "materials": [
+      "Log",
+      "Leaf",
+      "glow"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 22,
+    "tags": [
+      "tree",
+      "apple",
+      "fruit",
+      "orchard",
+      "farm",
+      "village",
+      "nature",
+      "outdoor"
+    ],
+    "total": 22,
+    "version": 1
+  },
+  "tree_autumn_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.555169+00:00",
+    "cubes": 11,
+    "description": "Procedural autumn tree, height 7, fullness 0.85, seed 11.",
+    "display_name": "Autumn Tree (Medium)",
+    "material": "LeafAutumn",
+    "materials": [
+      "LeafAutumn",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 7.0,
+    "subcategory": "trees",
+    "subcubes": 4675,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 4686
+  },
+  "tree_birch": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall birch tree with a pale Wood trunk running full height and an oval Leaf canopy.",
+    "display_name": "Birch Tree",
+    "facing": "+Z",
+    "materials": [
+      "Wood",
+      "Leaf"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 22,
+    "tags": [
+      "tree",
+      "birch",
+      "leaf",
+      "forest",
+      "nature",
+      "outdoor",
+      "village",
+      "pale"
+    ],
+    "total": 22,
+    "version": 1
+  },
+  "tree_birch_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.596797+00:00",
+    "cubes": 4,
+    "description": "Procedural birch tree, height 10, fullness 0.85, seed 6.",
+    "display_name": "Birch Tree (Tall)",
+    "material": "LeafBirch",
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 10.0,
+    "subcategory": "trees",
+    "subcubes": 1213,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1217
+  },
+  "tree_birch_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.575207+00:00",
+    "cubes": 3,
+    "description": "Procedural birch tree, height 8, fullness 0.85, seed 5.",
+    "display_name": "Birch Tree (Medium)",
+    "material": "LeafBirch",
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 8.0,
+    "subcategory": "trees",
+    "subcubes": 1117,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1120
+  },
+  "tree_birch_sparse": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.110227+00:00",
+    "cubes": 3,
+    "description": "Procedural birch tree, height 8, fullness 0.55, seed 33.",
+    "display_name": "Birch Tree (Sparse)",
+    "material": "LeafBirch",
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 8.0,
+    "subcategory": "trees",
+    "subcubes": 992,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 995
+  },
+  "tree_dead": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall bare dead tree with a Wood trunk and six gnarled branch stubs at two heights \u2014 no leaves.",
+    "display_name": "Dead Tree",
+    "facing": "+Z",
+    "materials": [
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 12,
+    "tags": [
+      "tree",
+      "dead",
+      "bare",
+      "winter",
+      "dungeon",
+      "spooky",
+      "halloween",
+      "forest",
+      "nature"
+    ],
+    "total": 12,
+    "version": 1
+  },
+  "tree_dead_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.916589+00:00",
+    "cubes": 3,
+    "description": "Procedural dead tree, height 7, fullness 0.85, seed 20.",
+    "display_name": "Dead Tree (Medium)",
+    "material": "LogSpruce",
+    "materials": [
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 7.0,
+    "subcategory": "trees",
+    "subcubes": 116,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 120
+  },
+  "tree_dead_s": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.912627+00:00",
+    "cubes": 2,
+    "description": "Procedural dead tree, height 5, fullness 0.85, seed 19.",
+    "display_name": "Dead Tree (Small)",
+    "material": "LogSpruce",
+    "materials": [
+      "LogSpruce"
+    ],
+    "microcubes": 2,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 5.0,
+    "subcategory": "trees",
+    "subcubes": 116,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 120
+  },
+  "tree_elder_oak": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T13:59:51.101963+00:00",
+    "cubes": 35730,
+    "description": "Procedural elder_oak tree, height 32, fullness 0.85, seed 53.",
+    "display_name": "Elder Oak (World-Tree)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log",
+      "glow_green"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 32.0,
+    "subcategory": "trees",
+    "subcubes": 19,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 35749
+  },
+  "tree_elder_oak_xl": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:00.657169+00:00",
+    "cubes": 42041,
+    "description": "Procedural elder_oak tree, height 38, fullness 0.85, seed 54.",
+    "display_name": "Elder Oak (Great World-Tree)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log",
+      "glow_green"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 38.0,
+    "subcategory": "trees",
+    "subcubes": 5,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 42046
+  },
+  "tree_fir_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.324216+00:00",
+    "cubes": 40,
+    "description": "Procedural fir tree, height 18, fullness 1.0, seed 45.",
+    "display_name": "Fir Tree (Tall)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 18.0,
+    "subcategory": "trees",
+    "subcubes": 1391,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1432
+  },
+  "tree_fir_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.296410+00:00",
+    "cubes": 11,
+    "description": "Procedural fir tree, height 14, fullness 1.0, seed 44.",
+    "display_name": "Fir Tree (Medium)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 14.0,
+    "subcategory": "trees",
+    "subcubes": 784,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 796
+  },
+  "tree_jungle_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.725872+00:00",
+    "cubes": 85,
+    "description": "Procedural jungle tree, height 12, fullness 0.85, seed 12.",
+    "display_name": "Jungle Tree (Medium)",
+    "material": "LeafJungle",
+    "materials": [
+      "LeafJungle",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 12.0,
+    "subcategory": "trees",
+    "subcubes": 2141,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 2226
+  },
+  "tree_jungle_xl": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.817781+00:00",
+    "cubes": 218,
+    "description": "Procedural jungle tree, height 15, fullness 0.85, seed 13.",
+    "display_name": "Jungle Tree (Giant)",
+    "material": "LeafJungle",
+    "materials": [
+      "LeafJungle",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 15.0,
+    "subcategory": "trees",
+    "subcubes": 3909,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 4127
+  },
+  "tree_oak": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall oak tree with a Log trunk, flaring branch stubs, and a wide round Leaf canopy dome.",
+    "display_name": "Oak Tree",
+    "facing": "+Z",
+    "materials": [
+      "Log",
+      "Leaf"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 22,
+    "tags": [
+      "tree",
+      "oak",
+      "leaf",
+      "forest",
+      "nature",
+      "outdoor",
+      "village",
+      "common"
+    ],
+    "total": 22,
+    "version": 1
+  },
+  "tree_oak_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.480872+00:00",
+    "cubes": 19,
+    "description": "Procedural oak tree, height 10, fullness 0.85, seed 3.",
+    "display_name": "Oak Tree (Large)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 10.0,
+    "subcategory": "trees",
+    "subcubes": 6503,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 6522
+  },
+  "tree_oak_lush": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.026241+00:00",
+    "cubes": 10,
+    "description": "Procedural oak tree, height 9, fullness 1.0, seed 31.",
+    "display_name": "Oak Tree (Lush)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 9.0,
+    "subcategory": "trees",
+    "subcubes": 4176,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 4186
+  },
+  "tree_oak_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.374236+00:00",
+    "cubes": 11,
+    "description": "Procedural oak tree, height 7, fullness 0.85, seed 2.",
+    "display_name": "Oak Tree (Medium)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 7.0,
+    "subcategory": "trees",
+    "subcubes": 5009,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 5020
+  },
+  "tree_oak_s": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.295906+00:00",
+    "cubes": 7,
+    "description": "Procedural oak tree, height 5, fullness 0.85, seed 1.",
+    "display_name": "Oak Tree (Small)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 5.0,
+    "subcategory": "trees",
+    "subcubes": 1978,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1985
+  },
+  "tree_oak_sparse": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:45.091562+00:00",
+    "cubes": 6,
+    "description": "Procedural oak tree, height 6, fullness 0.55, seed 32.",
+    "display_name": "Oak Tree (Sparse)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 6.0,
+    "subcategory": "trees",
+    "subcubes": 3780,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 3786
+  },
+  "tree_palm": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A two-cube-tall palm tree with a Log trunk, four drooping frond tips at mid height, and a crown of horizontal fronds.",
+    "display_name": "Palm Tree",
+    "facing": "+Z",
+    "materials": [
+      "Log",
+      "Leaf"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 12,
+    "tags": [
+      "tree",
+      "palm",
+      "tropical",
+      "desert",
+      "beach",
+      "island",
+      "nature",
+      "outdoor"
+    ],
+    "total": 12,
+    "version": 1
+  },
+  "tree_palm_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.865904+00:00",
+    "cubes": 0,
+    "description": "Procedural palm tree, height 10, fullness 0.85, seed 17.",
+    "display_name": "Palm Tree (Tall)",
+    "material": "Log",
     "materials": [
       "Log"
     ],
-    "cubes": 0,
-    "subcubes": 14,
     "microcubes": 0,
-    "total": 14,
-    "created": "2026-05-17T00:00:00.000000+00:00",
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 10.0,
+    "subcategory": "trees",
+    "subcubes": 120,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 120
+  },
+  "tree_palm_m": {
     "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.862145+00:00",
+    "cubes": 0,
+    "description": "Procedural palm tree, height 8, fullness 0.85, seed 16.",
+    "display_name": "Palm Tree (Medium)",
+    "material": "Log",
+    "materials": [
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 8.0,
+    "subcategory": "trees",
+    "subcubes": 96,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 96
+  },
+  "tree_pine": {
+    "bounds": {
+      "d": 1,
+      "h": 3,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A three-cube-tall pine tree with a Log trunk and three narrowing tiers of Leaf branches forming a triangular silhouette.",
+    "display_name": "Pine Tree",
+    "facing": "+Z",
+    "materials": [
+      "Log",
+      "Leaf"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "tree",
+    "subcubes": 27,
+    "tags": [
+      "tree",
+      "pine",
+      "evergreen",
+      "nature",
+      "exterior",
+      "forest",
+      "christmas"
+    ],
+    "total": 27,
+    "version": 1
+  },
+  "tree_pine_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.268244+00:00",
+    "cubes": 8,
+    "description": "Procedural pine tree, height 18, fullness 1.0, seed 43.",
+    "display_name": "Pine Tree (Tall)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "microcubes": 28,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 18.0,
+    "subcategory": "trees",
+    "subcubes": 1696,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1732
+  },
+  "tree_pine_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.231061+00:00",
+    "cubes": 5,
+    "description": "Procedural pine tree, height 12, fullness 1.0, seed 42.",
+    "display_name": "Pine Tree (Medium)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "microcubes": 20,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 12.0,
+    "subcategory": "trees",
+    "subcubes": 506,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 531
+  },
+  "tree_pine_s": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.208924+00:00",
+    "cubes": 4,
+    "description": "Procedural pine tree, height 10, fullness 1.0, seed 41.",
+    "display_name": "Pine Tree (Small)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "Log"
+    ],
+    "microcubes": 16,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 10.0,
+    "subcategory": "trees",
+    "subcubes": 291,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 311
+  },
+  "tree_redwood_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:06.319337+00:00",
+    "cubes": 26550,
+    "description": "Procedural redwood tree, height 46, fullness 0.85, seed 51.",
+    "display_name": "Redwood (Broad Giant)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 46.0,
+    "subcategory": "trees",
+    "subcubes": 0,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 26550
+  },
+  "tree_redwood_xl": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T14:00:14.191439+00:00",
+    "cubes": 38336,
+    "description": "Procedural redwood tree, height 56, fullness 0.85, seed 52.",
+    "display_name": "Redwood (Great Broad Giant)",
+    "material": "Leaf",
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 0,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 56.0,
+    "subcategory": "trees",
+    "subcubes": 0,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 38336
+  },
+  "tree_spruce_crisp_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.406365+00:00",
+    "cubes": 183,
+    "description": "Procedural spruce tree, height 13, fullness 1.0, seed 47.",
+    "display_name": "Spruce Tree (Crisp, Large)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 13.0,
+    "subcategory": "trees",
+    "subcubes": 2578,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 2762
+  },
+  "tree_spruce_crisp_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-07-04T02:20:51.352363+00:00",
+    "cubes": 38,
+    "description": "Procedural spruce tree, height 9, fullness 1.0, seed 46.",
+    "display_name": "Spruce Tree (Crisp)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 9.0,
+    "subcategory": "trees",
+    "subcubes": 1012,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1051
+  },
+  "tree_spruce_l": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.680845+00:00",
+    "cubes": 163,
+    "description": "Procedural spruce tree, height 13, fullness 0.85, seed 9.",
+    "display_name": "Spruce Tree (Large)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 13.0,
+    "subcategory": "trees",
+    "subcubes": 2894,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 3058
+  },
+  "tree_spruce_m": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.621980+00:00",
+    "cubes": 32,
+    "description": "Procedural spruce tree, height 9, fullness 0.85, seed 8.",
+    "display_name": "Spruce Tree (Medium)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 9.0,
+    "subcategory": "trees",
+    "subcubes": 1130,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 1163
+  },
+  "tree_spruce_s": {
+    "category": "nature",
+    "cost": 0.0,
+    "created": "2026-06-14T23:36:44.604713+00:00",
+    "cubes": 7,
+    "description": "Procedural spruce tree, height 6, fullness 0.85, seed 7.",
+    "display_name": "Spruce Tree (Small)",
+    "material": "LeafSpruce",
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 1,
+    "model": "procedural/gen_tree.py",
+    "prompt": null,
+    "size": 6.0,
+    "subcategory": "trees",
+    "subcubes": 464,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 472
+  },
+  "tree_stump": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "nature",
+    "created": "2026-05-17T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A wide cut tree stump with a full Log base and a slightly narrower cross-section top suggesting a flat cut surface.",
+    "display_name": "Tree Stump",
+    "facing": "+Z",
+    "materials": [
+      "Log"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
     "subcategory": "ground_cover",
+    "subcubes": 14,
     "tags": [
       "stump",
       "tree",
@@ -1618,978 +2812,182 @@
       "village",
       "chopped"
     ],
-    "facing": "+Z",
-    "bounds": {
-      "w": 1,
-      "h": 1,
-      "d": 1
-    },
+    "total": 14,
     "version": 1
   },
-  "tree_oak_s": {
-    "display_name": "Oak Tree (Small)",
-    "description": "Procedural oak tree, height 5, fullness 0.85, seed 1.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 5.0,
-    "cubes": 7,
-    "subcubes": 1978,
-    "microcubes": 0,
-    "total": 1985,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.295906+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_oak_m": {
-    "display_name": "Oak Tree (Medium)",
-    "description": "Procedural oak tree, height 7, fullness 0.85, seed 2.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 7.0,
-    "cubes": 11,
-    "subcubes": 5009,
-    "microcubes": 0,
-    "total": 5020,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.374236+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_oak_l": {
-    "display_name": "Oak Tree (Large)",
-    "description": "Procedural oak tree, height 10, fullness 0.85, seed 3.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 10.0,
-    "cubes": 19,
-    "subcubes": 6503,
-    "microcubes": 0,
-    "total": 6522,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.480872+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_autumn_m": {
-    "display_name": "Autumn Tree (Medium)",
-    "description": "Procedural autumn tree, height 7, fullness 0.85, seed 11.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafAutumn",
-    "materials": [
-      "LeafAutumn",
-      "Log"
-    ],
-    "size": 7.0,
-    "cubes": 11,
-    "subcubes": 4675,
-    "microcubes": 0,
-    "total": 4686,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.555169+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_birch_m": {
-    "display_name": "Birch Tree (Medium)",
-    "description": "Procedural birch tree, height 8, fullness 0.85, seed 5.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafBirch",
-    "materials": [
-      "LeafBirch",
-      "LogBirch"
-    ],
-    "size": 8.0,
-    "cubes": 3,
-    "subcubes": 1117,
-    "microcubes": 0,
-    "total": 1120,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.575207+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_birch_l": {
-    "display_name": "Birch Tree (Tall)",
-    "description": "Procedural birch tree, height 10, fullness 0.85, seed 6.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafBirch",
-    "materials": [
-      "LeafBirch",
-      "LogBirch"
-    ],
-    "size": 10.0,
-    "cubes": 4,
-    "subcubes": 1213,
-    "microcubes": 0,
-    "total": 1217,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.596797+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_spruce_s": {
-    "display_name": "Spruce Tree (Small)",
-    "description": "Procedural spruce tree, height 6, fullness 0.85, seed 7.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
-    ],
-    "size": 6.0,
-    "cubes": 7,
-    "subcubes": 464,
-    "microcubes": 1,
-    "total": 472,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.604713+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_spruce_m": {
-    "display_name": "Spruce Tree (Medium)",
-    "description": "Procedural spruce tree, height 9, fullness 0.85, seed 8.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
-    ],
-    "size": 9.0,
-    "cubes": 32,
-    "subcubes": 1130,
-    "microcubes": 1,
-    "total": 1163,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.621980+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_spruce_l": {
-    "display_name": "Spruce Tree (Large)",
-    "description": "Procedural spruce tree, height 13, fullness 0.85, seed 9.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
-    ],
-    "size": 13.0,
-    "cubes": 163,
-    "subcubes": 2894,
-    "microcubes": 1,
-    "total": 3058,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.680845+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_jungle_m": {
-    "display_name": "Jungle Tree (Medium)",
-    "description": "Procedural jungle tree, height 12, fullness 0.85, seed 12.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafJungle",
-    "materials": [
-      "LeafJungle",
-      "Log"
-    ],
-    "size": 12.0,
-    "cubes": 85,
-    "subcubes": 2141,
-    "microcubes": 0,
-    "total": 2226,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.725872+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_jungle_xl": {
-    "display_name": "Jungle Tree (Giant)",
-    "description": "Procedural jungle tree, height 15, fullness 0.85, seed 13.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafJungle",
-    "materials": [
-      "LeafJungle",
-      "Log"
-    ],
-    "size": 15.0,
-    "cubes": 218,
-    "subcubes": 3909,
-    "microcubes": 0,
-    "total": 4127,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.817781+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_acacia_m": {
-    "display_name": "Acacia Tree (Medium)",
-    "description": "Procedural acacia tree, height 6, fullness 0.85, seed 14.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 6.0,
-    "cubes": 0,
-    "subcubes": 1475,
-    "microcubes": 2,
-    "total": 1477,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.832624+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_acacia_l": {
-    "display_name": "Acacia Tree (Large)",
-    "description": "Procedural acacia tree, height 8, fullness 0.85, seed 15.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 8.0,
-    "cubes": 0,
-    "subcubes": 3149,
-    "microcubes": 4,
-    "total": 3153,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.858157+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_palm_m": {
-    "display_name": "Palm Tree (Medium)",
-    "description": "Procedural palm tree, height 8, fullness 0.85, seed 16.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Log",
-    "materials": [
-      "Log"
-    ],
-    "size": 8.0,
-    "cubes": 0,
-    "subcubes": 96,
-    "microcubes": 0,
-    "total": 96,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.862145+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_palm_l": {
-    "display_name": "Palm Tree (Tall)",
-    "description": "Procedural palm tree, height 10, fullness 0.85, seed 17.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Log",
-    "materials": [
-      "Log"
-    ],
-    "size": 10.0,
-    "cubes": 0,
-    "subcubes": 120,
-    "microcubes": 0,
-    "total": 120,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.865904+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
   "tree_willow_l": {
-    "display_name": "Willow Tree",
-    "description": "Procedural willow tree, height 8, fullness 0.85, seed 18.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 8.0,
-    "cubes": 80,
-    "subcubes": 2303,
-    "microcubes": 0,
-    "total": 2383,
+    "category": "nature",
     "cost": 0.0,
     "created": "2026-06-14T23:36:44.908136+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_dead_s": {
-    "display_name": "Dead Tree (Small)",
-    "description": "Procedural dead tree, height 5, fullness 0.85, seed 19.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LogSpruce",
-    "materials": [
-      "LogSpruce"
-    ],
-    "size": 5.0,
-    "cubes": 2,
-    "subcubes": 116,
-    "microcubes": 2,
-    "total": 120,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.912627+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_dead_m": {
-    "display_name": "Dead Tree (Medium)",
-    "description": "Procedural dead tree, height 7, fullness 0.85, seed 20.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LogSpruce",
-    "materials": [
-      "LogSpruce"
-    ],
-    "size": 7.0,
-    "cubes": 3,
-    "subcubes": 116,
-    "microcubes": 1,
-    "total": 120,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.916589+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "bush_leafy_s": {
-    "display_name": "Leafy Bush (Small)",
-    "description": "Procedural bush tree, height 2, fullness 0.85, seed 21.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf"
-    ],
-    "size": 2.0,
-    "cubes": 9,
-    "subcubes": 634,
-    "microcubes": 0,
-    "total": 643,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.928322+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "bush_leafy_m": {
-    "display_name": "Leafy Bush (Medium)",
-    "description": "Procedural bush tree, height 2, fullness 0.85, seed 22.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf"
-    ],
-    "size": 2.0,
-    "cubes": 21,
-    "subcubes": 788,
-    "microcubes": 0,
-    "total": 809,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:44.944504+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_oak_lush": {
-    "display_name": "Oak Tree (Lush)",
-    "description": "Procedural oak tree, height 9, fullness 1.0, seed 31.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
+    "cubes": 80,
+    "description": "Procedural willow tree, height 8, fullness 0.85, seed 18.",
+    "display_name": "Willow Tree",
     "material": "Leaf",
     "materials": [
       "Leaf",
       "Log"
     ],
-    "size": 9.0,
-    "cubes": 10,
-    "subcubes": 4176,
     "microcubes": 0,
-    "total": 4186,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:45.026241+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_oak_sparse": {
-    "display_name": "Oak Tree (Sparse)",
-    "description": "Procedural oak tree, height 6, fullness 0.55, seed 32.",
-    "prompt": null,
     "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 6.0,
-    "cubes": 6,
-    "subcubes": 3780,
-    "microcubes": 0,
-    "total": 3786,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:45.091562+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_birch_sparse": {
-    "display_name": "Birch Tree (Sparse)",
-    "description": "Procedural birch tree, height 8, fullness 0.55, seed 33.",
     "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafBirch",
-    "materials": [
-      "LeafBirch",
-      "LogBirch"
-    ],
     "size": 8.0,
-    "cubes": 3,
-    "subcubes": 992,
+    "subcategory": "trees",
+    "subcubes": 2303,
+    "tags": [
+      "tree",
+      "nature",
+      "biome",
+      "forest",
+      "procedural"
+    ],
+    "total": 2383
+  },
+  "wand": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A slender wand tipped with a violet gem.",
+    "display_name": "Wand",
+    "file": "weapons/wand.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 52,
+    "method": "gen_items",
     "microcubes": 0,
-    "total": 995,
-    "cost": 0.0,
-    "created": "2026-06-14T23:36:45.110227+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "bush_glow_blue": {
-    "display_name": "Glowing Bush (Blue)",
-    "description": "Procedural bush tree, height 2, fullness 0.85, seed 62.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "glow_blue",
-    "materials": [
-      "glow_blue"
-    ],
-    "size": 2.0,
-    "cubes": 3,
-    "subcubes": 366,
-    "microcubes": 0,
-    "total": 369,
-    "cost": 0.0,
-    "created": "2026-07-04T02:21:27.824107+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "bush_glow_green": {
-    "display_name": "Glowing Bush (Green)",
-    "description": "Procedural bush tree, height 2, fullness 0.85, seed 61.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "glow_green",
-    "materials": [
-      "glow_green"
-    ],
-    "size": 2.0,
-    "cubes": 1,
-    "subcubes": 494,
-    "microcubes": 0,
-    "total": 495,
-    "cost": 0.0,
-    "created": "2026-07-04T02:21:27.812056+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_elder_oak": {
-    "display_name": "Elder Oak (World-Tree)",
-    "description": "Procedural elder_oak tree, height 32, fullness 0.85, seed 53.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log",
-      "glow_green"
-    ],
-    "size": 32.0,
-    "cubes": 35730,
-    "subcubes": 19,
-    "microcubes": 0,
-    "total": 35749,
-    "cost": 0.0,
-    "created": "2026-07-04T13:59:51.101963+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_elder_oak_xl": {
-    "display_name": "Elder Oak (Great World-Tree)",
-    "description": "Procedural elder_oak tree, height 38, fullness 0.85, seed 54.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log",
-      "glow_green"
-    ],
-    "size": 38.0,
-    "cubes": 42041,
-    "subcubes": 5,
-    "microcubes": 0,
-    "total": 42046,
-    "cost": 0.0,
-    "created": "2026-07-04T14:00:00.657169+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_fir_l": {
-    "display_name": "Fir Tree (Tall)",
-    "description": "Procedural fir tree, height 18, fullness 1.0, seed 45.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
-    ],
-    "size": 18.0,
-    "cubes": 40,
-    "subcubes": 1391,
-    "microcubes": 1,
-    "total": 1432,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.324216+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_fir_m": {
-    "display_name": "Fir Tree (Medium)",
-    "description": "Procedural fir tree, height 14, fullness 1.0, seed 44.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
-    ],
-    "size": 14.0,
-    "cubes": 11,
-    "subcubes": 784,
-    "microcubes": 1,
-    "total": 796,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.296410+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_pine_l": {
-    "display_name": "Pine Tree (Tall)",
-    "description": "Procedural pine tree, height 18, fullness 1.0, seed 43.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "Log"
-    ],
-    "size": 18.0,
-    "cubes": 8,
-    "subcubes": 1696,
-    "microcubes": 28,
-    "total": 1732,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.268244+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_pine_m": {
-    "display_name": "Pine Tree (Medium)",
-    "description": "Procedural pine tree, height 12, fullness 1.0, seed 42.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "Log"
-    ],
-    "size": 12.0,
-    "cubes": 5,
-    "subcubes": 506,
-    "microcubes": 20,
-    "total": 531,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.231061+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_pine_s": {
-    "display_name": "Pine Tree (Small)",
-    "description": "Procedural pine tree, height 10, fullness 1.0, seed 41.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "Log"
-    ],
-    "size": 10.0,
-    "cubes": 4,
-    "subcubes": 291,
-    "microcubes": 16,
-    "total": 311,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.208924+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_redwood_l": {
-    "display_name": "Redwood (Broad Giant)",
-    "description": "Procedural redwood tree, height 46, fullness 0.85, seed 51.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
-    ],
-    "size": 46.0,
-    "cubes": 26550,
+    "size": 0.3457,
+    "subcategory": "wand",
     "subcubes": 0,
-    "microcubes": 0,
-    "total": 26550,
-    "cost": 0.0,
-    "created": "2026-07-04T14:00:06.319337+00:00",
-    "category": "nature",
-    "subcategory": "trees",
     "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_redwood_xl": {
-    "display_name": "Redwood (Great Broad Giant)",
-    "description": "Procedural redwood tree, height 56, fullness 0.85, seed 52.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "Leaf",
-    "materials": [
-      "Leaf",
-      "Log"
+      "weapon",
+      "wand",
+      "magic"
     ],
-    "size": 56.0,
-    "cubes": 38336,
+    "total": 52,
+    "version": 1
+  },
+  "warhammer": {
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A one-handed warhammer with a back spike.",
+    "display_name": "Warhammer",
+    "file": "weapons/warhammer.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1239,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.716,
+    "subcategory": "hammer",
     "subcubes": 0,
+    "tags": [
+      "weapon",
+      "hammer",
+      "blunt",
+      "melee"
+    ],
+    "total": 1239,
+    "version": 1
+  },
+  "well": {
+    "bounds": {
+      "d": 1,
+      "h": 2,
+      "w": 1
+    },
+    "category": "environment",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A stone well with three ring layers and a wooden crossbeam at the top.",
+    "display_name": "Stone Well",
+    "facing": "+Z",
+    "materials": [
+      "Stone",
+      "Wood"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "total": 38336,
-    "cost": 0.0,
-    "created": "2026-07-04T14:00:14.191439+00:00",
-    "category": "nature",
-    "subcategory": "trees",
+    "model": "claude-sonnet-4-6",
+    "subcategory": "exterior",
+    "subcubes": 27,
     "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
-  },
-  "tree_spruce_crisp_l": {
-    "display_name": "Spruce Tree (Crisp, Large)",
-    "description": "Procedural spruce tree, height 13, fullness 1.0, seed 47.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
-    "materials": [
-      "LeafSpruce",
-      "LogSpruce"
+      "well",
+      "water",
+      "stone",
+      "outdoor",
+      "village",
+      "town",
+      "farm",
+      "common"
     ],
-    "size": 13.0,
-    "cubes": 183,
-    "subcubes": 2578,
-    "microcubes": 1,
-    "total": 2762,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.406365+00:00",
-    "category": "nature",
-    "subcategory": "trees",
-    "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
+    "total": 27,
+    "version": 1
   },
-  "tree_spruce_crisp_m": {
-    "display_name": "Spruce Tree (Crisp)",
-    "description": "Procedural spruce tree, height 9, fullness 1.0, seed 46.",
-    "prompt": null,
-    "model": "procedural/gen_tree.py",
-    "material": "LeafSpruce",
+  "wooden_throne": {
+    "bounds": {
+      "d": 2,
+      "h": 4,
+      "w": 4
+    },
+    "category": "furniture",
+    "cost": null,
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "Medieval king's wooden throne with a tall backrest, side armrests, and a gold crown cap. Hand-authored.",
+    "display_name": "Wooden Throne",
+    "facing": "+Z",
+    "material": "Wood",
     "materials": [
-      "LeafSpruce",
-      "LogSpruce"
+      "Wood",
+      "Gold"
     ],
-    "size": 9.0,
-    "cubes": 38,
-    "subcubes": 1012,
-    "microcubes": 1,
-    "total": 1051,
-    "cost": 0.0,
-    "created": "2026-07-04T02:20:51.352363+00:00",
-    "category": "nature",
-    "subcategory": "trees",
+    "method": "hand-authored (/model skill, 3 rounds)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "prompt": "a wooden throne for a medieval king",
+    "seat_height": 0.667,
+    "size": 3.0,
+    "subcategory": "seating",
+    "subcubes": 187,
     "tags": [
-      "tree",
-      "nature",
-      "biome",
-      "forest",
-      "procedural"
-    ]
+      "throne",
+      "seat",
+      "royalty",
+      "medieval",
+      "castle",
+      "palace",
+      "king"
+    ],
+    "total": 187,
+    "version": 3
+  },
+  "workbench": {
+    "bounds": {
+      "d": 1,
+      "h": 1,
+      "w": 1
+    },
+    "category": "furniture",
+    "created": "2026-05-16T00:00:00.000000+00:00",
+    "cubes": 0,
+    "description": "A sturdy wooden workbench with a metal vise at the front corner and a lower center shelf.",
+    "display_name": "Workbench",
+    "facing": "+Z (front face with vise faces viewer)",
+    "materials": [
+      "Wood",
+      "Metal"
+    ],
+    "method": "hand-authored (/model skill, 1 round)",
+    "microcubes": 0,
+    "model": "claude-sonnet-4-6",
+    "subcategory": "work_surface",
+    "subcubes": 18,
+    "tags": [
+      "workbench",
+      "crafting",
+      "tools",
+      "workshop",
+      "blacksmith",
+      "carpenter",
+      "house"
+    ],
+    "total": 18,
+    "version": 1
   }
 }

@@ -13,14 +13,14 @@
       "speed": 1.2,
       "maxDurability": 250,
       "reach": 2.0,
-      "templateFile": "weapons/sword_fine.voxel",
+      "templateFile": "weapons/sword_long.voxel",
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          -0.5,
-          -0.17,
-          -0.5
+          -0.1049,
+          -0.1173,
+          -0.0309
         ],
         "gripEulerDeg": [
           0,
@@ -118,14 +118,14 @@
       "speed": 1.0,
       "maxDurability": 200,
       "reach": 2.0,
-      "templateFile": "weapons/axe.voxel",
+      "templateFile": "weapons/axe_hand.voxel",
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          -0.5,
-          -0.17,
-          -0.5
+          -0.0309,
+          -0.0926,
+          -0.0185
         ],
         "gripEulerDeg": [
           0,
@@ -242,7 +242,14 @@
       "type": 3,
       "description": "Restores 20 HP.",
       "stackable": true,
-      "maxStack": 8
+      "maxStack": 8,
+      "templateFile": "items/potion.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.043, -0.05, -0.043],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
     },
     {
       "id": "iron_helmet",
@@ -415,6 +422,365 @@
         ],
         "scale": 0.6
       }
+    },
+    {
+      "id": "short_sword",
+      "name": "Short Sword",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A quick one-handed blade.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 6.0,
+      "speed": 1.3,
+      "maxDurability": 200,
+      "reach": 1.8,
+      "templateFile": "weapons/sword_short.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0802, -0.0926, -0.0309],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "dagger",
+      "name": "Dagger",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A slim thrusting blade.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 3.0,
+      "speed": 1.8,
+      "maxDurability": 120,
+      "reach": 1.4,
+      "templateFile": "weapons/dagger.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0556, -0.0679, -0.0185],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "battle_axe",
+      "name": "Battle Axe",
+      "type": 2,
+      "toolType": 2,
+      "equipSlot": 1,
+      "description": "A two-handed twin-bladed axe.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 12.0,
+      "speed": 0.7,
+      "maxDurability": 280,
+      "reach": 2.4,
+      "templateFile": "weapons/axe_battle.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.216, -0.1543, -0.0185],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "spear",
+      "name": "Spear",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A long ash-hafted spear with a leaf-shaped head.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 7.0,
+      "speed": 1.1,
+      "maxDurability": 180,
+      "reach": 3.0,
+      "templateFile": "weapons/spear.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0432, -0.8704, -0.0062],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "mace",
+      "name": "Flanged Mace",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A steel-hafted mace with four crushing flanges.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 7.0,
+      "speed": 0.9,
+      "maxDurability": 300,
+      "reach": 1.8,
+      "templateFile": "weapons/mace.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0926, -0.1049, -0.0926],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "maul",
+      "name": "Maul",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A massive two-handed iron-headed hammer.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 14.0,
+      "speed": 0.6,
+      "maxDurability": 350,
+      "reach": 2.2,
+      "templateFile": "weapons/maul.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.1543, -0.179, -0.0679],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "warhammer",
+      "name": "Warhammer",
+      "type": 2,
+      "toolType": 3,
+      "equipSlot": 1,
+      "description": "A one-handed hammer with an armor-piercing back spike.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 10.0,
+      "speed": 0.8,
+      "maxDurability": 320,
+      "reach": 1.8,
+      "templateFile": "weapons/warhammer.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.142, -0.1173, -0.0432],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "staff_fire",
+      "name": "Staff of Embers",
+      "type": 2,
+      "equipSlot": 1,
+      "description": "A mage's staff crowned with a caged ember-orb.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 5.0,
+      "speed": 1.0,
+      "maxDurability": 220,
+      "reach": 2.5,
+      "templateFile": "weapons/staff_fire.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0556, -0.7593, -0.0556],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "ember_glow",
+          "anchor": [0.056, 1.58, 0.056],
+          "light": {
+            "color": [1.0, 0.55, 0.2],
+            "intensity": 2.0,
+            "radius": 8.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "staff_frost",
+      "name": "Staff of Rime",
+      "type": 2,
+      "equipSlot": 1,
+      "description": "A frost-mage's staff bearing a pale blue orb.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 5.0,
+      "speed": 1.0,
+      "maxDurability": 220,
+      "reach": 2.5,
+      "templateFile": "weapons/staff_frost.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0556, -0.7593, -0.0556],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "rime_glow",
+          "anchor": [0.056, 1.58, 0.056],
+          "light": {
+            "color": [0.5, 0.75, 1.0],
+            "intensity": 1.8,
+            "radius": 8.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "staff_nature",
+      "name": "Staff of the Grove",
+      "type": 2,
+      "equipSlot": 1,
+      "description": "A living staff cradling a verdant seed-orb.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 5.0,
+      "speed": 1.0,
+      "maxDurability": 220,
+      "reach": 2.5,
+      "templateFile": "weapons/staff_nature.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0556, -0.7593, -0.0556],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "grove_glow",
+          "anchor": [0.056, 1.58, 0.056],
+          "light": {
+            "color": [0.4, 1.0, 0.45],
+            "intensity": 1.8,
+            "radius": 8.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "staff_arcane",
+      "name": "Staff of the Arcanum",
+      "type": 2,
+      "equipSlot": 1,
+      "description": "A gold-chased staff holding a violet crystal.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 5.0,
+      "speed": 1.0,
+      "maxDurability": 220,
+      "reach": 2.5,
+      "templateFile": "weapons/staff_arcane.voxel",
+      "attackAnimation": "melee_attack_down",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0556, -0.7593, -0.0556],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "arcane_glow",
+          "anchor": [0.056, 1.58, 0.056],
+          "light": {
+            "color": [0.7, 0.4, 1.0],
+            "intensity": 1.8,
+            "radius": 8.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "wand",
+      "name": "Wand",
+      "type": 2,
+      "equipSlot": 1,
+      "description": "A slender wand tipped with a violet gem.",
+      "stackable": false,
+      "maxStack": 1,
+      "damage": 2.0,
+      "speed": 1.6,
+      "maxDurability": 100,
+      "reach": 1.5,
+      "templateFile": "weapons/wand.voxel",
+      "attackAnimation": "melee_attack_horizontal",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.0062, -0.0556, -0.0062],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "tome_leather",
+      "name": "Leather-Bound Tome",
+      "type": 1,
+      "description": "A heavy gilt-cornered tome with a brass clasp.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/tome.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.117, -0.037, -0.148],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "scroll",
+      "name": "Scroll",
+      "type": 1,
+      "description": "A rolled parchment scroll sealed with a ribbon.",
+      "stackable": true,
+      "maxStack": 8,
+      "templateFile": "items/scroll.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.136, -0.031, -0.031],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "candlestick",
+      "name": "Candlestick",
+      "type": 1,
+      "description": "A brass chamberstick with a lit candle.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/candlestick.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [-0.068, -0.03, -0.056],
+        "gripEulerDeg": [0, 0, 0],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "candle_flame",
+          "anchor": [0.068, 0.2, 0.056],
+          "light": {
+            "color": [1.0, 0.8, 0.5],
+            "intensity": 1.5,
+            "radius": 6.0
+          }
+        }
+      ]
     }
   ]
 }

@@ -38,6 +38,20 @@ struct TemplateMicrocube {
     uint8_t state = 0;           ///< Voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet.
 };
 
+/// One cell of a fine-grid template — the finer-than-microcube item tier.
+/// `pos` is a template-local min-corner cell coordinate on a uniform grid of
+/// `VoxelTemplate::fineGridResolution` cells per cube edge (27 or 81, i.e.
+/// 9·3^k so every fine scale stays an exact multiple of the engine's voxel
+/// ladder). Authored via `V x y z Material [tint=#rrggbb] [state=...]` lines
+/// after a `# grid: N` header. Fine templates are kinematic/prop-only.
+struct TemplateFineVoxel {
+    glm::ivec3 pos;
+    std::string material;
+    int partId = 0;
+    uint32_t tint = 0xFFFFFFu;   ///< Packed 0xRRGGBB per-voxel tint; 0xFFFFFF = none.
+    uint8_t state = 0;           ///< Voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet.
+};
+
 /// Composite-part metadata. A template ships at least one part — the
 /// implicit "default" part (index 0, static, no hinge) created on demand
 /// the first time any voxel is added. Authors override this by emitting
@@ -92,6 +106,22 @@ public:
     std::vector<TemplateCube> cubes;
     std::vector<TemplateSubcube> subcubes;
     std::vector<TemplateMicrocube> microcubes;
+
+    /// Fine-grid tier (finer-than-microcube items). 0 = legacy C/S/M
+    /// template. When > 0 (27 or 81 cells per cube edge), `fineVoxels`
+    /// holds ALL geometry — mixing V with C/S/M lines is rejected at parse
+    /// (one lattice per file keeps face culling and merging exact). Fine
+    /// templates are kinematic-only: the static chunk-bake path refuses
+    /// them because the 9-per-cube micro grid cannot represent finer cells.
+    int fineGridResolution = 0;
+    std::vector<TemplateFineVoxel> fineVoxels;
+    bool isFineGrid() const { return fineGridResolution > 0; }
+
+    /// Set when the file violates the format contract (V before # grid,
+    /// V mixed with C/S/M, invalid grid value). loadTemplate() rejects the
+    /// whole template so a broken file cannot half-load silently.
+    bool parseError = false;
+    std::string parseErrorReason;
 
     /// Composite parts declared via `# part:` directives. Always non-empty
     /// after load — index 0 is the implicit default part. Templates that
@@ -148,6 +178,11 @@ public:
     void addMicrocube(const glm::ivec3& parentPos, const glm::ivec3& subPos, const glm::ivec3& microPos, const std::string& mat, uint32_t tint = 0xFFFFFFu, uint8_t state = 0) {
         ensureDefaultPart();
         microcubes.push_back({parentPos, subPos, microPos, mat, currentPartId, tint, state});
+    }
+
+    void addFineVoxel(const glm::ivec3& pos, const std::string& mat, uint32_t tint = 0xFFFFFFu, uint8_t state = 0) {
+        ensureDefaultPart();
+        fineVoxels.push_back({pos, mat, currentPartId, tint, state});
     }
 };
 
