@@ -1421,7 +1421,25 @@ exists for it (`lod_c3_3_far_draw_20260731.txt` FINDING 1), and far terrain repr
 *generated coarse tier* (coarse straight from `CoarseWorldModel` rather than downsampled), which is
 unbuilt and is the real centrepiece of "no render distance".
 
-*(shadow work below is unstarted)*
+> ### ✅ C5b SUPERSEDED BY THE 2026-08-05/06 CASCADE CAMPAIGN (docs/NearShadowCascade.md)
+> Shadows shipped as **three cascades** (near 40u blade-resolving / mid 420u / far 1600u —
+> the LOD band casts AND receives, cadenced, coarsest-level casters), not via the C-series.
+> Two of this plan's load-bearing shadow questions are now SETTLED empirically:
+> - **C2's batching premise is dead at every operating point.** The multidraw path ran with
+>   real data (420 draws → 8) and showed NO win — including at an ~11 ms dense-forest
+>   regime. (A first "11.1→5.1 ms win" was retracted: the C2.1 block's early return had
+>   been silently dropping foliage/character casters — the win was the missing draws.
+>   docs/evidence/dense_forest_perf_20260806.txt.) The mid cascade's real cost is
+>   **vegetation caster volume** (~5–6 ms of foliage cards at dense poses) — the next lever
+>   is foliage caster density/LOD, not submission batching. Multidraw remains default-ON as
+>   a correctness-verified, cost-free path.
+> - **M5 is answered** (4th time's the charm, empirically): the 6-index quad breaks the
+>   shadow pass — 4.785% px diff vs 0.022% control — because face quads are wound for the
+>   CAMERA convention; the 36-index both-windings draw is what survives BACK_BIT relative
+>   to the LIGHT. 36 stays required; a 6-index + CULL_NONE pipeline (with its own bias
+>   re-tune + pixel gate) is the only remaining variant worth trying.
+
+*(original C5b scoping below, superseded)*
 
 ### C5b — Shadows onto the cut
 Cascades (the `s_shadowFrustumCull` hook at `RenderCoordinator.cpp:1172` was kept for exactly

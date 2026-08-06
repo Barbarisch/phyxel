@@ -482,6 +482,17 @@ this session; this session found and fixed its residency gate, which was the use
   `solid_proxies_in_band` — THE regression detector), `POST /api/debug/lod_probe`,
   `tools/lod_ladder_probe.py` (measured switch distances; see `docs/LodTierLedger.md`).
 
+**§7e — SHADOW CASCADES SHIPPED (2026-08-06).** The §7d single-map overhaul grew into three
+cascades — near 40u/4096² (grass casts ONLY here; blade shadows resolve as directional
+streaks, red 40.1%-scatter → green), mid 420u/8192² (all original casters; GPU-driven
+multidraw default-ON but measured perf-neutral), far 1600u/4096² (the whole LOD band —
+tiles, tree meshes, structure proxies — casts AND receives, recorded on a 4-frame cadence
+with coarsest-level casters; recording-frame cost ≤7.4 ms). Receivers min-compose adjacent
+maps so single-map casters can never vanish; the near map's border fade is the split blend.
+Canonical record + the three lessons (explicit shader list, flat-color probes, per-map
+static viewports): docs/NearShadowCascade.md. Honest dense-forest ground FPS with every
+caster class present: ~47 (sparse horizon 188).
+
 **Open defects surfaced by the ladder (not tree-tier):**
 - Thin dark diagonal **sliver artifacts** at far grazing angles — persist with trees OFF →
   far-terrain tile geometry (seam/skirt), pre-existing. Needs its own pass.

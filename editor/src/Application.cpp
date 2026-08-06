@@ -8323,6 +8323,21 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("per_instance_levels"))
             Graphics::RenderCoordinator::s_treePerInstanceLevels =
                 cmd.params.value("per_instance_levels", true);
+        // Runtime tree-mesh ladder sweep: {"tree_ladder": [d1,d2,d3,d4]} ascending.
+        if (cmd.params.contains("tree_ladder") && cmd.params["tree_ladder"].is_array() &&
+            cmd.params["tree_ladder"].size() == 4) {
+            float prev = 0.0f;
+            bool ok = true;
+            float v[4];
+            for (int i = 0; i < 4; ++i) {
+                v[i] = cmd.params["tree_ladder"][i].get<float>();
+                if (v[i] <= prev) { ok = false; break; }
+                prev = v[i];
+            }
+            if (ok)
+                for (int i = 0; i < 4; ++i)
+                    Graphics::RenderCoordinator::s_treeMeshLevelDist[i] = v[i];
+        }
         response = {{"success", true}, {"enabled", ft->params().enabled},
                     {"per_instance_levels",
                      Graphics::RenderCoordinator::s_treePerInstanceLevels}};
@@ -13299,7 +13314,7 @@ void Application::registerEffectsCommands() {
             nlohmann::json meshByLevel = nlohmann::json::array();
             for (int n : fs.farTreeMeshDrawsByLevel) meshByLevel.push_back(n);
             nlohmann::json treeLadder = nlohmann::json::array();
-            for (float d : Graphics::RenderCoordinator::kTreeMeshLevelDist)
+            for (float d : Graphics::RenderCoordinator::s_treeMeshLevelDist)
                 treeLadder.push_back(d);
             out["far_trees"] = {{"fade_near", {th.treeFadeNear0, th.treeFadeNear1}},
                                 {"band_end", th.treeBandEnd},
@@ -13422,7 +13437,7 @@ void Application::registerEffectsCommands() {
             const auto th = renderCoordinator->lodTierThresholds();
             int treeLevel = 5;
             for (int i = 0; i < 4; ++i)
-                if (dist < Graphics::RenderCoordinator::kTreeMeshLevelDist[i]) {
+                if (dist < Graphics::RenderCoordinator::s_treeMeshLevelDist[i]) {
                     treeLevel = i + 1;
                     break;
                 }

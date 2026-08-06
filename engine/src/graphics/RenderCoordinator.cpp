@@ -1372,7 +1372,7 @@ void RenderCoordinator::renderFarTerrain() {
             // would continue out for a lot longer and be more gradual").
             auto levelForDist = [](float d) {
                 for (int i = 0; i < 4; ++i)
-                    if (d < kTreeMeshLevelDist[i]) return i + 1;
+                    if (d < s_treeMeshLevelDist[i]) return i + 1;
                 return 5;
             };
             // A/B: with per-instance levels OFF, both brackets collapse to the tile-centre
@@ -1387,8 +1387,8 @@ void RenderCoordinator::renderFarTerrain() {
             const int liNear = split ? levelForDist(tileDMin) : levelForDist(tileDist);
             const int liFar  = split ? levelForDist(tileDMax) : liNear;
             for (int li = liNear; li <= liFar; ++li) {
-                const glm::vec2 band(li <= 1 ? 0.0f : kTreeMeshLevelDist[li - 2],
-                                     li >= 5 ? 3.0e8f : kTreeMeshLevelDist[li - 1]);
+                const glm::vec2 band(li <= 1 ? 0.0f : s_treeMeshLevelDist[li - 2],
+                                     li >= 5 ? 3.0e8f : s_treeMeshLevelDist[li - 1]);
                 for (const auto& range : t.treeRanges) {
                     const auto* gl = treeLodMeshes->level(int(range.speciesId), li);
                     if (gl) {
@@ -2101,6 +2101,8 @@ bool  RenderCoordinator::s_distanceDrivenLod = false;
 bool  RenderCoordinator::s_farLodChunks = true;
 int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
 bool  RenderCoordinator::s_treePerInstanceLevels = true;
+// Tree mesh ladder (level i+1 below entry i; L5 beyond) — runtime-tunable, see the header.
+float RenderCoordinator::s_treeMeshLevelDist[4] = {360.0f, 560.0f, 820.0f, 1150.0f};
 float RenderCoordinator::s_lodTargetPixels = 8.0f;
 // Coarsest level distance LOD may select. Held at 3 (8-cube cells) rather than the ladder's 5,
 // because of the MEASURED unbounded-fattening defect (ContinuousLodPlan C5): LodCell::solid() is

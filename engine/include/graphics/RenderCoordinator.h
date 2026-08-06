@@ -891,7 +891,11 @@ public:
     /// last entry, cards past bandEnd. Structures: chain level i (0-based — L0's ⅓-voxel
     /// cells ARE selected, right at the handoff) below kStructureLevelDist[i]; L5 beyond.
     /// Densified 2026-08-05 with the full 6-level structure chain (was 3 levels of 4).
-    static constexpr float kTreeMeshLevelDist[4]  = {360.0f, 560.0f, 820.0f, 1150.0f};
+    /// RUNTIME-TUNABLE (2026-08-06) so ladder sweeps need no rebuild — the remaining
+    /// dense-world tree cost (~8 ms of vertex volume) trades against how long fine levels
+    /// hold, and that is a LOOK decision to sweep live: POST /api/debug/far_terrain
+    /// {"tree_ladder": [d1, d2, d3, d4]} (ascending; level i+1 below entry i, L5 beyond).
+    static float s_treeMeshLevelDist[4];
     static constexpr float kStructureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
 
     /// Pure residency-gate probe for a structure proxy — decides whether the REAL chunks own
