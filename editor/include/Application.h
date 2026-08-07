@@ -462,6 +462,12 @@ private:
     bool showClickActions = false;
     void renderClickActions();
 
+    // Item Equipper panel — GUI equip/give/spawn for registered items
+    bool showItemEquipper = true;
+    char m_itemFilter[64] = {0};
+    bool m_itemHoldableOnly = true;
+    void renderItemEquipper();
+
     // Spell Caster panel + state
     bool  showSpellCaster    = true;
     bool  m_spellModeEnabled = false;

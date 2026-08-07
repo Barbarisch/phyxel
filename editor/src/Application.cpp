@@ -1696,6 +1696,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     itemPropManager = std::make_unique<Core::ItemPropManager>();
     itemPropManager->setDependencies(placedObjectManager.get(), objectTemplateManager.get(),
                                      kinematicVoxelManager.get(), chunkManager);
+    // Items are REAL rigid bodies when not held: fall/tumble/settle via the
+    // custom CPU world, retire to a plain kinematic at rest (never chunk-baked).
+    if (physicsWorld)
+        itemPropManager->setDynamicsWorld(physicsWorld->getVoxelWorld());
 
     // Item effects: declarative particles/lights on items (torch flame,
     // conditional enchant auras) — drive both world props and the held item.
@@ -3018,6 +3022,7 @@ void Application::run() {
         renderTemplateSpawner();
         renderClickActions();
         renderSpellCaster();
+        renderItemEquipper();
 
         // Render Texture Editor
         if (m_textureEditor && m_showTextureEditor) {
@@ -3627,6 +3632,17 @@ void Application::update(float deltaTime) {
     // Tick coherent world-collapse fragments (sync body->render, reap removed). Cheap
     // no-op until apply_damage's coherent path has spawned any (docs/DestructionSystemV2.md P1.2b).
     coherentFragmentManager.update(deltaTime);
+
+    // Dynamic item props: sync body poses to render + pickup points, retire
+    // rested bodies, revive props the player walks through.
+    if (itemPropManager) {
+        glm::vec3 playerPos(1.0e9f), playerVel(0.0f);
+        if (animatedCharacter) {
+            playerPos = animatedCharacter->getPosition();
+            playerVel = animatedCharacter->getControllerVelocity();
+        }
+        itemPropManager->update(deltaTime, playerPos, playerVel);
+    }
 
     // Update dynamic furniture (sync physics transforms, re-staticize on rest)
     if (dynamicFurnitureManager) {
@@ -4623,6 +4639,118 @@ void Application::renderSpellCaster() {
         ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Spell mode ON — left-click to cast.");
     else
         ImGui::TextDisabled("Spell mode OFF — left-click attacks. Enable to cast at the cursor.");
+
+    ImGui::End();
+}
+
+void Application::renderItemEquipper() {
+    if (!showItemEquipper) return;
+
+    ImGui::SetNextWindowSize(ImVec2(360, 420), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Item Equipper", &showItemEquipper)) {
+        ImGui::End();
+        return;
+    }
+
+    // What's in the hand right now.
+    if (inventory) {
+        auto held = inventory->getSlot(inventory->getSelectedSlot());
+        if (held)
+            ImGui::Text("Held (slot %d): %s x%d", inventory->getSelectedSlot(),
+                        held->itemId.c_str(), held->count);
+        else
+            ImGui::TextDisabled("Held (slot %d): empty", inventory->getSelectedSlot());
+    }
+    ImGui::Separator();
+
+    ImGui::InputTextWithHint("##itemfilter", "filter (id or name)...",
+                             m_itemFilter, sizeof(m_itemFilter));
+    ImGui::SameLine();
+    ImGui::Checkbox("Holdable", &m_itemHoldableOnly);
+    ImGui::SetItemTooltip("Only items with a voxel model (equippable in the hand). "
+                          "Off shows every registered item incl. material stacks.");
+
+    auto& reg = Core::ItemRegistry::instance();
+    auto ids = reg.getAllItemIds();
+    std::sort(ids.begin(), ids.end());
+    const std::string filter = [&] {
+        std::string f(m_itemFilter);
+        std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+        return f;
+    }();
+
+    if (ImGui::BeginTable("items", 2,
+                          ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg |
+                          ImGuiTableFlags_BordersInnerH,
+                          ImVec2(0, -1))) {
+        ImGui::TableSetupColumn("Item", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed, 168.0f);
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableHeadersRow();
+
+        for (const auto& id : ids) {
+            const auto* def = reg.getItem(id);
+            if (!def) continue;
+            if (m_itemHoldableOnly && (!def->holdable || def->templateFile.empty())) continue;
+            if (!filter.empty()) {
+                auto contains = [&](std::string s) {
+                    std::transform(s.begin(), s.end(), s.begin(),
+                                   [](unsigned char c) { return (char)std::tolower(c); });
+                    return s.find(filter) != std::string::npos;
+                };
+                if (!contains(def->id) && !contains(def->name)) continue;
+            }
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(def->name.c_str());
+            if (ImGui::IsItemHovered() && def->id != def->name)
+                ImGui::SetTooltip("%s", def->id.c_str());
+
+            ImGui::TableNextColumn();
+            ImGui::PushID(id.c_str());
+            // Equip: put the item in the SELECTED hotbar slot — updateHeldItem
+            // then shows it in the character's hand next frame.
+            if (ImGui::SmallButton("Equip") && inventory) {
+                Core::ItemStack stack;
+                stack.itemId = def->id;
+                stack.count = 1;
+                stack.maxStack = def->maxStack;
+                if (stack.isUnique()) stack.instanceUuid = Core::Uuid::generate();
+                inventory->setSlot(inventory->getSelectedSlot(), stack);
+            }
+            ImGui::SetItemTooltip("Put in the selected hotbar slot (shows in hand)");
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Give") && inventory) {
+                inventory->addItem(def->id, 1);
+            }
+            ImGui::SetItemTooltip("Add to inventory (first free slot)");
+            ImGui::SameLine();
+            // Spawn: toss the item as a physics prop in front of the player
+            // (falls back to a plain ground spawn without a character).
+            if (ImGui::SmallButton("Spawn") && itemPropManager) {
+                glm::vec3 pos, vel(0.0f);
+                if (animatedCharacter) {
+                    const float yaw = animatedCharacter->getYaw();
+                    const glm::vec3 front(std::sin(yaw), 0.0f, std::cos(yaw));
+                    pos = animatedCharacter->getPosition() + front * 1.2f + glm::vec3(0, 0.8f, 0);
+                    vel = front * 2.0f + glm::vec3(0, 1.2f, 0);
+                } else if (inputManager) {
+                    pos = inputManager->getCameraPosition()
+                        + inputManager->getCameraFront() * 2.5f;
+                    vel = inputManager->getCameraFront() * 2.0f;
+                } else {
+                    pos = glm::vec3(0, 32, 0);
+                }
+                std::string uuid = (def->maxStack <= 1) ? Core::Uuid::generate() : "";
+                itemPropManager->spawnProp(def->id, pos, 0.0f, /*snapToGround=*/false,
+                                           uuid, vel);
+            }
+            ImGui::SetItemTooltip("Toss into the world as a physics prop");
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
 
     ImGui::End();
 }
@@ -9150,9 +9278,12 @@ void Application::dropHeldItem() {
     std::string dropUuid = stack->instanceUuid;
     if (inventory->isCreativeMode() && !dropUuid.empty()) dropUuid = Core::Uuid::generate();
 
+    // Toss the item forward — it's a rigid body now, so give it an arc and let
+    // physics find the resting spot (snapToGround off: gravity does that).
+    const glm::vec3 tossVel = front * 2.5f + glm::vec3(0.0f, 1.8f, 0.0f);
     std::string propId = itemPropManager->spawnProp(itemId, dropPos,
-                                                    glm::degrees(yaw), /*snapToGround=*/true,
-                                                    dropUuid);
+                                                    glm::degrees(yaw), /*snapToGround=*/false,
+                                                    dropUuid, tossVel);
     if (propId.empty()) return;
 
     inventory->consumeSelected();
@@ -9243,12 +9374,27 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
             if (const auto* d = Core::ItemRegistry::instance().getItem(itemId); d && d->maxStack <= 1)
                 instanceUuid = Core::Uuid::generate();
         }
-        std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg, true, instanceUuid);
+        // Optional initial velocity [vx,vy,vz] (toss); a thrown item skips the
+        // ground snap so physics owns the trajectory from the spawn point.
+        glm::vec3 velocity(0.0f);
+        bool hasVelocity = false;
+        if (cmd.params.contains("velocity") && cmd.params["velocity"].is_array()
+            && cmd.params["velocity"].size() == 3) {
+            velocity = glm::vec3(cmd.params["velocity"][0].get<float>(),
+                                 cmd.params["velocity"][1].get<float>(),
+                                 cmd.params["velocity"][2].get<float>());
+            hasVelocity = true;
+        }
+        std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg,
+                                                        /*snapToGround=*/!hasVelocity,
+                                                        instanceUuid, velocity);
         if (propId.empty()) {
             response = {{"error", "Failed to spawn item prop (unknown/not-holdable item or missing template): " + itemId}};
         } else {
             const auto* obj = placedObjectManager ? placedObjectManager->get(propId) : nullptr;
-            response = {{"success", true}, {"item", itemId}, {"prop_id", propId}};
+            const auto* prop = itemPropManager->get(propId);
+            response = {{"success", true}, {"item", itemId}, {"prop_id", propId},
+                        {"dynamic", prop && prop->dynamic}};
             if (!instanceUuid.empty()) response["instance_uuid"] = instanceUuid;
             if (obj) response["position"] = {{"x", obj->position.x}, {"y", obj->position.y}, {"z", obj->position.z}};
         }
@@ -17353,6 +17499,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Texture Editor", nullptr, &m_showTextureEditor);
             ImGui::MenuItem("Menu Editor", nullptr, &m_showMenuEditor);
             ImGui::MenuItem("Click Actions", nullptr, &showClickActions);
+            ImGui::MenuItem("Item Equipper", nullptr, &showItemEquipper);
             ImGui::Separator();
 
             if (ImGui::MenuItem("Reset Layout")) {

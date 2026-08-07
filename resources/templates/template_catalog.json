@@ -1106,27 +1106,26 @@
     "version": 1
   },
   "pickaxe": {
-    "category": "tool",
-    "created": "2026-04-21T00:00:00.000000+00:00",
-    "cubes": 6,
-    "description": "A T-shaped pickaxe \u2014 wood handle with a metal crosshead.",
+    "category": "weapon",
+    "cubes": 0,
+    "description": "A steel mining pick on an ash haft.",
     "display_name": "Pickaxe",
     "file": "weapons/pickaxe.voxel",
-    "material": "Metal",
-    "materials": [
-      "Wood",
-      "Metal"
-    ],
+    "fine_grid": 81,
+    "fine_voxels": 304,
+    "method": "gen_items",
     "microcubes": 0,
-    "subcategory": "mining",
+    "size": 0.5432,
+    "subcategory": "pickaxe",
     "subcubes": 0,
     "tags": [
-      "pickaxe",
+      "weapon",
       "tool",
-      "mining",
-      "weapon"
+      "pickaxe",
+      "mining"
     ],
-    "total": 6
+    "total": 304,
+    "version": 1
   },
   "pillar_stone": {
     "bounds": {
@@ -1218,6 +1217,72 @@
     "total": 134,
     "version": 1
   },
+  "rug_oriental": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A hand-knotted oriental rug, one fine cell thick.",
+    "display_name": "Oriental Rug",
+    "file": "rug_oriental.voxel",
+    "fine_grid": 27,
+    "fine_voxels": 2916,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 2.0,
+    "subcategory": "rug",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "rug",
+      "decor",
+      "projected-surface"
+    ],
+    "total": 2916,
+    "version": 1
+  },
+  "rug_test": {
+    "category": "item",
+    "cubes": 0,
+    "description": "Surface-projection test rug.",
+    "display_name": "Rug (Projection Test)",
+    "file": "rug_test.voxel",
+    "fine_grid": 27,
+    "fine_voxels": 1600,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 1.4815,
+    "subcategory": "rug",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "rug",
+      "test"
+    ],
+    "total": 1600,
+    "version": 1
+  },
+  "rug_woven": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A hand-woven rug with a projected pattern; a loose furnishing, not baked voxels.",
+    "display_name": "Woven Rug",
+    "file": "items/rug_woven.voxel",
+    "fine_grid": 27,
+    "fine_voxels": 2160,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 2.0,
+    "subcategory": "rug",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "rug",
+      "decor",
+      "house",
+      "tavern"
+    ],
+    "total": 2160,
+    "version": 1
+  },
   "scroll": {
     "category": "item",
     "cubes": 0,
@@ -1293,6 +1358,28 @@
       "garden"
     ],
     "total": 939
+  },
+  "sign_prancing_pony": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A thin hanging tavern sign board.",
+    "display_name": "Sign: The Prancing Pony",
+    "file": "sign_prancing_pony.voxel",
+    "fine_grid": 27,
+    "fine_voxels": 2160,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 2.0,
+    "subcategory": "sign",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "sign",
+      "decor",
+      "tavern"
+    ],
+    "total": 2160,
+    "version": 1
   },
   "simple_table": {
     "category": "furniture",
@@ -1704,6 +1791,96 @@
       "study"
     ],
     "total": 2530,
+    "version": 1
+  },
+  "tome_arcane": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A slim violet tome; cover art projected across the boards.",
+    "display_name": "Arcane Tome",
+    "file": "tome_arcane.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1714,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2963,
+    "subcategory": "book",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "book",
+      "tome",
+      "magic",
+      "arcane"
+    ],
+    "total": 1714,
+    "version": 1
+  },
+  "tome_fire": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A slim ember-red tome with projected cover art.",
+    "display_name": "Tome of Embers",
+    "file": "tome_fire.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1714,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2963,
+    "subcategory": "book",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "book",
+      "tome",
+      "magic",
+      "fire"
+    ],
+    "total": 1714,
+    "version": 1
+  },
+  "tome_necromantic": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A slim grave-green tome with projected cover art.",
+    "display_name": "Necromantic Tome",
+    "file": "tome_necromantic.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1714,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.2963,
+    "subcategory": "book",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "book",
+      "tome",
+      "magic",
+      "necromancy"
+    ],
+    "total": 1714,
+    "version": 1
+  },
+  "torch": {
+    "category": "item",
+    "cubes": 0,
+    "description": "A tar-wrapped torch with a glowing ember crown.",
+    "display_name": "Torch",
+    "file": "items/torch.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 236,
+    "method": "gen_items",
+    "microcubes": 0,
+    "size": 0.3951,
+    "subcategory": "torch",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "torch",
+      "light"
+    ],
+    "total": 236,
     "version": 1
   },
   "torch_wall": {

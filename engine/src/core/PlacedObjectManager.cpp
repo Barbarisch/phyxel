@@ -799,6 +799,31 @@ std::string PlacedObjectManager::registerItemProp(const std::string& itemId,
     return id;
 }
 
+bool PlacedObjectManager::updateItemPropPose(const std::string& id,
+                                             const glm::ivec3& bboxMin, const glm::ivec3& bboxMax) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_objects.find(id);
+    if (it == m_objects.end() || it->second.category != "item") return false;
+
+    PlacedObject& obj = it->second;
+    obj.boundingMin = bboxMin;
+    obj.boundingMax = bboxMax;
+    // Position tracks the bbox floor-center (item props have no meaningful
+    // anchor cell once physics has moved them).
+    const glm::vec3 center = (glm::vec3(bboxMin) + glm::vec3(bboxMax)) * 0.5f;
+    obj.position = glm::ivec3(glm::floor(glm::vec3(center.x, float(bboxMin.y), center.z)));
+    // The synthetic pickup point sits at the bbox center; regenerate it so
+    // [E] Take follows the moving item (prompt text etc. are re-derived).
+    for (auto& pt : obj.interactionPoints) {
+        if (pt.type == "pickup") {
+            const std::string pointId = pt.pointId;
+            pt = makeItemPickupPoint(obj);
+            pt.pointId = pointId;
+        }
+    }
+    return true;
+}
+
 InteractionPoint PlacedObjectManager::makeItemPickupPoint(const PlacedObject& obj) {
     InteractionPoint pickup;
     pickup.pointId = "pickup_0";

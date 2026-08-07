@@ -1,5 +1,8 @@
 # Fine-Voxel Item Asset Class
 
+> **Items are PHYSICS BODIES when not held (shipped 2026-08-06, same day,
+> follow-up):** see §Physics at the bottom.
+
 **Status: SHIPPED 2026-08-06** (red-before-green; 16-test L2 suite `FineVoxelItemTest.cpp`;
 L4-verified live — world props + in-hand). The item tier that ends "the axe looks like a
 blocky plank": items (weapons, tools, books, small props) are authored on a **fine grid
@@ -79,3 +82,41 @@ determinism (3), fine culling incl. 1/81 + non-cubic slabs (4), **pinned legacy
 controls** (2: stacked cubes = 10 faces, micro-on-cube = 11 — these must never
 move), static-bake refusal (1). All red before implementation, all green after;
 full suite regression-checked.
+
+## Physics — items are rigid bodies when not held
+
+`ItemPropManager` owns the lifecycle (parallel to furniture's, NOT via
+`DynamicFurnitureManager::activate` — that path double-renders and ignores
+`held.scale`):
+
+- **Spawn/drop → dynamic compound body** in `VoxelDynamicsWorld`: the merged
+  fine boxes ARE the collision compound; material-weighted COM; mass =
+  material × volume normalized into [0.8, 10]; `lifetime = FLT_MAX` (opt out
+  of cleanupDead); drop tosses with an arc; `/api/items/spawn` takes
+  `velocity:[x,y,z]`.
+- **Spawn pose**: elongated items (long axis > 1.4× footprint) spawn LYING
+  DOWN + a position-hashed angular nudge. Spawned standing they are balanced
+  enough for island sleep to freeze them upright/mid-topple — verified live,
+  reads as levitation. Static fallback (no dynamics world) keeps upright.
+- **Per-frame** (`update`, wired beside furniture's): body pose → kinematic
+  render transform AND `PlacedObjectManager::updateItemPropPose` (bbox +
+  pickup point) so **[E] Take follows a tumbling item**.
+- **Tip-over assist**: an elongated item asleep while still upright
+  (|longAxis.y| > 0.6) is woken with a topple nudge instead of retired —
+  velocity-threshold sleep freezes slow inverted-pendulum topples. Capped at
+  3/rest-cycle so genuinely propped items may stay leaning.
+- **Rest → retire**: island-asleep for 1.5 s → body removed, prop stays as a
+  plain kinematic at the settled pose (items NEVER chunk-bake). A retired
+  prop **revives when a moving player (> 0.5 u/s) walks through it** (nudge =
+  0.6× player velocity + small pop).
+- **Robustness**: externally-killed body (void fall) retires the prop at its
+  last pose; pickup/removal while dynamic removes the body (no leak).
+- **Limitations**: settled tilt is not persisted (reload restores upright at
+  the saved cell, like furniture's yaw-snap); rebuilt-from-DB props stay
+  static until bumped is NOT true — they have no collision boxes stored, so
+  they stay static until picked up.
+
+Tests: `tests/core/ItemPropPhysicsTest.cpp` (9 — body creation, velocity,
+pose sync, sleep-retire, vanished body, bump-revive, tip assist, pickup leak,
+static-fallback control). Live-verified: midair rain tumbles + settles flat,
+walk-through kicks items which re-settle flat, [E] prompt tracks throughout.

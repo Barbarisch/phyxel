@@ -93,16 +93,16 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          -0.18,
-          -0.1,
-          -0.18
+          -0.1914,
+          -0.1049,
+          -0.0185
         ],
         "gripEulerDeg": [
           0,
           0,
           0
         ],
-        "scale": 0.35
+        "scale": 1.0
       }
     },
     {
@@ -147,9 +147,9 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          -0.5,
-          -0.25,
-          -0.5
+          -0.0185,
+          -0.1049,
+          -0.0185
         ],
         "gripEulerDeg": [
           0,
@@ -162,9 +162,9 @@
         {
           "id": "flame",
           "anchor": [
-            0.5,
-            0.85,
-            0.5
+            0.025,
+            0.41,
+            0.025
           ],
           "vfx": {
             "color": [
@@ -246,8 +246,16 @@
       "templateFile": "items/potion.voxel",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.043, -0.05, -0.043],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.043,
+          -0.05,
+          -0.043
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -363,16 +371,16 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          0,
-          0,
-          0
+          -0.117,
+          -0.025,
+          -0.148
         ],
         "gripEulerDeg": [
           0,
           0,
           0
         ],
-        "scale": 0.6
+        "scale": 1.0
       }
     },
     {
@@ -387,16 +395,16 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          0,
-          0,
-          0
+          -0.117,
+          -0.025,
+          -0.148
         ],
         "gripEulerDeg": [
           0,
           0,
           0
         ],
-        "scale": 0.6
+        "scale": 1.0
       }
     },
     {
@@ -411,16 +419,16 @@
       "held": {
         "gripBone": "RightHand",
         "gripOffset": [
-          0,
-          0,
-          0
+          -0.117,
+          -0.025,
+          -0.148
         ],
         "gripEulerDeg": [
           0,
           0,
           0
         ],
-        "scale": 0.6
+        "scale": 1.0
       }
     },
     {
@@ -440,8 +448,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0802, -0.0926, -0.0309],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0802,
+          -0.0926,
+          -0.0309
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -462,8 +478,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0556, -0.0679, -0.0185],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0556,
+          -0.0679,
+          -0.0185
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -484,8 +508,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.216, -0.1543, -0.0185],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.216,
+          -0.1543,
+          -0.0185
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -506,8 +538,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0432, -0.8704, -0.0062],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0432,
+          -0.8704,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -528,8 +568,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0926, -0.1049, -0.0926],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0926,
+          -0.1049,
+          -0.0926
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -550,8 +598,16 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.1543, -0.179, -0.0679],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.1543,
+          -0.179,
+          -0.0679
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -572,8 +628,16 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.142, -0.1173, -0.0432],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.142,
+          -0.1173,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -593,16 +657,32 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0556, -0.7593, -0.0556],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0556,
+          -0.7593,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "ember_glow",
-          "anchor": [0.056, 1.58, 0.056],
+          "anchor": [
+            0.056,
+            1.58,
+            0.056
+          ],
           "light": {
-            "color": [1.0, 0.55, 0.2],
+            "color": [
+              1.0,
+              0.55,
+              0.2
+            ],
             "intensity": 2.0,
             "radius": 8.0
           }
@@ -625,16 +705,32 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0556, -0.7593, -0.0556],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0556,
+          -0.7593,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "rime_glow",
-          "anchor": [0.056, 1.58, 0.056],
+          "anchor": [
+            0.056,
+            1.58,
+            0.056
+          ],
           "light": {
-            "color": [0.5, 0.75, 1.0],
+            "color": [
+              0.5,
+              0.75,
+              1.0
+            ],
             "intensity": 1.8,
             "radius": 8.0
           }
@@ -657,16 +753,32 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0556, -0.7593, -0.0556],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0556,
+          -0.7593,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "grove_glow",
-          "anchor": [0.056, 1.58, 0.056],
+          "anchor": [
+            0.056,
+            1.58,
+            0.056
+          ],
           "light": {
-            "color": [0.4, 1.0, 0.45],
+            "color": [
+              0.4,
+              1.0,
+              0.45
+            ],
             "intensity": 1.8,
             "radius": 8.0
           }
@@ -689,16 +801,32 @@
       "attackAnimation": "melee_attack_down",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0556, -0.7593, -0.0556],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0556,
+          -0.7593,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "arcane_glow",
-          "anchor": [0.056, 1.58, 0.056],
+          "anchor": [
+            0.056,
+            1.58,
+            0.056
+          ],
           "light": {
-            "color": [0.7, 0.4, 1.0],
+            "color": [
+              0.7,
+              0.4,
+              1.0
+            ],
             "intensity": 1.8,
             "radius": 8.0
           }
@@ -721,8 +849,16 @@
       "attackAnimation": "melee_attack_horizontal",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.0062, -0.0556, -0.0062],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.0062,
+          -0.0556,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -736,8 +872,16 @@
       "templateFile": "items/tome.voxel",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.117, -0.037, -0.148],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.117,
+          -0.037,
+          -0.148
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       }
     },
@@ -751,8 +895,39 @@
       "templateFile": "items/scroll.voxel",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.136, -0.031, -0.031],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.136,
+          -0.031,
+          -0.031
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "rug_woven",
+      "name": "Woven Rug",
+      "type": 1,
+      "description": "A hand-woven rug. Rolls up under your arm; lays flat where you drop it.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/rug_woven.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.74,
+          -0.02,
+          -1.0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          90
+        ],
         "scale": 1.0
       }
     },
@@ -766,16 +941,32 @@
       "templateFile": "items/candlestick.voxel",
       "held": {
         "gripBone": "RightHand",
-        "gripOffset": [-0.068, -0.03, -0.056],
-        "gripEulerDeg": [0, 0, 0],
+        "gripOffset": [
+          -0.068,
+          -0.03,
+          -0.056
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
         "scale": 1.0
       },
       "effects": [
         {
           "id": "candle_flame",
-          "anchor": [0.068, 0.2, 0.056],
+          "anchor": [
+            0.068,
+            0.2,
+            0.056
+          ],
           "light": {
-            "color": [1.0, 0.8, 0.5],
+            "color": [
+              1.0,
+              0.8,
+              0.5
+            ],
             "intensity": 1.5,
             "radius": 6.0
           }

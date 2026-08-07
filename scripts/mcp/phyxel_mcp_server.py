@@ -2918,10 +2918,12 @@ async def list_tools() -> list[Tool]:
             name="spawn_item",
             description=(
                 "Spawn a holdable item (from resources/items.json, e.g. 'iron_sword', 'torch') as a "
-                "world prop: a kinematic voxel model lying in the world with a 'Take' [E] pickup "
-                "interaction. Item props are never baked into terrain. Position defaults to just in "
-                "front of the player. Picking it up adds the item to the inventory; selecting it on "
-                "the hotbar shows it in the player's hand (grip tuned via the item's 'held' block)."
+                "world prop: a DYNAMIC rigid body (falls/tumbles/slides, settles, then freezes in "
+                "place) rendered as a kinematic voxel model with a 'Take' [E] pickup interaction "
+                "that follows it. Item props are never baked into terrain. Position defaults to just "
+                "in front of the player. Optional velocity tosses the item on spawn. Picking it up "
+                "adds the item to the inventory; selecting it on the hotbar shows it in the "
+                "player's hand (grip tuned via the item's 'held' block)."
             ),
             inputSchema={
                 "type": "object",
@@ -2930,7 +2932,10 @@ async def list_tools() -> list[Tool]:
                     "x": {"type": "number", "description": "World X (optional; defaults in front of player)"},
                     "y": {"type": "number", "description": "World Y (snapped down to ground)"},
                     "z": {"type": "number", "description": "World Z"},
-                    "yaw": {"type": "number", "description": "Y rotation in degrees", "default": 0}
+                    "yaw": {"type": "number", "description": "Y rotation in degrees", "default": 0},
+                    "velocity": {"type": "array", "items": {"type": "number"},
+                                 "minItems": 3, "maxItems": 3,
+                                 "description": "Initial [vx,vy,vz] in units/s (toss)"}
                 },
                 "required": ["item"]
             }
@@ -5574,7 +5579,7 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "spawn_item":
         body = {"item": args["item"]}
-        for k in ("x", "y", "z", "yaw"):
+        for k in ("x", "y", "z", "yaw", "velocity"):
             if k in args:
                 body[k] = args[k]
         return await api_post("/api/items/spawn", body)

@@ -84,6 +84,21 @@
       0.0679
     ]
   },
+  "pickaxe": {
+    "cells": 304,
+    "dims_units": [
+      0.3827,
+      0.5432,
+      0.037
+    ],
+    "file": "weapons/pickaxe.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1914,
+      0.1049,
+      0.0185
+    ]
+  },
   "potion": {
     "cells": 134,
     "dims_units": [
@@ -94,6 +109,36 @@
     "file": "items/potion.voxel",
     "grid": 81
   },
+  "rug_oriental": {
+    "cells": 2916,
+    "dims_units": [
+      2.0,
+      0.037,
+      2.0
+    ],
+    "file": "rug_oriental.voxel",
+    "grid": 27
+  },
+  "rug_test": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      0.037,
+      1.4815
+    ],
+    "file": "rug_test.voxel",
+    "grid": 27
+  },
+  "rug_woven": {
+    "cells": 2160,
+    "dims_units": [
+      1.4815,
+      0.037,
+      2.0
+    ],
+    "file": "items/rug_woven.voxel",
+    "grid": 27
+  },
   "scroll": {
     "cells": 254,
     "dims_units": [
@@ -103,6 +148,16 @@
     ],
     "file": "items/scroll.voxel",
     "grid": 81
+  },
+  "sign_prancing_pony": {
+    "cells": 2160,
+    "dims_units": [
+      2.0,
+      1.4815,
+      0.037
+    ],
+    "file": "sign_prancing_pony.voxel",
+    "grid": 27
   },
   "spear": {
     "cells": 637,
@@ -218,6 +273,51 @@
     ],
     "file": "items/tome.voxel",
     "grid": 81
+  },
+  "tome_arcane": {
+    "cells": 1714,
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
+    "file": "tome_arcane.voxel",
+    "grid": 81
+  },
+  "tome_fire": {
+    "cells": 1714,
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
+    "file": "tome_fire.voxel",
+    "grid": 81
+  },
+  "tome_necromantic": {
+    "cells": 1714,
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
+    "file": "tome_necromantic.voxel",
+    "grid": 81
+  },
+  "torch": {
+    "cells": 236,
+    "dims_units": [
+      0.0494,
+      0.3951,
+      0.0494
+    ],
+    "file": "items/torch.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0185,
+      0.1049,
+      0.0185
+    ]
   },
   "wand": {
     "cells": 52,

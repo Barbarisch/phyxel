@@ -5,11 +5,15 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+#include "physics/VoxelRigidBody.h"   // Physics::LocalBox (item collision compound)
+
 namespace Phyxel {
 
 class ChunkManager;
 class ObjectTemplateManager;
 class VoxelTemplate;
+
+namespace Physics { class VoxelDynamicsWorld; }
 
 namespace Core {
 
@@ -37,7 +41,38 @@ public:
         std::string itemId;
         std::string kinId;        ///< KinematicVoxelManager object id
         std::string instanceUuid; ///< Item-instance uuid for a UNIQUE dropped item (empty for commodities)
+
+        // --- Physics state (dynamic item props) ---
+        uint32_t bodyId = 0;      ///< VoxelDynamicsWorld body id (0 = none); id-handle so a
+                                  ///< world-killed body is seen as null, never dangling.
+        bool  dynamic = false;    ///< Currently simulated (body alive).
+        float restDwell = 0.0f;   ///< Seconds the body has been island-asleep.
+        float scale = 1.0f;       ///< held.scale baked into voxels/boxes at spawn.
+        glm::vec3 localCOM{0.0f}; ///< COM in (scaled) template-local space.
+        glm::vec3 localLo{0.0f};  ///< Render AABB relative to COM (for placed-pose sync).
+        glm::vec3 localHi{0.0f};
+        std::vector<Physics::LocalBox> localBoxes;  ///< Collision compound (COM-relative);
+                                                     ///< kept for bump re-physicalization.
+        glm::mat4 lastTransform{1.0f};               ///< Last synced render pose.
+        bool elongated = false;   ///< Long axis (local Y) dominates the footprint.
+        int  tipAssists = 0;      ///< Tip-over nudges spent this rest cycle (cap 3).
     };
+
+    /// Body sleeps this long (island rest) before the body is RETIRED — removed
+    /// from the physics world, prop frozen as a plain kinematic at its settled
+    /// pose. The item-class analogue of furniture's re-staticize (items never
+    /// bake into chunks).
+    static constexpr float kRestRetireSeconds = 1.5f;
+
+    /// Tip-over assist: an ELONGATED item that falls asleep while its long
+    /// axis is still this upright (|worldLongAxis.y|) gets woken with a small
+    /// topple nudge instead of retiring — velocity-threshold sleep freezes a
+    /// slow inverted-pendulum topple mid-lean, which reads as levitation
+    /// (verified live twice: tip-balanced sword, mid-topple maul). Capped at
+    /// 3 nudges per rest cycle so an item genuinely propped against geometry
+    /// may legitimately stay leaning.
+    static constexpr float kTipAssistUprightness = 0.6f;
+    static constexpr int   kTipAssistMax = 3;
 
     void setDependencies(PlacedObjectManager* placed, ObjectTemplateManager* templates,
                          KinematicVoxelManager* kinematic, ChunkManager* chunks) {
@@ -47,13 +82,28 @@ public:
     /// Optional: item props register/unregister their declarative effects here.
     void setItemEffectSystem(ItemEffectSystem* effects) { m_effects = effects; }
 
+    /// Wire the physics world. When set, spawned props are DYNAMIC rigid bodies
+    /// (fall/tumble/slide, settle, retire); when null, props are static
+    /// kinematic groups exactly as before (unit tests, headless tools).
+    void setDynamicsWorld(Physics::VoxelDynamicsWorld* world) { m_dynamics = world; }
+
     /// Spawn an item prop in the world. snapToGround scans downward for the
     /// first solid voxel and rests the prop on top of it.
+    /// initialVelocity applies to the spawned rigid body (drop-toss); ignored
+    /// on the static fallback path.
     /// Returns the placed-object id, or "" on failure (unknown/not-holdable
     /// item, missing template).
     std::string spawnProp(const std::string& itemId, const glm::vec3& position,
                           float yawDeg = 0.0f, bool snapToGround = true,
-                          const std::string& instanceUuid = "");
+                          const std::string& instanceUuid = "",
+                          const glm::vec3& initialVelocity = glm::vec3(0.0f));
+
+    /// Per-frame: sync body poses to render + placed objects, retire rested
+    /// bodies, revive props bumped by the player (playerPos/playerVel of the
+    /// controlled character; defaults mean "no player nearby").
+    void update(float dt,
+                const glm::vec3& playerPos = glm::vec3(1.0e9f),
+                const glm::vec3& playerVel = glm::vec3(0.0f));
 
     /// Remove a prop (kinematic group + placed-object entry).
     bool removeProp(const std::string& placedObjectId);
@@ -92,11 +142,24 @@ private:
     /// Register a prop's effects (no-op without an effect system).
     void registerPropEffects(const Prop& prop);
 
+    /// Create the rigid body for a prop from its stored collision compound at
+    /// the given COM pose. Returns false when no dynamics world is wired.
+    bool physicalizeProp(Prop& prop, const glm::vec3& comWorldPos,
+                         const glm::quat& orientation, const glm::vec3& initialVelocity);
+
+    /// Remove the body (if alive), freeze the prop at `pose`, and write the
+    /// settled pose back to the placed object (bbox + pickup point).
+    void retireProp(Prop& prop, const glm::mat4& pose);
+
+    /// Push the current pose into the placed object (bbox + pickup point).
+    void syncPlacedPose(const Prop& prop, const glm::mat4& pose);
+
     PlacedObjectManager*    m_placed    = nullptr;
     ObjectTemplateManager*  m_templates = nullptr;
     KinematicVoxelManager*  m_kinematic = nullptr;
     ChunkManager*           m_chunks    = nullptr;
     ItemEffectSystem*       m_effects   = nullptr;
+    Physics::VoxelDynamicsWorld* m_dynamics = nullptr;
 
     std::unordered_map<std::string, Prop> m_props;  // by placedObjectId
 };

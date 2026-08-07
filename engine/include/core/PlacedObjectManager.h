@@ -264,6 +264,14 @@ public:
                                  const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
                                  const std::string& displayName);
 
+    /// Update a DYNAMIC item prop's pose (category "item" only): position,
+    /// bounding box, and the synthetic pickup interaction point all move to the
+    /// new bbox — so [E] Take follows a tumbling/settled item. This is the
+    /// sanctioned mutator (move() refuses non-template categories; do NOT
+    /// const_cast around it). Returns false for unknown ids / non-item objects.
+    bool updateItemPropPose(const std::string& id,
+                            const glm::ivec3& bboxMin, const glm::ivec3& bboxMax);
+
     /// Remove a placed object: clears its voxels and deletes the registry entry.
     bool remove(const std::string& id);
 

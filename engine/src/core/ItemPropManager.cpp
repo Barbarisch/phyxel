@@ -9,8 +9,12 @@
 #include "core/ChunkManager.h"
 #include "utils/Logger.h"
 
+#include "physics/VoxelDynamicsWorld.h"
+
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <algorithm>
+#include <cfloat>
 #include <filesystem>
 #include <limits>
 #include <tuple>
@@ -191,8 +195,123 @@ const VoxelTemplate* ItemPropManager::resolveItemTemplate(const std::string& tem
     return nullptr;
 }
 
+bool ItemPropManager::physicalizeProp(Prop& prop, const glm::vec3& comWorldPos,
+                                      const glm::quat& orientation,
+                                      const glm::vec3& initialVelocity) {
+    if (!m_dynamics || prop.localBoxes.empty()) return false;
+    auto* body = m_dynamics->createBody(prop.localBoxes, comWorldPos, orientation,
+                                        0.25f /*restitution*/, 0.6f /*friction*/,
+                                        0.25f /*linearDamp*/, 0.35f /*angularDamp*/);
+    if (!body) return false;
+    // Items lie around indefinitely — opt out of cleanupDead's 30 s reaper
+    // (the furniture pattern; without this a dropped sword evaporates).
+    body->lifetime = FLT_MAX;
+    body->buoyancy = 1.2f;   // dropped items bob rather than sink outright
+    body->linearVelocity = initialVelocity;
+    // Small deterministic angular nudge (position-hashed): nothing spawns
+    // perfectly balanced, so island sleep can only freeze true rest poses.
+    const uint32_t h = static_cast<uint32_t>(static_cast<int64_t>(comWorldPos.x * 73856093.0f))
+                     ^ static_cast<uint32_t>(static_cast<int64_t>(comWorldPos.y * 19349663.0f))
+                     ^ static_cast<uint32_t>(static_cast<int64_t>(comWorldPos.z * 83492791.0f));
+    auto jitter = [h](uint32_t shift) {
+        return (float((h >> shift) & 0xFFu) / 255.0f - 0.5f) * 0.6f;
+    };
+    body->angularVelocity += glm::vec3(jitter(0), jitter(8), jitter(16));
+    body->wake();
+    prop.bodyId = body->id;
+    prop.dynamic = true;
+    prop.restDwell = 0.0f;
+    prop.tipAssists = 0;
+    return true;
+}
+
+void ItemPropManager::retireProp(Prop& prop, const glm::mat4& pose) {
+    if (m_dynamics && prop.bodyId != 0) {
+        if (auto* body = m_dynamics->getBodyById(prop.bodyId))
+            m_dynamics->removeBody(body);
+    }
+    prop.bodyId = 0;
+    prop.dynamic = false;
+    prop.restDwell = 0.0f;
+    prop.lastTransform = pose;
+    if (m_kinematic && !prop.kinId.empty()) m_kinematic->setTransform(prop.kinId, pose);
+    syncPlacedPose(prop, pose);
+}
+
+void ItemPropManager::syncPlacedPose(const Prop& prop, const glm::mat4& pose) {
+    if (!m_placed) return;
+    glm::vec3 wlo(std::numeric_limits<float>::max()), whi(std::numeric_limits<float>::lowest());
+    for (int i = 0; i < 8; ++i) {
+        const glm::vec3 c((i & 1) ? prop.localHi.x : prop.localLo.x,
+                          (i & 2) ? prop.localHi.y : prop.localLo.y,
+                          (i & 4) ? prop.localHi.z : prop.localLo.z);
+        const glm::vec3 w = glm::vec3(pose * glm::vec4(c, 1.0f));
+        wlo = glm::min(wlo, w);
+        whi = glm::max(whi, w);
+    }
+    m_placed->updateItemPropPose(prop.placedObjectId,
+                                 glm::ivec3(glm::floor(wlo)), glm::ivec3(glm::ceil(whi)));
+}
+
+void ItemPropManager::update(float dt, const glm::vec3& playerPos, const glm::vec3& playerVel) {
+    if (!m_dynamics) return;
+    for (auto& [id, prop] : m_props) {
+        if (prop.dynamic) {
+            auto* body = m_dynamics->getBodyById(prop.bodyId);
+            if (!body) {
+                // Body killed externally (void fall / world clear): freeze the
+                // prop at its last synced pose rather than crashing or leaking.
+                prop.bodyId = 0;
+                prop.dynamic = false;
+                retireProp(prop, prop.lastTransform);
+                continue;
+            }
+            const glm::mat4 pose = glm::translate(glm::mat4(1.0f), body->position)
+                                 * glm::mat4_cast(body->orientation);
+            prop.lastTransform = pose;
+            if (m_kinematic) m_kinematic->setTransform(prop.kinId, pose);
+            // Keep [E] Take on the moving item: the pickup point is a static
+            // bbox snapshot unless we push the pose into the placed object.
+            syncPlacedPose(prop, pose);
+
+            if (body->isAsleep) {
+                // Tip-over assist: sleep caught a slow topple while the item
+                // is still standing — nudge it over instead of freezing it
+                // leaning on nothing (see kTipAssistUprightness).
+                const glm::vec3 worldLong = body->orientation * glm::vec3(0, 1, 0);
+                if (prop.elongated && std::abs(worldLong.y) > kTipAssistUprightness
+                    && prop.tipAssists < kTipAssistMax) {
+                    ++prop.tipAssists;
+                    glm::vec3 axis = glm::cross(glm::vec3(0, 1, 0), worldLong);
+                    const float len = glm::length(axis);
+                    axis = (len > 1e-3f) ? axis / len : glm::vec3(1, 0, 0);
+                    body->wake();
+                    body->angularVelocity += axis * 0.8f;   // tips the long axis floorward
+                    prop.restDwell = 0.0f;
+                } else {
+                    prop.restDwell += dt;
+                    if (prop.restDwell >= kRestRetireSeconds) retireProp(prop, pose);
+                }
+            } else {
+                prop.restDwell = 0.0f;
+            }
+        } else if (!prop.localBoxes.empty()) {
+            // Settled prop: a moving player walking through it kicks it alive
+            // (capsule approximation: 0.9 u radius, 1.6 u tall).
+            if (glm::dot(playerVel, playerVel) < 0.25f) continue;  // < 0.5 u/s
+            const glm::vec3 com(prop.lastTransform[3]);
+            const glm::vec3 d = com - playerPos;
+            if (std::abs(d.y) > 1.6f || (d.x * d.x + d.z * d.z) > 0.9f * 0.9f) continue;
+            const glm::quat q = glm::quat_cast(glm::mat3(prop.lastTransform));
+            physicalizeProp(prop, com, q,
+                            playerVel * 0.6f + glm::vec3(0.0f, 0.8f, 0.0f));
+        }
+    }
+}
+
 std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec3& position,
-                                       float yawDeg, bool snapToGround, const std::string& instanceUuid) {
+                                       float yawDeg, bool snapToGround, const std::string& instanceUuid,
+                                       const glm::vec3& initialVelocity) {
     if (!m_placed || !m_kinematic) return "";
 
     const auto* def = ItemRegistry::instance().getItem(itemId);
@@ -213,15 +332,42 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
         return "";
     }
 
-    // World props use the item's held scale: item templates are authored at
-    // full-cube resolution, so unscaled props tower over the character.
+    // Bake held.scale straight into the geometry (legacy full-cube templates
+    // ship undersized-by-scale): physics boxes and the render group then share
+    // one unscaled local frame, which the rigid body's pose can drive directly
+    // (VoxelDynamicsWorld has no scale concept).
     const float propScale = def->held.scale > 0.0f ? def->held.scale : 1.0f;
+    if (propScale != 1.0f) {
+        for (auto& v : voxels) { v.localPos *= propScale; v.scale *= propScale; }
+    }
 
-    // Local-space bounds of the voxel set (scaled).
+    // Local bounds + collision compound + material-weighted COM. The fine-item
+    // merged boxes ARE the compound (maul = 21 boxes); legacy C/S/M items get
+    // one box per voxel (small counts). Mass = material mass x volume, then
+    // normalized into a sane gameplay band while preserving the distribution
+    // (raw volumetric masses for hand items are ~0.01 — too light to solve
+    // stably against the character and furniture).
+    auto& matReg = MaterialRegistry::instance();
     glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
+    std::vector<Physics::LocalBox> boxes;
+    boxes.reserve(voxels.size());
+    glm::vec3 com(0.0f);
+    float rawMass = 0.0f;
     for (const auto& v : voxels) {
-        lo = glm::min(lo, (v.localPos - v.scale * 0.5f) * propScale);
-        hi = glm::max(hi, (v.localPos + v.scale * 0.5f) * propScale);
+        lo = glm::min(lo, v.localPos - v.scale * 0.5f);
+        hi = glm::max(hi, v.localPos + v.scale * 0.5f);
+        const float vol = v.scale.x * v.scale.y * v.scale.z;
+        const float m = std::max(1e-4f, matReg.getPhysics(v.materialName).mass * vol);
+        boxes.push_back({v.localPos, v.scale * 0.5f, m});
+        com += v.localPos * m;
+        rawMass += m;
+    }
+    com /= rawMass;
+    const float totalMass = glm::clamp(rawMass * 100.0f, 0.8f, 10.0f);
+    const float massScale = totalMass / rawMass;
+    for (auto& b : boxes) {
+        b.offset = b.offset - com;   // body frame is COM-centered
+        b.mass *= massScale;
     }
 
     glm::vec3 pos = position;
@@ -232,21 +378,40 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
             if (m_chunks->hasVoxelAt(glm::ivec3(x, y, z))) { pos.y = float(y + 1); break; }
         }
     }
-    // Rest the template's bottom on the ground plane.
-    pos.y -= lo.y;
 
-    glm::mat4 transform = glm::translate(glm::mat4(1.0f), pos);
-    transform = glm::rotate(transform, glm::radians(yawDeg), glm::vec3(0, 1, 0));
-    transform = glm::scale(transform, glm::vec3(propScale));
-
-    // Conservative world AABB: transform the 8 local corners.
-    glm::vec3 wlo(std::numeric_limits<float>::max()), whi(std::numeric_limits<float>::lowest());
-    for (int i = 0; i < 8; ++i) {
-        glm::vec3 c((i & 1) ? hi.x : lo.x, (i & 2) ? hi.y : lo.y, (i & 4) ? hi.z : lo.z);
-        glm::vec3 w = glm::vec3(transform * glm::vec4(c, 1.0f));
-        wlo = glm::min(wlo, w);
-        whi = glm::max(whi, w);
+    glm::quat orientation = glm::angleAxis(glm::radians(yawDeg), glm::vec3(0, 1, 0));
+    // PHYSICS SPAWN POSE: elongated items (swords, staffs, spears...) go in
+    // LYING DOWN. Spawned standing on their base they are balanced enough for
+    // island sleep to freeze them upright (or mid-topple) — verified live: a
+    // sword frozen tip-down reads as levitation. Tipping the long axis
+    // horizontal at spawn puts them straight into their natural rest pose.
+    // Static fallback (no dynamics world) keeps the upright display pose.
+    const glm::vec3 dims = hi - lo;
+    const bool elongated = dims.y > 1.4f * std::max(dims.x, dims.z);
+    if (m_dynamics && elongated) {
+        orientation = orientation * glm::angleAxis(glm::half_pi<float>(), glm::vec3(1, 0, 0));
     }
+
+    // Rest height from the ROTATED bounds: the item's lowest rotated corner
+    // sits on pos.y (tiny lift so the body starts contact-free), centered
+    // horizontally on the requested position.
+    const glm::vec3 llo0 = lo - com, lhi0 = hi - com;
+    glm::vec3 rlo(std::numeric_limits<float>::max()), rhi(std::numeric_limits<float>::lowest());
+    for (int i = 0; i < 8; ++i) {
+        const glm::vec3 c((i & 1) ? lhi0.x : llo0.x, (i & 2) ? lhi0.y : llo0.y, (i & 4) ? lhi0.z : llo0.z);
+        const glm::vec3 w = orientation * c;
+        rlo = glm::min(rlo, w);
+        rhi = glm::max(rhi, w);
+    }
+    const glm::vec3 comWorld(pos.x, pos.y - rlo.y + 0.02f, pos.z);
+    const glm::mat4 transform = glm::translate(glm::mat4(1.0f), comWorld) * glm::mat4_cast(orientation);
+
+    // Render group lives in the same COM-centered frame as the body.
+    for (auto& v : voxels) v.localPos -= com;
+
+    // Conservative world AABB from the rotated bounds.
+    const glm::vec3 llo = llo0, lhi = lhi0;
+    const glm::vec3 wlo = comWorld + rlo, whi = comWorld + rhi;
 
     std::string kinId = m_kinematic->add("itemprop_" + itemId, std::move(voxels), transform,
                                          "", false, surfaceFromTemplate(*tmpl));
@@ -263,10 +428,26 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
 
     // Persist the item-instance uuid on the prop's placed object so drop→reload→pickup keeps identity.
     if (!instanceUuid.empty()) m_placed->setMetadata(placedId, "instanceUuid", instanceUuid);
-    m_props[placedId] = {placedId, itemId, kinId, instanceUuid};
+
+    Prop prop;
+    prop.placedObjectId = placedId;
+    prop.itemId = itemId;
+    prop.kinId = kinId;
+    prop.instanceUuid = instanceUuid;
+    prop.scale = propScale;
+    prop.localCOM = com;
+    prop.localLo = llo;
+    prop.localHi = lhi;
+    prop.localBoxes = std::move(boxes);
+    prop.lastTransform = transform;
+    prop.elongated = elongated;
+    physicalizeProp(prop, comWorld, orientation, initialVelocity);  // no-op without a dynamics world
+
+    m_props[placedId] = std::move(prop);
     registerPropEffects(m_props[placedId]);
-    LOG_INFO("ItemPropManager", "Spawned item prop '{}' as '{}' at ({}, {}, {})",
-             itemId, placedId, pos.x, pos.y, pos.z);
+    LOG_INFO("ItemPropManager", "Spawned item prop '{}' as '{}' at ({}, {}, {}){}",
+             itemId, placedId, pos.x, pos.y, pos.z,
+             m_props[placedId].dynamic ? " [dynamic]" : "");
     return placedId;
 }
 
@@ -276,14 +457,26 @@ void ItemPropManager::registerPropEffects(const Prop& prop) {
     if (!def || def->effects.empty()) return;
     KinematicVoxelManager* kin = m_kinematic;
     const std::string kinId = prop.kinId;
+    // Effect anchors are TEMPLATE-local (items.json), but the prop's render
+    // transform is COM-centered (physics frame) — shift back so a torch's
+    // flame sits on its tip, not offset by the center of mass.
+    const glm::mat4 comShift = glm::translate(glm::mat4(1.0f), -prop.localCOM);
     m_effects->registerInstance(prop.placedObjectId, def, /*held=*/false,
-                                [kin, kinId]() { return kin->getTransform(kinId); });
+                                [kin, kinId, comShift]() {
+                                    return kin->getTransform(kinId) * comShift;
+                                });
 }
 
 void ItemPropManager::onPlacedObjectRemoved(const std::string& placedObjectId) {
     auto it = m_props.find(placedObjectId);
     if (it == m_props.end()) return;
     if (m_effects) m_effects->unregisterInstance(placedObjectId);
+    // A live rigid body must die with the prop — items pin lifetime=FLT_MAX,
+    // so a body left behind here would simulate (and collide) forever.
+    if (m_dynamics && it->second.bodyId != 0) {
+        if (auto* body = m_dynamics->getBodyById(it->second.bodyId))
+            m_dynamics->removeBody(body);
+    }
     if (m_kinematic) m_kinematic->remove(it->second.kinId);
     m_props.erase(it);
 }
