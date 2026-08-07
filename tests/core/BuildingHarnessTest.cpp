@@ -1,10 +1,16 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "core/BuildingProgram.h"
+#include "core/FurniturePlacer.h"
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
 #include "core/TraversalProbe.h"
@@ -226,15 +232,10 @@ CaseResult runCase(const std::string& name, const BuildingProgram& p, const Styl
     return r;
 }
 
-}  // namespace
+struct Spec { std::string name; BuildingProgram p; };
 
-// The corpus run + matrix report. Asserts the harness has TEETH (a stairless multi-story is
-// flagged unreachable) and that the canonical exemplar passes; everything else is reported so
-// the real pass-rate is visible (the sign-off number).
-TEST(BuildingHarness, Corpus) {
-    const StyleProfile style = harnessStyle();
-    struct Spec { std::string name; BuildingProgram p; };
-    std::vector<Spec> corpus = {
+std::vector<Spec> makeCorpus() {
+    return {
         {"1-story 7x9",                 tower(1, 7, 9, "switchback", "crawlspace", true)},
         {"1-story 5x6 small",           tower(1, 5, 6, "switchback", "crawlspace", true)},
         {"1-story 12x14 large",         tower(1, 12, 14, "switchback", "crawlspace", true)},
@@ -256,6 +257,16 @@ TEST(BuildingHarness, Corpus) {
         {"BAD: 2-room sealed kitchen",  twoRoom(false)},
         {"BAD: gen doors stripped",     generated(9, 11, 6, 4, /*connectInterior=*/false)},
     };
+}
+
+}  // namespace
+
+// The corpus run + matrix report. Asserts the harness has TEETH (a stairless multi-story is
+// flagged unreachable) and that the canonical exemplar passes; everything else is reported so
+// the real pass-rate is visible (the sign-off number).
+TEST(BuildingHarness, Corpus) {
+    const StyleProfile style = harnessStyle();
+    std::vector<Spec> corpus = makeCorpus();
 
     std::cout << "\n=== BUILDING VALIDATION HARNESS ===\n";
     std::cout << "case                              build  floors  reach  rooms  OVERALL\n";
@@ -292,4 +303,141 @@ TEST(BuildingHarness, Corpus) {
     // The autofill core seam must produce a navigable multi-room building (rooms check applicable).
     EXPECT_TRUE(autofillCase.pass())     << "autofillRoomLayout produced a non-navigable building";
     EXPECT_TRUE(autofillCase.roomsTested) << "autofill produced no multi-room story (rooms was n/a)";
+}
+
+// ============================================================================
+// M0 forge-parity digests (StructureForge restage safety net). Pins a digest of
+// (a) the realized canvas and (b) the furnish PLAN (furnishFromPlan placements +
+// unplaced list) for every corpus entry. The M1 restage of buildV2 into
+// StructureForge stages is pure code motion; these goldens turn any accidental
+// behavior change during that motion into a red test. Also asserts determinism
+// (same program twice -> identical digests), the ForgePattern contract.
+// On mismatch the failure message prints the paste-ready golden row; re-pin only
+// for INTENTIONAL generation changes.
+// ============================================================================
+
+namespace {
+
+uint64_t fnv1a(uint64_t h, const void* data, size_t n) {
+    const unsigned char* p = static_cast<const unsigned char*>(data);
+    for (size_t i = 0; i < n; ++i) { h ^= p[i]; h *= 1099511628211ull; }
+    return h;
+}
+constexpr uint64_t kFnvOffset = 1469598103934665603ull;
+
+uint64_t digestCanvas(const MicroCanvas& c) {
+    auto cells = c.occupiedCells();
+    std::sort(cells.begin(), cells.end(), [](const glm::ivec3& a, const glm::ivec3& b) {
+        return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z);
+    });
+    uint64_t h = kFnvOffset;
+    for (const auto& v : cells) {
+        h = fnv1a(h, &v.x, sizeof(int));
+        h = fnv1a(h, &v.y, sizeof(int));
+        h = fnv1a(h, &v.z, sizeof(int));
+        const std::string m = c.materialAt(v.x, v.y, v.z);
+        h = fnv1a(h, m.data(), m.size());
+    }
+    return h;
+}
+
+// Digest of the plan-side furnishing decision for every story: placement identity
+// fields (type/room/pos/rotation/wall attachment/insets) + the honest unplaced list.
+// Footprints deliberately empty (1x1 defaults): this pins the PLAN logic, not the
+// asset library on the build machine.
+uint64_t digestFurnishPlan(const StructureRealizer::ShellResult& sh, const BuildingProgram& p) {
+    uint64_t h = kFnvOffset;
+    for (size_t s = 0; s < p.stories.size() && s < sh.floorTopByStory.size(); ++s) {
+        std::vector<UnplacedFixture> un;
+        auto placements = FurniturePlacer::furnishFromPlan(
+            p.stories[s], static_cast<int>(s), {0, 0, 0},
+            sh.floorTopByStory[s] / 9, sh.plan, {}, &un);
+        for (const auto& pl : placements) {
+            h = fnv1a(h, pl.type.data(), pl.type.size());
+            h = fnv1a(h, pl.room.data(), pl.room.size());
+            h = fnv1a(h, &pl.worldPos.x, sizeof(int));
+            h = fnv1a(h, &pl.worldPos.y, sizeof(int));
+            h = fnv1a(h, &pl.worldPos.z, sizeof(int));
+            h = fnv1a(h, &pl.rotation, sizeof(int));
+            h = fnv1a(h, &pl.backDir.x, sizeof(int));
+            h = fnv1a(h, &pl.backDir.z, sizeof(int));
+            h = fnv1a(h, &pl.insetMicroX, sizeof(int));
+            h = fnv1a(h, &pl.insetMicroZ, sizeof(int));
+        }
+        for (const auto& u : un) {
+            h = fnv1a(h, u.room.data(), u.room.size());
+            h = fnv1a(h, u.type.data(), u.type.size());
+        }
+    }
+    return h;
+}
+
+bool loadShippedRecipesForDigest() {
+    for (const char* p : {"resources/furnishing_recipes.json",
+                          "../resources/furnishing_recipes.json",
+                          "../../resources/furnishing_recipes.json",
+                          "../../../resources/furnishing_recipes.json"})
+        if (FurniturePlacer::loadRecipesFromFile(p)) return true;
+    return false;
+}
+
+struct ParityGolden { const char* name; uint64_t canvas; uint64_t plan; };
+
+// PINNED 2026-08-07 against pre-restage buildV2 behavior. Regenerate ONLY for an
+// intentional generation change (the failure message prints the new row).
+const ParityGolden kParityGoldens[] = {
+    {"1-story 7x9",                  0xae90dc35f0f2a471ull, 0x5fc3a57fcfc9a7e2ull},
+    {"1-story 5x6 small",            0xc608931bd16516a2ull, 0x9e7527836b571790ull},
+    {"1-story 12x14 large",          0x8d8a8a9205f74487ull, 0xa195429179bdd0e5ull},
+    {"2-story switchback",           0xaad24855dee02deaull, 0xb1618508ff810571ull},
+    {"3-story switchback (exemplar)",0x34b400ace303cacbull, 0x9fc45a10a5197658ull},
+    {"5-story switchback",           0xe206bad568f6aa29ull, 0xfa139c03b9f85d34ull},
+    {"10-story switchback",          0x7ac5cc0a8a5eb996ull, 0xfb536b2a73209444ull},
+    {"3-story switchback slab",      0xa65de2dcdcc4b7d9ull, 0x26e4c4daab806951ull},
+    {"3-story switchback basement",  0x4e83d4d1704a7f97ull, 0x8e644210eeaeb31aull},
+    {"2-story straight",             0x93609c2c59d4d215ull, 0xb1618508ff810571ull},
+    {"3-story straight",             0x4fe796d94ee69cf7ull, 0x9fc45a10a5197658ull},
+    {"2-room connected",             0x0657ed156a9ad0eaull, 0x1d30249fe57607cfull},
+    {"gen 7x9 rooms=3 seed1",        0xc99756d522672bc1ull, 0xe30b8af908c557a0ull},
+    {"gen 7x9 rooms=4 seed2",        0x34382f9fa617c633ull, 0x0e19f19f2d2cc913ull},
+    {"gen 10x12 rooms=5 seed3",      0x7a5eb64e0363e36dull, 0xa49d846dafb59f77ull},
+    {"gen 9x11 rooms=6 seed4",       0xef989c3e1d1be5aeull, 0xc3cb3272c9b1e654ull},
+    {"autofill 8x10 (core seam)",    0xfb91e3a699994fedull, 0xf5dc4bddbda4d7e9ull},
+    {"BAD: 3-story NO stairs",       0x1ca8aca73a8de6b7ull, 0x8b25c8ac88a91357ull},
+    {"BAD: 2-room sealed kitchen",   0x97857f3014bb6e8aull, 0x52a65ec6c04f1739ull},
+    {"BAD: gen doors stripped",      0x44cf45697c2b744aull, 0xa45952388b362d7aull},
+};
+
+}  // namespace
+
+TEST(BuildingHarness, ForgeParityDigests) {
+    ASSERT_TRUE(loadShippedRecipesForDigest())
+        << "furnishing_recipes.json not found - plan digests would pin the hardcoded fallback";
+    const StyleProfile style = harnessStyle();
+    std::vector<Spec> corpus = makeCorpus();
+    ASSERT_EQ(corpus.size(), std::size(kParityGoldens)) << "corpus and golden table diverged";
+
+    for (size_t i = 0; i < corpus.size(); ++i) {
+        const Spec& c = corpus[i];
+        ASSERT_EQ(c.name, std::string(kParityGoldens[i].name)) << "corpus order changed";
+
+        auto sh = StructureRealizer::realizeShell(c.p, style);
+        ASSERT_TRUE(sh.ok) << c.name << ": " << sh.error;
+        const uint64_t canvas = digestCanvas(sh.canvas);
+        const uint64_t plan   = digestFurnishPlan(sh, c.p);
+
+        // Determinism (ForgePattern contract #2): a second run is bit-identical.
+        auto sh2 = StructureRealizer::realizeShell(c.p, style);
+        ASSERT_TRUE(sh2.ok) << c.name;
+        EXPECT_EQ(canvas, digestCanvas(sh2.canvas))     << c.name << ": canvas nondeterministic";
+        EXPECT_EQ(plan,   digestFurnishPlan(sh2, c.p))  << c.name << ": furnish plan nondeterministic";
+
+        char row[160];
+        snprintf(row, sizeof(row), "    {\"%s\", 0x%llxull, 0x%llxull},", c.name.c_str(),
+                 static_cast<unsigned long long>(canvas), static_cast<unsigned long long>(plan));
+        EXPECT_EQ(canvas, kParityGoldens[i].canvas)
+            << c.name << ": canvas digest drifted. If INTENTIONAL, re-pin golden row:\n" << row;
+        EXPECT_EQ(plan, kParityGoldens[i].plan)
+            << c.name << ": furnish-plan digest drifted. If INTENTIONAL, re-pin golden row:\n" << row;
+    }
 }
