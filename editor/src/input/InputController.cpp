@@ -383,6 +383,14 @@ void InputController::setupMouseBindings() {
             return;
         }
 
+        // Hit a settled ITEM prop: the explicit disturbance that revives its
+        // physics under static-first (items have no baked voxels, so this is
+        // a ray-vs-prop test, not a hover-voxel test).
+        if (m_app->tryHitItemPropAtRay(m_inputManager->getCameraPosition(),
+                                       m_inputManager->getCameraFront())) {
+            return;
+        }
+
         // Knock placed furniture loose by clicking it (combat feel: a hit
         // sends the chair flying). Plain terrain voxels are left alone.
         if (m_interactionSystem->hasHoveredCube()) {

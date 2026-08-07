@@ -77,6 +77,11 @@ dead `items.json` templateFile references. Run it before committing assets.
 5. **Loose objects are ITEMS, not baked voxels** — anything a player could
    pick up ships as an items.json entry (physics prop + pickup). Chunk-baking
    is for terrain and structural fixtures only.
+6. **Furniture stays chunk-baked microcube (decided 2026-08-07).** Fine-grid
+   kinematic furniture would forfeit chunk culling/greedy meshing/per-voxel
+   lighting; instead, fine detail arrives as ITEM accents placed on furniture
+   (tankards, candlesticks, tomes) + richer tints. Items spawn STATIC-FIRST
+   (no physics until dropped/thrown/hit — docs/FineVoxelItems.md §Physics).
 
 ## Adding assets — the paths
 

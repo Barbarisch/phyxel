@@ -85,6 +85,12 @@ struct KinematicVoxelObject {
     bool        visible = true;
     KinematicSurface surface;              ///< Optional planar projected texture (Tier 2).
 
+    /// Cached local bounding sphere (computed once at add()) for per-pass
+    /// frustum/distance culling — kinematic objects were the only geometry
+    /// class the renderer drew unconditionally (2026-08-07 perf plan).
+    glm::vec3   localCenter{0.0f};
+    float       boundingRadius = 1.0f;
+
     /// KINEMATIC FOLIAGE (F3): billboarded-leaf voxels are excluded from `faces` (no
     /// solid quads) and packed here as foliage-card instances in FRAGMENT-LOCAL cell
     /// coords relative to `foliageOrigin` (hinge-local). Drawn by FoliageRenderPipeline's

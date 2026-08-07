@@ -13,7 +13,8 @@
 //  * A body that vanishes externally (void fall / cleanupDead) retires the
 //    prop gracefully at its last synced pose.
 //  * spawnProp accepts an initial velocity (the drop-toss path).
-//  * A settled prop bumped by a moving player re-physicalizes with a nudge.
+//  * STATIC-FIRST (2026-08-07): spawns are settled by default; dynamic is
+//    opt-in (drop/throw/hit) and capped; walk-through bump-revive removed.
 //
 // All assertions run on real engine objects (VoxelDynamicsWorld,
 // KinematicVoxelManager, PlacedObjectManager, ObjectTemplateManager) — no
@@ -99,7 +100,8 @@ struct Rig {
 TEST(ItemPropPhysics, SpawnCreatesDynamicCompoundBody) {
     Rig rig("physrod_a");
     auto id = rig.props.spawnProp("physrod_a", {5.0f, 10.0f, 5.0f}, 0.0f,
-                                  /*snapToGround=*/false);
+                                  /*snapToGround=*/false, "", glm::vec3(0.0f),
+                                  /*dynamic=*/true);
     ASSERT_FALSE(id.empty());
     const auto* p = rig.props.get(id);
     ASSERT_NE(p, nullptr);
@@ -117,7 +119,7 @@ TEST(ItemPropPhysics, SpawnAppliesInitialVelocity) {
     Rig rig("physrod_b");
     const glm::vec3 vel(2.0f, 1.5f, -0.5f);
     auto id = rig.props.spawnProp("physrod_b", {5.0f, 10.0f, 5.0f}, 0.0f,
-                                  false, "", vel);
+                                  false, "", vel, /*dynamic=*/true);
     ASSERT_FALSE(id.empty());
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
@@ -128,7 +130,8 @@ TEST(ItemPropPhysics, SpawnAppliesInitialVelocity) {
 
 TEST(ItemPropPhysics, UpdateSyncsRenderAndPlacedPose) {
     Rig rig("physrod_c");
-    auto id = rig.props.spawnProp("physrod_c", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    auto id = rig.props.spawnProp("physrod_c", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                                  "", glm::vec3(0.0f), /*dynamic=*/true);
     ASSERT_FALSE(id.empty());
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
@@ -158,7 +161,8 @@ TEST(ItemPropPhysics, UpdateSyncsRenderAndPlacedPose) {
 
 TEST(ItemPropPhysics, SleepRetiresBodyKeepsProp) {
     Rig rig("physrod_d");
-    auto id = rig.props.spawnProp("physrod_d", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    auto id = rig.props.spawnProp("physrod_d", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                                  "", glm::vec3(0.0f), /*dynamic=*/true);
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
     const uint32_t bodyId = body->id;
@@ -187,7 +191,8 @@ TEST(ItemPropPhysics, SleepRetiresBodyKeepsProp) {
 
 TEST(ItemPropPhysics, VanishedBodyRetiresGracefully) {
     Rig rig("physrod_e");
-    auto id = rig.props.spawnProp("physrod_e", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    auto id = rig.props.spawnProp("physrod_e", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                                  "", glm::vec3(0.0f), /*dynamic=*/true);
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
 
@@ -201,37 +206,14 @@ TEST(ItemPropPhysics, VanishedBodyRetiresGracefully) {
     EXPECT_EQ(rig.props.count(), 1u);
 }
 
-TEST(ItemPropPhysics, PlayerBumpRephysicalizesSettledProp) {
-    Rig rig("physrod_f");
-    auto id = rig.props.spawnProp("physrod_f", {5.0f, 10.0f, 5.0f}, 0.0f, false);
-    auto* body = rig.body(id);
-    ASSERT_NE(body, nullptr);
-    const glm::vec3 settled = body->position;
-
-    // Settle + retire.
-    body->isAsleep = true;
-    body->linearVelocity = body->angularVelocity = glm::vec3(0.0f);
-    for (int i = 0; i < 5; ++i)
-        rig.props.update(ItemPropManager::kRestRetireSeconds * 0.35f);
-    ASSERT_FALSE(rig.props.get(id)->dynamic);
-
-    // A fast player walking through the prop nudges it back to life.
-    rig.props.update(0.016f, settled, glm::vec3(3.0f, 0.0f, 0.0f));
-
-    const auto* p = rig.props.get(id);
-    EXPECT_TRUE(p->dynamic) << "bump did not re-physicalize";
-    auto* newBody = rig.body(id);
-    ASSERT_NE(newBody, nullptr);
-    EXPECT_GT(glm::length(newBody->linearVelocity), 0.05f) << "no nudge impulse";
-}
-
 TEST(ItemPropPhysics, TipAssistTopplesUprightSleeperInsteadOfFreezing) {
     // Velocity-threshold sleep freezes a slow inverted-pendulum topple: an
     // elongated item asleep while still upright must be WOKEN with a topple
     // nudge (not retired leaning on nothing). After kTipAssistMax nudges the
     // pose is accepted (legitimately propped against geometry).
     Rig rig("physrod_i");
-    auto id = rig.props.spawnProp("physrod_i", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    auto id = rig.props.spawnProp("physrod_i", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                                  "", glm::vec3(0.0f), /*dynamic=*/true);
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
 
@@ -261,7 +243,8 @@ TEST(ItemPropPhysics, PickupWhileDynamicRemovesBody) {
     // not by a red run: a picked-up prop's body has lifetime=FLT_MAX and would
     // otherwise simulate invisibly forever.)
     Rig rig("physrod_h");
-    auto id = rig.props.spawnProp("physrod_h", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    auto id = rig.props.spawnProp("physrod_h", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                                  "", glm::vec3(0.0f), /*dynamic=*/true);
     auto* body = rig.body(id);
     ASSERT_NE(body, nullptr);
     const uint32_t bodyId = body->id;
@@ -307,6 +290,115 @@ TEST(ItemPropPhysics, PathQualifiedResolutionDefeatsStemShadowing) {
     // And the legacy entry is untouched under its own key.
     EXPECT_NE(mgr.getTemplate("_shadow_probe"), nullptr);
     EXPECT_FALSE(mgr.getTemplate("_shadow_probe")->isFineGrid());
+}
+
+// ---------------------------------------------------------------------------
+// STATIC-FIRST movability (2026-08-07 plan): items spawn settled with NO body;
+// physics is opt-in (drop/throw/hit). Cost is bounded by a concurrent-dynamic
+// cap. Walk-through bump-revive is REMOVED (explicit hit revives instead).
+// ---------------------------------------------------------------------------
+
+TEST(ItemPropPhysics, DefaultSpawnIsStaticNoBody) {
+    Rig rig("staticrod_a");
+    auto id = rig.props.spawnProp("staticrod_a", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    ASSERT_FALSE(id.empty());
+    const auto* p = rig.props.get(id);
+    ASSERT_NE(p, nullptr);
+    EXPECT_FALSE(p->dynamic) << "default spawn must be settled (static-first)";
+    EXPECT_EQ(p->bodyId, 0u);
+    EXPECT_EQ(rig.world.getBodyCount(), 0u) << "no physics body for a placed item";
+}
+
+TEST(ItemPropPhysics, ExplicitDynamicSpawnCreatesBody) {
+    Rig rig("staticrod_b");
+    auto id = rig.props.spawnProp("staticrod_b", {5.0f, 10.0f, 5.0f}, 0.0f,
+                                  false, "", glm::vec3(1.0f, 0.5f, 0.0f),
+                                  /*dynamic=*/true);
+    ASSERT_FALSE(id.empty());
+    EXPECT_TRUE(rig.props.get(id)->dynamic);
+    EXPECT_NE(rig.body(id), nullptr);
+}
+
+TEST(ItemPropPhysics, WalkThroughDoesNotRevive) {
+    Rig rig("staticrod_c");
+    auto id = rig.props.spawnProp("staticrod_c", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    ASSERT_FALSE(rig.props.get(id)->dynamic);
+    const glm::vec3 at(5.0f, 10.0f, 5.0f);
+    // A fast player walking straight through the settled prop: NO revive.
+    for (int i = 0; i < 10; ++i)
+        rig.props.update(0.016f, at, glm::vec3(3.0f, 0.0f, 0.0f));
+    EXPECT_FALSE(rig.props.get(id)->dynamic)
+        << "walk-through bump-revive must be removed (static-first)";
+}
+
+TEST(ItemPropPhysics, HitRevivesSettledProp) {
+    Rig rig("staticrod_d");
+    auto id = rig.props.spawnProp("staticrod_d", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    ASSERT_FALSE(rig.props.get(id)->dynamic);
+    // Explicit hit (attack) physicalizes with an impulse.
+    EXPECT_TRUE(rig.props.hitProp(id, glm::vec3(2.0f, 1.0f, 0.0f)));
+    const auto* p = rig.props.get(id);
+    EXPECT_TRUE(p->dynamic) << "explicit hit must revive";
+    auto* body = rig.body(id);
+    ASSERT_NE(body, nullptr);
+    EXPECT_GT(glm::length(body->linearVelocity), 0.5f);
+}
+
+TEST(ItemPropPhysics, ConcurrentDynamicCapEvictsOldest) {
+    Rig rig("staticrod_e");
+    std::vector<std::string> ids;
+    for (int i = 0; i < ItemPropManager::kMaxDynamicItems + 1; ++i) {
+        auto id = rig.props.spawnProp("staticrod_e",
+                                      {5.0f + i * 2.0f, 10.0f, 5.0f}, 0.0f,
+                                      false, "", glm::vec3(0.0f),
+                                      /*dynamic=*/true);
+        ASSERT_FALSE(id.empty());
+        ids.push_back(id);
+    }
+    // The cap holds: at most kMaxDynamicItems live bodies; the OLDEST dynamic
+    // prop was retired (frozen at its pose), not destroyed.
+    size_t dynamicCount = 0;
+    for (const auto& id : ids)
+        if (rig.props.get(id)->dynamic) ++dynamicCount;
+    EXPECT_LE(dynamicCount, size_t(ItemPropManager::kMaxDynamicItems));
+    EXPECT_FALSE(rig.props.get(ids.front())->dynamic) << "oldest not evicted";
+    ASSERT_NE(rig.props.get(ids.front()), nullptr);
+    EXPECT_LE(rig.world.getBodyCount(), size_t(ItemPropManager::kMaxDynamicItems));
+}
+
+TEST(ItemPropPhysics, ShippedItemColliderWithinBudget) {
+    // Coarse-collider contract: the COLLISION compound is decoupled from the
+    // render boxes and capped at kMaxColliderBoxes (the M x N narrowphase term
+    // is quadratic in this number; the longsword's render mesh is ~37 boxes).
+    // Uses the REAL shipped longsword template; skips if not run from repo root.
+    if (!fs::exists("resources/templates/weapons/sword_long.voxel"))
+        GTEST_SKIP() << "repo-root CWD required";
+    ObjectTemplateManager mgr(nullptr, nullptr);
+    KinematicVoxelManager kvm;
+    PlacedObjectManager placed(nullptr, &mgr, nullptr);
+    Physics::VoxelDynamicsWorld world;
+    ItemPropManager props;
+    props.setDependencies(&placed, &mgr, &kvm, nullptr);
+    props.setDynamicsWorld(&world);
+
+    ItemDefinition def;
+    def.id = "budget_sword";
+    def.name = "Budget Sword";
+    def.templateFile = "weapons/sword_long.voxel";
+    def.holdable = true;
+    def.held.scale = 1.0f;
+    ItemRegistry::instance().registerItem(def);
+
+    auto id = props.spawnProp("budget_sword", {5.0f, 10.0f, 5.0f}, 0.0f, false,
+                              "", glm::vec3(0.0f), /*dynamic=*/true);
+    ASSERT_FALSE(id.empty());
+    const auto* p = props.get(id);
+    ASSERT_NE(p, nullptr);
+    EXPECT_LE(p->localBoxes.size(), size_t(ItemPropManager::kMaxColliderBoxes))
+        << "collider must be a coarse compound, not the render mesh";
+    // The RENDER geometry keeps full detail.
+    const auto& obj = kvm.getObjects().at(p->kinId);
+    EXPECT_GT(obj.voxels.size(), p->localBoxes.size());
 }
 
 TEST(ItemPropPhysics, NoDynamicsWorldFallsBackToStatic) {

@@ -47,6 +47,7 @@
 #include "core/Cube.h"
 #include "utils/CoordinateUtils.h"
 #include "utils/Frustum.h"
+#include "graphics/KinematicCulling.h"
 #include "utils/Logger.h"
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
@@ -2519,6 +2520,9 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
             for (const auto& [id, range] : kinematicPipeline->getObjectRanges()) {
                 auto it = m_kinematicObjects->getObjects().find(id);
                 if (it == m_kinematicObjects->getObjects().end() || !it->second.visible) continue;
+                // Light-frustum cull (2026-08-07): built once per frame in
+                // buildKinematicVisibility.
+                if (!m_kinVisibleShadow.count(id)) continue;
                 kinPC.modelMatrix = it->second.currentTransform;
                 // camera-relative: translation column -> (world - camera), double subtract
                 kinPC.modelMatrix[3] = glm::vec4(
@@ -3277,6 +3281,11 @@ void RenderCoordinator::drawFrame() {
     // Must run before the shadow pass, which is the first consumer.
     buildCharacterFrameData(cachedProjectionMatrix * cachedViewMatrix, lightSpaceMatrix);
 
+    // Same for kinematic objects (items/furniture/doors): per-frame frustum +
+    // distance visibility, consumed by the shadow loop, main pass and mirror
+    // pass — previously the ONLY geometry class drawn with zero culling.
+    buildKinematicVisibility(cachedProjectionMatrix * cachedViewMatrix, lightSpaceMatrix);
+
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         // Mid cascade (the original single map), then the near cascade (tight map whose
@@ -3506,6 +3515,7 @@ void RenderCoordinator::drawFrame() {
         }
         if (!m_kinematicObjects->getObjects().empty()) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "KinematicVoxels");
+            kinematicPipeline->setVisibleSet(&m_kinVisibleMain);  // built pre-shadow
             kinematicPipeline->render(
                 vulkanDevice->getCommandBuffer(currentFrame),
                 m_kinematicObjects->getObjects(),
@@ -3732,7 +3742,7 @@ void RenderCoordinator::drawFrame() {
     auto frameEnd = std::chrono::high_resolution_clock::now();
     DetailedFrameTiming detailedTiming;
     detailedTiming.totalFrameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStartTime).count();
-    detailedTiming.physicsTime = 0.0; // Physics timing integrated into main loop
+    detailedTiming.physicsTime = m_physicsFrameMs; // set per frame by the app's step loop
     detailedTiming.mousePickTime = 0.0; // Not implemented yet
     detailedTiming.uboFillTime = std::chrono::duration<double, std::milli>(uboEnd - uboStart).count();
     detailedTiming.instanceUpdateTime = 0.0; // ChunkManager handles its own data
@@ -3825,6 +3835,39 @@ RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) 
         }
     }
     return blob;
+}
+
+void RenderCoordinator::buildKinematicVisibility(const glm::mat4& cameraViewProj,
+                                                 const glm::mat4& lightSpaceMatrix) {
+    m_kinVisibleMain.clear();
+    m_kinVisibleShadow.clear();
+    m_kinCullStats = {};
+    if (!m_kinematicObjects || m_kinematicObjects->getObjects().empty()) return;
+
+    // Camera-relative throughout, mirroring the character cull: frusta come
+    // from camera-relative matrices; light frustum has NO distance cap — an
+    // object behind the camera can still cast a shadow into view.
+    Utils::Frustum cameraFrustum, lightFrustum;
+    cameraFrustum.extractFromMatrix(cameraViewProj, Utils::Frustum::ClipConvention::ReverseZeroToOne);
+    lightFrustum.extractFromMatrix(lightSpaceMatrix, Utils::Frustum::ClipConvention::ForwardZeroToOne);
+    constexpr float kMaxDistSq = kKinematicCullDistance * kKinematicCullDistance;
+
+    for (const auto& [id, obj] : m_kinematicObjects->getObjects()) {
+        ++m_kinCullStats.considered;
+        const glm::vec3 worldCenter =
+            glm::vec3(obj.currentTransform * glm::vec4(obj.localCenter, 1.0f));
+        const glm::vec3 rel = camera->relativeTo(glm::dvec3(worldCenter));
+        const float distSq = glm::dot(rel, rel);
+
+        const bool inMain = Graphics::kinematicObjectVisible(
+            cameraFrustum, rel, obj.boundingRadius, distSq, kMaxDistSq);
+        const bool inShadow = Graphics::kinematicObjectVisible(
+            lightFrustum, rel, obj.boundingRadius, distSq, /*maxDistSq=*/0.0f);
+
+        if (inMain)   { m_kinVisibleMain.insert(id);   ++m_kinCullStats.mainVisible; }
+        if (inShadow) { m_kinVisibleShadow.insert(id); ++m_kinCullStats.shadowVisible; }
+        if (!inMain && !inShadow) ++m_kinCullStats.culled;
+    }
 }
 
 void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,

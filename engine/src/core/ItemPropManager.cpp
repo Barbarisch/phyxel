@@ -206,6 +206,19 @@ bool ItemPropManager::physicalizeProp(Prop& prop, const glm::vec3& comWorldPos,
                                       const glm::quat& orientation,
                                       const glm::vec3& initialVelocity) {
     if (!m_dynamics || prop.localBoxes.empty()) return false;
+
+    // Concurrent-dynamic cap (narrowphase pairs grow as C(n,2) × M × N):
+    // evict the OLDEST dynamic prop by retiring it in place — the furniture
+    // MAX_DYNAMIC pattern.
+    int dynamicCount = 0;
+    Prop* oldest = nullptr;
+    for (auto& [id, p] : m_props) {
+        if (!p.dynamic) continue;
+        ++dynamicCount;
+        if (!oldest || p.dynamicSeq < oldest->dynamicSeq) oldest = &p;
+    }
+    if (dynamicCount >= kMaxDynamicItems && oldest && oldest != &prop)
+        retireProp(*oldest, oldest->lastTransform);
     auto* body = m_dynamics->createBody(prop.localBoxes, comWorldPos, orientation,
                                         0.25f /*restitution*/, 0.6f /*friction*/,
                                         0.25f /*linearDamp*/, 0.35f /*angularDamp*/);
@@ -229,6 +242,7 @@ bool ItemPropManager::physicalizeProp(Prop& prop, const glm::vec3& comWorldPos,
     prop.dynamic = true;
     prop.restDwell = 0.0f;
     prop.tipAssists = 0;
+    prop.dynamicSeq = ++m_dynamicSeq;
     return true;
 }
 
@@ -261,7 +275,12 @@ void ItemPropManager::syncPlacedPose(const Prop& prop, const glm::mat4& pose) {
 }
 
 void ItemPropManager::update(float dt, const glm::vec3& playerPos, const glm::vec3& playerVel) {
+    (void)playerPos; (void)playerVel;  // STATIC-FIRST: no proximity revive —
+                                       // items wake only on drop/throw/hit.
     if (!m_dynamics) return;
+    int dynamicCount = 0;
+    for (const auto& [id, prop] : m_props)
+        if (prop.dynamic) ++dynamicCount;
     for (auto& [id, prop] : m_props) {
         if (prop.dynamic) {
             auto* body = m_dynamics->getBodyById(prop.bodyId);
@@ -284,9 +303,12 @@ void ItemPropManager::update(float dt, const glm::vec3& playerPos, const glm::ve
             if (body->isAsleep) {
                 // Tip-over assist: sleep caught a slow topple while the item
                 // is still standing — nudge it over instead of freezing it
-                // leaning on nothing (see kTipAssistUprightness).
+                // leaning on nothing (see kTipAssistUprightness). Skipped when
+                // >2 items simulate: assists keep whole islands awake, and in
+                // a pile a leaning item is usually resting on a neighbor.
                 const glm::vec3 worldLong = body->orientation * glm::vec3(0, 1, 0);
-                if (prop.elongated && std::abs(worldLong.y) > kTipAssistUprightness
+                if (dynamicCount <= 2
+                    && prop.elongated && std::abs(worldLong.y) > kTipAssistUprightness
                     && prop.tipAssists < kTipAssistMax) {
                     ++prop.tipAssists;
                     glm::vec3 axis = glm::cross(glm::vec3(0, 1, 0), worldLong);
@@ -302,23 +324,128 @@ void ItemPropManager::update(float dt, const glm::vec3& playerPos, const glm::ve
             } else {
                 prop.restDwell = 0.0f;
             }
-        } else if (!prop.localBoxes.empty()) {
-            // Settled prop: a moving player walking through it kicks it alive
-            // (capsule approximation: 0.9 u radius, 1.6 u tall).
-            if (glm::dot(playerVel, playerVel) < 0.25f) continue;  // < 0.5 u/s
-            const glm::vec3 com(prop.lastTransform[3]);
-            const glm::vec3 d = com - playerPos;
-            if (std::abs(d.y) > 1.6f || (d.x * d.x + d.z * d.z) > 0.9f * 0.9f) continue;
-            const glm::quat q = glm::quat_cast(glm::mat3(prop.lastTransform));
-            physicalizeProp(prop, com, q,
-                            playerVel * 0.6f + glm::vec3(0.0f, 0.8f, 0.0f));
+        }
+        // (Walk-through bump-revive REMOVED 2026-08-07: static-first — settled
+        // items wake only via hitProp / drop. It re-ignited whole piles on
+        // mere proximity.)
+    }
+}
+
+bool ItemPropManager::hitProp(const std::string& placedObjectId, const glm::vec3& impulse) {
+    auto it = m_props.find(placedObjectId);
+    if (it == m_props.end()) return false;
+    Prop& prop = it->second;
+    if (prop.dynamic) {
+        if (auto* body = m_dynamics ? m_dynamics->getBodyById(prop.bodyId) : nullptr) {
+            body->wake();
+            body->applyCentralImpulse(impulse);
+        }
+        return true;
+    }
+    if (prop.localBoxes.empty()) return false;  // rebuilt-from-DB props have no compound
+    const glm::vec3 com(prop.lastTransform[3]);
+    const glm::quat q = glm::quat_cast(glm::mat3(prop.lastTransform));
+    if (!physicalizeProp(prop, com, q, glm::vec3(0.0f))) return false;
+    if (auto* body = m_dynamics->getBodyById(prop.bodyId))
+        body->applyCentralImpulse(impulse);
+    return true;
+}
+
+// Coarse GEOMETRY-ONLY collision compound (2026-08-07 perf plan): narrowphase
+// cost is quadratic in per-body box count, so the collider must NOT be the
+// render mesh (a longsword renders as ~37 material-split boxes). Rasterize the
+// voxels' occupancy onto a small per-axis grid over the bounds and greedy-merge
+// — coarsening the grid until the budget holds. Conservative: a cell is solid
+// if ANY voxel overlaps it, so the collider never underfills the silhouette.
+static std::vector<Physics::LocalBox> buildCoarseCollider(
+    const std::vector<KinematicVoxel>& voxels,
+    const glm::vec3& lo, const glm::vec3& hi,
+    const glm::vec3& com, float totalMass, int maxBoxes) {
+    const glm::vec3 dims = glm::max(hi - lo, glm::vec3(1e-4f));
+
+    for (int div = 4; div >= 1; --div) {
+        glm::ivec3 n;
+        for (int a = 0; a < 3; ++a) {
+            // Proportional resolution: the longest axis gets `div` cells,
+            // shorter axes proportionally fewer (min 1) — keeps cells cubish.
+            const float longest = std::max({dims.x, dims.y, dims.z});
+            n[a] = std::max(1, (int)std::round(div * dims[a] / longest));
+        }
+        const glm::vec3 cell = dims / glm::vec3(n);
+
+        std::vector<bool> occ((size_t)n.x * n.y * n.z, false);
+        auto idx = [&](int x, int y, int z) { return (size_t)(x + n.x * (y + n.y * z)); };
+        for (const auto& v : voxels) {
+            const glm::vec3 vmn = v.localPos - v.scale * 0.5f - lo;
+            const glm::vec3 vmx = v.localPos + v.scale * 0.5f - lo;
+            glm::ivec3 c0, c1;
+            for (int a = 0; a < 3; ++a) {
+                c0[a] = glm::clamp((int)std::floor(vmn[a] / cell[a]), 0, n[a] - 1);
+                c1[a] = glm::clamp((int)std::floor((vmx[a] - 1e-5f) / cell[a]), 0, n[a] - 1);
+            }
+            for (int x = c0.x; x <= c1.x; ++x)
+                for (int y = c0.y; y <= c1.y; ++y)
+                    for (int z = c0.z; z <= c1.z; ++z)
+                        occ[idx(x, y, z)] = true;
+        }
+
+        // Greedy X→Y→Z merge of solid cells into boxes.
+        std::vector<bool> used((size_t)n.x * n.y * n.z, false);
+        std::vector<Physics::LocalBox> boxes;
+        float volumeSum = 0.0f;
+        for (int z = 0; z < n.z && (int)boxes.size() <= maxBoxes; ++z)
+        for (int y = 0; y < n.y && (int)boxes.size() <= maxBoxes; ++y)
+        for (int x = 0; x < n.x && (int)boxes.size() <= maxBoxes; ++x) {
+            if (!occ[idx(x, y, z)] || used[idx(x, y, z)]) continue;
+            glm::ivec3 base(x, y, z), span(1);
+            while (base.x + span.x < n.x && occ[idx(base.x + span.x, y, z)]
+                   && !used[idx(base.x + span.x, y, z)]) ++span.x;
+            auto rowOk = [&](int yy, int zz) {
+                for (int xx = 0; xx < span.x; ++xx)
+                    if (!occ[idx(base.x + xx, yy, zz)] || used[idx(base.x + xx, yy, zz)])
+                        return false;
+                return true;
+            };
+            while (base.y + span.y < n.y && rowOk(base.y + span.y, z)) ++span.y;
+            auto slabOk = [&](int zz) {
+                for (int yy = 0; yy < span.y; ++yy)
+                    if (!rowOk(base.y + yy, zz)) return false;
+                return true;
+            };
+            while (base.z + span.z < n.z && slabOk(base.z + span.z)) ++span.z;
+            for (int xx = 0; xx < span.x; ++xx)
+                for (int yy = 0; yy < span.y; ++yy)
+                    for (int zz = 0; zz < span.z; ++zz)
+                        used[idx(base.x + xx, base.y + yy, base.z + zz)] = true;
+
+            Physics::LocalBox b;
+            const glm::vec3 bmn = lo + glm::vec3(base) * cell;
+            const glm::vec3 bsz = glm::vec3(span) * cell;
+            b.halfExtents = bsz * 0.5f;
+            b.offset = bmn + b.halfExtents - com;   // body frame is COM-centered
+            b.mass = bsz.x * bsz.y * bsz.z;          // volume; scaled below
+            volumeSum += b.mass;
+            boxes.push_back(b);
+        }
+
+        if ((int)boxes.size() <= maxBoxes && !boxes.empty()) {
+            // Distribute the ORIGINAL material-weighted total mass by volume.
+            const float scale = totalMass / std::max(volumeSum, 1e-6f);
+            for (auto& b : boxes) b.mass *= scale;
+            return boxes;
         }
     }
+    // Fallback: one AABB box (cannot happen with div=1 unless voxels empty).
+    Physics::LocalBox b;
+    b.halfExtents = glm::max((hi - lo) * 0.5f, glm::vec3(1e-3f));
+    b.offset = (lo + hi) * 0.5f - com;
+    b.mass = totalMass;
+    return {b};
 }
 
 std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec3& position,
                                        float yawDeg, bool snapToGround, const std::string& instanceUuid,
-                                       const glm::vec3& initialVelocity) {
+                                       const glm::vec3& initialVelocity, bool dynamic) {
     if (!m_placed || !m_kinematic) return "";
 
     const auto* def = ItemRegistry::instance().getItem(itemId);
@@ -356,8 +483,6 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
     // stably against the character and furniture).
     auto& matReg = MaterialRegistry::instance();
     glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
-    std::vector<Physics::LocalBox> boxes;
-    boxes.reserve(voxels.size());
     glm::vec3 com(0.0f);
     float rawMass = 0.0f;
     for (const auto& v : voxels) {
@@ -365,17 +490,15 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
         hi = glm::max(hi, v.localPos + v.scale * 0.5f);
         const float vol = v.scale.x * v.scale.y * v.scale.z;
         const float m = std::max(1e-4f, matReg.getPhysics(v.materialName).mass * vol);
-        boxes.push_back({v.localPos, v.scale * 0.5f, m});
         com += v.localPos * m;
         rawMass += m;
     }
     com /= rawMass;
     const float totalMass = glm::clamp(rawMass * 100.0f, 0.8f, 10.0f);
-    const float massScale = totalMass / rawMass;
-    for (auto& b : boxes) {
-        b.offset = b.offset - com;   // body frame is COM-centered
-        b.mass *= massScale;
-    }
+    // COARSE collider (never the render mesh): narrowphase is quadratic in
+    // per-body box count — see buildCoarseCollider.
+    std::vector<Physics::LocalBox> boxes =
+        buildCoarseCollider(voxels, lo, hi, com, totalMass, kMaxColliderBoxes);
 
     glm::vec3 pos = position;
     if (snapToGround && m_chunks) {
@@ -388,14 +511,14 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
 
     glm::quat orientation = glm::angleAxis(glm::radians(yawDeg), glm::vec3(0, 1, 0));
     // PHYSICS SPAWN POSE: elongated items (swords, staffs, spears...) go in
-    // LYING DOWN. Spawned standing on their base they are balanced enough for
-    // island sleep to freeze them upright (or mid-topple) — verified live: a
-    // sword frozen tip-down reads as levitation. Tipping the long axis
-    // horizontal at spawn puts them straight into their natural rest pose.
-    // Static fallback (no dynamics world) keeps the upright display pose.
+    // LYING DOWN when spawned DYNAMIC. Spawned standing on their base they are
+    // balanced enough for island sleep to freeze them upright (or mid-topple)
+    // — verified live: a sword frozen tip-down reads as levitation. STATIC
+    // spawns (the default under static-first) keep the upright display pose —
+    // authored placement wants shelves/racks/tables to look composed.
     const glm::vec3 dims = hi - lo;
     const bool elongated = dims.y > 1.4f * std::max(dims.x, dims.z);
-    if (m_dynamics && elongated) {
+    if (m_dynamics && dynamic && elongated) {
         orientation = orientation * glm::angleAxis(glm::half_pi<float>(), glm::vec3(1, 0, 0));
     }
 
@@ -448,7 +571,10 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
     prop.localBoxes = std::move(boxes);
     prop.lastTransform = transform;
     prop.elongated = elongated;
-    physicalizeProp(prop, comWorld, orientation, initialVelocity);  // no-op without a dynamics world
+    // STATIC-FIRST: only drops/throws/hits simulate. A placed item costs zero
+    // physics; the compound is kept on the prop for later hitProp revival.
+    if (dynamic)
+        physicalizeProp(prop, comWorld, orientation, initialVelocity);
 
     m_props[placedId] = std::move(prop);
     registerPropEffects(m_props[placedId]);

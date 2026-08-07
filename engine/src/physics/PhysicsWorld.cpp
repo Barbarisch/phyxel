@@ -19,8 +19,12 @@ void PhysicsWorld::cleanup() {
     m_voxelWorld.reset();
 }
 
-void PhysicsWorld::stepSimulation(float deltaTime, int /*maxSubSteps*/, float /*fixedTimeStep*/) {
-    if (m_voxelWorld) m_voxelWorld->stepSimulation(deltaTime);
+void PhysicsWorld::stepSimulation(float deltaTime, int maxSubSteps, float fixedTimeStep) {
+    // Forward the caller's substep cap — historically these were dropped on
+    // the floor, so the world default (3) applied per CALL and the caller's
+    // fixed-step loop could run unbounded substeps on slow frames (the
+    // FPS→substeps spiral; 2026-08-07 perf plan).
+    if (m_voxelWorld) m_voxelWorld->stepSimulation(deltaTime, maxSubSteps, fixedTimeStep);
 }
 
 void PhysicsWorld::reset() {

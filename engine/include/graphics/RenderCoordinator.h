@@ -419,6 +419,10 @@ public:
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }
 
+    /// Wall-clock ms the app spent in physics THIS frame — surfaced in the
+    /// perf overlay / render stats (historically hardcoded to 0; 2026-08-07).
+    void setPhysicsFrameMs(double ms) { m_physicsFrameMs = ms; }
+
     // CPU water cellular-automaton sim — its surface cells are rendered per-cell.
     void setWaterManager(Core::WaterManager* mgr) { m_waterManager = mgr; }
 
@@ -828,6 +832,22 @@ private:
     // Kinematic Voxel Rendering (doors, rotating platforms, etc.)
     std::unique_ptr<KinematicVoxelPipeline> kinematicPipeline;
     Core::KinematicVoxelManager* m_kinematicObjects = nullptr;
+    double m_physicsFrameMs = 0.0;   ///< app-provided physics wall time (perf overlay)
+
+    // Kinematic-object culling (2026-08-07): per-frame visibility sets built
+    // once (like buildCharacterFrameData) and consumed by the main pass,
+    // reflection pass (reuses main), and the shadow kinematic loop.
+    void buildKinematicVisibility(const glm::mat4& cameraViewProj,
+                                  const glm::mat4& lightSpaceMatrix);
+    std::unordered_set<std::string> m_kinVisibleMain;
+    std::unordered_set<std::string> m_kinVisibleShadow;
+    static constexpr float kKinematicCullDistance = 128.0f;
+public:
+    struct KinematicCullStats { uint32_t considered = 0, mainVisible = 0,
+                                shadowVisible = 0, culled = 0; };
+    const KinematicCullStats& kinematicCullStats() const { return m_kinCullStats; }
+private:
+    KinematicCullStats m_kinCullStats;
 
     // Lightweight grass-blade layer on grass-topped terrain (distance-limited, cutout).
     std::unique_ptr<GrassRenderPipeline> grassPipeline;

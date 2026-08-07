@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include <functional>
@@ -85,6 +86,14 @@ public:
     /// RenderCoordinator BEFORE any pass records draws. Model translations are pushed as
     /// (world - camera); see docs/CameraRelativeRendering.md.
     void setCameraWorld(const glm::vec3& camPos) { m_cameraWorld = camPos; }
+
+    /// Per-frame MAIN-pass visibility set (object ids), computed by the
+    /// RenderCoordinator (frustum + distance). Null = draw everything (the
+    /// pre-2026-08-07 behavior; also the manual-override escape hatch). The
+    /// set must outlive the frame's draw recording.
+    void setVisibleSet(const std::unordered_set<std::string>* visible) { m_visibleSet = visible; }
+    uint32_t lastDrawnCount()  const { return m_lastDrawn; }
+    uint32_t lastCulledCount() const { return m_lastCulled; }
 private:
     void     createPipeline(VkRenderPass renderPass, VkExtent2D extent,
                              VkDescriptorSetLayout uboLayout);
@@ -102,6 +111,8 @@ private:
 
     VkBuffer       m_instanceBuffer       = VK_NULL_HANDLE;
     VkDeviceMemory m_instanceBufferMemory = VK_NULL_HANDLE;
+    const std::unordered_set<std::string>* m_visibleSet = nullptr;  ///< main-pass cull set
+    uint32_t m_lastDrawn = 0, m_lastCulled = 0;                     ///< main-pass counters
 
     std::unordered_map<std::string, ObjectRange> m_objectRanges;
 

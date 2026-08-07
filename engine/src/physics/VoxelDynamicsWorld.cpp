@@ -177,6 +177,14 @@ VoxelRigidBody* VoxelDynamicsWorld::getBodyById(uint32_t id) const {
 // ---- Simulation -------------------------------------------------------------
 
 void VoxelDynamicsWorld::stepSimulation(float deltaTime, int maxSubsteps, float fixedStep) {
+    // Frame-accumulated observability (2026-08-07): the per-substep snapshot
+    // fields lie once substeps multiply, so substep count and total wall time
+    // are accumulated across THIS call and reset at entry.
+    m_broadphaseStats.substeps = 0;
+    m_broadphaseStats.stepTotalMs = 0.0;
+    m_broadphaseStats.solverMs = 0.0;
+    const auto stepStart = std::chrono::high_resolution_clock::now();
+
     m_accumulator += deltaTime;
     int steps = 0;
     while (m_accumulator >= fixedStep && steps < maxSubsteps) {
@@ -186,6 +194,11 @@ void VoxelDynamicsWorld::stepSimulation(float deltaTime, int maxSubsteps, float 
     }
     if (steps == maxSubsteps)
         m_accumulator = 0.0f;
+
+    m_broadphaseStats.substeps = steps;
+    m_broadphaseStats.stepTotalMs =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - stepStart).count();
 }
 
 void VoxelDynamicsWorld::substep(float dt) {
@@ -198,15 +211,24 @@ void VoxelDynamicsWorld::substep(float dt) {
     // dynamic this very substep (a slow touch leaves the sleeper static — restable).
     wakeFromImpacts();
 
-    // Parallel prepareContacts — each contact is independent (no body writes)
-    parallelRange(m_contacts.size(), m_threadCount, [&](size_t b, size_t e) {
-        for (size_t i = b; i < e; ++i)
-            VoxelContactSolver::prepareContact(m_contacts[i], dt);
-    });
+    // prepareContacts — each contact is independent (no body writes). Only fan
+    // out for LARGE contact sets: at typical counts (a few hundred) the
+    // std::async task-launch overhead exceeds the work (2026-08-07 perf plan).
+    constexpr size_t kPrepareParallelThreshold = 4096;
+    if (m_contacts.size() < kPrepareParallelThreshold) {
+        for (auto& c : m_contacts)
+            VoxelContactSolver::prepareContact(c, dt);
+    } else {
+        parallelRange(m_contacts.size(), m_threadCount, [&](size_t b, size_t e) {
+            for (size_t i = b; i < e; ++i)
+                VoxelContactSolver::prepareContact(m_contacts[i], dt);
+        });
+    }
 
     // Soft-step solve (docs/PhysicsRestOverhaul.md): warm start → biased iterations →
     // integrate positions → bias-free relax (removes injected correction energy) →
     // restitution pass → persist impulses for next step's warm start.
+    const auto solveStart = std::chrono::high_resolution_clock::now();
     warmStartContacts();
     const auto sp = VoxelContactSolver::makeParams(dt);
     VoxelContactSolver::solvePass(m_contacts, sp, /*useBias=*/true,
@@ -216,6 +238,9 @@ void VoxelDynamicsWorld::substep(float dt) {
                                   VoxelContactSolver::RELAX_ITERATIONS);
     VoxelContactSolver::applyRestitution(m_contacts);
     storeManifolds();
+    m_broadphaseStats.solverMs +=
+        std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - solveStart).count();
 
     updateSleepState(dt);
     cleanupDead();
@@ -611,9 +636,45 @@ void VoxelDynamicsWorld::generateContacts() {
                         A.mx.y < B.mn.y || A.mn.y > B.mx.y ||
                         A.mx.z < B.mn.z || A.mn.z > B.mx.z) continue;
 
-                    for (size_t bi = 0; bi < A.body->getLocalBoxes().size(); ++bi)
-                        for (size_t bj = 0; bj < B.body->getLocalBoxes().size(); ++bj)
+                    // PER-BOX AABB pre-reject before the full 15-axis SAT
+                    // (2026-08-07 perf plan): compound-vs-compound was a raw
+                    // M×N SAT sweep — 3 touching 37-box items = 4,107 SAT
+                    // tests/substep. World-space per-box AABBs are computed
+                    // ONCE per body pair (also hoisting the toMat3 the SAT
+                    // path would otherwise redo M×N times), then only the
+                    // overlapping box pairs pay for SAT.
+                    const auto& boxesA = A.body->getLocalBoxes();
+                    const auto& boxesB = B.body->getLocalBoxes();
+                    auto boxAabbs = [](const VoxelRigidBody* body,
+                                       std::vector<std::pair<glm::vec3, glm::vec3>>& out) {
+                        const glm::mat3 rot = glm::mat3_cast(body->orientation);
+                        const auto& boxes = body->getLocalBoxes();
+                        out.resize(boxes.size());
+                        for (size_t k = 0; k < boxes.size(); ++k) {
+                            const glm::vec3 c = body->position + rot * boxes[k].offset;
+                            const glm::vec3 he = boxes[k].halfExtents;
+                            // Conservative rotated-box AABB: |R| * halfExtents.
+                            const glm::vec3 ext(
+                                std::abs(rot[0][0]) * he.x + std::abs(rot[1][0]) * he.y + std::abs(rot[2][0]) * he.z,
+                                std::abs(rot[0][1]) * he.x + std::abs(rot[1][1]) * he.y + std::abs(rot[2][1]) * he.z,
+                                std::abs(rot[0][2]) * he.x + std::abs(rot[1][2]) * he.y + std::abs(rot[2][2]) * he.z);
+                            out[k] = {c - ext, c + ext};
+                        }
+                    };
+                    thread_local std::vector<std::pair<glm::vec3, glm::vec3>> aabbsA, aabbsB;
+                    boxAabbs(A.body, aabbsA);
+                    boxAabbs(B.body, aabbsB);
+
+                    for (size_t bi = 0; bi < boxesA.size(); ++bi) {
+                        const auto& [amn, amx] = aabbsA[bi];
+                        for (size_t bj = 0; bj < boxesB.size(); ++bj) {
+                            const auto& [bmn, bmx] = aabbsB[bj];
+                            if (amx.x < bmn.x || amn.x > bmx.x ||
+                                amx.y < bmn.y || amn.y > bmx.y ||
+                                amx.z < bmn.z || amn.z > bmx.z) continue;
                             VoxelContactSolver::generateOBBvsOBB(A.body, bi, B.body, bj, m_contacts);
+                        }
+                    }
                 }
             }
         }

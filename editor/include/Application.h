@@ -207,6 +207,9 @@ public:
     // of breaking it. Driven from InputController's "Break Voxel" mouse action.
     bool isSpellModeEnabled() const { return m_spellModeEnabled; }
     void castSpellAtHover();
+    /// Left-click attack vs a settled item prop: ray-test placed item AABBs and
+    /// physicalize the nearest with an impulse (static-first explicit revive).
+    bool tryHitItemPropAtRay(const glm::vec3& origin, const glm::vec3& dir);
 
 private:
     // ============================================================================

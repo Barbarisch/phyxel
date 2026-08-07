@@ -56,6 +56,7 @@ public:
         glm::mat4 lastTransform{1.0f};               ///< Last synced render pose.
         bool elongated = false;   ///< Long axis (local Y) dominates the footprint.
         int  tipAssists = 0;      ///< Tip-over nudges spent this rest cycle (cap 3).
+        uint64_t dynamicSeq = 0;  ///< Monotonic "went dynamic" order (cap eviction).
     };
 
     /// Body sleeps this long (island rest) before the body is RETIRED — removed
@@ -63,6 +64,13 @@ public:
     /// pose. The item-class analogue of furniture's re-staticize (items never
     /// bake into chunks).
     static constexpr float kRestRetireSeconds = 1.5f;
+
+    /// STATIC-FIRST cost bounds (2026-08-07 perf plan): at most this many item
+    /// bodies simulate at once (evict-oldest-by-retire — narrowphase pairs grow
+    /// as C(n,2) x M x N), and the collision compound is a COARSE geometry-only
+    /// merge capped at kMaxColliderBoxes (render detail stays full).
+    static constexpr int kMaxDynamicItems  = 6;
+    static constexpr int kMaxColliderBoxes = 8;
 
     /// Tip-over assist: an ELONGATED item that falls asleep while its long
     /// axis is still this upright (|worldLongAxis.y|) gets woken with a small
@@ -89,14 +97,21 @@ public:
 
     /// Spawn an item prop in the world. snapToGround scans downward for the
     /// first solid voxel and rests the prop on top of it.
-    /// initialVelocity applies to the spawned rigid body (drop-toss); ignored
-    /// on the static fallback path.
+    /// STATIC-FIRST: by default the prop spawns SETTLED with no physics body
+    /// (world-authored placement costs zero physics). Pass dynamic=true for
+    /// drops/throws — initialVelocity then applies to the rigid body.
     /// Returns the placed-object id, or "" on failure (unknown/not-holdable
     /// item, missing template).
     std::string spawnProp(const std::string& itemId, const glm::vec3& position,
                           float yawDeg = 0.0f, bool snapToGround = true,
                           const std::string& instanceUuid = "",
-                          const glm::vec3& initialVelocity = glm::vec3(0.0f));
+                          const glm::vec3& initialVelocity = glm::vec3(0.0f),
+                          bool dynamic = false);
+
+    /// Explicit disturbance: physicalize a settled prop with an impulse (the
+    /// attack-hit path — the ONLY revive besides drop/throw under static-first).
+    /// Returns false for unknown props; a no-op true if already dynamic.
+    bool hitProp(const std::string& placedObjectId, const glm::vec3& impulse);
 
     /// Per-frame: sync body poses to render + placed objects, retire rested
     /// bodies, revive props bumped by the player (playerPos/playerVel of the
@@ -160,6 +175,7 @@ private:
     ChunkManager*           m_chunks    = nullptr;
     ItemEffectSystem*       m_effects   = nullptr;
     Physics::VoxelDynamicsWorld* m_dynamics = nullptr;
+    uint64_t m_dynamicSeq = 0;   ///< Monotonic counter for Prop::dynamicSeq.
 
     std::unordered_map<std::string, Prop> m_props;  // by placedObjectId
 };

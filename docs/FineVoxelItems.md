@@ -83,6 +83,23 @@ controls** (2: stacked cubes = 10 faces, micro-on-cube = 11 — these must never
 move), static-bake refusal (1). All red before implementation, all green after;
 full suite regression-checked.
 
+## Physics — items are rigid bodies when DISTURBED (static-first, 2026-08-07)
+
+> **REVISED**: items now spawn SETTLED with NO physics body (`spawnProp
+> dynamic=false` default — world-authored placement costs zero physics and
+> keeps the exact authored pose). Physics is opt-in: inventory drop/throw
+> (`dynamic=true` + toss), an explicit attack hit (`hitProp` — left-click a
+> settled item), or `/api/items/spawn` with a `velocity`/`"dynamic": true`.
+> Walk-through bump-revive was REMOVED (it re-ignited piles on proximity).
+> Cost bounds: the collision compound is a COARSE geometry-only merge
+> (≤ `kMaxColliderBoxes` = 8; the render mesh keeps full detail — narrowphase
+> is quadratic in box count), and at most `kMaxDynamicItems` = 6 items
+> simulate concurrently (oldest evicts by retiring in place). Kinematic
+> objects are also frustum/distance-culled per pass now (they previously drew
+> unconditionally in up to 4 passes). The original dynamic-on-spawn model
+> below is retained for the mechanism description (sleep→retire, tip-assist,
+> pose sync all unchanged).
+
 ## Physics — items are rigid bodies when not held
 
 `ItemPropManager` owns the lifecycle (parallel to furniture's, NOT via

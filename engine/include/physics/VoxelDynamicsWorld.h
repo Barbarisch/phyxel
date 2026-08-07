@@ -144,6 +144,11 @@ public:
         size_t   awakeBodies         = 0;
         size_t   awakeBoxes          = 0;    // Σ collision boxes over awake bodies
         size_t   contactsGenerated   = 0;
+        // FRAME-accumulated (reset at the top of each stepSimulation call, not
+        // per substep — the per-substep snapshot lies once substeps multiply):
+        int      substeps            = 0;    // substeps this stepSimulation ran
+        double   stepTotalMs         = 0.0;  // wall-clock of the whole step incl. solver
+        double   solverMs            = 0.0;  // wall-clock of the 14-iteration solve phases
     };
     const BroadphaseStats& lastBroadphaseStats() const { return m_broadphaseStats; }
 

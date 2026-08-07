@@ -30,10 +30,11 @@ be items, not static microcubes"; extended to all loose furnishings.
    sweep (`StructureBuildService.cpp:386-403` removes only `category=="structure"`
    descendants) and duplicate. Fix: `parentId` param on `registerItemProp` +
    thread through `spawnProp`, so props cascade-remove with their structure.
-2. **Physics vs determinism:** props spawn dynamic and settle (pose drifts from
-   authored). Structure spawns pass zero velocity + exact rest pose; acceptable
-   drift is a settle-in-place. If that flunks determinism tests, add a
-   spawn-retired option (body never created until first touch).
+2. **Physics vs determinism: RESOLVED 2026-08-07 by static-first.** `spawnProp`
+   now defaults to `dynamic=false` — a settled kinematic with NO body and the
+   exact authored pose. Structure-placed items simply use the default: fully
+   deterministic, zero physics cost, and they still revive on explicit hit
+   (`hitProp`) or when thrown.
 3. **Overlap validator:** `RealizedWorldValidator::isClutter()` must treat item
    props as clutter or every tankard-on-table flags the fixture-overlap scan.
 

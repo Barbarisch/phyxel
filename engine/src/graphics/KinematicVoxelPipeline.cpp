@@ -197,9 +197,14 @@ void KinematicVoxelPipeline::recordDraws(
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
 
+    m_lastDrawn = 0;
+    m_lastCulled = 0;
     for (const auto& [id, range] : m_objectRanges) {
         auto it = objects.find(id);
         if (it == objects.end() || !it->second.visible) continue;
+        // Per-frame frustum/distance cull set (2026-08-07): null = draw all.
+        if (m_visibleSet && !m_visibleSet->count(id)) { ++m_lastCulled; continue; }
+        ++m_lastDrawn;
 
         // Push the object's current world transform (pivot rotation baked in) plus the
         // baked light sampled at the object's position (Phase 4: furniture reacts to lighting).

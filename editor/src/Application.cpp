@@ -4047,13 +4047,25 @@ void Application::update(float deltaTime) {
         kinematicVoxelManager->syncCollidersToPhysics();
     }
 
-    // Run physics in fixed timesteps
-    while (physicsDeltaAccumulator >= FIXED_TIMESTEP) {
+    // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
+    // frame demanded proportionally more physics next frame (60fps→1 step,
+    // 15fps→4, 4fps→15 — the FPS→substeps spiral). Beyond the cap the debt is
+    // DROPPED: simulation time dilates briefly instead of the frame collapsing.
+    static const int MAX_PHYSICS_STEPS_PER_FRAME = 3;
+    int physicsSteps = 0;
+    while (physicsDeltaAccumulator >= FIXED_TIMESTEP && physicsSteps < MAX_PHYSICS_STEPS_PER_FRAME) {
         physicsWorld->stepSimulation(FIXED_TIMESTEP, 1, FIXED_TIMESTEP); // Pure fixed timestep
         physicsDeltaAccumulator -= FIXED_TIMESTEP;
+        ++physicsSteps;
     }
-    
+    if (physicsSteps == MAX_PHYSICS_STEPS_PER_FRAME)
+        physicsDeltaAccumulator = 0.0f;
+
     auto physicsEnd = std::chrono::high_resolution_clock::now();
+    if (renderCoordinator) {
+        renderCoordinator->setPhysicsFrameMs(
+            std::chrono::duration<double, std::milli>(physicsEnd - physicsStart).count());
+    }
     
     // Update dynamic subcube positions from physics bodies (batched + throttled)
     // In hybrid mode, Bullet objects need position sync alongside GPU particles.
@@ -8175,7 +8187,13 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"generate_contacts_ms", s.generateContactsMs},
                 {"contacts_generated", s.contactsGenerated},
                 {"total_bodies", vw->getBodyCount()},
-                {"active_bodies", vw->getActiveCount()}
+                {"active_bodies", vw->getActiveCount()},
+                // Frame-accumulated (2026-08-07): substeps this step ran, total
+                // step wall time incl. the previously-untimed 14-iteration
+                // solver, and the solver share of it.
+                {"substeps", s.substeps},
+                {"step_total_ms", s.stepTotalMs},
+                {"solver_ms", s.solverMs}
             };
         } else {
             response = {{"error", "no voxel dynamics world"}};
@@ -8518,6 +8536,13 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"draw_calls_main",   renderCoordinator->getCharacterRenderStats().drawCallsMain},
                     {"draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
                     {"build_ms",      renderCoordinator->getCharacterRenderStats().buildMs},
+                }},
+                // Kinematic-object culling (items/furniture/doors; 2026-08-07).
+                {"kinematic", {
+                    {"considered",     renderCoordinator->kinematicCullStats().considered},
+                    {"main_visible",   renderCoordinator->kinematicCullStats().mainVisible},
+                    {"shadow_visible", renderCoordinator->kinematicCullStats().shadowVisible},
+                    {"culled",         renderCoordinator->kinematicCullStats().culled},
                 }},
                 {"npc_update", {
                     {"npc_count",           npcManager ? npcManager->getUpdateStats().npcCount : 0},
@@ -9275,6 +9300,46 @@ void Application::updateNpcHeldItems() {
     }
 }
 
+bool Application::tryHitItemPropAtRay(const glm::vec3& origin, const glm::vec3& dir) {
+    if (!itemPropManager || !placedObjectManager) return false;
+    constexpr float kMaxHitDistance = 4.0f;
+
+    // Nearest item prop whose placed AABB the ray enters within reach.
+    std::string bestId;
+    float bestT = kMaxHitDistance;
+    for (const auto& obj : placedObjectManager->list()) {
+        if (obj.category != "item") continue;
+        // Slab test against the (slightly inflated) integer placed AABB.
+        const glm::vec3 mn = glm::vec3(obj.boundingMin) - 0.05f;
+        const glm::vec3 mx = glm::vec3(obj.boundingMax) + 0.05f;
+        float t0 = 0.0f, t1 = bestT;
+        bool miss = false;
+        for (int a = 0; a < 3 && !miss; ++a) {
+            if (std::abs(dir[a]) < 1e-6f) {
+                if (origin[a] < mn[a] || origin[a] > mx[a]) miss = true;
+                continue;
+            }
+            float ta = (mn[a] - origin[a]) / dir[a];
+            float tb = (mx[a] - origin[a]) / dir[a];
+            if (ta > tb) std::swap(ta, tb);
+            t0 = std::max(t0, ta);
+            t1 = std::min(t1, tb);
+            if (t0 > t1) miss = true;
+        }
+        if (!miss && t0 < bestT) {
+            bestT = t0;
+            bestId = obj.id;
+        }
+    }
+    if (bestId.empty()) return false;
+
+    // Impulse along the view ray, scaled by the shared furniture hit-force
+    // knob, with a small pop so flat items hop off the ground.
+    const float force = voxelInteractionSystem
+                            ? voxelInteractionSystem->furnitureHitForce : 6.0f;
+    return itemPropManager->hitProp(bestId, dir * force * 0.5f + glm::vec3(0.0f, 0.8f, 0.0f));
+}
+
 void Application::dropHeldItem() {
     if (!inventory || !itemPropManager || !animatedCharacter) return;
     auto stack = inventory->getSlot(inventory->getSelectedSlot());
@@ -9300,7 +9365,7 @@ void Application::dropHeldItem() {
     const glm::vec3 tossVel = front * 2.5f + glm::vec3(0.0f, 1.8f, 0.0f);
     std::string propId = itemPropManager->spawnProp(itemId, dropPos,
                                                     glm::degrees(yaw), /*snapToGround=*/false,
-                                                    dropUuid, tossVel);
+                                                    dropUuid, tossVel, /*dynamic=*/true);
     if (propId.empty()) return;
 
     inventory->consumeSelected();
@@ -9393,6 +9458,8 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         }
         // Optional initial velocity [vx,vy,vz] (toss); a thrown item skips the
         // ground snap so physics owns the trajectory from the spawn point.
+        // STATIC-FIRST: spawns are settled (no body) unless a velocity is
+        // given or "dynamic": true is passed explicitly.
         glm::vec3 velocity(0.0f);
         bool hasVelocity = false;
         if (cmd.params.contains("velocity") && cmd.params["velocity"].is_array()
@@ -9402,9 +9469,10 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
                                  cmd.params["velocity"][2].get<float>());
             hasVelocity = true;
         }
+        const bool wantDynamic = hasVelocity || cmd.params.value("dynamic", false);
         std::string propId = itemPropManager->spawnProp(itemId, pos, yawDeg,
                                                         /*snapToGround=*/!hasVelocity,
-                                                        instanceUuid, velocity);
+                                                        instanceUuid, velocity, wantDynamic);
         if (propId.empty()) {
             response = {{"error", "Failed to spawn item prop (unknown/not-holdable item or missing template): " + itemId}};
         } else {

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <climits>
 #include <cfloat>
+#include <limits>
 #include <numeric>
 #include <unordered_set>
 
@@ -62,6 +63,19 @@ std::string KinematicVoxelManager::add(const std::string& idHint,
         buildFoliage(obj, leaves, worldToLocalShift);
     } else {
         obj.faces = buildFaces(obj.voxels, surface);
+    }
+
+    // Cached local bounding sphere for per-pass culling (center of the voxel
+    // AABB + half-diagonal). Computed once — voxel composition is immutable.
+    if (!obj.voxels.empty()) {
+        glm::vec3 mn(std::numeric_limits<float>::max());
+        glm::vec3 mx(std::numeric_limits<float>::lowest());
+        for (const auto& v : obj.voxels) {
+            mn = glm::min(mn, v.localPos - v.scale * 0.5f);
+            mx = glm::max(mx, v.localPos + v.scale * 0.5f);
+        }
+        obj.localCenter    = (mn + mx) * 0.5f;
+        obj.boundingRadius = glm::length(mx - mn) * 0.5f;
     }
 
     LOG_INFO_FMT("KinematicVoxelManager", "Added '" << id << "': "

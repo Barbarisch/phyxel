@@ -30,9 +30,10 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 | 8a | Grass blades | `GrassRenderPipeline` | continuous | radius 224, density `1/(1+140u²)`, floor 1/18 | continuous thin-out + height fade | per-frame | ON |
 | 8b | Foliage leaf cards | `FoliageRenderPipeline` | 1 | radius 512 + 27.8 | **Bayer-dither dissolve over the last 10% of radius (2026-08-06** — was a hard whole-chunk pop; evidence: `docs/evidence/foliage_radius_dither_fade.png`) | per-frame | ON |
 | 8c | Characters | `LodService::characterLodLevel` | 3 (full / lod1 35 u / lod2 80 u) + cull 400 u | world-unit, viewScale-corrected | pop | per-frame | ON |
+| 8d | Kinematic objects (items/furniture/doors) | `RenderCoordinator::buildKinematicVisibility` + `KinematicCulling.h` | 1 + cull (camera frustum + 128 u main; light frustum, no distance cap, shadow) | bounding sphere cached at `add()` | pop (cull only — no LOD levels yet) | per-frame | ON (2026-08-07 — previously the ONLY unculled geometry class; drawn in up to 4 passes unconditionally) |
 
-**No far tier exists for:** water (other session owns Phase B), kinematic voxels (no distance
-bound at all), GPU debris, VFX.
+**No far tier exists for:** water (other session owns Phase B), kinematic voxel LOD
+(8d is cull-only — no face coarsening at distance), GPU debris, VFX.
 
 ### Non-render distance systems (for completeness — do not confuse with render LOD)
 
