@@ -544,7 +544,10 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
         const float maxX = (worldMicro.x + rmax.x + 1) / 9.0f;
         const float minZ = (worldMicro.z + rmin.z) / 9.0f;
         const float maxZ = (worldMicro.z + rmax.z + 1) / 9.0f;
-        const float topY = (worldMicro.y + pl.y + 1) / 9.0f + 0.01f;
+        // EXACT surface Y — no epsilon here. spawnProp rests the item's lowest
+        // corner on pos.y with its own tiny anti-z-fight lift; stacking a
+        // second epsilon read as items hovering above the shelf.
+        const float topY = (worldMicro.y + pl.y + 1) / 9.0f;
         const float kRim = 0.20f;   // keep item footprints off the edge
         float x0 = minX + kRim, x1 = maxX - kRim, z0 = minZ + kRim, z1 = maxZ - kRim;
         if (x1 < x0) x0 = x1 = (minX + maxX) * 0.5f;   // narrow surface -> center line

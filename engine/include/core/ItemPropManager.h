@@ -143,6 +143,12 @@ public:
     bool isItemProp(const std::string& placedObjectId) const { return m_props.count(placedObjectId) > 0; }
     size_t count() const { return m_props.size(); }
 
+    /// TIGHT world-space AABB of a prop's render geometry (its COM-local bounds
+    /// pushed through the last synced pose). The registry's integer cube bbox
+    /// makes every goblet a full-cube click target — neighbors on a crowded
+    /// shelf then steal each other's clicks. False if the id is not a prop.
+    bool worldAabb(const std::string& placedObjectId, glm::vec3& lo, glm::vec3& hi) const;
+
     /// Convert a voxel template to kinematic voxels (template-local space).
     /// Shared with DynamicFurnitureManager — the single source of truth for
     /// template→kinematic conversion.

@@ -110,6 +110,8 @@ public:
 
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }
+    /// Cursor pick ray from the last hover update (see m_lastMouseRay).
+    const glm::vec3& lastMouseRay() const { return m_lastMouseRay; }
     const CubeLocation& getCurrentHoveredLocation() const { return m_currentHoveredLocation; }
     
     // Performance metrics
@@ -185,6 +187,11 @@ private:
     glm::vec3 m_lastCameraPos;
     glm::vec3 m_lastCameraFront;
     glm::vec3 m_lastCameraUp;
+    /// The CURSOR pick ray from the last hover update. Click actions that ray-test
+    /// world objects (item props) must aim HERE — the camera-front vector only
+    /// matches the cursor at dead screen center, which made side-of-screen clicks
+    /// hit whatever was centered instead of what was under the mouse.
+    glm::vec3 m_lastMouseRay{0.0f, 0.0f, -1.0f};
     
     // Performance metrics
     double m_hoverDetectionTimeMs;

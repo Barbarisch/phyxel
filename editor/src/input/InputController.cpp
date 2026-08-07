@@ -385,9 +385,15 @@ void InputController::setupMouseBindings() {
 
         // Hit a settled ITEM prop: the explicit disturbance that revives its
         // physics under static-first (items have no baked voxels, so this is
-        // a ray-vs-prop test, not a hover-voxel test).
-        if (m_app->tryHitItemPropAtRay(m_inputManager->getCameraPosition(),
-                                       m_inputManager->getCameraFront())) {
+        // a ray-vs-prop test, not a hover-voxel test). Aim along the CURSOR
+        // ray — camera-front only matches the cursor at dead screen center,
+        // which made side-of-screen clicks hit whatever was centered ("have
+        // to move the camera to click another item"). Mouse-look (captured)
+        // has no cursor, so the view center IS the aim there.
+        const glm::vec3 clickRay = m_inputManager->isMouseCaptured()
+            ? m_inputManager->getCameraFront()
+            : m_interactionSystem->lastMouseRay();
+        if (m_app->tryHitItemPropAtRay(m_inputManager->getCameraPosition(), clickRay)) {
             return;
         }
 

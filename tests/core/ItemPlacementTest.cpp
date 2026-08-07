@@ -129,6 +129,36 @@ TEST(ItemPlacement, StructureRemovalCascadesItemProps) {
     EXPECT_EQ(kvm.count(), 0u) << "kinematic render objects leaked";
 }
 
+// Static spawns rest ON the requested surface (user: "items still hover slightly
+// above the surface they are supposed to sit on"): the old unconditional 0.02
+// contact-free lift + the caller's 0.01 epsilon stacked to ~3 cm of visible
+// float. Static props have no body — nothing to keep contact-free — so only a
+// hairline anti-z-fight lift remains.
+TEST(ItemPlacement, StaticSpawnRestsOnRequestedSurface) {
+    ObjectTemplateManager templates(nullptr, nullptr);
+    KinematicVoxelManager kvm;
+    PlacedObjectManager placed(nullptr, &templates, nullptr);
+    ItemPropManager props;
+    props.setDependencies(&placed, &templates, &kvm, nullptr);
+
+    auto path = fs::temp_directory_path() / "rest_item.voxel";
+    { std::ofstream f(path); f << "# grid: 27\nV 0 0 0 Wood\nV 0 1 0 Wood\n"; }
+    ASSERT_TRUE(templates.loadTemplate(path.string()));
+    ItemDefinition def;
+    def.id = "rest_item";
+    def.name = "Rest Item";
+    def.templateFile = "rest_item";
+    def.holdable = true;
+    ItemRegistry::instance().registerItem(def);
+
+    auto id = props.spawnProp("rest_item", {5.0f, 10.0f, 5.0f}, 0.0f, false);
+    ASSERT_FALSE(id.empty());
+    glm::vec3 lo, hi;
+    ASSERT_TRUE(props.worldAabb(id, lo, hi));
+    EXPECT_GE(lo.y, 10.0f) << "item sunk into the surface";
+    EXPECT_LE(lo.y, 10.006f) << "item hovers above the surface (stacked lifts)";
+}
+
 // ============================================================================
 // placeSurfaceItems — spots on the ACTUAL placed tabletop (issue: items spawned
 // on the table edge or hovering beside it, because the old path used the
@@ -164,8 +194,8 @@ TEST(ItemPlacement, SurfaceSpotsSitOnTheMeasuredTabletopNotTheAabb) {
         EXPECT_LE(s.worldPos.x, 101.334f) << "spot over the LEG (AABB), off the top";
         EXPECT_GE(s.worldPos.z, 200.0f);
         EXPECT_LE(s.worldPos.z, 201.0f);
-        // Measured top of THIS instance: (450 + 8 + 1)/9 + 0.01 lift.
-        EXPECT_NEAR(s.worldPos.y, 51.01f, 1e-3f) << "item not ON the tabletop plane";
+        // Measured top of THIS instance: (450 + 8 + 1)/9, surface-exact.
+        EXPECT_NEAR(s.worldPos.y, 51.0f, 1e-3f) << "item not ON the tabletop plane";
     }
 }
 
@@ -185,7 +215,7 @@ TEST(ItemPlacement, SurfaceSpotsFollowRotationAndInset) {
         EXPECT_LE(s.worldPos.x, 101.334f);
         EXPECT_GE(s.worldPos.z, 200.555f);
         EXPECT_LE(s.worldPos.z, 201.889f);
-        EXPECT_NEAR(s.worldPos.y, 51.01f, 1e-3f);
+        EXPECT_NEAR(s.worldPos.y, 51.0f, 1e-3f);
     }
 
     // CONTROL (the bug this replaces): the legacy plan-rect path scattered on
@@ -212,8 +242,8 @@ TEST(ItemPlacement, ShelvingUnitStocksEveryShelfPlane) {
     ASSERT_FALSE(spots.empty());
     bool onTop = false, onLowerShelf = false;
     for (const auto& sp : spots) {
-        if (std::abs(sp.worldPos.y - 3.01f) < 1e-3f) onTop = true;         // top board
-        if (std::abs(sp.worldPos.y - 1.01f) < 1e-3f) onLowerShelf = true;  // base shelf
+        if (std::abs(sp.worldPos.y - 3.0f) < 1e-3f) onTop = true;          // top board
+        if (std::abs(sp.worldPos.y - 1.0f) < 1e-3f) onLowerShelf = true;   // base shelf
     }
     EXPECT_TRUE(onTop) << "top board not stocked";
     EXPECT_TRUE(onLowerShelf)
@@ -247,10 +277,10 @@ TEST(ItemPlacement, BackBarShelvesStockedRimRingRejected) {
     ASSERT_FALSE(spots.empty());
     int onShelf14 = 0, onShelf9 = 0, onShelf4 = 0, onRim = 0;
     for (const auto& sp : spots) {
-        if (std::abs(sp.worldPos.y - (15 / 9.0f + 0.01f)) < 1e-3f) ++onShelf14;
-        if (std::abs(sp.worldPos.y - (10 / 9.0f + 0.01f)) < 1e-3f) ++onShelf9;
-        if (std::abs(sp.worldPos.y - (5 / 9.0f + 0.01f)) < 1e-3f) ++onShelf4;
-        if (std::abs(sp.worldPos.y - (16 / 9.0f + 0.01f)) < 1e-3f) ++onRim;
+        if (std::abs(sp.worldPos.y - 15 / 9.0f) < 1e-3f) ++onShelf14;
+        if (std::abs(sp.worldPos.y - 10 / 9.0f) < 1e-3f) ++onShelf9;
+        if (std::abs(sp.worldPos.y - 5 / 9.0f) < 1e-3f) ++onShelf4;
+        if (std::abs(sp.worldPos.y - 16 / 9.0f) < 1e-3f) ++onRim;
     }
     EXPECT_GT(onShelf14, 0) << "top shelf empty";
     EXPECT_GT(onShelf9, 0) << "middle shelf empty";

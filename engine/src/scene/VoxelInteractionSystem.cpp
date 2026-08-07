@@ -69,6 +69,7 @@ void VoxelInteractionSystem::updateMouseHover(const glm::vec3& cameraPos, const 
         mouseX, mouseY, cameraPos, cameraFront, cameraUp,
         [this]() -> UI::WindowManager* { return m_windowManager; }
     );
+    m_lastMouseRay = rayDirection;   // click actions ray-test with THIS, not cameraFront
     
     // NEW: Use optimized O(1) VoxelLocation-based hover detection (delegated to VoxelRaycaster)
     VoxelLocation voxelLocation = m_raycaster.pickVoxel(

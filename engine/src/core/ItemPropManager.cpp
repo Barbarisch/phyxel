@@ -135,6 +135,23 @@ std::vector<KinematicVoxel> mergeFineVoxels(const VoxelTemplate& tmpl) {
 }
 }  // namespace
 
+bool ItemPropManager::worldAabb(const std::string& placedObjectId,
+                                glm::vec3& lo, glm::vec3& hi) const {
+    const Prop* p = get(placedObjectId);
+    if (!p) return false;
+    lo = glm::vec3(std::numeric_limits<float>::max());
+    hi = glm::vec3(std::numeric_limits<float>::lowest());
+    for (int i = 0; i < 8; ++i) {
+        const glm::vec3 c((i & 1) ? p->localHi.x : p->localLo.x,
+                          (i & 2) ? p->localHi.y : p->localLo.y,
+                          (i & 4) ? p->localHi.z : p->localLo.z);
+        const glm::vec3 w = glm::vec3(p->lastTransform * glm::vec4(c, 1.0f));
+        lo = glm::min(lo, w);
+        hi = glm::max(hi, w);
+    }
+    return true;
+}
+
 std::vector<KinematicVoxel> ItemPropManager::voxelsFromTemplate(const VoxelTemplate& tmpl) {
     // Fine-grid templates hold ALL geometry in the fine tier (parse contract);
     // greedy-merge it into arbitrary-scale boxes the renderer draws directly.
@@ -533,7 +550,12 @@ std::string ItemPropManager::spawnProp(const std::string& itemId, const glm::vec
         rlo = glm::min(rlo, w);
         rhi = glm::max(rhi, w);
     }
-    const glm::vec3 comWorld(pos.x, pos.y - rlo.y + 0.02f, pos.z);
+    // Rest EXACTLY on pos.y when static (no body -> no contact to resolve; the
+    // old unconditional 0.02 lift + the caller's own epsilon read as items
+    // hovering ~3 cm above their shelf). Dynamic spawns keep the contact-free
+    // starting gap; a 0.003 static epsilon avoids coplanar-face z-fighting.
+    const float restLift = (m_dynamics && dynamic) ? 0.02f : 0.003f;
+    const glm::vec3 comWorld(pos.x, pos.y - rlo.y + restLift, pos.z);
     const glm::mat4 transform = glm::translate(glm::mat4(1.0f), comWorld) * glm::mat4_cast(orientation);
 
     // Render group lives in the same COM-centered frame as the body.

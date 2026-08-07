@@ -9304,14 +9304,22 @@ bool Application::tryHitItemPropAtRay(const glm::vec3& origin, const glm::vec3& 
     if (!itemPropManager || !placedObjectManager) return false;
     constexpr float kMaxHitDistance = 4.0f;
 
-    // Nearest item prop whose placed AABB the ray enters within reach.
+    // Nearest item prop whose AABB the ray enters within reach.
     std::string bestId;
     float bestT = kMaxHitDistance;
     for (const auto& obj : placedObjectManager->list()) {
         if (obj.category != "item") continue;
-        // Slab test against the (slightly inflated) integer placed AABB.
-        const glm::vec3 mn = glm::vec3(obj.boundingMin) - 0.05f;
-        const glm::vec3 mx = glm::vec3(obj.boundingMax) + 0.05f;
+        // Slab test against the TIGHT prop AABB (render geometry through its
+        // pose). The integer registry bbox made every goblet a full-cube
+        // target, so shelf neighbors stole each other's clicks. Fallback:
+        // the integer bbox for ids the manager doesn't know (stale registry).
+        glm::vec3 mn, mx;
+        if (itemPropManager->worldAabb(obj.id, mn, mx)) {
+            mn -= 0.05f; mx += 0.05f;
+        } else {
+            mn = glm::vec3(obj.boundingMin) - 0.05f;
+            mx = glm::vec3(obj.boundingMax) + 0.05f;
+        }
         float t0 = 0.0f, t1 = bestT;
         bool miss = false;
         for (int a = 0; a < 3 && !miss; ++a) {
