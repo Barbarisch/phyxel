@@ -1,6 +1,17 @@
 # Items-as-Props in Structure Generation — Plan
 
-**Status: PLANNED 2026-08-06** (scouted; not yet built). Goal: generated interiors
+**Status: CORE SHIPPED 2026-08-07** (commit `908a911c` — surface-clutter pass converted;
+sequence steps 1/3/4 done, step 2's `as:"item"` recipe schema for standalone floor items
+(rugs, candle_stand→candlestick) still open). What shipped: `Deps.itemProps` +
+consumer spawn via `ItemPropManager` (static-first, no bodies), **measured** surface
+heights via `FurniturePlacer::templateTopUnits` (max occupied Y over the table
+template's cube/sub/micro/fine tiers — not the metrics sidecar, and not `floorY+1`),
+per-purpose `"surface_items"` recipe sets in `furnishing_recipes.json`,
+`setParent` cascade so rebuild-at-same-origin stays flat (L4-verified: tavern_2 →
+tavern_3, 89 placed objects before and after), `isClutter` knows the tableware.
+Tests: `ItemPlacementTest` (recipe→holdable, measured height, removal-cascade
+control); the no-overlap test was NOT written — spots come from the deterministic
+seeded picker, revisit if items ever visibly collide. Goal: generated interiors
 place loose objects — rugs, candlesticks, tankards, tomes, cutlery — as **item
 props** (`ItemPropManager::spawnProp`: pickup-able, physics-capable, never baked)
 instead of chunk-baked voxel templates. Direction set by the user: "rugs should
