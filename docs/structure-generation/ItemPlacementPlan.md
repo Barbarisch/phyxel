@@ -1,8 +1,12 @@
 # Items-as-Props in Structure Generation — Plan
 
-**Status: CORE SHIPPED 2026-08-07** (commit `908a911c` — surface-clutter pass converted;
-sequence steps 1/3/4 done, step 2's `as:"item"` recipe schema for standalone floor items
-(rugs, candle_stand→candlestick) still open). What shipped: `Deps.itemProps` +
+**Status: SHIPPED 2026-08-07** (commits `908a911c` → `d279683a` → `9ab4a9f9` → `29f39ed7`
+— ALL four sequence steps done). Beyond the core: `as:"item"` realization shipped (rugs =
+`rug_woven` props), `placeSurfaceItems` is MULTI-PLANE (a back bar stocks all its shelves;
+`gen_back_bar` ships empty shelves — baked bottles removed), items rest surface-exact
+(stacked-lift hover fixed), and item clicks aim along the cursor ray with tight prop AABBs.
+Still open: `candle_stand` → item (scale mismatch: floor stand vs table candlestick);
+barrels/signs stay baked (no fine item equivalents). What shipped first: `Deps.itemProps` +
 consumer spawn via `ItemPropManager` (static-first, no bodies), **measured** surface
 heights via `FurniturePlacer::templateTopUnits` (max occupied Y over the table
 template's cube/sub/micro/fine tiers — not the metrics sidecar, and not `floorY+1`),

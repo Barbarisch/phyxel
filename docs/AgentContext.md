@@ -126,7 +126,54 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **★ CURRENT FOCUS (2026-08-05→06): LARGE CONTINUOUS WORLDS — LOD unification + shadow
+- **★ CURRENT FOCUS (2026-08-06→07): ITEMS EVERYWHERE — structure gen places real item
+  props; interaction polish. SHIPPED + L4-verified**, commits `908a911c`/`d279683a`/
+  `9ab4a9f9`/`29f39ed7` (+ doc syncs). The fine-voxel item class (see the 2026-08-06
+  entry below / `docs/FineVoxelItems.md`) is now what generated interiors are DRESSED
+  with:
+  1. **Taverns set their tables** — `StructureBuildService` spawns pickable tableware
+     via `Deps.itemProps` (static-first, no bodies, parented → rebuild cascades). Spots
+     come from `FurniturePlacer::placeSurfaceItems`: the ACTUAL placed fixture pose
+     (spawnTemplateMicro rotation convention, pivot=mmax), occupancy-raster **multi-plane**
+     (a back bar stocks ALL its shelves; filters: extent ≥2, fill ≥60% [rim rings], area
+     ≥20, cap 4 planes), rim inset + min-spacing grid, surface-exact Y.
+  2. **Density scales with area** — recipe `count`/`per_area` fields (taproom: 9 tables,
+     17 stools, 5 bar stools on a 16×20 build); seating `placeNear`-anchors to the FIRST
+     (centred) table; bar stools line the bar.
+  3. **`as:"item"` recipe realization** — rugs are `rug_woven` props on chamber floors;
+     `back_bar` ships EMPTY shelves (baked Glass bottle lumps REMOVED from
+     `gen_back_bar`) and gets a fixture-keyed bottle set (`surface_items."back_bar"`).
+  4. **Vegetation gate** — builds never generate through trees: overlapping placed tree
+     templates removed WHOLE (content test `DamageSystem::isTreeMatterCell`, registry
+     included), residual tree voxels flood-cleared (bounded, whole-tree); tree matter
+     never sets the pad level; `keep_vegetation:true` refuses. `VegetationGateTest`
+     headless red-first; L4 croft-over-tree cleared 963 cells.
+  5. **Interaction feel** — static items rest EXACTLY on their surface (+0.003 only —
+     the stacked 0.01+0.02 lifts read as hovering); item clicks aim along the CURSOR
+     ray (`VoxelInteractionSystem::lastMouseRay()`, NOT cameraFront — that only matches
+     the cursor at dead screen center) and hit-test TIGHT posed prop AABBs
+     (`ItemPropManager::worldAabb`), not full-cube registry boxes.
+  ⚑ Gotchas paid for: direct `schema:"v2"` builds need explicit `"typology"` +
+  `"footprint":[w,d]` ARRAY (the type→typology alias lives only in the v1 path — you
+  silently get hall_house); the recipe registry is process-global (tests MUST
+  `clearRecipes()`); every `/api/structure/build` returns the 5s queueAndWait timeout
+  but still completes — watch phyxel.log, anchor greps at CURRENT EOF (stale-log
+  matches burned two waits this session).
+  **TODOs saved from this session:**
+  - Grass blade shadows DEFAULT OFF (user call): the ~40 u near-cascade coverage reads
+    as a giant dark CIRCLE from elevated cameras. Fix = radial blade-shadow strength
+    fade at the cascade edge, then re-enable. `docs/NearShadowCascade.md` §Known issues.
+  - `candle_stand` → item conversion blocked by scale mismatch (floor stand vs table
+    candlestick item); barrels/signs stay baked (no fine item equivalents yet).
+  - World-gen (non-placed) interlocked canopies: the voxel flood can strip a NEIGHBOR
+    tree's canopy inside its bounds (placed trees are now removed object-wise, exact).
+  - CharacterTestbed world carries pre-fix artifacts near the test croft at (36,36):
+    a ghost `forge_autumn_l_1` registry entry + one bare-trunk neighbor (do NOT
+    `remove_placed_object` the ghost — its region now contains the house).
+  - Cursor-ray click fix is L4-live but needs a REAL-mouse feel pass (synthetic clicks
+    get eaten by ImGui focus).
+
+- **PRIOR FOCUS (2026-08-05→06): LARGE CONTINUOUS WORLDS — LOD unification + shadow
   cascades. CAMPAIGN COMPLETE**, committed as `12b52315`/`efecd42b`/`9da9c84a`/`f33c4447`.
   **[`docs/LodTierLedger.md`](LodTierLedger.md) is now THE maintained inventory of all 8
   distance-tiered render systems** (levels, live thresholds, transitions, invalidation,

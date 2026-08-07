@@ -14,9 +14,16 @@ All on `main` now. Pipeline: `StructureBrief → BuildingProgram → autofillRoo
 
 **Recently shipped (grounded + red-before-green + auditor-verified):** first functional typology — the
 `tavern` (taproom/kitchen/service, L3-navigable); **generative multi-story** (inn upstairs guest
-chambers + auto-generated stair); **inn asset depth** (grounded bar/stools/back-bar/lighting/mugs/
-bottles via `tools/regen_furniture.py`); silent-furniture-drop fix; all 16 furniture conformant;
-build-freeze perf fix (place 13.8s→0.9s).
+chambers + auto-generated stair); **inn asset depth** (grounded bar/stools/back-bar/lighting via
+`tools/regen_furniture.py` — the back bar ships EMPTY shelves since 2026-08-07; structure gen stocks
+them with ITEM PROPS); silent-furniture-drop fix; all 16 furniture conformant; build-freeze perf fix
+(place 13.8s→0.9s). **2026-08-07 — ITEMS EVERYWHERE:** generated interiors are dressed with pickable
+fine-voxel item props (tableware on every table/bar/shelf at surface-exact heights from the ACTUAL
+placed fixture pose, area-scaled furnishing density, `as:"item"` rug realization, cursor-ray item
+clicks) and builds NEVER generate through trees (vegetation gate; `keep_vegetation` refuses instead)
+— see the top workstream in [`docs/AgentContext.md`](docs/AgentContext.md) for the full ledger +
+session TODOs. ⚠️ Direct `schema:"v2"` `/api/structure/build` calls need explicit `"typology"` and
+`"footprint":[w,d]` as an ARRAY, or you silently get a hall_house.
 
 **#1 known issue: render density — MECHANISM SHIPPED, the original scenario NOT re-measured
 (corrected 2026-07-29, then scoped down after a solution-auditor FAIL).** The old entry here

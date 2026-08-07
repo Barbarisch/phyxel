@@ -49,3 +49,17 @@ what the engine did instead, the workaround used, and what a real fix looks like
   response JSON), or raise/parameterize the queueAndWait window. The response payload matters
   here: it carries the determinism echo and the honest-degradation counts the discipline
   depends on.
+
+## 2026-08-07 — schema:"v2" build_structure silently ignores `type` (typology defaults to hall_house)
+
+- **Symptom:** `POST /api/structure/build {"schema":"v2","type":"tavern","footprint":[16,20],...}`
+  builds a hall_house with zero tables — no error, no warning. The `type` → typology mapping
+  (`tavern` → `tavern`) lives ONLY in the v1 compatibility conversion (the width/depth path in
+  `StructureBuildService`); the direct v2 path reads `typology` and quietly falls back to the
+  default when it is absent.
+- Related: `"footprint"` must be a JSON ARRAY `[w,d]` — the object form `{"width","depth"}`
+  realizes as a "realize failed: empty footprint" error.
+- **Workaround:** always pass explicit `"typology"` (+ `"function"`) and the array footprint.
+- **Real fix:** apply the same type→typology alias in the v2 path (or refuse a `type` that
+  contradicts the resolved typology), and accept the object footprint shape or reject it with
+  a message naming the array form.
