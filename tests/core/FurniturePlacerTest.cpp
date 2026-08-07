@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <fstream>
 #include <map>
 #include <set>
 #include <tuple>
@@ -339,4 +340,35 @@ TEST(FurniturePlacerTest, PlacedCubeSpanReproducesMicroSpill) {
     CubeSpan rot = placedCubeSpan(17, 8, 90, glm::ivec3(0, 0, 0), 3, 0, 0);
     EXPECT_EQ(rot.width(), 1) << "rot90: x takes the SHORT micro extent";
     EXPECT_EQ(rot.depth(), 2) << "rot90: z takes the LONG micro extent";
+}
+
+// AREA-SCALED density (user: "i would expect there to a lot more tables, chairs,
+// and clutter in a real tavern"): recipe `per_area` places one piece per N floor
+// cells, so a grand taproom seats a crowd while a closet-sized one keeps a single
+// table. RED before the count/per_area fields existed: every room got exactly one
+// of each piece regardless of size.
+TEST(FurniturePlacerTest, TaproomSeatingScalesWithRoomArea) {
+    if (!std::ifstream("resources/furnishing_recipes.json").good())
+        GTEST_SKIP() << "repo-root CWD required";
+    FurniturePlacer::clearRecipes();
+    ASSERT_TRUE(FurniturePlacer::loadRecipesFromFile("resources/furnishing_recipes.json"));
+    auto countOf = [](const std::vector<FurniturePlacement>& v, const char* t) {
+        int n = 0;
+        for (const auto& f : v) if (f.type == t) ++n;
+        return n;
+    };
+    const auto tiny = FurniturePlacer::furnish(
+        story(R"({"height":3,"rooms":[{"id":"tap","rect":[0,0,5,4],"purpose":"taproom"}]})"),
+        {0, 0, 0}, 10);
+    const auto grand = FurniturePlacer::furnish(
+        story(R"({"height":3,"rooms":[{"id":"tap","rect":[0,0,14,9],"purpose":"taproom"}]})"),
+        {0, 0, 0}, 10);
+    FurniturePlacer::clearRecipes();   // no data-recipe leakage into other tests
+
+    EXPECT_EQ(countOf(tiny, "tavern_table"), 1) << "a 5x4 taproom keeps one table";
+    EXPECT_GE(countOf(grand, "tavern_table"), 3) << "a 14x9 taproom seats a crowd";
+    EXPECT_GE(countOf(grand, "stool") + countOf(grand, "bench"), 4)
+        << "seating must scale with the tables";
+    EXPECT_GT(countOf(grand, "tavern_table"), countOf(tiny, "tavern_table"))
+        << "density did not scale with area at all";
 }

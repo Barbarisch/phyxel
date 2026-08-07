@@ -139,3 +139,19 @@ A second, tight shadow map over the near field. At a 40 u fit and 4096², the te
   genuinely small, this makes the worst pass worse.
 - `lighting.glsl` is shared by five shaders. A mistake here turned every static voxel black earlier
   in this session — change it in one step, with a screenshot check immediately after.
+
+## Known issues
+
+- **The dark circle (2026-08-07, OPEN — grass casting default OFF until fixed).** Because
+  blades cast ONLY into the ~40 u near cascade, the cascade's camera-following coverage
+  reads from any elevated camera as a giant dark **circle** gliding along with the view:
+  inside it thousands of blade micro-shadows darken the ground a notch, outside it the
+  ground gets no blade shadows at all, and `phxShadowBorderFade` rounds the seam into a
+  clean disc. A/B-verified live (toggling `/api/debug/grass {"castShadows":...}` adds/
+  removes the circle at a fixed camera; screenshots 20260807_123553 vs _123733).
+  **Mitigation shipped:** `GrassRenderPipeline::s_castShadows` now defaults **false**
+  (runtime knob unchanged). **The real fix when we come back:** fade blade shadow
+  STRENGTH radially toward the near-cascade edge (blades fully shadow at your feet,
+  taper to zero approaching the fit distance) so there is no step to see — or
+  compensate outside the disc with a matching ambient/AO term. Re-enable the default
+  and re-run the elevated-camera A/B when done.

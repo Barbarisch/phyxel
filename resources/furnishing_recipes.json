@@ -1,5 +1,5 @@
 {
-  "_comment": "Furnishing recipes (furniture quality B) \u00e2\u20ac\u201d purpose -> pieces, replacing FurniturePlacer's hardcoded map (which remains the fallback for purposes absent here). `place`: \"wall\" (default; packs along a free wall, facing in) | \"center\" (room centre). `tiers`: which wealth tiers get the piece (absent = every tier); tiers come from the typology's room_program.json `wealth_tier` (croft/longhouse = humble, hall_house/tavern/shops = middling, manor_hall = high). Mount kind (floor/wall/ceiling) is per-TYPE placer data, not recipe data.",
+  "_comment": "Furnishing recipes (furniture quality B) \u00e2\u20ac\u201d purpose -> pieces, replacing FurniturePlacer's hardcoded map (which remains the fallback for purposes absent here). `place`: \"wall\" (default; packs along a free wall, facing in) | \"center\" (room centre). `tiers`: which wealth tiers get the piece (absent = every tier); tiers come from the typology's room_program.json `wealth_tier` (croft/longhouse = humble, hall_house/tavern/shops = middling, manor_hall = high). Mount kind (floor/wall/ceiling) is per-TYPE placer data, not recipe data. `count` (int, default 1) places up to N of the piece; `per_area` places one per N floor cells (area-scaled, cap 12; rep 0 required, later reps best-effort). `as`:\"item\" realizes the piece as a pickable ITEM PROP via ItemPropManager (static-first, parented to the structure) instead of a baked template; `item` overrides the item id (default: the type).",
   "recipes": {
     "taproom": [
       {
@@ -9,17 +9,22 @@
         "type": "back_bar"
       },
       {
-        "type": "bar_stool"
+        "type": "bar_stool",
+        "count": 2,
+        "per_area": 25
       },
       {
         "type": "tavern_table",
-        "place": "center"
+        "place": "center",
+        "per_area": 15
       },
       {
-        "type": "bench"
+        "type": "bench",
+        "per_area": 15
       },
       {
-        "type": "stool"
+        "type": "stool",
+        "per_area": 12
       },
       {
         "type": "fireplace"
@@ -76,7 +81,9 @@
         "tiers": [
           "middling",
           "high"
-        ]
+        ],
+        "as": "item",
+        "item": "rug_woven"
       },
       {
         "type": "wall_lantern",
@@ -91,23 +98,28 @@
       },
       {
         "type": "table",
-        "place": "center"
+        "place": "center",
+        "per_area": 20
       },
       {
-        "type": "bench"
+        "type": "bench",
+        "per_area": 20
       },
       {
         "type": "chair",
         "tiers": [
           "middling",
           "high"
-        ]
+        ],
+        "per_area": 15
       },
       {
         "type": "rug",
         "tiers": [
           "high"
-        ]
+        ],
+        "as": "item",
+        "item": "rug_woven"
       },
       {
         "type": "chandelier",

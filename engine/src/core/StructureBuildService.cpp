@@ -1,6 +1,7 @@
 #include "core/StructureBuildService.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <climits>
 #include <cmath>
@@ -13,6 +14,7 @@
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
 #include "core/ChunkManager.h"
+#include "core/DamageSystem.h"
 #include "core/FurnitureCatalog.h"
 #include "core/FurniturePlacer.h"
 #include "core/LocationRegistry.h"
@@ -391,17 +393,43 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     if (placedObjectManager) {
         const int fw = std::max(program.footprintW, 1);
         const int fd = std::max(program.footprintD, 1);
+        const bool keepVeg = params.value("keep_vegetation", false);
+        int vegObjectsRemoved = 0;
+        std::vector<std::string> toRemove;
         for (const auto& obj : placedObjectManager->list()) {
-            if (obj.category != "structure") continue;
             const bool overlapXZ =
                 obj.boundingMin.x <= ox + fw - 1 && obj.boundingMax.x >= ox &&
                 obj.boundingMin.z <= oz + fd - 1 && obj.boundingMax.z >= oz;
-            if (overlapXZ) {
+            if (!overlapXZ) continue;
+            if (obj.category == "structure") {
                 LOG_INFO_FMT("StructureBuild", "removing overlapping structure '"
                              << obj.id << "' before rebuild (no stacking)");
-                placedObjectManager->remove(obj.id);
+                toRemove.push_back(obj.id);
+            } else if (obj.category == "template" && !keepVeg && chunkManager) {
+                // VEGETATION GATE, object-wise half: a placed TREE/BUSH template
+                // on the lot is removed WHOLE (remove() clears its region AND
+                // its registry entry — the voxel flood alone left a ghost entry
+                // and could strip a neighbor's interlocked canopy). Tree-ness is
+                // decided by CONTENT (Log*/Leaf* cells in its bbox), not name.
+                bool treeMatter = false;
+                int budget = 4096;   // trees are small; bail on huge objects
+                for (int x = obj.boundingMin.x; x <= obj.boundingMax.x && !treeMatter && budget > 0; ++x)
+                    for (int y = obj.boundingMin.y; y <= obj.boundingMax.y && !treeMatter && budget > 0; ++y)
+                        for (int z = obj.boundingMin.z; z <= obj.boundingMax.z && !treeMatter; --budget, ++z)
+                            if (DamageSystem::isTreeMatterCell(chunkManager, {x, y, z}))
+                                treeMatter = true;
+                if (treeMatter) {
+                    LOG_INFO_FMT("StructureBuild", "vegetation gate: removing placed tree '"
+                                 << obj.id << "' (" << obj.templateName
+                                 << ") from the lot");
+                    toRemove.push_back(obj.id);
+                    ++vegObjectsRemoved;
+                }
             }
         }
+        for (const auto& id : toRemove) placedObjectManager->remove(id);
+        if (vegObjectsRemoved > 0)
+            response["vegetation_objects_removed"] = vegObjectsRemoved;
     }
 
     msOverlap = pc.lap();
@@ -417,12 +445,22 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     {
         std::vector<int> tops;
         std::vector<glm::ivec2> cells;
+        std::vector<glm::ivec3> vegSeeds;   // tree matter found inside the footprint
         const int scanTop = reqY + 64;
         for (int x = ox; x < ox + W; ++x)
             for (int z = oz; z < oz + D; ++z) {
                 int top = -1;
-                for (int y = scanTop; y >= 0; --y)
-                    if (chunkManager->hasVoxelAt(glm::ivec3(x, y, z))) { top = y; break; }
+                for (int y = scanTop; y >= 0; --y) {
+                    const glm::ivec3 wp(x, y, z);
+                    // TREE MATTER is not terrain: a trunk/canopy cell must never
+                    // set the pad level (the old scan took the canopy top as
+                    // "ground" and seated the house against the tree).
+                    if (DamageSystem::isTreeMatterCell(chunkManager, wp)) {
+                        vegSeeds.push_back(wp);
+                        continue;
+                    }
+                    if (chunkManager->hasVoxelAt(wp)) { top = y; break; }
+                }
                 if (top >= 0) { tops.push_back(top); cells.push_back(glm::ivec2(x, z)); }
             }
         // GROUNDING GATE: every footprint column must have terrain under it. Columns
@@ -441,6 +479,60 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                               " - generate terrain there first, or pass allow_ungrounded:true"},
                     {"ungrounded_columns", missingCols},
                     {"footprint_columns", W * D}};
+        }
+        // VEGETATION GATE: a build must never generate THROUGH a tree. Tree
+        // matter (Log*/Leaf*, any granularity) inside the footprint is cleared
+        // as WHOLE trees — flooded outward from the footprint cells so the
+        // trunk/canopy overhanging the lot goes too, never a half-tree fused
+        // into a wall. {"keep_vegetation": true} refuses the build instead.
+        if (!vegSeeds.empty()) {
+            if (params.value("keep_vegetation", false)) {
+                LOG_WARN_FMT("StructureBuild", "REFUSING build at (" << ox << "," << oz
+                             << "): " << vegSeeds.size()
+                             << " tree cells in the footprint (keep_vegetation)");
+                return {{"error", "vegetation in footprint: " +
+                                  std::to_string(vegSeeds.size()) +
+                                  " tree cells - refused (keep_vegetation is set); "
+                                  "move the build or drop keep_vegetation"},
+                        {"vegetation_cells", static_cast<int>(vegSeeds.size())}};
+            }
+            const glm::ivec3 lo(ox - 16, 0, oz - 16);
+            const glm::ivec3 hi(ox + W + 16, scanTop + 48, oz + D + 16);
+            static constexpr size_t kMaxVegFlood = 60000;   // runaway-forest backstop
+            std::set<std::array<int, 3>> seen;
+            std::vector<glm::ivec3> frontier, toClear;
+            auto push = [&](const glm::ivec3& p) {
+                if (p.x < lo.x || p.x > hi.x || p.y < lo.y || p.y > hi.y ||
+                    p.z < lo.z || p.z > hi.z) return;
+                if (!seen.insert({p.x, p.y, p.z}).second) return;
+                if (!DamageSystem::isTreeMatterCell(chunkManager, p)) return;
+                frontier.push_back(p);
+                toClear.push_back(p);
+            };
+            for (const auto& s : vegSeeds) push(s);
+            while (!frontier.empty() && toClear.size() < kMaxVegFlood) {
+                const glm::ivec3 p = frontier.back();
+                frontier.pop_back();
+                static const glm::ivec3 N6[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+                                                 {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+                for (const auto& d : N6) push(p + d);
+            }
+            // Bulk-clear per chunk (cube AND subdivision content — canopy cells
+            // are often subcube/micro-only, which removeCube alone leaves behind).
+            std::map<Chunk*, bool> vegTouched;
+            for (const auto& p : toClear)
+                if (Chunk* c = chunkManager->getChunkAtFast(p))
+                    if (vegTouched.emplace(c, true).second) c->beginBulkOperation();
+            for (const auto& p : toClear) {
+                chunkManager->removeCube(p);
+                if (Chunk* c = chunkManager->getChunkAtFast(p))
+                    c->clearSubdivisionAt(ChunkManager::worldToLocalCoord(p));
+            }
+            for (auto& [c, _] : vegTouched) c->endBulkOperation();
+            LOG_INFO_FMT("StructureBuild", "vegetation gate: cleared " << toClear.size()
+                         << " tree cells from the lot (" << vegSeeds.size()
+                         << " seeds in footprint)");
+            response["vegetation_cleared_cells"] = static_cast<int>(toClear.size());
         }
         if (!tops.empty()) {
             const int padLevel = StructureGenerator::planPadLevel(tops);
@@ -704,6 +796,14 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);
+            // Surfaces that receive item props: the ACTUAL placed pose (micro pos
+            // INCLUDING wall inset + rotation), captured at placement — the plan
+            // cell alone put items on table edges / hovering beside the table.
+            struct PlacedSurface {
+                std::string room; const VoxelTemplate* tmpl;
+                glm::ivec3 microPos; int rotation;
+            };
+            std::vector<PlacedSurface> placedSurfaces;
             for (size_t k = 0; k < placements.size(); ++k) {
                 const auto& pl = placements[k];
                 std::string tmpl = FurnitureCatalog::templateFor(pl.type);
@@ -722,10 +822,46 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                     pl.type, surfMicroY, ceilMicroY, tmplMicroH);
                 const glm::ivec3 microPos =
                     FurniturePlacer::microWorldPos(pl, extTMicro, baseMicroY);
+                // `as:"item"` recipe pieces realize as PICKABLE ITEM PROPS at the
+                // planned spot (rugs on the floor, ...) — same placement, different
+                // realization; baked templates remain the default.
+                const std::string itemForm = FurniturePlacer::itemFormFor(pl.type);
+                if (!itemForm.empty() && itemPropManager) {
+                    // Center the prop on its reserved footprint (microPos is the
+                    // anchor corner; props spawn about their own center).
+                    Footprint iFp = fixtureFootprints.count(pl.type)
+                        ? fixtureFootprints[pl.type] : Footprint{1, 1};
+                    const bool iRot = (((pl.rotation % 360) + 360) % 360 == 90) ||
+                                      (((pl.rotation % 360) + 360) % 360 == 270);
+                    const float halfW = std::max(1, iRot ? iFp.depth : iFp.width) * 0.5f;
+                    const float halfD = std::max(1, iRot ? iFp.width : iFp.depth) * 0.5f;
+                    const glm::vec3 ipos(microPos.x / 9.0f + halfW,
+                                         microPos.y / 9.0f + 0.005f,
+                                         microPos.z / 9.0f + halfD);
+                    std::string pid = itemPropManager->spawnProp(
+                        itemForm, ipos, static_cast<float>(pl.rotation),
+                        /*snapToGround=*/false, /*instanceUuid=*/"",
+                        glm::vec3(0.0f), /*dynamic=*/false);
+                    if (pid.empty()) { ++fxSkipped; continue; }
+                    placedObjectManager->setParent(pid, objectId);
+                    placedObjectManager->setMetadata(pid, "fixture", {
+                        {"structure", objectId}, {"room", pl.room},
+                        {"kind", "item"}, {"type", pl.type}, {"story", (int)si}});
+                    ++itemsSpawned;
+                    continue;
+                }
                 std::string fid = placedObjectManager->placeTemplateMicro(
                     tmpl, microPos, pl.rotation, objectId);
                 if (fid.empty()) { ++fxSkipped; continue; }
                 ++fxSpawned;
+                // Tables + the bar counter get surface item props (see below).
+                if (itemPropManager && objectTemplateManager &&
+                    (pl.type.find("table") != std::string::npos ||
+                     pl.type == "tavern_bar" || pl.type == "back_bar" ||
+                     pl.type.find("counter") != std::string::npos)) {
+                    if (const auto* ttm = objectTemplateManager->getTemplate(tmpl))
+                        placedSurfaces.push_back({pl.room, ttm, microPos, pl.rotation});
+                }
                 const auto& L = labels[k];
                 nlohmann::json fx = {
                     {"structure", objectId}, {"room", L.room},
@@ -786,46 +922,40 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             // fallback). Deterministic per table position; props spawn STATIC
             // (exact pose, zero physics) and are PARENTED to the structure so a
             // rebuild removes them (no duplicate accumulation).
-            for (const auto& pl : placements) {
-                if (pl.type.find("table") == std::string::npos) continue;
-                Footprint fp = fixtureFootprints.count(pl.type)
-                    ? fixtureFootprints[pl.type] : Footprint{1, 1};
-                Rect surf{pl.worldPos.x, pl.worldPos.z, fp.width, fp.depth};
-                unsigned cseed =
-                    (static_cast<unsigned>(pl.worldPos.x) * 73856093u) ^
-                    (static_cast<unsigned>(pl.worldPos.z) * 19349663u) ^ 0x9e3779b9u;
-
-                if (itemPropManager) {
-                    // MEASURED table-top height: floor surface + template top.
-                    const int surfMicroY2 = (si < surfaceMicroYByStory.size())
-                        ? surfaceMicroYByStory[si] : storyFloorY * 9;
-                    float topUnits = 1.0f;   // conservative fallback
-                    if (objectTemplateManager) {
-                        const std::string tt = FurnitureCatalog::templateFor(pl.type);
-                        if (const auto* ttmpl = objectTemplateManager->getTemplate(tt))
-                            topUnits = FurniturePlacer::templateTopUnits(*ttmpl);
-                    }
-                    const float itemY = surfMicroY2 / 9.0f + topUnits + 0.01f;
-
-                    const auto items = FurniturePlacer::surfaceItemsFor(pl.room);
-                    auto clutter = FurniturePlacer::placeSurfaceClutter(
-                        pl.room, surf, storyFloorY + 1, items, cseed);
-                    for (const auto& c : clutter) {
-                        const glm::vec3 pos(c.worldPos.x + 0.5f, itemY,
-                                            c.worldPos.z + 0.5f);
-                        const float yaw = float(((cseed >> 3) ^ c.worldPos.x
-                                                 ^ c.worldPos.z) % 4) * 90.0f;
+            if (itemPropManager) {
+                // Spots come from the ACTUAL placed surface (template geometry at
+                // the placed microPos + rotation, top-surface rect measured) — the
+                // plan cell + unrotated catalog footprint missed the real tabletop
+                // (wall inset + rotation), leaving items on the edge or hovering
+                // beside the table at tabletop height.
+                for (const auto& ps : placedSurfaces) {
+                    unsigned cseed =
+                        (static_cast<unsigned>(ps.microPos.x) * 73856093u) ^
+                        (static_cast<unsigned>(ps.microPos.z) * 19349663u) ^ 0x9e3779b9u;
+                    const auto items = FurniturePlacer::surfaceItemsFor(ps.room);
+                    auto spots = FurniturePlacer::placeSurfaceItems(
+                        ps.room, *ps.tmpl, ps.microPos, ps.rotation, items, cseed);
+                    for (const auto& c : spots) {
                         std::string pid = itemPropManager->spawnProp(
-                            c.type, pos, yaw, /*snapToGround=*/false,
+                            c.type, c.worldPos, c.yawDeg, /*snapToGround=*/false,
                             /*instanceUuid=*/"", glm::vec3(0.0f), /*dynamic=*/false);
                         if (pid.empty()) { ++fxSkipped; continue; }
                         placedObjectManager->setParent(pid, objectId);
                         placedObjectManager->setMetadata(pid, "fixture", {
-                            {"structure", objectId}, {"room", pl.room},
+                            {"structure", objectId}, {"room", ps.room},
                             {"kind", "item"}, {"type", c.type}, {"story", (int)si}});
                         ++itemsSpawned;
                     }
-                } else {
+                }
+            } else {
+                for (const auto& pl : placements) {
+                    if (pl.type.find("table") == std::string::npos) continue;
+                    Footprint fp = fixtureFootprints.count(pl.type)
+                        ? fixtureFootprints[pl.type] : Footprint{1, 1};
+                    Rect surf{pl.worldPos.x, pl.worldPos.z, fp.width, fp.depth};
+                    unsigned cseed =
+                        (static_cast<unsigned>(pl.worldPos.x) * 73856093u) ^
+                        (static_cast<unsigned>(pl.worldPos.z) * 19349663u) ^ 0x9e3779b9u;
                     // Legacy fallback: baked clutter templates at the cube guess.
                     auto clutter = FurniturePlacer::placeSurfaceClutter(
                         pl.room, surf, storyFloorY + 1, {"mug", "mug", "bottle"}, cseed);

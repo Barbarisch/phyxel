@@ -80,7 +80,12 @@ static std::vector<char> readShaderFile(const std::string& path) {
     return buf;
 }
 
-bool GrassRenderPipeline::s_castShadows = true;
+// DEFAULT OFF (user call 2026-08-07): blades cast only into the ~40 u near
+// cascade, so from any elevated camera the cascade's coverage reads as a giant
+// dark CIRCLE gliding along with the view (A/B-verified: toggling this removes
+// it). Re-enable once the near-cascade edge gets a gradual blade-shadow
+// strength fade — tracked in docs/NearShadowCascade.md §Known issues.
+bool GrassRenderPipeline::s_castShadows = false;
 float GrassRenderPipeline::s_shadowWidthScale = 2.0f;
 
 GrassRenderPipeline::GrassRenderPipeline() {}

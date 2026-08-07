@@ -180,12 +180,41 @@ public:
     /// all voxel tiers. Replaces the floor+1-cube clutter guess (a tavern
     /// table is ~0.78 u tall; the guess floated items 0.22 u above the wood).
     static float templateTopUnits(const VoxelTemplate& tmpl);
+
+    /// A pickable surface-item spot in continuous WORLD units (item BASE position).
+    struct SurfaceItemSpot {
+        std::string type;       ///< item id (items.json)
+        glm::vec3 worldPos{0};  ///< base position: x/z ON the tabletop, y = measured top
+        float yawDeg = 0.0f;
+    };
+    /// Deterministic item spots on the ACTUAL placed table/bar — not the plan cell.
+    /// Measures the template's TOP-SURFACE rect (occupied columns within 1 micro of
+    /// the max Y, so a bar lip or chair back doesn't inflate the surface), applies
+    /// the SAME 90°-step rotation convention as spawnTemplateMicro /
+    /// computeMicroPlacedBounds (pivot = template micro-AABB mmax), translates by
+    /// the placed `worldMicro` (which INCLUDES the wall inset), insets the rim, and
+    /// scatters `items` on a seeded jittered grid with minimum spacing. Y = the top
+    /// of THIS placed instance + a 0.01 lift. Fixes items-on-the-table-edge /
+    /// hovering-beside-the-table: the old path used the unrotated plan-time cube
+    /// rect, which misses the real (inset + rotated) tabletop entirely.
+    static std::vector<SurfaceItemSpot> placeSurfaceItems(
+        const std::string& room, const VoxelTemplate& tableTmpl,
+        const glm::ivec3& worldMicro, int rotationDeg,
+        const std::vector<std::string>& items, unsigned seed);
     /// TESTING: drop any loaded data recipes (back to the hardcoded fallback).
     static void clearRecipes();
+
+    /// `as:"item"` recipe realization: the item id a furnishing TYPE realizes as
+    /// (e.g. "rug" -> the pickable rug prop), or "" when the type stays a baked
+    /// template. Placement/reservation is identical either way — only the
+    /// consumer's realization differs.
+    static std::string itemFormFor(const std::string& type);
 
 private:
     /// Loaded "surface_items" recipes (purpose -> item ids). See surfaceItemsFor.
     static std::map<std::string, std::vector<std::string>>& surfaceItemRecipes();
+    /// Loaded `as:"item"` mappings (furnishing type -> item id). See itemFormFor.
+    static std::map<std::string, std::string>& itemFormRegistry();
 public:
 
     /// Convert a (cube-cell) placement to a MICRO-PRECISE world position (cube*9 + micro) so the piece

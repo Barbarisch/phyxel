@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <climits>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -28,7 +30,12 @@ std::string lower(std::string s) {
 struct WallDef { int inwardDx, inwardDz; };
 const WallDef WALLS[4] = {{+1, 0}, {-1, 0}, {0, +1}, {0, -1}};
 
-struct Piece { std::string type; bool center; };
+struct Piece {
+    std::string type;
+    bool center;
+    int count = 1;        ///< recipe "count": place up to N of this piece
+    double perArea = 0.0; ///< recipe "per_area": one per N floor cells (scales with room size)
+};
 
 // Map a room's free-text purpose onto the CANONICAL recipe key (the same substring rules the
 // old hardcoded map used, factored out so the data recipes share them).
@@ -335,6 +342,14 @@ bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
             DataPiece dp;
             dp.piece.type = e["type"].get<std::string>();
             dp.piece.center = e.value("place", std::string("wall")) == "center";
+            dp.piece.count = std::max(1, e.value("count", 1));
+            dp.piece.perArea = std::max(0.0, e.value("per_area", 0.0));
+            // `as:"item"`: this piece REALIZES as a pickable item prop (spawned
+            // via ItemPropManager), not a baked template. `item` overrides the
+            // item id (default: the type). Placement/reservation is unchanged —
+            // only the realization differs (ItemPlacementPlan.md step 2).
+            if (e.value("as", std::string()) == "item")
+                itemFormRegistry()[dp.piece.type] = e.value("item", dp.piece.type);
             if (e.contains("tiers") && e["tiers"].is_array())
                 for (const auto& t : e["tiers"])
                     if (t.is_string()) dp.tiers.push_back(t.get<std::string>());
@@ -359,11 +374,26 @@ bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
     return !reg.empty();
 }
 
-void FurniturePlacer::clearRecipes() { dataRecipes().clear(); surfaceItemRecipes().clear(); }
+void FurniturePlacer::clearRecipes() {
+    dataRecipes().clear();
+    surfaceItemRecipes().clear();
+    itemFormRegistry().clear();
+}
 
 std::map<std::string, std::vector<std::string>>& FurniturePlacer::surfaceItemRecipes() {
     static std::map<std::string, std::vector<std::string>> reg;
     return reg;
+}
+
+std::map<std::string, std::string>& FurniturePlacer::itemFormRegistry() {
+    static std::map<std::string, std::string> reg;
+    return reg;
+}
+
+std::string FurniturePlacer::itemFormFor(const std::string& type) {
+    const auto& reg = itemFormRegistry();
+    auto it = reg.find(type);
+    return it == reg.end() ? std::string() : it->second;
 }
 
 std::vector<std::string> FurniturePlacer::surfaceItemsFor(const std::string& purpose) {
@@ -391,6 +421,95 @@ float FurniturePlacer::templateTopUnits(const VoxelTemplate& tmpl) {
             top = std::max(top, (v.pos.y + 1) * cell);
     }
     return top;
+}
+
+std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems(
+    const std::string& room, const VoxelTemplate& tableTmpl,
+    const glm::ivec3& worldMicro, int rotationDeg,
+    const std::vector<std::string>& items, unsigned seed) {
+    std::vector<SurfaceItemSpot> out;
+    if (items.empty()) return out;
+
+    // ---- template-local micro AABB + the TOP-SURFACE rect ----
+    // Accumulate exactly like PlacedObjectManager::computeMicroPlacedBounds (cube
+    // -> 9-micro span, subcube -> 3, microcube -> 1). A second accumulator keeps
+    // only primitives whose top row reaches within 1 micro of the template max —
+    // the actual tabletop plane — so legs, stretchers, or a bar's lower shelf
+    // never widen the item surface.
+    glm::ivec3 mmin(INT_MAX), mmax(INT_MIN);
+    struct P { glm::ivec3 origin; int span; };
+    std::vector<P> prims;
+    auto acc = [&](const glm::ivec3& origin, int span) {
+        mmin = glm::min(mmin, origin);
+        mmax = glm::max(mmax, origin + glm::ivec3(span - 1));
+        prims.push_back({origin, span});
+    };
+    for (const auto& c : tableTmpl.cubes)      acc(c.relativePos * 9, 9);
+    for (const auto& s : tableTmpl.subcubes)   acc(s.parentRelativePos * 9 + s.subcubePos * 3, 3);
+    for (const auto& m : tableTmpl.microcubes) acc(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1);
+    if (mmin.x > mmax.x) return out;   // empty template (fine-grid tables don't exist)
+
+    glm::ivec3 smin(INT_MAX), smax(INT_MIN);   // top-surface rect, local micro
+    for (const auto& p : prims) {
+        if (p.origin.y + p.span - 1 < mmax.y - 1) continue;   // below the top plane
+        smin = glm::min(smin, p.origin);
+        smax = glm::max(smax, p.origin + glm::ivec3(p.span - 1));
+    }
+
+    // ---- rotate about the SAME pivot spawnTemplateMicro uses (full-AABB mmax) ----
+    const int rotSteps = ((rotationDeg % 360) + 360) % 360 / 90;
+    auto rotMicro = [&](const glm::ivec3& p) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(mmax.z - p.z, p.y, p.x);
+            case 2: return glm::ivec3(mmax.x - p.x, p.y, mmax.z - p.z);
+            case 3: return glm::ivec3(p.z, p.y, mmax.x - p.x);
+            default: return p;
+        }
+    };
+    glm::ivec3 rmin(INT_MAX), rmax(INT_MIN);
+    for (int cx = 0; cx < 2; ++cx) for (int cz = 0; cz < 2; ++cz) {
+        const glm::ivec3 corner(cx ? smax.x : smin.x, smax.y, cz ? smax.z : smin.z);
+        const glm::ivec3 r = rotMicro(corner);
+        rmin = glm::min(rmin, r);  rmax = glm::max(rmax, r);
+    }
+
+    // ---- world-space float rect (units), rim inset, measured top Y ----
+    const float minX = (worldMicro.x + rmin.x) / 9.0f;
+    const float maxX = (worldMicro.x + rmax.x + 1) / 9.0f;
+    const float minZ = (worldMicro.z + rmin.z) / 9.0f;
+    const float maxZ = (worldMicro.z + rmax.z + 1) / 9.0f;
+    const float topY = (worldMicro.y + mmax.y + 1) / 9.0f + 0.01f;
+    const float kRim = 0.20f;   // keep item footprints off the table edge
+    float x0 = minX + kRim, x1 = maxX - kRim, z0 = minZ + kRim, z1 = maxZ - kRim;
+    if (x1 < x0) x0 = x1 = (minX + maxX) * 0.5f;   // narrow top -> center line
+    if (z1 < z0) z0 = z1 = (minZ + maxZ) * 0.5f;
+
+    // ---- seeded jittered grid, one item per cell (>= ~0.45 u spacing) ----
+    const float kPitch = 0.55f;
+    const int cols = std::max(1, (int)std::floor((x1 - x0) / kPitch) + 1);
+    const int rows = std::max(1, (int)std::floor((z1 - z0) / kPitch) + 1);
+    std::vector<glm::vec2> cells;
+    for (int i = 0; i < cols; ++i)
+        for (int j = 0; j < rows; ++j)
+            cells.push_back({cols == 1 ? (x0 + x1) * 0.5f : x0 + (x1 - x0) * i / float(cols - 1),
+                             rows == 1 ? (z0 + z1) * 0.5f : z0 + (z1 - z0) * j / float(rows - 1)});
+    unsigned s = seed ? seed : 1u;
+    auto rnd = [&]() { s = s * 1664525u + 1013904223u; return s; };
+    for (int i = (int)cells.size() - 1; i > 0; --i)
+        std::swap(cells[i], cells[rnd() % (unsigned)(i + 1)]);
+    const float jit = std::min(0.08f, kPitch * 0.15f);
+    const size_t n = std::min(items.size(), cells.size());   // never overflow the top
+    for (size_t i = 0; i < n; ++i) {
+        SurfaceItemSpot spot;
+        spot.type = items[i];
+        const float jx = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
+        const float jz = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
+        spot.worldPos = glm::vec3(std::min(x1, std::max(x0, cells[i].x + jx)), topY,
+                                  std::min(z1, std::max(z0, cells[i].y + jz)));
+        spot.yawDeg = float(rnd() % 360);
+        out.push_back(spot);
+    }
+    return out;
 }
 
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
@@ -575,11 +694,21 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         const bool forgeFloor = roomPurpose.find("forge") != std::string::npos
                              || roomPurpose.find("smith") != std::string::npos
                              || roomPurpose.find("anvil") != std::string::npos;
-        std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1}, tableCell{-1, -1};
+        std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1}, tableCell{-1, -1},
+                            barCell{-1, -1};
 
         for (const auto& piece : recipeFor(room.purpose, wealthTier)) {
             const Footprint fp = footprintOf(piece.type);
             const int width = std::max(1, fp.width);
+            // AREA-SCALED density (`count` / `per_area` recipe fields): a real
+            // taproom seats many — one table per ~N floor cells, not a single
+            // showpiece table. Rep 0 stays REQUIRED (unplaced-reported); later
+            // reps are best-effort — a full room just stops placing.
+            int reps = std::max(1, piece.count);
+            if (piece.perArea > 0.0)
+                reps = std::max(reps, static_cast<int>((rw * rd) / piece.perArea));
+            reps = std::min(reps, 12);
+            for (int rep = 0; rep < reps; ++rep) {
             bool placed = false;
 
             // CEILING-hung pieces (chandelier) float over the room centre and reserve NO floor
@@ -593,7 +722,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 p.backDir = glm::ivec3(0);
                 p.worldPos = glm::ivec3(origin.x + rx + rw / 2, floorY, origin.z + rz + rd / 2);
                 out.push_back(p);
-                continue;
+                break;   // ceiling pieces don't rep — one over the room centre
             }
 
             // Work-triangle clustering: the anvil hugs the forge; the quench (barrel) hugs the anvil.
@@ -608,6 +737,13 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             // table's surround is full.
             else if (piece.type == "bench" && tableCell.first >= 0)
                 placed = placeNear(tableCell, fp, piece.type);
+            // Taverns: stools/chairs pull up to the (nearest recorded) table;
+            // bar stools line the bar front — seating belongs AT the furniture
+            // it serves, not marooned along a far wall.
+            else if ((piece.type == "stool" || piece.type == "chair") && tableCell.first >= 0)
+                placed = placeNear(tableCell, fp, piece.type);
+            else if (piece.type == "bar_stool" && barCell.first >= 0)
+                placed = placeNear(barCell, fp, piece.type);
 
             if (!placed && piece.center) {
                 auto cells = coverAt(0, fp, 0, /*center=*/true);
@@ -672,10 +808,23 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     forgeCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
                 else if (forgeFloor && piece.type == "anvil")
                     anvilCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
-                else if (piece.type == "table")   // seating hugs the table (any room with one)
+                // Seating hugs the FIRST placed table (the centred main table —
+                // later per_area reps wall-pack, and anchoring to those dragged
+                // the bench to a wall; bedside tables never anchor seating).
+                else if (tableCell.first < 0 &&
+                         piece.type.find("table") != std::string::npos &&
+                         piece.type.find("bedside") == std::string::npos)
                     tableCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
+                else if (barCell.first < 0 && piece.type == "tavern_bar")
+                    barCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
             }
-            if (!placed && unplaced) unplaced->push_back({room.id, piece.type});  // honest: never silent
+            if (!placed) {
+                // honest: rep 0 is the REQUIRED piece — never silently dropped.
+                // Later reps are area-scaled best-effort; a full room stops here.
+                if (rep == 0 && unplaced) unplaced->push_back({room.id, piece.type});
+                break;
+            }
+            }   // reps
         }
     }
     return out;

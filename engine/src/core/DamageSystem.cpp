@@ -549,6 +549,9 @@ static bool isTreeCell(ChunkManager* cm, const glm::ivec3& wp) {
 static bool isLogCell(ChunkManager* cm, const glm::ivec3& wp) {
     return scanCellTree(cm, wp).log;
 }
+bool DamageSystem::isTreeMatterCell(ChunkManager* cm, const glm::ivec3& wp) {
+    return isTreeCell(cm, wp);
+}
 // Structural wood (F6): log at cube/subcube granularity — the support graph.
 static bool isStructuralLogCell(ChunkManager* cm, const glm::ivec3& wp) {
     return scanCellTree(cm, wp).structLog;

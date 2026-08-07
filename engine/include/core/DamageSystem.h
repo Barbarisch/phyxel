@@ -88,6 +88,11 @@ public:
     // (swing 1 puffs, every later swing silently whiffs).
     static bool isWoodCellAny(ChunkManager* cm, const glm::ivec3& wp,
                               std::string* logMaterial = nullptr);
+    // TREE MATTER at any granularity — trunk (Log*) or canopy (Leaf*) content in
+    // the cell. Exposed for the structure-build vegetation gate: a build lot is
+    // CLEARED of whole trees (flood from footprint cells), never built through
+    // one (half a canopy poking out of a roof).
+    static bool isTreeMatterCell(ChunkManager* cm, const glm::ivec3& wp);
     // Closest point ON the Log* content inside one cell (any granularity) to
     // `probe`. False if the cell holds no wood. Blade-contact detection clamps
     // the axe head to THIS, not the cell box (a flare/notch cell's wood can
