@@ -197,6 +197,67 @@ TEST(ItemPlacement, SurfaceSpotsFollowRotationAndInset) {
     EXPECT_LT(200.5f, 200.555f);   // old z outside the real top
 }
 
+// Multi-plane stocking (user report: the back bar's generated shelves kept their
+// baked bottle lumps because only the TOP surface got item props; the template's
+// baked bottles are now stripped and every shelf must be stocked instead).
+// RED pre-multi-plane: only the top board produced spots.
+TEST(ItemPlacement, ShelvingUnitStocksEveryShelfPlane) {
+    VoxelTemplate unit;
+    for (int x = 0; x < 3; ++x) {
+        unit.cubes.push_back({{x, 0, 0}, "Wood"});   // base board (a shelf floor)
+        unit.cubes.push_back({{x, 2, 0}, "Wood"});   // shelf board, 9-micro gap below
+    }
+    const auto spots = FurniturePlacer::placeSurfaceItems(
+        "taproom", unit, {0, 0, 0}, 0, {"bottle_wine", "goblet", "tankard"}, 5u);
+    ASSERT_FALSE(spots.empty());
+    bool onTop = false, onLowerShelf = false;
+    for (const auto& sp : spots) {
+        if (std::abs(sp.worldPos.y - 3.01f) < 1e-3f) onTop = true;         // top board
+        if (std::abs(sp.worldPos.y - 1.01f) < 1e-3f) onLowerShelf = true;  // base shelf
+    }
+    EXPECT_TRUE(onTop) << "top board not stocked";
+    EXPECT_TRUE(onLowerShelf)
+        << "lower shelf got no items — only the top was stocked (the back-bar bug)";
+}
+
+// The REAL back-bar geometry (regen_furniture gen_back_bar): back panel z=0,
+// end panels, base, three 2-micro-deep shelf boards, and a top RIM RING (panel
+// top + end caps). RED on first live run: the >=3-extent filter emptied every
+// shelf (they are 2 deep behind the panel) while the rim ring PASSED the area
+// check, merged with the top shelf, and floated the top items a micro high.
+TEST(ItemPlacement, BackBarShelvesStockedRimRingRejected) {
+    VoxelTemplate bb;
+    const int L = 27, H = 16, D = 3;
+    auto solid = [&](int x, int y, int z) {
+        if (z == 0) return true;                          // back panel
+        if (x == 0 || x == L - 1) return true;            // end panels
+        if (y == 0) return true;                          // base
+        return y == 4 || y == 9 || y == 14;               // shelf boards
+    };
+    for (int x = 0; x < L; ++x)
+        for (int y = 0; y < H; ++y)
+            for (int z = 0; z < D; ++z)
+                if (solid(x, y, z))
+                    bb.microcubes.push_back({{x / 9, y / 9, z / 9},
+                                             {(x % 9) / 3, (y % 9) / 3, (z % 9) / 3},
+                                             {x % 3, y % 3, z % 3}, "Wood"});
+    const auto spots = FurniturePlacer::placeSurfaceItems(
+        "taproom", bb, {0, 0, 0}, 0,
+        {"bottle_wine", "bottle_wine", "goblet", "bottle_wine", "tankard"}, 9u);
+    ASSERT_FALSE(spots.empty());
+    int onShelf14 = 0, onShelf9 = 0, onShelf4 = 0, onRim = 0;
+    for (const auto& sp : spots) {
+        if (std::abs(sp.worldPos.y - (15 / 9.0f + 0.01f)) < 1e-3f) ++onShelf14;
+        if (std::abs(sp.worldPos.y - (10 / 9.0f + 0.01f)) < 1e-3f) ++onShelf9;
+        if (std::abs(sp.worldPos.y - (5 / 9.0f + 0.01f)) < 1e-3f) ++onShelf4;
+        if (std::abs(sp.worldPos.y - (16 / 9.0f + 0.01f)) < 1e-3f) ++onRim;
+    }
+    EXPECT_GT(onShelf14, 0) << "top shelf empty";
+    EXPECT_GT(onShelf9, 0) << "middle shelf empty";
+    EXPECT_GT(onShelf4, 0) << "bottom shelf empty";
+    EXPECT_EQ(onRim, 0) << "items on the rim ring float a micro above the top shelf";
+}
+
 TEST(ItemPlacement, SurfaceSpotsKeepMinimumSpacing) {
     VoxelTemplate slab;   // solid 3x2-cube tabletop
     for (int x = 0; x < 3; ++x)

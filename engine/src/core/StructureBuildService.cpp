@@ -800,7 +800,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             // INCLUDING wall inset + rotation), captured at placement — the plan
             // cell alone put items on table edges / hovering beside the table.
             struct PlacedSurface {
-                std::string room; const VoxelTemplate* tmpl;
+                std::string room; std::string type; const VoxelTemplate* tmpl;
                 glm::ivec3 microPos; int rotation;
             };
             std::vector<PlacedSurface> placedSurfaces;
@@ -860,7 +860,8 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                      pl.type == "tavern_bar" || pl.type == "back_bar" ||
                      pl.type.find("counter") != std::string::npos)) {
                     if (const auto* ttm = objectTemplateManager->getTemplate(tmpl))
-                        placedSurfaces.push_back({pl.room, ttm, microPos, pl.rotation});
+                        placedSurfaces.push_back({pl.room, pl.type, ttm, microPos,
+                                                  pl.rotation});
                 }
                 const auto& L = labels[k];
                 nlohmann::json fx = {
@@ -932,7 +933,10 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                     unsigned cseed =
                         (static_cast<unsigned>(ps.microPos.x) * 73856093u) ^
                         (static_cast<unsigned>(ps.microPos.z) * 19349663u) ^ 0x9e3779b9u;
-                    const auto items = FurniturePlacer::surfaceItemsFor(ps.room);
+                    // Fixture-keyed set first (a back bar wants BOTTLES on its
+                    // shelves, not plates) — falls through to the room's set.
+                    const auto items = FurniturePlacer::surfaceItemsFor(
+                        ps.type == "back_bar" ? ps.type : ps.room);
                     auto spots = FurniturePlacer::placeSurfaceItems(
                         ps.room, *ps.tmpl, ps.microPos, ps.rotation, items, cseed);
                     for (const auto& c : spots) {

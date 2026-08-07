@@ -258,6 +258,13 @@
       "tome_leather",
       "candle",
       "goblet"
+    ],
+    "back_bar": [
+      "bottle_wine",
+      "bottle_wine",
+      "goblet",
+      "bottle_wine",
+      "tankard"
     ]
   }
 }

@@ -188,15 +188,17 @@ public:
         float yawDeg = 0.0f;
     };
     /// Deterministic item spots on the ACTUAL placed table/bar — not the plan cell.
-    /// Measures the template's TOP-SURFACE rect (occupied columns within 1 micro of
-    /// the max Y, so a bar lip or chair back doesn't inflate the surface), applies
-    /// the SAME 90°-step rotation convention as spawnTemplateMicro /
-    /// computeMicroPlacedBounds (pivot = template micro-AABB mmax), translates by
-    /// the placed `worldMicro` (which INCLUDES the wall inset), insets the rim, and
-    /// scatters `items` on a seeded jittered grid with minimum spacing. Y = the top
-    /// of THIS placed instance + a 0.01 lift. Fixes items-on-the-table-edge /
-    /// hovering-beside-the-table: the old path used the unrotated plan-time cube
-    /// rect, which misses the real (inset + rotated) tabletop entirely.
+    /// Rasterizes the template and finds EVERY upward-facing surface plane with
+    /// bottle headroom (>= 3 micro or open sky) — so a shelving unit stocks ALL
+    /// its shelves, not just the top board; slivers (a 1-micro rim, a leg's foot)
+    /// are filtered by area/extent, micro-stepped tops merge into one plane, and
+    /// at most the 4 highest planes are stocked. Each plane's rect gets the SAME
+    /// 90°-step rotation convention as spawnTemplateMicro / computeMicroPlacedBounds
+    /// (pivot = template micro-AABB mmax), is translated by the placed `worldMicro`
+    /// (which INCLUDES the wall inset), rim-inset, and scattered with `items` on a
+    /// seeded jittered min-spacing grid at the plane's measured Y + a 0.01 lift.
+    /// Fixes items-on-the-table-edge / hovering-beside-the-table (the old path used
+    /// the unrotated plan-time cube rect) and empty generated shelves.
     static std::vector<SurfaceItemSpot> placeSurfaceItems(
         const std::string& room, const VoxelTemplate& tableTmpl,
         const glm::ivec3& worldMicro, int rotationDeg,

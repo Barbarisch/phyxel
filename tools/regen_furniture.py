@@ -268,21 +268,20 @@ def gen_back_bar():
     shelves = (4, 9, 14)
     for sy in shelves:
         m.fill(0, L - 1, sy, sy, 0, D - 1, "WoodWalnut")         # shelf board
-    # bottles: pairs of Glass micro standing on each shelf (1 above the board), spaced along the run.
-    for sy in shelves:
-        for bx in range(2, L - 2, 3):
-            m.m(bx, sy + 1, 1, "Glass")
-            m.m(bx, sy + 2, 1, "Glass")                    # ~0.22 m bottles
+    # NO baked bottles (2026-08-07): shelves ship EMPTY — structure gen stocks
+    # them with pickable fine-voxel item props (bottle_wine/goblet/tankard) via
+    # FurniturePlacer::placeSurfaceItems' shelf planes. The old Glass-micro
+    # bottle lumps read as frosted blocks next to the real items.
     header = (
         "# ==========================================================\n"
         "# ASSET METADATA\n"
         "# name:         back_bar\n"
         "# display_name: Back Bar (Shelving)\n"
-        "# description:  Wall shelving behind a tavern bar — three shelves lined with glass bottles.\n"
+        "# description:  Wall shelving behind a tavern bar — three empty shelves (structure gen stocks them with item props).\n"
         "# category:     furniture\n"
         "# subcategory:  shelving\n"
-        "# tags:         bar, shelf, bottles, tavern, inn\n"
-        "# materials:    Wood, Glass\n"
+        "# tags:         bar, shelf, tavern, inn\n"
+        "# materials:    Wood\n"
         "# facing:       +Z (open shelf face toward the bartender / room)\n"
         "# bounds:       3.0W x 1.78H x 0.33D m (grounded object_dimensions 'back_bar')\n"
         "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"

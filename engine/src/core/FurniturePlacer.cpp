@@ -1,6 +1,7 @@
 #include "core/FurniturePlacer.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -449,12 +450,74 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
     for (const auto& m : tableTmpl.microcubes) acc(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1);
     if (mmin.x > mmax.x) return out;   // empty template (fine-grid tables don't exist)
 
-    glm::ivec3 smin(INT_MAX), smax(INT_MIN);   // top-surface rect, local micro
-    for (const auto& p : prims) {
-        if (p.origin.y + p.span - 1 < mmax.y - 1) continue;   // below the top plane
-        smin = glm::min(smin, p.origin);
-        smax = glm::max(smax, p.origin + glm::ivec3(p.span - 1));
+    // ---- occupancy raster over the local micro AABB ----
+    // Furniture templates are small (a back bar is 27x16x3); the raster lets us
+    // find EVERY upward-facing surface — a shelving unit stocks all its shelves,
+    // not just the top board.
+    const glm::ivec3 dims = mmax - mmin + glm::ivec3(1);
+    const size_t vol = (size_t)dims.x * dims.y * dims.z;
+    if (vol == 0 || vol > 500000) return out;
+    std::vector<uint8_t> occ(vol, 0);
+    auto at = [&](int x, int y, int z) -> uint8_t& {
+        return occ[((size_t)(x - mmin.x) * dims.y + (y - mmin.y)) * dims.z + (z - mmin.z)];
+    };
+    for (const auto& p : prims)
+        for (int x = 0; x < p.span; ++x)
+            for (int y = 0; y < p.span; ++y)
+                for (int z = 0; z < p.span; ++z)
+                    at(p.origin.x + x, p.origin.y + y, p.origin.z + z) = 1;
+
+    // ---- surface planes: occupied cells with >= 3 micro of headroom above
+    // (or open sky at the AABB top). Grouped by exact surface row. ----
+    std::map<int, std::array<int, 5>> levels;   // y -> {minX, minZ, maxX, maxZ, area}
+    for (int x = mmin.x; x <= mmax.x; ++x)
+        for (int z = mmin.z; z <= mmax.z; ++z)
+            for (int y = mmin.y; y <= mmax.y; ++y) {
+                if (!at(x, y, z)) continue;
+                if (y < mmax.y && at(x, y + 1, z)) continue;   // not a surface
+                bool sky = true;
+                int clear = 0;
+                for (int yy = y + 1; yy <= mmax.y; ++yy) {
+                    if (at(x, yy, z)) { sky = false; break; }
+                    ++clear;
+                }
+                if (!sky && clear < 3) continue;   // a bottle needs ~0.33 u headroom
+                auto it = levels.find(y);
+                if (it == levels.end())
+                    levels[y] = {x, z, x, z, 1};
+                else {
+                    auto& L = it->second;
+                    L[0] = std::min(L[0], x); L[1] = std::min(L[1], z);
+                    L[2] = std::max(L[2], x); L[3] = std::max(L[3], z);
+                    ++L[4];
+                }
+            }
+    // Filter non-surfaces, then merge planes one micro apart (micro-stepped
+    // tops) into the HIGHER row, top-down, cap 4. Filters, each live-derived:
+    //  - extent >= 2 both axes (a leg's foot, a 1-micro panel-top row) — but a
+    //    real shelf is only 2 micro deep once its back panel eats a row, so 3
+    //    was too strict (it emptied the back bar's shelves);
+    //  - FILL >= 60% of the rect (the top RIM RING — panel top + end caps —
+    //    spans the full footprint rect at ~38% fill; placing on its rect
+    //    floated items a micro above the real top shelf);
+    //  - area >= 20 cells.
+    struct Plane { int y; int minX, minZ, maxX, maxZ; };
+    std::vector<Plane> planes;
+    for (auto it = levels.rbegin(); it != levels.rend(); ++it) {
+        const auto& L = it->second;
+        const int ex = L[2] - L[0] + 1, ez = L[3] - L[1] + 1;
+        if (L[4] < 20 || ex < 2 || ez < 2) continue;
+        if (L[4] * 10 < ex * ez * 6) continue;   // fill < 60% -> a ring/frame, not a shelf
+        if (!planes.empty() && planes.back().y - it->first <= 1) {
+            auto& P = planes.back();   // union into the higher step
+            P.minX = std::min(P.minX, L[0]); P.minZ = std::min(P.minZ, L[1]);
+            P.maxX = std::max(P.maxX, L[2]); P.maxZ = std::max(P.maxZ, L[3]);
+            continue;
+        }
+        if (planes.size() >= 4) break;
+        planes.push_back({it->first, L[0], L[1], L[2], L[3]});
     }
+    if (planes.empty()) return out;
 
     // ---- rotate about the SAME pivot spawnTemplateMicro uses (full-AABB mmax) ----
     const int rotSteps = ((rotationDeg % 360) + 360) % 360 / 90;
@@ -466,48 +529,50 @@ std::vector<FurniturePlacer::SurfaceItemSpot> FurniturePlacer::placeSurfaceItems
             default: return p;
         }
     };
-    glm::ivec3 rmin(INT_MAX), rmax(INT_MIN);
-    for (int cx = 0; cx < 2; ++cx) for (int cz = 0; cz < 2; ++cz) {
-        const glm::ivec3 corner(cx ? smax.x : smin.x, smax.y, cz ? smax.z : smin.z);
-        const glm::ivec3 r = rotMicro(corner);
-        rmin = glm::min(rmin, r);  rmax = glm::max(rmax, r);
-    }
 
-    // ---- world-space float rect (units), rim inset, measured top Y ----
-    const float minX = (worldMicro.x + rmin.x) / 9.0f;
-    const float maxX = (worldMicro.x + rmax.x + 1) / 9.0f;
-    const float minZ = (worldMicro.z + rmin.z) / 9.0f;
-    const float maxZ = (worldMicro.z + rmax.z + 1) / 9.0f;
-    const float topY = (worldMicro.y + mmax.y + 1) / 9.0f + 0.01f;
-    const float kRim = 0.20f;   // keep item footprints off the table edge
-    float x0 = minX + kRim, x1 = maxX - kRim, z0 = minZ + kRim, z1 = maxZ - kRim;
-    if (x1 < x0) x0 = x1 = (minX + maxX) * 0.5f;   // narrow top -> center line
-    if (z1 < z0) z0 = z1 = (minZ + maxZ) * 0.5f;
-
-    // ---- seeded jittered grid, one item per cell (>= ~0.45 u spacing) ----
-    const float kPitch = 0.55f;
-    const int cols = std::max(1, (int)std::floor((x1 - x0) / kPitch) + 1);
-    const int rows = std::max(1, (int)std::floor((z1 - z0) / kPitch) + 1);
-    std::vector<glm::vec2> cells;
-    for (int i = 0; i < cols; ++i)
-        for (int j = 0; j < rows; ++j)
-            cells.push_back({cols == 1 ? (x0 + x1) * 0.5f : x0 + (x1 - x0) * i / float(cols - 1),
-                             rows == 1 ? (z0 + z1) * 0.5f : z0 + (z1 - z0) * j / float(rows - 1)});
     unsigned s = seed ? seed : 1u;
     auto rnd = [&]() { s = s * 1664525u + 1013904223u; return s; };
-    for (int i = (int)cells.size() - 1; i > 0; --i)
-        std::swap(cells[i], cells[rnd() % (unsigned)(i + 1)]);
-    const float jit = std::min(0.08f, kPitch * 0.15f);
-    const size_t n = std::min(items.size(), cells.size());   // never overflow the top
-    for (size_t i = 0; i < n; ++i) {
-        SurfaceItemSpot spot;
-        spot.type = items[i];
-        const float jx = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
-        const float jz = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
-        spot.worldPos = glm::vec3(std::min(x1, std::max(x0, cells[i].x + jx)), topY,
-                                  std::min(z1, std::max(z0, cells[i].y + jz)));
-        spot.yawDeg = float(rnd() % 360);
-        out.push_back(spot);
+    for (const auto& pl : planes) {
+        glm::ivec3 rmin(INT_MAX), rmax(INT_MIN);
+        for (int cx = 0; cx < 2; ++cx) for (int cz = 0; cz < 2; ++cz) {
+            const glm::ivec3 corner(cx ? pl.maxX : pl.minX, pl.y, cz ? pl.maxZ : pl.minZ);
+            const glm::ivec3 r = rotMicro(corner);
+            rmin = glm::min(rmin, r);  rmax = glm::max(rmax, r);
+        }
+        // world-space float rect (units), rim inset, measured surface Y
+        const float minX = (worldMicro.x + rmin.x) / 9.0f;
+        const float maxX = (worldMicro.x + rmax.x + 1) / 9.0f;
+        const float minZ = (worldMicro.z + rmin.z) / 9.0f;
+        const float maxZ = (worldMicro.z + rmax.z + 1) / 9.0f;
+        const float topY = (worldMicro.y + pl.y + 1) / 9.0f + 0.01f;
+        const float kRim = 0.20f;   // keep item footprints off the edge
+        float x0 = minX + kRim, x1 = maxX - kRim, z0 = minZ + kRim, z1 = maxZ - kRim;
+        if (x1 < x0) x0 = x1 = (minX + maxX) * 0.5f;   // narrow surface -> center line
+        if (z1 < z0) z0 = z1 = (minZ + maxZ) * 0.5f;
+
+        // seeded jittered grid, one item per cell (>= ~0.45 u spacing)
+        const float kPitch = 0.55f;
+        const int cols = std::max(1, (int)std::floor((x1 - x0) / kPitch) + 1);
+        const int rows = std::max(1, (int)std::floor((z1 - z0) / kPitch) + 1);
+        std::vector<glm::vec2> cells;
+        for (int i = 0; i < cols; ++i)
+            for (int j = 0; j < rows; ++j)
+                cells.push_back({cols == 1 ? (x0 + x1) * 0.5f : x0 + (x1 - x0) * i / float(cols - 1),
+                                 rows == 1 ? (z0 + z1) * 0.5f : z0 + (z1 - z0) * j / float(rows - 1)});
+        for (int i = (int)cells.size() - 1; i > 0; --i)
+            std::swap(cells[i], cells[rnd() % (unsigned)(i + 1)]);
+        const float jit = std::min(0.08f, kPitch * 0.15f);
+        const size_t n = std::min(items.size(), cells.size());   // never overflow the surface
+        for (size_t i = 0; i < n; ++i) {
+            SurfaceItemSpot spot;
+            spot.type = items[i];
+            const float jx = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
+            const float jz = ((rnd() % 1000) / 999.0f - 0.5f) * 2.0f * jit;
+            spot.worldPos = glm::vec3(std::min(x1, std::max(x0, cells[i].x + jx)), topY,
+                                      std::min(z1, std::max(z0, cells[i].y + jz)));
+            spot.yawDeg = float(rnd() % 360);
+            out.push_back(spot);
+        }
     }
     return out;
 }
