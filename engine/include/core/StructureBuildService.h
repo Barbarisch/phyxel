@@ -32,6 +32,7 @@ namespace Core {
 class PlacedObjectManager;
 class LocationRegistry;
 class NPCManager;
+class ItemPropManager;
 struct StructureResult;
 
 class StructureBuildService {
@@ -42,6 +43,8 @@ public:
         ObjectTemplateManager* templates = nullptr;      ///< optional: furniture/signage need it
         LocationRegistry* locations = nullptr;           ///< optional: location auto-registration
         NPCManager* npcs = nullptr;                      ///< optional: navgrid rebuild
+        ItemPropManager* itemProps = nullptr;            ///< optional: surface items become
+                                                         ///< pickable props (else clutter templates)
         /// Optional undo hook (the editor snapshots the region before destructive ops).
         std::function<void(const glm::ivec3& minCorner, const glm::ivec3& maxCorner,
                            const std::string& label)> pushUndo;

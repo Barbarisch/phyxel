@@ -11,8 +11,14 @@ namespace Phyxel {
 namespace Core {
 
 bool RealizedWorldValidator::isClutter(const std::string& t) {
+    // Legacy clutter templates + the surface ITEM PROP ids (2026-08-07): these
+    // legitimately rest ON furniture, so the fixture-overlap scan skips them.
     return t == "mug" || t == "bottle" || t == "plate" || t == "goblet" ||
-           t == "candle" || t == "candlestick";
+           t == "candle" || t == "candlestick" || t == "tankard" ||
+           t == "bottle_wine" || t == "bowl" || t == "jug" ||
+           t == "knife_table" || t == "fork" || t == "spoon" ||
+           t == "frying_pan" || t == "ladle" || t == "oil_lamp" ||
+           t == "tome_leather" || t == "scroll";
 }
 
 bool RealizedWorldValidator::isHearth(const std::string& t) {

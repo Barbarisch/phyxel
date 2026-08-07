@@ -115,10 +115,14 @@ TEST(TavernTypologyTest, TaproomRecipeHasBarAndAssetsResolve) {
     EXPECT_FALSE(FurnitureCatalog::templateFor("tavern_bar").empty()) << "tavern_bar unmapped";
     EXPECT_FALSE(FurnitureCatalog::templateFor("tavern_table").empty()) << "tavern_table unmapped";
     auto fileExists = [](const std::string& name) {
+        // Library taxonomy (2026-08-07): furniture templates live in
+        // category subdirectories under the library root.
         for (const char* d : {"resources/templates/", "../resources/templates/",
                               "../../resources/templates/", "../../../resources/templates/"}) {
-            std::ifstream f(std::string(d) + name + ".voxel");
-            if (f.good()) return true;
+            for (const char* cat : {"furniture/", "architecture/", "items/", ""}) {
+                std::ifstream f(std::string(d) + cat + name + ".voxel");
+                if (f.good()) return true;
+            }
         }
         return false;
     };

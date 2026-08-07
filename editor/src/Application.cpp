@@ -15659,6 +15659,7 @@ void Application::processAPICommands() {
                     deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
                     deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
                     deps.npcs          = npcManager ? &*npcManager : nullptr;
+                    deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
                     deps.pushUndo      = [&](const glm::ivec3& a, const glm::ivec3& b,
                                              const std::string& label) {
                         pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);

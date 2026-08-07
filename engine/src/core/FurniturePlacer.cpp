@@ -342,10 +342,56 @@ bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
         }
         reg[it.key()] = std::move(pieces);
     }
+
+    // Per-purpose SURFACE ITEM sets ("surface_items"): item ids scattered on
+    // table tops as pickable item props (ItemPlacementPlan.md). Optional key.
+    auto& surf = surfaceItemRecipes();
+    surf.clear();
+    if (j.contains("surface_items") && j["surface_items"].is_object()) {
+        for (auto it = j["surface_items"].begin(); it != j["surface_items"].end(); ++it) {
+            if (!it.value().is_array()) continue;
+            std::vector<std::string> items;
+            for (const auto& e : it.value())
+                if (e.is_string()) items.push_back(e.get<std::string>());
+            if (!items.empty()) surf[it.key()] = std::move(items);
+        }
+    }
     return !reg.empty();
 }
 
-void FurniturePlacer::clearRecipes() { dataRecipes().clear(); }
+void FurniturePlacer::clearRecipes() { dataRecipes().clear(); surfaceItemRecipes().clear(); }
+
+std::map<std::string, std::vector<std::string>>& FurniturePlacer::surfaceItemRecipes() {
+    static std::map<std::string, std::vector<std::string>> reg;
+    return reg;
+}
+
+std::vector<std::string> FurniturePlacer::surfaceItemsFor(const std::string& purpose) {
+    const auto& reg = surfaceItemRecipes();
+    // Substring matching like canonicalPurpose: "taproom_main" hits "taproom".
+    for (const auto& [key, items] : reg)
+        if (purpose.find(key) != std::string::npos) return items;
+    // Fallback: the tavern-ish default set — MUST resolve in items.json
+    // (ItemPlacementTest gates every listed id).
+    return {"tankard", "bottle_wine", "plate"};
+}
+
+float FurniturePlacer::templateTopUnits(const VoxelTemplate& tmpl) {
+    float top = 0.0f;
+    for (const auto& c : tmpl.cubes)
+        top = std::max(top, float(c.relativePos.y + 1));
+    for (const auto& s : tmpl.subcubes)
+        top = std::max(top, s.parentRelativePos.y + (s.subcubePos.y + 1) / 3.0f);
+    for (const auto& m : tmpl.microcubes)
+        top = std::max(top, m.parentRelativePos.y + m.subcubePos.y / 3.0f
+                            + (m.microcubePos.y + 1) / 9.0f);
+    if (tmpl.isFineGrid()) {
+        const float cell = 1.0f / float(tmpl.fineGridResolution);
+        for (const auto& v : tmpl.fineVoxels)
+            top = std::max(top, (v.pos.y + 1) * cell);
+    }
+    return top;
+}
 
 std::vector<FurniturePlacement> FurniturePlacer::furnish(
     const ProgStory& story, const glm::ivec3& origin, int floorY,

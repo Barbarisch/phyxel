@@ -25,6 +25,8 @@
 #include "core/AssemblyPlan.h"      // AssemblyPlan (Claims Ledger: furnish from the plan)
 #include "core/BuildingProgram.h"   // ProgStory, ProgRoom, ProgPortal, Rect
 
+namespace Phyxel { class VoxelTemplate; }
+
 namespace Phyxel {
 namespace Core {
 
@@ -167,8 +169,24 @@ public:
     /// Load resources/furnishing_recipes.json (idempotent; safe to call per build). When a
     /// purpose has a data recipe it OVERRIDES the hardcoded map; unknown purposes fall back.
     static bool loadRecipesFromFile(const std::string& path);
+
+    /// Per-purpose SURFACE ITEM set (furnishing_recipes.json "surface_items"):
+    /// item ids scattered on table tops as pickable ITEM PROPS (static-first).
+    /// Falls back to a tavern-ish default for purposes absent from the JSON.
+    /// (docs/structure-generation/ItemPlacementPlan.md)
+    static std::vector<std::string> surfaceItemsFor(const std::string& purpose);
+
+    /// MEASURED top surface of a template in units — the max occupied Y over
+    /// all voxel tiers. Replaces the floor+1-cube clutter guess (a tavern
+    /// table is ~0.78 u tall; the guess floated items 0.22 u above the wood).
+    static float templateTopUnits(const VoxelTemplate& tmpl);
     /// TESTING: drop any loaded data recipes (back to the hardcoded fallback).
     static void clearRecipes();
+
+private:
+    /// Loaded "surface_items" recipes (purpose -> item ids). See surfaceItemsFor.
+    static std::map<std::string, std::vector<std::string>>& surfaceItemRecipes();
+public:
 
     /// Convert a (cube-cell) placement to a MICRO-PRECISE world position (cube*9 + micro) so the piece
     /// sits flush against the wall's interior face and on the walkable surface — never inside the wall

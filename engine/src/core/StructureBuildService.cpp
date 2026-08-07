@@ -18,6 +18,7 @@
 #include "core/LocationRegistry.h"
 #include "core/NPCManager.h"
 #include "core/ObjectTemplateManager.h"
+#include "core/ItemPropManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/RealizedStructureValidator.h"
 #include "core/RoomLayout.h"
@@ -304,6 +305,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
     auto* chunkManager = deps.chunkManager;
     auto* placedObjectManager = deps.placedObjects;
     auto* objectTemplateManager = deps.templates;
+    auto* itemPropManager = deps.itemProps;
     if (!chunkManager) return {{"error", "ChunkManager not available"}};
 
     nlohmann::json response = nlohmann::json::object();
@@ -671,7 +673,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                                + std::to_string(bedIt->second.depth) + ")" : ""));
         }
 
-        int fxSpawned = 0, fxSkipped = 0;
+        int fxSpawned = 0, fxSkipped = 0, itemsSpawned = 0;
         std::vector<UnplacedFixture> unplaced;  // honest: pieces that didn't fit
         nlohmann::json fixturesJson = nlohmann::json::array();
         // Furniture quality B: data recipes (tier-filtered) + the typology's wealth tier.
@@ -776,8 +778,14 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                     }
                 }
             }
-            // Surface clutter: scatter mugs/bottles ON table tops. Deterministic per
-            // table position so a rebuild is stable. Table top ~= floor + 1 cube.
+            // Surface items (ItemPlacementPlan.md, 2026-08-07): scatter PICKABLE
+            // ITEM PROPS on table tops — per-purpose sets from the recipes
+            // ("surface_items"), placed at the table's MEASURED top surface
+            // (template geometry — the old pass guessed floor+1 CUBE and used
+            // baked clutter templates; that path remains the no-ItemPropManager
+            // fallback). Deterministic per table position; props spawn STATIC
+            // (exact pose, zero physics) and are PARENTED to the structure so a
+            // rebuild removes them (no duplicate accumulation).
             for (const auto& pl : placements) {
                 if (pl.type.find("table") == std::string::npos) continue;
                 Footprint fp = fixtureFootprints.count(pl.type)
@@ -786,14 +794,48 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
                 unsigned cseed =
                     (static_cast<unsigned>(pl.worldPos.x) * 73856093u) ^
                     (static_cast<unsigned>(pl.worldPos.z) * 19349663u) ^ 0x9e3779b9u;
-                auto clutter = FurniturePlacer::placeSurfaceClutter(
-                    pl.room, surf, storyFloorY + 1, {"mug", "mug", "bottle"}, cseed);
-                for (const auto& c : clutter) {
-                    std::string ct = FurnitureCatalog::templateFor(c.type);
-                    if (ct.empty()) continue;
-                    if (!placedObjectManager->placeTemplate(
-                            ct, c.worldPos, 0, objectId, /*snap=*/false).empty())
-                        ++fxSpawned;
+
+                if (itemPropManager) {
+                    // MEASURED table-top height: floor surface + template top.
+                    const int surfMicroY2 = (si < surfaceMicroYByStory.size())
+                        ? surfaceMicroYByStory[si] : storyFloorY * 9;
+                    float topUnits = 1.0f;   // conservative fallback
+                    if (objectTemplateManager) {
+                        const std::string tt = FurnitureCatalog::templateFor(pl.type);
+                        if (const auto* ttmpl = objectTemplateManager->getTemplate(tt))
+                            topUnits = FurniturePlacer::templateTopUnits(*ttmpl);
+                    }
+                    const float itemY = surfMicroY2 / 9.0f + topUnits + 0.01f;
+
+                    const auto items = FurniturePlacer::surfaceItemsFor(pl.room);
+                    auto clutter = FurniturePlacer::placeSurfaceClutter(
+                        pl.room, surf, storyFloorY + 1, items, cseed);
+                    for (const auto& c : clutter) {
+                        const glm::vec3 pos(c.worldPos.x + 0.5f, itemY,
+                                            c.worldPos.z + 0.5f);
+                        const float yaw = float(((cseed >> 3) ^ c.worldPos.x
+                                                 ^ c.worldPos.z) % 4) * 90.0f;
+                        std::string pid = itemPropManager->spawnProp(
+                            c.type, pos, yaw, /*snapToGround=*/false,
+                            /*instanceUuid=*/"", glm::vec3(0.0f), /*dynamic=*/false);
+                        if (pid.empty()) { ++fxSkipped; continue; }
+                        placedObjectManager->setParent(pid, objectId);
+                        placedObjectManager->setMetadata(pid, "fixture", {
+                            {"structure", objectId}, {"room", pl.room},
+                            {"kind", "item"}, {"type", c.type}, {"story", (int)si}});
+                        ++itemsSpawned;
+                    }
+                } else {
+                    // Legacy fallback: baked clutter templates at the cube guess.
+                    auto clutter = FurniturePlacer::placeSurfaceClutter(
+                        pl.room, surf, storyFloorY + 1, {"mug", "mug", "bottle"}, cseed);
+                    for (const auto& c : clutter) {
+                        std::string ct = FurnitureCatalog::templateFor(c.type);
+                        if (ct.empty()) continue;
+                        if (!placedObjectManager->placeTemplate(
+                                ct, c.worldPos, 0, objectId, /*snap=*/false).empty())
+                            ++fxSpawned;
+                    }
                 }
             }
         }
@@ -912,6 +954,7 @@ nlohmann::json StructureBuildService::buildV2(const nlohmann::json& params, cons
             }
         }
         response["fixtures_spawned"] = fxSpawned;
+        response["items_spawned"] = itemsSpawned;   // pickable surface props (2026-08-07)
         response["fixtures"] = fixturesJson;   // labeled, addressable
         // Honest reporting: pieces the placer could NOT fit (never a silent drop).
         if (!unplaced.empty()) {

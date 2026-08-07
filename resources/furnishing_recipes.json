@@ -1,77 +1,251 @@
 {
-  "_comment": "Furnishing recipes (furniture quality B) — purpose -> pieces, replacing FurniturePlacer's hardcoded map (which remains the fallback for purposes absent here). `place`: \"wall\" (default; packs along a free wall, facing in) | \"center\" (room centre). `tiers`: which wealth tiers get the piece (absent = every tier); tiers come from the typology's room_program.json `wealth_tier` (croft/longhouse = humble, hall_house/tavern/shops = middling, manor_hall = high). Mount kind (floor/wall/ceiling) is per-TYPE placer data, not recipe data.",
+  "_comment": "Furnishing recipes (furniture quality B) \u00e2\u20ac\u201d purpose -> pieces, replacing FurniturePlacer's hardcoded map (which remains the fallback for purposes absent here). `place`: \"wall\" (default; packs along a free wall, facing in) | \"center\" (room centre). `tiers`: which wealth tiers get the piece (absent = every tier); tiers come from the typology's room_program.json `wealth_tier` (croft/longhouse = humble, hall_house/tavern/shops = middling, manor_hall = high). Mount kind (floor/wall/ceiling) is per-TYPE placer data, not recipe data.",
   "recipes": {
     "taproom": [
-      {"type": "tavern_bar"},
-      {"type": "back_bar"},
-      {"type": "bar_stool"},
-      {"type": "tavern_table", "place": "center"},
-      {"type": "bench"},
-      {"type": "stool"},
-      {"type": "fireplace"},
-      {"type": "candle_stand"},
-      {"type": "wall_lantern", "tiers": ["middling", "high"]},
-      {"type": "chandelier", "tiers": ["middling", "high"]}
+      {
+        "type": "tavern_bar"
+      },
+      {
+        "type": "back_bar"
+      },
+      {
+        "type": "bar_stool"
+      },
+      {
+        "type": "tavern_table",
+        "place": "center"
+      },
+      {
+        "type": "bench"
+      },
+      {
+        "type": "stool"
+      },
+      {
+        "type": "fireplace"
+      },
+      {
+        "type": "candle_stand"
+      },
+      {
+        "type": "wall_lantern",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      },
+      {
+        "type": "chandelier",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      }
     ],
     "kitchen": [
-      {"type": "counter"},
-      {"type": "fireplace"},
-      {"type": "stool"}
+      {
+        "type": "counter"
+      },
+      {
+        "type": "fireplace"
+      },
+      {
+        "type": "stool"
+      }
     ],
     "bedchamber": [
-      {"type": "bed"},
-      {"type": "chest"},
-      {"type": "stool"},
-      {"type": "wardrobe", "tiers": ["middling", "high"]},
-      {"type": "rug", "place": "center", "tiers": ["middling", "high"]},
-      {"type": "wall_lantern", "tiers": ["high"]}
+      {
+        "type": "bed"
+      },
+      {
+        "type": "chest"
+      },
+      {
+        "type": "stool"
+      },
+      {
+        "type": "wardrobe",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      },
+      {
+        "type": "rug",
+        "place": "center",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      },
+      {
+        "type": "wall_lantern",
+        "tiers": [
+          "high"
+        ]
+      }
     ],
     "hall": [
-      {"type": "fireplace"},
-      {"type": "table", "place": "center"},
-      {"type": "bench"},
-      {"type": "chair", "tiers": ["middling", "high"]},
-      {"type": "rug", "tiers": ["high"]},
-      {"type": "chandelier", "tiers": ["high"]}
+      {
+        "type": "fireplace"
+      },
+      {
+        "type": "table",
+        "place": "center"
+      },
+      {
+        "type": "bench"
+      },
+      {
+        "type": "chair",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      },
+      {
+        "type": "rug",
+        "tiers": [
+          "high"
+        ]
+      },
+      {
+        "type": "chandelier",
+        "tiers": [
+          "high"
+        ]
+      }
     ],
     "forge": [
-      {"type": "forge_hearth"},
-      {"type": "anvil", "place": "center"},
-      {"type": "bellows"},
-      {"type": "tool_rack"},
-      {"type": "barrel"}
+      {
+        "type": "forge_hearth"
+      },
+      {
+        "type": "anvil",
+        "place": "center"
+      },
+      {
+        "type": "bellows"
+      },
+      {
+        "type": "tool_rack"
+      },
+      {
+        "type": "barrel"
+      }
     ],
     "bakehouse": [
-      {"type": "oven_bread"},
-      {"type": "counter"},
-      {"type": "barrel"},
-      {"type": "stool"}
+      {
+        "type": "oven_bread"
+      },
+      {
+        "type": "counter"
+      },
+      {
+        "type": "barrel"
+      },
+      {
+        "type": "stool"
+      }
     ],
     "shambles": [
-      {"type": "counter"},
-      {"type": "chopping_block", "place": "center"},
-      {"type": "meat_rail"},
-      {"type": "barrel"}
+      {
+        "type": "counter"
+      },
+      {
+        "type": "chopping_block",
+        "place": "center"
+      },
+      {
+        "type": "meat_rail"
+      },
+      {
+        "type": "barrel"
+      }
     ],
     "dispensary": [
-      {"type": "counter"},
-      {"type": "back_bar"},
-      {"type": "chest"},
-      {"type": "candle_stand"},
-      {"type": "wall_lantern", "tiers": ["middling", "high"]}
+      {
+        "type": "counter"
+      },
+      {
+        "type": "back_bar"
+      },
+      {
+        "type": "chest"
+      },
+      {
+        "type": "candle_stand"
+      },
+      {
+        "type": "wall_lantern",
+        "tiers": [
+          "middling",
+          "high"
+        ]
+      }
     ],
     "salesroom": [
-      {"type": "counter"},
-      {"type": "back_bar"},
-      {"type": "barrel"},
-      {"type": "chest"}
+      {
+        "type": "counter"
+      },
+      {
+        "type": "back_bar"
+      },
+      {
+        "type": "barrel"
+      },
+      {
+        "type": "chest"
+      }
     ],
     "service": [
-      {"type": "barrel"},
-      {"type": "chest"}
+      {
+        "type": "barrel"
+      },
+      {
+        "type": "chest"
+      }
     ],
     "default": [
-      {"type": "chest"}
+      {
+        "type": "chest"
+      }
+    ]
+  },
+  "surface_items": {
+    "_comment": "Purpose -> item ids scattered on TABLE tops as pickable ITEM PROPS (static-first, parented to the structure). Every id must resolve in items.json (ItemPlacementTest gates). Duplicates weight the draw.",
+    "taproom": [
+      "tankard",
+      "tankard",
+      "bottle_wine",
+      "plate",
+      "goblet",
+      "candle"
+    ],
+    "kitchen": [
+      "bowl",
+      "jug",
+      "knife_table",
+      "plate",
+      "frying_pan"
+    ],
+    "bedchamber": [
+      "candle"
+    ],
+    "hall": [
+      "goblet",
+      "plate",
+      "candlestick"
+    ],
+    "study": [
+      "tome_leather",
+      "scroll",
+      "candle"
+    ],
+    "solar": [
+      "tome_leather",
+      "candle",
+      "goblet"
     ]
   }
 }
